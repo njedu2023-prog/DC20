@@ -1,0 +1,35 @@
+# macOS and editor state
+.DS_Store
+.idea/
+.vscode/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.venv/
+venv/
+
+# Coverage and packaging output
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local secrets and runtime-only configuration
+.env
+.env.*
+!.env.example
+
+# Local logs and Pages build output
+*.log
+_site/
+
+# Project data, models, and outputs are intentionally NOT ignored.
+

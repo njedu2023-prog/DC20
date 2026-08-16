@@ -1,4 +1,4 @@
-name: Deploy DC20 Decision Pages
+name: DC2.0 · Deploy Decision Pages
 
 on:
   push:
@@ -16,7 +16,7 @@ on:
   schedule:
     - cron: "30 9 * * 1-5"
     - cron: "30 13 * * 1-5"
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -29,28 +29,212 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
-      - name: Build isolated Decision site
+      - name: Build isolated DC2.0 Decision site
+        id: site
+        env:
+          DC2_SYSTEM_NAME: DC2.0
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p _site/outputs
+          cp decision.html _site/index.html
           cp decision.html _site/decision.html
           cp -R outputs/decision _site/outputs/decision
           touch _site/.nojekyll
 
-      - uses: actions/upload-pages-artifact@v3
+          HEAD_SHA="$(git rev-parse HEAD)"
+          export HEAD_SHA
+
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          index_path = Path("_site/outputs/decision/report_index.json")
+          if not index_path.is_file():
+              raise SystemExit(f"missing report index: {index_path}")
+
+          report_index = json.loads(index_path.read_text(encoding="utf-8"))
+          report_date = str(report_index.get("latest_report_date", "")).strip()
+          report_file = str(report_index.get("latest_report_file", "")).strip()
+          if not report_date or not report_file:
+              raise SystemExit("report_index.json is missing latest_report_date/latest_report_file")
+          if Path(report_file).name != report_file:
+              raise SystemExit(f"latest_report_file must be a basename: {report_file!r}")
+          report_path = index_path.parent / report_file
+          if not report_path.is_file() or report_path.stat().st_size <= 0:
+              raise SystemExit(f"latest report is missing or empty: {report_path}")
+
+          head_sha = os.environ["HEAD_SHA"].strip()
+          if len(head_sha) != 40:
+              raise SystemExit(f"invalid checked-out HEAD SHA: {head_sha!r}")
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          run_id = int(os.environ["GITHUB_RUN_ID"])
+          revision = {
+              "schema_version": "decision_pages_revision_v1",
+              "system_name": os.environ["DC2_SYSTEM_NAME"],
+              "repository": repository,
+              "branch": os.environ.get("GITHUB_REF_NAME", "main"),
+              "head_sha": head_sha,
+              "run_id": run_id,
+              "run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
+              "run_url": f"https://github.com/{repository}/actions/runs/{run_id}",
+              "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+              "event_name": os.environ.get("GITHUB_EVENT_NAME", ""),
+              "report_date": report_date,
+              "report_file": report_file,
+              "report_generated_at_utc": report_index.get("generated_at_utc"),
+              "published_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+          }
+
+          revision_path = Path("_site/revision.json")
+          revision_path.write_text(
+              json.dumps(revision, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          html = Path("_site/index.html").read_text(encoding="utf-8")
+          if "<title>DC2.0 Decision 竞价研究</title>" not in html:
+              raise SystemExit("index.html does not carry the DC2.0 display title")
+          if Path("_site/decision.html").read_bytes() != Path("_site/index.html").read_bytes():
+              raise SystemExit("index.html and decision.html must be identical entry points")
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"head_sha={head_sha}\n")
+              output.write(f"report_date={report_date}\n")
+              output.write(f"report_file={report_file}\n")
+
+          print(json.dumps(revision, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
 
-      - name: Deploy DC20 Pages
+      - name: Deploy DC2.0 Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+      - name: Verify public DC2.0 Pages revision
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
+          EXPECTED_REPORT_DATE: ${{ steps.site.outputs.report_date }}
+          EXPECTED_REPORT_FILE: ${{ steps.site.outputs.report_file }}
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from urllib.parse import urljoin
+          from urllib.request import Request, urlopen
+
+          base_url = os.environ["PAGE_URL"].rstrip("/") + "/"
+          expected_head = os.environ["EXPECTED_HEAD"]
+          expected_report_date = os.environ["EXPECTED_REPORT_DATE"]
+          expected_report_file = os.environ["EXPECTED_REPORT_FILE"]
+          expected_run_id = os.environ["EXPECTED_RUN_ID"]
+          expected_repository = os.environ["EXPECTED_REPOSITORY"]
+          cache_buster = f"?run_id={expected_run_id}"
+
+          def fetch_text(path):
+              request = Request(
+                  urljoin(base_url, path) + cache_buster,
+                  headers={
+                      "Cache-Control": "no-cache",
+                      "User-Agent": "DC2.0-Pages-verifier",
+                  },
+              )
+              with urlopen(request, timeout=20) as response:
+                  if response.status != 200:
+                      raise RuntimeError(f"GET {path!r} returned HTTP {response.status}")
+                  return response.read().decode("utf-8")
+
+          last_error = None
+          for attempt in range(1, 13):
+              try:
+                  root_html = fetch_text("")
+                  decision_html = fetch_text("decision.html")
+                  revision = json.loads(fetch_text("revision.json"))
+                  public_index = json.loads(fetch_text("outputs/decision/report_index.json"))
+                  public_report = fetch_text(f"outputs/decision/{expected_report_file}")
+
+                  if "<title>DC2.0 Decision 竞价研究</title>" not in root_html:
+                      raise RuntimeError("public root does not contain the DC2.0 title")
+                  if root_html != decision_html:
+                      raise RuntimeError("public root and decision.html are not identical")
+                  if revision.get("head_sha") != expected_head:
+                      raise RuntimeError(
+                          f"stale head_sha: {revision.get('head_sha')} != {expected_head}"
+                      )
+                  if str(revision.get("run_id")) != expected_run_id:
+                      raise RuntimeError(
+                          f"stale run_id: {revision.get('run_id')} != {expected_run_id}"
+                      )
+                  if revision.get("repository") != expected_repository:
+                      raise RuntimeError("revision repository does not match this repository")
+                  if revision.get("branch") != "main":
+                      raise RuntimeError("revision branch is not main")
+                  if str(revision.get("report_date")) != expected_report_date:
+                      raise RuntimeError(
+                          "revision report_date does not match the built report index"
+                      )
+                  if str(revision.get("report_file")) != expected_report_file:
+                      raise RuntimeError(
+                          "revision report_file does not match the built report index"
+                      )
+                  if str(public_index.get("latest_report_date")) != expected_report_date:
+                      raise RuntimeError(
+                          "public report_index latest_report_date does not match revision.json"
+                      )
+                  if str(public_index.get("latest_report_file")) != expected_report_file:
+                      raise RuntimeError(
+                          "public report_index latest_report_file does not match revision.json"
+                      )
+                  if not public_report.strip():
+                      raise RuntimeError("public latest report is empty")
+
+                  print(
+                      json.dumps(
+                          {
+                              "status": "ok",
+                              "page_url": base_url,
+                              "head_sha": expected_head,
+                              "run_id": expected_run_id,
+                              "report_date": expected_report_date,
+                              "report_file": expected_report_file,
+                          },
+                          ensure_ascii=False,
+                          sort_keys=True,
+                      )
+                  )
+                  break
+              except Exception as exc:
+                  last_error = exc
+                  print(f"attempt {attempt}/12: {exc}")
+                  if attempt < 12:
+                      time.sleep(10)
+          else:
+              raise SystemExit(f"Pages verification failed: {last_error}")
+          PY

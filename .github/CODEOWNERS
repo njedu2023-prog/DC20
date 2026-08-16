@@ -1,0 +1,13 @@
+# Default owner for every repository path.
+* @njedu2023-prog
+
+# Operational and release-sensitive surfaces.
+/.github/workflows/ @njedu2023-prog
+/.github/dependabot.yml @njedu2023-prog
+/decision.html @njedu2023-prog
+/requirements* @njedu2023-prog
+
+# Frozen-model and executable-decision contracts.
+/models/decision_model_freeze.json @njedu2023-prog
+/src/top10decision/decision/model_freeze.py @njedu2023-prog
+/src/top10decision/decision/trade_selector.py @njedu2023-prog
