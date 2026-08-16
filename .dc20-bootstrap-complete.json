@@ -1,0 +1,18 @@
+{
+  "schema_version": "dc20_decision_migration_v1",
+  "source_repository": "njedu2023-prog/top10-decision",
+  "source_commit": "8741bfabf73cf9c64e3b6808b3529457474349e2",
+  "target_repository": "njedu2023-prog/DC20",
+  "source_file_count": 791,
+  "target_file_count": 797,
+  "decision_bytes": 254584888,
+  "premium_included": false,
+  "split_source_files": [
+    "data/auction_v3/history/tplus1_open_0930_v1/training_20240624_20260715.csv"
+  ],
+  "regenerated_outputs_not_copied": [
+    "outputs/auction_v3/metrics/backtest_gate_audit_latest.csv",
+    "outputs/auction_v3/metrics/training_history_latest.csv"
+  ],
+  "copy_method": "GitHub Git Data API with incremental trees; no SSH and no git push"
+}

@@ -1,0 +1,41 @@
+{
+  "status": "ok",
+  "generated_at_utc": "2026-08-15T15:52:01+00:00",
+  "frozen_predictions": 1548,
+  "selected_predictions": 0,
+  "verified_trades": 0,
+  "pending_or_no_fill": 0,
+  "official_auction_truth_trades": 0,
+  "minute_proxy_trades": 0,
+  "daily_open_proxy_trades": 0,
+  "fill_rate": null,
+  "price_guidance_accuracy": null,
+  "win_rate": null,
+  "realized_big_loss_rate": null,
+  "big_loss_avoidance_rate": null,
+  "mean_actual_net_return": null,
+  "cumulative_trade_return": null,
+  "profit_factor": null,
+  "forecast_mae": null,
+  "direction_accuracy": null,
+  "risk_prediction_accuracy": null,
+  "correct_rejection_rate": 0.5720221607,
+  "missed_opportunity_rate": 0.4265927978,
+  "rolling_trade_windows": {
+    "20": {
+      "trades": 0,
+      "mean_net_return": null,
+      "win_rate": null
+    },
+    "60": {
+      "trades": 0,
+      "mean_net_return": null,
+      "win_rate": null
+    },
+    "120": {
+      "trades": 0,
+      "mean_net_return": null,
+      "win_rate": null
+    }
+  }
+}

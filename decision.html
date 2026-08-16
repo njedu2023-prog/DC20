@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Decision 竞价决策</title>
+  <style>
+    :root {
+      --bg: #f4f6f7;
+      --surface: #ffffff;
+      --surface-soft: #f8faf9;
+      --ink: #18211f;
+      --muted: #65716e;
+      --line: #dce3e0;
+      --line-strong: #c8d1ce;
+      --brand: #116b5a;
+      --brand-soft: #e8f4f0;
+      --good: #167248;
+      --good-soft: #e8f5ee;
+      --up: #b42318;
+      --up-soft: #fff0ee;
+      --down: #167248;
+      --down-soft: #e8f5ee;
+      --warn: #986300;
+      --warn-soft: #fff5d9;
+      --bad: #b42318;
+      --bad-soft: #fff0ee;
+      --blue: #245f9a;
+      --shadow: 0 1px 2px rgba(24, 33, 31, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+    button, input, select { font: inherit; letter-spacing: 0; }
+    button:focus-visible, summary:focus-visible { outline: 3px solid rgba(36, 95, 154, 0.28); outline-offset: 2px; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: #172421;
+      color: #fff;
+      border-bottom: 1px solid #0e1816;
+    }
+    .topbar-inner {
+      max-width: 1580px;
+      margin: 0 auto;
+      min-height: 74px;
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .brand { min-width: 0; }
+    .brand h1 { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 720; }
+    .brand p { margin: 5px 0 0; color: #b9c8c4; font-size: 12px; line-height: 1.4; }
+    .brand-dates { margin-left: 0; color: #fff; font-weight: 650; white-space: nowrap; }
+    .controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border: 1px solid #3d504b;
+      border-radius: 6px;
+      background: #22332f;
+      color: #fff;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      font-size: 20px;
+      line-height: 1;
+    }
+    .icon-btn:hover { background: #2c403b; }
+    .icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+    main { max-width: 1580px; margin: 0 auto; padding: 18px 22px 34px; }
+    .status-band {
+      border: 1px solid var(--line-strong);
+      border-left: 5px solid var(--brand);
+      border-radius: 6px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+    }
+    .status-band.good { border-left-color: var(--good); background: var(--good-soft); }
+    .status-band.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+    .status-band.bad { border-left-color: var(--bad); background: var(--bad-soft); }
+    .status-kicker { margin: 0 0 4px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .status-title { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+    .date-contract {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(144px, 1fr));
+      gap: 10px;
+    }
+    .date-box {
+      min-width: 0;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 11px 12px;
+    }
+    .date-box span {
+      display: flex;
+      align-items: center;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 720;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+    .date-box span b {
+      display: inline-grid;
+      place-items: center;
+      min-width: 31px;
+      min-height: 22px;
+      margin-right: 7px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .date-box strong {
+      display: block;
+      margin-top: 7px;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(130px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      min-height: 82px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      overflow: hidden;
+    }
+    .metric span { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .metric strong { display: block; margin-top: 8px; font-size: 19px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .metric strong.good { color: var(--good); }
+    .metric strong.bad { color: var(--bad); }
+    .metric strong.warn { color: var(--warn); }
+
+    .metrics-disclosure {
+      margin-bottom: 14px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .metrics-disclosure summary {
+      min-height: 46px;
+      padding: 11px 16px;
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 680;
+    }
+    .metrics-disclosure summary::-webkit-details-marker { display: none; }
+    .metrics-disclosure summary::before,
+    .industry-disclosure summary::before {
+      content: "+";
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--brand);
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 750;
+      line-height: 1;
+    }
+    .metrics-disclosure[open] summary::before,
+    .industry-disclosure[open] summary::before { content: "−"; }
+    .metrics-disclosure summary:hover::before,
+    .industry-disclosure summary:hover::before { background: var(--brand-soft); }
+    .metrics-disclosure-title { margin-right: auto; }
+    .metrics-disclosure .metrics { margin: 0; padding: 0 16px 14px; }
+
+    .panel {
+      margin-bottom: 14px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .panel-head {
+      min-height: 52px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel-head h2 { margin: 0; font-size: 16px; line-height: 1.3; }
+    #stageSignalDate { color: var(--muted); font-weight: 400; }
+    .stage-generated-time {
+      margin-left: 8px;
+      color: #8b9592;
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+    .panel-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .empty {
+      margin: 0 16px 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface-soft);
+      padding: 14px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .empty strong { display: block; margin-bottom: 4px; color: var(--ink); }
+
+    .table-wrap { width: 100%; overflow: auto; border-top: 1px solid var(--line); }
+    table { border-collapse: collapse; width: 100%; min-width: 1380px; font-size: 12px; }
+    table.top10-backtest-table { min-width: 1040px; table-layout: fixed; font-size: 11px; }
+    table.top10-backtest-table th,
+    table.top10-backtest-table td { padding: 7px 6px; }
+    table.top10-backtest-table th:first-child,
+    table.top10-backtest-table td:first-child { width: 156px; }
+    .shadow-summary {
+      margin: 0;
+      padding: 0 16px 14px;
+    }
+    .shadow-subhead {
+      min-height: 44px;
+      padding: 11px 16px 8px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .shadow-subhead h3 { margin: 0; font-size: 13px; line-height: 1.35; }
+    .shadow-subhead span { color: var(--muted); font-size: 10px; line-height: 1.4; text-align: right; }
+    table.shadow-comparison-table { min-width: 1060px; table-layout: fixed; font-size: 11px; }
+    table.shadow-audit-table { min-width: 1160px; table-layout: fixed; font-size: 11px; }
+    table.shadow-forward-table { min-width: 1120px; table-layout: fixed; font-size: 11px; }
+    table.shadow-comparison-table th,
+    table.shadow-comparison-table td,
+    table.shadow-audit-table th,
+    table.shadow-audit-table td,
+    table.shadow-forward-table th,
+    table.shadow-forward-table td { height: 36px; padding: 7px 6px; }
+    table.shadow-comparison-table th:first-child,
+    table.shadow-comparison-table td:first-child,
+    table.shadow-audit-table th:first-child,
+    table.shadow-audit-table td:first-child { width: 142px; }
+    .verdict-badge,
+    .sample-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 23px;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-weight: 680;
+      white-space: nowrap;
+    }
+    .verdict-badge.warn { color: var(--warn); border-color: #ddc47f; background: var(--warn-soft); }
+    .verdict-badge.bad { color: var(--bad); border-color: #e4aaa4; background: var(--bad-soft); }
+    .sample-badge.ready { color: var(--good); border-color: #8cc6a8; background: var(--good-soft); }
+    .sample-badge.insufficient { color: var(--muted); }
+    .shadow-empty { margin-top: 0; }
+    .diagnostic-disclosure summary {
+      min-height: 50px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .diagnostic-disclosure summary::before {
+      content: "+";
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--brand);
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 750;
+      line-height: 1;
+    }
+    .diagnostic-disclosure[open] summary::before { content: "−"; }
+    .diagnostic-disclosure summary:hover::before { background: var(--brand-soft); }
+    .diagnostic-title { margin-right: auto; }
+    .diagnostic-title strong { display: block; font-size: 15px; line-height: 1.3; }
+    table.path-diagnostic-table { min-width: 760px; table-layout: fixed; font-size: 11px; }
+    table.path-diagnostic-table th,
+    table.path-diagnostic-table td { height: 36px; padding: 7px 8px; }
+    table.path-diagnostic-table th:first-child,
+    table.path-diagnostic-table td:first-child { width: 132px; }
+    table.stage-table { min-width: 1720px; }
+    table.stage-table th, table.stage-table td { height: 38px; padding: 6px 7px; }
+    th, td { height: 42px; padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+    th { position: sticky; top: 0; z-index: 4; background: #f2f5f4; color: #52605c; font-weight: 680; }
+    th.left, td.left { text-align: left; }
+    td.name { font-weight: 650; }
+    tr:hover td { background: #f8fbfa; }
+    .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 68px;
+      min-height: 25px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .action.buy { color: var(--good); border-color: #8cc6a8; background: var(--good-soft); }
+    .action.reject { color: var(--bad); border-color: #e4aaa4; background: var(--bad-soft); }
+    .action.shadow, .action.pending { color: var(--warn); border-color: #ddc47f; background: var(--warn-soft); }
+    .positive { color: var(--up); font-weight: 650; }
+    .negative { color: var(--down); font-weight: 650; }
+    .truth-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .truth-badge.final { color: var(--good); border-color: #8cc6a8; background: var(--good-soft); }
+    .truth-badge.pending { color: var(--warn); border-color: #ddc47f; background: var(--warn-soft); }
+    .truth-badge.no-fill { color: var(--muted); }
+    .panel-metrics { padding: 0 16px; margin-bottom: 16px; }
+    .sentiment-industries {
+      margin: -2px 16px 14px;
+      border-top: 1px solid var(--line);
+      line-height: 1.5;
+    }
+    .industry-disclosure summary {
+      min-height: 44px;
+      padding: 10px 0;
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 680;
+      color: var(--ink);
+    }
+    .industry-disclosure summary::-webkit-details-marker { display: none; }
+    .industry-disclosure-title { margin-right: auto; }
+    .industry-summary-meta {
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+    .industry-disclosure-body { padding-bottom: 2px; }
+    .market-breadth-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .market-breadth-day {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface-soft);
+      padding: 9px 11px;
+    }
+    .market-breadth-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+    .market-breadth-head strong { font-size: 12px; }
+    .market-breadth-head span {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .market-breadth-stats {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      flex-wrap: wrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .market-breadth-stats b { font-size: 14px; }
+    .breadth-pair {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 13px;
+    }
+    .market-breadth-stats small {
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .breadth-up { color: var(--up); }
+    .breadth-down { color: var(--down); }
+    .breadth-flat { color: var(--muted); }
+    .breadth-limit { color: var(--ink); }
+    .market-breadth-pending {
+      min-height: 25px;
+      display: flex;
+      align-items: center;
+      color: var(--warn);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .industry-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    table.industry-table { min-width: 520px; font-size: 12px; }
+    table.industry-table th,
+    table.industry-table td { height: 34px; padding: 6px 10px; }
+    table.industry-table th:first-child,
+    table.industry-table td:first-child { width: 56px; text-align: center; }
+    table.industry-table th:nth-child(2),
+    table.industry-table td:nth-child(2) { text-align: left; }
+    table.industry-table th:nth-child(3),
+    table.industry-table th:nth-child(4),
+    table.industry-table td:nth-child(3),
+    table.industry-table td:nth-child(4) { text-align: center; }
+    table.industry-table td:nth-child(3) { color: var(--up); font-weight: 700; }
+    table.industry-table td:nth-child(4) { font-weight: 700; }
+    .industry-table-date {
+      display: block;
+      margin-top: 1px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 550;
+    }
+    .industry-waiting {
+      color: var(--warn);
+      font-size: 10px;
+      font-weight: 650;
+    }
+    .industry-method-note {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.55;
+    }
+    .stats-note { margin: 0 16px 16px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .reason { max-width: 300px; white-space: normal; line-height: 1.45; color: var(--muted); text-align: left; }
+
+    .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 16px; }
+    .audit-block { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--surface-soft); min-width: 0; }
+    .audit-block h3 { margin: 0 0 9px; font-size: 13px; }
+    .audit-list { display: grid; gap: 7px; }
+    .audit-row { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: start; gap: 10px; font-size: 12px; }
+    .audit-row span { color: var(--muted); }
+    .audit-row strong { text-align: left; overflow-wrap: anywhere; }
+    .fail-list { margin: 0; padding-left: 18px; color: var(--bad); line-height: 1.7; }
+
+    details.panel { padding: 0; }
+    details.panel summary { list-style: none; cursor: pointer; padding: 15px 16px; font-size: 15px; font-weight: 680; }
+    details.panel summary::-webkit-details-marker { display: none; }
+    details.panel summary::before { content: "＋"; display: inline-block; width: 20px; color: var(--brand); }
+    details.panel[open] summary::before { content: "−"; }
+    details.top10-backtest-panel > summary.panel-head {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 16px;
+      font-size: inherit;
+      font-weight: inherit;
+      justify-content: flex-start;
+    }
+    details.top10-backtest-panel > summary.panel-head::-webkit-details-marker { display: none; }
+    details.top10-backtest-panel > summary.panel-head::before {
+      content: "+";
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--brand);
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 750;
+      line-height: 1;
+    }
+    details.top10-backtest-panel[open] > summary.panel-head::before { content: "−"; }
+    details.top10-backtest-panel > summary.panel-head:hover::before { background: var(--brand-soft); }
+    details.top10-backtest-panel > summary.panel-head > div { min-width: 0; margin-right: auto; }
+    details.top10-backtest-panel[open] > summary.panel-head { border-bottom: 1px solid var(--line); }
+    details.observation-disclosure > summary.panel-head {
+      padding: 12px 16px;
+      font-size: inherit;
+      font-weight: inherit;
+      justify-content: flex-start;
+    }
+    details.observation-disclosure > summary.panel-head > div { min-width: 0; margin-right: auto; }
+    details.observation-disclosure[open] > summary.panel-head { border-bottom: 1px solid var(--line); }
+    details.panel > summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .metrics-disclosure > summary::before,
+    .industry-disclosure > summary::before,
+    details.panel > summary::before,
+    details.top10-backtest-panel > summary.panel-head::before {
+      content: "";
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 50%;
+      background-color: #111715;
+      background-image:
+        linear-gradient(#fff, #fff),
+        linear-gradient(#fff, #fff);
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 10px 1.5px, 1.5px 10px;
+      box-shadow: none;
+      color: #fff;
+      flex: 0 0 24px;
+      display: inline-block;
+      padding: 0;
+      line-height: 1;
+      vertical-align: middle;
+    }
+    .metrics-disclosure[open] > summary::before,
+    .industry-disclosure[open] > summary::before,
+    details.panel[open] > summary::before,
+    details.top10-backtest-panel[open] > summary.panel-head::before {
+      content: "";
+      background-image: linear-gradient(#fff, #fff);
+      background-size: 10px 1.5px;
+    }
+    .metrics-disclosure > summary:hover::before,
+    .industry-disclosure > summary:hover::before,
+    details.panel > summary:hover::before,
+    details.top10-backtest-panel > summary.panel-head:hover::before {
+      background:
+        linear-gradient(#fff, #fff) center / 10px 1.5px no-repeat,
+        linear-gradient(#fff, #fff) center / 1.5px 10px no-repeat,
+        #28312e;
+    }
+    .metrics-disclosure[open] > summary:hover::before,
+    .industry-disclosure[open] > summary:hover::before,
+    details.panel[open] > summary:hover::before,
+    details.top10-backtest-panel[open] > summary.panel-head:hover::before {
+      background:
+        linear-gradient(#fff, #fff) center / 10px 1.5px no-repeat,
+        #28312e;
+    }
+    .report-body { border-top: 1px solid var(--line); padding: 16px; }
+    .report-meta { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .report-meta div { border: 1px solid var(--line); border-radius: 6px; padding: 9px; background: var(--surface-soft); }
+    .report-meta span { display: block; color: var(--muted); font-size: 11px; }
+    .report-meta strong { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+    .md-section { margin-top: 16px; }
+    .md-section h3 { font-size: 14px; margin: 0 0 8px; }
+    .md-section table { min-width: 900px; }
+    pre {
+      margin: 0;
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f7f9f8;
+      padding: 12px;
+      color: #34413e;
+      font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    footer { padding: 4px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+
+    @media (max-width: 1100px) {
+      .metrics { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+      .status-band { grid-template-columns: 1fr; }
+      .date-contract { grid-template-columns: repeat(3, minmax(144px, 1fr)); }
+      .audit-grid { grid-template-columns: 1fr; }
+      .report-meta { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .topbar-inner {
+        position: relative;
+        min-height: 88px;
+        padding: 10px 12px;
+        align-items: flex-start;
+      }
+      .brand { width: 100%; padding-right: 132px; }
+      .brand h1 { font-size: 18px; }
+      .brand p {
+        position: absolute;
+        right: 12px;
+        bottom: 10px;
+        left: 12px;
+        margin: 0;
+        font-size: 9px;
+        line-height: 1.2;
+      }
+      .brand-dates { display: block; margin-left: 0; }
+      .controls {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+      }
+      .icon-btn { width: 38px; height: 38px; }
+      main { padding: 12px 0 26px; }
+      .status-band { margin: 0 12px 10px; padding: 13px; }
+      .status-title { font-size: 16px; }
+      .date-contract { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); padding: 0 12px; }
+      .metrics-disclosure summary { padding: 11px 12px; }
+      .metrics-disclosure .metrics { padding: 0 12px 12px; }
+      .metric { min-height: 76px; }
+      .metric strong { font-size: 17px; }
+      .panel-head { padding: 11px 12px; }
+      .shadow-summary { padding: 0 12px 12px; }
+      .shadow-subhead { padding: 10px 12px 7px; align-items: flex-start; }
+      .shadow-subhead span { max-width: 48%; }
+      .empty { margin: 0 12px 12px; }
+      .panel-metrics { padding: 0 12px; }
+      .sentiment-industries { margin: -2px 12px 12px; }
+      .market-breadth-grid { grid-template-columns: 1fr; }
+      table.industry-table {
+        min-width: 100%;
+        table-layout: fixed;
+        font-size: 11px;
+      }
+      table.industry-table th,
+      table.industry-table td { padding: 5px 4px; }
+      table.industry-table th:first-child,
+      table.industry-table td:first-child { width: 40px; }
+      table.industry-table th:nth-child(3),
+      table.industry-table td:nth-child(3) { width: 64px; }
+      table.industry-table th:nth-child(4),
+      table.industry-table td:nth-child(4) { width: 64px; }
+      .stats-note { margin: 0 12px 12px; }
+      .audit-grid, .report-body { padding: 0 12px 12px; }
+      .report-meta { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 360px) {
+      .brand { padding-right: 116px; }
+      .brand h1 { font-size: 16px; }
+      .controls { gap: 6px; }
+      .icon-btn { width: 34px; height: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Decision 竞价决策</h1>
+        <p id="brandDates" class="brand-dates">D:- · T:- · T+1:-</p>
+      </div>
+      <nav class="controls" aria-label="报告导航">
+        <button id="prevBtn" class="icon-btn" type="button" title="上一份历史报告" aria-label="上一份历史报告">←</button>
+        <button id="refreshBtn" class="icon-btn" type="button" title="手动刷新" aria-label="手动刷新">↻</button>
+        <button id="nextBtn" class="icon-btn" type="button" title="下一份报告" aria-label="下一份报告">→</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="statusBand" class="status-band warn">
+      <div>
+        <p class="status-kicker">执行结论</p>
+        <h2 id="statusTitle" class="status-title">正在加载</h2>
+      </div>
+      <div class="date-contract">
+        <div class="date-box"><span><b>D</b>信号日</span><strong id="signalDate">-</strong></div>
+        <div class="date-box"><span><b>T</b>竞价买入日</span><strong id="execDate">-</strong></div>
+        <div class="date-box"><span><b>T+1</b>退出日</span><strong id="exitDate">-</strong></div>
+      </div>
+    </section>
+
+    <details class="panel top10-backtest-panel">
+      <summary class="panel-head">
+        <div>
+          <h2>二筛影子 · 前向累计验证</h2>
+        </div>
+        <span id="top10BacktestCount" class="count">待计算</span>
+      </summary>
+      <div id="top10BacktestContent"></div>
+      <p id="top10BacktestNote" class="stats-note"></p>
+    </details>
+
+    <details class="metrics-disclosure">
+      <summary>
+        <span class="metrics-disclosure-title">核心指标</span>
+        <span id="metricsCount" class="count">0 项</span>
+      </summary>
+      <section id="metrics" class="metrics" aria-label="核心指标"></section>
+    </details>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>市场情绪量化</h2>
+        </div>
+        <span id="sentimentState" class="count">数据不足</span>
+      </div>
+      <div id="sentimentMetrics" class="metrics panel-metrics"></div>
+      <div id="sentimentIndustries" class="sentiment-industries"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>2→3→4 · <span id="stageSignalDate">D：-</span><span id="stageGeneratedTime" class="stage-generated-time"></span></h2>
+        </div>
+        <span id="stageCount" class="count">0 条</span>
+      </div>
+      <div id="stageContent"></div>
+    </section>
+
+    <details class="panel observation-disclosure">
+      <summary class="panel-head">
+        <div>
+          <h2>观察真值与累计统计</h2>
+        </div>
+        <span id="observationUpdate" class="count">待验证</span>
+      </summary>
+      <div id="observationMetrics" class="metrics panel-metrics"></div>
+      <p id="observationNote" class="stats-note"></p>
+    </details>
+
+    <details class="panel diagnostic-disclosure">
+      <summary>
+        <span class="diagnostic-title">
+          <strong>连板路径 · 小样本诊断</strong>
+        </span>
+        <span id="pathDiagnosticsCount" class="count">待统计</span>
+      </summary>
+      <div id="pathDiagnosticsContent"></div>
+      <p id="pathDiagnosticsNote" class="stats-note"></p>
+    </details>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>人工操作参考</h2>
+        </div>
+        <span id="candidateCount" class="count">0 条</span>
+      </div>
+      <div id="actionContent"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>模型与资格审计</h2>
+          <p>正式状态由严格滚动样本外结果、成本压力测试、退出可执行性和证券资格共同决定。</p>
+        </div>
+      </div>
+      <div id="auditContent" class="audit-grid"></div>
+    </section>
+
+    <details class="panel">
+      <summary>Decision 报告正文</summary>
+      <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
+    </details>
+
+    <footer id="footer">本页面不自动刷新，不连接券商，不执行订单。研究结果不构成收益保证；没有通过晋级门槛时，系统会明确输出不交易。</footer>
+  </main>
+
+  <script>
+    "use strict";
+
+    const REPO = { owner: "njedu2023-prog", name: "top10-decision", branch: "main" };
+    const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
+    const CACHE_KEY = "decision-dashboard-v11-open0930-cache";
+    const els = Object.fromEntries([
+      "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusTitle", "brandDates",
+      "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "candidateCount", "actionContent", "auditContent", "reportContent", "footer"
+    ].map(id => [id, document.getElementById(id)]));
+
+    const state = { reports: [], index: 0, current: null };
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function localUrl(path) {
+      if (location.protocol === "file:") return RAW_BASE + path;
+      return new URL(path, location.href).href;
+    }
+
+    async function fetchPath(path, kind = "json") {
+      const primary = localUrl(path);
+      const urls = primary === RAW_BASE + path ? [primary] : [primary, RAW_BASE + path];
+      let lastError = null;
+      for (const url of urls) {
+        try {
+          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return kind === "text" ? await response.text() : await response.json();
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error(`无法读取 ${path}`);
+    }
+
+    function finiteNumber(value) {
+      if (value == null || value === "") return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function pct(value, digits = 2) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "-" : `${(parsed * 100).toFixed(digits)}%`;
+    }
+
+    function signedPct(value, digits = 2) {
+      const parsed = finiteNumber(value);
+      if (parsed == null) return "-";
+      const prefix = parsed > 0 ? "+" : "";
+      const arrow = parsed > 0 ? " ↑" : parsed < 0 ? " ↓" : "";
+      return `${prefix}${(parsed * 100).toFixed(digits)}%${arrow}`;
+    }
+
+    function signedScoreDelta(value, digits = 1) {
+      const parsed = finiteNumber(value);
+      if (parsed == null) return "-";
+      const prefix = parsed > 0 ? "+" : "";
+      const arrow = parsed > 0 ? " ↑" : parsed < 0 ? " ↓" : "";
+      return `${prefix}${(parsed * 100).toFixed(digits)}分${arrow}`;
+    }
+
+    function signedPercentValue(value, digits = 2) {
+      const parsed = finiteNumber(value);
+      if (parsed == null) return "-";
+      return `${parsed > 0 ? "+" : ""}${parsed.toFixed(digits)}%`;
+    }
+
+    function price(value) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "-" : parsed.toFixed(2);
+    }
+
+    function number(value, digits = 2) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "-" : parsed.toFixed(digits);
+    }
+
+    function dateText(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+      return digits.length === 8 ? `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}` : "-";
+    }
+
+    function beijingDateTimeText(value) {
+      if (!value) return "";
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return "";
+      const parts = Object.fromEntries(new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(parsed).map(part => [part.type, part.value]));
+      return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+    }
+
+    function integerText(value) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "-" : Math.trunc(parsed).toLocaleString("zh-CN");
+    }
+
+    function plainIntegerText(value) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "-" : String(Math.trunc(parsed));
+    }
+
+    function modelDisplayName(value) {
+      const text = String(value || "");
+      if (text.startsWith("auction_v12_")) return "V12 · Top10独立交易二筛";
+      if (text.startsWith("auction_v11_")) return "V11 · T+1 09:30退出 · 全候选回测";
+      if (text.startsWith("auction_v10_")) return "V10 · 15%止盈 / 5%止损 / 11:00退出";
+      if (text.startsWith("auction_v9_")) return "V9 · 嵌套时序策略与影子验证";
+      if (text.startsWith("auction_v8_")) return "V8 · 严格校准与竞价真值";
+      if (text.startsWith("auction_v7_")) return "V7 · 市场情绪消融";
+      if (text.startsWith("auction_v6_")) return "V6 · 连板路径";
+      return text || "-";
+    }
+
+    function metric(label, value, tone = "") {
+      return `<div class="metric"><span>${escapeHtml(label)}</span><strong class="${tone}">${escapeHtml(value)}</strong></div>`;
+    }
+
+    function marketBreadthCard(day, snapshot) {
+      const available = snapshot?.available === true;
+      const date = dateText(snapshot?.trade_date);
+      if (!available) {
+        const pending = day === "T"
+          ? snapshot?.maturity_status === "INCOMPLETE_T_CLOSE"
+            ? "收盘数据校验中"
+            : "收盘后更新"
+          : "收盘数据暂缺";
+        return `<div class="market-breadth-day">
+          <div class="market-breadth-head"><strong>${day}日全A股</strong><span>${date}</span></div>
+          <div class="market-breadth-pending">${pending}</div>
+        </div>`;
+      }
+      return `<div class="market-breadth-day">
+        <div class="market-breadth-head"><strong>${day}日全A股</strong><span>${date}</span></div>
+        <div class="market-breadth-stats">
+          <span class="breadth-pair">
+            <b class="breadth-up">↑ ${plainIntegerText(snapshot.up_count)}</b>
+            <b class="breadth-down">↓ ${plainIntegerText(snapshot.down_count)}</b>
+          </span>
+          <b class="breadth-flat">平 ${plainIntegerText(snapshot.flat_count)}</b>
+          <b class="breadth-limit">涨停 ${plainIntegerText(snapshot.limit_up_count)}</b>
+        </div>
+      </div>`;
+    }
+
+    function actionLabel(action) {
+      return ({ BUY: "买入", REJECT: "放弃", WATCH: "观察", SHADOW_ONLY: "影子验证", PENDING: "等待" })[action] || action || "-";
+    }
+
+    function actionClass(action) {
+      if (action === "BUY") return "buy";
+      if (action === "REJECT") return "reject";
+      if (action === "SHADOW_ONLY") return "shadow";
+      return "pending";
+    }
+
+    function valueTone(value) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "" : parsed > 0 ? "positive" : parsed < 0 ? "negative" : "";
+    }
+
+    function continuationLabel(value) {
+      const parsed = finiteNumber(value);
+      return parsed == null ? "待验证" : parsed === 1 ? "晋级涨停" : "未晋级";
+    }
+
+    function truthClass(status) {
+      const value = String(status || "");
+      if (value === "FINAL_VERIFIED") return "final";
+      if (value === "FINAL_NO_FILL" || value === "T_VERIFIED_NO_FILL") return "no-fill";
+      return "pending";
+    }
+
+    function timingClass(status) {
+      if (status === "PREMARKET_VALID") return "final";
+      if (status === "RETROSPECTIVE_LATE_GENERATION") return "no-fill";
+      return "pending";
+    }
+
+    function pathClass(code) {
+      if (["WEAK_TO_STRONG", "ACCELERATION_CONSENSUS", "STABLE_STRONG"].includes(code)) return "final";
+      if (code === "STRONG_TO_WEAK") return "no-fill";
+      return "pending";
+    }
+
+    function renderStatus(plan) {
+      const status = String(plan?.status_code || "PENDING_AUCTION_MODEL");
+      const tone = status === "ACTIONABLE_BUY" ? "good" : status.startsWith("NO_TRADE") ? "bad" : "warn";
+      els.statusBand.className = `status-band ${tone}`;
+      els.statusTitle.textContent = plan?.status_label || "行动计划尚未生成";
+      els.brandDates.textContent = `D:${dateText(plan?.signal_date)} · T:${dateText(plan?.exec_date)} · T+1:${dateText(plan?.exit_date)}`;
+      els.signalDate.textContent = dateText(plan?.signal_date);
+      els.execDate.textContent = dateText(plan?.exec_date);
+      els.exitDate.textContent = dateText(plan?.exit_date);
+      const generatedTime = beijingDateTimeText(plan?.generated_at_utc);
+      els.stageSignalDate.textContent = `D：${dateText(plan?.signal_date)}`;
+      els.stageGeneratedTime.textContent = generatedTime ? `数据生成时间 ${generatedTime}` : "";
+    }
+
+    function renderMetrics(plan) {
+      const stats = plan?.observation_statistics || {};
+      const forward = stats?.forward_shadow || {};
+      const promoted = plan?.model?.promoted === true;
+      const sentiment = plan?.market_sentiment || {};
+      const sentimentScore = finiteNumber(sentiment.score);
+      const sentimentRegime = sentiment.regime_label || "数据不足";
+      const sentimentRegimeCode = String(sentiment.regime_code || "INSUFFICIENT");
+      const sentimentTone = ["EXPANSION", "EUPHORIA"].includes(sentimentRegimeCode)
+        ? "positive"
+        : ["ICE", "EBB"].includes(sentimentRegimeCode)
+          ? "negative"
+          : "warn";
+      const liveStartDate = "20260721";
+      const shadowStartDate = forward.start_signal_date || "20260728";
+      const premarketRows = Number(stats.premarket_valid_rows || 0);
+      const premarketValidatedRows = Number(stats.premarket_validated_rows || 0);
+      const pendingTRows = Math.max(0, premarketRows - premarketValidatedRows);
+      const forwardFinalTrades = Number(forward.final_verified_trades || 0);
+      const forwardMinimumTrades = Number(forward.minimum_final_trades || 20);
+      const forwardSampleReady = forward.sample_sufficient === true
+        || forwardFinalTrades >= forwardMinimumTrades;
+      const rows = [
+        metric("正式模型状态", promoted ? "已晋级" : "未晋级", promoted ? "good" : "bad"),
+        metric("正式人工建议数", String(plan?.formal_buy_count || 0), plan?.formal_buy_count ? "good" : "warn"),
+        metric("风险预算", number(plan?.risk_budget, 2)),
+        metric("市场情绪", sentimentScore == null ? sentimentRegime : `${sentimentRegime} · ${(sentimentScore * 100).toFixed(1)}分`, sentimentTone),
+        metric("模型版本", modelDisplayName(plan?.model?.version)),
+        metric("实际统计起点", `D ${dateText(liveStartDate)}`),
+        metric("样本口径", "9:25前冻结"),
+        metric("冻结预测样本", integerText(premarketRows)),
+        metric("T日已验证", integerText(premarketValidatedRows)),
+        metric("T日待验证", integerText(pendingTRows), pendingTRows > 0 ? "warn" : ""),
+        metric("T+1已完成", integerText(stats.final_verified_trades)),
+        metric("T+1已完成交易日", integerText(stats.matured_portfolio_dates)),
+        metric("开盘代理成交率", pct(stats.observation_fill_rate)),
+        metric("开盘价≤限价", pct(stats.display_limit_met_rate)),
+        metric("开盘超限样本", integerText(stats.above_display_limit_rows)),
+        metric("平均开盘较限价", signedPct(stats.mean_open_vs_display_limit), valueTone(stats.mean_open_vs_display_limit)),
+        metric("T日上涨率", pct(stats.market_positive_rate)),
+        metric("T日平均收盘涨跌", signedPct(stats.mean_market_daily_return), valueTone(stats.mean_market_daily_return)),
+        metric("T日平均观察收益", signedPct(stats.mean_t_observation_return), valueTone(stats.mean_t_observation_return)),
+        metric("T日晋级率", pct(stats.continuation_hit_rate)),
+        metric("2→3晋级率", pct(stats?.stage_2_to_3?.hit_rate)),
+        metric("3→4晋级率", pct(stats?.stage_3_to_4?.hit_rate)),
+        metric(
+          stats?.top1_continuation?.start_signal_date
+            ? `Top1晋级率（D${String(stats.top1_continuation.start_signal_date).slice(4)}起）`
+            : "Top1晋级率",
+          pct(stats?.top1_continuation?.hit_rate)
+        ),
+        metric("Top3晋级率", pct(stats?.top3_continuation?.hit_rate)),
+        metric("T+1胜率", pct(stats.final_win_rate)),
+        metric("T+1平均净收益", signedPct(stats.mean_final_net_return), valueTone(stats.mean_final_net_return)),
+        metric("T+1中位净收益", signedPct(stats.median_final_net_return), valueTone(stats.median_final_net_return)),
+        metric("盈亏因子", number(stats.profit_factor, 2)),
+        metric("尾部10%平均收益", signedPct(stats.tail_10pct_mean_return), valueTone(stats.tail_10pct_mean_return)),
+        metric("最差单笔净收益", signedPct(stats.worst_final_net_return), valueTone(stats.worst_final_net_return)),
+        metric("等权累计收益", signedPct(stats.equal_slot_cumulative_return), valueTone(stats.equal_slot_cumulative_return)),
+        metric("等权最大回撤", signedPct(stats.equal_slot_max_drawdown), valueTone(stats.equal_slot_max_drawdown)),
+        metric("二筛统计起点", `D ${dateText(shadowStartDate)}`),
+        metric("二筛影子入选", integerText(forward.shadow_entries)),
+        metric("二筛T+1完成", integerText(forwardFinalTrades)),
+        metric("二筛平均净收益", signedPct(forward.mean_final_net_return), valueTone(forward.mean_final_net_return)),
+        metric("二筛胜率", pct(forward.final_win_rate)),
+        metric(
+          "二筛样本状态",
+          forwardSampleReady
+            ? `${forwardFinalTrades}/${forwardMinimumTrades} · 已达观察门槛`
+            : `${forwardFinalTrades}/${forwardMinimumTrades} · 累计中`,
+          forwardSampleReady ? "good" : "warn"
+        )
+      ];
+      els.metrics.innerHTML = rows.join("");
+      els.metricsCount.textContent = `D 0721起 · ${rows.length} 项`;
+    }
+
+    function renderTop10Backtest(plan) {
+      const stats = plan?.observation_statistics?.forward_shadow || {};
+      const rows = Array.isArray(stats?.rows) ? stats.rows : [];
+      const observedDates = Number(stats?.observed_signal_dates || 0);
+      const shadowDates = Number(stats?.shadow_signal_dates || 0);
+      const shadowEntries = Number(stats?.shadow_entries || 0);
+      const finalTrades = Number(stats?.final_verified_trades || 0);
+      const pendingEntries = Number(stats?.pending_t_entries || 0)
+        + Number(stats?.pending_t1_entries || 0);
+      const noFillEntries = Math.max(
+        0,
+        Number(stats?.finalized_entries || 0) - finalTrades
+      );
+      const minimumFinalTrades = Number(stats?.minimum_final_trades || 20);
+      const startSignalDate = dateText(stats?.start_signal_date || "20260728");
+      const forwardRows = rows.map(row => `<tr>
+        <td>${dateText(row?.signal_date)} / ${dateText(row?.expected_buy_date)}</td>
+        <td>${escapeHtml(row?.trade_rank || "-")}</td>
+        <td class="left"><strong>${escapeHtml(row?.name || "-")}</strong> · ${escapeHtml(row?.ts_code || "-")}</td>
+        <td>${escapeHtml(row?.stage_transition || "-")}</td>
+        <td class="left">${escapeHtml(row?.path_label || "路径数据不足")}</td>
+        <td>${price(row?.actual_open_price)}</td>
+        <td>${price(row?.actual_t_close)}</td>
+        <td class="${valueTone(row?.observation_t_return)}">${signedPct(row?.observation_t_return)}</td>
+        <td class="${finiteNumber(row?.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row?.continuation_limit_up_hit))}</td>
+        <td class="${valueTone(row?.actual_net_return)}">${signedPct(row?.actual_net_return)}</td>
+        <td><span class="truth-badge ${truthClass(row?.validation_status)}">${escapeHtml(row?.validation_status_label || "待验证")}</span></td>
+      </tr>`).join("");
+      const summary = [
+        metric("累计D日", integerText(observedDates)),
+        metric("影子入选日", `${integerText(shadowDates)} / ${integerText(observedDates)} · ${pct(stats?.shadow_signal_rate)}`),
+        metric("影子入选", `${integerText(shadowEntries)} 笔`),
+        metric("T+1已完成", `${integerText(finalTrades)} 笔`, finalTrades ? "good" : "warn"),
+        metric("待验证", `${integerText(pendingEntries)} 笔`, pendingEntries ? "warn" : ""),
+        metric("最终无成交", `${integerText(noFillEntries)} 笔`),
+        metric("平均净收益", signedPct(stats?.mean_final_net_return), valueTone(stats?.mean_final_net_return)),
+        metric("胜率", pct(stats?.final_win_rate)),
+        metric("盈亏因子", number(stats?.profit_factor, 2)),
+        metric("等权累计收益", signedPct(stats?.equal_slot_cumulative_return), valueTone(stats?.equal_slot_cumulative_return)),
+        metric("最大回撤", signedPct(stats?.equal_slot_max_drawdown), valueTone(stats?.equal_slot_max_drawdown)),
+        metric("晋级率", pct(stats?.continuation_hit_rate)),
+        metric("最长连续空仓", `${integerText(stats?.longest_no_signal_streak || 0)} 日`),
+        metric(
+          "样本状态",
+          stats?.sample_sufficient === true ? "已达观察门槛" : `${integerText(finalTrades)} / ${integerText(minimumFinalTrades)} · 样本不足`,
+          stats?.sample_sufficient === true ? "good" : "warn"
+        )
+      ].join("");
+      els.top10BacktestContent.innerHTML = `
+        <div class="metrics shadow-summary">${summary}</div>
+        <div class="shadow-subhead">
+          <h3>每日影子记录</h3>
+          <span>D ${startSignalDate} 起 · 待验证不进入收益</span>
+        </div>
+        ${forwardRows
+          ? `<div class="table-wrap"><table class="shadow-forward-table">
+              <thead><tr><th>D / T</th><th>二筛排名</th><th class="left">股票</th><th>晋级</th><th class="left">路径</th><th>T开盘</th><th>T收盘</th><th>T收益</th><th>T晋级</th><th>T+1净收益</th><th>状态</th></tr></thead>
+              <tbody>${forwardRows}</tbody>
+            </table></div>`
+          : '<div class="empty shadow-empty"><strong>0728起尚无二筛影子记录</strong>二筛允许一天0只，不会为了凑数量降低门槛。</div>'}`;
+      els.top10BacktestCount.textContent = `D 0728起 · ${integerText(shadowEntries)}笔 / ${integerText(finalTrades)}笔已完成`;
+      els.top10BacktestNote.textContent = `只累计D=${startSignalDate}以后9:25前冻结的二筛影子；待验证不进入收益，历史样本外回测不计入本窗口。`;
+    }
+
+    function renderSentiment(plan) {
+      const sentiment = plan?.market_sentiment || {};
+      const comparison = plan?.market_close_comparison || {};
+      const dClose = comparison?.d || {};
+      const tClose = comparison?.t || {};
+      const score = finiteNumber(sentiment.score);
+      const regime = sentiment.regime_label || "数据不足";
+      const regimeCode = String(sentiment.regime_code || "INSUFFICIENT");
+      const stateTone = ["EXPANSION", "EUPHORIA"].includes(regimeCode)
+        ? "positive"
+        : ["ICE", "EBB"].includes(regimeCode)
+          ? "negative"
+          : "warn";
+      els.sentimentState.innerHTML = `<span class="${stateTone}">${escapeHtml(regime)}${score == null ? "" : ` · ${(score * 100).toFixed(1)}分`}</span>`;
+      const rows = [
+        metric("情绪综合分", score == null ? "-" : `${(score * 100).toFixed(1)} / 100`, stateTone),
+        metric("情绪分变化", signedScoreDelta(sentiment.delta), valueTone(sentiment.delta)),
+        metric("因子覆盖率", pct(sentiment.coverage)),
+        metric("10%机制样本", String(sentiment.eligible_stock_count ?? "-")),
+        metric("市场上涨率", pct(sentiment.up_ratio)),
+        metric("市场等权涨跌", signedPct(sentiment.equal_weight_return), valueTone(sentiment.equal_weight_return)),
+        metric("涨停 / 跌停", `${sentiment.limit_up_count ?? "-"} / ${sentiment.limit_down_count ?? "-"}`),
+        metric("触板 / 炸板", `${sentiment.touched_up_count ?? "-"} / ${sentiment.failed_limit_up_count ?? "-"}`),
+        metric("炸板率", pct(sentiment.failed_limit_up_rate), Number(sentiment.failed_limit_up_rate) > 0.5 ? "bad" : ""),
+        metric("回封率", pct(sentiment.reseal_rate)),
+        metric("昨日涨停平均涨跌", signedPct(sentiment.previous_limit_up_mean_return), valueTone(sentiment.previous_limit_up_mean_return)),
+        metric("昨日涨停红盘率", pct(sentiment.previous_limit_up_positive_rate)),
+        metric("2进3真实晋级", `${pct(sentiment.promotion_2_to_3_rate)} · ${sentiment.promotion_2_to_3_samples ?? 0}样本`),
+        metric("3进4真实晋级", `${pct(sentiment.promotion_3_to_4_rate)} · ${sentiment.promotion_3_to_4_samples ?? 0}样本`),
+        metric("最高连板", sentiment.max_streak == null ? "-" : `${sentiment.max_streak}板`),
+        metric("成交额 / 5日均值", sentiment.amount_ratio_5d == null ? "-" : `${number(sentiment.amount_ratio_5d, 2)}倍`),
+        metric("行业集中度 HHI", number(sentiment.industry_concentration, 3)),
+        metric("涨停成交额Top3占比", pct(sentiment.limit_up_amount_top3_share))
+      ];
+      els.sentimentMetrics.innerHTML = rows.join("");
+      const hasCloseComparison = comparison?.scope === "all_a_share_daily_close";
+      const fallbackIndustrySource = Array.isArray(sentiment.limit_up_industry_top10)
+        ? sentiment.limit_up_industry_top10
+        : Array.isArray(sentiment.limit_up_industry_top5)
+          ? sentiment.limit_up_industry_top5
+          : [];
+      const industrySource = hasCloseComparison
+        ? (Array.isArray(dClose.industry_top10) ? dClose.industry_top10 : [])
+        : fallbackIndustrySource;
+      const industryLeaders = industrySource.slice(0, 10);
+      const tAvailable = tClose?.available === true;
+      const tIndustryCounts = tAvailable && tClose?.industry_counts && typeof tClose.industry_counts === "object"
+        ? tClose.industry_counts
+        : {};
+      const industryRows = industryLeaders
+        .map((item, index) => {
+          const industry = String(item?.industry || "").trim();
+          const count = Math.trunc(Number(item?.limit_up_count));
+          if (!industry || !Number.isFinite(count) || count <= 0) return "";
+          const tCount = finiteNumber(tIndustryCounts[industry]);
+          const tCell = tAvailable
+            ? integerText(tCount == null ? 0 : tCount)
+            : '<span class="industry-waiting">待收盘</span>';
+          return `<tr><td>${index + 1}</td><td>${escapeHtml(industry)}</td><td>${integerText(count)}</td><td>${tCell}</td></tr>`;
+        })
+        .filter(Boolean)
+        .join("");
+      const dDate = dateText(dClose.trade_date || sentiment.signal_date || plan?.signal_date);
+      const tDate = dateText(tClose.trade_date || plan?.exec_date);
+      const dLimitTotal = finiteNumber(dClose.limit_up_count) ?? finiteNumber(sentiment.limit_up_count);
+      const tLimitTotal = tAvailable ? finiteNumber(tClose.limit_up_count) : null;
+      const summaryMeta = `D ${integerText(dLimitTotal)} · T ${tAvailable ? integerText(tLimitTotal) : "待收盘"}`;
+      els.sentimentIndustries.innerHTML = `<details class="industry-disclosure">
+        <summary>
+          <span class="industry-disclosure-title">行业板块 · 涨停 Top10</span>
+          <span class="industry-summary-meta">${summaryMeta}</span>
+        </summary>
+        <div class="industry-disclosure-body">
+          <div class="market-breadth-grid">
+            ${marketBreadthCard("D", dClose)}
+            ${marketBreadthCard("T", tClose)}
+          </div>
+          ${industryRows
+            ? `<div class="industry-table-wrap"><table class="industry-table"><thead><tr>
+                <th>排名</th>
+                <th>行业板块</th>
+                <th>D 涨停<span class="industry-table-date">${dDate}</span></th>
+                <th>T 涨停<span class="industry-table-date">${tDate}</span></th>
+              </tr></thead><tbody>${industryRows}</tbody></table></div>`
+            : '<div class="empty">暂无有效行业分类</div>'}
+          <p class="industry-method-note">全量口径为当日有收盘涨跌数据的A股；行业按D日涨停家数排序。T列仅在完整收盘快照达到D日股票覆盖的90%后更新，不参与D日模型。</p>
+        </div>
+      </details>`;
+    }
+
+    function renderStageWatchlist(plan) {
+      const rows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
+      const displayRows = [...rows].sort((left, right) => {
+        const leftPromotionRank = finiteNumber(left?.promotion_rank);
+        const rightPromotionRank = finiteNumber(right?.promotion_rank);
+        const leftRank = leftPromotionRank != null && leftPromotionRank > 0
+          ? leftPromotionRank
+          : Number.POSITIVE_INFINITY;
+        const rightRank = rightPromotionRank != null && rightPromotionRank > 0
+          ? rightPromotionRank
+          : Number.POSITIVE_INFINITY;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        const leftObservationRank = finiteNumber(left?.stage_watch_rank) ?? Number.POSITIVE_INFINITY;
+        const rightObservationRank = finiteNumber(right?.stage_watch_rank) ?? Number.POSITIVE_INFINITY;
+        return leftObservationRank - rightObservationRank;
+      });
+      const total = Number(plan?.stage_watch_eligible_count ?? rows.length);
+      const limit = Number(plan?.stage_watch_display_limit ?? 10);
+      els.stageCount.textContent = `共 ${total} 只，仅展示前 ${Math.min(limit, rows.length)} 只`;
+      if (!rows.length) {
+        els.stageContent.innerHTML = '<div class="empty"><strong>当前没有2进3或3进4候选</strong>D日确认涨停池中没有对应连板阶段。</div>';
+        return;
+      }
+      const headers = [
+        "观察排名", "晋级排名", "交易排名", "状态", "样本性质", "代码", "股票", "行业板块", "晋级", "连板路径", "路径变化", "限价",
+        "T开盘", "开盘较限价", "T收盘", "T观察收益", "T晋级结果", "T+1验证状态",
+        "T+1净收益", "晋级概率", "大跌概率", "结论"
+      ];
+      const body = displayRows.map(row => `<tr>
+        <td>${escapeHtml(row.stage_watch_rank ?? "-")}</td>
+        <td><span class="truth-badge">${escapeHtml(row.promotion_rank || "-")}</span></td>
+        <td><span class="truth-badge">${escapeHtml(row.trade_rank || "-")}</span></td>
+        <td class="left"><span class="action ${row.action === "BUY" ? "buy" : "pending"}">${escapeHtml(row.watch_label || "仅观察")}</span></td>
+        <td><span class="truth-badge ${timingClass(row.prediction_timing_status)}">${escapeHtml(row.prediction_timing_label || "待审计")}</span></td>
+        <td class="left">${escapeHtml(row.ts_code || "-")}</td>
+        <td class="left name">${escapeHtml(row.name || "-")}</td>
+        <td class="left">${escapeHtml(row.industry || "未分类")}</td>
+        <td>${escapeHtml(row.stage_transition || "-")}</td>
+        <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
+        <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
+        <td title="${escapeHtml(row.observation_price_basis || "观察价格契约")}">${price(row.observation_max_price)}</td>
+        <td>${price(row.actual_open_price)}</td>
+        <td class="${valueTone(row.observation_price_vs_cap)}">${signedPct(row.observation_price_vs_cap)}</td>
+        <td class="${valueTone(row.market_daily_return)}">${signedPct(row.market_daily_return)}</td>
+        <td class="${valueTone(row.observation_t_return)}">${signedPct(row.observation_t_return)}</td>
+        <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
+        <td><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></td>
+        <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
+        <td title="${Number(row.promotion_probability_quality_ready) === 1 ? "独立晋级概率已通过样本外校准门" : "独立晋级排序可用；精确概率未通过校准门，显示原模型概率"}">${pct(Number(row.promotion_probability_quality_ready) === 1 ? row.predicted_promotion_probability : row.predicted_continuation_limit_up_probability)}</td>
+        <td>${pct(row.predicted_big_loss_probability)}</td>
+        <td class="reason">${row.action === "BUY" ? "允许买入" : "禁止买入"}</td>
+      </tr>`).join("");
+      els.stageContent.innerHTML = `<div class="table-wrap"><table class="stage-table"><thead><tr>${headers.map((h, i) => `<th class="${[3,5,6,7,9,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+
+    function renderObservationStatistics(plan) {
+      const stats = plan?.observation_statistics || {};
+      const current = plan?.observation_validation || {};
+      const stage23 = stats.stage_2_to_3 || {};
+      const stage34 = stats.stage_3_to_4 || {};
+      const top1 = stats.top1_continuation || {};
+      const top3 = stats.top3_continuation || {};
+      const allTruth = stats.all_truth_summary || {};
+      const truthRows = Number(stats.t_validated_rows || 0);
+      const officialAuctionRows = Number(stats.official_auction_truth_rows || 0);
+      const rows = [
+        metric("累计观察交易日", String(stats.observation_dates ?? "-")),
+        metric("T日已验证", `${stats.t_validated_rows ?? 0}/${stats.observation_rows ?? 0}`),
+        metric("9:25前时序合格", String(stats.premarket_validated_rows ?? 0), "good"),
+        metric("真实竞价真值", String(officialAuctionRows), officialAuctionRows ? "good" : "warn"),
+        metric("真实竞价覆盖率", truthRows ? pct(officialAuctionRows / truthRows) : "-", officialAuctionRows === truthRows && truthRows ? "good" : "warn"),
+        metric("分钟 / 日开盘代理", `${stats.minute_proxy_truth_rows ?? 0} / ${stats.daily_open_proxy_truth_rows ?? 0}`),
+        metric("开盘价代理覆盖率", pct(stats.observation_fill_rate)),
+        metric("开盘价≤参考限价", pct(stats.display_limit_met_rate)),
+        metric("开盘超限样本", String(stats.above_display_limit_rows ?? 0)),
+        metric("平均开盘较限价", signedPct(stats.mean_open_vs_display_limit), valueTone(stats.mean_open_vs_display_limit)),
+        metric("观察样本上涨占比", pct(stats.market_positive_rate)),
+        metric("观察样本平均涨跌", signedPct(stats.mean_market_daily_return), valueTone(stats.mean_market_daily_return)),
+        metric("T日平均观察收益", signedPct(stats.mean_t_observation_return), valueTone(stats.mean_t_observation_return)),
+        metric("2进3命中率", pct(stage23.hit_rate)),
+        metric("3进4命中率", pct(stage34.hit_rate)),
+        metric("Top1晋级命中率", pct(top1.hit_rate)),
+        metric("Top3晋级命中率", pct(top3.hit_rate)),
+        metric("正式样本T+1完成", String(stats.final_verified_trades ?? 0)),
+        metric("正式样本T+1胜率", pct(stats.final_win_rate)),
+        metric("正式样本平均净收益", signedPct(stats.mean_final_net_return), valueTone(stats.mean_final_net_return)),
+        metric("成熟组合交易日", String(stats.matured_portfolio_dates ?? 0)),
+        metric("全部回补T+1笔数", String(allTruth.final_verified_trades ?? 0)),
+        metric("全部回补平均净收益", signedPct(allTruth.mean_final_net_return), valueTone(allTruth.mean_final_net_return)),
+        metric("等权槽位累计收益", signedPct(stats.equal_slot_cumulative_return), valueTone(stats.equal_slot_cumulative_return)),
+        metric("等权槽位最大回撤", signedPct(stats.equal_slot_max_drawdown), valueTone(stats.equal_slot_max_drawdown)),
+        metric("最差单笔净收益", signedPct(stats.worst_final_net_return), valueTone(stats.worst_final_net_return)),
+        metric("尾部10%平均收益", signedPct(stats.tail_10pct_mean_return), valueTone(stats.tail_10pct_mean_return)),
+        metric("盈亏比", number(stats.profit_factor, 2))
+      ];
+      els.observationMetrics.innerHTML = rows.join("");
+      const generated = current.generated_at_utc ? new Date(current.generated_at_utc).toLocaleString("zh-CN") : "尚未生成";
+      const retrospective = Number(current.retrospective_rows || 0);
+      const currentRows = Number(current.rows || 0);
+      const currentTValidated = Number(current.t_validated_rows || 0);
+      const currentFinal = Number(current.final_rows || 0);
+      const currentPending = Number(current.pending_rows || 0);
+      els.observationUpdate.textContent = `${dateText(current.exec_date)} · T ${currentTValidated}/${currentRows}${currentFinal ? ` · T+1最终 ${currentFinal}` : ""}${currentPending ? ` · T+1待 ${currentPending}` : ""}${retrospective ? ` · 回溯 ${retrospective}` : ""}`;
+      const window20 = stats?.trading_date_windows?.["20"] || {};
+      const window60 = stats?.trading_date_windows?.["60"] || {};
+      els.observationNote.textContent = `数据更新时间：${generated}。全部真值从 ${dateText(stats.validation_start_exec_date || "20260721")} 起回补；核心命中率和收益只统计T日9:25前已冻结样本，未成交按空仓0收益计入等权槽位组合。真实竞价真值优先使用 Tushare stk_auction_o，缺失时才使用分钟或日开盘代理。20日累计 ${signedPct(window20.equal_slot_cumulative_return)}，60日累计 ${signedPct(window60.equal_slot_cumulative_return)}。公开行情代理与人工实际成交分开，不把人工回填混入模型晋级。`;
+    }
+
+    function renderPathDiagnostics(plan) {
+      const pathPerformance = plan?.observation_statistics?.path_performance || {};
+      const entries = Object.entries(pathPerformance)
+        .sort(([, left], [, right]) => Number(right?.t_validated_rows || 0) - Number(left?.t_validated_rows || 0));
+      const minimumSamples = 20;
+      if (!entries.length) {
+        els.pathDiagnosticsCount.textContent = "0 条";
+        els.pathDiagnosticsContent.innerHTML = '<div class="empty"><strong>暂无路径真值</strong>等待T日与T+1验证累计。</div>';
+        els.pathDiagnosticsNote.textContent = "";
+        return;
+      }
+      const readyCount = entries.filter(([, item]) =>
+        Number(item?.t_validated_rows || 0) >= minimumSamples &&
+        Number(item?.final_verified_trades || 0) >= minimumSamples
+      ).length;
+      const rows = entries.map(([code, item]) => {
+        const tSamples = Number(item?.t_validated_rows || 0);
+        const finalSamples = Number(item?.final_verified_trades || 0);
+        const sufficient = tSamples >= minimumSamples && finalSamples >= minimumSamples;
+        const returnTone = sufficient ? valueTone(item?.mean_final_net_return) : "";
+        return `<tr>
+          <td class="left"><strong>${escapeHtml(item?.label || code)}</strong></td>
+          <td>${integerText(tSamples)}</td>
+          <td>${pct(item?.continuation_hit_rate)}</td>
+          <td>${integerText(finalSamples)}</td>
+          <td class="${returnTone}">${signedPct(item?.mean_final_net_return)}</td>
+          <td>${pct(item?.win_rate)}</td>
+          <td><span class="sample-badge ${sufficient ? "ready" : "insufficient"}">${sufficient ? "可观察" : "样本不足"}</span></td>
+        </tr>`;
+      }).join("");
+      els.pathDiagnosticsCount.textContent = `${entries.length} 条路径 · ${readyCount} 条可观察`;
+      els.pathDiagnosticsContent.innerHTML = `<div class="table-wrap"><table class="path-diagnostic-table">
+        <thead><tr><th class="left">连板路径</th><th>T验证样本</th><th>晋级率</th><th>T+1完成</th><th>平均净收益</th><th>胜率</th><th>样本判断</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+      els.pathDiagnosticsNote.textContent = `路径结果是诊断分组，不是独立交易策略。任一路径少于 ${minimumSamples} 笔时，收益与胜率仅展示原始事实，不着色、不参与交易结论；达到门槛也只代表可以开始观察，不能替代严格样本外检验。`;
+    }
+
+    function renderActions(plan) {
+      const rows = Array.isArray(plan?.candidates) ? plan.candidates : [];
+      els.candidateCount.textContent = `${rows.length} 条`;
+      if (!rows.length) {
+        els.actionContent.innerHTML = '<div class="empty"><strong>当前没有可展示候选</strong>行动计划尚未生成，或资格过滤后候选池为空。</div>';
+        return;
+      }
+      const formal = rows.filter(row => row.action === "BUY");
+      const notice = formal.length
+        ? `<div class="empty"><strong>本次正式人工建议 ${formal.length} 只</strong>请在 9:25 前仅用限价单按冻结上限自行挂单；禁止无上限市价单，超过上限或未成交均放弃。</div>`
+        : '<div class="empty"><strong>本次没有正式买入建议</strong>影子验证只用于累计样本外证据；未晋级模型不得作为人工交易依据。</div>';
+      const headers = ["操作", "排名", "代码", "股票", "行业板块", "晋级", "连板路径", "路径变化", "同梯队", "近20日晋级率", "竞价上限", "最高涨幅", "T+1卖出", "P_fill", "P_exit", "晋级涨停概率", "盈利概率", "预计净收益", "保守下界", "大跌概率", "目标仓位", "原因 / 退出规则"];
+      const body = rows.map(row => {
+        const reason = row.action === "BUY" ? (row.exit_rule || "T+1日9:30开盘集合竞价退出") : (row.rejection_reason || "-");
+        return `<tr>
+          <td class="left"><span class="action ${actionClass(row.action)}">${escapeHtml(actionLabel(row.action))}</span></td>
+          <td>${escapeHtml(row.rank ?? "-")}</td>
+          <td class="left">${escapeHtml(row.ts_code || "-")}</td>
+          <td class="left name">${escapeHtml(row.name || "-")}</td>
+          <td class="left">${escapeHtml(row.industry || "未分类")}</td>
+          <td>${escapeHtml(row.stage_transition || "-")}</td>
+          <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
+          <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
+          <td>${escapeHtml(row.stage_pool_size ?? "-")}</td>
+          <td title="最近20个可用信号日，同一晋级阶段的历史真值">${pct(row.stage_recent_promotion_rate)}</td>
+          <td>${price(row.recommended_max_price)}</td>
+          <td>${finiteNumber(row.max_auction_change_pct) == null ? "-" : `${finiteNumber(row.max_auction_change_pct).toFixed(2)}%`}</td>
+          <td>${escapeHtml(row.latest_exit_time || "09:30")}</td>
+          <td>${pct(row.predicted_fill_probability)}</td>
+          <td>${pct(row.predicted_exit_probability)}</td>
+          <td title="${Number(row.promotion_probability_quality_ready) === 1 ? "独立晋级概率已通过样本外校准门" : "精确概率未通过校准门，显示原模型概率"}">${pct(Number(row.promotion_probability_quality_ready) === 1 ? row.predicted_promotion_probability : row.predicted_continuation_limit_up_probability)}</td>
+          <td>${pct(row.predicted_profit_probability)}</td>
+          <td class="${valueTone(row.predicted_net_return)}">${pct(row.predicted_net_return)}</td>
+          <td class="${valueTone(row.predicted_return_lcb)}">${pct(row.predicted_return_lcb)}</td>
+          <td>${pct(row.predicted_big_loss_probability)}</td>
+          <td>${pct(row.target_weight)}</td>
+          <td class="reason">${escapeHtml(reason)}</td>
+        </tr>`;
+      }).join("");
+      els.actionContent.innerHTML = `${notice}<div class="table-wrap"><table><thead><tr>${headers.map((h, i) => `<th class="${[0,2,3,4,6,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+
+    function auditRow(label, value) {
+      return `<div class="audit-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value == null || value === "" ? "-" : value)}</strong></div>`;
+    }
+
+    function probabilityAudit(label, selection) {
+      const item = selection || {};
+      const selected = item.selected || "constant";
+      const method = item.calibration_method || "constant";
+      const bss = finiteNumber(item.brier_skill_score);
+      const ece = finiteNumber(item.expected_calibration_error);
+      const daily = finiteNumber(item.daily_baseline_win_rate);
+      const gain = item.model_has_information_gain === true ? "通过" : "回退";
+      return auditRow(
+        label,
+        `${gain} · ${selected}/${method} · BSS ${bss == null ? "-" : bss.toFixed(4)} · ECE ${ece == null ? "-" : ece.toFixed(4)} · 逐日胜率 ${daily == null ? "-" : pct(daily)}`
+      );
+    }
+
+    function renderAudit(plan) {
+      const model = plan?.model || {};
+      const universe = plan?.universe_eligibility || {};
+      const failures = Array.isArray(model.promotion_failures) ? model.promotion_failures : [];
+      const contract = plan?.execution_contract || {};
+      const ablation = model?.continuation_path_ablation || {};
+      const probabilityModels = model?.probability_models || {};
+      const probabilityGate = model?.probability_quality_gate || {};
+      const selectionPolicy = model?.selection_policy || {};
+      const policyThresholds = selectionPolicy?.thresholds || {};
+      const policyDiagnostics = selectionPolicy?.diagnostics || {};
+      const returnSelection = model?.return_selection || {};
+      const conformal = model?.conformal_residual_quantiles || {};
+      const globalConformal = conformal.global || {};
+      const coverage = model?.data_coverage || {};
+      const backtest = plan?.backtest || {};
+      const truthLedgers = model?.truth_ledgers || {};
+      const formalLedger = truthLedgers.formal_limit_proxy || {};
+      const observationLedger = truthLedgers.market_open_observation || {};
+      const manualLedger = truthLedgers.manual_actual || {};
+      const officialCoverage = finiteNumber(coverage.official_auction_truth_coverage);
+      const returnImprovement = finiteNumber(returnSelection.relative_rmse_improvement);
+      const returnDailyWin = finiteNumber(returnSelection.daily_baseline_win_rate);
+      const pathAblation = typeof ablation.path_selected !== "boolean"
+        ? "等待新模型生成"
+        : ablation.path_selected === true
+          ? `路径特征通过消融，Brier ${number(ablation.streak_path_and_cohort_brier, 4)}`
+          : `路径特征未优于基线，自动回退；Brier ${number(ablation.baseline_without_streak_path_brier, 4)}`;
+      const sentimentAblation = typeof ablation.sentiment_selected !== "boolean"
+        ? "等待新模型生成"
+        : ablation.sentiment_selected === true
+          ? `通过，Brier ${number(ablation.streak_path_cohort_and_sentiment_brier, 4)}，逐日胜率 ${pct(ablation.sentiment_daily_win_rate)}`
+          : `未通过，自动回退；Brier ${number(ablation.streak_path_cohort_and_sentiment_brier, 4)}，逐日胜率 ${pct(ablation.sentiment_daily_win_rate)}`;
+      els.auditContent.innerHTML = `
+        <div class="audit-block">
+          <h3>执行合同</h3>
+          <div class="audit-list">
+            ${auditRow("候选池", contract.candidate_pool || "仅D日已涨停股票")}
+            ${auditRow("候选范围", contract.eligible_universe || "D日已涨停且涨跌幅机制不超过10%的A股")}
+            ${auditRow("连板路径", contract.streak_path || "逐板量化路径")}
+            ${auditRow("市场情绪", contract.market_sentiment || "仅D日及更早数据，样本外消融后决定是否采用")}
+            ${auditRow("观察排序", contract.observation_ranking || "风险优先")}
+            ${auditRow("交易日历", contract.calendar || "严格A股交易日历")}
+            ${auditRow("买入规则", contract.entry || "-")}
+            ${auditRow("退出规则", contract.exit || "-")}
+            ${auditRow("收益目标", contract.return_target || "T日开盘到T+1开盘")}
+            ${auditRow("订单执行", contract.broker_connected === false ? "仅人工限价操作，系统不连接券商、不允许市价单" : "-")}
+            ${auditRow("大跌硬否决", contract.risk_veto || "大跌概率、保守下界、成交和退出任一不合格即放弃")}
+            ${auditRow("验证口径", contract.validation || "公开行情模拟与人工回填分开累计")}
+            ${auditRow("允许不交易", contract.no_trade_is_valid === true ? "是" : "-")}
+          </div>
+        </div>
+        <div class="audit-block">
+          <h3>证券资格过滤</h3>
+          <div class="audit-list">
+            ${auditRow("规则版本", universe.rule || "a_share_price_limit_le_10_v2")}
+            ${auditRow("输入数量", universe.input_rows ?? "-")}
+            ${auditRow("保留数量", universe.eligible_rows ?? "-")}
+            ${auditRow("剔除数量", universe.rejected_rows ?? "-")}
+          </div>
+        </div>
+        <div class="audit-block">
+          <h3>模型状态</h3>
+          <div class="audit-list">
+            ${auditRow("模型版本", model.version || "-")}
+            ${auditRow("收益模型", model.return_model || "-")}
+            ${auditRow("盈利模型", model.profit_model || "-")}
+            ${auditRow("大跌模型", model.big_loss_model || "-")}
+            ${auditRow("连板模型", model.continuation_model || "-")}
+            ${auditRow("成交模型", model.fill_model || "-")}
+            ${auditRow("退出模型", model.exit_model || "-")}
+            ${auditRow("连板特征集", model.continuation_feature_set || "-")}
+            ${auditRow("连板训练范围", model.continuation_training_scope === "stage_2_to_3_and_3_to_4" ? "仅2进3、3进4" : (model.continuation_training_scope || "-"))}
+            ${auditRow("路径消融", pathAblation)}
+            ${auditRow("情绪消融", sentimentAblation)}
+            ${auditRow("训练就绪", model.ready === true ? "是" : "否")}
+            ${auditRow("样本外晋级", model.promoted === true ? "通过" : "未通过")}
+            ${auditRow("日期一致", model.prediction_matches_report === true ? "一致" : "未对齐")}
+            ${auditRow("版本与工件指纹", model.artifact_versions_match === true ? "一致" : "不一致或待生成")}
+          </div>
+        </div>
+        <div class="audit-block">
+          <h3>V11 概率、策略与收益质量</h3>
+          <div class="audit-list">
+            ${auditRow("概率总门槛", probabilityGate.passed === true ? "通过：必需概率均优于逐日常数基线" : "未通过：正式交易关闭，观察名单继续累计")}
+            ${auditRow("策略留出期", selectionPolicy.ready === true ? `通过 · ${dateText(selectionPolicy.tuning_start)} 至 ${dateText(selectionPolicy.tuning_end)}` : `未通过 · ${selectionPolicy.reason || "等待模型生成"}`)}
+            ${auditRow("策略搜索", `${selectionPolicy.candidate_policies_evaluated ?? 0}组 · 可行 ${selectionPolicy.feasible_policy_count ?? 0}组 · 最多持有 ${selectionPolicy.max_positions ?? 0}只`)}
+            ${auditRow("策略门槛", `P_fill≥${pct(policyThresholds.min_fill_probability)} · 大跌概率≤${pct(policyThresholds.max_big_loss_probability)} · 均值下界≥${signedPct(policyThresholds.min_mean_return_lcb)} · 保守EV≥${signedPct(policyThresholds.min_conservative_ev)}`)}
+            ${auditRow("留出期表现", `${policyDiagnostics.filled_trades ?? 0}笔 · 日均 ${signedPct(policyDiagnostics.mean_daily_return, 3)} · 双倍成本 ${signedPct(policyDiagnostics.stress_2x_cost_mean_daily_return, 3)} · 尾部 ${signedPct(policyDiagnostics.tail_10pct_mean_return)}`)}
+            ${auditRow("盈利概率用途", selectionPolicy.profit_probability_gate_enabled === false ? "仅诊断，不参与硬否决" : "参与策略门槛")}
+            ${auditRow("收益模型门槛", `${returnSelection.model_has_information_gain === true ? "通过" : "回退"} · ${returnSelection.selected || "constant"} · RMSE改善 ${returnImprovement == null ? "-" : pct(returnImprovement)} · 逐日胜率 ${returnDailyWin == null ? "-" : pct(returnDailyWin)}`)}
+            ${probabilityAudit("盈利概率", probabilityModels.profit)}
+            ${probabilityAudit("大跌概率", probabilityModels.big_loss)}
+            ${probabilityAudit("晋级概率", probabilityModels.continuation_limit_up)}
+            ${probabilityAudit("成交概率", probabilityModels.fill)}
+            ${probabilityAudit("按时退出概率", probabilityModels.exit_on_time)}
+            ${auditRow("收益分布下界", `全局残差 Q10 ${number(globalConformal.q10, 4)} · Q90 ${number(globalConformal.q90, 4)} · ${globalConformal.samples ?? 0} 样本`)}
+          </div>
+        </div>
+        <div class="audit-block">
+          <h3>独立样本与竞价真值</h3>
+          <div class="audit-list">
+            ${auditRow("独立交易日", `${coverage.independent_oos_dates ?? backtest.oos_dates ?? 0} / ${coverage.target_independent_dates ?? 500}`)}
+            ${auditRow("样本外日期范围", coverage.independent_oos_start && coverage.independent_oos_end ? `${dateText(coverage.independent_oos_start)} 至 ${dateText(coverage.independent_oos_end)}` : "-")}
+            ${auditRow("模型历史交易日", `${coverage.history_dates ?? 0} / ${coverage.target_history_dates ?? 640}`)}
+            ${auditRow("历史日期范围", coverage.history_start && coverage.history_end ? `${dateText(coverage.history_start)} 至 ${dateText(coverage.history_end)}` : "-")}
+            ${auditRow("候选级历史样本", coverage.history_rows ?? 0)}
+            ${auditRow("真实竞价样本", `${coverage.official_auction_truth_rows ?? 0} · 覆盖 ${officialCoverage == null ? "-" : pct(officialCoverage)}`)}
+            ${auditRow("交易日历", coverage.calendar === "SSE_strict_exchange_calendar" ? "上交所严格A股交易日历" : (coverage.calendar || "-"))}
+            ${auditRow("正式限价代理账本", formalLedger.path || "-")}
+            ${auditRow("市价开盘观察账本", observationLedger.path || "-")}
+            ${auditRow("人工实际成交账本", manualLedger.path || "-")}
+          </div>
+        </div>
+        <div class="audit-block">
+          <h3>未通过的硬门槛</h3>
+          ${failures.length ? `<ul class="fail-list">${failures.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="audit-list">' + auditRow("结果", "全部通过") + '</div>'}
+        </div>`;
+    }
+
+    function extractField(md, key) {
+      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const patterns = [
+        new RegExp(`^\\s*-\\s*${escaped}:\\s*\\*\\*(.*?)\\*\\*`, "im"),
+        new RegExp(`^\\s*-\\s*${escaped}:\\s*([^\\n]+)`, "im")
+      ];
+      for (const pattern of patterns) {
+        const match = md.match(pattern);
+        if (match) return match[1].replace(/[`*]/g, "").trim();
+      }
+      return "";
+    }
+
+    function splitMarkdownRow(line) {
+      return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim().replace(/[`*]/g, ""));
+    }
+
+    function parseMarkdownTable(md, section) {
+      const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const match = md.match(new RegExp(`##\\s+${escaped}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, "i"));
+      if (!match) return null;
+      const lines = match[1].split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith("|"));
+      if (lines.length < 2) return null;
+      const header = splitMarkdownRow(lines[0]);
+      const rows = lines.slice(2).filter(line => line.includes("|")).map(splitMarkdownRow);
+      return { header, rows };
+    }
+
+    function markdownTableHtml(table) {
+      if (!table || !table.rows.length) return '<div class="empty">该表当前为空。</div>';
+      return `<div class="table-wrap"><table><thead><tr>${table.header.map((h, i) => `<th class="${i < 3 ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${table.rows.map(row => `<tr>${table.header.map((_, i) => `<td class="${i < 3 ? "left" : ""}">${escapeHtml(row[i] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    }
+
+    function renderReport(md, reportName) {
+      if (!md) {
+        els.reportContent.innerHTML = '<div class="empty">报告正文暂不可用，行动计划仍按结构化 JSON 展示。</div>';
+        return;
+      }
+      const fields = [
+        ["signal_date", "D 信号日"], ["exec_date", "T 执行日"], ["exit_date", "T+1 退出日"],
+        ["regime", "市场状态"], ["risk_budget", "风险预算"], ["input_mode", "输入模式"],
+        ["p_fill_pred_src", "P_fill 来源"], ["eret_pred_src", "E_ret 来源"]
+      ];
+      const topn = parseMarkdownTable(md, "TopN Targets");
+      const full = parseMarkdownTable(md, "Full Candidate Pool");
+      els.reportContent.innerHTML = `
+        <div class="report-meta">${fields.map(([key, label]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(extractField(md, key) || "-")}</strong></div>`).join("")}</div>
+        <div class="md-section"><h3>TopN Targets</h3>${markdownTableHtml(topn)}</div>
+        <div class="md-section"><h3>Full Candidate Pool</h3>${markdownTableHtml(full)}</div>
+        <div class="md-section"><h3>原始报告预览 · ${escapeHtml(reportName)}</h3><pre>${escapeHtml(md.slice(0, 12000))}</pre></div>`;
+    }
+
+    function setNavigation() {
+      els.prevBtn.disabled = state.index >= state.reports.length - 1;
+      els.nextBtn.disabled = state.index <= 0;
+    }
+
+    function cacheCurrent(info, plan, md) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ info, plan, md, savedAt: Date.now() })); } catch (_) {}
+    }
+
+    function loadCache() {
+      try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch (_) { return null; }
+    }
+
+    async function loadReport(index) {
+      state.index = Math.max(0, Math.min(index, state.reports.length - 1));
+      setNavigation();
+      const info = state.reports[state.index];
+      if (!info) throw new Error("报告索引为空");
+      const actionPath = info.action_url || `outputs/decision/action_plan_${info.report_date}.json`;
+      const [planResult, reportResult] = await Promise.allSettled([
+        fetchPath(actionPath),
+        fetchPath(info.report_url || `outputs/decision/${info.report_file}`, "text")
+      ]);
+      let plan = planResult.status === "fulfilled" ? planResult.value : null;
+      if (!plan && state.index === 0) {
+        try { plan = await fetchPath("outputs/decision/action_plan_latest.json"); } catch (_) {}
+      }
+      const md = reportResult.status === "fulfilled" ? reportResult.value : "";
+      if (!plan) {
+        plan = {
+          report_date: info.report_date,
+          status_code: "PENDING_AUCTION_MODEL",
+          status_label: "行动计划尚未生成",
+          model: { promoted: false, prediction_matches_report: false, promotion_failures: [] },
+          candidates: []
+        };
+      }
+      state.current = { info, plan, md };
+      renderStatus(plan);
+      renderTop10Backtest(plan);
+      renderMetrics(plan);
+      renderSentiment(plan);
+      renderStageWatchlist(plan);
+      renderObservationStatistics(plan);
+      renderPathDiagnostics(plan);
+      renderActions(plan);
+      renderAudit(plan);
+      renderReport(md, info.report_file);
+      cacheCurrent(info, plan, md);
+      els.footer.textContent = `Decision · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+    }
+
+    async function initialize(force = false) {
+      els.refreshBtn.disabled = true;
+      try {
+        if (force) state.reports = [];
+        const index = await fetchPath("outputs/decision/report_index.json");
+        const reports = Array.isArray(index?.reports) ? index.reports : [];
+        state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
+        if (!state.reports.length) throw new Error("report_index 没有报告记录");
+        state.index = 0;
+        await loadReport(0);
+      } catch (error) {
+        const cached = loadCache();
+        if (!cached?.plan) throw error;
+        state.reports = [cached.info || { report_file: "cached_report", report_date: cached.plan.report_date || "" }];
+        state.index = 0;
+        renderStatus(cached.plan);
+        renderTop10Backtest(cached.plan);
+        renderMetrics(cached.plan);
+        renderSentiment(cached.plan);
+        renderStageWatchlist(cached.plan);
+        renderObservationStatistics(cached.plan);
+        renderPathDiagnostics(cached.plan);
+        renderActions(cached.plan);
+        renderAudit(cached.plan);
+        renderReport(cached.md || "", cached.info?.report_file || "cached_report");
+        setNavigation();
+      } finally {
+        els.refreshBtn.disabled = false;
+      }
+    }
+
+    els.refreshBtn.addEventListener("click", () => initialize(true));
+    els.prevBtn.addEventListener("click", () => loadReport(state.index + 1).catch(showError));
+    els.nextBtn.addEventListener("click", () => loadReport(state.index - 1).catch(showError));
+
+    function showError(error) {
+      els.statusBand.className = "status-band bad";
+      els.statusTitle.textContent = `读取失败：${String(error?.message || error || "未知错误")}`;
+    }
+
+    window.addEventListener("error", event => showError(event.error || event.message));
+    initialize(false).catch(showError);
+  </script>
+</body>
+</html>

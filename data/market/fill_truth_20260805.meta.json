@@ -1,0 +1,40 @@
+{
+  "trade_date": "20260805",
+  "exec_date": "20260806",
+  "target_date": "20260807",
+  "rows": 94,
+  "sample_maturity": {
+    "FULLY_READY": 94
+  },
+  "label_ready_fill": 94,
+  "label_ready_ret": 94,
+  "y_fill_rate": 0.925531914893617,
+  "public_market_buyable_rate": 0.925531914893617,
+  "actual_order_fill_rate": null,
+  "quality_counts": {
+    "strong_official_opening_auction": 87,
+    "strong_opening_auction_limit_up_unconfirmed": 7
+  },
+  "execution_contract": "manual_guidance_0925_public_market_fillability_proxy",
+  "guidance_only": true,
+  "broker_connected": false,
+  "actual_fill_observed": false,
+  "y_fill_semantics": "public_market_fillability_proxy; manual actual fills require explicit feedback",
+  "actual_order_fill_semantics": "unavailable_without_broker_or_manual_order_feedback",
+  "universe_eligibility": {
+    "rule": "a_share_price_limit_le_10_v2",
+    "max_allowed_limit_pct": 10.0,
+    "input_rows": 94,
+    "eligible_rows": 94,
+    "rejected_rows": 0,
+    "rejected_reasons": {}
+  },
+  "source": {
+    "pred_source": "/home/runner/work/top10-decision/top10-decision/data/pred/archive/pred_source_20260805.csv",
+    "features_limit": "/home/runner/work/top10-decision/top10-decision/data/market/features_limit_20260805.csv",
+    "raw_exec_snapshot": "/home/runner/work/top10-decision/top10-decision/data/market/raw/2026/20260806",
+    "minute_exec_snapshot_root": "/home/runner/work/top10-decision/top10-decision/data/market/minute_1m/2026/20260806",
+    "sample_maturity_csv": "/home/runner/work/top10-decision/top10-decision/data/market/sample_maturity_latest.csv"
+  },
+  "output": "/home/runner/work/top10-decision/top10-decision/data/market/fill_truth_20260805.csv"
+}

@@ -1,0 +1,109 @@
+{
+  "policy": "direct promotion only when calibration and ranking both beat incumbent",
+  "incumbent": {
+    "rows": 6159,
+    "dates": 514,
+    "positive_rate": 0.39355426224782386,
+    "brier": 0.2158953720153272,
+    "ece": 0.030550182711301888,
+    "log_loss": 0.6326832995627498,
+    "auc": 0.6785418958289289,
+    "top1_hit_rate": 0.6926070038910506,
+    "top3_row_hit_rate": 0.6039087947882736,
+    "top3_any_hit_rate": 0.9124513618677043,
+    "selected_models": {
+      "lr+beta:baseline": 1594,
+      "lr+isotonic:path_cohort_sentiment": 1429,
+      "lr+beta:path_cohort_sentiment": 1236,
+      "lr+platt:baseline": 1161,
+      "lr+identity:path_cohort": 739
+    }
+  },
+  "challenger": {
+    "rows": 6159,
+    "dates": 514,
+    "positive_rate": 0.39355426224782386,
+    "brier": 0.21305502795889347,
+    "ece": 0.028793986564683332,
+    "log_loss": 0.6183029619930555,
+    "auc": 0.68647982041576,
+    "top1_hit_rate": 0.6964980544747081,
+    "top3_row_hit_rate": 0.6071661237785017,
+    "top3_any_hit_rate": 0.9221789883268483,
+    "selected_models": {
+      "0.8*extra_trees+platt:path_sentiment_source_context": 1594,
+      "0.4*pairwise_lr+identity:path_sentiment_prior_and_context": 739,
+      "0.5*pairwise_lr+identity:path_sentiment_prior_and_context": 733,
+      "0.6*hgb+beta:path_sentiment_prior_and_context": 716,
+      "0.5*hgb+identity:path_sentiment_five_year_prior": 713,
+      "0.5*pairwise_lr+beta:path_sentiment_five_year_prior": 658,
+      "1.0*lr+beta:path_sentiment_source_context": 578,
+      "0.0*lr+platt:baseline": 428
+    }
+  },
+  "comparison": {
+    "brier_improvement": 0.002840344056433741,
+    "relative_brier_improvement": 0.0131561136763603,
+    "daily_brier_win_rate": 0.4688715953307393,
+    "top1_hit_rate_improvement": 0.0038910505836575737,
+    "top3_row_hit_rate_improvement": 0.0032573289902280145
+  },
+  "bootstrap": {
+    "brier_improvement": {
+      "mean": 0.002850813594003299,
+      "ci95_low": 0.0011497434759208615,
+      "ci95_high": 0.004667861921844699
+    },
+    "top1_hit_rate_improvement": {
+      "mean": 0.003942217898832685,
+      "ci95_low": -0.017509727626459144,
+      "ci95_high": 0.02529182879377432
+    },
+    "top3_row_hit_rate_improvement": {
+      "mean": 0.0033281420227584597,
+      "ci95_low": -0.007147498375568551,
+      "ci95_high": 0.013654318318917924
+    }
+  },
+  "gate_checks": {
+    "strict_oos_dates_at_least_500": true,
+    "brier_improvement_positive": true,
+    "challenger_ece_not_worse_and_at_most_8pct": true,
+    "auc_improvement_positive": true,
+    "top1_hit_rate_improvement_positive": true,
+    "top3_row_hit_rate_improvement_positive": true,
+    "top3_any_hit_rate_improvement_positive": true,
+    "brier_bootstrap_lower_bound_positive": true
+  },
+  "direct_promotion_pass": true,
+  "production_replay": {
+    "frozen_history_cutoff": "20260805",
+    "frozen_history_rows": 40355,
+    "selected_family": "extra_trees",
+    "selected_calibration": "identity",
+    "selected_feature_set": "path_sentiment_source_context",
+    "incumbent_weight": 0.2,
+    "challenger_weight": 0.8,
+    "nested_incumbent_brier": 0.184796947,
+    "nested_challenger_brier": 0.1793366759,
+    "nested_incumbent_ece": 0.0652284254,
+    "nested_challenger_ece": 0.0463812429
+  },
+  "release_boundary": {
+    "scope": "Decision promotion probability and promotion ranking only",
+    "other_models_changed": false,
+    "existing_statistics_reset": false,
+    "profitability_claim": false,
+    "automatic_fallback": "incumbent promotion model"
+  },
+  "source": {
+    "history": "models/decision_v12_frozen_history_20260805.csv.gz",
+    "ledger": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+    "source_rows": 15151,
+    "source_dates": 1207,
+    "decision_rows": 7833,
+    "decision_dates": 714,
+    "oos_start": "20240624",
+    "oos_end": "20260805"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": "decision_forward_observation_freeze_v1",
+  "status": "ACTIVE",
+  "subsystem": "Decision",
+  "model_version": "auction_v12_top10_trade_selector_oos_1",
+  "trade_selector_version": "trade_selector_v1_nested_oos_top10",
+  "baseline_commit": "0371a8c04a1ff4e5b702b59d218c05a0c5e253b6",
+  "baseline_branch": "codex/decision-v12-forward-baseline-20260730",
+  "freeze_created_at_asia_shanghai": "2026-07-30T00:03:18+08:00",
+  "signal_date_D": "20260729",
+  "observation_start_trade_date_T": "20260730",
+  "calendar_contract": "strict_sse_a_share_trade_calendar",
+  "freeze_scope": {
+    "source_code": true,
+    "feature_contract": true,
+    "top10_ranking_contract": true,
+    "trade_selector_policy": true,
+    "thresholds": true,
+    "exit_contract": true,
+    "cost_contract": true,
+    "scheduled_walk_forward_refit": "continue_exactly_as_predeclared_in_v12",
+    "discretionary_retraining_or_tuning": false,
+    "result_driven_same_day_edits": false,
+    "historical_prediction_rewrites": false
+  },
+  "observation_gate": {
+    "minimum_a_share_trading_days": 60,
+    "minimum_realistic_buyable_shadow_trades": 100,
+    "interim_review_every_trading_days": 20,
+    "interim_review_changes_strategy": false
+  },
+  "evaluation": {
+    "primary_metric": "realistic_buyable_mean_net_return_after_costs",
+    "mean_net_return_must_be_positive": true,
+    "minimum_profit_factor": 1.1,
+    "must_outperform_same_window": [
+      "top10_baseline",
+      "top1_baseline",
+      "top2_baseline"
+    ],
+    "must_review": [
+      "win_rate",
+      "tail_10pct_mean_return",
+      "maximum_drawdown",
+      "signal_date_coverage",
+      "longest_no_signal_streak"
+    ]
+  },
+  "ledger_contract": {
+    "top10_observation": "separate",
+    "second_selector_shadow": "separate",
+    "broker_real_fills": "separate",
+    "broker_fill_price_must_not_be_replaced_by_open_proxy": true
+  },
+  "fatal_fix_only": [
+    "trading_calendar_error",
+    "future_data_leakage",
+    "price_or_return_calculation_error",
+    "duplicate_or_missing_truth",
+    "workflow_failure"
+  ],
+  "premium_subsystem": "UNTOUCHED"
+}
