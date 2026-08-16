@@ -31,27 +31,31 @@ concurrency:
 jobs:
   observation_truth:
     name: Settle T and T+1 observation truth
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
       - name: Checkout latest main
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           fetch-depth: 0
+          # This audited writer pushes one scoped observation-truth commit.
+          persist-credentials: true
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
           cache: pip
+          cache-dependency-path: requirements.lock
 
       - name: Install dependencies
         run: |
-          set -e
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"

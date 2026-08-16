@@ -4,25 +4,27 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/run_auction_v3.yml"
+      # Production writes are not CI. Keep this list limited to executable
+      # runtime inputs; workflow, test, validation-only and diagnostic changes
+      # must use the read-only CI workflows and an explicit manual canary.
       - "models/decision_model_freeze.json"
       - "src/top10decision/auction_v3/**"
-      - "src/top10decision/decision/**"
+      - "src/top10decision/decision/__init__.py"
+      - "src/top10decision/decision/action_plan.py"
+      - "src/top10decision/decision/contracts.py"
+      - "src/top10decision/decision/eligibility.py"
+      - "src/top10decision/decision/exit_policy.py"
+      - "src/top10decision/decision/model_freeze.py"
+      - "src/top10decision/decision/observation.py"
+      - "src/top10decision/decision/trade_selector.py"
       - "src/top10decision/data/**"
       - "scripts/run_auction_v3.py"
-      - "scripts/validate_decision_model_freeze.py"
       - "scripts/sync_tushare_minute.py"
-      - "scripts/backfill_decision_v11_history.py"
       - "scripts/publish_decision_action.py"
-      - "scripts/verify_decision_observations.py"
-      - "tests/test_auction_v3.py"
-      - "tests/test_decision_contract.py"
-      - "tests/test_decision_model_freeze.py"
-      - "tests/test_decision_v8_calibration.py"
-      - "tests/test_decision_trade_selector.py"
   workflow_run:
     workflows: ["Run Top10 Decision (Auto Daily)"]
     types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       signal_date:
@@ -48,28 +50,39 @@ concurrency:
 
 jobs:
   auction_guidance_v12:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.head_branch == 'main')
+      }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
       - name: Checkout latest main
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           fetch-depth: 0
+          # This audited writer pushes one scoped commit at the final step.
+          persist-credentials: true
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
           cache: pip
+          cache-dependency-path: requirements.lock
 
       - name: Install dependencies
         run: |
-          set -e
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"

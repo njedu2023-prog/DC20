@@ -24,26 +24,31 @@ concurrency:
 jobs:
   decision_initial:
     name: Build FS and Initial Decision
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
+          ref: main
           fetch-depth: 0
+          # This audited writer pushes one scoped Decision commit.
+          persist-credentials: true
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
           cache: "pip"
+          cache-dependency-path: requirements.lock
 
       - name: Install deps
         run: |
-          set -e
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
@@ -238,17 +243,19 @@ jobs:
   pfill_learning:
     name: Train P_fill and E_ret
     needs: decision_initial
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     outputs:
       learning_gate_pass: ${{ steps.learning_gate.outputs.learning_gate_pass }}
 
     steps:
       - name: Checkout latest main
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           fetch-depth: 0
+          # This audited writer pushes one scoped learning-artifact commit.
+          persist-credentials: true
 
       - name: Reset to latest remote main
         run: |
@@ -258,16 +265,18 @@ jobs:
           git reset --hard origin/main
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
           cache: "pip"
+          cache-dependency-path: requirements.lock
 
       - name: Install deps
         run: |
-          set -e
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
@@ -982,16 +991,18 @@ jobs:
   decision_refresh_after_learning:
     name: Refresh Decision With Latest Learning Models
     needs: pfill_learning
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     if: ${{ needs.pfill_learning.result == 'success' && needs.pfill_learning.outputs.learning_gate_pass == 'true' }}
 
     steps:
       - name: Checkout latest main after learning
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           fetch-depth: 0
+          # This audited writer pushes one scoped refreshed-output commit.
+          persist-credentials: true
 
       - name: Reset to latest remote main
         run: |
@@ -1001,16 +1012,18 @@ jobs:
           git reset --hard origin/main
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: "3.12.13"
           cache: "pip"
+          cache-dependency-path: requirements.lock
 
       - name: Install deps
         run: |
-          set -e
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
