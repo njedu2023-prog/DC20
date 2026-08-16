@@ -1,0 +1,56 @@
+name: Deploy DC20 Decision Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - decision.html
+      - outputs/decision/**
+      - .github/workflows/deploy_dc20_pages.yml
+  workflow_run:
+    workflows:
+      - Run Top10 Decision (Auto Daily)
+      - Run Decision Top10 Trade Selector V12
+      - Verify Decision Top10 Observations
+    types: [completed]
+  schedule:
+    - cron: "30 9 * * 1-5"
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dc20-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Build isolated Decision site
+        run: |
+          set -e
+          mkdir -p _site/outputs
+          cp decision.html _site/decision.html
+          cp -R outputs/decision _site/outputs/decision
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy DC20 Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

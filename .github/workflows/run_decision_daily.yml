@@ -1,0 +1,1220 @@
+name: Run Top10 Decision (Auto Daily)
+
+on:
+  schedule:
+    # Mon-Fri 21:15 Beijing (UTC+8) == 13:15 UTC
+    - cron: "15 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "手动指定交易日 YYYYMMDD（留空=自动使用最新 raw/pred 快照）"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  decision_initial:
+    name: Build FS and Initial Decision
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
+
+      - name: Ensure output dirs
+        run: |
+          set -e
+          mkdir -p data/pred data/pred/archive
+          mkdir -p data/market data/market/raw
+          mkdir -p data/decision
+          mkdir -p docs/signals docs/reports docs/weights
+          mkdir -p outputs/decision outputs/learning
+          mkdir -p models
+
+      - name: Validate frozen Decision production model
+        run: |
+          set -e
+          python scripts/validate_decision_model_freeze.py
+
+      - name: Sync pred source snapshot
+        env:
+          TRADE_DATE: ${{ inputs.trade_date }}
+          A_TOP10_OWNER: njedu2023-prog
+          A_TOP10_REPO: a-top10
+          A_TOP10_BRANCH: main
+        run: |
+          set -e
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${TRADE_DATE}" ]; then
+            echo "[sync-pred] manual trade_date=${TRADE_DATE}"
+            if ! echo "${TRADE_DATE}" | grep -E '^[0-9]{8}$' >/dev/null; then
+              echo "[sync-pred] invalid trade_date=${TRADE_DATE} (expect YYYYMMDD)"
+              exit 1
+            fi
+            FILE_IN_A_TOP10="outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+            RAW_URL="https://raw.githubusercontent.com/${A_TOP10_OWNER}/${A_TOP10_REPO}/${A_TOP10_BRANCH}/${FILE_IN_A_TOP10}"
+            TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${RAW_URL}" python scripts/sync_pred_source.py
+          else
+            RAW_URL="https://raw.githubusercontent.com/njedu2023-prog/a-top10/main/outputs/decisio/pred_decisio_latest.csv"
+            TOP10_PRED_URL="${RAW_URL}" python scripts/sync_pred_source.py
+          fi
+
+          echo "[sync-pred] generated:"
+          ls -lah data/pred || true
+          find data/pred -maxdepth 3 -type f | sort || true
+
+      - name: Sync market raw snapshots
+        env:
+          TRADE_DATE: ${{ inputs.trade_date }}
+          MARKET_RAW_OWNER: njedu2023-prog
+          MARKET_RAW_REPO: a-share-top3-data
+          MARKET_RAW_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${TRADE_DATE}" ]; then
+            echo "[sync-market-raw] manual trade_date=${TRADE_DATE}"
+            python scripts/sync_market_raw.py --trade-date "${TRADE_DATE}"
+          else
+            echo "[sync-market-raw] auto mode"
+            python scripts/sync_market_raw.py
+          fi
+
+          echo "[sync-market-raw] dirs:"
+          find data/market/raw -maxdepth 3 -type d | sort || true
+          echo "[sync-market-raw] files:"
+          find data/market/raw -maxdepth 3 -type f | sort || true
+
+      - name: Build market FS
+        env:
+          TRADE_DATE: ${{ inputs.trade_date }}
+        run: |
+          set -e
+          echo "[fs] precheck raw files:"
+          find data/market/raw -maxdepth 3 -type f | sort || true
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${TRADE_DATE}" ]; then
+            echo "[fs] manual trade_date=${TRADE_DATE}"
+            python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"
+          else
+            echo "[fs] auto latest raw snapshot"
+            python scripts/build_market_fs.py
+          fi
+
+          echo "[fs] generated market files:"
+          ls -lah data/market || true
+
+      - name: Sync strict A-share exchange calendar
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -e
+          python scripts/sync_tushare_minute.py --calendar-only --optional
+
+      - name: Run decision pipeline before learning
+        env:
+          TRADE_DATE: ${{ inputs.trade_date }}
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${TRADE_DATE}" ]; then
+            echo "[run_v2-initial] manual trade_date=${TRADE_DATE}"
+            python scripts/run_v2.py --trade-date "${TRADE_DATE}"
+          else
+            echo "[run_v2-initial] auto mode"
+            python scripts/run_v2.py
+          fi
+
+      - name: Publish unified Decision action plan
+        run: |
+          set -e
+          python scripts/publish_decision_action.py
+
+      - name: Validate IO contract
+        run: |
+          set -e
+          python scripts/validate_io_contract.py
+
+      - name: Commit initial decision outputs
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          find . -type d -name "__pycache__" -prune -exec rm -rf {} + || true
+          find . -type f -name "*.pyc" -delete || true
+          mkdir -p .git/info
+          grep -qxF "__pycache__/" .git/info/exclude 2>/dev/null || echo "__pycache__/" >> .git/info/exclude
+          grep -qxF "*.pyc" .git/info/exclude 2>/dev/null || echo "*.pyc" >> .git/info/exclude
+
+          git add data/pred/pred_source_latest.csv || true
+          git add data/pred/_pred_source_meta.json || true
+          git add data/pred/archive/*.csv || true
+          git add -A data/pred/archive || true
+          git add data/pred/pred_top10_latest.csv || true
+          git add data/pred/pred_top10_*.csv || true
+          git add -A data/market/raw || true
+          git add data/market/trade_cal_sse.csv || true
+          git add data/market/features_base_*.csv || true
+          git add data/market/features_limit_*.csv || true
+          git add data/market/truth_close_*.csv || true
+          git add data/market/_meta_*.json || true
+          git add docs/weights/weights_latest.csv || true
+          git add docs/weights/weights_*.csv || true
+          git add outputs/decision/* || true
+          git add outputs/decision/**/*.md || true
+          git add outputs/decision/**/*.json || true
+          git add data/decision/decision_candidates_*.csv || true
+          git add data/decision/decision_execution_*.csv || true
+          git add data/decision/decision_learning.csv || true
+          git add docs/signals/top10_latest.csv || true
+          git add docs/signals/top10_*.csv || true
+          git add docs/signals/TopEVR_latest.csv || true
+          git add docs/signals/TopEVR_*.csv || true
+          git add docs/reports/*.md || true
+          git add -A docs/reports || true
+
+          echo "[git-initial] status after add:"
+          git status --porcelain | sed -n '1,200p' || true
+
+          if git diff --cached --quiet; then
+            echo "[git-initial] no staged changes"
+            exit 0
+          fi
+
+          git commit -m "auto: sync market raw, build fs, update decision outputs"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git reset --hard HEAD
+          fi
+
+          pushed=0
+          for attempt in 1 2 3; do
+            echo "[push-initial] attempt=${attempt}"
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                pushed=1
+                break
+              fi
+            else
+              git rebase --abort || true
+            fi
+            sleep 2
+          done
+
+          if [ "${pushed}" != "1" ]; then
+            echo "[push-initial] failed after retries"
+            exit 1
+          fi
+
+  pfill_learning:
+    name: Train P_fill and E_ret
+    needs: decision_initial
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      learning_gate_pass: ${{ steps.learning_gate.outputs.learning_gate_pass }}
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Reset to latest remote main
+        run: |
+          set -e
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
+
+      - name: Ensure learning dirs
+        run: |
+          set -e
+          mkdir -p data/pred data/pred/archive
+          mkdir -p data/market
+          mkdir -p outputs/learning
+          mkdir -p models
+
+      - name: Resolve Decision production freeze
+        id: decision_model_freeze
+        run: |
+          set -e
+          python scripts/validate_decision_model_freeze.py
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+          )
+
+          manifest = load_model_freeze(Path('.'), required=True)
+          active = model_freeze_active(manifest)
+          learning = manifest.get('learning', {}) or {}
+          updates_allowed = bool(
+              not active
+              or learning.get('allow_production_model_replacement') is True
+          )
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f"active={'true' if active else 'false'}\n")
+              fh.write(
+                  f"model_updates_allowed={'true' if updates_allowed else 'false'}\n"
+              )
+          print(f'[model-freeze] active={active}')
+          print(f'[model-freeze] model_updates_allowed={updates_allowed}')
+          PY
+
+      - name: Resolve current run date
+        id: resolve_current_run_date
+        env:
+          TRADE_DATE_INPUT: ${{ inputs.trade_date }}
+        run: |
+          set -e
+          if [ -n "${TRADE_DATE_INPUT}" ]; then
+            CURRENT_RUN_DATE="${TRADE_DATE_INPUT}"
+          else
+            CURRENT_RUN_DATE="$(python - <<'PY'
+          from pathlib import Path
+          import re
+          raw_root = Path('data/market/raw')
+          raw_dates = []
+          if raw_root.exists():
+              for p in raw_root.rglob('*'):
+                  if p.is_dir() and re.fullmatch(r'\d{8}', p.name):
+                      raw_dates.append(p.name)
+          raw_dates = sorted(set(raw_dates))
+          print(raw_dates[-1] if raw_dates else '')
+          PY
+          )"
+          fi
+
+          if echo "${CURRENT_RUN_DATE}" | grep -E '^[0-9]{8}$' >/dev/null; then
+            echo "[learning] current_run_date=${CURRENT_RUN_DATE}"
+            echo "current_run_date=${CURRENT_RUN_DATE}" >> "$GITHUB_OUTPUT"
+            echo "has_current_run_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "[learning] cannot resolve current_run_date; skip learning job"
+            echo "current_run_date=" >> "$GITHUB_OUTPUT"
+            echo "has_current_run_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build candidate trade_date list
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+          import csv
+          import re
+
+          out_path = Path('data/market/sample_maturity_candidates.csv')
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          candidates = set()
+
+          market_dir = Path('data/market')
+          for p in market_dir.glob('features_limit_*.csv'):
+              m = re.fullmatch(r'features_limit_(\d{8})\.csv', p.name)
+              if m:
+                  candidates.add(m.group(1))
+
+          pred_archive = Path('data/pred/archive')
+          if pred_archive.exists():
+              for p in pred_archive.rglob('*.csv'):
+                  m = re.search(r'(\d{8})', p.name)
+                  if m:
+                      candidates.add(m.group(1))
+
+          rows = sorted(candidates)
+          with out_path.open('w', encoding='utf-8-sig', newline='') as f:
+              writer = csv.DictWriter(f, fieldnames=['trade_date', 'candidate_type'])
+              writer.writeheader()
+              for td in rows:
+                  writer.writerow({'trade_date': td, 'candidate_type': 'PFILL_ERET'})
+
+          print(f'[learning] candidate trade_dates={len(rows)}')
+          print(f'[learning] candidate file={out_path}')
+          PY
+          cat data/market/sample_maturity_candidates.csv || true
+
+      - name: Resolve sample maturity
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          python scripts/resolve_sample_maturity.py \
+            --current-run-date "${{ steps.resolve_current_run_date.outputs.current_run_date }}" \
+            --raw-root "data/market/raw" \
+            --trade-calendar-file "data/market/trade_cal_sse.csv" \
+            --trade-dates-file "data/market/sample_maturity_candidates.csv" \
+            --trade-date-column "trade_date" \
+            --output-csv "data/market/sample_maturity_latest.csv" \
+            --output-json "data/market/sample_maturity_latest.json"
+          cat data/market/sample_maturity_latest.csv || true
+
+      - name: Rebuild matured Decision learning trainsets
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+          import csv
+          import re
+          import subprocess
+          from top10decision.decision.contracts import (
+              ERET_HOLDING_MODE,
+              ERET_TARGET_COLUMN,
+              ERET_TRUTH_VERSION,
+          )
+
+          maturity = Path('data/market/sample_maturity_latest.csv')
+          if not maturity.exists():
+              raise SystemExit('sample_maturity_latest.csv missing')
+
+          def norm(v):
+              s = ''.join(ch for ch in str(v or '') if ch.isdigit())
+              return s[:8] if len(s) >= 8 else ''
+
+          def ready(row, col):
+              return str(row.get(col, '')).strip() == '1'
+
+          def has_raw(td):
+              return (
+                  Path(f'data/market/raw/{td[:4]}/{td}/daily.csv').exists()
+                  or Path(f'data/market/raw/daily_{td}.csv').exists()
+              )
+
+          def has_pred_source(td):
+              return Path(f'data/pred/archive/pred_source_{td}.csv').exists()
+
+          pfill_truth_version = 'pfill_truth_v6_manual_0925_proxy'
+          pfill_execution_contract = 'manual_guidance_0925_public_market_fillability_proxy'
+
+          def pfill_trainset_is_current(td):
+              path = Path(f'data/market/pfill_trainset_{td}.csv')
+              if not path.exists():
+                  return False
+              try:
+                  import pandas as pd
+                  df = pd.read_csv(path, encoding='utf-8-sig')
+              except Exception:
+                  return False
+              if 'label_version' not in df.columns or 'execution_contract' not in df.columns:
+                  return False
+              return (
+                  set(df['label_version'].dropna().astype(str)) == {pfill_truth_version}
+                  and set(df['execution_contract'].dropna().astype(str)) == {pfill_execution_contract}
+              )
+
+          def has_eret_trainset(td):
+              return Path(f'data/market/eret_trainset_{td}.csv').exists()
+
+          fs_v2_cols = [
+              'ret_2d', 'ret_5d', 'ret_10d',
+              'volatility_5d', 'volatility_10d', 'volatility_20d',
+              'atr', 'downside_vol', 'max_drawdown_20d', 'tail_risk_score',
+              'bid_ask_proxy', 'spread_proxy',
+          ]
+
+          eret_truth_version = ERET_TRUTH_VERSION
+          eret_holding_mode = ERET_HOLDING_MODE
+
+          def eret_trainset_is_current(td):
+              path = Path(f'data/market/eret_trainset_{td}.csv')
+              if not path.exists():
+                  return False
+              try:
+                  import pandas as pd
+                  df = pd.read_csv(path, encoding='utf-8-sig')
+              except Exception:
+                  return False
+              if 'eret_truth_version' not in df.columns or 'return_holding_mode' not in df.columns:
+                  return False
+              versions = set(df['eret_truth_version'].dropna().astype(str))
+              modes = set(df['return_holding_mode'].dropna().astype(str))
+              if versions != {eret_truth_version} or modes != {eret_holding_mode}:
+                  return False
+              if ERET_TARGET_COLUMN not in df.columns:
+                  return False
+              for col in fs_v2_cols:
+                  if col not in df.columns:
+                      return False
+                  if not pd.to_numeric(df[col], errors='coerce').notna().any():
+                      return False
+              return True
+
+          rows = []
+          with maturity.open('r', encoding='utf-8-sig', newline='') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  td = norm(row.get('trade_date'))
+                  if td and (ready(row, 'PFILL_READY') or ready(row, 'ERET_READY')):
+                      rows.append((td, ready(row, 'PFILL_READY'), ready(row, 'ERET_READY')))
+
+          rows = sorted(set(rows))
+          print(f'[learning-rebuild] matured rows={len(rows)}')
+          valid_rows = []
+          for td, pfill_ready, eret_ready in rows:
+              if not re.fullmatch(r'\d{8}', td):
+                  continue
+              if not has_raw(td):
+                  print(f'[learning-rebuild][skip] raw daily missing for {td}')
+                  continue
+              if not has_pred_source(td):
+                  print(f'[learning-rebuild][skip] pred source missing for {td}')
+                  continue
+              valid_rows.append((td, pfill_ready, eret_ready))
+
+          pfill_window_size = 24
+          eret_window_size = 24
+          target_pfill = {td for td, pfill_ready, _ in valid_rows if pfill_ready}
+          target_eret = {td for td, _, eret_ready in valid_rows if eret_ready}
+          target_pfill = set(sorted(target_pfill)[-pfill_window_size:])
+          target_eret = set(sorted(target_eret)[-eret_window_size:])
+
+          eligible_rows = []
+          for td, pfill_ready, eret_ready in valid_rows:
+              needs_pfill = td in target_pfill and pfill_ready and not pfill_trainset_is_current(td)
+              needs_eret = td in target_eret and eret_ready and not eret_trainset_is_current(td)
+              if not (needs_pfill or needs_eret):
+                  if td in target_pfill or td in target_eret:
+                      print(f'[learning-rebuild][skip] trainsets already usable for {td}')
+                  continue
+              eligible_rows.append((td, needs_pfill, needs_eret))
+          print(f'[learning-rebuild] target_pfill={sorted(target_pfill)}')
+          print(f'[learning-rebuild] target_eret={sorted(target_eret)}')
+          print(f'[learning-rebuild] eligible rows={len(eligible_rows)}')
+          for td, needs_pfill, needs_eret in eligible_rows:
+              print(f'[learning-rebuild] rebuild FS {td}')
+              subprocess.run(['python', 'scripts/build_market_fs.py', '--trade-date', td], check=True)
+
+              if needs_pfill or needs_eret:
+                  subprocess.run(['python', 'scripts/build_fill_truth.py', '--trade-date', td], check=True)
+
+              if needs_pfill:
+                  print(f'[learning-rebuild] rebuild P_fill trainset {td}')
+                  subprocess.run(['python', 'scripts/build_pfill_trainset.py', '--trade-date', td], check=True)
+
+              if needs_eret:
+                  print(f'[learning-rebuild] rebuild E_ret trainset {td}')
+                  subprocess.run(
+                      [
+                          'python',
+                          'scripts/build_eret_truth.py',
+                          '--trade-date',
+                          td,
+                      ],
+                      check=True,
+                  )
+                  subprocess.run(['python', 'scripts/build_eret_trainset.py', '--trade-date', td], check=True)
+          PY
+
+      - name: Resolve latest PFILL_READY trade_date
+        id: resolve_pfill_learning_td
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          TD="$(python - <<'PY'
+          from pathlib import Path
+          import csv
+          path = Path('data/market/sample_maturity_latest.csv')
+          dates = []
+          def has_pred_source(td):
+              return Path(f'data/pred/archive/pred_source_{td}.csv').exists()
+          if path.exists():
+              with path.open('r', encoding='utf-8-sig', newline='') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      td = (row.get('trade_date') or '').strip()
+                      ready = (row.get('PFILL_READY') or '').strip()
+                      if td and ready == '1' and has_pred_source(td):
+                          dates.append(td)
+          dates = sorted(set(dates))
+          print(dates[-1] if dates else '')
+          PY
+          )"
+          if echo "${TD}" | grep -E '^[0-9]{8}$' >/dev/null; then
+            echo "[learning] P_fill READY trade_date=${TD}"
+            echo "trade_date=${TD}" >> "$GITHUB_OUTPUT"
+            echo "has_trade_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "[learning] no PFILL_READY trade_date found"
+            echo "trade_date=" >> "$GITHUB_OUTPUT"
+            echo "has_trade_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync pred source for P_fill trade_date
+        if: steps.resolve_pfill_learning_td.outputs.has_trade_date == 'true'
+        env:
+          TRADE_DATE: ${{ steps.resolve_pfill_learning_td.outputs.trade_date }}
+          A_TOP10_OWNER: njedu2023-prog
+          A_TOP10_REPO: a-top10
+          A_TOP10_BRANCH: main
+        run: |
+          set -e
+          FILE_IN_A_TOP10="outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+          RAW_URL="https://raw.githubusercontent.com/${A_TOP10_OWNER}/${A_TOP10_REPO}/${A_TOP10_BRANCH}/${FILE_IN_A_TOP10}"
+          TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${RAW_URL}" python scripts/sync_pred_source.py
+
+      - name: Build fill truth
+        if: steps.resolve_pfill_learning_td.outputs.has_trade_date == 'true'
+        run: |
+          set -e
+          python scripts/build_fill_truth.py --trade-date "${{ steps.resolve_pfill_learning_td.outputs.trade_date }}"
+
+      - name: Build P_fill trainset
+        if: steps.resolve_pfill_learning_td.outputs.has_trade_date == 'true'
+        run: |
+          set -e
+          python scripts/build_pfill_trainset.py --trade-date "${{ steps.resolve_pfill_learning_td.outputs.trade_date }}"
+
+      - name: Train P_fill models
+        if: steps.resolve_pfill_learning_td.outputs.has_trade_date == 'true' && steps.decision_model_freeze.outputs.model_updates_allowed == 'true'
+        run: |
+          set -e
+          python scripts/train_pfill.py --trade-date "${{ steps.resolve_pfill_learning_td.outputs.trade_date }}" --window-size 0 --min-independent-dates 20
+
+      - name: Resolve latest ERET_READY trade_date
+        id: resolve_eret_learning_td
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          TD="$(python - <<'PY'
+          from pathlib import Path
+          import csv
+          path = Path('data/market/sample_maturity_latest.csv')
+          dates = []
+          def has_pred_source(td):
+              return Path(f'data/pred/archive/pred_source_{td}.csv').exists()
+          if path.exists():
+              with path.open('r', encoding='utf-8-sig', newline='') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      td = (row.get('trade_date') or '').strip()
+                      ready = (row.get('ERET_READY') or '').strip()
+                      if td and ready == '1' and has_pred_source(td):
+                          dates.append(td)
+          dates = sorted(set(dates))
+          print(dates[-1] if dates else '')
+          PY
+          )"
+          if echo "${TD}" | grep -E '^[0-9]{8}$' >/dev/null; then
+            echo "[learning] E_ret READY trade_date=${TD}"
+            echo "trade_date=${TD}" >> "$GITHUB_OUTPUT"
+            echo "has_trade_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "[learning] no ERET_READY trade_date found"
+            echo "trade_date=" >> "$GITHUB_OUTPUT"
+            echo "has_trade_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync pred source for E_ret trade_date
+        if: steps.resolve_eret_learning_td.outputs.has_trade_date == 'true'
+        env:
+          TRADE_DATE: ${{ steps.resolve_eret_learning_td.outputs.trade_date }}
+          A_TOP10_OWNER: njedu2023-prog
+          A_TOP10_REPO: a-top10
+          A_TOP10_BRANCH: main
+        run: |
+          set -e
+          FILE_IN_A_TOP10="outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+          RAW_URL="https://raw.githubusercontent.com/${A_TOP10_OWNER}/${A_TOP10_REPO}/${A_TOP10_BRANCH}/${FILE_IN_A_TOP10}"
+          TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${RAW_URL}" python scripts/sync_pred_source.py
+
+      - name: Build fill truth for E_ret trade_date
+        if: steps.resolve_eret_learning_td.outputs.has_trade_date == 'true'
+        run: |
+          set -e
+          python scripts/build_fill_truth.py --trade-date "${{ steps.resolve_eret_learning_td.outputs.trade_date }}"
+
+      - name: Build E_ret truth
+        if: steps.resolve_eret_learning_td.outputs.has_trade_date == 'true'
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -e
+          python scripts/build_eret_truth.py \
+            --trade-date "${{ steps.resolve_eret_learning_td.outputs.trade_date }}"
+
+      - name: Build E_ret trainset
+        if: steps.resolve_eret_learning_td.outputs.has_trade_date == 'true'
+        run: |
+          set -e
+          python scripts/build_eret_trainset.py --trade-date "${{ steps.resolve_eret_learning_td.outputs.trade_date }}"
+
+      - name: Train E_ret models
+        if: steps.resolve_eret_learning_td.outputs.has_trade_date == 'true' && steps.decision_model_freeze.outputs.model_updates_allowed == 'true'
+        run: |
+          set -e
+          python scripts/train_eret.py --trade-date "${{ steps.resolve_eret_learning_td.outputs.trade_date }}" --window-size 0 --min-independent-dates 20
+
+      - name: Build learning acceptance artifacts
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          mkdir -p outputs/learning
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from datetime import datetime, timezone
+          from top10decision.decision.contracts import (
+              ERET_HOLDING_MODE,
+              ERET_TRUTH_VERSION,
+          )
+
+          out_dir = Path('outputs/learning')
+          models_dir = Path('models')
+
+          def load_json(path: Path):
+              if not path.exists():
+                  return {}
+              try:
+                  return json.loads(path.read_text(encoding='utf-8'))
+              except Exception:
+                  return {}
+
+          pfill = load_json(models_dir / 'pfill_meta.json')
+          eret = load_json(models_dir / 'eret_meta.json')
+          pfill_window = pfill.get('window', {}) or {}
+          eret_window = eret.get('window', {}) or {}
+
+          core_fs_v2 = [
+              'ret_2d', 'ret_5d', 'ret_10d',
+              'volatility_5d', 'volatility_10d', 'volatility_20d',
+              'atr', 'downside_vol', 'max_drawdown_20d', 'tail_risk_score',
+              'bid_ask_proxy', 'spread_proxy',
+          ]
+          eret_missing = eret.get('missing_ratio', {}) or {}
+          still_all_missing = [c for c in core_fs_v2 if eret_missing.get(c) == 1.0]
+
+          def metric_float(metrics, key, default=None):
+              try:
+                  value = (metrics or {}).get(key)
+                  if value is None:
+                      return default
+                  return float(value)
+              except Exception:
+                  return default
+
+          pfill_metrics = pfill.get('metrics_valid', {}) or {}
+          pfill_selected_model = str(
+              pfill.get('selected_model')
+              or (pfill.get('model_selection', {}) or {}).get('selected_model')
+              or ''
+          ).strip().lower()
+          pfill_selected_metrics = pfill_metrics.get(pfill_selected_model, {}) or {}
+          pfill_selected_model_pass = (
+              pfill_selected_model in ('lgbm', 'lr')
+              and pfill.get('label_version') == 'pfill_truth_v6_manual_0925_proxy'
+              and pfill.get('execution_contract') == 'manual_guidance_0925_public_market_fillability_proxy'
+              and metric_float(pfill_selected_metrics, 'valid_dates', 0) >= 4
+              and metric_float(pfill_selected_metrics, 'auc', -1) >= 0.55
+              and metric_float(pfill_selected_metrics, 'brier_skill_vs_train_rate', -1) > 0.0
+          )
+
+          eret_metrics = eret.get('metrics_valid', {}) or {}
+          eret_selected_model = str(
+              eret.get('selected_model')
+              or (eret.get('model_selection', {}) or {}).get('selected_model')
+              or ''
+          ).strip().lower()
+          if eret_selected_model not in ('lgbm', 'lr'):
+              scored = []
+              for preference, kind in enumerate(('lgbm', 'lr')):
+                  m = eret_metrics.get(kind, {}) or {}
+                  rmse = metric_float(m, 'rmse', float('inf'))
+                  mae = metric_float(m, 'mae', float('inf'))
+                  directional = metric_float(m, 'directional_acc', -1.0)
+                  scored.append(((rmse, mae, -directional, preference), kind))
+              scored.sort(key=lambda x: x[0])
+              eret_selected_model = scored[0][1] if scored else ''
+
+          eret_selected_metrics = eret_metrics.get(eret_selected_model, {}) or {}
+          eret_selected_rmse = metric_float(eret_selected_metrics, 'rmse')
+          eret_selected_directional = metric_float(eret_selected_metrics, 'directional_acc')
+          eret_selected_daily_ic = metric_float(eret_selected_metrics, 'daily_spearman_corr_mean')
+          eret_selected_daily_ic_dates = metric_float(eret_selected_metrics, 'daily_spearman_valid_dates', 0)
+          eret_selected_rmse_skill = metric_float(eret_selected_metrics, 'rmse_skill_vs_train_mean')
+          eret_selected_model_pass = (
+              eret_selected_model in ('lgbm', 'lr')
+              and eret.get('eret_truth_version') == ERET_TRUTH_VERSION
+              and eret.get('return_holding_mode') == ERET_HOLDING_MODE
+              and eret_selected_rmse is not None
+              and eret_selected_rmse <= 0.15
+              and eret_selected_directional is not None
+              and eret_selected_directional >= 0.50
+              and eret_selected_daily_ic is not None
+              and eret_selected_daily_ic > 0.0
+              and eret_selected_daily_ic_dates >= 4
+              and eret_selected_rmse_skill is not None
+              and eret_selected_rmse_skill > 0.0
+          )
+
+          acceptance = {
+              'generated_at_utc': datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+              'current_run_date': '${{ steps.resolve_current_run_date.outputs.current_run_date }}',
+              'pfill': {
+                  'anchor_trade_date': pfill.get('anchor_trade_date', ''),
+                  'status': pfill.get('status', ''),
+                  'loaded_trade_dates': len(pfill_window.get('loaded_trade_dates', []) or []),
+                  'missing_trade_dates': len(pfill_window.get('missing_trade_dates', []) or []),
+                  'metrics_valid': pfill.get('metrics_valid', {}) or {},
+                  'selected_model': pfill_selected_model,
+                  'label_version': pfill.get('label_version', ''),
+                  'execution_contract': pfill.get('execution_contract', ''),
+                  'selected_model_metrics': pfill_selected_metrics,
+                  'selected_model_pass': pfill_selected_model_pass,
+                  'acceptance_pass': bool(pfill.get('anchor_trade_date')) and pfill.get('status') == 'trained' and len(pfill_window.get('loaded_trade_dates', []) or []) >= 20 and pfill_selected_model_pass,
+              },
+              'eret': {
+                  'anchor_trade_date': eret.get('anchor_trade_date', ''),
+                  'status': eret.get('status', ''),
+                  'loaded_trade_dates': len(eret_window.get('loaded_trade_dates', []) or []),
+                  'missing_trade_dates': len(eret_window.get('missing_trade_dates', []) or []),
+                  'metrics_valid': eret.get('metrics_valid', {}) or {},
+                  'fs_v2_still_all_missing': still_all_missing,
+                  'selected_model': eret_selected_model,
+                  'eret_truth_version': eret.get('eret_truth_version', ''),
+                  'return_holding_mode': eret.get('return_holding_mode', ''),
+                  'selected_model_metrics': eret_selected_metrics,
+                  'selected_model_pass': eret_selected_model_pass,
+                  'acceptance_pass': bool(eret.get('anchor_trade_date')) and eret.get('status') == 'trained' and len(eret_window.get('loaded_trade_dates', []) or []) >= 20 and len(still_all_missing) == 0 and eret_selected_model_pass,
+              },
+          }
+          acceptance['overall_pass'] = bool(acceptance['pfill']['acceptance_pass'] and acceptance['eret']['acceptance_pass'])
+
+          json_path = out_dir / 'learning_acceptance_latest.json'
+          md_path = out_dir / 'learning_acceptance_latest.md'
+          json_path.write_text(json.dumps(acceptance, ensure_ascii=False, indent=2), encoding='utf-8')
+
+          lines = [
+              '# Learning Acceptance Latest',
+              '',
+              f"- generated_at_utc: {acceptance['generated_at_utc']}",
+              f"- current_run_date: {acceptance['current_run_date']}",
+              f"- overall_pass: {'PASS' if acceptance['overall_pass'] else 'FAIL'}",
+              '',
+              '## P_fill',
+              f"- anchor_trade_date: {acceptance['pfill']['anchor_trade_date']}",
+              f"- status: {acceptance['pfill']['status']}",
+              f"- loaded_trade_dates: {acceptance['pfill']['loaded_trade_dates']}",
+              f"- missing_trade_dates: {acceptance['pfill']['missing_trade_dates']}",
+              f"- selected_model: {acceptance['pfill']['selected_model']}",
+              f"- selected_model_pass: {'PASS' if acceptance['pfill']['selected_model_pass'] else 'FAIL'}",
+              f"- acceptance_pass: {'PASS' if acceptance['pfill']['acceptance_pass'] else 'FAIL'}",
+              '',
+              '## E_ret',
+              f"- anchor_trade_date: {acceptance['eret']['anchor_trade_date']}",
+              f"- status: {acceptance['eret']['status']}",
+              f"- loaded_trade_dates: {acceptance['eret']['loaded_trade_dates']}",
+              f"- missing_trade_dates: {acceptance['eret']['missing_trade_dates']}",
+              f"- fs_v2_still_all_missing: {acceptance['eret']['fs_v2_still_all_missing']}",
+              f"- selected_model: {acceptance['eret']['selected_model']}",
+              f"- selected_model_pass: {'PASS' if acceptance['eret']['selected_model_pass'] else 'FAIL'}",
+              f"- acceptance_pass: {'PASS' if acceptance['eret']['acceptance_pass'] else 'FAIL'}",
+              '',
+          ]
+          md_path.write_text('\n'.join(lines), encoding='utf-8')
+          print(f'[learning-acceptance] overall_pass={acceptance["overall_pass"]}')
+          print(f'[learning-acceptance] pfill_selected_model={pfill_selected_model} pass={pfill_selected_model_pass}')
+          print(f'[learning-acceptance] eret_fs_v2_still_all_missing={still_all_missing}')
+          print(f'[learning-acceptance] eret_selected_model={eret_selected_model} pass={eret_selected_model_pass}')
+          PY
+
+      - name: Commit learning artifacts
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          find . -type d -name "__pycache__" -prune -exec rm -rf {} + || true
+          find . -type f -name "*.pyc" -delete || true
+          mkdir -p .git/info
+          grep -qxF "__pycache__/" .git/info/exclude 2>/dev/null || echo "__pycache__/" >> .git/info/exclude
+          grep -qxF "*.pyc" .git/info/exclude 2>/dev/null || echo "*.pyc" >> .git/info/exclude
+
+          git add data/pred/pred_source_latest.csv || true
+          git add data/pred/archive/*.csv || true
+          git add -A data/pred/archive || true
+          git add data/market/sample_maturity_candidates.csv || true
+          git add data/market/sample_maturity_*.csv || true
+          git add data/market/sample_maturity_*.json || true
+          git add data/market/fill_truth_*.csv || true
+          git add data/market/fill_truth_*.meta.json || true
+          git add data/market/pfill_trainset_*.csv || true
+          git add data/market/pfill_trainset_*.meta.json || true
+          git add data/market/eret_truth_*.csv || true
+          git add data/market/eret_truth_*.meta.json || true
+          git add data/market/eret_trainset_*.csv || true
+          git add data/market/eret_trainset_*.meta.json || true
+          git add -A data/market/minute_1m || true
+          git add outputs/learning/learning_acceptance_latest.md || true
+          git add outputs/learning/learning_acceptance_latest.json || true
+          git add models/pfill_*.joblib || true
+          git add models/pfill_*.json || true
+          git add models/eret_*.joblib || true
+          git add models/eret_*.json || true
+
+          echo "[git-learning] status after add:"
+          git status --porcelain | sed -n '1,200p' || true
+
+          if git diff --cached --quiet; then
+            echo "[git-learning] no staged changes"
+            exit 0
+          fi
+
+          git commit -m "auto: resolve sample maturity and update pfill + eret learning artifacts"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git reset --hard HEAD
+          fi
+
+          pushed=0
+          for attempt in 1 2 3; do
+            echo "[push-learning] attempt=${attempt}"
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                pushed=1
+                break
+              fi
+            else
+              git rebase --abort || true
+            fi
+            sleep 2
+          done
+
+          if [ "${pushed}" != "1" ]; then
+            echo "[push-learning] failed after retries"
+            exit 1
+          fi
+
+      - name: Gate refresh on learning acceptance
+        id: learning_gate
+        if: steps.resolve_current_run_date.outputs.has_current_run_date == 'true'
+        run: |
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import os
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+          )
+
+          path = Path('outputs/learning/learning_acceptance_latest.json')
+          if not path.exists():
+              print('[learning-gate] missing learning acceptance artifact; skip decision refresh')
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+                  fh.write('learning_gate_pass=false\n')
+              raise SystemExit(0)
+
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          passed = payload.get('overall_pass') is True
+          freeze = load_model_freeze(Path('.'), required=True)
+          learning = freeze.get('learning', {}) or {}
+          if (
+              model_freeze_active(freeze)
+              and learning.get('allow_post_learning_decision_refresh') is not True
+          ):
+              passed = False
+              print(
+                  '[learning-gate] production model frozen; '
+                  'keep learning evidence but skip Decision model refresh'
+              )
+          eret = payload.get('eret', {}) or {}
+          print(f"[learning-gate] overall_pass={passed}")
+          print(f"[learning-gate] eret_selected_model={eret.get('selected_model')} pass={eret.get('selected_model_pass')}")
+          print(f"[learning-gate] eret_selected_model_metrics={eret.get('selected_model_metrics')}")
+          if not passed:
+              print('[learning-gate] learning acceptance did not pass; keep existing decision outputs and skip refresh')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f"learning_gate_pass={'true' if passed else 'false'}\n")
+          PY
+
+  decision_refresh_after_learning:
+    name: Refresh Decision With Latest Learning Models
+    needs: pfill_learning
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: ${{ needs.pfill_learning.result == 'success' && needs.pfill_learning.outputs.learning_gate_pass == 'true' }}
+
+    steps:
+      - name: Checkout latest main after learning
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Reset to latest remote main
+        run: |
+          set -e
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
+
+      - name: Ensure output dirs
+        run: |
+          set -e
+          mkdir -p data/decision docs/signals docs/reports docs/weights outputs/decision
+
+      - name: Resolve refresh decision trade_date
+        id: resolve_refresh_trade_date
+        env:
+          TRADE_DATE_INPUT: ${{ inputs.trade_date }}
+          A_TOP10_OWNER: njedu2023-prog
+          A_TOP10_REPO: a-top10
+          A_TOP10_BRANCH: main
+        run: |
+          set -e
+          echo "[refresh-date] input_trade_date=${TRADE_DATE_INPUT}"
+
+          REFRESH_TRADE_DATE="$(python - <<'PY'
+          from pathlib import Path
+          import csv
+          import re
+          import os
+
+          input_td = (os.environ.get('TRADE_DATE_INPUT') or '').strip()
+
+          fs_dates = set()
+          for p in Path('data/market').glob('features_base_*.csv'):
+              m = re.fullmatch(r'features_base_(\d{8})\.csv', p.name)
+              if m:
+                  fs_dates.add(m.group(1))
+
+          pred_dates = set()
+          archive = Path('data/pred/archive')
+          if archive.exists():
+              for p in archive.rglob('*.csv'):
+                  m = re.search(r'(\d{8})', p.name)
+                  if m:
+                      pred_dates.add(m.group(1))
+
+          latest_pred = Path('data/pred/pred_source_latest.csv')
+          if latest_pred.exists():
+              try:
+                  with latest_pred.open('r', encoding='utf-8-sig', newline='') as f:
+                      reader = csv.DictReader(f)
+                      for row in reader:
+                          td = (row.get('trade_date') or '').strip()
+                          if re.fullmatch(r'\d{8}', td):
+                              pred_dates.add(td)
+              except Exception:
+                  pass
+
+          common = sorted(fs_dates & pred_dates)
+          fs_only = sorted(fs_dates)
+
+          if re.fullmatch(r'\d{8}', input_td) and input_td in fs_dates:
+              print(input_td)
+          elif common:
+              print(common[-1])
+          elif fs_only:
+              print(fs_only[-1])
+          else:
+              print('')
+          PY
+          )"
+
+          if ! echo "${REFRESH_TRADE_DATE}" | grep -E '^[0-9]{8}$' >/dev/null; then
+            echo "[refresh-date] cannot resolve refresh trade_date"
+            echo "[refresh-date] features_base files:"
+            ls -1 data/market/features_base_*.csv 2>/dev/null || true
+            echo "[refresh-date] pred archive files:"
+            find data/pred/archive -type f -name '*.csv' 2>/dev/null | sort || true
+            exit 1
+          fi
+
+          echo "[refresh-date] resolved refresh_trade_date=${REFRESH_TRADE_DATE}"
+          echo "refresh_trade_date=${REFRESH_TRADE_DATE}" >> "$GITHUB_OUTPUT"
+
+          if [ -f "data/pred/archive/pred_source_${REFRESH_TRADE_DATE}.csv" ]; then
+            echo "[refresh-date] restore pred_source_latest from archive for ${REFRESH_TRADE_DATE}"
+            cp "data/pred/archive/pred_source_${REFRESH_TRADE_DATE}.csv" "data/pred/pred_source_latest.csv"
+          elif [ -n "${REFRESH_TRADE_DATE}" ]; then
+            echo "[refresh-date] archive pred source missing; try resync pred source for ${REFRESH_TRADE_DATE}"
+            FILE_IN_A_TOP10="outputs/decisio/pred_decisio_${REFRESH_TRADE_DATE}.csv"
+            RAW_URL="https://raw.githubusercontent.com/${A_TOP10_OWNER}/${A_TOP10_REPO}/${A_TOP10_BRANCH}/${FILE_IN_A_TOP10}"
+            TRADE_DATE="${REFRESH_TRADE_DATE}" TOP10_PRED_URL="${RAW_URL}" python scripts/sync_pred_source.py || true
+          fi
+
+          if [ -f "data/pred/archive/pred_top10_${REFRESH_TRADE_DATE}.csv" ]; then
+            echo "[refresh-date] restore pred_top10_latest from archive for ${REFRESH_TRADE_DATE}"
+            cp "data/pred/archive/pred_top10_${REFRESH_TRADE_DATE}.csv" "data/pred/pred_top10_latest.csv"
+          elif [ -f "data/pred/pred_top10_${REFRESH_TRADE_DATE}.csv" ]; then
+            echo "[refresh-date] restore pred_top10_latest from dated file for ${REFRESH_TRADE_DATE}"
+            cp "data/pred/pred_top10_${REFRESH_TRADE_DATE}.csv" "data/pred/pred_top10_latest.csv"
+          fi
+
+          echo "[refresh-date] available market FS files:"
+          ls -lah data/market/features_base_*.csv 2>/dev/null || true
+          echo "[refresh-date] current pred latest head:"
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          p = Path('data/pred/pred_source_latest.csv')
+          if p.exists():
+              df = pd.read_csv(p, nrows=5)
+              print(df.to_string(index=False))
+          else:
+              print('pred_source_latest.csv missing')
+          PY
+
+      - name: Run decision pipeline after learning
+        env:
+          REFRESH_TRADE_DATE: ${{ steps.resolve_refresh_trade_date.outputs.refresh_trade_date }}
+        run: |
+          set -e
+          echo "[refresh] using latest committed models after learning"
+          echo "[run_v2-refresh] refresh_trade_date=${REFRESH_TRADE_DATE}"
+          python scripts/run_v2.py --trade-date "${REFRESH_TRADE_DATE}"
+          python scripts/publish_decision_action.py
+
+      - name: Validate IO contract after refresh
+        run: |
+          set -e
+          python scripts/validate_io_contract.py --strict-semantic
+
+      - name: Show refresh status
+        run: |
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          meta_path = Path('models/eret_meta.json')
+          if meta_path.exists():
+              meta = json.loads(meta_path.read_text(encoding='utf-8'))
+              print('[refresh] eret_anchor=', meta.get('anchor_trade_date'))
+              print('[refresh] eret_status=', meta.get('status'))
+              mr = meta.get('missing_ratio', {}) or {}
+              core = ['ret_2d','ret_5d','ret_10d','volatility_5d','volatility_10d','volatility_20d','atr','downside_vol','max_drawdown_20d','tail_risk_score','bid_ask_proxy','spread_proxy']
+              print('[refresh] eret_fs_v2_missing_ratio=', {c: mr.get(c) for c in core})
+
+          for p in sorted(Path('outputs/decision').glob('decision_report_*.md'))[-5:]:
+              print('[refresh] report=', p.as_posix())
+          PY
+
+      - name: Commit refreshed decision outputs
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          find . -type d -name "__pycache__" -prune -exec rm -rf {} + || true
+          find . -type f -name "*.pyc" -delete || true
+          mkdir -p .git/info
+          grep -qxF "__pycache__/" .git/info/exclude 2>/dev/null || echo "__pycache__/" >> .git/info/exclude
+          grep -qxF "*.pyc" .git/info/exclude 2>/dev/null || echo "*.pyc" >> .git/info/exclude
+
+          git add outputs/decision/* || true
+          git add outputs/decision/**/*.md || true
+          git add outputs/decision/**/*.json || true
+          git add data/decision/decision_candidates_*.csv || true
+          git add data/decision/decision_execution_*.csv || true
+          git add data/decision/decision_learning.csv || true
+          git add docs/weights/weights_latest.csv || true
+          git add docs/weights/weights_*.csv || true
+          git add docs/signals/top10_latest.csv || true
+          git add docs/signals/top10_*.csv || true
+          git add docs/signals/TopEVR_latest.csv || true
+          git add docs/signals/TopEVR_*.csv || true
+          git add docs/reports/*.md || true
+          git add -A docs/reports || true
+
+          echo "[git-refresh] status after add:"
+          git status --porcelain | sed -n '1,200p' || true
+
+          if git diff --cached --quiet; then
+            echo "[git-refresh] no staged changes"
+            exit 0
+          fi
+
+          git commit -m "auto: refresh decision outputs after learning models"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git reset --hard HEAD
+          fi
+
+          pushed=0
+          for attempt in 1 2 3; do
+            echo "[push-refresh] attempt=${attempt}"
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                pushed=1
+                break
+              fi
+            else
+              git rebase --abort || true
+            fi
+            sleep 2
+          done
+
+          if [ "${pushed}" != "1" ]; then
+            echo "[push-refresh] failed after retries"
+            exit 1
+          fi

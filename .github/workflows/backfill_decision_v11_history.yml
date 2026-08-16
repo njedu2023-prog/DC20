@@ -1,0 +1,160 @@
+name: Backfill Decision V11 Two-Year History
+
+on:
+  schedule:
+    # Sunday 10:30 Beijing. Keep 500 OOS sessions plus conservative warmup complete.
+    - cron: "30 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "历史起始日 YYYYMMDD"
+        required: false
+        default: "20200101"
+        type: string
+      end_date:
+        description: "历史结束日 YYYYMMDD（留空=北京时间今天）"
+        required: false
+        type: string
+      max_missing_dates:
+        description: "本次最多新增历史信号日"
+        required: false
+        default: "500"
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Build strict-calendar compact history
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
+
+      - name: Resolve bounded history request
+        id: request
+        env:
+          INPUT_START: ${{ inputs.start_date }}
+          INPUT_END: ${{ inputs.end_date }}
+          INPUT_MAX: ${{ inputs.max_missing_dates }}
+        run: |
+          set -e
+          start="${INPUT_START:-20200101}"
+          end="${INPUT_END:-$(TZ=Asia/Shanghai date +%Y%m%d)}"
+          maximum="${INPUT_MAX:-500}"
+          echo "${start}" | grep -Eq '^[0-9]{8}$'
+          echo "${end}" | grep -Eq '^[0-9]{8}$'
+          echo "${maximum}" | grep -Eq '^[0-9]+$'
+          test "${maximum}" -ge 1
+          test "${maximum}" -le 500
+          echo "start_date=${start}" >> "$GITHUB_OUTPUT"
+          echo "end_date=${end}" >> "$GITHUB_OUTPUT"
+          echo "max_missing_dates=${maximum}" >> "$GITHUB_OUTPUT"
+
+      - name: Backfill immutable Decision history
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -e
+          python scripts/backfill_decision_v11_history.py \
+            --start-date "${{ steps.request.outputs.start_date }}" \
+            --end-date "${{ steps.request.outputs.end_date }}" \
+            --max-missing-dates "${{ steps.request.outputs.max_missing_dates }}"
+
+      - name: Persist immutable history before model rebuild
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/auction_v3/history
+          git add data/market/trade_cal_sse.csv
+          if git diff --cached --quiet; then
+            echo "Decision V11 two-year history is already current"
+            exit 0
+          fi
+          git commit -m "auto: extend Decision V11 two-year history"
+          pushed=0
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              pushed=1
+              break
+            fi
+            git rebase --abort || true
+            sleep 3
+          done
+          test "${pushed}" = "1"
+
+      - name: Run Decision V11 calibration tests
+        run: |
+          set -e
+          python -m unittest discover -s tests -p 'test_auction_v3.py' -v
+          python -m unittest discover -s tests -p 'test_decision_v8_calibration.py' -v
+          python -m unittest discover -s tests -p 'test_decision_contract.py' -v
+
+      - name: Rebuild Decision V11 evidence and page data
+        run: |
+          set -e
+          python scripts/run_auction_v3.py
+          python scripts/publish_decision_action.py
+          python scripts/validate_io_contract.py --strict-semantic
+
+      - name: Enforce two full out-of-sample years
+        run: |
+          set -e
+          python -c "import json; from top10decision.auction_v3.config import TARGET_INDEPENDENT_OOS_DATES as target; payload=json.load(open('outputs/auction_v3/metrics/backtest_latest.json', encoding='utf-8')); actual=int(payload.get('oos_dates') or 0); print(f'[Decision V11] independent_oos_dates={actual}, target={target}'); assert actual >= target, f'independent OOS coverage {actual} < {target}'"
+
+      - name: Commit Decision-only history and evidence
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A outputs/auction_v3
+          git add outputs/decision/action_plan_*.json
+          git add outputs/decision/report_index.json
+          git add docs/reports/auction_v3*.html
+          if git diff --cached --quiet; then
+            echo "Decision V11 history is already current"
+            exit 0
+          fi
+          git commit -m "auto: extend Decision V11 two-year history"
+          pushed=0
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              pushed=1
+              break
+            fi
+            git rebase --abort || true
+            sleep 3
+          done
+          test "${pushed}" = "1"

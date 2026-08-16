@@ -1,0 +1,184 @@
+name: Run Decision Top10 Trade Selector V12
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/run_auction_v3.yml"
+      - "models/decision_model_freeze.json"
+      - "src/top10decision/auction_v3/**"
+      - "src/top10decision/decision/**"
+      - "src/top10decision/data/**"
+      - "scripts/run_auction_v3.py"
+      - "scripts/validate_decision_model_freeze.py"
+      - "scripts/sync_tushare_minute.py"
+      - "scripts/backfill_decision_v11_history.py"
+      - "scripts/publish_decision_action.py"
+      - "scripts/verify_decision_observations.py"
+      - "tests/test_auction_v3.py"
+      - "tests/test_decision_contract.py"
+      - "tests/test_decision_model_freeze.py"
+      - "tests/test_decision_v8_calibration.py"
+      - "tests/test_decision_trade_selector.py"
+  workflow_run:
+    workflows: ["Run Top10 Decision (Auto Daily)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      signal_date:
+        description: "信号日 YYYYMMDD（留空=最新冻结候选）"
+        required: false
+        type: string
+      order_amount:
+        description: "单票计划金额（元），用于竞价容量校验"
+        required: false
+        default: "100000"
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  auction_guidance_v12:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
+
+      - name: Validate frozen Decision production model
+        run: |
+          set -e
+          python scripts/validate_decision_model_freeze.py
+
+      - name: Run Decision execution tests
+        run: |
+          set -e
+          python -m unittest discover -s tests -p 'test_auction_v3.py' -v
+          python -m unittest discover -s tests -p 'test_decision_v8_calibration.py' -v
+          python -m unittest discover -s tests -p 'test_decision_trade_selector.py' -v
+          python -m unittest discover -s tests -p 'test_decision_contract.py' -v
+          python -m unittest discover -s tests -p 'test_decision_model_freeze.py' -v
+
+      - name: Sync strict calendar and Tushare minute truth
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          SIGNAL_DATE: ${{ inputs.signal_date }}
+        run: |
+          set -e
+          args=(--optional --max-codes 80 --timeout-seconds 8 --workers 6)
+          if [ -n "${SIGNAL_DATE}" ]; then
+            args+=(--signal-date "${SIGNAL_DATE}")
+          fi
+          python scripts/sync_tushare_minute.py "${args[@]}"
+
+      - name: Run Decision Top10 trade selector V12
+        env:
+          SIGNAL_DATE: ${{ inputs.signal_date }}
+          ORDER_AMOUNT: ${{ inputs.order_amount || '100000' }}
+        run: |
+          set -e
+          args=(--order-amount "${ORDER_AMOUNT}")
+          if [ -n "${SIGNAL_DATE}" ]; then
+            if ! echo "${SIGNAL_DATE}" | grep -Eq '^[0-9]{8}$'; then
+              echo "invalid signal_date=${SIGNAL_DATE}"
+              exit 1
+            fi
+            args+=(--signal-date "${SIGNAL_DATE}")
+          fi
+          python scripts/run_auction_v3.py "${args[@]}"
+
+      - name: Publish unified Decision action plan
+        run: |
+          set -e
+          python scripts/publish_decision_action.py
+
+      - name: Verify frozen runtime fingerprints
+        run: |
+          set -e
+          python scripts/validate_decision_model_freeze.py --runtime
+
+      - name: Validate generated contract
+        run: |
+          set -e
+          test -f outputs/auction_v3/predictions/pred_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_latest.json
+          test -f outputs/auction_v3/metrics/backtest_gate_audit_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_shadow_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_stage_focus_all_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_path_focus_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_top10_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv
+          test -f outputs/auction_v3/metrics/backtest_trade_selector_selected_latest.csv
+          test -f outputs/auction_v3/metrics/cumulative_latest.json
+          test -f outputs/auction_v3/metrics/observation_cumulative_latest.json
+          test -f outputs/auction_v3/verification/observation_latest.csv
+          test -f docs/reports/auction_v3_latest.html
+          test -f docs/reports/auction_v3_verify_latest.html
+          test -f docs/reports/auction_v3_validation_dashboard.html
+          test -f outputs/decision/action_plan_latest.json
+          test -f outputs/decision/report_index.json
+          python -m json.tool outputs/auction_v3/metrics/backtest_latest.json >/dev/null
+          python -m json.tool outputs/auction_v3/metrics/cumulative_latest.json >/dev/null
+          python -m json.tool outputs/auction_v3/metrics/observation_cumulative_latest.json >/dev/null
+          python -m json.tool outputs/decision/action_plan_latest.json >/dev/null
+          python -m json.tool outputs/decision/report_index.json >/dev/null
+
+      - name: Commit frozen predictions, truth and reports
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A outputs/auction_v3
+          git add outputs/decision/action_plan_*.json outputs/decision/report_index.json
+          git add models/decision_v12_frozen_history_20260805.csv.gz || true
+          git add data/market/trade_cal_sse.csv || true
+          git add -A data/market/minute_1m || true
+          find data/market/raw -type f \
+            \( -name 'stk_auction_o.csv' -o -name 'stk_auction_o.meta.json' \) \
+            -print0 | xargs -0 -r git add --
+          git add docs/reports/auction_v3*.html
+          if git diff --cached --quiet; then
+            echo "Decision V12 has no changed artifacts"
+            exit 0
+          fi
+          git commit -m "auto: update Decision V12 trade selector and validation"
+          pushed=0
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              pushed=1
+              break
+            fi
+            git rebase --abort || true
+            sleep 3
+          done
+          test "${pushed}" = "1"

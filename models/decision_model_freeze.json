@@ -1,11 +1,18 @@
 {
   "schema_version": "decision_model_freeze_v1",
   "active": true,
-  "freeze_id": "decision_v13_promotion_oos_d20260815_history20260805",
+  "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
   "frozen_at_utc": "2026-08-15T15:07:43Z",
   "frozen_from_main_commit": "3413b5737a1e1da2623b26dffafe24ef143fdb51",
-  "scope": "Decision subsystem only; premium is excluded",
-  "freeze_reason": "Freeze the strictly validated V13 promotion probability and promotion ranking upgrade while preserving the existing no-trade policy, risk models, return models, second-filter statistics, and Premium isolation.",
+  "scope": "DC20 Decision subsystem only",
+  "freeze_reason": "Preserve the validated Decision V13 baseline in the independent DC20 research repository until an explicit DC20-only release review.",
+  "clone_provenance": {
+    "source_repository": "njedu2023-prog/top10-decision",
+    "source_commit": "8741bfabf73cf9c64e3b6808b3529457474349e2",
+    "target_repository": "njedu2023-prog/DC20",
+    "copied_at_utc": "2026-08-16T09:39:37Z",
+    "source_repository_writeback_allowed": false
+  },
   "training_cutoff_signal_date": "20260805",
   "history_snapshot": {
     "path": "models/decision_v12_frozen_history_20260805.csv.gz",
@@ -105,7 +112,7 @@
     "automatic_unfreeze": false
   },
   "pinned_files": {
-    ".github/workflows/run_auction_v3.yml": "5436003d96d76de588390bb82151cb02130066790d1716383d554335959959d7",
+    ".github/workflows/run_auction_v3.yml": "1af30b1f16ce84e8465ed777847c71bdac4218c0b8383ba6a5daa7d24faf0577",
     ".github/workflows/run_decision_daily.yml": "0c53fc69d25f097063557e0d48759d13b4cdd4134585e50bdcb7584af93fad2e",
     "models/eret_lgbm.joblib": "81c26cb342059026719dba000fe8176f61a1ef7470f7fc156ff4a695d2c1ac1d",
     "models/eret_lgbm_20260805.joblib": "81c26cb342059026719dba000fe8176f61a1ef7470f7fc156ff4a695d2c1ac1d",

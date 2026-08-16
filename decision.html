@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Decision 竞价决策</title>
+  <title>DC20 Decision 竞价研究</title>
   <style>
     :root {
       --bg: #f4f6f7;
@@ -696,7 +696,7 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <h1>Decision 竞价决策</h1>
+        <h1>DC20 Decision 竞价研究</h1>
         <p id="brandDates" class="brand-dates">D:- · T:- · T+1:-</p>
       </div>
       <nav class="controls" aria-label="报告导航">
@@ -813,9 +813,9 @@
   <script>
     "use strict";
 
-    const REPO = { owner: "njedu2023-prog", name: "top10-decision", branch: "main" };
+    const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "decision-dashboard-v11-open0930-cache";
+    const CACHE_KEY = "dc20-decision-dashboard-v1-cache";
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
