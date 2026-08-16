@@ -12,89 +12,295 @@ import pytest
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "replay_frozen_canonical_v2.py"
+ROOT = SCRIPT.parents[1]
 SPEC = importlib.util.spec_from_file_location("replay_frozen_canonical_v2", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 replay = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(replay)
 
 
-def _inactive_freeze(tmp_path: Path) -> tuple[Path, str]:
-    frame = pd.DataFrame(
+def _write_manifest(tmp_path: Path, payload: bytes) -> Path:
+    path = tmp_path / "models" / "decision_model_freeze.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    return path
+
+
+def _current_legacy_manifest_bytes() -> bytes:
+    return (ROOT / "models" / "decision_model_freeze.json").read_bytes()
+
+
+def _synthetic_history() -> pd.DataFrame:
+    return pd.DataFrame(
         {
             "signal_date": ["20260804", "20260805"],
             "buy_date": ["20260805", "20260806"],
             "target_exit_date": ["20260806", "20260807"],
+            "actual_exit_date": ["20260806", "20260807"],
             "ts_code": ["000001.SZ", "600000.SH"],
-            "net_return": [0.01, -0.02],
         }
     )
-    snapshot = tmp_path / "models" / "frozen.csv.gz"
-    snapshot.parent.mkdir(parents=True)
+
+
+def _write_synthetic_legacy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    frame: pd.DataFrame,
+    *,
+    expected_columns: tuple[str, ...] | None = None,
+) -> None:
+    snapshot = tmp_path / replay.EXPECTED_SNAPSHOT_PATH
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(
         snapshot,
         index=False,
         compression={"method": "gzip", "compresslevel": 9, "mtime": 0},
     )
-    sha = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    snapshot_sha = hashlib.sha256(snapshot.read_bytes()).hexdigest()
     manifest = {
         "schema_version": "decision_model_freeze_v1",
         "active": False,
-        "freeze_id": "inactive-maintenance-window",
-        "training_cutoff_signal_date": "20260805",
-        "production": {},
-        "pinned_files": {},
+        "freeze_id": replay.EXPECTED_FREEZE_ID,
+        "training_cutoff_signal_date": replay.EXPECTED_TRAINING_CUTOFF,
         "history_snapshot": {
-            "path": "models/frozen.csv.gz",
-            "sha256": sha,
+            "path": replay.EXPECTED_SNAPSHOT_PATH,
+            "sha256": snapshot_sha,
             "bootstrap_mode": False,
         },
     }
-    manifest_path = tmp_path / "models" / "decision_model_freeze.json"
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    return manifest_path, sha
-
-
-def test_inactive_manifest_forces_exact_snapshot_without_mutating_disk(
-    tmp_path: Path,
-) -> None:
-    manifest_path, sha = _inactive_freeze(tmp_path)
-    before = manifest_path.read_bytes()
-    history, forced, audit = replay.load_forced_frozen_history(
-        tmp_path,
-        expected_sha256=sha,
-        expected_rows=2,
-        expected_dates=2,
+    manifest_bytes = json.dumps(manifest, sort_keys=True).encode("utf-8")
+    _write_manifest(tmp_path, manifest_bytes)
+    expected = expected_columns or tuple(frame.columns)
+    monkeypatch.setattr(replay, "EXPECTED_SNAPSHOT_SHA256", snapshot_sha)
+    monkeypatch.setattr(
+        replay,
+        "LEGACY_BOOTSTRAP_MANIFEST_SHA256",
+        hashlib.sha256(manifest_bytes).hexdigest(),
     )
-    assert forced["active"] is True
+    monkeypatch.setattr(replay, "EXPECTED_HISTORY_ROWS", len(frame))
+    monkeypatch.setattr(
+        replay,
+        "EXPECTED_HISTORY_DATES",
+        frame["signal_date"].astype("string").nunique(),
+    )
+    monkeypatch.setattr(replay, "EXPECTED_HISTORY_COLUMNS", len(expected))
+    monkeypatch.setattr(
+        replay,
+        "EXPECTED_HISTORY_COLUMNS_SHA256",
+        replay.frame_columns_sha256(expected),
+    )
+
+
+def test_exact_current_inactive_v1_bootstrap_without_mutating_disk() -> None:
+    manifest_path = ROOT / "models" / "decision_model_freeze.json"
+    before = manifest_path.read_bytes()
+    history, manifest, audit = replay.load_forced_frozen_history(ROOT)
+    assert manifest["active"] is False
     assert json.loads(before)["active"] is False
     assert manifest_path.read_bytes() == before
-    assert history["ts_code"].tolist() == ["000001.SZ", "600000.SH"]
-    assert audit["sha256"] == sha
-    assert audit["source"] == "frozen_snapshot"
+    assert len(history) == 40_355
+    assert history["signal_date"].nunique() == 715
+    assert audit["sha256"] == replay.EXPECTED_SNAPSHOT_SHA256
+    assert audit["columns_sha256"] == replay.EXPECTED_HISTORY_COLUMNS_SHA256
+    assert audit["source"] == "legacy_v1_exact_diagnostic_bootstrap"
     assert audit["forced_frozen_replay"] is True
-    assert audit["v1_runtime_gate"] == "intentionally_not_run_diagnostic_only"
+    assert audit["live_history_fallback"] is False
+    assert audit["loader_contract"] == "one_time_exact_v1_no_live_fallback"
+    assert audit["manifest_content_sha256"] == replay.LEGACY_BOOTSTRAP_MANIFEST_SHA256
 
 
-def test_forced_replay_rejects_unexpected_or_drifted_snapshot(tmp_path: Path) -> None:
-    manifest_path, sha = _inactive_freeze(tmp_path)
-    with pytest.raises(RuntimeError, match="unexpected frozen snapshot SHA"):
-        replay.load_forced_frozen_history(
-            tmp_path,
-            expected_sha256="0" * 64,
-            expected_rows=2,
-            expected_dates=2,
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("byte_drift", "manifest content SHA drifted"),
+        ("path", "history_snapshot.path drifted"),
+        ("snapshot_sha", "history_snapshot.sha256 drifted"),
+        ("bootstrap", "bootstrap_mode must be false"),
+        ("cutoff", "cutoff drifted"),
+        ("schema", "unsupported diagnostic freeze schema"),
+        ("active", "must remain inactive"),
+        ("freeze_id", "freeze_id drifted"),
+    ],
+)
+def test_legacy_bootstrap_rejects_every_manifest_gate_mutation(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    original = _current_legacy_manifest_bytes()
+    if mutation == "byte_drift":
+        candidate = original + b" "
+    else:
+        payload = json.loads(original)
+        if mutation == "path":
+            payload["history_snapshot"]["path"] = "models/other.csv.gz"
+        elif mutation == "snapshot_sha":
+            payload["history_snapshot"]["sha256"] = "1" * 64
+        elif mutation == "bootstrap":
+            payload["history_snapshot"]["bootstrap_mode"] = True
+        elif mutation == "cutoff":
+            payload["training_cutoff_signal_date"] = "20260804"
+        elif mutation == "schema":
+            payload["schema_version"] = "decision_model_freeze_v0"
+        elif mutation == "active":
+            payload["active"] = True
+        elif mutation == "freeze_id":
+            payload["freeze_id"] = "drifted"
+        candidate = json.dumps(payload).encode("utf-8")
+    _write_manifest(tmp_path, candidate)
+    with pytest.raises(RuntimeError, match=message):
+        replay.load_forced_frozen_history(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("column_order", "column order/schema drifted"),
+        ("code", "noncanonical ts_code"),
+        ("date", "noncanonical signal_date"),
+    ],
+)
+def test_legacy_bootstrap_validates_schema_code_and_date_after_byte_gates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    message: str,
+) -> None:
+    base = _synthetic_history()
+    expected_columns = tuple(base.columns)
+    candidate = base.copy()
+    if mutation == "column_order":
+        candidate = candidate.loc[:, list(reversed(candidate.columns))]
+    elif mutation == "code":
+        candidate.loc[0, "ts_code"] = "000001.SS"
+    elif mutation == "date":
+        candidate.loc[0, "signal_date"] = "2026-08-04"
+    _write_synthetic_legacy(
+        tmp_path,
+        monkeypatch,
+        candidate,
+        expected_columns=expected_columns,
+    )
+    if mutation == "date":
+        monkeypatch.setattr(replay, "EXPECTED_HISTORY_DATES", 2)
+    with pytest.raises(RuntimeError, match=message):
+        replay.load_forced_frozen_history(tmp_path)
+
+
+@pytest.mark.parametrize("active", (False, True))
+def test_v2_path_delegates_to_complete_verified_loader_for_inactive_and_active(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    active: bool,
+) -> None:
+    raw = json.dumps({"schema_version": "decision_model_freeze_v2"}).encode()
+    _write_manifest(tmp_path, raw)
+    manifest = {
+        "schema_version": "decision_model_freeze_v2",
+        "active": active,
+    }
+    frame = _synthetic_history()
+    calls: list[tuple[Path, dict]] = []
+    pin_calls: list[tuple[Path, dict, bool]] = []
+
+    def verified_loader(root: Path, candidate: dict):
+        calls.append((Path(root), candidate))
+        return frame.copy(), {
+            "source": "forced_frozen_snapshot",
+            "sha256": replay.EXPECTED_SNAPSHOT_SHA256,
+        }
+
+    monkeypatch.setattr(replay, "load_model_freeze", lambda root, required: manifest)
+    monkeypatch.setattr(
+        replay,
+        "validate_pinned_files",
+        lambda root, candidate, force_enforcement: (
+            pin_calls.append((Path(root), candidate, force_enforcement))
+            or {
+                "active": active,
+                "enforced": True,
+                "forced_enforcement": not active,
+            }
+        ),
+    )
+    monkeypatch.setattr(replay, "load_verified_frozen_history_snapshot", verified_loader)
+    monkeypatch.setattr(replay, "EXPECTED_HISTORY_ROWS", 2)
+    monkeypatch.setattr(replay, "EXPECTED_HISTORY_DATES", 2)
+    monkeypatch.setattr(replay, "EXPECTED_HISTORY_COLUMNS", len(frame.columns))
+    monkeypatch.setattr(
+        replay,
+        "EXPECTED_HISTORY_COLUMNS_SHA256",
+        replay.frame_columns_sha256(frame.columns),
+    )
+
+    loaded, returned_manifest, audit = replay.load_forced_frozen_history(tmp_path)
+
+    assert loaded.equals(frame)
+    assert returned_manifest == manifest
+    assert pin_calls == [(tmp_path.resolve(), manifest, True)]
+    assert calls == [(tmp_path.resolve(), manifest)]
+    assert audit["source"] == "forced_frozen_snapshot"
+    assert audit["loader_contract"] == "v2_complete_contract_and_pins_no_live_fallback"
+    assert audit["live_history_fallback"] is False
+
+
+def test_v2_verified_loader_failure_has_no_live_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_manifest(
+        tmp_path,
+        json.dumps({"schema_version": "decision_model_freeze_v2"}).encode(),
+    )
+    manifest = {"schema_version": "decision_model_freeze_v2", "active": False}
+    monkeypatch.setattr(replay, "load_model_freeze", lambda root, required: manifest)
+    monkeypatch.setattr(
+        replay,
+        "validate_pinned_files",
+        lambda root, candidate, force_enforcement: {
+            "enforced": True,
+            "forced_enforcement": True,
+        },
+    )
+
+    def fail_closed(root: Path, candidate: dict):
+        raise replay.DecisionModelFreezeError("complete V2 pins missing")
+
+    monkeypatch.setattr(replay, "load_verified_frozen_history_snapshot", fail_closed)
+    with pytest.raises(replay.DecisionModelFreezeError, match="complete V2 pins missing"):
+        replay.load_forced_frozen_history(tmp_path)
+
+
+def test_v2_required_pin_byte_drift_stops_before_snapshot_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_manifest(
+        tmp_path,
+        json.dumps({"schema_version": "decision_model_freeze_v2"}).encode(),
+    )
+    manifest = {"schema_version": "decision_model_freeze_v2", "active": False}
+    monkeypatch.setattr(replay, "load_model_freeze", lambda root, required: manifest)
+    snapshot_called = False
+
+    def reject_drift(root: Path, candidate: dict, *, force_enforcement: bool):
+        assert force_enforcement is True
+        raise replay.DecisionModelFreezeError(
+            "pinned file drift: src/top10decision/decision/model_freeze.py"
         )
 
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    payload["history_snapshot"]["sha256"] = "1" * 64
-    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="unexpected frozen snapshot SHA"):
-        replay.load_forced_frozen_history(
-            tmp_path,
-            expected_sha256=sha,
-            expected_rows=2,
-            expected_dates=2,
-        )
+    def forbidden_snapshot(root: Path, candidate: dict):
+        nonlocal snapshot_called
+        snapshot_called = True
+        raise AssertionError("snapshot loader must not run after pin drift")
+
+    monkeypatch.setattr(replay, "validate_pinned_files", reject_drift)
+    monkeypatch.setattr(
+        replay, "load_verified_frozen_history_snapshot", forbidden_snapshot
+    )
+    with pytest.raises(replay.DecisionModelFreezeError, match="pinned file drift"):
+        replay.load_forced_frozen_history(tmp_path)
+    assert snapshot_called is False
 
 
 def test_candidate_source_evidence_covers_full_executed_action_chain(
@@ -124,7 +330,7 @@ def test_candidate_source_evidence_covers_full_executed_action_chain(
 
     before = replay.candidate_source_evidence(tmp_path)
 
-    assert before["base_commit"] == "a" * 40
+    assert before["candidate_commit"] == "a" * 40
     assert set(before["file_sha256"]) == expected_paths
     assert all(
         isinstance(value, str)

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.metadata
 import json
@@ -12,6 +13,7 @@ import re
 import sys
 import unicodedata
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -47,7 +49,20 @@ from top10decision.decision.canonical_fingerprint import (  # noqa: E402
     normalize_date,
     normalize_stage,
 )
+from top10decision.decision import model_freeze as freeze_contract  # noqa: E402
 from top10decision.decision.model_freeze import (  # noqa: E402
+    ACTION_WATCHLIST_COLUMNS,
+    BEHAVIOR_SCHEMA_VERSION,
+    CANONICAL_RUNTIME_SCHEMA_VERSION,
+    DecisionModelFreezeError,
+    IDENTITY_COLUMNS as FREEZE_IDENTITY_COLUMNS,
+    KNOWN_REFERENCE_EVIDENCE,
+    OOS_DISCRETE_BEHAVIOR_COLUMNS as FREEZE_OOS_DISCRETE_COLUMNS,
+    OOS_SCORE_COLUMNS as FREEZE_OOS_SCORE_COLUMNS,
+    TOP10_DISCRETE_BEHAVIOR_COLUMNS as FREEZE_TOP10_DISCRETE_COLUMNS,
+    TOP10_SCORE_COLUMNS as FREEZE_TOP10_SCORE_COLUMNS,
+    compute_action_watchlist_fingerprint,
+    compute_behavior_fingerprints,
     load_frozen_history_snapshot,
     load_model_freeze,
 )
@@ -81,6 +96,81 @@ INPUT_PATHS = (
     *MODEL_SOURCE_PATHS,
     "src/top10decision/decision/trade_selector.py",
 )
+ACTIVATION_EVIDENCE_SCHEMA = "dc20_canonical_v2_activation_evidence_v1"
+ACTIVATION_EVIDENCE_MAX_BYTES = 512 * 1024
+ACTIVATION_SOURCE6_SCHEMA = "decision_canonical_v2_source6_v1"
+EXPECTED_ACTIVATION_SOURCE6_SHA256 = (
+    "b66ab6352b21df22f9de05491123d8b4df4acf8a81c6862a79dbce77c47df07a"
+)
+EXPECTED_PERSISTED_BEHAVIOR_COUNTS = {
+    "top10": {
+        "rows": 4467,
+        "signal_dates": 543,
+        "observation_selected": 4467,
+        "shadow_selected": 1069,
+        "risk_gate_pass": 0,
+        "selected": 0,
+    },
+    "trade_selector_oos": {
+        "rows": 3097,
+        "signal_dates": 363,
+        "trade_selected": 158,
+        "trade_shadow_selected": 523,
+        "shadow_selected": 726,
+        "trade_selector_promoted": 3097,
+        "trade_selector_globally_promoted": 0,
+        "trade_selector_policy_ready": 1083,
+    },
+    "nested_oos_research": {
+        "signals": 158,
+        "signal_dates": 119,
+        "filled_trades": 158,
+        "market_buyable_filled_trades": 25,
+    },
+    "production": {
+        "promoted": False,
+        "trade_selector_promoted": False,
+        "signals": 0,
+        "signal_dates": 0,
+        "filled_trades": 0,
+    },
+    "action_watchlist": {
+        "rows": 9,
+        "shadow_only_rows": 2,
+        "reject_rows": 7,
+        "formal_buy_count": 0,
+    },
+}
+LEGACY_DIAGNOSTIC_MANIFEST_SHA256 = (
+    "87605814bce9f2180e151ed91d6c16e2c22b46c3dcd147e8bdab7895c3f0975a"
+)
+EXPECTED_HISTORY_EVIDENCE = {
+    "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
+    "training_cutoff_signal_date": "20260805",
+    "signal_dates": 715,
+    "columns": 151,
+    "columns_sha256": (
+        "dbfd38f20f00cbd57460ac3a858f937fa560bcd221b0ed3a12b408bc6c313d49"
+    ),
+    "history_start": "20230822",
+    "history_end": "20260805",
+}
+ACTIVATION_SOURCE_PATHS = (
+    "src/top10decision/auction_v3/engine.py",
+    "src/top10decision/decision/trade_selector.py",
+    "src/top10decision/decision/canonical_fingerprint.py",
+    "src/top10decision/decision/action_plan.py",
+    "scripts/publish_decision_action.py",
+    "scripts/replay_frozen_canonical_v2.py",
+)
+TOP10_EVIDENCE_PATH = "outputs/auction_v3/metrics/backtest_top10_latest.csv"
+OOS_EVIDENCE_PATH = (
+    "outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv"
+)
+BACKTEST_EVIDENCE_PATH = "outputs/auction_v3/metrics/backtest_latest.json"
+MODEL_META_EVIDENCE_PATH = "outputs/auction_v3/models/model_meta_latest.json"
+PREDICTION_EVIDENCE_PATH = "outputs/auction_v3/predictions/pred_latest.csv"
+ACTION_EVIDENCE_PATH = "outputs/decision/action_plan_latest.json"
 MODEL_INTEGER_KINDS = {
     name: "integer"
     for name in (
@@ -1283,7 +1373,1710 @@ def _legacy_main() -> int:
     return 0 if hard_invariants["passed"] else 1
 
 
-def _canonical_replay_report_probe(report_path: Path) -> tuple[dict[str, Any], bool]:
+def _evidence_require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(f"activation evidence: {message}")
+
+
+def _evidence_mapping(value: Any, context: str) -> dict[str, Any]:
+    _evidence_require(isinstance(value, Mapping), f"{context} must be an object")
+    return dict(value)
+
+
+def _evidence_strict_int(value: Any, context: str) -> int:
+    _evidence_require(type(value) is int, f"{context} must be a JSON integer")
+    return int(value)
+
+
+def _evidence_json(root: Path, relative: str) -> dict[str, Any]:
+    path = root / relative
+    _evidence_require(path.is_file(), f"required JSON missing: {relative}")
+    value = _read_json(path)
+    _evidence_require(bool(value), f"required JSON invalid or empty: {relative}")
+    return value
+
+
+def _evidence_csv(root: Path, relative: str) -> pd.DataFrame:
+    path = root / relative
+    _evidence_require(path.is_file(), f"required CSV missing: {relative}")
+    try:
+        return pd.read_csv(
+            path,
+            low_memory=False,
+            dtype={"signal_date": "string", "ts_code": "string"},
+        )
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        raise RuntimeError(f"activation evidence: unreadable CSV: {relative}") from exc
+
+
+def _runtime_layer_projection(
+    container: Mapping[str, Any],
+    *,
+    layer: str,
+    context: str,
+) -> dict[str, Any]:
+    if layer == "model":
+        output = {
+            "canonical_v2_version": container.get("model_canonical_v2_version"),
+            "artifact_v2_sha256": container.get("model_artifact_v2_sha256"),
+            "fingerprint_v2": container.get("model_fingerprint_v2"),
+            "canonical_contract": container.get("model_canonical_contract"),
+        }
+    else:
+        output = {
+            "canonical_v2_version": container.get("canonical_v2_version"),
+            "artifact_v2_sha256": container.get("production_artifact_v2_sha256"),
+            "fingerprint_v2": container.get("production_fingerprint_v2"),
+            "canonical_contract": container.get("canonical_contract"),
+        }
+    # C3 owns the exact 4-key layer, 11-key fingerprint, 6-key contract,
+    # strict types, policy re-hash, and artifact re-composition.  The adapter
+    # deliberately calls that implementation instead of copying its schema.
+    freeze_contract._validate_canonical_layer(  # noqa: SLF001
+        output,
+        layer=layer,
+        context=context,
+    )
+    return output
+
+
+def _activation_source6_sha256(file_sha256: Mapping[str, str]) -> str:
+    return canonical_mapping_sha256(
+        {
+            "schema": ACTIVATION_SOURCE6_SCHEMA,
+            "files": [
+                {"path": relative, "sha256": file_sha256[relative]}
+                for relative in ACTIVATION_SOURCE_PATHS
+            ],
+        },
+        decimals=8,
+        exact_strings=True,
+    )
+
+
+def _activation_source_evidence(
+    root: Path,
+    report: Mapping[str, Any],
+) -> dict[str, Any]:
+    reported = _evidence_mapping(report.get("candidate_source"), "candidate_source")
+    _evidence_require(
+        set(reported) == {"candidate_commit", "file_sha256"},
+        "candidate_source keys drifted",
+    )
+    candidate_commit = reported.get("candidate_commit")
+    _evidence_require(
+        isinstance(candidate_commit, str)
+        and re.fullmatch(r"[0-9a-f]{40}", candidate_commit) is not None,
+        "candidate_source.candidate_commit must be 40-hex",
+    )
+    reported_files = _evidence_mapping(
+        reported.get("file_sha256"), "candidate_source.file_sha256"
+    )
+    _evidence_require(
+        tuple(reported_files) == ACTIVATION_SOURCE_PATHS,
+        "candidate_source six-file path/order drifted",
+    )
+    actual: dict[str, str] = {}
+    for relative in ACTIVATION_SOURCE_PATHS:
+        path = root / relative
+        _evidence_require(path.is_file(), f"source file missing: {relative}")
+        actual[relative] = _sha256(path)
+    _evidence_require(
+        reported_files == actual,
+        "candidate_source six-file SHA map differs from runner files",
+    )
+    aggregate = _activation_source6_sha256(actual)
+    _evidence_require(
+        aggregate == EXPECTED_ACTIVATION_SOURCE6_SHA256,
+        "candidate_source six-file aggregate differs from reviewed candidate",
+    )
+    return {
+        "schema": ACTIVATION_SOURCE6_SCHEMA,
+        "candidate_commit": candidate_commit,
+        "paths": list(ACTIVATION_SOURCE_PATHS),
+        "file_sha256": actual,
+        "sha256": aggregate,
+    }
+
+
+def _activation_reference_evidence(report: Mapping[str, Any]) -> dict[str, str]:
+    golden = _evidence_mapping(report.get("golden"), "golden")
+    reference = _evidence_mapping(golden.get("reference"), "golden.reference")
+    _evidence_require(
+        reference.get("profile") == "persisted-c6",
+        "reference profile must be persisted-c6",
+    )
+    _evidence_require(
+        reference.get("persisted_trust_root_verified") is True,
+        "persisted c6 trust root was not verified",
+    )
+    _evidence_require(
+        reference.get("same_machine_reference_only") is False,
+        "same-machine reference cannot activate production",
+    )
+    files = _evidence_mapping(reference.get("files"), "golden.reference.files")
+    blob_fields = {
+        "top10_blob_sha1": "backtest_top10_latest.csv",
+        "trade_selector_oos_blob_sha1": "backtest_trade_selector_oos_latest.csv",
+        "backtest_blob_sha1": "backtest_latest.json",
+        "model_meta_blob_sha1": "model_meta_latest.json",
+    }
+    for evidence_key, filename in blob_fields.items():
+        entry = _evidence_mapping(files.get(filename), f"reference file {filename}")
+        _evidence_require(
+            entry.get("git_blob_sha1") == KNOWN_REFERENCE_EVIDENCE[evidence_key],
+            f"reference blob drifted: {filename}",
+        )
+    return dict(KNOWN_REFERENCE_EVIDENCE)
+
+
+def _behavior_manifest_projection(
+    frame: pd.DataFrame,
+    *,
+    relative_path: str,
+    discrete_columns: tuple[str, ...],
+    score_columns: tuple[str, ...],
+    context: str,
+    expected_rows: int,
+    expected_dates: int,
+) -> dict[str, Any]:
+    calculation_contract = {
+        "identity_columns": list(FREEZE_IDENTITY_COLUMNS),
+        "discrete_columns": list(discrete_columns),
+        "score_columns": list(score_columns),
+        "score_decimals": 8,
+    }
+    computed = compute_behavior_fingerprints(
+        frame,
+        calculation_contract,
+        context=context,
+    )
+    _evidence_require(
+        computed.get("identity_unique_nonempty") is True,
+        f"{context} identity is not unique/nonempty",
+    )
+    _evidence_require(
+        computed.get("rows") == expected_rows,
+        f"{context} row count differs from reviewed baseline",
+    )
+    _evidence_require(
+        computed.get("signal_dates") == expected_dates,
+        f"{context} signal-date count differs from reviewed baseline",
+    )
+    return {
+        "path": relative_path,
+        "rows": computed["rows"],
+        "signal_dates": computed["signal_dates"],
+        "score_decimals": computed["score_decimals"],
+        "identity_columns": list(FREEZE_IDENTITY_COLUMNS),
+        "discrete_columns": list(discrete_columns),
+        "score_columns": list(score_columns),
+        "identity_sha256": computed["identity_sha256"],
+        "date_counts_sha256": computed["date_counts_sha256"],
+        "discrete_sha256": computed["discrete_sha256"],
+        "scores_sha256": computed["scores_sha256"],
+    }
+
+
+def _strict_binary_sum(frame: pd.DataFrame, column: str, context: str) -> int:
+    _evidence_require(column in frame, f"{context} missing {column}")
+    return sum(
+        freeze_contract._behavior_boolean(  # noqa: SLF001
+            value,
+            f"{context}.{column}[{row_number}]",
+        )
+        for row_number, value in enumerate(frame[column])
+    )
+
+
+def _behavior_activation_evidence(
+    root: Path,
+    *,
+    top10: pd.DataFrame,
+    oos: pd.DataFrame,
+    backtest: Mapping[str, Any],
+    action: Mapping[str, Any],
+) -> dict[str, Any]:
+    top10_projection = _behavior_manifest_projection(
+        top10,
+        relative_path=TOP10_EVIDENCE_PATH,
+        discrete_columns=tuple(FREEZE_TOP10_DISCRETE_COLUMNS),
+        score_columns=tuple(FREEZE_TOP10_SCORE_COLUMNS),
+        context="activation.top10",
+        expected_rows=freeze_contract.KNOWN_TOP10_ROWS,
+        expected_dates=freeze_contract.KNOWN_TOP10_DATES,
+    )
+    oos_projection = _behavior_manifest_projection(
+        oos,
+        relative_path=OOS_EVIDENCE_PATH,
+        discrete_columns=tuple(FREEZE_OOS_DISCRETE_COLUMNS),
+        score_columns=tuple(FREEZE_OOS_SCORE_COLUMNS),
+        context="activation.trade_selector_oos",
+        expected_rows=freeze_contract.KNOWN_OOS_ROWS,
+        expected_dates=freeze_contract.KNOWN_OOS_DATES,
+    )
+    action_contract = {"columns": list(ACTION_WATCHLIST_COLUMNS)}
+    action_computed = compute_action_watchlist_fingerprint(action, action_contract)
+    _evidence_require(action_computed["rows"] == 9, "action watchlist must have 9 rows")
+    _evidence_require(
+        action_computed["shadow_only_rows"]
+        == freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+        "action watchlist must preserve exactly two relative-best shadows",
+    )
+    action_projection = {
+        "path": ACTION_EVIDENCE_PATH,
+        "rows": action_computed["rows"],
+        "columns": list(ACTION_WATCHLIST_COLUMNS),
+        "sha256": action_computed["sha256"],
+        "unique_codes": action_computed["unique_codes"],
+        "shadow_only_rows": action_computed["shadow_only_rows"],
+    }
+
+    selector = _evidence_mapping(backtest.get("trade_selector"), "backtest.trade_selector")
+    formal = _evidence_mapping(
+        selector.get("formal_policy_oos"),
+        "backtest.trade_selector.formal_policy_oos",
+    )
+    all_candidates = _evidence_mapping(
+        formal.get("all_candidates"),
+        "backtest.trade_selector.formal_policy_oos.all_candidates",
+    )
+    market_buyable = _evidence_mapping(
+        formal.get("market_buyable_only"),
+        "backtest.trade_selector.formal_policy_oos.market_buyable_only",
+    )
+    nested_oos = {
+        "all_candidates_path": "trade_selector.formal_policy_oos.all_candidates",
+        "signals": _evidence_strict_int(all_candidates.get("signals"), "nested signals"),
+        "signal_dates": _evidence_strict_int(
+            all_candidates.get("signal_dates"), "nested signal_dates"
+        ),
+        "filled_trades": _evidence_strict_int(
+            all_candidates.get("filled_trades"), "nested filled_trades"
+        ),
+        "market_buyable_path": (
+            "trade_selector.formal_policy_oos.market_buyable_only"
+        ),
+        "market_buyable_filled_trades": _evidence_strict_int(
+            market_buyable.get("filled_trades"),
+            "nested market_buyable filled_trades",
+        ),
+    }
+    expected_nested = {
+        "signals": freeze_contract.KNOWN_NESTED_OOS_SIGNALS,
+        "signal_dates": freeze_contract.KNOWN_NESTED_OOS_SIGNAL_DATES,
+        "filled_trades": freeze_contract.KNOWN_NESTED_OOS_FILLED_TRADES,
+        "market_buyable_filled_trades": (
+            freeze_contract.KNOWN_NESTED_OOS_MARKET_BUYABLE_FILLED_TRADES
+        ),
+    }
+    for key, expected in expected_nested.items():
+        _evidence_require(nested_oos[key] == expected, f"nested OOS {key} drifted")
+
+    action_status = action.get("status_code")
+    _evidence_require(
+        action_status == "NO_TRADE_MODEL_NOT_PROMOTED",
+        "action status is not frozen NO_TRADE",
+    )
+    formal_buy_count = _evidence_strict_int(
+        action.get("formal_buy_count"), "action formal_buy_count"
+    )
+    watchlist = action.get("stage_watchlist")
+    _evidence_require(isinstance(watchlist, list), "action stage_watchlist must be a list")
+    for row_number, row in enumerate(watchlist):
+        _evidence_require(isinstance(row, Mapping), f"action row {row_number} invalid")
+        weight = row.get("target_weight")
+        _evidence_require(
+            type(weight) in (int, float)
+            and math.isfinite(float(weight))
+            and float(weight) == 0.0,
+            f"action target_weight[{row_number}] must be zero",
+        )
+    reason_values = sorted(set(top10["model_reason"].tolist()))
+    _evidence_require(
+        reason_values == ["selection_policy_not_ready"],
+        "Top10 model_reason set drifted",
+    )
+    decision = {
+        "status_code": action_status,
+        "formal_buy_count": formal_buy_count,
+        "top10_selected_count": _strict_binary_sum(
+            top10, "selected", "activation.top10"
+        ),
+        "selector_globally_promoted_count": _strict_binary_sum(
+            oos,
+            "trade_selector_globally_promoted",
+            "activation.trade_selector_oos",
+        ),
+        "nested_oos_trade_selected_count": _strict_binary_sum(
+            oos, "trade_selected", "activation.trade_selector_oos"
+        ),
+        "nested_oos_trade_selector_promoted_count": _strict_binary_sum(
+            oos,
+            "trade_selector_promoted",
+            "activation.trade_selector_oos",
+        ),
+        "production_backtest_signals": _evidence_strict_int(
+            backtest.get("signals"), "backtest root signals"
+        ),
+        "production_backtest_signal_dates": _evidence_strict_int(
+            backtest.get("signal_dates"), "backtest root signal_dates"
+        ),
+        "production_backtest_fills": _evidence_strict_int(
+            backtest.get("filled_trades"), "backtest root filled_trades"
+        ),
+        "reason_values": reason_values,
+    }
+    expected_zero = (
+        "formal_buy_count",
+        "top10_selected_count",
+        "selector_globally_promoted_count",
+        "production_backtest_signals",
+        "production_backtest_signal_dates",
+        "production_backtest_fills",
+    )
+    for key in expected_zero:
+        _evidence_require(decision[key] == 0, f"decision {key} is nonzero")
+    _evidence_require(
+        decision["nested_oos_trade_selected_count"]
+        == freeze_contract.KNOWN_NESTED_OOS_TRADE_SELECTED,
+        "nested OOS trade_selected count drifted",
+    )
+    _evidence_require(
+        decision["nested_oos_trade_selector_promoted_count"]
+        == freeze_contract.KNOWN_OOS_ROWS,
+        "nested OOS selector promoted count drifted",
+    )
+    promoted = backtest.get("promoted")
+    selector_promoted = selector.get("promoted")
+    _evidence_require(type(promoted) is bool, "backtest promoted must be boolean")
+    _evidence_require(
+        type(selector_promoted) is bool,
+        "backtest selector promoted must be boolean",
+    )
+    reject_rows = sum(
+        1
+        for row in watchlist
+        if isinstance(row, Mapping) and row.get("action") == "REJECT"
+    )
+    persisted_counts = {
+        "top10": {
+            "rows": top10_projection["rows"],
+            "signal_dates": top10_projection["signal_dates"],
+            "observation_selected": _strict_binary_sum(
+                top10, "observation_selected", "activation.top10"
+            ),
+            "shadow_selected": _strict_binary_sum(
+                top10, "shadow_selected", "activation.top10"
+            ),
+            "risk_gate_pass": _strict_binary_sum(
+                top10, "risk_gate_pass", "activation.top10"
+            ),
+            "selected": decision["top10_selected_count"],
+        },
+        "trade_selector_oos": {
+            "rows": oos_projection["rows"],
+            "signal_dates": oos_projection["signal_dates"],
+            "trade_selected": decision["nested_oos_trade_selected_count"],
+            "trade_shadow_selected": _strict_binary_sum(
+                oos,
+                "trade_shadow_selected",
+                "activation.trade_selector_oos",
+            ),
+            "shadow_selected": _strict_binary_sum(
+                oos, "shadow_selected", "activation.trade_selector_oos"
+            ),
+            "trade_selector_promoted": decision[
+                "nested_oos_trade_selector_promoted_count"
+            ],
+            "trade_selector_globally_promoted": decision[
+                "selector_globally_promoted_count"
+            ],
+            "trade_selector_policy_ready": _strict_binary_sum(
+                oos,
+                "trade_selector_policy_ready",
+                "activation.trade_selector_oos",
+            ),
+        },
+        "nested_oos_research": {
+            key: nested_oos[key]
+            for key in (
+                "signals",
+                "signal_dates",
+                "filled_trades",
+                "market_buyable_filled_trades",
+            )
+        },
+        "production": {
+            "promoted": promoted,
+            "trade_selector_promoted": selector_promoted,
+            "signals": decision["production_backtest_signals"],
+            "signal_dates": decision["production_backtest_signal_dates"],
+            "filled_trades": decision["production_backtest_fills"],
+        },
+        "action_watchlist": {
+            "rows": action_projection["rows"],
+            "shadow_only_rows": action_projection["shadow_only_rows"],
+            "reject_rows": reject_rows,
+            "formal_buy_count": decision["formal_buy_count"],
+        },
+    }
+    _evidence_require(
+        persisted_counts == EXPECTED_PERSISTED_BEHAVIOR_COUNTS,
+        "persisted C6 behavior counts drifted",
+    )
+    return {
+        "schema_version": BEHAVIOR_SCHEMA_VERSION,
+        "canonical_schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "top10": top10_projection,
+        "trade_selector_oos": oos_projection,
+        "action_watchlist": action_projection,
+        "reference_evidence": dict(KNOWN_REFERENCE_EVIDENCE),
+        "nested_oos_research": nested_oos,
+        "decision": decision,
+        "persisted_counts": persisted_counts,
+    }
+
+
+def _runtime_surface_evidence(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    model_meta = _evidence_json(root, MODEL_META_EVIDENCE_PATH)
+    backtest = _evidence_json(root, BACKTEST_EVIDENCE_PATH)
+    action = _evidence_json(root, ACTION_EVIDENCE_PATH)
+    prediction = _evidence_csv(root, PREDICTION_EVIDENCE_PATH)
+
+    meta_model = _runtime_layer_projection(
+        model_meta,
+        layer="model",
+        context="evidence.model_meta.model",
+    )
+    backtest_model = _runtime_layer_projection(
+        backtest,
+        layer="model",
+        context="evidence.backtest.model",
+    )
+    _evidence_require(meta_model == backtest_model, "model meta/backtest layers differ")
+    meta_selector_container = _evidence_mapping(
+        model_meta.get("trade_selector"), "model_meta.trade_selector"
+    )
+    backtest_selector_container = _evidence_mapping(
+        backtest.get("trade_selector"), "backtest.trade_selector"
+    )
+    meta_selector = _runtime_layer_projection(
+        meta_selector_container,
+        layer="trade_selector",
+        context="evidence.model_meta.trade_selector",
+    )
+    backtest_selector = _runtime_layer_projection(
+        backtest_selector_container,
+        layer="trade_selector",
+        context="evidence.backtest.trade_selector",
+    )
+    _evidence_require(
+        meta_selector == backtest_selector,
+        "selector meta/backtest layers differ",
+    )
+
+    action_model = _evidence_mapping(action.get("model"), "action_plan.model")
+    action_model_layer = freeze_contract._action_layer_values(  # noqa: SLF001
+        action_model,
+        layer="model",
+        expected=meta_model,
+    )
+    action_selector_layer = freeze_contract._action_layer_values(  # noqa: SLF001
+        action_model,
+        layer="trade_selector",
+        expected=meta_selector,
+    )
+    _evidence_require(
+        action_model_layer == meta_model,
+        "action model V2 layer differs from meta/backtest",
+    )
+    _evidence_require(
+        action_selector_layer == meta_selector,
+        "action selector V2 layer differs from meta/backtest",
+    )
+    _evidence_require(
+        action_model.get("v2_integrity_match") is True,
+        "action v2_integrity_match is not true",
+    )
+    _evidence_require(
+        action_model.get("v2_eligibility_match") is False,
+        "action v2_eligibility_match must remain false while policies are not ready",
+    )
+
+    prediction_model = freeze_contract._prediction_layer_values(  # noqa: SLF001
+        prediction,
+        layer="model",
+        expected=meta_model,
+    )
+    # Historical Top10/OOS rows retain their fold-specific policy values in
+    # the behavior hashes.  Only the latest prediction is the final production
+    # policy surface, so all nine executable version/ready/position/threshold
+    # fields are checked here against the model fingerprint projection.
+    freeze_contract._validate_model_policy_columns(  # noqa: SLF001
+        prediction,
+        meta_model,
+        context="evidence.prediction.final_model_policy",
+    )
+    selector_v1_artifact = backtest_selector_container.get(
+        "production_artifact_sha256"
+    )
+    selector_version = backtest_selector_container.get("version")
+    _evidence_require(
+        isinstance(selector_v1_artifact, str)
+        and re.fullmatch(r"[0-9a-f]{64}", selector_v1_artifact) is not None,
+        "selector V1 same-run artifact is invalid",
+    )
+    _evidence_require(
+        isinstance(selector_version, str) and selector_version != "",
+        "selector version is invalid",
+    )
+    prediction_selector, prediction_domain = (
+        freeze_contract._prediction_selector_domain_values(  # noqa: SLF001
+            prediction,
+            expected=meta_selector,
+            expected_runtime_v1_artifact_sha256=selector_v1_artifact,
+            expected_selector_version=selector_version,
+            expected_shadow_count=freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+        )
+    )
+    fill_relationships = freeze_contract._validate_prediction_fill_relationships(  # noqa: SLF001
+        prediction
+    )
+    return (
+        {
+            "schema_version": CANONICAL_RUNTIME_SCHEMA_VERSION,
+            "model": meta_model,
+            "trade_selector": meta_selector,
+            "surface_consistency": {
+                "model_meta_backtest_exact": True,
+                "selector_meta_backtest_exact": True,
+                "action_model_exact": True,
+                "action_selector_exact": True,
+                "prediction_model": prediction_model,
+                "prediction_trade_selector": prediction_selector,
+                "prediction_trade_selector_domain": prediction_domain,
+                "prediction_fill_relationships": fill_relationships,
+            },
+        },
+        {"backtest": backtest, "action": action, "prediction": prediction},
+    )
+
+
+def _canonical_precision_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
+    golden = _evidence_mapping(report.get("golden"), "golden")
+    canonical_scores = _evidence_mapping(
+        golden.get("canonical_scores"), "golden.canonical_scores"
+    )
+    output: dict[str, Any] = {}
+    for precision in ("6", "8", "10", "12"):
+        top10 = _evidence_mapping(
+            _evidence_mapping(canonical_scores.get("top10"), "canonical top10").get(
+                precision
+            ),
+            f"canonical top10 q{precision}",
+        )
+        selector = _evidence_mapping(
+            _evidence_mapping(
+                canonical_scores.get("selector_oos"), "canonical selector OOS"
+            ).get(precision),
+            f"canonical selector OOS q{precision}",
+        )
+        expected_gate = "hard" if precision == "8" else "audit_only"
+        _evidence_require(top10.get("gate") == expected_gate, f"Top10 q{precision} gate drift")
+        _evidence_require(
+            selector.get("gate") == expected_gate,
+            f"selector OOS q{precision} gate drift",
+        )
+        for surface_name, surface in (("Top10", top10), ("selector OOS", selector)):
+            _evidence_require(
+                type(surface.get("equal")) is bool,
+                f"{surface_name} q{precision} equal must be boolean",
+            )
+            for hash_name in ("reference_sha256", "candidate_sha256"):
+                hash_value = surface.get(hash_name)
+                _evidence_require(
+                    isinstance(hash_value, str)
+                    and re.fullmatch(r"[0-9a-f]{64}", hash_value) is not None,
+                    f"{surface_name} q{precision} {hash_name} must be 64-hex",
+                )
+        if precision == "8":
+            _evidence_require(top10.get("equal") is True, "Top10 q8 hard gate failed")
+            _evidence_require(
+                selector.get("equal") is True,
+                "selector OOS q8 hard gate failed",
+            )
+        output[precision] = {
+            "gate": expected_gate,
+            "top10_equal": top10.get("equal"),
+            "top10_reference_sha256": top10.get("reference_sha256"),
+            "top10_candidate_sha256": top10.get("candidate_sha256"),
+            "selector_oos_equal": selector.get("equal"),
+            "selector_oos_reference_sha256": selector.get("reference_sha256"),
+            "selector_oos_candidate_sha256": selector.get("candidate_sha256"),
+        }
+    return output
+
+
+def _ci_activation_evidence(source: Mapping[str, Any]) -> dict[str, Any]:
+    candidate_sha = os.environ.get("GITHUB_SHA", "")
+    _evidence_require(
+        isinstance(source.get("candidate_commit"), str)
+        and re.fullmatch(r"[0-9a-f]{40}", source["candidate_commit"]) is not None,
+        "candidate_source.candidate_commit must be 40-hex",
+    )
+    _evidence_require(
+        re.fullmatch(r"[0-9a-f]{40}", candidate_sha) is not None
+        and candidate_sha == source["candidate_commit"],
+        "GITHUB_SHA differs from candidate_source.candidate_commit",
+    )
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    _evidence_require(
+        os.environ.get("GITHUB_ACTIONS") == "true",
+        "activation evidence must be generated by GitHub Actions",
+    )
+    _evidence_require(
+        re.fullmatch(r"[1-9][0-9]*", run_id) is not None,
+        "GITHUB_RUN_ID must be canonical positive ASCII digits",
+    )
+    _evidence_require(
+        run_attempt == "1",
+        "GITHUB_RUN_ATTEMPT must be 1 for fresh activation evidence",
+    )
+    _evidence_require(
+        os.environ.get("RUNNER_OS") == "Linux",
+        "activation evidence must be generated on the Linux runner",
+    )
+    _evidence_require(
+        os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch",
+        "activation evidence event must be workflow_dispatch",
+    )
+    _evidence_require(
+        os.environ.get("GITHUB_REPOSITORY") == "njedu2023-prog/DC20"
+        and os.environ.get("GITHUB_REF") == "refs/heads/main",
+        "activation evidence repository/ref drifted",
+    )
+    return {
+        "github_actions": True,
+        "candidate_sha": candidate_sha,
+        "github_run_id": run_id,
+        "github_run_attempt": run_attempt,
+        "runner_os": "Linux",
+        "event_name": "workflow_dispatch",
+        "repository": "njedu2023-prog/DC20",
+        "ref": "refs/heads/main",
+    }
+
+
+def _history_activation_evidence(report: Mapping[str, Any]) -> dict[str, Any]:
+    history = _evidence_mapping(report.get("history"), "history")
+    schema = history.get("manifest_schema_version")
+    active = history.get("manifest_active_on_disk")
+    _evidence_require(type(active) is bool, "manifest active state must be boolean")
+    _evidence_require(
+        history.get("active") is active and history.get("manifest_active") is active,
+        "history active-state surfaces differ",
+    )
+    _evidence_require(
+        history.get("sha256") == freeze_contract.KNOWN_HISTORY_SHA256,
+        "history snapshot SHA drifted",
+    )
+    _evidence_require(
+        history.get("rows") == freeze_contract.KNOWN_HISTORY_ROWS,
+        "history snapshot row count drifted",
+    )
+    _evidence_require(
+        history.get("path") == freeze_contract.KNOWN_HISTORY_PATH,
+        "history snapshot path drifted",
+    )
+    for field, expected in EXPECTED_HISTORY_EVIDENCE.items():
+        _evidence_require(
+            history.get(field) == expected,
+            f"history {field} drifted",
+        )
+    _evidence_require(
+        history.get("bootstrap_mode") is False,
+        "history bootstrap mode must remain false",
+    )
+    _evidence_require(
+        history.get("forced_frozen_replay") is True
+        and history.get("manifest_mutated_on_disk") is False
+        and history.get("live_history_fallback") is False,
+        "forced replay isolation contract drifted",
+    )
+    manifest_content_sha256 = history.get("manifest_content_sha256")
+    _evidence_require(
+        isinstance(manifest_content_sha256, str)
+        and re.fullmatch(r"[0-9a-f]{64}", manifest_content_sha256) is not None,
+        "freeze manifest content SHA is invalid",
+    )
+
+    pin_projection: dict[str, Any] | None = None
+    if schema == "decision_model_freeze_v1":
+        _evidence_require(active is False, "legacy V1 diagnostic manifest must be inactive")
+        _evidence_require(
+            history.get("source") == "legacy_v1_exact_diagnostic_bootstrap"
+            and history.get("loader_contract")
+            == "one_time_exact_v1_no_live_fallback"
+            and manifest_content_sha256 == LEGACY_DIAGNOSTIC_MANIFEST_SHA256,
+            "legacy V1 exact diagnostic loader contract drifted",
+        )
+    elif schema == "decision_model_freeze_v2":
+        _evidence_require(
+            history.get("source") == "forced_frozen_snapshot"
+            and history.get("loader_contract")
+            == "v2_complete_contract_and_pins_no_live_fallback",
+            "V2 verified diagnostic loader contract drifted",
+        )
+        pins = _evidence_mapping(history.get("pinned_files"), "history.pinned_files")
+        _evidence_require(
+            pins.get("active") is active
+            and pins.get("validated") is True
+            and pins.get("enforced") is True
+            and pins.get("forced_enforcement") is (not active),
+            "V2 pinned-file enforcement state drifted",
+        )
+        _evidence_require(
+            type(pins.get("pinned_files")) is int and pins["pinned_files"] > 0,
+            "V2 pinned-file count is invalid",
+        )
+        pin_projection = {
+            "count": pins["pinned_files"],
+            "validated": True,
+            "enforced": True,
+            "forced_enforcement": pins["forced_enforcement"],
+        }
+    else:
+        raise RuntimeError("activation evidence: unsupported freeze manifest schema")
+
+    return {
+        "manifest_schema_version": schema,
+        "manifest_active_on_disk": active,
+        "manifest_content_sha256": manifest_content_sha256,
+        "freeze_id": history.get("freeze_id"),
+        "training_cutoff_signal_date": history.get(
+            "training_cutoff_signal_date"
+        ),
+        "rows": history.get("rows"),
+        "signal_dates": history.get("signal_dates"),
+        "columns": history.get("columns"),
+        "columns_sha256": history.get("columns_sha256"),
+        "history_start": history.get("history_start"),
+        "history_end": history.get("history_end"),
+        "source": history.get("source"),
+        "loader_contract": history.get("loader_contract"),
+        "path": history.get("path"),
+        "sha256": history.get("sha256"),
+        "forced_frozen_replay": True,
+        "manifest_mutated_on_disk": False,
+        "live_history_fallback": False,
+        "pinned_files": pin_projection,
+    }
+
+
+def _build_activation_evidence(
+    report: Mapping[str, Any],
+    *,
+    root: Path,
+) -> dict[str, Any]:
+    _evidence_require(report.get("status") == "pass", "replay report did not pass")
+    golden = _evidence_mapping(report.get("golden"), "golden")
+    _evidence_require(golden.get("status") == "pass", "golden comparison did not pass")
+    source = _activation_source_evidence(root, report)
+    reference = _activation_reference_evidence(report)
+    canonical, runtime = _runtime_surface_evidence(root)
+    top10 = _evidence_csv(root, TOP10_EVIDENCE_PATH)
+    oos = _evidence_csv(root, OOS_EVIDENCE_PATH)
+    behavior = _behavior_activation_evidence(
+        root,
+        top10=top10,
+        oos=oos,
+        backtest=runtime["backtest"],
+        action=runtime["action"],
+    )
+    _evidence_require(
+        behavior["reference_evidence"] == reference,
+        "behavior reference evidence differs from replay trust root",
+    )
+    history_projection = _history_activation_evidence(report)
+    return {
+        "schema_version": ACTIVATION_EVIDENCE_SCHEMA,
+        "system": "DC2.0",
+        "read_only": True,
+        "ci": _ci_activation_evidence(source),
+        "candidate_source": source,
+        "history_snapshot": history_projection,
+        "reference_evidence": reference,
+        "canonical_v2": canonical,
+        "behavior_contract": behavior,
+        "canonical_precision": _canonical_precision_evidence(report),
+    }
+
+
+def _render_compact_activation_evidence(evidence: Mapping[str, Any]) -> str:
+    def string_values(value: Any):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, Mapping):
+            for nested in value.values():
+                yield from string_values(nested)
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                yield from string_values(nested)
+
+    for value in string_values(evidence):
+        lowered = value.lower()
+        _evidence_require(
+            "\\" not in value,
+            "rooted or escaped Windows path is forbidden in compact evidence",
+        )
+        _evidence_require(
+            "//" not in value,
+            "double-root or URL path is forbidden in compact evidence",
+        )
+        _evidence_require(
+            not any(ord(character) < 32 for character in value),
+            "control characters are forbidden in compact evidence",
+        )
+        _evidence_require(
+            re.search(r"(?:^|[^a-z0-9._/])/(?!/)[^\s]*", lowered) is None,
+            "absolute POSIX path is forbidden in compact evidence",
+        )
+        _evidence_require(
+            re.search(r"[a-z]:[\\\\/]", lowered) is None,
+            "absolute Windows path is forbidden in compact evidence",
+        )
+        _evidence_require(
+            re.search(r"\b[0-9]{6}\.(?:sh|sz|bj)\b", lowered) is None,
+            "stock-level records are forbidden in compact evidence",
+        )
+    rendered = json.dumps(
+        evidence,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    size = len(rendered.encode("utf-8"))
+    _evidence_require(size <= ACTIVATION_EVIDENCE_MAX_BYTES, "compact JSON is too large")
+    lower = rendered.lower()
+    for forbidden in (
+        "tushare",
+        "api_key",
+        "secret",
+        "authorization",
+        "token",
+        "ghp_",
+        "github_pat_",
+        "bearer ",
+    ):
+        _evidence_require(forbidden not in lower, f"forbidden sensitive key {forbidden!r}")
+    return rendered
+
+
+def _public_exact_keys(
+    value: Any,
+    expected: set[str] | frozenset[str],
+    context: str,
+) -> dict[str, Any]:
+    mapping = _evidence_mapping(value, context)
+    _evidence_require(
+        set(mapping) == set(expected),
+        f"{context} public allowlist keys drifted",
+    )
+    return mapping
+
+
+def _public_sha256(value: Any, context: str) -> str:
+    _evidence_require(
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None,
+        f"{context} must be 64-hex",
+    )
+    return value
+
+
+def _public_git_sha(value: Any, context: str) -> str:
+    _evidence_require(
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None,
+        f"{context} must be 40-hex",
+    )
+    return value
+
+
+def _public_int(value: Any, context: str, *, expected: int | None = None) -> int:
+    _evidence_require(type(value) is int, f"{context} must be a JSON integer")
+    if expected is not None:
+        _evidence_require(value == expected, f"{context} drifted")
+    return value
+
+
+def _public_bool(value: Any, context: str, *, expected: bool | None = None) -> bool:
+    _evidence_require(type(value) is bool, f"{context} must be a JSON boolean")
+    if expected is not None:
+        _evidence_require(value is expected, f"{context} drifted")
+    return value
+
+
+def _public_exact_json(value: Any, expected: Any, context: str) -> None:
+    """Compare JSON values without Python's bool/int/float aliasing."""
+
+    _evidence_require(type(value) is type(expected), f"{context} JSON type drifted")
+    if isinstance(expected, dict):
+        _evidence_require(set(value) == set(expected), f"{context} keys drifted")
+        for key in expected:
+            _public_exact_json(value[key], expected[key], f"{context}.{key}")
+    elif isinstance(expected, list):
+        _evidence_require(len(value) == len(expected), f"{context} length drifted")
+        for index, (actual_item, expected_item) in enumerate(zip(value, expected)):
+            _public_exact_json(
+                actual_item,
+                expected_item,
+                f"{context}[{index}]",
+            )
+    elif isinstance(expected, float):
+        _evidence_require(
+            math.isfinite(value) and value == expected,
+            f"{context} numeric value drifted",
+        )
+    else:
+        _evidence_require(value == expected, f"{context} value drifted")
+
+
+def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> None:
+    """Fail closed unless the public payload matches the reviewed recursive shape."""
+
+    top = _public_exact_keys(
+        evidence,
+        {
+            "schema_version",
+            "system",
+            "read_only",
+            "ci",
+            "candidate_source",
+            "history_snapshot",
+            "reference_evidence",
+            "canonical_v2",
+            "behavior_contract",
+            "canonical_precision",
+        },
+        "public evidence",
+    )
+    _evidence_require(
+        top["schema_version"] == ACTIVATION_EVIDENCE_SCHEMA
+        and top["system"] == "DC2.0"
+        and top["read_only"] is True,
+        "public evidence identity drifted",
+    )
+    ci = _public_exact_keys(
+        top["ci"],
+        {
+            "github_actions",
+            "candidate_sha",
+            "github_run_id",
+            "github_run_attempt",
+            "runner_os",
+            "event_name",
+            "repository",
+            "ref",
+        },
+        "public evidence.ci",
+    )
+    source = _public_exact_keys(
+        top["candidate_source"],
+        {"schema", "candidate_commit", "paths", "file_sha256", "sha256"},
+        "public evidence.candidate_source",
+    )
+    _evidence_require(
+        source["schema"] == ACTIVATION_SOURCE6_SCHEMA
+        and source["paths"] == list(ACTIVATION_SOURCE_PATHS),
+        "public evidence source path list drifted",
+    )
+    _public_git_sha(source["candidate_commit"], "public evidence candidate commit")
+    source_files = _public_exact_keys(
+        source["file_sha256"],
+        set(ACTIVATION_SOURCE_PATHS),
+        "public evidence.candidate_source.file_sha256",
+    )
+    for path in ACTIVATION_SOURCE_PATHS:
+        _public_sha256(source_files[path], f"public evidence source {path}")
+    _evidence_require(
+        _public_sha256(source["sha256"], "public evidence source aggregate")
+        == EXPECTED_ACTIVATION_SOURCE6_SHA256
+        == _activation_source6_sha256(source_files),
+        "public evidence source aggregate drifted",
+    )
+    _public_bool(ci["github_actions"], "public evidence github_actions", expected=True)
+    _evidence_require(
+        _public_git_sha(ci["candidate_sha"], "public evidence candidate SHA")
+        == source["candidate_commit"]
+        and isinstance(ci["github_run_id"], str)
+        and re.fullmatch(r"[1-9][0-9]*", ci["github_run_id"]) is not None
+        and ci["github_run_attempt"] == "1"
+        and ci["runner_os"] == "Linux"
+        and ci["event_name"] == "workflow_dispatch"
+        and ci["repository"] == "njedu2023-prog/DC20"
+        and ci["ref"] == "refs/heads/main",
+        "public evidence CI values drifted",
+    )
+    history = _public_exact_keys(
+        top["history_snapshot"],
+        {
+            "manifest_schema_version",
+            "manifest_active_on_disk",
+            "manifest_content_sha256",
+            "freeze_id",
+            "training_cutoff_signal_date",
+            "rows",
+            "signal_dates",
+            "columns",
+            "columns_sha256",
+            "history_start",
+            "history_end",
+            "source",
+            "loader_contract",
+            "path",
+            "sha256",
+            "forced_frozen_replay",
+            "manifest_mutated_on_disk",
+            "live_history_fallback",
+            "pinned_files",
+        },
+        "public evidence.history_snapshot",
+    )
+    if history["pinned_files"] is not None:
+        pins = _public_exact_keys(
+            history["pinned_files"],
+            {"count", "validated", "enforced", "forced_enforcement"},
+            "public evidence.history_snapshot.pinned_files",
+        )
+        _public_int(
+            pins["count"],
+            "public evidence pinned file count",
+            expected=len(freeze_contract.REQUIRED_ACTIVE_PIN_PATHS),
+        )
+        _public_bool(
+            pins["validated"], "public evidence pinned_files.validated", expected=True
+        )
+        _public_bool(
+            pins["enforced"], "public evidence pinned_files.enforced", expected=True
+        )
+        _public_bool(
+            pins["forced_enforcement"],
+            "public evidence pinned_files.forced_enforcement",
+            expected=not history["manifest_active_on_disk"],
+        )
+    _public_bool(
+        history["manifest_active_on_disk"],
+        "public evidence manifest active state",
+    )
+    _public_sha256(
+        history["manifest_content_sha256"],
+        "public evidence manifest content",
+    )
+    _evidence_require(
+        history["freeze_id"] == EXPECTED_HISTORY_EVIDENCE["freeze_id"]
+        and history["training_cutoff_signal_date"]
+        == EXPECTED_HISTORY_EVIDENCE["training_cutoff_signal_date"]
+        and history["path"] == freeze_contract.KNOWN_HISTORY_PATH
+        and history["sha256"] == freeze_contract.KNOWN_HISTORY_SHA256,
+        "public evidence history identity drifted",
+    )
+    _public_int(
+        history["rows"],
+        "public evidence history rows",
+        expected=freeze_contract.KNOWN_HISTORY_ROWS,
+    )
+    for key in ("signal_dates", "columns"):
+        _public_int(
+            history[key],
+            f"public evidence history {key}",
+            expected=EXPECTED_HISTORY_EVIDENCE[key],
+        )
+    _evidence_require(
+        _public_sha256(
+            history["columns_sha256"], "public evidence history columns"
+        )
+        == EXPECTED_HISTORY_EVIDENCE["columns_sha256"],
+        "public evidence history columns hash drifted",
+    )
+    for key in ("history_start", "history_end"):
+        _evidence_require(
+            history[key] == EXPECTED_HISTORY_EVIDENCE[key],
+            f"public evidence history {key} drifted",
+        )
+    for key, expected in (
+        ("forced_frozen_replay", True),
+        ("manifest_mutated_on_disk", False),
+        ("live_history_fallback", False),
+    ):
+        _public_bool(history[key], f"public evidence history {key}", expected=expected)
+    if history["manifest_schema_version"] == "decision_model_freeze_v1":
+        _evidence_require(
+            history["manifest_active_on_disk"] is False
+            and history["manifest_content_sha256"]
+            == LEGACY_DIAGNOSTIC_MANIFEST_SHA256
+            and history["source"] == "legacy_v1_exact_diagnostic_bootstrap"
+            and history["loader_contract"] == "one_time_exact_v1_no_live_fallback"
+            and history["pinned_files"] is None,
+            "public legacy history contract drifted",
+        )
+    elif history["manifest_schema_version"] == "decision_model_freeze_v2":
+        _evidence_require(
+            history["source"] == "forced_frozen_snapshot"
+            and history["loader_contract"]
+            == "v2_complete_contract_and_pins_no_live_fallback"
+            and isinstance(history["pinned_files"], Mapping),
+            "public V2 history contract drifted",
+        )
+    else:
+        raise RuntimeError("activation evidence: public history schema drifted")
+    reference_keys = set(KNOWN_REFERENCE_EVIDENCE)
+    public_reference = _public_exact_keys(
+        top["reference_evidence"],
+        reference_keys,
+        "public evidence.reference_evidence",
+    )
+    _evidence_require(
+        public_reference == dict(KNOWN_REFERENCE_EVIDENCE),
+        "public reference evidence drifted",
+    )
+    canonical = _public_exact_keys(
+        top["canonical_v2"],
+        {"schema_version", "model", "trade_selector", "surface_consistency"},
+        "public evidence.canonical_v2",
+    )
+    freeze_contract._validate_canonical_layer(  # noqa: SLF001
+        canonical["model"], layer="model", context="public evidence canonical model"
+    )
+    _evidence_require(
+        canonical["schema_version"] == CANONICAL_RUNTIME_SCHEMA_VERSION,
+        "public canonical runtime schema drifted",
+    )
+    freeze_contract._validate_canonical_layer(  # noqa: SLF001
+        canonical["trade_selector"],
+        layer="trade_selector",
+        context="public evidence canonical selector",
+    )
+    surfaces = _public_exact_keys(
+        canonical["surface_consistency"],
+        {
+            "model_meta_backtest_exact",
+            "selector_meta_backtest_exact",
+            "action_model_exact",
+            "action_selector_exact",
+            "prediction_model",
+            "prediction_trade_selector",
+            "prediction_trade_selector_domain",
+            "prediction_fill_relationships",
+        },
+        "public evidence.canonical_v2.surface_consistency",
+    )
+    prediction_projection_keys = {
+        "canonical_v2_version",
+        "artifact_v2_sha256",
+        "canonical_schema",
+        "canonical_decimals",
+        "execution_numeric_mode",
+        "raw_execution_preserved",
+    }
+    for key, layer_key in (
+        ("prediction_model", "model"),
+        ("prediction_trade_selector", "trade_selector"),
+    ):
+        projection = _public_exact_keys(
+            surfaces[key],
+            prediction_projection_keys,
+            f"public evidence.canonical_v2.surface_consistency.{key}",
+        )
+        layer = canonical[layer_key]
+        contract = layer["canonical_contract"]
+        _public_exact_json(
+            projection,
+            {
+                "canonical_v2_version": layer["canonical_v2_version"],
+                "artifact_v2_sha256": layer["artifact_v2_sha256"],
+                "canonical_schema": contract["schema"],
+                "canonical_decimals": contract["decimals"],
+                "execution_numeric_mode": contract["execution_mode"],
+                "raw_execution_preserved": contract["raw_execution_preserved"],
+            },
+            f"public evidence {key}",
+        )
+    for key in (
+        "model_meta_backtest_exact",
+        "selector_meta_backtest_exact",
+        "action_model_exact",
+        "action_selector_exact",
+    ):
+        _public_bool(surfaces[key], f"public evidence surface {key}", expected=True)
+    domain = _public_exact_keys(
+        surfaces["prediction_trade_selector_domain"],
+        {
+            "observation_domain_rows",
+            "outside_domain_rows",
+            "global_selector_v2_declarations_match",
+            "domain_v2_artifact_manifest_match",
+            "domain_v1_artifact_same_run_match",
+            "domain_v1_artifact_sha256",
+            "outside_selector_artifacts_empty",
+            "outside_trade_semantics_valid",
+            "formal_trade_selected_count",
+            "trade_selector_promoted_count",
+            "shadow_selected_count",
+        },
+        "public evidence selector domain",
+    )
+    expected_domain = {
+        "observation_domain_rows": 9,
+        "outside_domain_rows": 42,
+        "global_selector_v2_declarations_match": True,
+        "domain_v2_artifact_manifest_match": True,
+        "domain_v1_artifact_same_run_match": True,
+        "outside_selector_artifacts_empty": True,
+        "outside_trade_semantics_valid": True,
+        "formal_trade_selected_count": 0,
+        "trade_selector_promoted_count": 0,
+        "shadow_selected_count": freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+    }
+    for key, expected in expected_domain.items():
+        if type(expected) is bool:
+            _public_bool(domain[key], f"public evidence selector domain {key}", expected=expected)
+        else:
+            _public_int(domain[key], f"public evidence selector domain {key}", expected=expected)
+    _public_sha256(
+        domain["domain_v1_artifact_sha256"],
+        "public evidence selector domain V1 artifact",
+    )
+    fill = _public_exact_keys(
+        surfaces["prediction_fill_relationships"],
+        {
+            "rows",
+            "public_fill_equals_fill",
+            "trade_public_fill_equals_trade_fill",
+            "trade_fill_observation_domain_rows",
+            "trade_fill_outside_domain_rows",
+            "actual_fill_available_rows",
+            "actual_fill_missing_rows",
+        },
+        "public evidence fill relationships",
+    )
+    expected_fill = {
+        "rows": 51,
+        "public_fill_equals_fill": True,
+        "trade_public_fill_equals_trade_fill": True,
+        "trade_fill_observation_domain_rows": 9,
+        "trade_fill_outside_domain_rows": 42,
+        "actual_fill_available_rows": 0,
+        "actual_fill_missing_rows": 51,
+    }
+    for key, expected in expected_fill.items():
+        if type(expected) is bool:
+            _public_bool(fill[key], f"public evidence fill {key}", expected=expected)
+        else:
+            _public_int(fill[key], f"public evidence fill {key}", expected=expected)
+    behavior = _public_exact_keys(
+        top["behavior_contract"],
+        {
+            "schema_version",
+            "canonical_schema",
+            "top10",
+            "trade_selector_oos",
+            "action_watchlist",
+            "reference_evidence",
+            "nested_oos_research",
+            "decision",
+            "persisted_counts",
+        },
+        "public evidence.behavior_contract",
+    )
+    _evidence_require(
+        behavior["schema_version"] == BEHAVIOR_SCHEMA_VERSION
+        and behavior["canonical_schema"] == CANONICAL_FINGERPRINT_SCHEMA,
+        "public behavior schema drifted",
+    )
+    ledger_keys = {
+        "path",
+        "rows",
+        "signal_dates",
+        "score_decimals",
+        "identity_columns",
+        "discrete_columns",
+        "score_columns",
+        "identity_sha256",
+        "date_counts_sha256",
+        "discrete_sha256",
+        "scores_sha256",
+    }
+    ledger_specs = {
+        "top10": (
+            TOP10_EVIDENCE_PATH,
+            freeze_contract.KNOWN_TOP10_ROWS,
+            freeze_contract.KNOWN_TOP10_DATES,
+            list(FREEZE_TOP10_DISCRETE_COLUMNS),
+            list(FREEZE_TOP10_SCORE_COLUMNS),
+        ),
+        "trade_selector_oos": (
+            OOS_EVIDENCE_PATH,
+            freeze_contract.KNOWN_OOS_ROWS,
+            freeze_contract.KNOWN_OOS_DATES,
+            list(FREEZE_OOS_DISCRETE_COLUMNS),
+            list(FREEZE_OOS_SCORE_COLUMNS),
+        ),
+    }
+    for key, (path, rows, dates, discrete_columns, score_columns) in ledger_specs.items():
+        ledger = _public_exact_keys(
+            behavior[key], ledger_keys, f"public evidence.behavior_contract.{key}"
+        )
+        _public_exact_json(
+            {
+                "path": ledger["path"],
+                "rows": ledger["rows"],
+                "signal_dates": ledger["signal_dates"],
+                "score_decimals": ledger["score_decimals"],
+                "identity_columns": ledger["identity_columns"],
+                "discrete_columns": ledger["discrete_columns"],
+                "score_columns": ledger["score_columns"],
+            },
+            {
+                "path": path,
+                "rows": rows,
+                "signal_dates": dates,
+                "score_decimals": 8,
+                "identity_columns": list(FREEZE_IDENTITY_COLUMNS),
+                "discrete_columns": discrete_columns,
+                "score_columns": score_columns,
+            },
+            f"public evidence.behavior_contract.{key} contract",
+        )
+        for hash_key in (
+            "identity_sha256",
+            "date_counts_sha256",
+            "discrete_sha256",
+            "scores_sha256",
+        ):
+            _public_sha256(
+                ledger[hash_key],
+                f"public evidence.behavior_contract.{key}.{hash_key}",
+            )
+    action = _public_exact_keys(
+        behavior["action_watchlist"],
+        {"path", "rows", "columns", "sha256", "unique_codes", "shadow_only_rows"},
+        "public evidence.behavior_contract.action_watchlist",
+    )
+    _public_exact_json(
+        {
+            key: action[key]
+            for key in ("path", "rows", "columns", "unique_codes", "shadow_only_rows")
+        },
+        {
+            "path": ACTION_EVIDENCE_PATH,
+            "rows": 9,
+            "columns": list(ACTION_WATCHLIST_COLUMNS),
+            "unique_codes": True,
+            "shadow_only_rows": freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+        },
+        "public evidence action watchlist contract",
+    )
+    _public_sha256(action["sha256"], "public evidence action watchlist hash")
+    behavior_reference = _public_exact_keys(
+        behavior["reference_evidence"],
+        reference_keys,
+        "public evidence.behavior_contract.reference_evidence",
+    )
+    _evidence_require(
+        behavior_reference == dict(KNOWN_REFERENCE_EVIDENCE),
+        "public behavior reference evidence drifted",
+    )
+    nested = _public_exact_keys(
+        behavior["nested_oos_research"],
+        {
+            "all_candidates_path",
+            "signals",
+            "signal_dates",
+            "filled_trades",
+            "market_buyable_path",
+            "market_buyable_filled_trades",
+        },
+        "public evidence.behavior_contract.nested_oos_research",
+    )
+    _public_exact_json(
+        nested,
+        {
+            "all_candidates_path": "trade_selector.formal_policy_oos.all_candidates",
+            "signals": freeze_contract.KNOWN_NESTED_OOS_SIGNALS,
+            "signal_dates": freeze_contract.KNOWN_NESTED_OOS_SIGNAL_DATES,
+            "filled_trades": freeze_contract.KNOWN_NESTED_OOS_FILLED_TRADES,
+            "market_buyable_path": "trade_selector.formal_policy_oos.market_buyable_only",
+            "market_buyable_filled_trades": (
+                freeze_contract.KNOWN_NESTED_OOS_MARKET_BUYABLE_FILLED_TRADES
+            ),
+        },
+        "public nested OOS evidence",
+    )
+    decision = _public_exact_keys(
+        behavior["decision"],
+        {
+            "status_code",
+            "formal_buy_count",
+            "top10_selected_count",
+            "selector_globally_promoted_count",
+            "nested_oos_trade_selected_count",
+            "nested_oos_trade_selector_promoted_count",
+            "production_backtest_signals",
+            "production_backtest_signal_dates",
+            "production_backtest_fills",
+            "reason_values",
+        },
+        "public evidence.behavior_contract.decision",
+    )
+    _public_exact_json(
+        decision,
+        {
+            "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+            "formal_buy_count": 0,
+            "top10_selected_count": 0,
+            "selector_globally_promoted_count": 0,
+            "nested_oos_trade_selected_count": (
+                freeze_contract.KNOWN_NESTED_OOS_TRADE_SELECTED
+            ),
+            "nested_oos_trade_selector_promoted_count": freeze_contract.KNOWN_OOS_ROWS,
+            "production_backtest_signals": 0,
+            "production_backtest_signal_dates": 0,
+            "production_backtest_fills": 0,
+            "reason_values": ["selection_policy_not_ready"],
+        },
+        "public decision evidence",
+    )
+    counts = _public_exact_keys(
+        behavior["persisted_counts"],
+        set(EXPECTED_PERSISTED_BEHAVIOR_COUNTS),
+        "public evidence.behavior_contract.persisted_counts",
+    )
+    for key, expected in EXPECTED_PERSISTED_BEHAVIOR_COUNTS.items():
+        _public_exact_keys(
+            counts[key],
+            set(expected),
+            f"public evidence.behavior_contract.persisted_counts.{key}",
+        )
+    _public_exact_json(
+        counts,
+        EXPECTED_PERSISTED_BEHAVIOR_COUNTS,
+        "public persisted behavior counts",
+    )
+    precision = _public_exact_keys(
+        top["canonical_precision"],
+        {"6", "8", "10", "12"},
+        "public evidence.canonical_precision",
+    )
+    precision_keys = {
+        "gate",
+        "top10_equal",
+        "top10_reference_sha256",
+        "top10_candidate_sha256",
+        "selector_oos_equal",
+        "selector_oos_reference_sha256",
+        "selector_oos_candidate_sha256",
+    }
+    for key in ("6", "8", "10", "12"):
+        entry = _public_exact_keys(
+            precision[key],
+            precision_keys,
+            f"public evidence.canonical_precision.{key}",
+        )
+        expected_gate = "hard" if key == "8" else "audit_only"
+        _evidence_require(
+            entry["gate"] == expected_gate,
+            f"public canonical precision q{key} gate drifted",
+        )
+        for bool_key in ("top10_equal", "selector_oos_equal"):
+            _public_bool(entry[bool_key], f"public q{key} {bool_key}")
+        if key == "8":
+            _evidence_require(
+                entry["top10_equal"] is True
+                and entry["selector_oos_equal"] is True,
+                "public q8 hard equality failed",
+            )
+        for hash_key in (
+            "top10_reference_sha256",
+            "top10_candidate_sha256",
+            "selector_oos_reference_sha256",
+            "selector_oos_candidate_sha256",
+        ):
+            _public_sha256(entry[hash_key], f"public q{key} {hash_key}")
+        _evidence_require(
+            entry["top10_equal"]
+            is (
+                entry["top10_reference_sha256"]
+                == entry["top10_candidate_sha256"]
+            )
+            and entry["selector_oos_equal"]
+            is (
+                entry["selector_oos_reference_sha256"]
+                == entry["selector_oos_candidate_sha256"]
+            ),
+            f"public q{key} equality/hash relationship drifted",
+        )
+
+
+def _activation_evidence_contract_self_test() -> dict[str, Any]:
+    def frame_for(
+        discrete_columns: tuple[str, ...],
+        score_columns: tuple[str, ...],
+    ) -> pd.DataFrame:
+        row: dict[str, Any] = {
+            "signal_date": "20260805",
+            "ts_code": "000001.SZ",
+        }
+        exact_values = {
+            "stage": "2→3",
+            "model_reason": "selection_policy_not_ready",
+            "trade_model_reason": "below_learned_policy",
+            "selection_policy_version": "nested_temporal_utility_v1",
+            "observation_risk_label": "HIGH_RISK",
+        }
+        for column in discrete_columns:
+            if column in freeze_contract.BOOLEAN_BEHAVIOR_COLUMNS:
+                row[column] = 0
+            elif column in freeze_contract.INTEGER_BEHAVIOR_COLUMNS:
+                row[column] = 1
+            elif column in exact_values:
+                row[column] = exact_values[column]
+            else:
+                raise RuntimeError(f"unclassified self-test discrete column: {column}")
+        for column in score_columns:
+            row[column] = None if column == "recommended_max_gap" else 0.125
+        row["risk_gate_pass"] = 0
+        return pd.DataFrame([row])
+
+    top_contract = {
+        "identity_columns": list(FREEZE_IDENTITY_COLUMNS),
+        "discrete_columns": list(FREEZE_TOP10_DISCRETE_COLUMNS),
+        "score_columns": list(FREEZE_TOP10_SCORE_COLUMNS),
+        "score_decimals": 8,
+    }
+    oos_contract = {
+        "identity_columns": list(FREEZE_IDENTITY_COLUMNS),
+        "discrete_columns": list(FREEZE_OOS_DISCRETE_COLUMNS),
+        "score_columns": list(FREEZE_OOS_SCORE_COLUMNS),
+        "score_decimals": 8,
+    }
+    top = compute_behavior_fingerprints(
+        frame_for(
+            tuple(FREEZE_TOP10_DISCRETE_COLUMNS),
+            tuple(FREEZE_TOP10_SCORE_COLUMNS),
+        ),
+        top_contract,
+        context="self_test.top10",
+    )
+    oos = compute_behavior_fingerprints(
+        frame_for(
+            tuple(FREEZE_OOS_DISCRETE_COLUMNS),
+            tuple(FREEZE_OOS_SCORE_COLUMNS),
+        ),
+        oos_contract,
+        context="self_test.selector_oos",
+    )
+    action = {
+        "stage_watchlist": [
+            {
+                "ts_code": f"00000{index}.SZ",
+                "action": "SHADOW_ONLY" if index < 3 else "REJECT",
+                "stage_watch_rank": index,
+                "watch_label": "二筛影子" if index < 3 else "仅观察",
+                "target_weight": 0.0,
+                "trade_shadow_selected": 1 if index < 3 else 0,
+            }
+            for index in (1, 2, 3)
+        ]
+    }
+    action_result = compute_action_watchlist_fingerprint(
+        action,
+        {"columns": list(ACTION_WATCHLIST_COLUMNS)},
+    )
+    for result in (top, oos):
+        for key in (
+            "identity_sha256",
+            "date_counts_sha256",
+            "discrete_sha256",
+            "scores_sha256",
+        ):
+            _evidence_require(
+                re.fullmatch(r"[0-9a-f]{64}", str(result.get(key) or ""))
+                is not None,
+                f"self-test {key} is not 64-hex",
+            )
+    _evidence_require(action_result["shadow_only_rows"] == 2, "self-test shadow count")
+    _evidence_require(
+        len(freeze_contract.FINGERPRINT_KEYS) == 11,
+        "C3 fingerprint envelope is not 11 keys",
+    )
+    return {
+        "schema_version": ACTIVATION_EVIDENCE_SCHEMA,
+        "passed": True,
+        "checks": {
+            "shared_c3_contract": True,
+            "fingerprint_envelope_11_keys": True,
+            "top10_behavior_contract": True,
+            "selector_oos_behavior_contract": True,
+            "action_watchlist_contract": True,
+        },
+    }
+
+
+def _safe_probe_stdout(
+    summary: Mapping[str, Any],
+    *,
+    evidence_written: bool,
+) -> dict[str, Any]:
+    """Return only boolean/check-name status suitable for the public job log."""
+
+    checks = summary.get("checks")
+    safe_checks = {
+        str(name): value is True
+        for name, value in checks.items()
+    } if isinstance(checks, Mapping) else {}
+    failed = [name for name, passed in safe_checks.items() if not passed]
+    if summary.get("passed") is not True and not failed:
+        failed = ["activation_evidence_generation"]
+    return {
+        "schema_version": "dc20_forced_frozen_canonical_v2_probe_log_v1",
+        "system": "DC2.0",
+        "read_only": True,
+        "passed": summary.get("passed") is True and evidence_written,
+        "checks": safe_checks,
+        "failed_checks": failed,
+        "runner_temp_evidence": {
+            "written": evidence_written,
+            "whitelist_only": evidence_written,
+            "printed": False,
+            "uploaded": False,
+            "persisted": False,
+        },
+    }
+
+
+def _public_activation_evidence_line(compact: str) -> str:
+    """Return the single allowlisted JSON line authorized for the public job log."""
+
+    _evidence_require("\n" not in compact and "\r" not in compact, "evidence must be one line")
+    decoded = json.loads(compact)
+    _evidence_require(isinstance(decoded, Mapping), "public evidence must be an object")
+    _evidence_require(
+        decoded.get("schema_version") == ACTIVATION_EVIDENCE_SCHEMA,
+        "public evidence schema drifted",
+    )
+    _validate_public_activation_evidence_shape(decoded)
+    # Re-render through the same allowlist/sensitive-data guard immediately
+    # before stdout so no alternate serialization path can disclose more.
+    return _render_compact_activation_evidence(decoded)
+
+
+def _canonical_replay_report_probe(
+    report_path: Path,
+    *,
+    root: Path = ROOT,
+) -> tuple[dict[str, Any], bool]:
     report = _read_json(report_path)
     golden = report.get("golden") or {}
     history = report.get("history") or {}
@@ -1297,17 +3090,22 @@ def _canonical_replay_report_probe(report_path: Path) -> tuple[dict[str, Any], b
     prediction_policy = golden.get("prediction_policy_execution") or {}
     action_candidates = golden.get("action_plan_candidates") or {}
     no_trade = golden.get("no_trade") or {}
+    try:
+        _history_activation_evidence(report)
+        exact_history_loader = True
+    except (RuntimeError, ValueError):
+        exact_history_loader = False
 
     checks = {
         "forced_replay_report_passed": report.get("status") == "pass",
         "diagnostic_mode_exact": report.get("diagnostic_mode")
         == "workspace_only_forced_frozen_canonical_v2",
         "force_prediction_enabled": report.get("force_prediction") is True,
-        "frozen_snapshot_source": history.get("source") == "frozen_snapshot",
+        "frozen_snapshot_source": exact_history_loader,
+        "no_live_history_fallback": history.get("live_history_fallback") is False,
         "frozen_snapshot_sha_locked": history.get("sha256")
         == "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
-        "manifest_inactive_on_disk": history.get("manifest_active_on_disk")
-        is False,
+        "manifest_activity_schema_valid": exact_history_loader,
         "manifest_not_mutated": history.get("manifest_mutated_on_disk") is False,
         "persisted_c6_reference_verified": reference.get(
             "persisted_trust_root_verified"
@@ -1380,7 +3178,7 @@ def _canonical_replay_report_probe(report_path: Path) -> tuple[dict[str, Any], b
         "schema_version": "dc20_forced_frozen_canonical_v2_probe_v1",
         "system": "DC2.0",
         "read_only": True,
-        "report_path": str(report_path),
+        "report_file": report_path.name,
         "passed": not failed,
         "checks": checks,
         "failed_checks": failed,
@@ -1394,30 +3192,128 @@ def _canonical_replay_report_probe(report_path: Path) -> tuple[dict[str, Any], b
         "prediction_policy_execution": prediction_policy,
         "action_plan_candidates": action_candidates,
         "candidate_source": report.get("candidate_source", {}),
-        "reference": reference,
+        "reference": {
+            "profile": reference.get("profile"),
+            "persisted_trust_root_verified": reference.get(
+                "persisted_trust_root_verified"
+            ),
+            "same_machine_reference_only": reference.get(
+                "same_machine_reference_only"
+            ),
+        },
     }
+    if not failed:
+        summary["activation_evidence"] = _build_activation_evidence(
+            report,
+            root=root,
+        )
     return summary, not failed
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Print read-only frozen canonical V2 evidence"
+    )
+    parser.add_argument(
+        "--self-test-evidence-contract",
+        action="store_true",
+        help="exercise the shared C3 behavior/action evidence schema without files",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = _parse_args()
+    if args.self_test_evidence_contract:
+        try:
+            payload = _activation_evidence_contract_self_test()
+        except Exception:
+            payload = {
+                "schema_version": ACTIVATION_EVIDENCE_SCHEMA,
+                "passed": False,
+                "checks": {"shared_c3_contract": False},
+                "failed_checks": ["shared_c3_contract"],
+            }
+        print(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        return 0 if payload["passed"] else 1
+
     report_text = os.environ.get("FINGERPRINT_REPLAY_REPORT", "").strip()
     if not report_text:
         print(
             json.dumps(
                 {
-                    "schema_version": "dc20_forced_frozen_canonical_v2_probe_v1",
+                    "schema_version": "dc20_forced_frozen_canonical_v2_probe_log_v1",
+                    "system": "DC2.0",
+                    "read_only": True,
                     "passed": False,
-                    "error": "FINGERPRINT_REPLAY_REPORT is required; legacy V1/q12 probing is disabled",
+                    "checks": {"replay_report_available": False},
+                    "failed_checks": ["replay_report_available"],
+                    "runner_temp_evidence": {
+                        "written": False,
+                        "whitelist_only": False,
+                        "printed": False,
+                        "uploaded": False,
+                        "persisted": False,
+                    },
                 },
                 ensure_ascii=False,
-                indent=2,
                 sort_keys=True,
+                separators=(",", ":"),
             )
         )
         return 1
-    summary, passed = _canonical_replay_report_probe(Path(report_text))
-    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if passed else 1
+    evidence_written = False
+    public_evidence_line = ""
+    try:
+        summary, passed = _canonical_replay_report_probe(Path(report_text))
+        if passed:
+            evidence = _evidence_mapping(
+                summary.pop("activation_evidence", None), "activation_evidence"
+            )
+            compact = _render_compact_activation_evidence(evidence)
+            output_text = os.environ.get("FINGERPRINT_EVIDENCE_OUTPUT", "").strip()
+            _evidence_require(
+                output_text != "",
+                "FINGERPRINT_EVIDENCE_OUTPUT is required for a passing probe",
+            )
+            output = Path(output_text)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(compact + "\n", encoding="utf-8")
+            evidence_written = True
+            public_evidence_line = _public_activation_evidence_line(compact)
+    except Exception:
+        summary = {
+            "schema_version": "dc20_forced_frozen_canonical_v2_probe_v1",
+            "system": "DC2.0",
+            "read_only": True,
+            "passed": False,
+            "checks": {"activation_evidence_generation": False},
+            "failed_checks": ["activation_evidence_generation"],
+        }
+        passed = False
+    if passed and evidence_written:
+        print(public_evidence_line)
+    else:
+        safe_summary = _safe_probe_stdout(
+            summary,
+            evidence_written=evidence_written,
+        )
+        print(
+            json.dumps(
+                safe_summary,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    return 0 if passed and evidence_written else 1
 
 
 if __name__ == "__main__":

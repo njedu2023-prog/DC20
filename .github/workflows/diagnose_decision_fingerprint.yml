@@ -42,10 +42,15 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m unittest tests.test_canonical_fingerprint -v
 
+      - name: Validate shared C3 activation evidence contract
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python scripts/diagnose_decision_fingerprint.py --self-test-evidence-contract > /dev/null
+
       - name: Validate immutable freeze inputs
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-        run: python scripts/validate_decision_model_freeze.py
+        run: python scripts/validate_decision_model_freeze.py > /dev/null 2>&1
 
       - name: Snapshot persisted reference artifacts
         run: |
@@ -58,7 +63,7 @@ jobs:
             destination="$3"
             actual="$(git hash-object "${source}")"
             if [ "${actual}" != "${expected}" ]; then
-              echo "::error::Untrusted persisted reference blob for ${source}: ${actual}"
+              echo "::error::persisted_reference_blob_verified=false"
               exit 1
             fi
             cp "${source}" "${destination}"
@@ -77,6 +82,7 @@ jobs:
             "${reference_dir}/model_meta_latest.json"
           echo "FINGERPRINT_REFERENCE_DIR=${reference_dir}" >> "${GITHUB_ENV}"
           echo "FINGERPRINT_REPLAY_REPORT=${RUNNER_TEMP}/dc20-canonical-v2-replay.json" >> "${GITHUB_ENV}"
+          echo "FINGERPRINT_EVIDENCE_OUTPUT=${RUNNER_TEMP}/dc20-canonical-v2-evidence.json" >> "${GITHUB_ENV}"
 
       - name: Force exact frozen snapshot through canonical V2 and publish workspace action plan
         id: replay
@@ -88,10 +94,10 @@ jobs:
             --root "${GITHUB_WORKSPACE}" \
             --reference-dir "${FINGERPRINT_REFERENCE_DIR}" \
             --reference-profile persisted-c6 \
-            --report "${FINGERPRINT_REPLAY_REPORT}"
+            --report "${FINGERPRINT_REPLAY_REPORT}" > /dev/null 2>&1
 
-      - name: Print non-sensitive component and behavior hashes
-        id: probe
+      - name: Publish strict allowlisted activation evidence
+        id: evidence
         continue-on-error: true
         if: ${{ always() }}
         env:
@@ -102,24 +108,25 @@ jobs:
         if: ${{ always() }}
         env:
           REPLAY_OUTCOME: ${{ steps.replay.outcome }}
-          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+          EVIDENCE_OUTCOME: ${{ steps.evidence.outcome }}
         run: |
           {
             echo "### DC2.0 forced frozen canonical V2 diagnostic"
             echo "- replay outcome: ${REPLAY_OUTCOME}"
-            echo "- invariant probe outcome: ${PROBE_OUTCOME}"
-            echo "- component evidence: printed in the previous step"
+            echo "- activation evidence outcome: ${EVIDENCE_OUTCOME}"
+            echo "- activation evidence: one strict allowlisted JSON line in the previous step"
             echo "- canonical gate: q8 hard; q6/q10/q12 audit-only"
             echo "- execution mode: raw float64 preserved"
+            echo "- excluded from evidence: secrets, raw rows, stock records, environment dumps, and absolute paths"
             echo "- repository publication: disabled; action plan was generated only in runner workspace"
           } >> "${GITHUB_STEP_SUMMARY}"
           failed=0
           if [ "${REPLAY_OUTCOME}" != "success" ]; then
-            echo "::error::Forced frozen canonical V2 replay failed. See reference, behavior, policy, and action evidence above."
+            echo "::error::Forced frozen canonical V2 replay failed. Review the named invariant checks without disclosing the runner-temp evidence payload."
             failed=1
           fi
-          if [ "${PROBE_OUTCOME}" != "success" ]; then
-            echo "::error::A frozen invariant, strict schema, identity, or discrete behavior gate failed."
+          if [ "${EVIDENCE_OUTCOME}" != "success" ]; then
+            echo "::error::Activation evidence publication or a frozen invariant, strict schema, identity, or discrete behavior gate failed."
             failed=1
           fi
           exit "${failed}"

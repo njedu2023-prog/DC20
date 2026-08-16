@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Diagnostic-only frozen replay for canonical runtime V2 metadata.
 
-This command is intentionally separate from the production runner.  It makes
-an in-memory active copy of an inactive freeze manifest, verifies the locked
-snapshot contract and SHA, then forces ``AuctionV3Engine.run`` to consume that
-snapshot.  It never edits the manifest, never validates or changes the V1
-runtime pins, and always replaces the prediction inside the disposable runner
-workspace so stale dated CSVs cannot masquerade as V2 evidence.
+This command is intentionally separate from the production runner.  While the
+repository still contains the one reviewed inactive V1 manifest, the replay
+accepts only its exact bytes and manually reads only the reviewed SHA77e frozen
+snapshot.  Once the manifest is V2, the replay delegates to the production C3
+verified-snapshot loader with its complete-contract and pin checks.  Neither
+branch can fall back to live history, edit the manifest, or weaken the
+production freeze loader.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import argparse
 import csv
 import copy
 import hashlib
+import io
 import json
 import math
 import re
@@ -47,9 +49,13 @@ from top10decision.decision.canonical_fingerprint import (  # noqa: E402
     compose_artifact_fingerprint,
 )
 from top10decision.decision.model_freeze import (  # noqa: E402
+    FREEZE_SCHEMA_VERSION,
+    LEGACY_FREEZE_SCHEMA_VERSION,
     DecisionModelFreezeError,
-    load_frozen_history_snapshot,
+    frame_columns_sha256,
     load_model_freeze,
+    load_verified_frozen_history_snapshot,
+    validate_pinned_files,
 )
 from top10decision.decision.trade_selector import (  # noqa: E402
     TRADE_SELECTOR_CANONICAL_V2,
@@ -60,9 +66,21 @@ from top10decision.decision.trade_selector import (  # noqa: E402
 EXPECTED_SNAPSHOT_SHA256 = (
     "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e"
 )
+EXPECTED_SNAPSHOT_PATH = "models/decision_v12_frozen_history_20260805.csv.gz"
 EXPECTED_HISTORY_ROWS = 40_355
 EXPECTED_HISTORY_DATES = 715
+EXPECTED_HISTORY_COLUMNS = 151
+EXPECTED_HISTORY_COLUMNS_SHA256 = (
+    "dbfd38f20f00cbd57460ac3a858f937fa560bcd221b0ed3a12b408bc6c313d49"
+)
+EXPECTED_FREEZE_ID = "dc20_decision_v13_promotion_oos_d20260815_history20260805"
+EXPECTED_TRAINING_CUTOFF = "20260805"
+LEGACY_BOOTSTRAP_MANIFEST_SHA256 = (
+    "87605814bce9f2180e151ed91d6c16e2c22b46c3dcd147e8bdab7895c3f0975a"
+)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DATE_RE = re.compile(r"^20\d{6}$")
+TS_CODE_RE = re.compile(r"^\d{6}\.(?:SH|SZ|BJ)$")
 REFERENCE_C6_GIT_BLOBS = {
     "backtest_top10_latest.csv": "1bbebbbe4a3b94c0a95fd64f4e27b242ea5b0222",
     "backtest_trade_selector_oos_latest.csv": "6afd29e31cf98c434ac6e67183f7005a89663a49",
@@ -165,72 +183,244 @@ def _require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def load_forced_frozen_history(
-    root: Path,
+def _safe_exact_repository_file(root: Path, relative: str, *, label: str) -> Path:
+    """Resolve one already-exact relative path without following symlinks."""
+
+    candidate = root
+    for part in Path(relative).parts:
+        candidate = candidate / part
+        _require(not candidate.is_symlink(), f"{label} must not traverse a symlink")
+    _require(candidate.is_file(), f"{label} missing: {candidate}")
+    try:
+        candidate.resolve(strict=True).relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError(f"{label} escapes repository root") from exc
+    return candidate
+
+
+def _parse_manifest_bytes(payload: bytes) -> dict[str, Any]:
+    try:
+        decoded = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("freeze manifest is not valid UTF-8 JSON") from exc
+    _require(isinstance(decoded, dict), "freeze manifest must be an object")
+    return decoded
+
+
+def _validate_loaded_history(
+    history: pd.DataFrame,
     *,
-    expected_sha256: str = EXPECTED_SNAPSHOT_SHA256,
-    expected_rows: int = EXPECTED_HISTORY_ROWS,
-    expected_dates: int = EXPECTED_HISTORY_DATES,
-) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
-    """Load the finalized snapshot even when production freeze is inactive.
-
-    Only ``active`` is changed, in memory.  The ordinary snapshot loader still
-    enforces repository-relative path, finalized mode, SHA, cutoff, and CSV
-    readability.  Current frozen row/date counts are additional fail-hard
-    guards for this one migration candidate.
-    """
-
-    root = root.resolve()
-    manifest = load_model_freeze(root, required=True)
-    original_active = manifest.get("active") is True
-    forced = copy.deepcopy(manifest)
-    forced["active"] = True
-
-    cutoff = str(forced.get("training_cutoff_signal_date") or "")
-    _require(bool(re.fullmatch(r"20\d{6}", cutoff)), "invalid frozen cutoff")
-    snapshot = forced.get("history_snapshot")
-    _require(isinstance(snapshot, dict), "history_snapshot must be an object")
-    relative_path = str(snapshot.get("path") or "").strip()
-    snapshot_path = Path(relative_path)
+    expected_columns_sha256: str,
+) -> dict[str, Any]:
+    _require(len(history) == EXPECTED_HISTORY_ROWS, "frozen history row count drifted")
     _require(
-        bool(relative_path)
-        and not snapshot_path.is_absolute()
-        and ".." not in snapshot_path.parts
-        and relative_path.endswith(".csv.gz"),
-        "history_snapshot.path must be repository-relative .csv.gz",
+        len(history.columns) == EXPECTED_HISTORY_COLUMNS,
+        "frozen history column count drifted",
+    )
+    columns_sha = frame_columns_sha256(list(history.columns))
+    _require(
+        columns_sha == expected_columns_sha256,
+        "frozen history column order/schema drifted",
+    )
+    for column in ("signal_date", "buy_date", "target_exit_date", "actual_exit_date"):
+        _require(column in history.columns, f"frozen history missing {column}")
+        values = history[column].astype("string")
+        _require(
+            values.notna().all()
+            and values.map(lambda value: DATE_RE.fullmatch(str(value)) is not None).all(),
+            f"frozen history contains noncanonical {column}",
+        )
+    _require("ts_code" in history.columns, "frozen history missing ts_code")
+    codes = history["ts_code"].astype("string")
+    _require(
+        codes.notna().all()
+        and codes.map(lambda value: TS_CODE_RE.fullmatch(str(value)) is not None).all(),
+        "frozen history contains noncanonical ts_code",
+    )
+    signal_dates = history["signal_date"].astype("string")
+    _require(
+        signal_dates.nunique() == EXPECTED_HISTORY_DATES,
+        "frozen history date count drifted",
+    )
+    _require(
+        signal_dates.le(EXPECTED_TRAINING_CUTOFF).all(),
+        "frozen history contains rows beyond its cutoff",
+    )
+    _require(
+        str(signal_dates.max()) == EXPECTED_TRAINING_CUTOFF,
+        "frozen history does not end at the reviewed cutoff",
+    )
+    _require(
+        not history.duplicated(list(IDENTITY_COLUMNS)).any(),
+        "frozen history contains duplicate signal_date/ts_code identities",
+    )
+    return {
+        "rows": int(len(history)),
+        "signal_dates": int(signal_dates.nunique()),
+        "columns": int(len(history.columns)),
+        "columns_sha256": columns_sha,
+        "history_start": str(signal_dates.min()),
+        "history_end": str(signal_dates.max()),
+    }
+
+
+def _load_exact_legacy_bootstrap(
+    root: Path,
+    manifest_bytes: bytes,
+    manifest: dict[str, Any],
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Read the single reviewed inactive V1 snapshot without a live fallback."""
+
+    _require(
+        manifest.get("schema_version") == LEGACY_FREEZE_SCHEMA_VERSION,
+        "legacy bootstrap schema_version drifted",
+    )
+    _require(manifest.get("active") is False, "legacy bootstrap must remain inactive")
+    _require(
+        manifest.get("freeze_id") == EXPECTED_FREEZE_ID,
+        "legacy bootstrap freeze_id drifted",
+    )
+    _require(
+        manifest.get("training_cutoff_signal_date") == EXPECTED_TRAINING_CUTOFF,
+        "legacy bootstrap cutoff drifted",
+    )
+    snapshot = manifest.get("history_snapshot")
+    _require(isinstance(snapshot, dict), "legacy history_snapshot must be an object")
+    _require(
+        snapshot.get("path") == EXPECTED_SNAPSHOT_PATH,
+        "legacy history_snapshot.path drifted",
+    )
+    _require(
+        snapshot.get("sha256") == EXPECTED_SNAPSHOT_SHA256,
+        "legacy history_snapshot.sha256 drifted",
     )
     _require(
         snapshot.get("bootstrap_mode") is False,
-        "diagnostic replay requires a finalized, non-bootstrap snapshot",
+        "legacy history_snapshot.bootstrap_mode must be false",
     )
-    manifest_sha = str(snapshot.get("sha256") or "")
-    _require(SHA256_RE.fullmatch(manifest_sha) is not None, "snapshot SHA is invalid")
+    manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
     _require(
-        manifest_sha == expected_sha256,
-        f"unexpected frozen snapshot SHA: expected={expected_sha256} manifest={manifest_sha}",
+        manifest_sha == LEGACY_BOOTSTRAP_MANIFEST_SHA256,
+        "legacy bootstrap manifest content SHA drifted",
     )
 
-    history, audit = load_frozen_history_snapshot(root, forced)
-    _require(history is not None, "forced active manifest did not load a snapshot")
-    _require(audit.get("source") == "frozen_snapshot", "live history was selected")
-    _require(audit.get("sha256") == expected_sha256, "loaded snapshot SHA drifted")
-    _require(len(history) == expected_rows, "frozen history row count drifted")
-    _require(
-        history["signal_date"].astype(str).nunique() == expected_dates,
-        "frozen history date count drifted",
+    snapshot_path = _safe_exact_repository_file(
+        root,
+        EXPECTED_SNAPSHOT_PATH,
+        label="legacy frozen history snapshot",
     )
-    for column in IDENTITY_COLUMNS:
-        _require(column in history.columns, f"frozen history missing {column}")
-        values = history[column].astype("string").str.strip()
-        _require(values.notna().all() and values.ne("").all(), f"empty {column}")
-    actual_path = root / relative_path
-    _require(_sha256(actual_path) == expected_sha256, "snapshot bytes changed after load")
-    return history, forced, {
+    snapshot_bytes = snapshot_path.read_bytes()
+    actual_sha = hashlib.sha256(snapshot_bytes).hexdigest()
+    _require(actual_sha == EXPECTED_SNAPSHOT_SHA256, "legacy snapshot bytes drifted")
+    try:
+        history = pd.read_csv(
+            io.BytesIO(snapshot_bytes),
+            compression="gzip",
+            low_memory=False,
+            dtype={
+                "signal_date": "string",
+                "buy_date": "string",
+                "target_exit_date": "string",
+                "actual_exit_date": "string",
+                "ts_code": "string",
+            },
+        )
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("legacy frozen history snapshot is unreadable") from exc
+    facts = _validate_loaded_history(
+        history,
+        expected_columns_sha256=EXPECTED_HISTORY_COLUMNS_SHA256,
+    )
+    return history, {
+        "active": False,
+        "manifest_active": False,
+        "freeze_id": EXPECTED_FREEZE_ID,
+        "source": "legacy_v1_exact_diagnostic_bootstrap",
+        "path": EXPECTED_SNAPSHOT_PATH,
+        "sha256": actual_sha,
+        "bootstrap_mode": False,
+        "training_cutoff_signal_date": EXPECTED_TRAINING_CUTOFF,
+        "manifest_content_sha256": manifest_sha,
+        **facts,
+    }
+
+
+def load_forced_frozen_history(
+    root: Path,
+) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+    """Load only the reviewed frozen snapshot; never consult live history."""
+
+    root = root.resolve()
+    manifest_path = _safe_exact_repository_file(
+        root,
+        "models/decision_model_freeze.json",
+        label="freeze manifest",
+    )
+    manifest_bytes = manifest_path.read_bytes()
+    manifest_content_sha = hashlib.sha256(manifest_bytes).hexdigest()
+    raw_manifest = _parse_manifest_bytes(manifest_bytes)
+    schema = raw_manifest.get("schema_version")
+
+    if schema == LEGACY_FREEZE_SCHEMA_VERSION:
+        manifest = raw_manifest
+        history, audit = _load_exact_legacy_bootstrap(
+            root, manifest_bytes, manifest
+        )
+        loader_contract = "one_time_exact_v1_no_live_fallback"
+    elif schema == FREEZE_SCHEMA_VERSION:
+        manifest = load_model_freeze(root, required=True)
+        _require(
+            _sha256(manifest_path) == manifest_content_sha,
+            "V2 freeze manifest changed while loading",
+        )
+        pinned_files_audit = validate_pinned_files(
+            root,
+            manifest,
+            force_enforcement=True,
+        )
+        _require(
+            pinned_files_audit.get("enforced") is True
+            and (
+                pinned_files_audit.get("active") is True
+                or pinned_files_audit.get("forced_enforcement") is True
+            ),
+            "V2 replay did not enforce pinned-file bytes",
+        )
+        history, audit = load_verified_frozen_history_snapshot(root, manifest)
+        _require(
+            audit.get("source") == "forced_frozen_snapshot",
+            "V2 replay did not use the verified forced snapshot loader",
+        )
+        facts = _validate_loaded_history(
+            history,
+            expected_columns_sha256=EXPECTED_HISTORY_COLUMNS_SHA256,
+        )
+        audit = {
+            **audit,
+            **facts,
+            "manifest_content_sha256": manifest_content_sha,
+            "pinned_files": pinned_files_audit,
+        }
+        loader_contract = "v2_complete_contract_and_pins_no_live_fallback"
+    else:
+        raise RuntimeError(f"unsupported diagnostic freeze schema: {schema}")
+
+    _require(
+        audit.get("sha256") == EXPECTED_SNAPSHOT_SHA256,
+        "loaded snapshot SHA drifted",
+    )
+    _require(
+        _sha256(manifest_path) == manifest_content_sha,
+        "freeze manifest changed during diagnostic load",
+    )
+    return history, copy.deepcopy(manifest), {
         **audit,
-        "manifest_active_on_disk": original_active,
+        "manifest_schema_version": schema,
+        "manifest_active_on_disk": manifest.get("active") is True,
         "forced_frozen_replay": True,
         "manifest_mutated_on_disk": False,
-        "v1_runtime_gate": "intentionally_not_run_diagnostic_only",
+        "live_history_fallback": False,
+        "loader_contract": loader_contract,
     }
 
 
@@ -1180,7 +1370,7 @@ def candidate_source_evidence(root: Path) -> dict[str, Any]:
         path = resolved / relative
         _require(path.is_file(), f"candidate source missing: {relative}")
         files[relative] = _sha256(path)
-    return {"base_commit": commit, "file_sha256": files}
+    return {"candidate_commit": commit, "file_sha256": files}
 
 
 def _finite_policy_projection(
