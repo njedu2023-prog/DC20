@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: dc20-decision-bootstrap
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   copy-decision:
@@ -120,7 +120,11 @@ jobs:
                   "data/market/minute_1m/sync_latest.json",
               }:
                   return True
-              if path.startswith("data/market/") and any(anchor in path for anchor in market_anchors):
+              if (
+                  path.startswith("data/market/")
+                  and len(path.split("/")) == 3
+                  and any(anchor in path for anchor in market_anchors)
+              ):
                   return True
               if path in current_models:
                   return True
