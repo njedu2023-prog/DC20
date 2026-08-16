@@ -30,6 +30,7 @@ def main() -> int:
     root = Path(args.root)
     dated, latest, index, plan = publish_action_plan(root, args.report_date)
     refreshed = refresh_action_plan_observations(root)
+    model = plan.get("model") or {}
     print(
         json.dumps(
             {
@@ -38,6 +39,18 @@ def main() -> int:
                 "index": str(index),
                 "status_code": plan.get("status_code"),
                 "formal_buy_count": plan.get("formal_buy_count"),
+                "v2_integrity_match": model.get("v2_integrity_match"),
+                "v2_eligibility_match": model.get("v2_eligibility_match"),
+                "artifact_v2_fingerprints_match": model.get(
+                    "artifact_v2_fingerprints_match"
+                ),
+                "fingerprint_v2_valid": model.get("fingerprint_v2_valid"),
+                "trade_selector_artifacts_v2_match": model.get(
+                    "trade_selector_artifacts_v2_match"
+                ),
+                "trade_selector_fingerprint_v2_valid": model.get(
+                    "trade_selector_fingerprint_v2_valid"
+                ),
                 "observation_action_plans_refreshed": len(refreshed),
             },
             ensure_ascii=False,

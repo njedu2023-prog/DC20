@@ -41,7 +41,18 @@ from top10decision.auction_v3.config import (  # noqa: E402
     TARGET_INDEPENDENT_OOS_DATES,
     WALKFORWARD_WARMUP_DATES,
 )
-from top10decision.decision.action_plan import build_action_plan  # noqa: E402
+from top10decision.decision.action_plan import (  # noqa: E402
+    _canonical_decimals,
+    _selector_prediction_domain,
+    _strict_all_true_column,
+    build_action_plan,
+)
+from top10decision.decision.canonical_fingerprint import (  # noqa: E402
+    CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_mapping_sha256,
+    canonical_policy_fingerprint,
+    compose_artifact_fingerprint,
+)
 from top10decision.decision.contracts import (  # noqa: E402
     ACTUAL_ORDER_FILL_OBSERVED_COLUMN,
     ACTUAL_ORDER_FILL_TARGET_COLUMN,
@@ -660,7 +671,113 @@ class DecisionActionPlanTests(unittest.TestCase):
         artifact: str = "a" * 64,
     ) -> None:
         trade_artifact = "c" * 64
-        pd.DataFrame(
+        model_v2_version = (
+            "decision_model_canonical_v2_q8_half_even_raw_execution"
+        )
+        model_canonical_contract = {
+            "schema": "dc20_canonical_fingerprint_v2",
+            "layer": "model",
+            "decimals": 8,
+            "rounding": "decimal_string_half_even",
+            "execution_mode": "raw_float64",
+            "raw_execution_preserved": True,
+        }
+        selector_v2_version = (
+            "trade_selector_canonical_v2_q8_half_even_raw_execution"
+        )
+        selector_canonical_contract = {
+            "schema": "dc20_canonical_fingerprint_v2",
+            "layer": "trade_selector",
+            "decimals": 8,
+            "rounding": "decimal_string_half_even",
+            "execution_mode": "raw_float64",
+            "raw_execution_preserved": True,
+        }
+        model_policy_projection = {
+            "version": version,
+            "ready": True,
+            "reason": "chronological_policy_holdout_passed",
+            "max_positions": 2,
+            "thresholds": {
+                "max_big_loss_probability": 0.2,
+                "min_mean_return_lcb": 0.0,
+                "min_fill_probability": 0.5,
+                "min_exit_probability": 0.8,
+                "min_conservative_ev": 0.0,
+                "min_selection_score": 0.1,
+            },
+        }
+        selector_policy_projection = {
+            "version": "trade_selector_v2_nested_oos_top10_promotion_rank",
+            "ready": bool(promoted),
+            "reason": "chronological_policy_holdout_passed",
+            "max_positions": 2,
+            "tail_risk_weight": 0.25,
+            "thresholds": {
+                "min_trade_score": 0.1,
+                "min_mean_return_lcb": 0.0,
+                "min_fill_probability": 0.5,
+                "max_big_loss_probability": 0.2,
+            },
+        }
+        model_policy_sha256 = canonical_mapping_sha256(
+            {
+                "schema": CANONICAL_FINGERPRINT_SCHEMA,
+                "artifact_kind": "decision_model_executable_policy",
+                "projection": model_policy_projection,
+            },
+            decimals=8,
+            exact_strings=True,
+        )
+        selector_policy_sha256 = canonical_policy_fingerprint(
+            selector_policy_projection,
+            decimals=8,
+        )["sha256"]
+        model_provenance_sha256 = "1" * 64
+        model_semantic_sha256 = "2" * 64
+        selector_provenance_sha256 = "3" * 64
+        selector_semantic_sha256 = "4" * 64
+        model_v2_artifact = compose_artifact_fingerprint(
+            artifact_kind="decision_model_canonical_runtime_v2",
+            provenance_sha256=model_provenance_sha256,
+            semantic_sha256=model_semantic_sha256,
+            policy_sha256=model_policy_sha256,
+            decimals=8,
+        )
+        selector_v2_artifact = compose_artifact_fingerprint(
+            artifact_kind="decision_trade_selector_canonical_runtime_v2",
+            provenance_sha256=selector_provenance_sha256,
+            semantic_sha256=selector_semantic_sha256,
+            policy_sha256=selector_policy_sha256,
+            decimals=8,
+        )
+        model_fingerprint_v2 = {
+            "schema": CANONICAL_FINGERPRINT_SCHEMA,
+            "canonical_version": model_v2_version,
+            "canonical_contract": model_canonical_contract,
+            "provenance_sha256": model_provenance_sha256,
+            "semantic_sha256": model_semantic_sha256,
+            "policy_sha256": model_policy_sha256,
+            "policy_projection": model_policy_projection,
+            "artifact_sha256": model_v2_artifact,
+            "schema_valid": True,
+            "missing_columns": [],
+            "invalid_cell_count": 0,
+        }
+        selector_fingerprint_v2 = {
+            "schema": CANONICAL_FINGERPRINT_SCHEMA,
+            "canonical_version": selector_v2_version,
+            "canonical_contract": selector_canonical_contract,
+            "provenance_sha256": selector_provenance_sha256,
+            "semantic_sha256": selector_semantic_sha256,
+            "policy_sha256": selector_policy_sha256,
+            "policy_projection": selector_policy_projection,
+            "artifact_sha256": selector_v2_artifact,
+            "schema_valid": True,
+            "missing_columns": [],
+            "invalid_cell_count": 0,
+        }
+        prediction = pd.DataFrame(
             [
                 {
                     "signal_date": "20260720",
@@ -675,6 +792,12 @@ class DecisionActionPlanTests(unittest.TestCase):
                     "trade_rank": 1,
                     "trade_selector_promoted": int(promoted),
                     "trade_selector_artifact_sha256": trade_artifact,
+                    "trade_selector_canonical_v2_version": selector_v2_version,
+                    "trade_selector_artifact_v2_sha256": selector_v2_artifact,
+                    "trade_selector_canonical_schema": selector_canonical_contract["schema"],
+                    "trade_selector_canonical_decimals": selector_canonical_contract["decimals"],
+                    "trade_selector_execution_numeric_mode": selector_canonical_contract["execution_mode"],
+                    "trade_selector_raw_execution_preserved": 1,
                     "action": "BUY",
                     "recommended_max_price": 10.5,
                     "mechanism_limit_pct": 10.036,
@@ -694,6 +817,12 @@ class DecisionActionPlanTests(unittest.TestCase):
                     "model_promoted": int(promoted),
                     "model_version": version,
                     "model_artifact_sha256": artifact,
+                    "model_canonical_v2_version": model_v2_version,
+                    "model_artifact_v2_sha256": model_v2_artifact,
+                    "model_canonical_schema": model_canonical_contract["schema"],
+                    "model_canonical_decimals": model_canonical_contract["decimals"],
+                    "model_execution_numeric_mode": model_canonical_contract["execution_mode"],
+                    "model_raw_execution_preserved": 1,
                 },
                 {
                     "signal_date": "20260720",
@@ -707,24 +836,73 @@ class DecisionActionPlanTests(unittest.TestCase):
                     "trade_rank": 2,
                     "trade_selector_promoted": int(promoted),
                     "trade_selector_artifact_sha256": trade_artifact,
+                    "trade_selector_canonical_v2_version": selector_v2_version,
+                    "trade_selector_artifact_v2_sha256": selector_v2_artifact,
+                    "trade_selector_canonical_schema": selector_canonical_contract["schema"],
+                    "trade_selector_canonical_decimals": selector_canonical_contract["decimals"],
+                    "trade_selector_execution_numeric_mode": selector_canonical_contract["execution_mode"],
+                    "trade_selector_raw_execution_preserved": 1,
                     "action": "BUY",
                     "model_ready": 1,
                     "model_promoted": int(promoted),
                     "model_version": version,
                     "model_artifact_sha256": artifact,
+                    "model_canonical_v2_version": model_v2_version,
+                    "model_artifact_v2_sha256": model_v2_artifact,
+                    "model_canonical_schema": model_canonical_contract["schema"],
+                    "model_canonical_decimals": model_canonical_contract["decimals"],
+                    "model_execution_numeric_mode": model_canonical_contract["execution_mode"],
+                    "model_raw_execution_preserved": 1,
                 },
             ]
-        ).to_csv(self.root / "outputs" / "auction_v3" / "predictions" / "pred_latest.csv", index=False)
+        )
+        prediction["observation_selected"] = 1
+        prediction["promotion_rank"] = [1, 2]
+        prediction["promotion_rank_score"] = [0.8, 0.7]
+        prediction["predicted_promotion_probability"] = [0.8, 0.7]
+        prediction["trade_score"] = [0.02, 0.01]
+        prediction["trade_predicted_conditional_net_return"] = 0.02
+        prediction["trade_predicted_mean_return_lcb"] = 0.01
+        prediction["trade_predicted_fill_probability"] = 0.8
+        prediction["trade_predicted_public_market_buyable_probability"] = 0.8
+        prediction["trade_predicted_big_loss_probability"] = 0.05
+        prediction["trade_predicted_outcome_q10"] = -0.01
+        prediction["trade_tail_loss_proxy"] = -0.01
+        prediction["trade_base_score"] = 0.02
+        prediction["trade_tail_risk_weight"] = 0.25
+        prediction["trade_gate_pass"] = 1
+        prediction["trade_selector_policy_ready"] = int(promoted)
+        prediction["trade_model_reason"] = "learned_policy_pass"
+        prediction["trade_selector_version"] = (
+            "trade_selector_v2_nested_oos_top10_promotion_rank"
+        )
+        prediction.to_csv(
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv",
+            index=False,
+        )
         (self.root / "outputs" / "auction_v3" / "metrics" / "backtest_latest.json").write_text(
             json.dumps(
                 {
                     "model_version": version,
                     "model_artifact_sha256": artifact,
+                    "model_canonical_v2_version": model_v2_version,
+                    "model_artifact_v2_sha256": model_v2_artifact,
+                    "model_fingerprint_v2": model_fingerprint_v2,
+                    "model_canonical_contract": model_canonical_contract,
                     "promoted": promoted,
                     "promotion_failures": [],
                     "trade_selector": {
                         "promoted": promoted,
+                        "version": "trade_selector_v2_nested_oos_top10_promotion_rank",
                         "production_artifact_sha256": trade_artifact,
+                        "canonical_v2_version": selector_v2_version,
+                        "production_artifact_v2_sha256": selector_v2_artifact,
+                        "production_fingerprint_v2": selector_fingerprint_v2,
+                        "canonical_contract": selector_canonical_contract,
                     },
                 }
             ),
@@ -735,11 +913,20 @@ class DecisionActionPlanTests(unittest.TestCase):
                 {
                     "model_version": version,
                     "model_artifact_sha256": artifact,
+                    "model_canonical_v2_version": model_v2_version,
+                    "model_artifact_v2_sha256": model_v2_artifact,
+                    "model_fingerprint_v2": model_fingerprint_v2,
+                    "model_canonical_contract": model_canonical_contract,
                     "ready": True,
                     "promoted": promoted,
                     "trade_selector": {
                         "promoted": promoted,
+                        "version": "trade_selector_v2_nested_oos_top10_promotion_rank",
                         "production_artifact_sha256": trade_artifact,
+                        "canonical_v2_version": selector_v2_version,
+                        "production_artifact_v2_sha256": selector_v2_artifact,
+                        "production_fingerprint_v2": selector_fingerprint_v2,
+                        "canonical_contract": selector_canonical_contract,
                     },
                     "current_market_sentiment": {
                         "market_limit_up_industry_top10": [
@@ -761,6 +948,43 @@ class DecisionActionPlanTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+    @staticmethod
+    def _mark_selector_outside_domain(
+        prediction: pd.DataFrame,
+        row_index: int,
+    ) -> None:
+        prediction.loc[row_index, "observation_selected"] = 0
+        for column in (
+            "promotion_rank_score",
+            "predicted_promotion_probability",
+            "trade_score",
+            "trade_predicted_conditional_net_return",
+            "trade_predicted_mean_return_lcb",
+            "trade_predicted_fill_probability",
+            "trade_predicted_public_market_buyable_probability",
+            "trade_predicted_big_loss_probability",
+            "trade_predicted_outcome_q10",
+            "trade_tail_loss_proxy",
+            "trade_base_score",
+            "trade_tail_risk_weight",
+            "promotion_rank",
+            "trade_rank",
+            "trade_selector_artifact_sha256",
+            "trade_selector_artifact_v2_sha256",
+        ):
+            prediction.loc[row_index, column] = None
+        for column in (
+            "trade_gate_pass",
+            "trade_shadow_selected",
+            "trade_selected",
+            "trade_selector_policy_ready",
+        ):
+            prediction.loc[row_index, column] = 0
+        prediction.loc[
+            row_index,
+            "trade_model_reason",
+        ] = "outside_observation_top10"
 
     def test_unpromoted_model_can_never_emit_formal_buy(self) -> None:
         self._write_model_artifacts(promoted=False)
@@ -957,7 +1181,7 @@ class DecisionActionPlanTests(unittest.TestCase):
         self.assertFalse(plan["model"]["artifact_versions_match"])
         self.assertEqual(plan["formal_buy_count"], 0)
 
-    def test_artifact_fingerprint_mismatch_fails_closed(self) -> None:
+    def test_v1_mismatch_is_audited_when_v2_is_valid(self) -> None:
         self._write_model_artifacts(promoted=True)
         meta_path = (
             self.root
@@ -968,11 +1192,509 @@ class DecisionActionPlanTests(unittest.TestCase):
         )
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         meta["model_artifact_sha256"] = "b" * 64
+        meta["trade_selector"]["production_artifact_sha256"] = "b" * 64
         meta_path.write_text(json.dumps(meta), encoding="utf-8")
         plan = build_action_plan(self.root)
-        self.assertFalse(plan["model"]["promoted"])
+        self.assertTrue(plan["model"]["promoted"])
         self.assertFalse(plan["model"]["artifact_versions_match"])
         self.assertFalse(plan["model"]["artifact_fingerprints_match"])
+        self.assertFalse(plan["model"]["trade_selector_artifacts_match"])
+        self.assertTrue(plan["model"]["legacy_v1_audit_only"])
+        self.assertTrue(plan["model"]["v2_integrity_match"])
+        self.assertEqual(plan["status_code"], "ACTIONABLE_BUY")
+        self.assertEqual(plan["formal_buy_count"], 1)
+
+    def test_v2_integrity_fields_are_published(self) -> None:
+        self._write_model_artifacts(promoted=True)
+
+        plan = build_action_plan(self.root)
+        model = plan["model"]
+
+        self.assertTrue(model["v2_integrity_enforced"])
+        self.assertTrue(model["v2_integrity_match"])
+        self.assertTrue(model["v2_eligibility_match"])
+        self.assertEqual(model["v2_integrity_failures"], [])
+        self.assertTrue(model["canonical_v2_versions_match"])
+        self.assertTrue(model["artifact_v2_fingerprints_match"])
+        self.assertTrue(model["fingerprint_v2_valid"])
+        self.assertTrue(model["canonical_policy_ready"])
+        self.assertTrue(model["canonical_contracts_match"])
+        self.assertTrue(model["canonical_decimals_match"])
+        self.assertEqual(model["canonical_decimals"], 8)
+        self.assertEqual(model["execution_numeric_mode"], "raw_float64")
+        self.assertTrue(model["raw_execution_preserved"])
+        self.assertTrue(
+            model["trade_selector_canonical_v2_versions_match"]
+        )
+        self.assertTrue(model["trade_selector_artifacts_v2_match"])
+        self.assertTrue(model["trade_selector_fingerprint_v2_valid"])
+        self.assertTrue(model["trade_selector_canonical_policy_ready"])
+        self.assertTrue(
+            model["trade_selector_canonical_contracts_match"]
+        )
+        self.assertTrue(
+            model["trade_selector_canonical_decimals_match"]
+        )
+        self.assertEqual(model["trade_selector_canonical_decimals"], 8)
+        self.assertEqual(
+            model["trade_selector_execution_numeric_mode"],
+            "raw_float64",
+        )
+        self.assertTrue(model["trade_selector_raw_execution_preserved"])
+        selected = next(
+            row
+            for row in plan["candidates"]
+            if row["ts_code"] == "600001.SH"
+        )
+        self.assertEqual(
+            selected["model_artifact_v2_sha256"],
+            model["artifact_v2_sha256"],
+        )
+        self.assertEqual(
+            selected["trade_selector_artifact_v2_sha256"],
+            model["trade_selector_artifact_v2_sha256"],
+        )
+        self.assertEqual(
+            selected["model_execution_numeric_mode"],
+            "raw_float64",
+        )
+        self.assertTrue(selected["model_raw_execution_preserved"])
+        self.assertNotIn("model_numeric_contract", selected)
+
+    def test_one_prediction_row_v2_hash_tamper_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        prediction = pd.read_csv(prediction_path)
+        prediction.loc[1, "model_artifact_v2_sha256"] = "f" * 64
+        prediction.to_csv(prediction_path, index=False)
+
+        plan = build_action_plan(self.root)
+
+        self.assertFalse(plan["model"]["artifact_v2_fingerprints_match"])
+        self.assertIn(
+            "model.artifact_v2_sha256",
+            plan["model"]["v2_integrity_failures"],
+        )
+        self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
+        self.assertEqual(plan["formal_buy_count"], 0)
+
+    def test_missing_v2_canonical_contract_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        backtest_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "metrics"
+            / "backtest_latest.json"
+        )
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        del backtest["model_canonical_contract"]
+        backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+
+        plan = build_action_plan(self.root)
+
+        self.assertFalse(plan["model"]["canonical_contracts_match"])
+        self.assertFalse(plan["model"]["canonical_decimals_match"])
+        self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
+        self.assertEqual(plan["formal_buy_count"], 0)
+
+    def test_mixed_prediction_v2_version_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        prediction = pd.read_csv(prediction_path)
+        prediction.loc[1, "model_canonical_v2_version"] = "mixed-v2"
+        prediction.to_csv(prediction_path, index=False)
+
+        plan = build_action_plan(self.root)
+
+        self.assertFalse(plan["model"]["canonical_v2_versions_match"])
+        self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
+        self.assertEqual(plan["formal_buy_count"], 0)
+
+    def test_v2_canonical_contract_or_decimals_mismatch_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["model_canonical_contract"]["rounding"] = "different"
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        contract_plan = build_action_plan(self.root)
+        self.assertFalse(contract_plan["model"]["canonical_contracts_match"])
+        self.assertEqual(contract_plan["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        prediction = pd.read_csv(prediction_path)
+        prediction["model_canonical_decimals"] = 7
+        prediction.to_csv(prediction_path, index=False)
+
+        decimals_plan = build_action_plan(self.root)
+        self.assertFalse(decimals_plan["model"]["canonical_decimals_match"])
+        self.assertEqual(decimals_plan["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        prediction = pd.read_csv(prediction_path)
+        prediction.loc[1, "model_raw_execution_preserved"] = 0
+        prediction.to_csv(prediction_path, index=False)
+
+        raw_execution_plan = build_action_plan(self.root)
+        self.assertFalse(
+            raw_execution_plan["model"]["canonical_contracts_match"]
+        )
+        self.assertEqual(raw_execution_plan["formal_buy_count"], 0)
+
+    def test_selector_v2_mismatch_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["trade_selector"]["production_artifact_v2_sha256"] = "f" * 64
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        plan = build_action_plan(self.root)
+
+        self.assertTrue(plan["model"]["artifact_v2_fingerprints_match"])
+        self.assertFalse(plan["model"]["trade_selector_artifacts_v2_match"])
+        self.assertIn(
+            "trade_selector.artifact_v2_sha256",
+            plan["model"]["v2_integrity_failures"],
+        )
+        self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
+        self.assertEqual(plan["formal_buy_count"], 0)
+
+    def test_v2_policy_projection_must_be_complete_and_finite(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        backtest_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "metrics"
+            / "backtest_latest.json"
+        )
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        for payload in (backtest, meta):
+            del payload["model_fingerprint_v2"]["policy_projection"][
+                "thresholds"
+            ]["min_exit_probability"]
+        backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        missing_plan = build_action_plan(self.root)
+        self.assertTrue(
+            missing_plan["model"]["artifact_v2_fingerprints_match"]
+        )
+        self.assertFalse(missing_plan["model"]["fingerprint_v2_valid"])
+        self.assertEqual(missing_plan["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        for payload in (backtest, meta):
+            payload["trade_selector"]["production_fingerprint_v2"][
+                "policy_projection"
+            ]["thresholds"]["min_trade_score"] = None
+        backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        nonfinite_plan = build_action_plan(self.root)
+        self.assertFalse(
+            nonfinite_plan["model"][
+                "trade_selector_fingerprint_v2_valid"
+            ]
+        )
+        self.assertEqual(nonfinite_plan["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        fingerprint = backtest["trade_selector"]["production_fingerprint_v2"]
+        fingerprint["policy_projection"]["ready"] = False
+        fingerprint["policy_sha256"] = canonical_policy_fingerprint(
+            fingerprint["policy_projection"],
+            decimals=8,
+        )["sha256"]
+        fingerprint["artifact_sha256"] = compose_artifact_fingerprint(
+            artifact_kind="decision_trade_selector_canonical_runtime_v2",
+            provenance_sha256=fingerprint["provenance_sha256"],
+            semantic_sha256=fingerprint["semantic_sha256"],
+            policy_sha256=fingerprint["policy_sha256"],
+            decimals=8,
+        )
+        for payload in (backtest, meta):
+            payload["trade_selector"]["production_fingerprint_v2"] = dict(
+                fingerprint
+            )
+            payload["trade_selector"]["production_artifact_v2_sha256"] = (
+                fingerprint["artifact_sha256"]
+            )
+        backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        prediction = pd.read_csv(prediction_path)
+        prediction["trade_selector_artifact_v2_sha256"] = fingerprint[
+            "artifact_sha256"
+        ]
+        prediction.to_csv(prediction_path, index=False)
+
+        not_ready_plan = build_action_plan(self.root)
+        self.assertTrue(
+            not_ready_plan["model"][
+                "trade_selector_fingerprint_v2_valid"
+            ]
+        )
+        self.assertFalse(
+            not_ready_plan["model"][
+                "trade_selector_canonical_policy_ready"
+            ]
+        )
+        self.assertFalse(not_ready_plan["model"]["v2_eligibility_match"])
+        self.assertEqual(not_ready_plan["formal_buy_count"], 0)
+
+    def test_v2_policy_projection_rejects_json_type_aliases(self) -> None:
+        backtest_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "metrics"
+            / "backtest_latest.json"
+        )
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        mutations = (
+            (
+                "numeric-string threshold",
+                lambda fingerprint: fingerprint["policy_projection"][
+                    "thresholds"
+                ].__setitem__("min_exit_probability", "0.8"),
+            ),
+            (
+                "numeric-string max_positions",
+                lambda fingerprint: fingerprint["policy_projection"].__setitem__(
+                    "max_positions",
+                    "2",
+                ),
+            ),
+            (
+                "integer version",
+                lambda fingerprint: fingerprint["policy_projection"].__setitem__(
+                    "version",
+                    123,
+                ),
+            ),
+            (
+                "integer ready alias",
+                lambda fingerprint: fingerprint["policy_projection"].__setitem__(
+                    "ready",
+                    1,
+                ),
+            ),
+            (
+                "numeric-string invalid count",
+                lambda fingerprint: fingerprint.__setitem__(
+                    "invalid_cell_count",
+                    "0",
+                ),
+            ),
+        )
+        for label, mutate in mutations:
+            with self.subTest(label=label):
+                self._write_model_artifacts(promoted=True)
+                backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                for payload in (backtest, meta):
+                    mutate(payload["model_fingerprint_v2"])
+                backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+                plan = build_action_plan(self.root)
+
+                self.assertFalse(plan["model"]["fingerprint_v2_valid"])
+                self.assertEqual(plan["formal_buy_count"], 0)
+
+        for label, layer, key, value in (
+            (
+                "model reason whitespace",
+                "model",
+                "reason",
+                " chronological_policy_holdout_passed ",
+            ),
+            (
+                "selector version unicode",
+                "trade_selector",
+                "version",
+                "ｔrade_selector_v2_nested_oos_top10_promotion_rank",
+            ),
+        ):
+            with self.subTest(exact_string_tamper=label):
+                self._write_model_artifacts(promoted=True)
+                backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if layer == "model":
+                    fingerprints = (
+                        backtest["model_fingerprint_v2"],
+                        meta["model_fingerprint_v2"],
+                    )
+                else:
+                    fingerprints = (
+                        backtest["trade_selector"]["production_fingerprint_v2"],
+                        meta["trade_selector"]["production_fingerprint_v2"],
+                    )
+                for fingerprint in fingerprints:
+                    fingerprint["policy_projection"][key] = value
+                backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+                exact_plan = build_action_plan(self.root)
+
+                self.assertFalse(exact_plan["model"]["v2_integrity_match"])
+                self.assertEqual(exact_plan["formal_buy_count"], 0)
+
+        for label, key, value in (
+            ("numeric-string decimals", "decimals", "8"),
+            ("text raw-preserved", "raw_execution_preserved", "true"),
+        ):
+            with self.subTest(contract_type_alias=label):
+                self._write_model_artifacts(promoted=True)
+                backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                for payload in (backtest, meta):
+                    payload["model_canonical_contract"][key] = value
+                    payload["model_fingerprint_v2"]["canonical_contract"][key] = value
+                backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+                contract_plan = build_action_plan(self.root)
+
+                self.assertFalse(contract_plan["model"]["canonical_contracts_match"])
+                self.assertEqual(contract_plan["formal_buy_count"], 0)
+
+    def test_v2_prediction_hard_types_and_all_row_promotion(self) -> None:
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        self.assertIsNone(_canonical_decimals("8"))
+        self.assertFalse(
+            _strict_all_true_column(
+                pd.DataFrame({"flag": ["1", "true"]}),
+                "flag",
+            )
+        )
+
+        self._write_model_artifacts(promoted=True)
+        prediction = pd.read_csv(prediction_path)
+        prediction["trade_gate_pass"] = ["1", "1"]
+        self.assertFalse(_selector_prediction_domain(prediction)["valid"])
+
+        for column in ("model_ready", "trade_selector_promoted"):
+            with self.subTest(mixed_promotion_column=column):
+                self._write_model_artifacts(promoted=True)
+                prediction = pd.read_csv(prediction_path)
+                prediction.loc[1, column] = 0
+                prediction.to_csv(prediction_path, index=False)
+
+                plan = build_action_plan(self.root)
+
+                self.assertFalse(plan["model"]["promoted"])
+                self.assertEqual(plan["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        prediction = pd.read_csv(prediction_path)
+        prediction["model_raw_execution_preserved"] = prediction[
+            "model_raw_execution_preserved"
+        ].astype(object)
+        prediction.loc[1, "model_raw_execution_preserved"] = "true"
+        prediction.to_csv(prediction_path, index=False)
+
+        raw_alias_plan = build_action_plan(self.root)
+        self.assertFalse(raw_alias_plan["model"]["canonical_contracts_match"])
+        self.assertEqual(raw_alias_plan["formal_buy_count"], 0)
+
+    def test_v2_fingerprint_schema_audit_must_be_clean(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        backtest_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "metrics"
+            / "backtest_latest.json"
+        )
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        for payload in (backtest, meta):
+            fingerprint = payload["model_fingerprint_v2"]
+            fingerprint["schema_valid"] = False
+            fingerprint["missing_columns"] = ["required_feature"]
+            fingerprint["invalid_cell_count"] = 1
+        backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        plan = build_action_plan(self.root)
+
+        self.assertFalse(plan["model"]["fingerprint_v2_valid"])
+        self.assertIn(
+            "model.fingerprint_v2",
+            plan["model"]["v2_integrity_failures"],
+        )
+        self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
         self.assertEqual(plan["formal_buy_count"], 0)
 
     def test_selector_fingerprint_ignores_non_top10_blank_rows(self) -> None:
@@ -985,7 +1707,7 @@ class DecisionActionPlanTests(unittest.TestCase):
             / "pred_latest.csv"
         )
         prediction = pd.read_csv(prediction_path)
-        prediction.loc[0, "trade_selector_artifact_sha256"] = ""
+        self._mark_selector_outside_domain(prediction, 1)
         prediction.to_csv(prediction_path, index=False)
 
         plan = build_action_plan(self.root)
@@ -993,6 +1715,60 @@ class DecisionActionPlanTests(unittest.TestCase):
         self.assertTrue(plan["model"]["trade_selector_artifacts_match"])
         self.assertTrue(plan["model"]["promoted"])
         self.assertEqual(plan["formal_buy_count"], 1)
+
+    def test_selector_v2_domain_missing_or_mixed_fails_closed(self) -> None:
+        self._write_model_artifacts(promoted=True)
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        prediction = pd.read_csv(prediction_path)
+        prediction = prediction.drop(columns=["observation_selected"])
+        prediction.to_csv(prediction_path, index=False)
+
+        missing = build_action_plan(self.root)
+        self.assertFalse(missing["model"]["v2_integrity_match"])
+        self.assertIn(
+            "trade_selector.prediction_domain",
+            missing["model"]["v2_integrity_failures"],
+        )
+        self.assertEqual(missing["formal_buy_count"], 0)
+
+        self._write_model_artifacts(promoted=True)
+        prediction = pd.read_csv(prediction_path)
+        self._mark_selector_outside_domain(prediction, 0)
+        prediction.loc[0, "trade_selector_artifact_v2_sha256"] = "e" * 64
+        prediction.to_csv(prediction_path, index=False)
+
+        outside_artifact = build_action_plan(self.root)
+        self.assertFalse(outside_artifact["model"]["v2_integrity_match"])
+        self.assertEqual(outside_artifact["formal_buy_count"], 0)
+
+    def test_selector_v2_outside_execution_contract_is_strict(self) -> None:
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        for column, value in (
+            ("trade_score", 0.0),
+            ("trade_gate_pass", 1),
+            ("trade_model_reason", "below_learned_policy"),
+        ):
+            self._write_model_artifacts(promoted=True)
+            prediction = pd.read_csv(prediction_path)
+            self._mark_selector_outside_domain(prediction, 0)
+            prediction.loc[0, column] = value
+            prediction.to_csv(prediction_path, index=False)
+
+            plan = build_action_plan(self.root)
+            self.assertFalse(plan["model"]["v2_integrity_match"])
+            self.assertEqual(plan["formal_buy_count"], 0)
 
 
 class DecisionWorkflowSerializationTests(unittest.TestCase):

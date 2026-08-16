@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout exact dispatch revision
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -50,18 +52,43 @@ jobs:
           set -euo pipefail
           reference_dir="${RUNNER_TEMP}/dc20-fingerprint-reference"
           mkdir -p "${reference_dir}"
-          cp outputs/auction_v3/metrics/backtest_top10_latest.csv "${reference_dir}/"
-          cp outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv "${reference_dir}/"
-          cp outputs/auction_v3/metrics/backtest_latest.json "${reference_dir}/"
-          cp outputs/auction_v3/models/model_meta_latest.json "${reference_dir}/"
+          check_and_copy() {
+            expected="$1"
+            source="$2"
+            destination="$3"
+            actual="$(git hash-object "${source}")"
+            if [ "${actual}" != "${expected}" ]; then
+              echo "::error::Untrusted persisted reference blob for ${source}: ${actual}"
+              exit 1
+            fi
+            cp "${source}" "${destination}"
+          }
+          check_and_copy "1bbebbbe4a3b94c0a95fd64f4e27b242ea5b0222" \
+            outputs/auction_v3/metrics/backtest_top10_latest.csv \
+            "${reference_dir}/backtest_top10_latest.csv"
+          check_and_copy "6afd29e31cf98c434ac6e67183f7005a89663a49" \
+            outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv \
+            "${reference_dir}/backtest_trade_selector_oos_latest.csv"
+          check_and_copy "e27511643fc5aa1ee5bdb60f1d3b15b7e90adef4" \
+            outputs/auction_v3/metrics/backtest_latest.json \
+            "${reference_dir}/backtest_latest.json"
+          check_and_copy "9fee4a2bc9904bf703a292b5df3c367c4c39712b" \
+            outputs/auction_v3/models/model_meta_latest.json \
+            "${reference_dir}/model_meta_latest.json"
           echo "FINGERPRINT_REFERENCE_DIR=${reference_dir}" >> "${GITHUB_ENV}"
+          echo "FINGERPRINT_REPLAY_REPORT=${RUNNER_TEMP}/dc20-canonical-v2-replay.json" >> "${GITHUB_ENV}"
 
-      - name: Replay frozen engine without publishing
+      - name: Force exact frozen snapshot through canonical V2 and publish workspace action plan
         id: replay
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-        run: python scripts/run_auction_v3.py
+        run: |
+          python scripts/replay_frozen_canonical_v2.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --reference-dir "${FINGERPRINT_REFERENCE_DIR}" \
+            --reference-profile persisted-c6 \
+            --report "${FINGERPRINT_REPLAY_REPORT}"
 
       - name: Print non-sensitive component and behavior hashes
         id: probe
@@ -78,15 +105,17 @@ jobs:
           PROBE_OUTCOME: ${{ steps.probe.outcome }}
         run: |
           {
-            echo "### DC2.0 frozen replay diagnostic"
+            echo "### DC2.0 forced frozen canonical V2 diagnostic"
             echo "- replay outcome: ${REPLAY_OUTCOME}"
             echo "- invariant probe outcome: ${PROBE_OUTCOME}"
             echo "- component evidence: printed in the previous step"
-            echo "- repository publication: disabled"
+            echo "- canonical gate: q8 hard; q6/q10/q12 audit-only"
+            echo "- execution mode: raw float64 preserved"
+            echo "- repository publication: disabled; action plan was generated only in runner workspace"
           } >> "${GITHUB_STEP_SUMMARY}"
           failed=0
           if [ "${REPLAY_OUTCOME}" != "success" ]; then
-            echo "::error::Frozen replay drift reproduced. See canonical component and reference-vs-fresh evidence above."
+            echo "::error::Forced frozen canonical V2 replay failed. See reference, behavior, policy, and action evidence above."
             failed=1
           fi
           if [ "${PROBE_OUTCOME}" != "success" ]; then

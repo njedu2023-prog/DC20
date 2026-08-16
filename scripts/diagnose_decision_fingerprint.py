@@ -1200,7 +1200,7 @@ def _hard_invariant_report(
     }
 
 
-def main() -> int:
+def _legacy_main() -> int:
     manifest = load_model_freeze(ROOT, required=True)
     packages = _packages()
     fresh_top10 = Path(
@@ -1281,6 +1281,143 @@ def main() -> int:
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if hard_invariants["passed"] else 1
+
+
+def _canonical_replay_report_probe(report_path: Path) -> tuple[dict[str, Any], bool]:
+    report = _read_json(report_path)
+    golden = report.get("golden") or {}
+    history = report.get("history") or {}
+    reference = golden.get("reference") or {}
+    top10 = golden.get("top10") or {}
+    selector_oos = golden.get("selector_oos") or {}
+    canonical_scores = golden.get("canonical_scores") or {}
+    top10_scores = canonical_scores.get("top10") or {}
+    selector_scores = canonical_scores.get("selector_oos") or {}
+    fingerprint_integrity = golden.get("fingerprint_integrity") or {}
+    prediction_policy = golden.get("prediction_policy_execution") or {}
+    action_candidates = golden.get("action_plan_candidates") or {}
+    no_trade = golden.get("no_trade") or {}
+
+    checks = {
+        "forced_replay_report_passed": report.get("status") == "pass",
+        "diagnostic_mode_exact": report.get("diagnostic_mode")
+        == "workspace_only_forced_frozen_canonical_v2",
+        "force_prediction_enabled": report.get("force_prediction") is True,
+        "frozen_snapshot_source": history.get("source") == "frozen_snapshot",
+        "frozen_snapshot_sha_locked": history.get("sha256")
+        == "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+        "manifest_inactive_on_disk": history.get("manifest_active_on_disk")
+        is False,
+        "manifest_not_mutated": history.get("manifest_mutated_on_disk") is False,
+        "persisted_c6_reference_verified": reference.get(
+            "persisted_trust_root_verified"
+        )
+        is True,
+        "golden_passed": golden.get("status") == "pass",
+        "top10_identity_equal": top10.get("identity_equal") is True,
+        "top10_discrete_and_gap_exact": bool(top10.get("changed_rows"))
+        and all(value == 0 for value in top10.get("changed_rows", {}).values()),
+        "selector_oos_identity_equal": selector_oos.get("identity_equal") is True,
+        "selector_oos_discrete_and_gap_exact": bool(
+            selector_oos.get("changed_rows")
+        )
+        and all(
+            value == 0
+            for value in selector_oos.get("changed_rows", {}).values()
+        ),
+        "top10_q8_hard_equal": (top10_scores.get("8") or {}).get("equal")
+        is True,
+        "selector_oos_q8_hard_equal": (
+            selector_scores.get("8") or {}
+        ).get("equal")
+        is True,
+        "live_policies_match_v2_projection": fingerprint_integrity.get(
+            "live_policies_match_fingerprint_projection"
+        )
+        is True,
+        "prediction_policy_thresholds_and_gates_recomputed": prediction_policy.get(
+            "policy_threshold_columns_match"
+        )
+        is True,
+        "action_plan_no_trade": action_candidates.get("status_code")
+        == "NO_TRADE_MODEL_NOT_PROMOTED"
+        and action_candidates.get("formal_buy_count") == 0,
+        "action_candidate_contract_present": bool(
+            action_candidates.get("action_plan_candidates_sha256_q8")
+        ),
+        "formal_runtime_no_trade": no_trade.get("formal_signals") == 0
+        and no_trade.get("selector_global_promotion_rows") == 0
+        and no_trade.get("action_formal_buy_count") == 0,
+        "raw_float64_execution_preserved": (
+            golden.get("execution_numeric") or {}
+        ).get("raw_execution_preserved")
+        is True,
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    probes = {
+        precision: {
+            "gate": "hard" if precision == "8" else "audit_only",
+            "top10_equal": (top10_scores.get(precision) or {}).get("equal"),
+            "top10_reference_sha256": (
+                top10_scores.get(precision) or {}
+            ).get("reference_sha256", ""),
+            "top10_candidate_sha256": (
+                top10_scores.get(precision) or {}
+            ).get("candidate_sha256", ""),
+            "selector_oos_equal": (
+                selector_scores.get(precision) or {}
+            ).get("equal"),
+            "selector_oos_reference_sha256": (
+                selector_scores.get(precision) or {}
+            ).get("reference_sha256", ""),
+            "selector_oos_candidate_sha256": (
+                selector_scores.get(precision) or {}
+            ).get("candidate_sha256", ""),
+        }
+        for precision in ("6", "8", "10", "12")
+    }
+    summary = {
+        "schema_version": "dc20_forced_frozen_canonical_v2_probe_v1",
+        "system": "DC2.0",
+        "read_only": True,
+        "report_path": str(report_path),
+        "passed": not failed,
+        "checks": checks,
+        "failed_checks": failed,
+        "canonical_precision": probes,
+        "behavior_contract_candidate": golden.get(
+            "behavior_contract_candidate", {}
+        ),
+        "research_oos_summary": golden.get("research_oos_summary", {}),
+        "research_oos_metrics": golden.get("research_oos_metrics", {}),
+        "fingerprint_integrity": fingerprint_integrity,
+        "prediction_policy_execution": prediction_policy,
+        "action_plan_candidates": action_candidates,
+        "candidate_source": report.get("candidate_source", {}),
+        "reference": reference,
+    }
+    return summary, not failed
+
+
+def main() -> int:
+    report_text = os.environ.get("FINGERPRINT_REPLAY_REPORT", "").strip()
+    if not report_text:
+        print(
+            json.dumps(
+                {
+                    "schema_version": "dc20_forced_frozen_canonical_v2_probe_v1",
+                    "passed": False,
+                    "error": "FINGERPRINT_REPLAY_REPORT is required; legacy V1/q12 probing is disabled",
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 1
+    summary, passed = _canonical_replay_report_probe(Path(report_text))
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

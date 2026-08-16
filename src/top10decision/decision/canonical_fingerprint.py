@@ -160,6 +160,8 @@ def canonical_value(
         return {"$special": "missing"} if _is_missing(value) else normalize_stage(value)
     if kind == "text":
         return {"$special": "missing"} if _is_missing(value) else _normal_text(value)
+    if kind == "exact_text":
+        return {"$special": "missing"} if _is_missing(value) else str(value)
     if kind == "integer":
         return _canonical_integer(value)
     if kind == "float":
@@ -208,8 +210,34 @@ def canonical_json_bytes(value: Any) -> bytes:
     ).encode("utf-8")
 
 
-def canonical_mapping_sha256(value: Any, *, decimals: int) -> str:
-    canonical = canonical_value(value, decimals=decimals, kind="auto")
+def _execution_exact_string_tokens(value: Any) -> Any:
+    if isinstance(value, str):
+        return {"$exact_text_utf8_hex": value.encode("utf-8").hex()}
+    if isinstance(value, Path):
+        return {"$exact_text_utf8_hex": value.as_posix().encode("utf-8").hex()}
+    if isinstance(value, Mapping):
+        return {
+            str(key): _execution_exact_string_tokens(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (set, frozenset)):
+        values = [_execution_exact_string_tokens(item) for item in value]
+        return sorted(values, key=canonical_json_bytes)
+    if isinstance(value, Sequence) and not isinstance(
+        value, (str, bytes, bytearray)
+    ):
+        return [_execution_exact_string_tokens(item) for item in value]
+    return value
+
+
+def canonical_mapping_sha256(
+    value: Any,
+    *,
+    decimals: int,
+    exact_strings: bool = False,
+) -> str:
+    source = _execution_exact_string_tokens(value) if exact_strings else value
+    canonical = canonical_value(source, decimals=decimals, kind="auto")
     payload = {
         "schema": CANONICAL_FINGERPRINT_SCHEMA,
         "decimals": int(decimals),
@@ -326,7 +354,11 @@ def canonical_policy_fingerprint(
 ) -> dict[str, Any]:
     projection = executable_policy_projection(policy)
     return {
-        "sha256": canonical_mapping_sha256(projection, decimals=decimals),
+        "sha256": canonical_mapping_sha256(
+            projection,
+            decimals=decimals,
+            exact_strings=True,
+        ),
         "projection": canonical_value(
             projection,
             decimals=decimals,

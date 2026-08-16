@@ -3,7 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Optional, Sequence
 
 import numpy as np
@@ -15,10 +16,27 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from .canonical_fingerprint import (
+    CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_frame_fingerprint,
+    canonical_policy_fingerprint,
+    canonical_mapping_sha256,
+    compose_artifact_fingerprint,
+)
 from .observation import OBSERVATION_TOP_N, rank_observation_rows
 
 
 TRADE_SELECTOR_VERSION = "trade_selector_v2_nested_oos_top10_promotion_rank"
+TRADE_SELECTOR_CANONICAL_V2 = (
+    "trade_selector_canonical_v2_raw_execution_q8_fingerprint"
+)
+RUNTIME_CANONICAL_DECIMALS = 8
+SELECTOR_EXECUTABLE_POLICY_THRESHOLDS = (
+    "min_trade_score",
+    "min_mean_return_lcb",
+    "min_fill_probability",
+    "max_big_loss_probability",
+)
 TRADE_SELECTOR_FEATURE_CONTRACT = (
     "OBSERVATION_TOP10_D_CLOSE_ONLY_PROMOTION_AND_CONDITIONAL_RETURN_NO_T_OR_T1_LEAKAGE"
 )
@@ -196,6 +214,86 @@ class TradeSelectorBundle:
     return_selection: dict[str, Any]
     probability_selection: dict[str, Any]
     artifact_sha256: str
+    artifact_v2_sha256: str = ""
+    fingerprint_v2: dict[str, Any] = field(default_factory=dict)
+    canonical_contract: dict[str, Any] = field(default_factory=dict)
+
+
+def _runtime_canonical_contract() -> dict[str, Any]:
+    return {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "layer": "trade_selector",
+        "decimals": RUNTIME_CANONICAL_DECIMALS,
+        "rounding": "decimal_string_half_even",
+        "execution_mode": "raw_float64",
+        "raw_execution_preserved": True,
+    }
+
+
+def _selector_executable_policy_projection(
+    policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(policy, dict):
+        raise ValueError("selector executable policy must be a mapping")
+    version = policy.get("version")
+    reason = policy.get("reason")
+    ready = policy.get("ready")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("selector executable policy version is required")
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("selector executable policy reason is required")
+    if not isinstance(ready, bool):
+        raise ValueError("selector executable policy ready must be boolean")
+
+    def finite_number(name: str, value: Any) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"selector executable policy {name} is invalid") from exc
+        if not math.isfinite(number):
+            raise ValueError(f"selector executable policy {name} is non-finite")
+        return number
+
+    positions_number = finite_number("max_positions", policy.get("max_positions"))
+    if not positions_number.is_integer() or positions_number < 1:
+        raise ValueError("selector executable policy max_positions must be a positive integer")
+    tail_risk_weight = finite_number(
+        "tail_risk_weight",
+        policy.get("tail_risk_weight"),
+    )
+    raw_thresholds = policy.get("thresholds")
+    if not isinstance(raw_thresholds, dict):
+        raise ValueError("selector executable policy thresholds must be a mapping")
+    thresholds: dict[str, float] = {}
+    for name in SELECTOR_EXECUTABLE_POLICY_THRESHOLDS:
+        if name not in raw_thresholds:
+            raise ValueError(f"selector executable policy missing threshold: {name}")
+        thresholds[name] = finite_number(name, raw_thresholds[name])
+    return {
+        "version": version,
+        "ready": ready,
+        "reason": reason,
+        "max_positions": int(positions_number),
+        "tail_risk_weight": tail_risk_weight,
+        "thresholds": thresholds,
+    }
+
+
+def _selector_policy_fingerprint_v2(
+    policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    projection = _selector_executable_policy_projection(policy)
+    fingerprint = canonical_policy_fingerprint(
+        projection,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+    )
+    return {
+        **fingerprint,
+        # Consumers validate executable types directly.  The hash still uses
+        # canonical decimal tokens internally, but the published projection
+        # remains the strictly validated raw-float execution contract.
+        "projection": projection,
+    }
 
 
 def _safe_metric(value: Any) -> Optional[float]:
@@ -1176,6 +1274,119 @@ def _bundle_hash(
     return digest.hexdigest()
 
 
+def _bundle_fingerprint_v2(
+    frame: pd.DataFrame,
+    policy: dict[str, Any],
+    config: TradeSelectorConfig,
+    *,
+    cost_rate: float,
+) -> dict[str, Any]:
+    semantic = frame.copy()
+    executable_features = _features(frame)
+    for column in TRADE_SELECTOR_FEATURES:
+        semantic[column] = executable_features[column]
+    columns = list(
+        dict.fromkeys(
+            [
+                "signal_date",
+                "ts_code",
+                "stage",
+                "observation_rank",
+                "market_fill",
+                "net_return",
+                "big_loss_hit",
+                "continuation_limit_up_hit",
+                *TRADE_SELECTOR_FEATURES,
+            ]
+        )
+    )
+    kinds = {column: "float" for column in columns}
+    kinds.update(
+        {
+            "signal_date": "date",
+            "ts_code": "code",
+            "stage": "stage",
+            "observation_rank": "integer",
+            "market_fill": "integer",
+            "big_loss_hit": "integer",
+            "continuation_limit_up_hit": "integer",
+        }
+    )
+    semantic_fingerprint = canonical_frame_fingerprint(
+        semantic,
+        columns,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+        kinds=kinds,
+        strict=True,
+    )
+    source_paths = (
+        Path(__file__),
+        Path(__file__).with_name("canonical_fingerprint.py"),
+    )
+    source_hashes = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_paths
+    }
+    contract = _runtime_canonical_contract()
+    provenance = {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "canonical_version": TRADE_SELECTOR_CANONICAL_V2,
+        "canonical_contract": contract,
+        "selector_version": TRADE_SELECTOR_VERSION,
+        "feature_contract": TRADE_SELECTOR_FEATURE_CONTRACT,
+        "features": list(TRADE_SELECTOR_FEATURES),
+        "config": asdict(config),
+        "cost_rate": float(cost_rate),
+        "source_files": source_hashes,
+    }
+    provenance_sha256 = canonical_mapping_sha256(
+        provenance,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+        exact_strings=True,
+    )
+    policy_fingerprint = _selector_policy_fingerprint_v2(policy)
+    artifact_sha256 = compose_artifact_fingerprint(
+        artifact_kind="decision_trade_selector_canonical_runtime_v2",
+        provenance_sha256=provenance_sha256,
+        semantic_sha256=semantic_fingerprint["sha256"],
+        policy_sha256=policy_fingerprint["sha256"],
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+    )
+    return {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "canonical_version": TRADE_SELECTOR_CANONICAL_V2,
+        "canonical_contract": contract,
+        "provenance_sha256": provenance_sha256,
+        "semantic_sha256": semantic_fingerprint["sha256"],
+        "policy_sha256": policy_fingerprint["sha256"],
+        "policy_projection": policy_fingerprint["projection"],
+        "artifact_sha256": artifact_sha256,
+        "schema_valid": semantic_fingerprint["valid"],
+        "missing_columns": semantic_fingerprint["missing_columns"],
+        "invalid_cell_count": semantic_fingerprint["invalid_cell_count"],
+    }
+
+
+def _finalize_trade_selector_bundle_v2(
+    bundle: TradeSelectorBundle,
+    frame: pd.DataFrame,
+    config: TradeSelectorConfig,
+    *,
+    cost_rate: float,
+) -> None:
+    """Mint strict V2 metadata for the single final selector bundle."""
+
+    bundle.canonical_contract = _runtime_canonical_contract()
+    fingerprint = _bundle_fingerprint_v2(
+        frame,
+        bundle.policy,
+        config,
+        cost_rate=cost_rate,
+    )
+    bundle.fingerprint_v2 = fingerprint
+    bundle.artifact_v2_sha256 = fingerprint["artifact_sha256"]
+
+
 def fit_trade_selector(
     top10_history: pd.DataFrame,
     *,
@@ -1372,6 +1583,14 @@ def score_trade_selector(
         out["trade_selector_promoted"] = 0
         out["trade_selector_version"] = TRADE_SELECTOR_VERSION
         out["trade_selector_artifact_sha256"] = ""
+        out["trade_selector_canonical_v2_version"] = (
+            TRADE_SELECTOR_CANONICAL_V2
+        )
+        out["trade_selector_artifact_v2_sha256"] = ""
+        out["trade_selector_canonical_schema"] = CANONICAL_FINGERPRINT_SCHEMA
+        out["trade_selector_canonical_decimals"] = RUNTIME_CANONICAL_DECIMALS
+        out["trade_selector_execution_numeric_mode"] = "raw_float64"
+        out["trade_selector_raw_execution_preserved"] = True
         out["trade_model_reason"] = "insufficient_nested_oos_history"
         out.loc[
             out["trade_shadow_selected"].eq(1),
@@ -1415,6 +1634,12 @@ def score_trade_selector(
         out.loc[shadow_only, "trade_model_reason"] = "relative_best_two_only"
     out["trade_selector_promoted"] = int(globally_promoted)
     out["trade_selector_artifact_sha256"] = bundle.artifact_sha256
+    out["trade_selector_canonical_v2_version"] = TRADE_SELECTOR_CANONICAL_V2
+    out["trade_selector_artifact_v2_sha256"] = bundle.artifact_v2_sha256
+    out["trade_selector_canonical_schema"] = CANONICAL_FINGERPRINT_SCHEMA
+    out["trade_selector_canonical_decimals"] = RUNTIME_CANONICAL_DECIMALS
+    out["trade_selector_execution_numeric_mode"] = "raw_float64"
+    out["trade_selector_raw_execution_preserved"] = True
     return out
 
 
@@ -1788,6 +2013,22 @@ def _selector_metrics(
             if production_bundle is not None
             else ""
         ),
+        "canonical_v2_version": TRADE_SELECTOR_CANONICAL_V2,
+        "canonical_contract": (
+            production_bundle.canonical_contract
+            if production_bundle is not None
+            else _runtime_canonical_contract()
+        ),
+        "production_artifact_v2_sha256": (
+            production_bundle.artifact_v2_sha256
+            if production_bundle is not None
+            else ""
+        ),
+        "production_fingerprint_v2": (
+            production_bundle.fingerprint_v2
+            if production_bundle is not None
+            else {}
+        ),
         "promotion_checks": checks,
         "promotion_failures": [
             name for name, passed in checks.items() if not passed
@@ -1866,6 +2107,13 @@ def walkforward_trade_selector(
         cost_rate=cost_rate,
         config=config,
     )
+    if production_bundle is not None:
+        _finalize_trade_selector_bundle_v2(
+            production_bundle,
+            top10_history,
+            config,
+            cost_rate=cost_rate,
+        )
     metrics = _selector_metrics(
         audit,
         top10_history,

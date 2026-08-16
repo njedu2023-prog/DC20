@@ -4,10 +4,10 @@ import hashlib
 import json
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -28,6 +28,12 @@ from top10decision.decision.contracts import (
     HISTORY_CONTRACT_VERSION,
     PREOPEN_AUCTION_GATE_AUDIT,
 )
+from top10decision.decision.canonical_fingerprint import (
+    CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_frame_fingerprint,
+    canonical_mapping_sha256,
+    compose_artifact_fingerprint,
+)
 from top10decision.decision.eligibility import filter_standard_limit_universe
 from top10decision.decision.exit_policy import simulate_tplus1_exit
 from top10decision.decision.observation import (
@@ -35,6 +41,7 @@ from top10decision.decision.observation import (
     rank_observation_rows,
 )
 from top10decision.decision.trade_selector import (
+    TRADE_SELECTOR_CANONICAL_V2,
     TRADE_SELECTOR_FEATURE_CONTRACT,
     TRADE_SELECTOR_VERSION,
     TradeSelectorBundle,
@@ -73,6 +80,27 @@ from .promotion_model import (
 
 DATE_RE = re.compile(r"(?<!\d)(20\d{6})(?!\d)")
 EPS = 1e-9
+RUNTIME_CANONICAL_DECIMALS = 8
+MODEL_CANONICAL_V2 = "decision_model_canonical_v2_raw_execution_q8_fingerprint"
+MODEL_EXECUTABLE_POLICY_THRESHOLDS = (
+    "max_big_loss_probability",
+    "min_mean_return_lcb",
+    "min_fill_probability",
+    "min_exit_probability",
+    "min_conservative_ev",
+    "min_selection_score",
+)
+
+
+def _runtime_canonical_contract(layer: str) -> dict[str, Any]:
+    return {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "layer": layer,
+        "decimals": RUNTIME_CANONICAL_DECIMALS,
+        "rounding": "decimal_string_half_even",
+        "execution_mode": "raw_float64",
+        "raw_execution_preserved": True,
+    }
 
 FEATURE_ALIASES: dict[str, tuple[str, ...]] = {
     "source_rank": ("rank", "rank_v2", "排名"),
@@ -335,6 +363,9 @@ class ModelBundle:
     continuation_features: tuple[str, ...]
     conformal_residual_quantiles: dict[str, dict[str, float]]
     model_artifact_sha256: str
+    model_artifact_v2_sha256: str = ""
+    model_fingerprint_v2: dict[str, Any] = field(default_factory=dict)
+    runtime_canonical_contract: dict[str, Any] = field(default_factory=dict)
 
 
 def _utc_now() -> str:
@@ -526,6 +557,207 @@ def _model_artifact_sha256(
             separators=(",", ":"),
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _model_executable_policy_projection(
+    policy: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Project only values that can change first-layer decisions.
+
+    Values remain the original raw-float execution values.  Eight-decimal
+    normalization happens only inside the canonical hasher; diagnostics,
+    checks, and reported metrics cannot rotate this policy fingerprint.
+    """
+
+    if not isinstance(policy, Mapping):
+        raise ValueError("model executable policy must be a mapping")
+    source = dict(policy)
+    version = source.get("version")
+    reason = source.get("reason")
+    ready = source.get("ready")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("model executable policy version is required")
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("model executable policy reason is required")
+    if not isinstance(ready, bool):
+        raise ValueError("model executable policy ready must be boolean")
+    raw_positions = source.get("max_positions")
+    try:
+        positions = float(raw_positions)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("model executable policy max_positions is invalid") from exc
+    if (
+        not math.isfinite(positions)
+        or not positions.is_integer()
+        or positions < 0
+    ):
+        raise ValueError("model executable policy max_positions must be a nonnegative integer")
+    raw_thresholds = source.get("thresholds")
+    if not isinstance(raw_thresholds, Mapping):
+        raise ValueError("model executable policy thresholds must be a mapping")
+    thresholds: dict[str, float] = {}
+    for name in MODEL_EXECUTABLE_POLICY_THRESHOLDS:
+        if name not in raw_thresholds:
+            raise ValueError(f"model executable policy missing threshold: {name}")
+        try:
+            number = float(raw_thresholds[name])
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"model executable policy threshold invalid: {name}") from exc
+        if not math.isfinite(number):
+            raise ValueError(f"model executable policy threshold non-finite: {name}")
+        thresholds[name] = number
+    return {
+        "version": version,
+        "ready": ready,
+        "reason": reason,
+        "max_positions": int(positions),
+        "thresholds": thresholds,
+    }
+
+
+def _model_policy_fingerprint_v2(
+    policy: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    projection = _model_executable_policy_projection(policy)
+    return {
+        "sha256": canonical_mapping_sha256(
+            {
+                "schema": CANONICAL_FINGERPRINT_SCHEMA,
+                "artifact_kind": "decision_model_executable_policy",
+                "projection": projection,
+            },
+            decimals=RUNTIME_CANONICAL_DECIMALS,
+            exact_strings=True,
+        ),
+        "projection": projection,
+    }
+
+
+def _model_fingerprint_v2(
+    frame: pd.DataFrame,
+    config: AuctionV3Config,
+    selection_policy: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    columns = list(
+        dict.fromkeys(
+            [
+                "signal_date",
+                "buy_date",
+                "target_exit_date",
+                "ts_code",
+                "actual_buy_gap",
+                "gross_return",
+                "net_return",
+                "profit_hit",
+                "big_loss_hit",
+                "continuation_limit_up_hit",
+                "exit_on_time",
+                "market_fill",
+                "market_sentiment_regime_code",
+                *MODEL_FEATURES,
+                *MARKET_SENTIMENT_FEATURES,
+                *PROMOTION_SOURCE_FEATURES,
+            ]
+        )
+    )
+    kinds = {column: "float" for column in columns}
+    kinds.update(
+        {
+            "signal_date": "date",
+            "buy_date": "date",
+            "target_exit_date": "date",
+            "ts_code": "code",
+            "market_sentiment_regime_code": "exact_text",
+            "profit_hit": "integer",
+            "big_loss_hit": "integer",
+            "continuation_limit_up_hit": "integer",
+            "exit_on_time": "integer",
+            "market_fill": "integer",
+        }
+    )
+    semantic = canonical_frame_fingerprint(
+        frame,
+        columns,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+        kinds=kinds,
+        strict=True,
+    )
+    source_paths = (
+        Path(__file__),
+        Path(__file__).with_name("calibration.py"),
+        Path(__file__).with_name("config.py"),
+        Path(__file__).with_name("promotion_model.py"),
+        Path(__file__).parents[1] / "decision" / "canonical_fingerprint.py",
+    )
+    source_hashes = {
+        str(path.relative_to(Path(__file__).parents[2])): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in source_paths
+    }
+    validation = config.root / "models" / "decision_promotion_v13_validation.json"
+    frozen_inputs: dict[str, str] = {}
+    if validation.is_file():
+        frozen_inputs[str(validation.relative_to(config.root))] = hashlib.sha256(
+            validation.read_bytes()
+        ).hexdigest()
+    contract = _runtime_canonical_contract("model")
+    provenance = {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "canonical_version": MODEL_CANONICAL_V2,
+        "canonical_contract": contract,
+        "model_version": config.model_version,
+        "source_files": source_hashes,
+        "frozen_inputs": frozen_inputs,
+        "config": {
+            key: value for key, value in asdict(config).items() if key != "root"
+        },
+    }
+    provenance_sha256 = canonical_mapping_sha256(
+        provenance,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+        exact_strings=True,
+    )
+    policy_fingerprint = _model_policy_fingerprint_v2(selection_policy)
+    policy_projection = policy_fingerprint["projection"]
+    policy_sha256 = policy_fingerprint["sha256"]
+    artifact_sha256 = compose_artifact_fingerprint(
+        artifact_kind="decision_model_canonical_runtime_v2",
+        provenance_sha256=provenance_sha256,
+        semantic_sha256=semantic["sha256"],
+        policy_sha256=policy_sha256,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+    )
+    return {
+        "schema": CANONICAL_FINGERPRINT_SCHEMA,
+        "canonical_version": MODEL_CANONICAL_V2,
+        "canonical_contract": contract,
+        "provenance_sha256": provenance_sha256,
+        "semantic_sha256": semantic["sha256"],
+        "policy_sha256": policy_sha256,
+        "policy_projection": policy_projection,
+        "artifact_sha256": artifact_sha256,
+        "schema_valid": semantic["valid"],
+        "missing_columns": semantic["missing_columns"],
+        "invalid_cell_count": semantic["invalid_cell_count"],
+    }
+
+
+def _finalize_model_bundle_v2(
+    bundle: ModelBundle,
+    frame: pd.DataFrame,
+    config: AuctionV3Config,
+) -> None:
+    """Mint strict V2 metadata for the single final production bundle."""
+
+    bundle.runtime_canonical_contract = _runtime_canonical_contract("model")
+    fingerprint = _model_fingerprint_v2(
+        frame,
+        config,
+        bundle.selection_policy,
+    )
+    bundle.model_fingerprint_v2 = fingerprint
+    bundle.model_artifact_v2_sha256 = fingerprint["artifact_sha256"]
 
 
 def _probability(
@@ -6490,6 +6722,12 @@ class AuctionV3Engine:
             "trade_selector_promoted": int(promoted),
             "trade_selector_version": TRADE_SELECTOR_VERSION,
             "trade_selector_artifact_sha256": "",
+            "trade_selector_canonical_v2_version": TRADE_SELECTOR_CANONICAL_V2,
+            "trade_selector_artifact_v2_sha256": "",
+            "trade_selector_canonical_schema": CANONICAL_FINGERPRINT_SCHEMA,
+            "trade_selector_canonical_decimals": RUNTIME_CANONICAL_DECIMALS,
+            "trade_selector_execution_numeric_mode": "raw_float64",
+            "trade_selector_raw_execution_preserved": True,
             "trade_model_reason": "outside_observation_top10",
         }
         for name, value in trade_fields.items():
@@ -6557,6 +6795,16 @@ class AuctionV3Engine:
             if bundle is not None
             else ""
         )
+        scored["model_canonical_v2_version"] = MODEL_CANONICAL_V2
+        scored["model_artifact_v2_sha256"] = (
+            bundle.model_artifact_v2_sha256
+            if bundle is not None
+            else ""
+        )
+        scored["model_canonical_schema"] = CANONICAL_FINGERPRINT_SCHEMA
+        scored["model_canonical_decimals"] = RUNTIME_CANONICAL_DECIMALS
+        scored["model_execution_numeric_mode"] = "raw_float64"
+        scored["model_raw_execution_preserved"] = True
         scored["model_ready"] = int(bundle is not None)
         scored["model_promoted"] = int(promoted)
         scored["first_layer_model_promoted"] = int(
@@ -6670,6 +6918,12 @@ class AuctionV3Engine:
             "trade_selector_promoted",
             "trade_selector_version",
             "trade_selector_artifact_sha256",
+            "trade_selector_canonical_v2_version",
+            "trade_selector_artifact_v2_sha256",
+            "trade_selector_canonical_schema",
+            "trade_selector_canonical_decimals",
+            "trade_selector_execution_numeric_mode",
+            "trade_selector_raw_execution_preserved",
             "trade_model_reason",
             "take_profit_pct",
             "stop_loss_pct",
@@ -6737,6 +6991,12 @@ class AuctionV3Engine:
             "model_reason",
             "model_version",
             "model_artifact_sha256",
+            "model_canonical_v2_version",
+            "model_artifact_v2_sha256",
+            "model_canonical_schema",
+            "model_canonical_decimals",
+            "model_execution_numeric_mode",
+            "model_raw_execution_preserved",
             "generated_at_utc",
             "source_snapshot_sha256",
             "feature_contract",
@@ -7915,6 +8175,18 @@ class AuctionV3Engine:
         history = self.build_history()
         oos, backtest_metrics = self.run_backtest(history)
         bundle = self.fit_models(history)
+        if bundle is not None:
+            production_fingerprint_frame = attach_promotion_source_features(
+                history,
+                self.config.root,
+            ).dropna(
+                subset=["net_return", "proposed_gap", "market_fill"]
+            ).copy()
+            _finalize_model_bundle_v2(
+                bundle,
+                production_fingerprint_frame,
+                self.config,
+            )
         model_quality_failures: list[str] = []
         model_quality_warnings: list[str] = []
         if bundle is None:
@@ -7957,6 +8229,22 @@ class AuctionV3Engine:
             bundle.model_artifact_sha256
             if bundle is not None
             else ""
+        )
+        backtest_metrics["model_canonical_v2_version"] = MODEL_CANONICAL_V2
+        backtest_metrics["model_artifact_v2_sha256"] = (
+            bundle.model_artifact_v2_sha256
+            if bundle is not None
+            else ""
+        )
+        backtest_metrics["model_fingerprint_v2"] = (
+            bundle.model_fingerprint_v2
+            if bundle is not None
+            else {}
+        )
+        backtest_metrics["model_canonical_contract"] = (
+            bundle.runtime_canonical_contract
+            if bundle is not None
+            else _runtime_canonical_contract("model")
         )
         _write_json(
             backtest_metrics,
@@ -8069,6 +8357,22 @@ class AuctionV3Engine:
                 bundle.model_artifact_sha256
                 if bundle is not None
                 else ""
+            ),
+            "model_canonical_v2_version": MODEL_CANONICAL_V2,
+            "model_artifact_v2_sha256": (
+                bundle.model_artifact_v2_sha256
+                if bundle is not None
+                else ""
+            ),
+            "model_fingerprint_v2": (
+                bundle.model_fingerprint_v2
+                if bundle is not None
+                else {}
+            ),
+            "model_canonical_contract": (
+                bundle.runtime_canonical_contract
+                if bundle is not None
+                else _runtime_canonical_contract("model")
             ),
             "ready": bundle is not None,
             "promoted": backtest_metrics.get("promoted") is True,

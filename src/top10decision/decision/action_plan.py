@@ -11,6 +11,12 @@ import numpy as np
 import pandas as pd
 
 from .eligibility import annotate_standard_limit_universe, filter_standard_limit_universe
+from .canonical_fingerprint import (
+    CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_mapping_sha256,
+    canonical_policy_fingerprint,
+    compose_artifact_fingerprint,
+)
 from .observation import (
     OBSERVATION_START_EXEC_DATE,
     OBSERVATION_TOP_N,
@@ -19,6 +25,49 @@ from .observation import (
 
 
 REPORT_RE = re.compile(r"decision_report_(20\d{6})\.md$")
+MODEL_V2_POLICY_THRESHOLDS = (
+    "max_big_loss_probability",
+    "min_mean_return_lcb",
+    "min_fill_probability",
+    "min_exit_probability",
+    "min_conservative_ev",
+    "min_selection_score",
+)
+TRADE_SELECTOR_V2_POLICY_THRESHOLDS = (
+    "min_trade_score",
+    "min_mean_return_lcb",
+    "min_fill_probability",
+    "max_big_loss_probability",
+)
+SELECTOR_DOMAIN_SCORE_COLUMNS = (
+    "promotion_rank_score",
+    "predicted_promotion_probability",
+    "trade_score",
+    "trade_predicted_conditional_net_return",
+    "trade_predicted_mean_return_lcb",
+    "trade_predicted_fill_probability",
+    "trade_predicted_public_market_buyable_probability",
+    "trade_predicted_big_loss_probability",
+    "trade_predicted_outcome_q10",
+    "trade_tail_loss_proxy",
+    "trade_base_score",
+    "trade_tail_risk_weight",
+)
+SELECTOR_DOMAIN_RANK_COLUMNS = (
+    "promotion_rank",
+    "trade_rank",
+)
+SELECTOR_DOMAIN_BINARY_COLUMNS = (
+    "trade_gate_pass",
+    "trade_shadow_selected",
+    "trade_selected",
+    "trade_selector_policy_ready",
+)
+SELECTOR_GLOBAL_BINARY_COLUMNS = ("trade_selector_promoted",)
+SELECTOR_ARTIFACT_COLUMNS = (
+    "trade_selector_artifact_sha256",
+    "trade_selector_artifact_v2_sha256",
+)
 
 
 def _utc_now() -> str:
@@ -83,6 +132,634 @@ def _unique_nonempty_column_value(frame: pd.DataFrame, name: str) -> str:
         if value
     }
     return next(iter(values)) if len(values) == 1 else ""
+
+
+def _strict_unique_text_column_value(
+    frame: pd.DataFrame,
+    name: str,
+) -> tuple[str, bool]:
+    """Return one value only when every prediction row carries it.
+
+    V2 canonical provenance is a hard promotion gate.  Unlike the legacy
+    audit helper above, a blank row is therefore not ignored: missing, blank,
+    or mixed values all fail closed.  Execution values remain raw float64.
+    """
+
+    if frame.empty or name not in frame.columns:
+        return "", False
+    values = [_text(item) for item in frame[name].tolist()]
+    if not values or any(not value for value in values):
+        return "", False
+    unique = set(values)
+    return (values[0], True) if len(unique) == 1 else ("", False)
+
+
+def _strict_unique_exact_text_column_value(
+    frame: pd.DataFrame,
+    name: str,
+) -> tuple[str, bool]:
+    """Return one non-empty string without normalizing its bytes."""
+
+    if frame.empty or name not in frame.columns:
+        return "", False
+    values = frame[name].tolist()
+    if not values or any(
+        not isinstance(value, str) or value == ""
+        for value in values
+    ):
+        return "", False
+    unique = set(values)
+    return (values[0], True) if len(unique) == 1 else ("", False)
+
+
+def _exact_nonempty_text(value: Any) -> str:
+    return value if isinstance(value, str) and value != "" else ""
+
+
+def _strict_real_number(value: Any) -> float | None:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value,
+        (int, float, np.integer, np.floating),
+    ):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _canonical_decimals(value: Any) -> int | None:
+    number = _strict_real_number(value)
+    if number is None or not number.is_integer():
+        return None
+    decimals = int(number)
+    return decimals if 0 <= decimals <= 18 else None
+
+
+def _strict_unique_canonical_decimals_column_value(
+    frame: pd.DataFrame,
+    name: str,
+) -> tuple[int | None, bool]:
+    if frame.empty or name not in frame.columns:
+        return None, False
+    values = [_canonical_decimals(item) for item in frame[name].tolist()]
+    if not values or any(value is None for value in values):
+        return None, False
+    unique = set(values)
+    return (values[0], True) if len(unique) == 1 else (None, False)
+
+
+def _strict_all_true_column(frame: pd.DataFrame, name: str) -> bool:
+    if frame.empty or name not in frame.columns:
+        return False
+    values = frame[name].tolist()
+    if not values:
+        return False
+    for value in values:
+        if isinstance(value, (bool, np.bool_)):
+            parsed = bool(value)
+        else:
+            number = _strict_real_number(value)
+            parsed = number == 1.0 if number is not None else False
+        if not parsed:
+            return False
+    return True
+
+
+def _missing_cell(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip() == ""
+    try:
+        return bool(pd.isna(value))
+    except Exception:
+        return value is None
+
+
+def _selector_prediction_domain(
+    prediction: pd.DataFrame,
+) -> dict[str, Any]:
+    """Validate the exact selector execution domain in a prediction ledger.
+
+    Canonical declarations describe the selector contract on every row.  The
+    fitted selector artifact and executable selector scores, however, only
+    exist for rows admitted to the observation Top10.  Blanks outside that
+    domain are therefore required evidence, not values to silently drop.
+    """
+
+    failures: list[str] = []
+    if prediction.empty or "observation_selected" not in prediction.columns:
+        return {
+            "frame": prediction.iloc[0:0].copy(),
+            "outside": prediction.copy(),
+            "valid": False,
+            "failures": ["observation_selected"],
+            "rows": 0,
+            "outside_rows": int(len(prediction)),
+        }
+
+    parsed_domain = [
+        _canonical_decimals(value)
+        for value in prediction["observation_selected"].tolist()
+    ]
+    if any(value not in {0, 1} for value in parsed_domain):
+        failures.append("observation_selected")
+        domain_mask = pd.Series(False, index=prediction.index)
+        outside_mask = ~domain_mask
+    else:
+        domain_mask = pd.Series(parsed_domain, index=prediction.index).eq(1)
+        outside_mask = ~domain_mask
+    domain = prediction.loc[domain_mask].copy()
+    outside = prediction.loc[outside_mask].copy()
+    if domain.empty:
+        failures.append("empty_domain")
+
+    required_columns = {
+        *SELECTOR_DOMAIN_SCORE_COLUMNS,
+        *SELECTOR_DOMAIN_RANK_COLUMNS,
+        *SELECTOR_DOMAIN_BINARY_COLUMNS,
+        *SELECTOR_GLOBAL_BINARY_COLUMNS,
+        *SELECTOR_ARTIFACT_COLUMNS,
+        "trade_model_reason",
+    }
+    missing_columns = sorted(required_columns.difference(prediction.columns))
+    if missing_columns:
+        failures.append("missing_execution_columns")
+    else:
+        for name in SELECTOR_DOMAIN_SCORE_COLUMNS:
+            values = pd.to_numeric(domain[name], errors="coerce")
+            if len(values) != len(domain) or not np.isfinite(values).all():
+                failures.append(f"domain_finite:{name}")
+        for name in SELECTOR_DOMAIN_RANK_COLUMNS:
+            values = pd.to_numeric(domain[name], errors="coerce")
+            valid = (
+                len(values) == len(domain)
+                and np.isfinite(values).all()
+                and values.gt(0).all()
+                and values.mod(1).eq(0).all()
+                and values.nunique(dropna=False) == len(values)
+            )
+            if not valid:
+                failures.append(f"domain_rank:{name}")
+        for name in SELECTOR_DOMAIN_BINARY_COLUMNS:
+            values = [_canonical_decimals(value) for value in domain[name]]
+            if any(value not in {0, 1} for value in values):
+                failures.append(f"domain_binary:{name}")
+        for name in SELECTOR_GLOBAL_BINARY_COLUMNS:
+            values = [
+                _canonical_decimals(value)
+                for value in prediction[name]
+            ]
+            if (
+                any(value not in {0, 1} for value in values)
+                or len(set(values)) != 1
+            ):
+                failures.append(f"global_binary:{name}")
+        reasons = domain["trade_model_reason"].tolist()
+        if any(
+            not isinstance(value, str) or value == ""
+            for value in reasons
+        ):
+            failures.append("domain_trade_model_reason")
+        for name in SELECTOR_ARTIFACT_COLUMNS:
+            value, complete = _strict_unique_exact_text_column_value(
+                domain,
+                name,
+            )
+            if not complete or not _is_sha256(value):
+                failures.append(f"domain_artifact:{name}")
+
+        outside_missing_columns = (
+            *SELECTOR_DOMAIN_SCORE_COLUMNS,
+            *SELECTOR_DOMAIN_RANK_COLUMNS,
+            *SELECTOR_ARTIFACT_COLUMNS,
+        )
+        for name in outside_missing_columns:
+            if not all(_missing_cell(value) for value in outside[name]):
+                failures.append(f"outside_missing:{name}")
+        for name in SELECTOR_DOMAIN_BINARY_COLUMNS:
+            values = [_canonical_decimals(value) for value in outside[name]]
+            if any(value != 0 for value in values):
+                failures.append(f"outside_zero:{name}")
+        if any(
+            not isinstance(value, str)
+            or value != "outside_observation_top10"
+            for value in outside["trade_model_reason"].tolist()
+        ):
+            failures.append("outside_trade_model_reason")
+
+    return {
+        "frame": domain,
+        "outside": outside,
+        "valid": not failures,
+        "failures": failures,
+        "rows": int(len(domain)),
+        "outside_rows": int(len(outside)),
+    }
+
+
+def _valid_canonical_contract(value: Any, *, layer: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    if set(value) != {
+        "schema",
+        "layer",
+        "decimals",
+        "rounding",
+        "execution_mode",
+        "raw_execution_preserved",
+    }:
+        return {}
+    schema = value.get("schema")
+    contract_layer = value.get("layer")
+    decimals = _canonical_decimals(value.get("decimals"))
+    rounding = value.get("rounding")
+    execution_mode = value.get("execution_mode")
+    raw_execution_preserved = value.get("raw_execution_preserved") is True
+    if (
+        schema != "dc20_canonical_fingerprint_v2"
+        or contract_layer != layer
+        or decimals != 8
+        or rounding != "decimal_string_half_even"
+        or execution_mode != "raw_float64"
+        or not raw_execution_preserved
+    ):
+        return {}
+    return {
+        "schema": schema,
+        "layer": contract_layer,
+        "decimals": decimals,
+        "rounding": rounding,
+        "execution_mode": execution_mode,
+        "raw_execution_preserved": True,
+    }
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+    )
+
+
+def _finite_number(value: Any) -> bool:
+    return _strict_real_number(value) is not None
+
+
+def _valid_policy_projection(value: Any, *, layer: str) -> bool:
+    if not isinstance(value, dict):
+        return False
+    common_keys = {
+        "version",
+        "ready",
+        "reason",
+        "max_positions",
+        "thresholds",
+    }
+    expected_keys = (
+        common_keys | {"tail_risk_weight"}
+        if layer == "trade_selector"
+        else common_keys
+    )
+    if set(value) != expected_keys:
+        return False
+    version = value.get("version")
+    reason = value.get("reason")
+    if (
+        not isinstance(version, str)
+        or version == ""
+        or not isinstance(reason, str)
+        or reason == ""
+    ):
+        return False
+    if not isinstance(value.get("ready"), (bool, np.bool_)):
+        return False
+    max_positions = value.get("max_positions")
+    if not _finite_number(max_positions):
+        return False
+    max_positions_number = _strict_real_number(max_positions)
+    if max_positions_number is None or not max_positions_number.is_integer():
+        return False
+    if layer == "trade_selector" and not _finite_number(
+        value.get("tail_risk_weight")
+    ):
+        return False
+    thresholds = value.get("thresholds")
+    if not isinstance(thresholds, dict):
+        return False
+    expected_thresholds = set(
+        TRADE_SELECTOR_V2_POLICY_THRESHOLDS
+        if layer == "trade_selector"
+        else MODEL_V2_POLICY_THRESHOLDS
+    )
+    if set(thresholds) != expected_thresholds:
+        return False
+    return all(_finite_number(thresholds[name]) for name in expected_thresholds)
+
+
+def _valid_v2_fingerprint(
+    value: Any,
+    *,
+    layer: str,
+    canonical_version: str,
+    artifact_sha256: str,
+    canonical_contract: dict[str, Any],
+) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if set(value) != {
+        "schema",
+        "canonical_version",
+        "canonical_contract",
+        "provenance_sha256",
+        "semantic_sha256",
+        "policy_sha256",
+        "policy_projection",
+        "artifact_sha256",
+        "schema_valid",
+        "missing_columns",
+        "invalid_cell_count",
+    }:
+        return False
+    if value.get("schema_valid") is not True:
+        return False
+    if value.get("missing_columns") != []:
+        return False
+    invalid_cell_count = value.get("invalid_cell_count")
+    if (
+        isinstance(invalid_cell_count, (bool, np.bool_))
+        or _canonical_decimals(invalid_cell_count) != 0
+    ):
+        return False
+    if value.get("schema") != "dc20_canonical_fingerprint_v2":
+        return False
+    if value.get("canonical_version") != canonical_version:
+        return False
+    if value.get("artifact_sha256") != artifact_sha256:
+        return False
+    if _valid_canonical_contract(
+        value.get("canonical_contract"),
+        layer=layer,
+    ) != canonical_contract:
+        return False
+    policy_projection = value.get("policy_projection")
+    if not _valid_policy_projection(policy_projection, layer=layer):
+        return False
+    provenance_sha256 = value.get("provenance_sha256")
+    semantic_sha256 = value.get("semantic_sha256")
+    policy_sha256 = value.get("policy_sha256")
+    if not all(
+        _is_sha256(item)
+        for item in (
+            provenance_sha256,
+            semantic_sha256,
+            policy_sha256,
+            artifact_sha256,
+        )
+    ):
+        return False
+    if layer == "model":
+        expected_policy_sha256 = canonical_mapping_sha256(
+            {
+                "schema": CANONICAL_FINGERPRINT_SCHEMA,
+                "artifact_kind": "decision_model_executable_policy",
+                "projection": policy_projection,
+            },
+            decimals=canonical_contract["decimals"],
+            exact_strings=True,
+        )
+        artifact_kind = "decision_model_canonical_runtime_v2"
+    else:
+        expected_policy_sha256 = canonical_policy_fingerprint(
+            policy_projection,
+            decimals=canonical_contract["decimals"],
+        )["sha256"]
+        artifact_kind = "decision_trade_selector_canonical_runtime_v2"
+    if policy_sha256 != expected_policy_sha256:
+        return False
+    expected_artifact_sha256 = compose_artifact_fingerprint(
+        artifact_kind=artifact_kind,
+        provenance_sha256=provenance_sha256,
+        semantic_sha256=semantic_sha256,
+        policy_sha256=policy_sha256,
+        decimals=canonical_contract["decimals"],
+    )
+    return artifact_sha256 == expected_artifact_sha256
+
+
+def _v2_layer_integrity(
+    prediction: pd.DataFrame,
+    *,
+    layer: str,
+    prediction_version_column: str,
+    prediction_artifact_column: str,
+    prediction_canonical_schema_column: str,
+    prediction_canonical_decimals_column: str,
+    prediction_execution_numeric_mode_column: str,
+    prediction_raw_execution_preserved_column: str,
+    backtest_payload: Any,
+    model_meta_payload: Any,
+    version_key: str,
+    artifact_key: str,
+    fingerprint_key: str,
+    canonical_contract_key: str,
+    artifact_prediction: pd.DataFrame | None = None,
+    prediction_domain_valid: bool = True,
+    prediction_domain_rows: int | None = None,
+    prediction_outside_domain_rows: int | None = None,
+) -> dict[str, Any]:
+    backtest_payload = (
+        backtest_payload if isinstance(backtest_payload, dict) else {}
+    )
+    model_meta_payload = (
+        model_meta_payload if isinstance(model_meta_payload, dict) else {}
+    )
+
+    prediction_version, prediction_version_complete = (
+        _strict_unique_exact_text_column_value(
+            prediction,
+            prediction_version_column,
+        )
+    )
+    backtest_version = _exact_nonempty_text(
+        backtest_payload.get(version_key)
+    )
+    model_meta_version = _exact_nonempty_text(
+        model_meta_payload.get(version_key)
+    )
+    version_match = bool(
+        prediction_version_complete
+        and prediction_version
+        == backtest_version
+        == model_meta_version
+    )
+
+    artifact_scope = (
+        artifact_prediction
+        if artifact_prediction is not None
+        else prediction
+    )
+    prediction_artifact, prediction_artifact_complete = (
+        _strict_unique_exact_text_column_value(
+            artifact_scope,
+            prediction_artifact_column,
+        )
+    )
+    backtest_artifact = _exact_nonempty_text(
+        backtest_payload.get(artifact_key)
+    )
+    model_meta_artifact = _exact_nonempty_text(
+        model_meta_payload.get(artifact_key)
+    )
+    fingerprints_match = bool(
+        prediction_artifact_complete
+        and _is_sha256(prediction_artifact)
+        and prediction_artifact
+        == backtest_artifact
+        == model_meta_artifact
+    )
+
+    prediction_schema, prediction_schema_complete = (
+        _strict_unique_exact_text_column_value(
+            prediction,
+            prediction_canonical_schema_column,
+        )
+    )
+    prediction_execution_mode, prediction_execution_mode_complete = (
+        _strict_unique_exact_text_column_value(
+            prediction,
+            prediction_execution_numeric_mode_column,
+        )
+    )
+    prediction_raw_execution_preserved = _strict_all_true_column(
+        prediction,
+        prediction_raw_execution_preserved_column,
+    )
+    backtest_contract_raw = backtest_payload.get(canonical_contract_key)
+    model_meta_contract_raw = model_meta_payload.get(
+        canonical_contract_key
+    )
+    backtest_contract = _valid_canonical_contract(
+        backtest_contract_raw,
+        layer=layer,
+    )
+    model_meta_contract = _valid_canonical_contract(
+        model_meta_contract_raw,
+        layer=layer,
+    )
+    canonical_contract_match = bool(
+        prediction_schema_complete
+        and prediction_execution_mode_complete
+        and prediction_raw_execution_preserved
+        and backtest_contract
+        and model_meta_contract
+        and backtest_contract == model_meta_contract
+        and prediction_schema == model_meta_contract["schema"]
+        and prediction_execution_mode
+        == model_meta_contract["execution_mode"]
+        and model_meta_contract["raw_execution_preserved"] is True
+    )
+
+    prediction_decimals, prediction_decimals_complete = (
+        _strict_unique_canonical_decimals_column_value(
+            prediction,
+            prediction_canonical_decimals_column,
+        )
+    )
+    canonical_decimals_match = bool(
+        prediction_decimals_complete
+        and backtest_contract
+        and model_meta_contract
+        and prediction_decimals
+        == backtest_contract["decimals"]
+        == model_meta_contract["decimals"]
+    )
+
+    backtest_fingerprint = backtest_payload.get(fingerprint_key)
+    model_meta_fingerprint = model_meta_payload.get(fingerprint_key)
+    fingerprint_v2_valid = bool(
+        version_match
+        and fingerprints_match
+        and canonical_contract_match
+        and backtest_fingerprint == model_meta_fingerprint
+        and _valid_v2_fingerprint(
+            backtest_fingerprint,
+            layer=layer,
+            canonical_version=backtest_version,
+            artifact_sha256=backtest_artifact,
+            canonical_contract=backtest_contract,
+        )
+        and _valid_v2_fingerprint(
+            model_meta_fingerprint,
+            layer=layer,
+            canonical_version=model_meta_version,
+            artifact_sha256=model_meta_artifact,
+            canonical_contract=model_meta_contract,
+        )
+    )
+    policy_ready = bool(
+        fingerprint_v2_valid
+        and model_meta_fingerprint["policy_projection"]["ready"] is True
+    )
+
+    failures = [
+        name
+        for name, passed in (
+            ("prediction_domain", prediction_domain_valid),
+            ("canonical_v2_version", version_match),
+            ("artifact_v2_sha256", fingerprints_match),
+            ("canonical_contract", canonical_contract_match),
+            ("canonical_decimals", canonical_decimals_match),
+            ("fingerprint_v2", fingerprint_v2_valid),
+        )
+        if not passed
+    ]
+    return {
+        "canonical_version": model_meta_version,
+        "artifact_sha256": model_meta_artifact,
+        "canonical_contract": model_meta_contract,
+        "canonical_schema": (
+            model_meta_contract.get("schema")
+            if model_meta_contract
+            else ""
+        ),
+        "canonical_decimals": (
+            model_meta_contract.get("decimals")
+            if model_meta_contract
+            else None
+        ),
+        "version_match": version_match,
+        "fingerprints_match": fingerprints_match,
+        "canonical_contract_match": canonical_contract_match,
+        "canonical_decimals_match": canonical_decimals_match,
+        "fingerprint_v2": (
+            model_meta_fingerprint
+            if isinstance(model_meta_fingerprint, dict)
+            else {}
+        ),
+        "fingerprint_v2_valid": fingerprint_v2_valid,
+        "policy_ready": policy_ready,
+        "execution_numeric_mode": (
+            model_meta_contract.get("execution_mode")
+            if model_meta_contract
+            else ""
+        ),
+        "raw_execution_preserved": bool(
+            model_meta_contract.get("raw_execution_preserved")
+        )
+        if model_meta_contract
+        else False,
+        "match": not failures,
+        "failures": failures,
+        "prediction_domain_valid": prediction_domain_valid,
+        "prediction_domain_rows": (
+            int(prediction_domain_rows)
+            if prediction_domain_rows is not None
+            else int(len(prediction))
+        ),
+        "prediction_outside_domain_rows": (
+            int(prediction_outside_domain_rows)
+            if prediction_outside_domain_rows is not None
+            else 0
+        ),
+    }
 
 
 def _json_safe(value: Any) -> Any:
@@ -353,6 +1030,48 @@ def _merge_auction_candidates(
                 ),
                 "trade_selector_artifact_sha256": _text(
                     row.get("trade_selector_artifact_sha256")
+                ),
+                "trade_selector_canonical_v2_version": _text(
+                    row.get("trade_selector_canonical_v2_version")
+                ),
+                "trade_selector_artifact_v2_sha256": _text(
+                    row.get("trade_selector_artifact_v2_sha256")
+                ),
+                "trade_selector_canonical_schema": _text(
+                    row.get("trade_selector_canonical_schema")
+                ),
+                "trade_selector_canonical_decimals": _canonical_decimals(
+                    row.get("trade_selector_canonical_decimals")
+                ),
+                "trade_selector_execution_numeric_mode": _text(
+                    row.get("trade_selector_execution_numeric_mode")
+                ),
+                "trade_selector_raw_execution_preserved": (
+                    _integer(
+                        row.get(
+                            "trade_selector_raw_execution_preserved"
+                        )
+                    )
+                    == 1
+                ),
+                "model_canonical_v2_version": _text(
+                    row.get("model_canonical_v2_version")
+                ),
+                "model_artifact_v2_sha256": _text(
+                    row.get("model_artifact_v2_sha256")
+                ),
+                "model_canonical_schema": _text(
+                    row.get("model_canonical_schema")
+                ),
+                "model_canonical_decimals": _canonical_decimals(
+                    row.get("model_canonical_decimals")
+                ),
+                "model_execution_numeric_mode": _text(
+                    row.get("model_execution_numeric_mode")
+                ),
+                "model_raw_execution_preserved": (
+                    _integer(row.get("model_raw_execution_preserved"))
+                    == 1
                 ),
                 "trade_model_reason": _text(row.get("trade_model_reason")),
                 "path_label_code": _text(row.get("path_label_code")),
@@ -833,30 +1552,123 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
         artifact_versions_match
         and artifact_fingerprints_match
     )
-    prediction_ready = _integer(prediction.get("model_ready", pd.Series([0])).iloc[0]) == 1 if not prediction.empty else False
-    prediction_promoted = _integer(
-        prediction.get(
-            "trade_selector_promoted",
-            prediction.get("model_promoted", pd.Series([0])),
-        ).iloc[0]
-    ) == 1 if not prediction.empty else False
-    backtest_selector = backtest.get("trade_selector") or {}
-    meta_selector = model_meta.get("trade_selector") or {}
-    prediction_selector_artifact = _unique_nonempty_column_value(
+    model_v2_integrity = _v2_layer_integrity(
         prediction,
-        "trade_selector_artifact_sha256",
+        layer="model",
+        prediction_version_column="model_canonical_v2_version",
+        prediction_artifact_column="model_artifact_v2_sha256",
+        prediction_canonical_schema_column="model_canonical_schema",
+        prediction_canonical_decimals_column="model_canonical_decimals",
+        prediction_execution_numeric_mode_column=(
+            "model_execution_numeric_mode"
+        ),
+        prediction_raw_execution_preserved_column=(
+            "model_raw_execution_preserved"
+        ),
+        backtest_payload=backtest,
+        model_meta_payload=model_meta,
+        version_key="model_canonical_v2_version",
+        artifact_key="model_artifact_v2_sha256",
+        fingerprint_key="model_fingerprint_v2",
+        canonical_contract_key="model_canonical_contract",
     )
-    backtest_selector_artifact = _text(
+    prediction_ready = _strict_all_true_column(
+        prediction,
+        "model_ready",
+    )
+    prediction_promoted = _strict_all_true_column(
+        prediction,
+        "trade_selector_promoted",
+    )
+    backtest_selector_raw = backtest.get("trade_selector")
+    meta_selector_raw = model_meta.get("trade_selector")
+    backtest_selector = (
+        backtest_selector_raw
+        if isinstance(backtest_selector_raw, dict)
+        else {}
+    )
+    meta_selector = (
+        meta_selector_raw
+        if isinstance(meta_selector_raw, dict)
+        else {}
+    )
+    selector_domain = _selector_prediction_domain(prediction)
+    selector_prediction = selector_domain["frame"]
+    prediction_selector_artifact, prediction_selector_artifact_complete = (
+        _strict_unique_text_column_value(
+            selector_prediction,
+            "trade_selector_artifact_sha256",
+        )
+    )
+    prediction_selector_version, prediction_selector_version_complete = (
+        _strict_unique_exact_text_column_value(
+            prediction,
+            "trade_selector_version",
+        )
+    )
+    backtest_selector_version = _exact_nonempty_text(
+        backtest_selector.get("version")
+    )
+    meta_selector_version = _exact_nonempty_text(
+        meta_selector.get("version")
+    )
+    selector_versions_match = bool(
+        prediction_selector_version_complete
+        and prediction_selector_version
+        == backtest_selector_version
+        == meta_selector_version
+    )
+    backtest_selector_artifact = _exact_nonempty_text(
         backtest_selector.get("production_artifact_sha256")
     )
-    meta_selector_artifact = _text(
+    meta_selector_artifact = _exact_nonempty_text(
         meta_selector.get("production_artifact_sha256")
     )
     selector_artifacts_match = bool(
-        prediction_selector_artifact
+        selector_domain["valid"]
+        and selector_versions_match
+        and prediction_selector_artifact_complete
+        and _is_sha256(prediction_selector_artifact)
         and prediction_selector_artifact
         == backtest_selector_artifact
         == meta_selector_artifact
+    )
+    selector_v2_integrity = _v2_layer_integrity(
+        prediction,
+        layer="trade_selector",
+        prediction_version_column="trade_selector_canonical_v2_version",
+        prediction_artifact_column="trade_selector_artifact_v2_sha256",
+        prediction_canonical_schema_column=(
+            "trade_selector_canonical_schema"
+        ),
+        prediction_canonical_decimals_column=(
+            "trade_selector_canonical_decimals"
+        ),
+        prediction_execution_numeric_mode_column=(
+            "trade_selector_execution_numeric_mode"
+        ),
+        prediction_raw_execution_preserved_column=(
+            "trade_selector_raw_execution_preserved"
+        ),
+        backtest_payload=backtest_selector,
+        model_meta_payload=meta_selector,
+        version_key="canonical_v2_version",
+        artifact_key="production_artifact_v2_sha256",
+        fingerprint_key="production_fingerprint_v2",
+        canonical_contract_key="canonical_contract",
+        artifact_prediction=selector_prediction,
+        prediction_domain_valid=selector_domain["valid"],
+        prediction_domain_rows=selector_domain["rows"],
+        prediction_outside_domain_rows=selector_domain["outside_rows"],
+    )
+    v2_integrity_match = bool(
+        model_v2_integrity["match"]
+        and selector_v2_integrity["match"]
+    )
+    v2_eligibility_match = bool(
+        v2_integrity_match
+        and model_v2_integrity["policy_ready"]
+        and selector_v2_integrity["policy_ready"]
     )
     promoted = bool(
         backtest.get("promoted") is True
@@ -867,8 +1679,7 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
         and prediction_ready
         and prediction_promoted
         and prediction_matches
-        and artifacts_match
-        and selector_artifacts_match
+        and v2_eligibility_match
     )
 
     if evaluation.get("stop_trading") is True:
@@ -931,8 +1742,120 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
             "artifact_versions_match": artifacts_match,
             "artifact_fingerprints_match": artifact_fingerprints_match,
             "artifact_sha256": meta_artifact,
+            "legacy_v1_audit_only": True,
+            "v2_integrity_enforced": True,
+            "v2_integrity_match": v2_integrity_match,
+            "v2_eligibility_match": v2_eligibility_match,
+            "v2_integrity_failures": [
+                *[
+                    f"model.{name}"
+                    for name in model_v2_integrity["failures"]
+                ],
+                *[
+                    f"trade_selector.{name}"
+                    for name in selector_v2_integrity["failures"]
+                ],
+                *[
+                    f"trade_selector.domain.{name}"
+                    for name in selector_domain["failures"]
+                ],
+            ],
+            "canonical_v2_version": model_v2_integrity[
+                "canonical_version"
+            ],
+            "canonical_v2_versions_match": model_v2_integrity[
+                "version_match"
+            ],
+            "artifact_v2_fingerprints_match": model_v2_integrity[
+                "fingerprints_match"
+            ],
+            "artifact_v2_sha256": model_v2_integrity[
+                "artifact_sha256"
+            ],
+            "fingerprint_v2": model_v2_integrity["fingerprint_v2"],
+            "fingerprint_v2_valid": model_v2_integrity[
+                "fingerprint_v2_valid"
+            ],
+            "canonical_policy_ready": model_v2_integrity[
+                "policy_ready"
+            ],
+            "canonical_contract": model_v2_integrity[
+                "canonical_contract"
+            ],
+            "canonical_schema": model_v2_integrity[
+                "canonical_schema"
+            ],
+            "canonical_contracts_match": model_v2_integrity[
+                "canonical_contract_match"
+            ],
+            "canonical_decimals": model_v2_integrity[
+                "canonical_decimals"
+            ],
+            "canonical_decimals_match": model_v2_integrity[
+                "canonical_decimals_match"
+            ],
+            "execution_numeric_mode": model_v2_integrity[
+                "execution_numeric_mode"
+            ],
+            "raw_execution_preserved": model_v2_integrity[
+                "raw_execution_preserved"
+            ],
             "trade_selector_artifacts_match": selector_artifacts_match,
             "trade_selector_artifact_sha256": meta_selector_artifact,
+            "trade_selector_canonical_v2_version": (
+                selector_v2_integrity["canonical_version"]
+            ),
+            "trade_selector_canonical_v2_versions_match": (
+                selector_v2_integrity["version_match"]
+            ),
+            "trade_selector_artifacts_v2_match": (
+                selector_v2_integrity["fingerprints_match"]
+            ),
+            "trade_selector_artifact_v2_sha256": (
+                selector_v2_integrity["artifact_sha256"]
+            ),
+            "trade_selector_fingerprint_v2": (
+                selector_v2_integrity["fingerprint_v2"]
+            ),
+            "trade_selector_fingerprint_v2_valid": (
+                selector_v2_integrity["fingerprint_v2_valid"]
+            ),
+            "trade_selector_canonical_policy_ready": (
+                selector_v2_integrity["policy_ready"]
+            ),
+            "trade_selector_canonical_contract": (
+                selector_v2_integrity["canonical_contract"]
+            ),
+            "trade_selector_canonical_schema": (
+                selector_v2_integrity["canonical_schema"]
+            ),
+            "trade_selector_canonical_contracts_match": (
+                selector_v2_integrity["canonical_contract_match"]
+            ),
+            "trade_selector_canonical_decimals": (
+                selector_v2_integrity["canonical_decimals"]
+            ),
+            "trade_selector_canonical_decimals_match": (
+                selector_v2_integrity["canonical_decimals_match"]
+            ),
+            "trade_selector_execution_numeric_mode": (
+                selector_v2_integrity["execution_numeric_mode"]
+            ),
+            "trade_selector_raw_execution_preserved": (
+                selector_v2_integrity["raw_execution_preserved"]
+            ),
+            "trade_selector_prediction_domain_valid": (
+                selector_domain["valid"]
+            ),
+            "trade_selector_prediction_domain_rows": (
+                selector_domain["rows"]
+            ),
+            "trade_selector_prediction_outside_domain_rows": (
+                selector_domain["outside_rows"]
+            ),
+            "trade_selector_prediction_domain_failures": list(
+                selector_domain["failures"]
+            ),
             "trade_selector": meta_selector,
             "promotion_failures": list(backtest.get("promotion_failures", []) or []),
             "return_model": _text((model_meta.get("return_selection", {}) or {}).get("selected")),

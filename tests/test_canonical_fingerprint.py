@@ -10,6 +10,7 @@ from top10decision.decision.canonical_fingerprint import (
     canonical_float_token,
     canonical_frame_fingerprint,
     canonical_policy_fingerprint,
+    canonical_value,
     compose_artifact_fingerprint,
     normalize_code,
     normalize_date,
@@ -27,6 +28,18 @@ from scripts.diagnose_decision_fingerprint import (
 
 
 class CanonicalFingerprintTest(unittest.TestCase):
+    def test_exact_text_preserves_execution_whitespace_and_unicode_form(self):
+        base = canonical_value("NEUTRAL", decimals=8, kind="exact_text")
+        self.assertEqual(base, "NEUTRAL")
+        self.assertNotEqual(
+            base,
+            canonical_value(" NEUTRAL ", decimals=8, kind="exact_text"),
+        )
+        self.assertNotEqual(
+            base,
+            canonical_value("ＮＥＵＴＲＡＬ", decimals=8, kind="exact_text"),
+        )
+
     def test_special_float_values_are_explicit_and_negative_zero_is_normalized(self):
         self.assertEqual(
             canonical_float_token(float("nan"), decimals=8),
