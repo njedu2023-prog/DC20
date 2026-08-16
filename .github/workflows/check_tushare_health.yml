@@ -1,0 +1,46 @@
+name: DC2.0 · Tushare Health Check
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Mon-Fri 10:40 Beijing (UTC+8). Chinese holidays are detected by trade_cal.
+    - cron: "40 2 * * 1-5"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: dc20-tushare-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: Read-only fail-hard API probes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+
+      - name: Verify pinned Python runtime
+        run: python -c "import sys; assert sys.version_info[:3] == (3, 12, 13), sys.version"
+
+      - name: Check Tushare token and endpoint entitlements
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python -B scripts/check_tushare_health.py --timeout-seconds 15
