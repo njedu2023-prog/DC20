@@ -28,8 +28,7 @@ jobs:
           SOURCE_COMMIT: 8741bfabf73cf9c64e3b6808b3529457474349e2
         run: |
           python - <<'PY'
-          import base64
-          import concurrent.futures
+          import hashlib
           import json
           import os
           import time
@@ -175,53 +174,51 @@ jobs:
                           raise
                       time.sleep(min(60, 2 ** attempt))
 
-          completed = 0
+          # The prior run uploaded every selected blob before GitHub timed out while
+          # assembling one very large tree. Git blob IDs are content-addressed, so
+          # unchanged source blob SHAs can now be referenced directly in DC20.
+          copied = [
+              {
+                  "path": item["path"],
+                  "mode": item.get("mode", "100644"),
+                  "type": "blob",
+                  "sha": item["sha"],
+              }
+              for item in source_files
+              if item["path"] != split_history_path
+          ]
 
-          def copy_blob(item):
-              nonlocal_data = raw_bytes(item["path"])
-              if len(nonlocal_data) != item.get("size", len(nonlocal_data)):
-                  raise RuntimeError(
-                      f"Size mismatch for {item['path']}: expected {item.get('size')} got {len(nonlocal_data)}"
-                  )
-              chunks = [(item["path"], nonlocal_data)]
-              if item["path"] == split_history_path:
-                  lines = nonlocal_data.splitlines(keepends=True)
-                  header = lines[0]
-                  chunks = []
+          split_item = next(item for item in source_files if item["path"] == split_history_path)
+          split_data = raw_bytes(split_history_path)
+          if len(split_data) != split_item.get("size", len(split_data)):
+              raise RuntimeError(
+                  f"Size mismatch for {split_history_path}: expected {split_item.get('size')} got {len(split_data)}"
+              )
+          lines = split_data.splitlines(keepends=True)
+          header = lines[0]
+          current = bytearray(header)
+          part = 1
+
+          def append_split_chunk(data, number):
+              blob_header = f"blob {len(data)}\0".encode("ascii")
+              copied.append({
+                  "path": split_history_path.replace(".csv", f"_part{number:03d}.csv"),
+                  "mode": split_item.get("mode", "100644"),
+                  "type": "blob",
+                  "sha": hashlib.sha1(blob_header + data).hexdigest(),
+              })
+
+          for line in lines[1:]:
+              if len(current) + len(line) > 7_500_000 and len(current) > len(header):
+                  append_split_chunk(bytes(current), part)
+                  part += 1
                   current = bytearray(header)
-                  part = 1
-                  for line in lines[1:]:
-                      if len(current) + len(line) > 7_500_000 and len(current) > len(header):
-                          chunks.append((item["path"].replace(".csv", f"_part{part:03d}.csv"), bytes(current)))
-                          part += 1
-                          current = bytearray(header)
-                      current.extend(line)
-                  if len(current) > len(header):
-                      chunks.append((item["path"].replace(".csv", f"_part{part:03d}.csv"), bytes(current)))
+              current.extend(line)
+          if len(current) > len(header):
+              append_split_chunk(bytes(current), part)
 
-              entries = []
-              for target_path, data in chunks:
-                  created = api_json(
-                      "POST",
-                      f"/repos/{target_repo}/git/blobs",
-                      {"content": base64.b64encode(data).decode("ascii"), "encoding": "base64"},
-                  )
-                  entries.append({
-                      "path": target_path,
-                      "mode": item.get("mode", "100644"),
-                      "type": "blob",
-                      "sha": created["sha"],
-                  })
-              return entries
-
-          copied = []
-          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-              futures = {pool.submit(copy_blob, item): item["path"] for item in source_files}
-              for future in concurrent.futures.as_completed(futures):
-                  copied.extend(future.result())
-                  completed += 1
-                  if completed % 25 == 0 or completed == len(source_files):
-                      print(f"Copied {completed}/{len(source_files)} files")
+          copied.sort(key=lambda entry: entry["path"])
+          print(f"Reusing {len(copied)} previously uploaded target blobs.")
 
           marker = {
               "schema_version": "dc20_decision_migration_v1",
@@ -234,7 +231,7 @@ jobs:
               "premium_included": False,
               "split_source_files": [split_history_path],
               "regenerated_outputs_not_copied": sorted(regenerated_large_outputs),
-              "copy_method": "GitHub Git Data API; no SSH and no git push",
+              "copy_method": "GitHub Git Data API with incremental trees; no SSH and no git push",
           }
           marker_blob = api_json(
               "POST",
@@ -246,17 +243,23 @@ jobs:
           ref = api_json("GET", f"/repos/{target_repo}/git/ref/heads/main")
           parent_sha = ref["object"]["sha"]
           parent = api_json("GET", f"/repos/{target_repo}/git/commits/{parent_sha}")
-          new_tree = api_json(
-              "POST",
-              f"/repos/{target_repo}/git/trees",
-              {"base_tree": parent["tree"]["sha"], "tree": copied},
-          )
+          tree_sha = parent["tree"]["sha"]
+          batch_size = 100
+          for start in range(0, len(copied), batch_size):
+              batch = copied[start:start + batch_size]
+              new_tree = api_json(
+                  "POST",
+                  f"/repos/{target_repo}/git/trees",
+                  {"base_tree": tree_sha, "tree": batch},
+              )
+              tree_sha = new_tree["sha"]
+              print(f"Assembled tree entries {start + 1}-{start + len(batch)}/{len(copied)}")
           commit = api_json(
               "POST",
               f"/repos/{target_repo}/git/commits",
               {
                   "message": "Bootstrap independent Decision-only research snapshot",
-                  "tree": new_tree["sha"],
+                  "tree": tree_sha,
                   "parents": [parent_sha],
               },
           )
