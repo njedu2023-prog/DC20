@@ -1,0 +1,60 @@
+name: DC2.0 · Diagnose Frozen Fingerprints
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  diagnose:
+    name: Read-only frozen replay and component hashes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact dispatch revision
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: pip
+
+      - name: Install current runtime dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install pip==26.2.1
+          python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: Validate immutable freeze inputs
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python scripts/validate_decision_model_freeze.py
+
+      - name: Replay frozen engine without publishing
+        id: replay
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python scripts/run_auction_v3.py
+
+      - name: Print non-sensitive component hashes
+        if: ${{ always() }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python scripts/diagnose_decision_fingerprint.py
+
+      - name: Report replay outcome
+        if: ${{ always() }}
+        env:
+          REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+        run: |
+          echo "frozen_replay_outcome=${REPLAY_OUTCOME}"
+          test "${REPLAY_OUTCOME}" = "success" || echo "Drift reproduced; diagnostic evidence was printed above."
