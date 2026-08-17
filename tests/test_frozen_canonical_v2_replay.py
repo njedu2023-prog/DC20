@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,9 @@ SPEC = importlib.util.spec_from_file_location("replay_frozen_canonical_v2", SCRI
 assert SPEC is not None and SPEC.loader is not None
 replay = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(replay)
+LEGACY_V1_MANIFEST_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "decision_model_freeze_v1_46d8.json"
+)
 
 
 def _write_manifest(tmp_path: Path, payload: bytes) -> Path:
@@ -26,8 +30,11 @@ def _write_manifest(tmp_path: Path, payload: bytes) -> Path:
     return path
 
 
-def _current_legacy_manifest_bytes() -> bytes:
-    return (ROOT / "models" / "decision_model_freeze.json").read_bytes()
+def _legacy_v1_manifest_bytes() -> bytes:
+    payload = LEGACY_V1_MANIFEST_FIXTURE.read_bytes()
+    assert hashlib.sha256(payload).hexdigest() == replay.LEGACY_BOOTSTRAP_MANIFEST_SHA256
+    assert json.loads(payload)["schema_version"] == "decision_model_freeze_v1"
+    return payload
 
 
 def _synthetic_history() -> pd.DataFrame:
@@ -91,13 +98,46 @@ def _write_synthetic_legacy(
     )
 
 
-def test_exact_current_inactive_v1_bootstrap_without_mutating_disk() -> None:
+def test_current_v2_manifest_uses_complete_loader_without_mutating_disk() -> None:
     manifest_path = ROOT / "models" / "decision_model_freeze.json"
     before = manifest_path.read_bytes()
+    current = json.loads(before)
+    assert current["schema_version"] == "decision_model_freeze_v2"
     history, manifest, audit = replay.load_forced_frozen_history(ROOT)
-    assert manifest["active"] is False
-    assert json.loads(before)["active"] is False
+    assert manifest["schema_version"] == "decision_model_freeze_v2"
+    assert manifest["active"] is current["active"]
     assert manifest_path.read_bytes() == before
+    assert len(history) == 40_355
+    assert history["signal_date"].nunique() == 715
+    assert audit["sha256"] == replay.EXPECTED_SNAPSHOT_SHA256
+    assert audit["columns_sha256"] == replay.EXPECTED_HISTORY_COLUMNS_SHA256
+    assert audit["source"] == "forced_frozen_snapshot"
+    assert audit["forced_frozen_replay"] is True
+    assert audit["live_history_fallback"] is False
+    assert audit["loader_contract"] == "v2_complete_contract_and_pins_no_live_fallback"
+    assert audit["manifest_active_on_disk"] is current["active"]
+    pinned_files = audit["pinned_files"]
+    assert pinned_files["active"] is current["active"]
+    assert pinned_files["forced_enforcement"] is (not current["active"])
+    assert pinned_files["validated"] is True
+    assert pinned_files["enforced"] is True
+    assert pinned_files["pinned_files"] == 17
+
+
+def test_exact_legacy_v1_fixture_bootstrap_is_independent_of_current_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest_bytes = _legacy_v1_manifest_bytes()
+    manifest_path = _write_manifest(tmp_path, manifest_bytes)
+    snapshot = tmp_path / replay.EXPECTED_SNAPSHOT_PATH
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / replay.EXPECTED_SNAPSHOT_PATH, snapshot)
+
+    history, manifest, audit = replay.load_forced_frozen_history(tmp_path)
+
+    assert manifest["schema_version"] == "decision_model_freeze_v1"
+    assert manifest["active"] is False
+    assert manifest_path.read_bytes() == manifest_bytes
     assert len(history) == 40_355
     assert history["signal_date"].nunique() == 715
     assert audit["sha256"] == replay.EXPECTED_SNAPSHOT_SHA256
@@ -127,7 +167,7 @@ def test_legacy_bootstrap_rejects_every_manifest_gate_mutation(
     mutation: str,
     message: str,
 ) -> None:
-    original = _current_legacy_manifest_bytes()
+    original = _legacy_v1_manifest_bytes()
     if mutation == "byte_drift":
         candidate = original + b" "
     else:
