@@ -435,20 +435,44 @@ jobs:
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
           git add -A -- data/pred
-          git add -A -- data/market/raw data/market/trade_cal_sse.csv 'data/market/features_base_*.csv' 'data/market/features_limit_*.csv' 'data/market/truth_close_*.csv' 'data/market/_meta_*.json'
-          git add -A -- docs/weights docs/signals
+          git add -A -- data/market
+          git add -A -- docs
           git add -A -- outputs/decision data/decision
           git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json' 'outputs/decision/report_index.json'
-          git add -A -- 'docs/reports/*.md'
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
-          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" python - <<'PY'
+          git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
+          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          def matches(path, pattern):
+              if pattern.endswith('/**'):
+                  return path.startswith(pattern[:-3] + '/')
+              path_parts = path.split('/')
+              pattern_parts = pattern.split('/')
+              return len(path_parts) == len(pattern_parts) and all(
+                  fnmatch.fnmatchcase(part, expected)
+                  for part, expected in zip(path_parts, pattern_parts)
+              )
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or any(matches(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily paths staged: {bad}')
+          path_set=set(paths)
+          index_modes={}
+          for entry in Path(os.environ['STAGED_INDEX']).read_bytes().split(b'\0'):
+              if not entry:
+                  continue
+              metadata, raw_path = entry.split(b'\t', 1)
+              mode, _object_id, stage = metadata.decode('ascii').split()
+              path = raw_path.decode()
+              if path not in path_set:
+                  continue
+              if stage != '0' or path in index_modes:
+                  raise SystemExit(f'non-stage-zero Daily index entry: {path}')
+              index_modes[path] = mode
+          bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
+          if bad_modes: raise SystemExit(f'non-regular Daily paths staged: {bad_modes}')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
           CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" CANDIDATE_SHA="${RUNNER_TEMP}/candidate.patch.sha256" python - <<'PY'
@@ -546,14 +570,39 @@ jobs:
           test "$(git rev-parse HEAD)" = "${expected}"
           git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
-          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" python - <<'PY'
+          git ls-files --stage -z > "${RUNNER_TEMP}/publish_staged_index.bin"
+          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          def matches(path, pattern):
+              if pattern.endswith('/**'):
+                  return path.startswith(pattern[:-3] + '/')
+              path_parts = path.split('/')
+              pattern_parts = pattern.split('/')
+              return len(path_parts) == len(pattern_parts) and all(
+                  fnmatch.fnmatchcase(part, expected)
+                  for part, expected in zip(path_parts, pattern_parts)
+              )
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or any(matches(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily publish paths staged: {bad}')
+          path_set=set(paths)
+          index_modes={}
+          for entry in Path(os.environ['PUBLISH_STAGED_INDEX']).read_bytes().split(b'\0'):
+              if not entry:
+                  continue
+              metadata, raw_path = entry.split(b'\t', 1)
+              mode, _object_id, stage = metadata.decode('ascii').split()
+              path = raw_path.decode()
+              if path not in path_set:
+                  continue
+              if stage != '0' or path in index_modes:
+                  raise SystemExit(f'non-stage-zero Daily publish index entry: {path}')
+              index_modes[path] = mode
+          bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
+          if bad_modes: raise SystemExit(f'non-regular Daily publish paths staged: {bad_modes}')
           if not paths: raise SystemExit('Daily candidate patch became empty')
           PY
           git config user.name 'github-actions[bot]'

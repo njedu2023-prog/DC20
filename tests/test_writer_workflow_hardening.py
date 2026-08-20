@@ -409,6 +409,74 @@ def test_daily_candidate_staging_tolerates_absent_optional_pred_top10(
     assert not list(pred_root.glob("pred_top10_*.csv"))
 
 
+def test_daily_candidate_staging_tolerates_absent_optional_reports_and_tracks_deletion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    candidate_step = daily.split(
+        "- name: Build exact allowlisted Daily candidate patch",
+        1,
+    )[1].split("- name: Upload immutable candidate patch", 1)[0]
+    add_lines = [
+        line.strip()
+        for line in candidate_step.splitlines()
+        if line.strip().startswith("git add -A --")
+    ]
+    assert "git add -A -- data/market" in add_lines
+    assert "git add -A -- docs" in add_lines
+    assert all("*" not in line for line in add_lines)
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    report = tmp_path / "docs/reports/daily.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("baseline\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "docs"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=DC20 Test",
+            "-c",
+            "user.email=dc20-test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "baseline",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    report.unlink()
+    subprocess.run(["git", "add", "-A", "--", "docs"], cwd=tmp_path, check=True)
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--no-renames", "--name-status"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert staged == ["D\tdocs/reports/daily.md"]
+
+    compute_source = _embedded_python_blocks_between(
+        daily,
+        "- name: Build exact allowlisted Daily candidate patch",
+        "- name: Upload immutable candidate patch",
+    )[0]
+    publish_source = _embedded_python_after(
+        daily,
+        "- name: Apply exact base candidate and create one commit",
+    )
+    staged_paths = tmp_path / "staged-paths.bin"
+    staged_paths.write_bytes(b"docs/reports/nested/escape.md\0")
+    monkeypatch.setenv("STAGED_PATHS", str(staged_paths))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(staged_paths))
+    with pytest.raises(SystemExit, match="non-allowlisted Daily paths staged"):
+        exec(compile(compute_source, "<daily-compute-segment-allowlist>", "exec"), {})
+    with pytest.raises(SystemExit, match="non-allowlisted Daily publish paths staged"):
+        exec(compile(publish_source, "<daily-publish-segment-allowlist>", "exec"), {})
+
+
 def test_daily_allowlists_expose_both_sides_of_renames(
     tmp_path: Path,
 ) -> None:
@@ -450,6 +518,79 @@ def test_daily_allowlists_expose_both_sides_of_renames(
         "data/pred/unexpected_tracked.txt",
         "data/pred/archive/renamed.csv",
     }
+
+
+def test_daily_allowlists_reject_symlink_and_gitlink_modes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    assert daily.count("git ls-files --stage -z") == 2
+    compute_source = _embedded_python_blocks_between(
+        daily,
+        "- name: Build exact allowlisted Daily candidate patch",
+        "- name: Upload immutable candidate patch",
+    )[0]
+    publish_source = _embedded_python_after(
+        daily,
+        "- name: Apply exact base candidate and create one commit",
+    )
+
+    repo = tmp_path / "mode-case"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    archive = repo / "data/pred/archive"
+    archive.mkdir(parents=True)
+    (archive / "link.csv").symlink_to("missing-target.csv")
+    embedded = archive / "embedded"
+    subprocess.run(["git", "init", "-q", str(embedded)], check=True)
+    (embedded / "payload.txt").write_text("embedded\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "payload.txt"], cwd=embedded, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=DC20 Test",
+            "-c",
+            "user.email=dc20-test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "embedded",
+        ],
+        cwd=embedded,
+        check=True,
+    )
+    subprocess.run(["git", "add", "-A", "--", "data/pred"], cwd=repo, check=True)
+    staged_paths = tmp_path / "mode-staged-paths.bin"
+    staged_paths.write_bytes(
+        subprocess.run(
+            ["git", "diff", "--cached", "--no-renames", "--name-only", "-z"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        ).stdout
+    )
+    staged_index = tmp_path / "mode-staged-index.bin"
+    index_bytes = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+    staged_index.write_bytes(index_bytes)
+    assert b"120000 " in index_bytes
+    assert b"160000 " in index_bytes
+
+    monkeypatch.setenv("STAGED_PATHS", str(staged_paths))
+    monkeypatch.setenv("STAGED_INDEX", str(staged_index))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(staged_paths))
+    monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(staged_index))
+    with pytest.raises(SystemExit, match="non-regular Daily paths staged") as compute_error:
+        exec(compile(compute_source, "<daily-compute-mode-allowlist>", "exec"), {})
+    assert "120000" in str(compute_error.value) and "160000" in str(compute_error.value)
+    with pytest.raises(SystemExit, match="non-regular Daily publish paths staged") as publish_error:
+        exec(compile(publish_source, "<daily-publish-mode-allowlist>", "exec"), {})
+    assert "120000" in str(publish_error.value) and "160000" in str(publish_error.value)
 
 
 def test_daily_frozen_replay_failure_summary_is_safe_and_classified(
