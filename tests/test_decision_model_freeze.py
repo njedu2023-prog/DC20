@@ -40,6 +40,7 @@ from top10decision.decision.model_freeze import (
     load_frozen_history_snapshot,
     load_model_freeze,
     load_verified_frozen_history_snapshot,
+    validate_action_plan_artifact,
     validate_behavior_artifacts,
     validate_pinned_files,
     validate_runtime_artifacts,
@@ -606,6 +607,14 @@ class FreezeV2Fixture(unittest.TestCase):
                 self.root, self.manifest, force_enforcement=True
             )
 
+    def _validate_action(self):
+        with patch.multiple(
+            freeze_module, **self._known_contract_patches(self.manifest)
+        ):
+            return validate_action_plan_artifact(
+                self.root, self.manifest, force_enforcement=True
+            )
+
     def _model_runtime_fields(self) -> dict:
         return {
             "model_canonical_v2_version": self.model_layer[
@@ -633,12 +642,22 @@ class FreezeV2Fixture(unittest.TestCase):
             "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
             "formal_buy_count": 0,
             "shadow_count": 1,
+            "guidance_only": True,
+            "broker_connected": False,
+            "order_execution": "manual_only",
             "candidates": [
                 {
                     "ts_code": "600001.SH",
                     "action": "SHADOW_ONLY",
                     "target_weight": 0.0,
                     "trade_shadow_selected": 1,
+                    "trade_selected": 0,
+                    "trade_selector_promoted": 0,
+                    "market_order_allowed": 0,
+                    "risk_gate_pass": 0,
+                    "order_type": "LIMIT_ONLY_MANUAL",
+                    "recommended_max_price": None,
+                    "max_auction_change_pct": None,
                 }
             ],
             "stage_watchlist": [
@@ -649,6 +668,13 @@ class FreezeV2Fixture(unittest.TestCase):
                     "watch_label": "二筛影子",
                     "target_weight": 0.0,
                     "trade_shadow_selected": 1,
+                    "trade_selected": 0,
+                    "trade_selector_promoted": 0,
+                    "market_order_allowed": 0,
+                    "risk_gate_pass": 0,
+                    "order_type": "LIMIT_ONLY_MANUAL",
+                    "recommended_max_price": None,
+                    "max_auction_change_pct": None,
                 }
             ],
             "model": {
@@ -1520,6 +1546,82 @@ class DecisionModelFreezeV2BehaviorTest(FreezeV2Fixture):
 
 
 class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
+    def test_standalone_action_contract_rejects_shallow_no_trade_bypasses(self):
+        audit = self._validate_action()
+        self.assertTrue(audit["validated"])
+        self.assertTrue(audit["enforced"])
+
+        mutations = (
+            ("empty_candidates", lambda value: value.__setitem__("candidates", [])),
+            (
+                "model_version",
+                lambda value: value["model"].__setitem__("version", "ATTACK"),
+            ),
+            (
+                "selector_promoted",
+                lambda value: value["model"]["trade_selector"].__setitem__(
+                    "promoted", True
+                ),
+            ),
+            (
+                "target_weight",
+                lambda value: value["candidates"][0].__setitem__(
+                    "target_weight", 1.0
+                ),
+            ),
+            (
+                "trade_selected",
+                lambda value: value["candidates"][0].__setitem__(
+                    "trade_selected", 1
+                ),
+            ),
+            (
+                "market_order",
+                lambda value: value["candidates"][0].__setitem__(
+                    "market_order_allowed", 1
+                ),
+            ),
+            (
+                "watchlist_risk_gate",
+                lambda value: value["stage_watchlist"][0].__setitem__(
+                    "risk_gate_pass", 1
+                ),
+            ),
+            (
+                "order_type",
+                lambda value: value["candidates"][0].__setitem__(
+                    "order_type", "MARKET"
+                ),
+            ),
+            (
+                "recommended_price",
+                lambda value: value["candidates"][0].__setitem__(
+                    "recommended_max_price", 99.0
+                ),
+            ),
+            (
+                "guidance_only",
+                lambda value: value.__setitem__("guidance_only", False),
+            ),
+        )
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                self._write_runtime()
+                value = json.loads(action_path.read_text())
+                mutate(value)
+                _write_json(action_path, value)
+                with self.assertRaises(DecisionModelFreezeError):
+                    self._validate_action()
+
+        self._write_runtime()
+        symlink_target = action_path.with_name("action_plan_target.json")
+        symlink_target.write_bytes(action_path.read_bytes())
+        action_path.unlink()
+        action_path.symlink_to(symlink_target)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "symlink"):
+            self._validate_action()
+
     def test_four_surface_runtime_passes_and_nested_oos_is_not_formal_trade(self):
         with self.assertRaisesRegex(DecisionModelFreezeError, "40,355-row SHA77e"):
             validate_runtime_artifacts(

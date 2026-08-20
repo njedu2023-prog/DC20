@@ -87,6 +87,22 @@ def _read_csv_any(path: Path) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def _read_csv_exact_text(path: Path) -> pd.DataFrame:
+    for enc in ("utf-8", "utf-8-sig", "gbk"):
+        try:
+            return pd.read_csv(
+                path,
+                encoding=enc,
+                dtype=str,
+                keep_default_na=False,
+                na_filter=False,
+            )
+        except Exception:
+            continue
+    _fail(f"无法按原始文本读取 CSV：{path.as_posix()}")
+    return pd.DataFrame()
+
+
 def _ensure_cols(df: pd.DataFrame, required: Iterable[str], label: str) -> None:
     missing = [c for c in required if c not in df.columns]
     if missing:
@@ -170,13 +186,94 @@ def _allows_unpromoted_no_trade(
     *,
     picked: int,
 ) -> bool:
-    model = action_plan.get("model") or {}
+    model = action_plan.get("model")
+    candidates = action_plan.get("candidates")
     return bool(
         action_plan.get("status_code") == "NO_TRADE_MODEL_NOT_PROMOTED"
+        and type(action_plan.get("formal_buy_count")) is int
         and action_plan.get("formal_buy_count") == 0
+        and isinstance(model, dict)
         and model.get("promoted") is False
-        and picked <= 0
+        and action_plan.get("guidance_only") is True
+        and action_plan.get("broker_connected") is False
+        and action_plan.get("order_execution") == "manual_only"
+        and isinstance(candidates, list)
+        and all(
+            isinstance(candidate, dict)
+            and candidate.get("action") in {"SHADOW_ONLY", "REJECT"}
+            for candidate in candidates
+        )
+        and type(picked) is int
+        and picked == 0
     )
+
+
+def _strict_picked_count(payload: dict) -> int:
+    picked = payload.get("picked")
+    if type(picked) is not int or picked < 0:
+        _fail("strict semantic eval.picked 必须是 JSON 原生非负整数")
+    return picked
+
+
+def _validate_missing_acceptance_fallback(cand_text_df: pd.DataFrame) -> None:
+    if cand_text_df.empty:
+        _fail("learning_acceptance 缺失时候选表不得为空")
+    exact_false_columns = (
+        "p_fill_model_loaded",
+        "eret_model_loaded",
+        "p_fill_model_acceptance_pass",
+        "eret_model_acceptance_pass",
+    )
+    exact_reason_columns = (
+        "p_fill_degrade_reason",
+        "eret_degrade_reason",
+    )
+    missing = [
+        name
+        for name in (*exact_false_columns, *exact_reason_columns)
+        if name not in cand_text_df.columns
+    ]
+    if missing:
+        _fail(f"learning_acceptance 缺失时候选表缺少严格降级证据列：{missing}")
+    for name in exact_false_columns:
+        values = cand_text_df[name]
+        if not values.map(lambda value: type(value) is str and value == "False").all():
+            _fail(f"learning_acceptance 缺失时 {name} 必须逐行精确为 False")
+    expected_reason = (
+        "model_rejected_by_learning_acceptance:acceptance_file_missing"
+    )
+    for name in exact_reason_columns:
+        values = cand_text_df[name]
+        if not values.map(
+            lambda value: type(value) is str and value == expected_reason
+        ).all():
+            _fail(
+                f"learning_acceptance 缺失时 {name} 必须逐行精确为 "
+                f"{expected_reason}"
+            )
+
+
+def _validate_learning_acceptance(
+    *,
+    learning_path: Path,
+    action_plan_path: Path,
+    picked: int,
+    cand_text_df: pd.DataFrame,
+) -> None:
+    action_plan = _read_json_any(action_plan_path)
+    if learning_path.exists():
+        _fail(
+            "冻结部署禁用在线学习；发现未受冻结合同约束的 learning_acceptance 产物："
+            f"{learning_path.as_posix()}"
+        )
+    if _allows_unpromoted_no_trade(action_plan, picked=picked):
+        _validate_missing_acceptance_fallback(cand_text_df)
+        _warn(
+            "learning_acceptance 不存在；学习/刷新禁用且当前正式路径严格不可交易，"
+            "且双模型逐行确认 acceptance_file_missing 降级，按冻结 NO_TRADE 合同放行"
+        )
+        return
+    _fail(f"严格语义校验需要学习验收产物：{learning_path.as_posix()}")
 
 
 def _validate_semantic_health(
@@ -185,6 +282,7 @@ def _validate_semantic_health(
     trade_date: str,
     payload: dict,
     cand_df: pd.DataFrame,
+    cand_text_df: pd.DataFrame,
 ) -> None:
     if is_a_share_trading_day is None:
         _fail("无法导入 A 股交易日历校验函数 top10decision.writers.io_contract.is_a_share_trading_day")
@@ -192,22 +290,14 @@ def _validate_semantic_health(
         _fail(f"exec_date={exec_date} 不是严格 A 股交易日")
     _ok(f"exec_date={exec_date} 通过严格 A 股交易日历校验")
 
-    picked = int(pd.to_numeric(pd.Series([payload.get("picked", 0)]), errors="coerce").fillna(0).iloc[0])
+    picked = _strict_picked_count(payload)
     learning_path = Path("outputs/learning/learning_acceptance_latest.json")
-    learning = _read_json_any(learning_path)
-    if not learning:
-        _fail(f"严格语义校验需要学习验收产物：{learning_path.as_posix()}")
-    if learning.get("overall_pass") is not True:
-        action_plan = _read_json_any(Path("outputs/decision/action_plan_latest.json"))
-        if _allows_unpromoted_no_trade(action_plan, picked=picked):
-            _warn(
-                "learning_acceptance overall_pass=false；"
-                "V9模型未晋级且正式买入/picked均为0，Top1/Top2影子验证继续累计，按严格NO_TRADE放行"
-            )
-        else:
-            _fail(f"learning_acceptance overall_pass != true: {learning.get('overall_pass')}")
-    else:
-        _ok("learning_acceptance overall_pass=true")
+    _validate_learning_acceptance(
+        learning_path=learning_path,
+        action_plan_path=Path("outputs/decision/action_plan_latest.json"),
+        picked=picked,
+        cand_text_df=cand_text_df,
+    )
 
     for prefix in ("pfill", "eret"):
         missing_col = f"{prefix}_model_missing_feature_count"
@@ -360,6 +450,7 @@ def main() -> int:
     candidates_snapshot = Path(f"data/decision/decision_candidates_{trade_date}.csv")
     _ensure_exists(candidates_snapshot, "decision_candidates(trade_date)")
     cand_df = _read_csv_any(candidates_snapshot)
+    cand_text_df = _read_csv_exact_text(candidates_snapshot)
     _ensure_cols(
         cand_df,
         ["ts_code", "name", "p_fill_pred", "e_ret_pred", "cost_est", "risk_penalty", "ev_pred", "signal_date", "exec_date"],
@@ -410,6 +501,7 @@ def main() -> int:
             trade_date=trade_date,
             payload=payload,
             cand_df=cand_df,
+            cand_text_df=cand_text_df,
         )
 
     # ---- 兜底：确保 outputs/decision 至少有内容

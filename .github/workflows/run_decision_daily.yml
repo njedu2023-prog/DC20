@@ -179,16 +179,64 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"; else python scripts/build_market_fs.py; fi
+      - name: Rebuild the frozen Auction runtime and action plan in workspace
+        if: ${{ steps.session.outputs.write_eligible == 'true' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python scripts/replay_frozen_canonical_v2.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --report "${RUNNER_TEMP}/daily-frozen-replay.json" > /dev/null
+      - name: Pin the last Auction-validated action plan
+        id: preserved_action
+        if: ${{ steps.session.outputs.write_eligible == 'true' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+              validate_action_plan_artifact,
+          )
+
+          root=Path('.').resolve()
+          manifest=load_model_freeze(root, required=True)
+          audit=validate_action_plan_artifact(
+              root,
+              manifest,
+              force_enforcement=not model_freeze_active(manifest),
+          )
+          if audit.get('validated') is not True or audit.get('enforced') is not True:
+              raise SystemExit('Daily action plan contract was not enforced')
+          path=root / 'outputs/decision/action_plan_latest.json'
+          raw=path.read_bytes()
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
+              output.write(f"sha256={hashlib.sha256(raw).hexdigest()}\n")
+          PY
       - name: Run Daily Decision once with learning and refresh disabled
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           TRADE_DATE: ${{ inputs.trade_date }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
+          PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then python scripts/run_v2.py --trade-date "${TRADE_DATE}"; else python scripts/run_v2.py; fi
-          python scripts/publish_decision_action.py
+          python - <<'PY'
+          import hashlib, hmac, os
+          from pathlib import Path
+
+          path=Path('outputs/decision/action_plan_latest.json')
+          actual=hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ''
+          if not hmac.compare_digest(actual, os.environ['PRESERVED_ACTION_SHA256']):
+              raise SystemExit('Daily modified the preserved Auction action plan')
+          PY
           python scripts/validate_io_contract.py --strict-semantic
           if [ "${PUBLISH}" = "true" ]; then
             python scripts/validate_decision_model_freeze.py --runtime
@@ -206,14 +254,16 @@ jobs:
           git add -A -- data/market/raw data/market/trade_cal_sse.csv 'data/market/features_base_*.csv' 'data/market/features_limit_*.csv' 'data/market/truth_close_*.csv' 'data/market/_meta_*.json'
           git add -A -- docs/weights docs/signals
           git add -A -- outputs/decision data/decision
+          git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json' 'outputs/decision/report_index.json'
           git add -A -- 'docs/reports/*.md'
           git diff --cached --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
+          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
+          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily paths staged: {bad}')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
@@ -316,8 +366,9 @@ jobs:
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
+          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
+          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily publish paths staged: {bad}')
           if not paths: raise SystemExit('Daily candidate patch became empty')
           PY

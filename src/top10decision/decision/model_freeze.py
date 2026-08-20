@@ -3261,6 +3261,245 @@ def validate_behavior_artifacts(
     return audits
 
 
+def _validate_action_plan_contract(
+    root_path: Path,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    production = _require_mapping(manifest.get("production"), "manifest.production")
+    canonical = _require_mapping(
+        production.get("canonical_v2"), "manifest.production.canonical_v2"
+    )
+    expected_model = _require_mapping(
+        canonical.get("model"), "manifest.production.canonical_v2.model"
+    )
+    expected_selector = _require_mapping(
+        canonical.get("trade_selector"),
+        "manifest.production.canonical_v2.trade_selector",
+    )
+    action_path = root_path / "outputs/decision/action_plan_latest.json"
+    if action_path.is_symlink() or not action_path.is_file():
+        _fail("frozen action plan must be a regular non-symlink file")
+    action = _read_json(action_path)
+    action_model = _require_mapping(action.get("model"), "action_plan.model")
+    action_model_v2 = _action_layer_values(
+        action_model, layer="model", expected=expected_model
+    )
+    action_selector_v2 = _action_layer_values(
+        action_model, layer="trade_selector", expected=expected_selector
+    )
+    if action_model_v2 != expected_model or action_selector_v2 != expected_selector:
+        _fail("action plan canonical V2 differs from manifest")
+    if action.get("status_code") != production["formal_status"]:
+        _fail("action plan formal status drift detected")
+    formal_buy_count = _require_int(
+        action.get("formal_buy_count"), "action_plan.formal_buy_count"
+    )
+    if formal_buy_count != production["formal_buy_count"]:
+        _fail("action plan formal buy count drift detected")
+    if action.get("guidance_only") is not True:
+        _fail("frozen action plan must remain guidance-only")
+    if action.get("broker_connected") is not False:
+        _fail("frozen action plan must not connect a broker")
+    if action.get("order_execution") != "manual_only":
+        _fail("frozen action plan must remain manual-only")
+    candidates = action.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        _fail("action_plan.candidates must be a nonempty list")
+    buy_count = 0
+    shadow_count = 0
+    candidate_projection: dict[
+        str,
+        tuple[str, int, float, int, int, int, int, str, Any, Any],
+    ] = {}
+    for row_number, candidate in enumerate(candidates):
+        if not isinstance(candidate, dict):
+            _fail(f"action_plan.candidates[{row_number}] must be an object")
+        context = f"action_plan.candidates[{row_number}]"
+        candidate_action = _exact_text(candidate.get("action"), f"{context}.action")
+        candidate_code = candidate.get("ts_code")
+        if (
+            not isinstance(candidate_code, str)
+            or not CODE_PATTERN.fullmatch(candidate_code)
+            or candidate_code in candidate_projection
+        ):
+            _fail(f"{context} has invalid/duplicate ts_code")
+        if candidate_action == "BUY":
+            buy_count += 1
+        elif candidate_action not in {"REJECT", "SHADOW_ONLY"}:
+            _fail("NO_TRADE action plan contains an unauthorized action")
+        shadow_selected = _require_binary_int(
+            candidate.get("trade_shadow_selected"),
+            f"{context}.trade_shadow_selected",
+        )
+        expected_action = "SHADOW_ONLY" if shadow_selected == 1 else "REJECT"
+        if candidate_action != expected_action:
+            _fail(
+                "NO_TRADE candidate SHADOW_ONLY must match the relative-best-two flag"
+            )
+        shadow_count += shadow_selected
+        trade_selected = _require_binary_int(
+            candidate.get("trade_selected"), f"{context}.trade_selected"
+        )
+        selector_promoted = _require_binary_int(
+            candidate.get("trade_selector_promoted"),
+            f"{context}.trade_selector_promoted",
+        )
+        market_order_allowed = _require_binary_int(
+            candidate.get("market_order_allowed"),
+            f"{context}.market_order_allowed",
+        )
+        risk_gate_pass = _require_binary_int(
+            candidate.get("risk_gate_pass"), f"{context}.risk_gate_pass"
+        )
+        if any(
+            value != 0
+            for value in (
+                trade_selected,
+                selector_promoted,
+                market_order_allowed,
+                risk_gate_pass,
+            )
+        ):
+            _fail("NO_TRADE action candidate exposes an executable or promoted state")
+        if candidate.get("order_type") != "LIMIT_ONLY_MANUAL":
+            _fail("NO_TRADE action candidate must remain limit-only/manual")
+        if candidate.get("recommended_max_price") is not None:
+            _fail("NO_TRADE action candidate must not expose a recommended max price")
+        if candidate.get("max_auction_change_pct") is not None:
+            _fail("NO_TRADE action candidate must not expose an auction gap limit")
+        if type(candidate.get("target_weight")) not in (int, float):
+            _fail(f"{context}.target_weight invalid")
+        target_weight = float(candidate["target_weight"])
+        if not math.isfinite(target_weight) or target_weight != 0.0:
+            _fail("NO_TRADE action candidates require zero target_weight")
+        candidate_projection[candidate_code] = (
+            candidate_action,
+            shadow_selected,
+            target_weight,
+            trade_selected,
+            selector_promoted,
+            market_order_allowed,
+            risk_gate_pass,
+            candidate["order_type"],
+            candidate.get("recommended_max_price"),
+            candidate.get("max_auction_change_pct"),
+        )
+    if buy_count != 0:
+        _fail("NO_TRADE action plan contains BUY candidates")
+    if _require_int(action.get("shadow_count"), "action_plan.shadow_count") != shadow_count:
+        _fail("action plan shadow count drift detected")
+    if model_freeze_active(manifest) and shadow_count != 2:
+        _fail("active frozen action plan must preserve relative-best-two")
+    if action_model.get("version") != production["model_version"]:
+        _fail("action plan model version drift detected")
+    if action_model.get("promoted") is not False:
+        _fail("action plan model must remain not promoted")
+    nested_selector = _require_mapping(
+        action_model.get("trade_selector"), "action_plan.model.trade_selector"
+    )
+    if nested_selector.get("version") != production["trade_selector_version"]:
+        _fail("action plan selector version drift detected")
+    if nested_selector.get("promoted") is not False:
+        _fail("action plan selector must remain not promoted")
+    watch_contract = manifest["behavior_contract"]["action_watchlist"]
+    if action_path.relative_to(root_path).as_posix() != watch_contract["path"]:
+        _fail("action watchlist contract path does not name action_plan_latest.json")
+    watch_actual = compute_action_watchlist_fingerprint(action, watch_contract)
+    if (
+        watch_actual["rows"] != watch_contract["rows"]
+        or watch_actual["sha256"] != watch_contract["sha256"]
+        or watch_actual["shadow_only_rows"] != watch_contract["shadow_only_rows"]
+    ):
+        _fail("frozen action watchlist behavior drift detected")
+    if watch_actual["shadow_only_rows"] != shadow_count:
+        _fail("action watchlist/candidate relative-best-two drift detected")
+    stage_watchlist = action.get("stage_watchlist")
+    if not isinstance(stage_watchlist, list) or not stage_watchlist:
+        _fail("action_plan.stage_watchlist must be a nonempty list")
+    watch_codes: set[str] = set()
+    for row_number, item in enumerate(stage_watchlist):
+        if not isinstance(item, dict):
+            _fail(f"action_plan.stage_watchlist[{row_number}] must be an object")
+        code = item.get("ts_code")
+        if not isinstance(code, str) or code in watch_codes:
+            _fail(f"action_plan.stage_watchlist[{row_number}] has invalid ts_code")
+        watch_codes.add(code)
+        candidate_values = candidate_projection.get(code)
+        if candidate_values is None:
+            _fail(f"action watchlist row {row_number} has no matching candidate")
+        watch_values = (
+            item.get("action"),
+            _require_binary_int(
+                item.get("trade_shadow_selected"),
+                f"action watchlist trade_shadow_selected[{row_number}]",
+            ),
+            float(item.get("target_weight")),
+            _require_binary_int(
+                item.get("trade_selected"),
+                f"action watchlist trade_selected[{row_number}]",
+            ),
+            _require_binary_int(
+                item.get("trade_selector_promoted"),
+                f"action watchlist trade_selector_promoted[{row_number}]",
+            ),
+            _require_binary_int(
+                item.get("market_order_allowed"),
+                f"action watchlist market_order_allowed[{row_number}]",
+            ),
+            _require_binary_int(
+                item.get("risk_gate_pass"),
+                f"action watchlist risk_gate_pass[{row_number}]",
+            ),
+            item.get("order_type"),
+            item.get("recommended_max_price"),
+            item.get("max_auction_change_pct"),
+        )
+        if watch_values != candidate_values:
+            _fail(f"action watchlist row {row_number} differs from its candidate")
+    if not watch_codes.issubset(candidate_projection):
+        _fail("action watchlist contains an unknown candidate")
+    return {
+        "present": True,
+        "status_code": action["status_code"],
+        "formal_buy_count": formal_buy_count,
+        "buy_candidate_count": buy_count,
+        "shadow_candidate_count": shadow_count,
+        "model_v2_match": True,
+        "selector_v2_match": True,
+        "watchlist": watch_actual,
+    }
+
+
+def validate_action_plan_artifact(
+    root: Path | str,
+    manifest: dict[str, Any],
+    *,
+    force_enforcement: bool = False,
+) -> dict[str, Any]:
+    enforce = model_freeze_active(manifest) or force_enforcement
+    if not enforce:
+        return {"active": False, "validated": True, "enforced": False}
+    root_path = Path(root).resolve()
+    if manifest.get("schema_version") != FREEZE_SCHEMA_VERSION:
+        _fail("canonical V2 action enforcement requires freeze schema V2")
+    _validate_v2_manifest(root_path, manifest, require_complete=force_enforcement)
+    pinned_files = validate_pinned_files(
+        root_path,
+        manifest,
+        force_enforcement=force_enforcement,
+    )
+    action = _validate_action_plan_contract(root_path, manifest)
+    return {
+        "active": model_freeze_active(manifest),
+        "validated": True,
+        "enforced": True,
+        "forced_enforcement": force_enforcement
+        and not model_freeze_active(manifest),
+        "pinned_files": pinned_files,
+        "action_plan": action,
+    }
+
+
 def validate_runtime_artifacts(
     root: Path | str,
     manifest: dict[str, Any],
@@ -3486,6 +3725,11 @@ def validate_runtime_artifacts(
 
     action_checks: dict[str, Any] = {}
     if check_action_plan:
+        # Keep standalone Daily action verification and the full runtime gate on
+        # one fail-closed contract. The legacy inline projection below is kept
+        # temporarily for return-shape compatibility and must only run after
+        # this stricter shared validator succeeds.
+        _validate_action_plan_contract(root_path, manifest)
         action_path = root_path / "outputs/decision/action_plan_latest.json"
         if not action_path.is_file():
             _fail("frozen action plan is required but missing")
@@ -3784,6 +4028,7 @@ __all__ = [
     "load_verified_frozen_history_snapshot",
     "model_freeze_active",
     "validate_behavior_artifacts",
+    "validate_action_plan_artifact",
     "validate_pinned_files",
     "validate_runtime_artifacts",
 ]

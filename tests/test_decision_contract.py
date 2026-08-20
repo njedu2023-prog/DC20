@@ -35,7 +35,11 @@ from scripts.resolve_sample_maturity import (  # noqa: E402
     write_csv as write_sample_maturity_csv,
 )
 from scripts.sync_tushare_minute import _collect_codes  # noqa: E402
-from scripts.validate_io_contract import _allows_unpromoted_no_trade  # noqa: E402
+from scripts.validate_io_contract import (  # noqa: E402
+    _allows_unpromoted_no_trade,
+    _strict_picked_count,
+    _validate_learning_acceptance,
+)
 from top10decision.data.tushare_minute import (  # noqa: E402
     TushareClient,
     opening_auction_price_from_snapshot,
@@ -285,21 +289,165 @@ class DecisionStrictSemanticContractTests(unittest.TestCase):
         plan = {
             "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
             "formal_buy_count": 0,
+            "guidance_only": True,
+            "broker_connected": False,
+            "order_execution": "manual_only",
+            "candidates": [{"action": "SHADOW_ONLY"}, {"action": "REJECT"}],
             "model": {"promoted": False},
         }
         self.assertTrue(_allows_unpromoted_no_trade(plan, picked=0))
 
-    def test_no_trade_exception_fails_closed_when_any_guard_is_missing(self) -> None:
+    def test_pending_model_is_never_a_missing_learning_exception(self) -> None:
         plan = {
-            "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
-            "formal_buy_count": 1,
+            "status_code": "PENDING_AUCTION_MODEL",
+            "formal_buy_count": 0,
+            "guidance_only": True,
+            "broker_connected": False,
+            "order_execution": "manual_only",
+            "candidates": [{"action": "PENDING"}, {"action": "SHADOW_ONLY"}],
             "model": {"promoted": False},
         }
         self.assertFalse(_allows_unpromoted_no_trade(plan, picked=0))
-        plan["formal_buy_count"] = 0
-        plan["model"]["promoted"] = True
-        self.assertFalse(_allows_unpromoted_no_trade(plan, picked=0))
-        plan["model"]["promoted"] = False
+        self.assertFalse(_allows_unpromoted_no_trade(plan, picked=1))
+        self.assertFalse(_allows_unpromoted_no_trade(plan, picked=-1))
+
+    def test_strict_picked_rejects_non_json_integer_aliases(self) -> None:
+        self.assertEqual(_strict_picked_count({"picked": 0}), 0)
+        for alias in (False, 0.0, "0", float("nan"), None, -1):
+            with self.subTest(alias=alias):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    _strict_picked_count({"picked": alias})
+
+    def test_absent_learning_file_uses_only_the_strict_frozen_no_trade_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            learning_path = root / "outputs/learning/learning_acceptance_latest.json"
+            action_path = root / "outputs/decision/action_plan_latest.json"
+            action_path.parent.mkdir(parents=True)
+            action_path.write_text(
+                json.dumps(
+                    {
+                        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+                        "formal_buy_count": 0,
+                        "guidance_only": True,
+                        "broker_connected": False,
+                        "order_execution": "manual_only",
+                        "candidates": [{"action": "SHADOW_ONLY"}],
+                        "model": {"promoted": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            expected_reason = (
+                "model_rejected_by_learning_acceptance:acceptance_file_missing"
+            )
+            candidates = pd.DataFrame(
+                {
+                    "p_fill_model_loaded": ["False"],
+                    "eret_model_loaded": ["False"],
+                    "p_fill_model_acceptance_pass": ["False"],
+                    "eret_model_acceptance_pass": ["False"],
+                    "p_fill_degrade_reason": [expected_reason],
+                    "eret_degrade_reason": [expected_reason],
+                }
+            )
+
+            _validate_learning_acceptance(
+                learning_path=learning_path,
+                action_plan_path=action_path,
+                picked=0,
+                cand_text_df=candidates,
+            )
+
+            with self.assertRaisesRegex(SystemExit, "2"):
+                _validate_learning_acceptance(
+                    learning_path=learning_path,
+                    action_plan_path=action_path,
+                    picked=0,
+                    cand_text_df=candidates.iloc[0:0],
+                )
+
+            for alias in (0, False, "false", "FALSE", "0", ""):
+                unsafe_alias = candidates.copy().astype(object)
+                unsafe_alias.loc[0, "p_fill_model_loaded"] = alias
+                with self.subTest(alias=alias):
+                    with self.assertRaisesRegex(SystemExit, "2"):
+                        _validate_learning_acceptance(
+                            learning_path=learning_path,
+                            action_plan_path=action_path,
+                            picked=0,
+                            cand_text_df=unsafe_alias,
+                        )
+
+            for column in candidates.columns:
+                unsafe = candidates.copy().astype(object)
+                if column.endswith("reason"):
+                    unsafe.loc[0, column] = "acceptance_file_missing"
+                else:
+                    unsafe.loc[0, column] = True
+                with self.subTest(column=column, kind="mutation"):
+                    with self.assertRaisesRegex(SystemExit, "2"):
+                        _validate_learning_acceptance(
+                            learning_path=learning_path,
+                            action_plan_path=action_path,
+                            picked=0,
+                            cand_text_df=unsafe,
+                        )
+                missing_column = candidates.drop(columns=[column])
+                with self.subTest(column=column, kind="missing"):
+                    with self.assertRaisesRegex(SystemExit, "2"):
+                        _validate_learning_acceptance(
+                            learning_path=learning_path,
+                            action_plan_path=action_path,
+                            picked=0,
+                            cand_text_df=missing_column,
+                        )
+
+            learning_path.parent.mkdir(parents=True)
+            for payload in (
+                "not-json",
+                json.dumps({"overall_pass": False}),
+                json.dumps({"overall_pass": 0}),
+                json.dumps({"overall_pass": True}),
+                json.dumps({"arbitrary": "stub"}),
+            ):
+                learning_path.write_text(payload, encoding="utf-8")
+                with self.subTest(existing_acceptance=payload):
+                    with self.assertRaisesRegex(SystemExit, "2"):
+                        _validate_learning_acceptance(
+                            learning_path=learning_path,
+                            action_plan_path=action_path,
+                            picked=0,
+                            cand_text_df=candidates,
+                        )
+
+    def test_no_trade_exception_fails_closed_when_any_guard_is_missing(self) -> None:
+        plan = {
+            "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+            "formal_buy_count": 0,
+            "guidance_only": True,
+            "broker_connected": False,
+            "order_execution": "manual_only",
+            "candidates": [{"action": "SHADOW_ONLY"}],
+            "model": {"promoted": False},
+        }
+        for path, unsafe in (
+            (("status_code",), "PENDING_AUCTION_MODEL"),
+            (("formal_buy_count",), 1),
+            (("guidance_only",), False),
+            (("broker_connected",), True),
+            (("order_execution",), "broker_api"),
+            (("model", "promoted"), True),
+            (("candidates", 0, "action"), "PENDING"),
+            (("candidates", 0, "action"), "BUY"),
+        ):
+            mutated = json.loads(json.dumps(plan))
+            target = mutated
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = unsafe
+            with self.subTest(path=path):
+                self.assertFalse(_allows_unpromoted_no_trade(mutated, picked=0))
         self.assertFalse(_allows_unpromoted_no_trade(plan, picked=1))
 
 

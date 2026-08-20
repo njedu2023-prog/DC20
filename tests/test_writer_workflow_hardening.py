@@ -132,6 +132,81 @@ def test_every_writer_defaults_manual_dispatch_to_read_only_dry_run() -> None:
         assert "github.ref == 'refs/heads/main'" in text, name
 
 
+def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
+    daily = _text("run_decision_daily.yml")
+    preserve_step = daily.split(
+        "- name: Pin the last Auction-validated action plan",
+        1,
+    )[1].split("- name: Run Daily Decision once with learning and refresh disabled", 1)[0]
+    run_step = daily.split(
+        "- name: Run Daily Decision once with learning and refresh disabled",
+        1,
+    )[1].split("- name: Build exact allowlisted Daily candidate patch", 1)[0]
+    assert "outputs/decision/action_plan_latest.json" in preserve_step
+    assert "validate_action_plan_artifact" in preserve_step
+    assert "force_enforcement=not model_freeze_active(manifest)" in preserve_step
+    assert "audit.get('validated') is not True" in preserve_step
+    assert "audit.get('enforced') is not True" in preserve_step
+    assert "hashlib.sha256(raw).hexdigest()" in preserve_step
+    assert "python scripts/replay_frozen_canonical_v2.py" in daily
+    assert "--report \"${RUNNER_TEMP}/daily-frozen-replay.json\"" in daily
+    assert "python scripts/run_v2.py" in run_step
+    assert "PRESERVED_ACTION_SHA256" in run_step
+    assert "hmac.compare_digest" in run_step
+    assert "python scripts/validate_io_contract.py --strict-semantic" in run_step
+    assert "validate_decision_model_freeze.py --runtime" in run_step
+    assert "validate_decision_model_freeze.py --runtime --force-inactive" in run_step
+    assert "validate_decision_model_freeze.py --history-only" not in daily
+    assert "python scripts/publish_decision_action.py" not in run_step
+    assert "python scripts/publish_decision_action.py" not in daily
+    assert "git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json'" in daily
+    assert "forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in daily
+
+    auction = _text("run_auction_v3.yml")
+    assert "python scripts/publish_decision_action.py" in auction
+    assert "python scripts/validate_decision_model_freeze.py --runtime" in auction
+
+
+def test_daily_action_plan_pin_and_byte_preservation_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    pin_source = _embedded_python_after(
+        daily,
+        "- name: Pin the last Auction-validated action plan",
+    )
+    preserve_source = _embedded_python_after(
+        daily,
+        "- name: Run Daily Decision once with learning and refresh disabled",
+    )
+    action_path = tmp_path / "outputs/decision/action_plan_latest.json"
+    action_path.parent.mkdir(parents=True)
+    action = {
+        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+        "formal_buy_count": 0,
+        "guidance_only": True,
+        "broker_connected": False,
+        "order_execution": "manual_only",
+        "candidates": [{"action": "SHADOW_ONLY"}, {"action": "REJECT"}],
+        "model": {"promoted": False},
+    }
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    output_path = tmp_path / "github-output.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    assert "validate_action_plan_artifact" in pin_source
+    expected = hashlib.sha256(action_path.read_bytes()).hexdigest()
+    monkeypatch.setenv("PRESERVED_ACTION_SHA256", expected)
+    exec(compile(preserve_source, "<daily-action-preserve>", "exec"), {})
+
+    action["status_code"] = "PENDING_AUCTION_MODEL"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    with pytest.raises(SystemExit, match="modified the preserved Auction action plan"):
+        exec(compile(preserve_source, "<daily-action-preserve>", "exec"), {})
+
+
 def test_compute_jobs_are_read_only_and_never_publish() -> None:
     for name in WRITERS:
         text = _text(name)
