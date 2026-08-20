@@ -34,6 +34,9 @@ from scripts.validate_backfill_artifacts import (  # noqa: E402
     HISTORY_NULLABLE_NUMERIC_COLUMNS,
     HISTORY_TEXT_COLUMNS,
     _covered_signal_dates,
+    _date_list,
+    _native_int,
+    _read_json,
     _sha256_frame as backfill_frame_sha256,
     validate_backfill_artifacts,
 )
@@ -1109,12 +1112,26 @@ class DecisionCalendarContractTests(unittest.TestCase):
             )
         short_part.unlink()
 
-        checked_in_coverage = _covered_signal_dates(
+        checked_in_history_root = (
             ROOT / "data/auction_v3/history" / EXIT_POLICY_VERSION
         )
-        self.assertEqual(len(checked_in_coverage), 714)
-        self.assertEqual(min(checked_in_coverage), "20230822")
-        self.assertEqual(max(checked_in_coverage), "20260804")
+        checked_in_coverage = _covered_signal_dates(checked_in_history_root)
+        checked_in_manifest = _read_json(
+            checked_in_history_root / "manifest_latest.json",
+            "checked-in history manifest",
+        )
+        checked_in_total = _native_int(
+            checked_in_manifest.get("total_compact_signal_dates"),
+            "checked-in total_compact_signal_dates",
+            minimum=TARGET_HISTORY_DATES,
+        )
+        checked_in_targets = _date_list(
+            checked_in_manifest.get("target_signal_dates"),
+            "checked-in target_signal_dates",
+            allow_empty=False,
+        )
+        self.assertEqual(len(checked_in_coverage), checked_in_total)
+        self.assertTrue(set(checked_in_targets).issubset(checked_in_coverage))
 
         payload["target_window_signal_dates"] = payload[
             "target_window_signal_dates"

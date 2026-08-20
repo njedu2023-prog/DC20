@@ -1,6 +1,6 @@
 {
   "schema_version": "decision_model_freeze_v2",
-  "active": true,
+  "active": false,
   "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
   "training_cutoff_signal_date": "20260805",
   "history_snapshot": {
@@ -510,7 +510,7 @@
     "src/top10decision/engines/eret_engine.py": "346bd65fa0c416c2e8876f92552b66d29f0f4cfe411fb408e95bfb355536c071",
     "scripts/sync_market_raw.py": "cd559b8eaa1feb4ab06e71e0a6803d617b3f256026363983bbe1156b4f91b9fa",
     "src/top10decision/models/costs.py": "e73f654e524c1e641bdd484ab1deaca70ff22181f91533714bc64de576fb6b2d",
-    ".github/workflows/backfill_decision_v11_history.yml": "8224fd7b24a052c8463822c79468fc35365159939ddd1ca341c976fcf5d6d908",
+    ".github/workflows/backfill_decision_v11_history.yml": "c92d950d79f73b51a22cb6b0ec67c111baf7ea720c78e612a181bd6a380a997d",
     "tests/test_eret_safety.py": "7387a797d1e94077de03fba59c8894414a9d2b6e2b7f4d584fd47b185af5d160",
     "tests/test_sync_pred_source.py": "f43ff1e4f03f3784630564fbfc077aed1360e233a112d33647d599344f12383d",
     "src/top10decision/auction_v3/promotion_model.py": "af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170",
@@ -522,7 +522,7 @@
     "tests/test_canonical_runtime_v2.py": "d12f75de5c6b4f7613634f3bb11374e57f2d898b1c9db5ca21bf99ad1ff34739",
     "src/top10decision/data/tushare_minute.py": "95e14508dfb5fc30dbf9c6f4a788d2ae59f6334c13d71269ae6dc7a933070b81",
     "scripts/mock_jq_feedback.py": "7a7026663ffa8806d04e183e5f7ae76925f5aba0bcfe3b6350af31c2f22557f0",
-    "tests/test_decision_contract.py": "86bdfe24008e6c98bc66c756b8f8a6ba0a11e40083bac88755c2218f0628c29f",
+    "tests/test_decision_contract.py": "6d8db1636a679a74c4484d5b86278a2cbe45b8d037f0bf223325f70031fd1555",
     "src/top10decision/position/allocator.py": "35ab45aae6f6fa71891e6c9f79d2222f465b8dd763881ed35ef0730860564678",
     "tests/fixtures/decision_model_freeze_v1_46d8.json": "87605814bce9f2180e151ed91d6c16e2c22b46c3dcd147e8bdab7895c3f0975a",
     "src/top10decision/weights/engine.py": "858e38bae9733a3982e127ab4d89abc8472e03c314effe5f3c2b1af8c84b17ea",
@@ -580,7 +580,7 @@
     "src/top10decision/ingest.py": "2cd98e8b44265d1d847d264372145e2b9b78b176c8828ebab722fe6e501092a6",
     "src/top10decision/decision/canonical_fingerprint.py": "61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b",
     "scripts/publish_decision_action.py": "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275",
-    "tests/test_writer_workflow_hardening.py": "08a246baa24313cc7eae90209036360f5ba6f8f9e8c79357cee4deafea93210b",
+    "tests/test_writer_workflow_hardening.py": "8f68e8cb46cfba49acff161edccf8a63b083c5f186c9370d600089decfcc0a21",
     "src/top10decision/auction_v3/engine.py": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
     "scripts/train_pfill.py": "a429eec102479856e07d5b60cd1eec219ccb8479bad163c2fc9ec1a6061d7c4e",
     "src/top10decision/data/__init__.py": "0540706f7712331424a1716c03c11ae096c93e1a36612980eda2027ecaa2289c"

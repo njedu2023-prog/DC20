@@ -769,6 +769,9 @@ def test_backfill_uses_owner_scoped_frozen_runtime_gates() -> None:
     assert "python scripts/publish_decision_action.py" not in gates
     assert "python scripts/validate_backfill_artifacts.py" in gates
     assert "Backfill modified non-owner paths" in gates
+    assert gates.index("python scripts/validate_backfill_artifacts.py") < gates.index(
+        "test_decision_contract.py"
+    )
     assert 'git worktree add --detach "${runtime_root}"' in gates
     assert 'git -C "${runtime_root}" apply --index --binary' in gates
     assert 'python "${runtime_root}/scripts/replay_frozen_canonical_v2.py"' in gates
