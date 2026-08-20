@@ -13,9 +13,6 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from top10decision.auction_v3 import AuctionV3Config, AuctionV3Engine  # noqa: E402
-from top10decision.decision.action_plan import (  # noqa: E402
-    refresh_action_plan_observations,
-)
 from top10decision.decision.observation import (  # noqa: E402
     OBSERVATION_START_EXEC_DATE,
 )
@@ -69,7 +66,6 @@ def main() -> int:
         observation_validation_start_date=start_date,
     )
     ledger, metrics = AuctionV3Engine(config).settle_observations()
-    changed = refresh_action_plan_observations(root, start_date)
     print(
         json.dumps(
             {
@@ -80,9 +76,6 @@ def main() -> int:
                 "final_verified_trades": int(
                     metrics.get("final_verified_trades", 0) or 0
                 ),
-                "refreshed_action_plans": [
-                    str(path.relative_to(root)) for path in changed
-                ],
             },
             ensure_ascii=False,
             indent=2,

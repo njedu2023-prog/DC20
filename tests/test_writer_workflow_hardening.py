@@ -53,8 +53,6 @@ ALLOWLISTS = {
         "outputs/auction_v3/verification/manual_actual_latest.csv",
         "outputs/auction_v3/metrics/observation_cumulative_latest.json",
         "outputs/auction_v3/metrics/manual_actual_cumulative_latest.json",
-        "outputs/decision/action_plan_20*.json",
-        "outputs/decision/action_plan_latest.json",
         "data/market/trade_cal_sse.csv",
         "data/market/raw/**/stk_auction_o.csv",
         "data/market/raw/**/stk_auction_o.meta.json",
@@ -487,6 +485,41 @@ def test_verify_closed_session_cannot_reach_candidate_artifact_or_publisher() ->
     assert "steps.session.outputs.is_open == 'true' && steps.mode.outputs.publish == 'true'" in compute
     publish = text[text.index("\n  publish:") :]
     assert "needs.compute.outputs.has_changes == 'true'" in publish
+
+
+def test_verify_isolates_full_runtime_from_observation_settlement() -> None:
+    text = _text("verify_decision_observations.yml")
+    compute = text[text.index("  compute:") : text.index("\n  publish:")]
+    runtime = compute.split(
+        "- name: Validate frozen runtime in an isolated exact-base worktree", 1
+    )[1].split("- name: Settle observation truth without changing action ownership", 1)[0]
+    settle = compute.split(
+        "- name: Settle observation truth without changing action ownership", 1
+    )[1].split("- name: Build exact allowlisted Verify candidate patch", 1)[0]
+    assert 'runtime_root="${RUNNER_TEMP}/verify-runtime"' in runtime
+    assert 'git worktree add --detach "${runtime_root}"' in runtime
+    assert '--root "${runtime_root}"' in runtime
+    assert '--root "${GITHUB_WORKSPACE}"' not in runtime
+    assert "validate_decision_model_freeze.py" in runtime
+    assert "--runtime --force-inactive" in runtime
+    assert "--history-only" not in runtime
+    assert 'git worktree remove --force "${runtime_root}"' in runtime
+    assert "replay_frozen_canonical_v2.py" not in settle
+    assert "validate_decision_model_freeze.py" not in settle
+    assert "git status --porcelain=v1 --untracked-files=all -- outputs/decision" in settle
+    assert settle.count("git status --porcelain=v1") == 2
+    assert "python scripts/verify_decision_observations.py" in settle
+    assert "git add -A -- 'outputs/decision/action_plan_20*.json'" not in compute
+    assert "forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in compute
+    publish = text[text.index("\n  publish:") :]
+    assert "outputs/decision/action_plan_20*.json" not in publish
+    assert "forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in publish
+
+    verify_script = (ROOT / "scripts" / "verify_decision_observations.py").read_text(
+        encoding="utf-8"
+    )
+    assert "refresh_action_plan_observations" not in verify_script
+    assert "refreshed_action_plans" not in verify_script
 
 
 def test_truth_writers_do_not_keep_optional_or_continue_on_error_bypasses() -> None:

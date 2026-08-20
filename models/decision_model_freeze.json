@@ -1,6 +1,6 @@
 {
   "schema_version": "decision_model_freeze_v2",
-  "active": true,
+  "active": false,
   "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
   "training_cutoff_signal_date": "20260805",
   "history_snapshot": {
@@ -516,7 +516,7 @@
     "tests/test_promotion_model.py": "48c7408b9ac5108c9d762c79b9bbfb388f6afb0bf9ba47734ea3f788136ce09d",
     "src/top10decision/__init__.py": "c9c6884747acdcefa1a17d3b0b91ba6225502e38205ad3bf3b16ef913c07fc28",
     "src/top10decision/regime/simple_regime.py": "1e5c9248b35701ea8e1943fcb04d43cc50c071c6169dfa42f48d80b0917b042d",
-    ".github/workflows/verify_decision_observations.yml": "d90d41de1f9687bbdb726346626038558e9db27b1f2f164308fd17bdca11ee03",
+    ".github/workflows/verify_decision_observations.yml": "eeb8657832e8db4839b3c63af017cc12ceb86fbe513ed1a82e98cfb86664e185",
     ".github/workflows/run_auction_v3.yml": "55f06195c2e09d7f8c2a2a2e17da572a83006c52be4eee5d7532e7446c7825a6",
     "tests/test_canonical_runtime_v2.py": "d12f75de5c6b4f7613634f3bb11374e57f2d898b1c9db5ca21bf99ad1ff34739",
     "src/top10decision/data/tushare_minute.py": "95e14508dfb5fc30dbf9c6f4a788d2ae59f6334c13d71269ae6dc7a933070b81",
@@ -533,7 +533,7 @@
     "src/top10decision/decision/model_freeze.py": "783351f56a2c2983d4fd0b1c40e68b03a8250544a5a0b109d3095fc02f9c1859",
     "tests/test_decision_regime_guardrails.py": "5d5b19ca21afc01633e8f2083885a7d704d084f2ac3c17f3b123ede8b0d4578f",
     "tests/test_frozen_canonical_v2_replay.py": "c26a723a3b06575dd97855295a811a71f0a3fd08faefabd42fd81b163e5162a1",
-    "scripts/verify_decision_observations.py": "decb2437f03dcc910100ea56f33fd6c6fdda2944dd62df8129ad98a275537db8",
+    "scripts/verify_decision_observations.py": "2cefd01b39975233f9c2ad840fc6acca63eef3684a45b6750c31755aacdca712",
     "requirements.lock": "612ef31ce0996b739b319683b06878200604e04e8f915f32a946285044ff132c",
     "tests/test_decision_model_freeze.py": "b3e5f4b3847689d069a4a460f798f6fbd4510239488ac4542134617fac8a1ce7",
     "src/top10decision/decision/contracts.py": "50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917",
@@ -579,7 +579,7 @@
     "src/top10decision/ingest.py": "2cd98e8b44265d1d847d264372145e2b9b78b176c8828ebab722fe6e501092a6",
     "src/top10decision/decision/canonical_fingerprint.py": "61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b",
     "scripts/publish_decision_action.py": "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275",
-    "tests/test_writer_workflow_hardening.py": "2888fe3f688693d887796b400be47a7f511863aa6e63e4f43e73109be29c3be0",
+    "tests/test_writer_workflow_hardening.py": "450d39e33c2df6293139b44587d36e5fa5d1465ebc25ff7c8b734b40a43d0d46",
     "src/top10decision/auction_v3/engine.py": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
     "scripts/train_pfill.py": "a429eec102479856e07d5b60cd1eec219ccb8479bad163c2fc9ec1a6061d7c4e",
     "src/top10decision/data/__init__.py": "0540706f7712331424a1716c03c11ae096c93e1a36612980eda2027ecaa2289c"
