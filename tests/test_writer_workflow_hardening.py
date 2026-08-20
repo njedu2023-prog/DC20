@@ -28,8 +28,8 @@ ALLOWLISTS = {
         "models/decision_v12_frozen_history_20260805.csv.gz",
         "data/market/trade_cal_sse.csv",
         "data/market/minute_1m/**",
-        "data/market/raw/**/stk_auction_o.csv",
-        "data/market/raw/**/stk_auction_o.meta.json",
+        "data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv",
+        "data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json",
         "docs/reports/auction_v3*.html",
     ),
     "run_decision_daily.yml": (
@@ -55,16 +55,13 @@ ALLOWLISTS = {
         "outputs/auction_v3/metrics/observation_cumulative_latest.json",
         "outputs/auction_v3/metrics/manual_actual_cumulative_latest.json",
         "data/market/trade_cal_sse.csv",
-        "data/market/raw/**/stk_auction_o.csv",
-        "data/market/raw/**/stk_auction_o.meta.json",
+        "data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv",
+        "data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json",
     ),
     "backfill_decision_v11_history.yml": (
-        "data/auction_v3/history/**",
+        "data/auction_v3/history/tplus1_open_0930_v1/training_*.csv",
+        "data/auction_v3/history/tplus1_open_0930_v1/manifest_latest.json",
         "data/market/trade_cal_sse.csv",
-        "outputs/auction_v3/**",
-        "outputs/decision/action_plan_*.json",
-        "outputs/decision/report_index.json",
-        "docs/reports/auction_v3*.html",
     ),
 }
 
@@ -102,7 +99,10 @@ def _assert_publish_hardening(text: str, name: str) -> None:
     assert "candidate.patch.sha256" in compute, name
     assert "hashlib.sha256(patch.read_bytes()).hexdigest()" in compute, name
     assert "candidate.patch.sha256" in publish, name
-    assert "expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}" in publish, name
+    if name == "backfill_decision_v11_history.yml":
+        assert "expected_files = {'base_sha.txt', 'backfill-receipt.json', 'candidate.patch', 'candidate.patch.sha256'}" in publish, name
+    else:
+        assert "expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}" in publish, name
     assert "candidate envelope file set mismatch" in publish, name
     assert "candidate.patch SHA256 mismatch" in publish, name
     assert "publish_staged_paths.bin" in publish, name
@@ -756,6 +756,333 @@ def test_daily_action_plan_pin_and_byte_preservation_fail_closed(
         exec(compile(preserve_source, "<daily-action-preserve>", "exec"), {})
 
 
+def test_backfill_uses_owner_scoped_frozen_runtime_gates() -> None:
+    backfill = _text("backfill_decision_v11_history.yml")
+    gates = backfill.split(
+        "- name: Validate owner-scoped Backfill artifacts before candidate creation",
+        1,
+    )[1]
+    assert "python scripts/validate_io_contract.py" not in gates
+    assert "docs/signals/top10_latest.csv" not in gates
+    assert "python scripts/run_v2.py" not in gates
+    assert "python scripts/run_auction_v3.py" not in gates
+    assert "python scripts/publish_decision_action.py" not in gates
+    assert "python scripts/validate_backfill_artifacts.py" in gates
+    assert "Backfill modified non-owner paths" in gates
+    assert 'git worktree add --detach "${runtime_root}"' in gates
+    assert 'git -C "${runtime_root}" apply --index --binary' in gates
+    assert 'python "${runtime_root}/scripts/replay_frozen_canonical_v2.py"' in gates
+    assert "backfill-frozen-replay.json" in gates
+    assert "backfill_frozen_replay" in gates
+    assert '"${runtime_root}/scripts/validate_decision_model_freeze.py"' in gates
+    assert '--root "${runtime_root}" --runtime' in gates
+    assert '--root "${runtime_root}" --runtime --force-inactive' in gates
+    assert "TARGET_INDEPENDENT_OOS_DATES" in gates
+    assert "type(actual) is not int" in gates
+    assert "outputs/decision" not in backfill.split(
+        "- name: Build one exact allowlisted Backfill candidate patch", 1
+    )[1].split("- name: Upload immutable candidate patch", 1)[0]
+    assert "outputs/auction_v3" not in ALLOWLISTS["backfill_decision_v11_history.yml"]
+    assert "backfill-receipt.json" in gates
+    assert "expected_dirty_paths" in gates
+    publish = backfill.split("\n  publish:", 1)[1]
+    assert "validate_backfill_artifacts" in publish
+    assert "Backfill publisher patch exceeds the validated receipt inventory" in publish
+    assert publish.index("Setup pinned Python for publisher revalidation") < publish.index(
+        "validate_backfill_artifacts"
+    )
+    assert publish.index("--require-hashes -r requirements.lock") < publish.index(
+        "validate_backfill_artifacts"
+    )
+    assert publish.index("validate_backfill_artifacts") < publish.index(
+        "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
+    )
+
+
+def test_backfill_owner_guard_rejects_every_unreceipted_dirty_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = _text("backfill_decision_v11_history.yml")
+    source = _embedded_python_after(
+        text,
+        "- name: Validate owner-scoped Backfill artifacts before candidate creation",
+    )
+    validation = tmp_path / "validation.json"
+    tracked = tmp_path / "tracked.bin"
+    untracked = tmp_path / "untracked.bin"
+    expected = [
+        "data/market/trade_cal_sse.csv",
+        "data/auction_v3/history/tplus1_open_0930_v1/manifest_latest.json",
+        "data/auction_v3/history/tplus1_open_0930_v1/training_20260805_20260805.csv",
+    ]
+    validation.write_text(
+        json.dumps(
+            {
+                "validated": True,
+                "status": "produced",
+                "live_independent_oos_capacity": 500,
+                "expected_dirty_paths": expected,
+            }
+        ),
+        encoding="utf-8",
+    )
+    tracked.write_bytes(b"\0".join(path.encode() for path in expected) + b"\0")
+    untracked.write_bytes(b"")
+    monkeypatch.setenv("VALIDATION_REPORT", str(validation))
+    monkeypatch.setenv("TRACKED_DIRTY", str(tracked))
+    monkeypatch.setenv("UNTRACKED_DIRTY", str(untracked))
+    exec(compile(source, "<backfill-owner-guard-valid>", "exec"), {})
+
+    for extra in (
+        "data/auction_v3/history/tplus1_open_0930_v1/unbound.json",
+        "data/auction_v3/history/tplus1_open_0930_v1/nested/escape.csv",
+        "data/auction_v3/history/another_policy/training_escape.csv",
+        "docs/signals/top10_latest.csv",
+    ):
+        untracked.write_bytes(extra.encode() + b"\0")
+        with pytest.raises(SystemExit, match="modified non-owner paths"):
+            exec(compile(source, "<backfill-owner-guard-extra>", "exec"), {})
+
+
+def test_backfill_candidate_and_publisher_reject_nested_rename_and_nonregular_modes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backfill = _text("backfill_decision_v11_history.yml")
+    assert backfill.count("git diff --cached --no-renames --name-only -z") == 2
+    assert backfill.count("git ls-files --stage -z") == 2
+    candidate_step = backfill.split(
+        "- name: Build one exact allowlisted Backfill candidate patch",
+        1,
+    )[1].split("- name: Upload immutable candidate patch", 1)[0]
+    add_lines = [
+        line.strip()
+        for line in candidate_step.splitlines()
+        if line.strip().startswith("git add -A --")
+    ]
+    assert add_lines == [
+        "git add -A -- data/auction_v3/history/tplus1_open_0930_v1 data/market/trade_cal_sse.csv"
+    ]
+    assert all("*" not in line for line in add_lines)
+
+    compute_source = _embedded_python_blocks_between(
+        backfill,
+        "- name: Build one exact allowlisted Backfill candidate patch",
+        "- name: Upload immutable candidate patch",
+    )[0]
+    publish_source = _embedded_python_after(
+        backfill,
+        "- name: Apply exact base candidate and create one commit",
+    )
+
+    bad_paths = tmp_path / "bad-backfill-paths.bin"
+    bad_paths.write_bytes(b"outputs/auction_v3/escape.json\0")
+    empty_index = tmp_path / "empty-index.bin"
+    empty_index.write_bytes(b"")
+    monkeypatch.setenv("STAGED_PATHS", str(bad_paths))
+    monkeypatch.setenv("STAGED_INDEX", str(empty_index))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(bad_paths))
+    monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(empty_index))
+    with pytest.raises(SystemExit, match="non-allowlisted Backfill paths staged"):
+        exec(compile(compute_source, "<backfill-compute-segment>", "exec"), {})
+    with pytest.raises(SystemExit, match="non-allowlisted Backfill publish paths staged"):
+        exec(compile(publish_source, "<backfill-publish-segment>", "exec"), {})
+
+    repo = tmp_path / "backfill-git-case"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    source = repo / "unexpected.txt"
+    source.write_text("unexpected\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "unexpected.txt"], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=DC20 Test",
+            "-c",
+            "user.email=dc20-test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "baseline",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    destination = repo / (
+        "data/auction_v3/history/tplus1_open_0930_v1/training_allowed.csv"
+    )
+    destination.parent.mkdir(parents=True)
+    source.rename(destination)
+    symlink_path = repo / (
+        "data/auction_v3/history/tplus1_open_0930_v1/training_link.csv"
+    )
+    symlink_path.parent.mkdir(parents=True, exist_ok=True)
+    symlink_path.symlink_to("missing.html")
+    subprocess.run(
+        [
+            "git",
+            "add",
+            "-A",
+            "--",
+            "unexpected.txt",
+            "data/auction_v3/history/tplus1_open_0930_v1",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    visible = subprocess.run(
+        ["git", "diff", "--cached", "--no-renames", "--name-only", "-z"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert {item.decode() for item in visible.split(b"\0") if item} == {
+        "unexpected.txt",
+        "data/auction_v3/history/tplus1_open_0930_v1/training_allowed.csv",
+        "data/auction_v3/history/tplus1_open_0930_v1/training_link.csv",
+    }
+    index_bytes = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert b"120000 " in index_bytes
+
+    paths_file = tmp_path / "backfill-staged-paths.bin"
+    index_file = tmp_path / "backfill-staged-index.bin"
+    paths_file.write_bytes(visible)
+    index_file.write_bytes(index_bytes)
+    monkeypatch.setenv("STAGED_PATHS", str(paths_file))
+    monkeypatch.setenv("STAGED_INDEX", str(index_file))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(paths_file))
+    monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(index_file))
+    with pytest.raises(SystemExit, match="non-allowlisted Backfill paths staged"):
+        exec(compile(compute_source, "<backfill-compute-rename>", "exec"), {})
+    with pytest.raises(SystemExit, match="non-allowlisted Backfill publish paths staged"):
+        exec(compile(publish_source, "<backfill-publish-rename>", "exec"), {})
+
+    allowed_paths = tmp_path / "backfill-allowed-paths.bin"
+    allowed_paths.write_bytes(
+        b"data/auction_v3/history/tplus1_open_0930_v1/training_link.csv\0"
+    )
+    monkeypatch.setenv("STAGED_PATHS", str(allowed_paths))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(allowed_paths))
+    with pytest.raises(SystemExit, match="non-regular Backfill paths staged"):
+        exec(compile(compute_source, "<backfill-compute-mode>", "exec"), {})
+    with pytest.raises(SystemExit, match="non-regular Backfill publish paths staged"):
+        exec(compile(publish_source, "<backfill-publish-mode>", "exec"), {})
+
+
+@pytest.mark.parametrize(
+    ("name", "candidate_marker", "publisher_marker", "compute_error", "publish_error"),
+    (
+        (
+            "run_auction_v3.yml",
+            "- name: Build exact allowlisted candidate patch",
+            "- name: Apply candidate with base-SHA CAS and create one commit",
+            "non-allowlisted Auction paths staged",
+            "non-allowlisted Auction publish paths staged",
+        ),
+        (
+            "verify_decision_observations.yml",
+            "- name: Build exact allowlisted Verify candidate patch",
+            "- name: Apply exact base candidate and create one commit",
+            "non-allowlisted Verify paths staged",
+            "non-allowlisted Verify publish paths staged",
+        ),
+    ),
+)
+def test_auction_and_verify_allow_only_exact_dated_raw_truth_layout(
+    name: str,
+    candidate_marker: str,
+    publisher_marker: str,
+    compute_error: str,
+    publish_error: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = _text(name)
+    compute_source = _embedded_python_blocks_between(
+        text,
+        candidate_marker,
+        "- name: Upload immutable candidate patch",
+    )[0]
+    publish_source = _embedded_python_after(text, publisher_marker)
+    paths_file = tmp_path / f"{name}-paths.bin"
+    index_file = tmp_path / f"{name}-index.bin"
+
+    valid = (
+        "data/market/raw/2026/20260813/stk_auction_o.csv",
+        "data/market/raw/2026/20260813/stk_auction_o.meta.json",
+    )
+    paths_file.write_bytes(b"\0".join(path.encode() for path in valid) + b"\0")
+    index_file.write_bytes(
+        b"".join(
+            b"100644 " + b"0" * 40 + b" 0\t" + path.encode() + b"\0"
+            for path in valid
+        )
+    )
+    monkeypatch.setenv("STAGED_PATHS", str(paths_file))
+    monkeypatch.setenv("STAGED_INDEX", str(index_file))
+    monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(paths_file))
+    monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(index_file))
+    exec(compile(compute_source, f"<{name}-valid-compute>", "exec"), {})
+    exec(compile(publish_source, f"<{name}-valid-publish>", "exec"), {})
+
+    invalid = (
+        "data/market/raw/20260813/stk_auction_o.csv",
+        "data/market/raw/2026/20260813/nested/stk_auction_o.csv",
+        "data/market/raw_evil/2026/20260813/stk_auction_o.csv",
+        "data/market/raw/202X/20260813/stk_auction_o.csv",
+        "data/market/raw/2026/20260A13/stk_auction_o.csv",
+        "data/market/raw/2025/20260813/stk_auction_o.csv",
+        "data/market/raw/2026/20261399/stk_auction_o.csv",
+        "data/market/raw/2026/20260230/stk_auction_o.csv",
+        "data/market/raw/2026/20260813/not_stk_auction_o.csv",
+    )
+    index_file.write_bytes(b"")
+    for path in invalid:
+        paths_file.write_bytes(path.encode() + b"\0")
+        with pytest.raises(SystemExit, match=compute_error):
+            exec(compile(compute_source, f"<{name}-invalid-compute>", "exec"), {})
+        with pytest.raises(SystemExit, match=publish_error):
+            exec(compile(publish_source, f"<{name}-invalid-publish>", "exec"), {})
+
+    paths_file.write_bytes(valid[0].encode() + b"\0")
+    index_file.write_bytes(
+        b"120000 " + b"0" * 40 + b" 0\t" + valid[0].encode() + b"\0"
+    )
+    with pytest.raises(SystemExit, match="non-regular"):
+        exec(compile(compute_source, f"<{name}-symlink-compute>", "exec"), {})
+    with pytest.raises(SystemExit, match="non-regular"):
+        exec(compile(publish_source, f"<{name}-symlink-publish>", "exec"), {})
+
+
+def test_all_writer_candidate_and_publisher_path_gates_expand_renames_and_check_modes() -> None:
+    for name in WRITERS:
+        text = _text(name)
+        assert text.count("git diff --cached --no-renames --name-only -z") == 2, name
+        assert text.count("git ls-files --stage -z") == 2, name
+        assert text.count("non-stage-zero") >= 2, name
+        assert text.count("non-regular") >= 2, name
+
+
+def test_auction_dry_run_rebuilds_verified_frozen_runtime_and_full_action_contract() -> None:
+    text = _text("run_auction_v3.yml")
+    run_step = text.split(
+        "- name: Run Auction pipeline and final runtime gates", 1
+    )[1].split("- name: Build exact allowlisted candidate patch", 1)[0]
+    assert 'args+=(--force-inactive)' in run_step
+    assert "python scripts/run_auction_v3.py" in run_step
+    assert "python scripts/publish_decision_action.py" in run_step
+    assert "validate_action_plan_artifact" in run_step
+    assert "python scripts/validate_decision_model_freeze.py --runtime" in run_step
+    assert "python scripts/validate_decision_model_freeze.py --runtime --force-inactive" in run_step
+    assert "validate_io_contract.py" not in run_step
+
+
 def test_compute_jobs_are_read_only_and_never_publish() -> None:
     for name in WRITERS:
         text = _text(name)
@@ -832,6 +1159,8 @@ def test_publisher_envelope_rejects_patch_checksum_mismatch(
     (candidate / "base_sha.txt").write_text("a" * 40 + "\n", encoding="ascii")
     patch = b"candidate patch bytes\n"
     (candidate / "candidate.patch").write_bytes(patch)
+    if name == "backfill_decision_v11_history.yml":
+        (candidate / "backfill-receipt.json").write_text("{}\n", encoding="utf-8")
     checksum = candidate / "candidate.patch.sha256"
     checksum.write_text(hashlib.sha256(patch).hexdigest() + "\n", encoding="ascii")
     monkeypatch.setenv("CANDIDATE_DIR", str(candidate))
@@ -1112,6 +1441,7 @@ def test_daily_production_learning_and_refresh_jobs_are_fail_closed() -> None:
 def test_backfill_has_no_early_history_commit_before_all_gates() -> None:
     text = _text("backfill_decision_v11_history.yml")
     compute = text[text.index("  compute:") : text.index("\n  publish:")]
-    assert "Run all Backfill gates before candidate creation" in compute
+    assert "Validate owner-scoped Backfill artifacts before candidate creation" in compute
+    assert "Validate exact Backfill candidate in an isolated frozen runtime" in compute
     assert "Persist immutable history before model rebuild" not in text
     assert "git commit" not in compute

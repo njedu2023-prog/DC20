@@ -19,6 +19,7 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     capture_frozen_history_snapshot,
     load_model_freeze,
     load_frozen_history_snapshot,
+    load_verified_frozen_history_snapshot,
     model_freeze_active,
     validate_pinned_files,
     validate_runtime_artifacts,
@@ -26,16 +27,29 @@ from top10decision.decision.model_freeze import (  # noqa: E402
 
 
 class FreezeAwareAuctionV3Engine(AuctionV3Engine):
-    def __init__(self, config: AuctionV3Config, manifest: dict[str, object]):
+    def __init__(
+        self,
+        config: AuctionV3Config,
+        manifest: dict[str, object],
+        *,
+        force_inactive: bool = False,
+    ):
         super().__init__(config)
         self.model_freeze_manifest = manifest
+        self.force_inactive = bool(force_inactive)
         self.model_freeze_history_audit: dict[str, object] = {}
 
     def build_history(self):
-        frozen, audit = load_frozen_history_snapshot(
-            self.config.root,
-            self.model_freeze_manifest,
-        )
+        if self.force_inactive:
+            frozen, audit = load_verified_frozen_history_snapshot(
+                self.config.root,
+                self.model_freeze_manifest,
+            )
+        else:
+            frozen, audit = load_frozen_history_snapshot(
+                self.config.root,
+                self.model_freeze_manifest,
+            )
         if frozen is not None:
             self.model_freeze_history_audit = audit
             return frozen
@@ -84,6 +98,11 @@ def parse_args() -> argparse.Namespace:
         help="Commission, taxes and fees excluding modeled slippage",
     )
     parser.add_argument("--slippage-bps-each-side", type=float, default=5.0)
+    parser.add_argument(
+        "--force-inactive",
+        action="store_true",
+        help="Enforce the complete inactive V2 freeze in a disposable dry-run checkout.",
+    )
     return parser.parse_args()
 
 
@@ -91,7 +110,13 @@ def main() -> int:
     args = parse_args()
     root = Path(args.root).resolve()
     manifest = load_model_freeze(root, required=True)
-    validate_pinned_files(root, manifest)
+    active = model_freeze_active(manifest)
+    force_inactive = bool(args.force_inactive and not active)
+    validate_pinned_files(
+        root,
+        manifest,
+        force_enforcement=force_inactive,
+    )
     config = AuctionV3Config(
         root=root,
         order_amount_cny=max(0.0, args.order_amount),
@@ -99,8 +124,12 @@ def main() -> int:
         slippage_bps_each_side=max(0.0, args.slippage_bps_each_side),
     )
     engine: AuctionV3Engine
-    if model_freeze_active(manifest):
-        engine = FreezeAwareAuctionV3Engine(config, manifest)
+    if active or force_inactive:
+        engine = FreezeAwareAuctionV3Engine(
+            config,
+            manifest,
+            force_inactive=force_inactive,
+        )
     else:
         engine = AuctionV3Engine(config)
     result = engine.run(
@@ -111,6 +140,7 @@ def main() -> int:
         root,
         manifest,
         check_action_plan=False,
+        force_enforcement=force_inactive,
     )
     print(
         json.dumps(

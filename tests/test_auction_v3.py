@@ -5,17 +5,28 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
 import pandas as pd
 
 
-SRC = Path(__file__).resolve().parents[1] / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+for path in (ROOT, SRC):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from top10decision.auction_v3 import AuctionV3Config, AuctionV3Engine  # noqa: E402
+from scripts import run_auction_v3 as run_auction_script  # noqa: E402
+from scripts.validate_backfill_artifacts import (  # noqa: E402
+    EXPECTED_HISTORY_COLUMNS,
+)
+from top10decision.auction_v3 import (  # noqa: E402
+    AuctionV3Config,
+    AuctionV3Engine,
+    RunResult,
+)
 
 
 class AuctionV3Test(unittest.TestCase):
@@ -49,6 +60,84 @@ class AuctionV3Test(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def test_force_inactive_engine_uses_only_verified_frozen_snapshot(self) -> None:
+        frozen = pd.DataFrame([{"signal_date": "20260805", "ts_code": "600000.SH"}])
+        audit = {"source": "forced_frozen_snapshot", "rows": 1}
+        with mock.patch.object(
+            run_auction_script,
+            "load_verified_frozen_history_snapshot",
+            return_value=(frozen, audit),
+        ) as verified, mock.patch.object(
+            AuctionV3Engine,
+            "build_history",
+            side_effect=AssertionError("live history must be unreachable"),
+        ):
+            engine = run_auction_script.FreezeAwareAuctionV3Engine(
+                self.config,
+                {"schema_version": "decision_model_freeze_v2"},
+                force_inactive=True,
+            )
+            result = engine.build_history()
+
+        pd.testing.assert_frame_equal(result, frozen)
+        self.assertEqual(engine.model_freeze_history_audit, audit)
+        verified.assert_called_once_with(
+            self.root,
+            {"schema_version": "decision_model_freeze_v2"},
+        )
+
+    def test_force_inactive_cli_enforces_pins_engine_and_runtime(self) -> None:
+        args = SimpleNamespace(
+            root=str(self.root),
+            signal_date="20260805",
+            force_prediction=False,
+            order_amount=100_000.0,
+            round_trip_cost_bps=35.0,
+            slippage_bps_each_side=5.0,
+            force_inactive=True,
+        )
+        result = RunResult(
+            signal_date="20260805",
+            prediction_path="prediction.csv",
+            backtest_path="backtest.json",
+            verification_path="verification.csv",
+            current_report_path="current.html",
+            verification_report_path="verify.html",
+            dashboard_path="dashboard.html",
+            model_ready=False,
+            promoted=False,
+            selected_count=0,
+            warnings=[],
+        )
+        engine = mock.Mock()
+        engine.run.return_value = result
+        engine.model_freeze_history_audit = {"source": "forced_frozen_snapshot"}
+        manifest = {"schema_version": "decision_model_freeze_v2"}
+        with mock.patch.object(run_auction_script, "parse_args", return_value=args), mock.patch.object(
+            run_auction_script, "load_model_freeze", return_value=manifest
+        ), mock.patch.object(
+            run_auction_script, "model_freeze_active", return_value=False
+        ), mock.patch.object(
+            run_auction_script, "validate_pinned_files", return_value={"enforced": True}
+        ) as pins, mock.patch.object(
+            run_auction_script, "FreezeAwareAuctionV3Engine", return_value=engine
+        ) as engine_type, mock.patch.object(
+            run_auction_script,
+            "validate_runtime_artifacts",
+            return_value={"validated": True},
+        ) as runtime:
+            self.assertEqual(run_auction_script.main(), 0)
+
+        resolved_root = self.root.resolve()
+        pins.assert_called_once_with(resolved_root, manifest, force_enforcement=True)
+        engine_type.assert_called_once()
+        runtime.assert_called_once_with(
+            resolved_root,
+            manifest,
+            check_action_plan=False,
+            force_enforcement=True,
+        )
 
     def _write_market(self) -> None:
         previous = {code: 10.0 + idx for idx, code in enumerate(self.codes)}
@@ -125,6 +214,7 @@ class AuctionV3Test(unittest.TestCase):
         legacy_daily.to_csv(legacy_path, index=False)
         engine = AuctionV3Engine(self.config)
         history = engine.build_history()
+        self.assertEqual(tuple(history.columns), EXPECTED_HISTORY_COLUMNS)
         self.assertIn(self.dates[0], set(history["signal_date"]))
         self.assertTrue((history["exit_reason"] == "fixed_open_0930").all())
         self.assertTrue(np.allclose(history["gross_return"], 0.10, atol=0.0015))

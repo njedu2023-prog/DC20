@@ -218,16 +218,71 @@ jobs:
           git add -A -- outputs/auction_v3/metrics/observation_cumulative_latest.json outputs/auction_v3/metrics/manual_actual_cumulative_latest.json
           git add -A -- data/market/trade_cal_sse.csv
           git add -A -- 'data/market/raw/**/stk_auction_o.csv' 'data/market/raw/**/stk_auction_o.meta.json'
-          git diff --cached --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
-          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" python - <<'PY'
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
+          git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
+          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
+          from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/**/stk_auction_o.csv','data/market/raw/**/stk_auction_o.meta.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          def matches(path, pattern):
+              path_parts=path.split('/')
+              pattern_parts=pattern.split('/')
+              memo={}
+              def visit(path_index, pattern_index):
+                  key=(path_index, pattern_index)
+                  if key in memo:
+                      return memo[key]
+                  if pattern_index == len(pattern_parts):
+                      result = path_index == len(path_parts)
+                  elif pattern_parts[pattern_index] == '**':
+                      result = visit(path_index, pattern_index + 1) or (
+                          path_index < len(path_parts)
+                          and visit(path_index + 1, pattern_index)
+                      )
+                  else:
+                      result = (
+                          path_index < len(path_parts)
+                          and fnmatch.fnmatchcase(
+                              path_parts[path_index], pattern_parts[pattern_index]
+                          )
+                          and visit(path_index + 1, pattern_index + 1)
+                      )
+                  memo[key]=result
+                  return result
+              return visit(0, 0)
+          def dated_raw_path_is_valid(path):
+              if not path.startswith('data/market/raw/'):
+                  return True
+              parts=path.split('/')
+              if len(parts) != 6 or parts[5] not in {'stk_auction_o.csv','stk_auction_o.meta.json'}:
+                  return False
+              year, trade_date=parts[3], parts[4]
+              try:
+                  parsed=datetime.strptime(trade_date, '%Y%m%d')
+              except ValueError:
+                  return False
+              return parsed.strftime('%Y%m%d') == trade_date and year == trade_date[:4]
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
-          bad.extend(p for p in paths if any(fnmatch.fnmatchcase(p,a) for a in forbidden))
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p)]
+          bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
           if bad: raise SystemExit(f'non-allowlisted Verify paths staged: {bad}')
+          path_set=set(paths)
+          index_modes={}
+          for entry in Path(os.environ['STAGED_INDEX']).read_bytes().split(b'\0'):
+              if not entry:
+                  continue
+              metadata, raw_path=entry.split(b'\t', 1)
+              mode, _object_id, stage=metadata.decode('ascii').split()
+              path=raw_path.decode()
+              if path not in path_set:
+                  continue
+              if stage != '0' or path in index_modes:
+                  raise SystemExit(f'non-stage-zero Verify index entry: {path}')
+              index_modes[path]=mode
+          bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
+          if bad_modes: raise SystemExit(f'non-regular Verify paths staged: {bad_modes}')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
           CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" CANDIDATE_SHA="${RUNNER_TEMP}/candidate.patch.sha256" python - <<'PY'
@@ -300,16 +355,71 @@ jobs:
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
           test "$(git rev-parse HEAD)" = "${expected}"
           git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
-          git diff --cached --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
-          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" python - <<'PY'
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
+          git ls-files --stage -z > "${RUNNER_TEMP}/publish_staged_index.bin"
+          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
+          from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/**/stk_auction_o.csv','data/market/raw/**/stk_auction_o.meta.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          def matches(path, pattern):
+              path_parts=path.split('/')
+              pattern_parts=pattern.split('/')
+              memo={}
+              def visit(path_index, pattern_index):
+                  key=(path_index, pattern_index)
+                  if key in memo:
+                      return memo[key]
+                  if pattern_index == len(pattern_parts):
+                      result = path_index == len(path_parts)
+                  elif pattern_parts[pattern_index] == '**':
+                      result = visit(path_index, pattern_index + 1) or (
+                          path_index < len(path_parts)
+                          and visit(path_index + 1, pattern_index)
+                      )
+                  else:
+                      result = (
+                          path_index < len(path_parts)
+                          and fnmatch.fnmatchcase(
+                              path_parts[path_index], pattern_parts[pattern_index]
+                          )
+                          and visit(path_index + 1, pattern_index + 1)
+                      )
+                  memo[key]=result
+                  return result
+              return visit(0, 0)
+          def dated_raw_path_is_valid(path):
+              if not path.startswith('data/market/raw/'):
+                  return True
+              parts=path.split('/')
+              if len(parts) != 6 or parts[5] not in {'stk_auction_o.csv','stk_auction_o.meta.json'}:
+                  return False
+              year, trade_date=parts[3], parts[4]
+              try:
+                  parsed=datetime.strptime(trade_date, '%Y%m%d')
+              except ValueError:
+                  return False
+              return parsed.strftime('%Y%m%d') == trade_date and year == trade_date[:4]
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
-          bad.extend(p for p in paths if any(fnmatch.fnmatchcase(p,a) for a in forbidden))
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p)]
+          bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
           if bad: raise SystemExit(f'non-allowlisted Verify publish paths staged: {bad}')
+          path_set=set(paths)
+          index_modes={}
+          for entry in Path(os.environ['PUBLISH_STAGED_INDEX']).read_bytes().split(b'\0'):
+              if not entry:
+                  continue
+              metadata, raw_path=entry.split(b'\t', 1)
+              mode, _object_id, stage=metadata.decode('ascii').split()
+              path=raw_path.decode()
+              if path not in path_set:
+                  continue
+              if stage != '0' or path in index_modes:
+                  raise SystemExit(f'non-stage-zero Verify publish index entry: {path}')
+              index_modes[path]=mode
+          bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
+          if bad_modes: raise SystemExit(f'non-regular Verify publish paths staged: {bad_modes}')
           if not paths: raise SystemExit('Verify candidate patch became empty')
           PY
           git config user.name 'github-actions[bot]'

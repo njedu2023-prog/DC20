@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -25,6 +26,16 @@ from scripts.backfill_decision_v11_history import (  # noqa: E402
     _completed_open_dates,
     _latest_target_dates,
     _retry_frame,
+    _write_csv as write_backfill_csv,
+)
+from scripts.validate_backfill_artifacts import (  # noqa: E402
+    BackfillArtifactError,
+    EXPECTED_HISTORY_COLUMNS,
+    HISTORY_NULLABLE_NUMERIC_COLUMNS,
+    HISTORY_TEXT_COLUMNS,
+    _covered_signal_dates,
+    _sha256_frame as backfill_frame_sha256,
+    validate_backfill_artifacts,
 )
 from scripts.build_eret_truth import infer_eret_label  # noqa: E402
 from scripts.build_fill_truth import infer_fill_label  # noqa: E402
@@ -65,8 +76,10 @@ from top10decision.decision.contracts import (  # noqa: E402
     ACTUAL_ORDER_FILL_OBSERVED_COLUMN,
     ACTUAL_ORDER_FILL_TARGET_COLUMN,
     EXIT_LATEST_TIME,
+    EXIT_POLICY_VERSION,
     EXIT_STOP_LOSS_PCT,
     EXIT_TAKE_PROFIT_PCT,
+    HISTORY_CONTRACT_VERSION,
     PFILL_EXECUTION_CONTRACT,
     PREOPEN_AUCTION_GATE_AUDIT,
     PUBLIC_MARKET_BUYABLE_TARGET_COLUMN,
@@ -257,6 +270,864 @@ class DecisionCalendarContractTests(unittest.TestCase):
 
         self.assertEqual(result["ts_code"].tolist(), ["600000.SH"])
         sleep.assert_called_once_with(2.0)
+
+    def _write_backfill_validation_fixture(self, root: Path) -> tuple[Path, Path]:
+        history_root = root / "data/auction_v3/history" / EXIT_POLICY_VERSION
+        history_root.mkdir(parents=True)
+        requested_dates = [
+            value.strftime("%Y%m%d")
+            for value in pd.date_range("2020-01-01", "2026-08-21", freq="D")
+        ]
+        target_end = datetime.strptime("20260805", "%Y%m%d")
+        target_window = [
+            (target_end - timedelta(days=offset)).strftime("%Y%m%d")
+            for offset in range(TARGET_HISTORY_DATES - 1, -1, -1)
+        ]
+        maturity_dates = [
+            value.strftime("%Y%m%d")
+            for value in pd.date_range("2026-08-06", "2026-08-13", freq="D")
+        ]
+        open_dates = set(target_window + maturity_dates + ["20260821"])
+        calendar_rows: list[dict[str, object]] = []
+        previous_open = "20191231"
+        for date in requested_dates:
+            is_open = int(date in open_dates)
+            calendar_rows.append(
+                {
+                    "exchange": "SSE",
+                    "cal_date": date,
+                    "is_open": is_open,
+                    "pretrade_date": previous_open,
+                }
+            )
+            if is_open:
+                previous_open = date
+        calendar = pd.DataFrame(calendar_rows)
+        calendar_path = root / "data/market/trade_cal_sse.csv"
+        write_backfill_csv(calendar, calendar_path)
+        calendar_raw = calendar_path.read_bytes()
+        coverage = pd.DataFrame(
+            [
+                {
+                    **{column: "" for column in EXPECTED_HISTORY_COLUMNS},
+                    "signal_date": signal_date,
+                    "ts_code": "600000.SH",
+                }
+                for signal_date in target_window[:-1]
+            ],
+            columns=EXPECTED_HISTORY_COLUMNS,
+        )
+        coverage_path = history_root / (
+            f"training_{target_window[0]}_{target_window[-2]}.csv"
+        )
+        write_backfill_csv(coverage, coverage_path)
+        output = history_root / "training_20260805_20260805.csv"
+        def history_row(rank: int, code: str) -> dict[str, object]:
+            row: dict[str, object] = {}
+            for column in EXPECTED_HISTORY_COLUMNS:
+                if column in HISTORY_TEXT_COLUMNS or column in HISTORY_NULLABLE_NUMERIC_COLUMNS:
+                    row[column] = ""
+                else:
+                    row[column] = 0.0
+            row.update(
+                {
+                    "signal_date": "20260805",
+                    "buy_date": "20260806",
+                    "target_exit_date": "20260807",
+                    "actual_exit_date": "20260807",
+                    "exit_delay_days": 0,
+                    "ts_code": code,
+                    "name": f"fixture-{rank}",
+                    "industry": "fixture-industry",
+                    "stage": "1→2",
+                    "source_rank": rank,
+                    "d_close": 10.0,
+                    "buy_open": 10.0,
+                    "auction_vwap": 10.0,
+                    "auction_amount": 100_000_000.0,
+                    "auction_truth_source": "tushare_stk_auction_o",
+                    "exit_open": 10.1,
+                    "actual_buy_gap": 0.0,
+                    "gross_return": 0.01,
+                    "net_return": 0.0055,
+                    "profit_hit": 1,
+                    "big_loss_hit": 0,
+                    "continuation_limit_up_hit": 0,
+                    "exit_on_time": 1,
+                    "market_fill": 1,
+                    "public_market_buyable": 1,
+                    "actual_order_fill_observed": 0,
+                    "actual_order_fill": "",
+                    "mechanism_limit_pct": 10.0,
+                    "fill_reason": "market_proxy_buyable",
+                    "exit_reason": "fixed_open_0930",
+                    "exit_policy_version": EXIT_POLICY_VERSION,
+                    "take_profit_pct": EXIT_TAKE_PROFIT_PCT,
+                    "stop_loss_pct": EXIT_STOP_LOSS_PCT,
+                    "latest_exit_time": EXIT_LATEST_TIME,
+                    "history_source": "tushare_compact_backfill",
+                    "history_contract_version": HISTORY_CONTRACT_VERSION,
+                    "limit_times": 1.0,
+                    "d_return": 0.1,
+                    "limit_ratio": 0.1,
+                    "proposed_gap": 0.0,
+                    "market_sentiment_regime_code": "NEUTRAL",
+                    "market_sentiment_regime_label": "震荡",
+                    "path_label_code": "STABLE_STRONG",
+                    "path_label": "持续强势",
+                    "path_explanation": "fixture",
+                    "stage_pool_size": 2.0,
+                    "focus_pool_size": 0.0,
+                    "market_max_limit_times": 1.0,
+                    "same_industry_stage_count": 2.0,
+                    "stage_pool_share": 1.0,
+                }
+            )
+            self.assertEqual(tuple(row), EXPECTED_HISTORY_COLUMNS)
+            return row
+
+        history = pd.DataFrame(
+            [history_row(1, "600000.SH"), history_row(2, "600001.SH")],
+            columns=EXPECTED_HISTORY_COLUMNS,
+        )
+        history.to_csv(output, index=False, encoding="utf-8-sig", lineterminator="\n")
+        raw = output.read_bytes()
+        canonical_sha = backfill_frame_sha256(
+            pd.read_csv(output, encoding="utf-8-sig", low_memory=False)
+        )
+        manifest = {
+            "schema_version": "decision_v11_history_manifest_v2",
+            "generated_at_utc": "2026-08-21T00:00:00+00:00",
+            "evaluated_at_utc": "2026-08-21T00:00:00+00:00",
+            "calendar_source": "tushare:trade_cal:SSE",
+            "strict_calendar": True,
+            "calendar_file": "data/market/trade_cal_sse.csv",
+            "calendar_bytes_sha256": hashlib.sha256(calendar_raw).hexdigest(),
+            "calendar_bytes": len(calendar_raw),
+            "calendar_open_dates": TARGET_HISTORY_DATES + 8,
+            "requested_start_date": "20200101",
+            "requested_end_date": "20260821",
+            "target_signal_dates": ["20260805"],
+            "target_window_start": target_window[0],
+            "target_window_end": "20260805",
+            "target_window_open_sessions": TARGET_HISTORY_DATES,
+            "target_window_signal_dates": target_window,
+            "target_history_sessions": TARGET_HISTORY_DATES,
+            "walkforward_warmup_sessions": WALKFORWARD_WARMUP_DATES,
+            "max_missing_dates": 1,
+            "target_signal_date_count": 1,
+            "produced_signal_dates": 1,
+            "produced_rows": 2,
+            "official_auction_truth_rows": 2,
+            "auction_truth_coverage": 1.0,
+            "total_compact_signal_dates": TARGET_HISTORY_DATES,
+            "target_independent_dates": TARGET_INDEPENDENT_OOS_DATES,
+            "exit_policy": {
+                "version": EXIT_POLICY_VERSION,
+                "take_profit_pct": EXIT_TAKE_PROFIT_PCT,
+                "stop_loss_pct": EXIT_STOP_LOSS_PCT,
+                "latest_exit_time": EXIT_LATEST_TIME,
+                "requires_intraday_truth": False,
+            },
+            "output_file": (
+                "data/auction_v3/history/"
+                f"{EXIT_POLICY_VERSION}/training_20260805_20260805.csv"
+            ),
+            "output_sha256": canonical_sha,
+            "output_canonical_sha256": canonical_sha,
+            "output_bytes_sha256": hashlib.sha256(raw).hexdigest(),
+            "output_bytes": len(raw),
+            "endpoint_rows": {
+                "daily": 2,
+                "stk_limit": 2,
+                "daily_basic": 2,
+                "limit_list_d": 2,
+                "stk_auction_o": 2,
+            },
+            "failures": [],
+            "credential_persisted": False,
+        }
+        (history_root / "manifest_latest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        receipt = root / "backfill-receipt.json"
+        receipt.write_text(
+            json.dumps(
+                {
+                    "schema_version": "decision_v11_backfill_receipt_v1",
+                    "status": "produced",
+                    "requested_start_date": "20200101",
+                    "requested_end_date": "20260821",
+                    "max_missing_dates": 1,
+                    "credential_persisted": False,
+                    "manifest": manifest,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return receipt, output
+
+    @staticmethod
+    def _persist_backfill_receipt(
+        root: Path,
+        receipt: Path,
+        payload: dict[str, object],
+    ) -> None:
+        history_root = root / "data/auction_v3/history" / EXIT_POLICY_VERSION
+        (history_root / "manifest_latest.json").write_text(
+            json.dumps(payload["manifest"], ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        receipt.write_text(
+            json.dumps(payload, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+    def _resign_backfill_output(
+        self,
+        root: Path,
+        receipt: Path,
+        output: Path,
+        mutate: object,
+    ) -> None:
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+        exact = pd.read_csv(
+            output,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        mutate(exact)
+        write_backfill_csv(exact, output)
+        raw = output.read_bytes()
+        canonical = backfill_frame_sha256(
+            pd.read_csv(output, encoding="utf-8-sig", low_memory=False)
+        )
+        manifest = payload["manifest"]
+        manifest["output_bytes"] = len(raw)
+        manifest["output_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+        manifest["output_sha256"] = canonical
+        manifest["output_canonical_sha256"] = canonical
+        self._persist_backfill_receipt(root, receipt, payload)
+
+    def test_owner_scoped_backfill_receipt_binds_raw_and_canonical_history(self) -> None:
+        root = Path(self.temp.name) / "backfill-validation"
+        receipt, output = self._write_backfill_validation_fixture(root)
+
+        result = validate_backfill_artifacts(
+            root,
+            receipt,
+            start_date="20200101",
+            end_date="20260821",
+            max_missing_dates=1,
+        )
+
+        self.assertTrue(result["validated"])
+        self.assertEqual(result["status"], "produced")
+        self.assertEqual(result["produced_rows"], 2)
+        frame = pd.read_csv(output, encoding="utf-8-sig")
+        self.assertNotIn("backfill_generated_at_utc", frame.columns)
+
+        output.write_bytes(output.read_bytes() + b"\n")
+        with self.assertRaises(BackfillArtifactError):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+
+    def test_backfill_csv_is_byte_deterministic_utf8_bom_lf(self) -> None:
+        root = Path(self.temp.name) / "backfill-deterministic"
+        first = root / "first.csv"
+        second = root / "second.csv"
+        frame = pd.DataFrame(
+            [
+                {"signal_date": "20260805", "ts_code": "600000.SH", "value": 1.25},
+                {"signal_date": "20260805", "ts_code": "600001.SH", "value": 2.5},
+            ]
+        )
+        write_backfill_csv(frame, first)
+        write_backfill_csv(frame.copy(), second)
+        payload = first.read_bytes()
+        self.assertEqual(payload, second.read_bytes())
+        self.assertTrue(payload.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\r\n", payload)
+        self.assertNotIn(b"backfill_generated_at_utc", payload)
+
+    def test_owner_scoped_backfill_rejects_duplicate_json_and_endpoint_failure(self) -> None:
+        root = Path(self.temp.name) / "backfill-negative"
+        receipt, _output = self._write_backfill_validation_fixture(root)
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+        payload["manifest"]["failures"] = [
+            {"trade_date": "20260805", "endpoint": "limit_list_d", "reason": "TimeoutError"}
+        ]
+        (
+            root
+            / "data/auction_v3/history"
+            / EXIT_POLICY_VERSION
+            / "manifest_latest.json"
+        ).write_text(
+            json.dumps(payload["manifest"], ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        receipt.write_text(json.dumps(payload, ensure_ascii=False) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(BackfillArtifactError, "endpoint failures"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+
+    def test_owner_scoped_backfill_rejects_resigned_type_and_policy_aliases(self) -> None:
+        manifest_path_parts = (
+            "data",
+            "auction_v3",
+            "history",
+            EXIT_POLICY_VERSION,
+            "manifest_latest.json",
+        )
+
+        def persist(root: Path, receipt: Path, payload: dict[str, object]) -> None:
+            manifest = payload["manifest"]
+            (root.joinpath(*manifest_path_parts)).write_text(
+                json.dumps(manifest, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            receipt.write_text(
+                json.dumps(payload, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+        for label, key, value, message in (
+            ("invalid-time", "generated_at_utc", "2026-99-99T99:99:99+00:00", "real timestamp"),
+            ("float-count", "target_history_sessions", float(TARGET_HISTORY_DATES), "native integer"),
+            ("request-start", "requested_start_date", "19990101", "start date mismatch"),
+            ("request-end", "requested_end_date", "20991231", "end date mismatch"),
+            ("request-max", "max_missing_dates", 2, "max_missing_dates mismatch"),
+        ):
+            with self.subTest(label=label):
+                root = Path(self.temp.name) / f"backfill-{label}"
+                receipt, _output = self._write_backfill_validation_fixture(root)
+                payload = json.loads(receipt.read_text(encoding="utf-8"))
+                payload["manifest"][key] = value
+                persist(root, receipt, payload)
+                with self.assertRaisesRegex(BackfillArtifactError, message):
+                    validate_backfill_artifacts(
+                        root,
+                        receipt,
+                        start_date="20200101",
+                        end_date="20260821",
+                        max_missing_dates=1,
+                    )
+
+        for label, column, value, message in (
+            ("date-alias", "signal_date", "20260805.0", "YYYYMMDD"),
+            ("rank-fraction", "source_rank", "1.5", "must be an integer"),
+            ("take-profit", "take_profit_pct", "0.123", "take-profit policy"),
+        ):
+            with self.subTest(label=label):
+                root = Path(self.temp.name) / f"backfill-{label}"
+                receipt, output = self._write_backfill_validation_fixture(root)
+                payload = json.loads(receipt.read_text(encoding="utf-8"))
+                exact = pd.read_csv(
+                    output,
+                    encoding="utf-8-sig",
+                    dtype="string",
+                    keep_default_na=False,
+                )
+                exact.loc[0, column] = value
+                write_backfill_csv(exact, output)
+                raw = output.read_bytes()
+                canonical = backfill_frame_sha256(
+                    pd.read_csv(output, encoding="utf-8-sig", low_memory=False)
+                )
+                manifest = payload["manifest"]
+                manifest["output_bytes"] = len(raw)
+                manifest["output_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+                manifest["output_sha256"] = canonical
+                manifest["output_canonical_sha256"] = canonical
+                persist(root, receipt, payload)
+                with self.assertRaisesRegex(BackfillArtifactError, message):
+                    validate_backfill_artifacts(
+                        root,
+                        receipt,
+                        start_date="20200101",
+                        end_date="20260821",
+                        max_missing_dates=1,
+                    )
+
+    def test_owner_scoped_backfill_rejects_resigned_calendar_drift(self) -> None:
+        root = Path(self.temp.name) / "backfill-calendar-drift"
+        receipt, _output = self._write_backfill_validation_fixture(root)
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+        calendar_path = root / "data/market/trade_cal_sse.csv"
+        calendar = pd.read_csv(
+            calendar_path,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        calendar.loc[calendar["cal_date"].eq("20260805"), "is_open"] = "0"
+        write_backfill_csv(calendar, calendar_path)
+        raw = calendar_path.read_bytes()
+        payload["manifest"]["calendar_bytes"] = len(raw)
+        payload["manifest"]["calendar_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+        manifest_path = (
+            root
+            / "data/auction_v3/history"
+            / EXIT_POLICY_VERSION
+            / "manifest_latest.json"
+        )
+        manifest_path.write_text(
+            json.dumps(payload["manifest"], ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        receipt.write_text(
+            json.dumps(payload, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(BackfillArtifactError, "SSE trade calendar"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+
+    def test_owner_scoped_backfill_rejects_resigned_training_semantic_poison(self) -> None:
+        cases = (
+            (
+                "nonfinite-return",
+                lambda frame: frame.__setitem__(
+                    "gross_return",
+                    frame["gross_return"].where(frame.index != 0, "NaN"),
+                ),
+                "must be finite",
+            ),
+            (
+                "market-fill-domain",
+                lambda frame: frame.__setitem__(
+                    "market_fill",
+                    frame["market_fill"].where(frame.index != 0, "2"),
+                ),
+                "exact binary text",
+            ),
+            (
+                "profit-label-alias",
+                lambda frame: frame.__setitem__(
+                    "profit_hit",
+                    frame["profit_hit"].where(frame.index != 0, "true"),
+                ),
+                "numeric text|exact binary text",
+            ),
+            (
+                "unexpected-column",
+                lambda frame: frame.__setitem__("unreviewed_target", "1"),
+                "exact schema mismatch",
+            ),
+            (
+                "nullable-binary-domain",
+                lambda frame: frame.__setitem__(
+                    "is_hot_board",
+                    frame["is_hot_board"].where(frame.index != 0, "2"),
+                ),
+                "must be binary",
+            ),
+            (
+                "negative-count",
+                lambda frame: frame.__setitem__(
+                    "market_limit_up_count",
+                    frame["market_limit_up_count"].where(frame.index != 0, "-1"),
+                ),
+                "must be nonnegative",
+            ),
+            (
+                "ratio-out-of-range",
+                lambda frame: frame.__setitem__(
+                    "path_one_price_ratio",
+                    frame["path_one_price_ratio"].where(frame.index != 0, "1.1"),
+                ),
+                r"within \[0, 1\]",
+            ),
+            (
+                "negative-auction-amount",
+                lambda frame: frame.__setitem__(
+                    "auction_amount",
+                    frame["auction_amount"].where(frame.index != 0, "-1"),
+                ),
+                "auction_amount must be nonnegative",
+            ),
+        )
+        for label, mutate, message in cases:
+            with self.subTest(label=label):
+                root = Path(self.temp.name) / f"backfill-semantic-{label}"
+                receipt, output = self._write_backfill_validation_fixture(root)
+                self._resign_backfill_output(root, receipt, output, mutate)
+                with self.assertRaisesRegex(BackfillArtifactError, message):
+                    validate_backfill_artifacts(
+                        root,
+                        receipt,
+                        start_date="20200101",
+                        end_date="20260821",
+                        max_missing_dates=1,
+                    )
+
+        root = Path(self.temp.name) / "backfill-semantic-filtered-rank-gap"
+        receipt, output = self._write_backfill_validation_fixture(root)
+        self._resign_backfill_output(
+            root,
+            receipt,
+            output,
+            lambda frame: frame.__setitem__(
+                "path_one_price_ratio",
+                frame["path_one_price_ratio"].where(frame.index != 0, "0.333333333333"),
+            ),
+        )
+        self._resign_backfill_output(
+            root,
+            receipt,
+            output,
+            lambda frame: frame.__setitem__(
+                "source_rank",
+                frame["source_rank"].where(frame.index != 1, "3"),
+            ),
+        )
+        result = validate_backfill_artifacts(
+            root,
+            receipt,
+            start_date="20200101",
+            end_date="20260821",
+            max_missing_dates=1,
+        )
+        self.assertTrue(result["validated"])
+
+        root = Path(self.temp.name) / "backfill-semantic-legitimate-missing-market"
+        receipt, output = self._write_backfill_validation_fixture(root)
+        producer_nullable = (
+            "open_board_count",
+            "limit_open_times",
+            "limit_first_time_minutes",
+            "limit_last_time_minutes",
+            "limit_fd_amount_log",
+            "limit_seal_to_amount",
+            "limit_seal_to_float_mv",
+            "d_turnover_rate",
+            "d_volume_ratio",
+            "d_float_mv_log",
+            "d_amount_percentile",
+            "order_to_d_amount",
+            "order_to_float_mv",
+            "relative_d_return",
+            "market_failed_limit_up_rate",
+            "market_reseal_rate",
+            "market_prev_limit_up_mean_return",
+            "market_prev_limit_up_positive_rate",
+            "market_prev_limit_up_open_gap_mean",
+            "market_focus_promotion_rate",
+            "market_limit_up_industry_concentration",
+            "market_limit_up_amount_top3_share",
+            "market_amount_ratio_5d",
+            "market_max_streak",
+            "market_sentiment_delta",
+            "market_sentiment_acceleration",
+            "market_sentiment_promotion_score",
+            "market_sentiment_profit_effect_score",
+            "market_sentiment_liquidity_score",
+            "path_strength_latest",
+            "path_one_price_ratio",
+        )
+
+        def make_legitimate_missing_market(frame: pd.DataFrame) -> None:
+            frame.loc[0, list(producer_nullable)] = ""
+            frame.loc[0, "auction_amount"] = "0"
+            frame.loc[0, "market_fill"] = "0"
+            frame.loc[0, "public_market_buyable"] = "0"
+            frame.loc[0, "fill_reason"] = "auction_daily_open_conflict"
+
+        self._resign_backfill_output(
+            root,
+            receipt,
+            output,
+            make_legitimate_missing_market,
+        )
+        result = validate_backfill_artifacts(
+            root,
+            receipt,
+            start_date="20200101",
+            end_date="20260821",
+            max_missing_dates=1,
+        )
+        self.assertTrue(result["validated"])
+
+    def test_owner_scoped_backfill_rejects_bare_cr_and_invalid_full_calendar(self) -> None:
+        for label, target in (("history", "history"), ("calendar", "calendar")):
+            with self.subTest(label=label):
+                root = Path(self.temp.name) / f"backfill-bare-cr-{label}"
+                receipt, output = self._write_backfill_validation_fixture(root)
+                payload = json.loads(receipt.read_text(encoding="utf-8"))
+                path = (
+                    output
+                    if target == "history"
+                    else root / "data/market/trade_cal_sse.csv"
+                )
+                path.write_bytes(path.read_bytes().replace(b"\n", b"\r"))
+                raw = path.read_bytes()
+                if target == "history":
+                    canonical = backfill_frame_sha256(
+                        pd.read_csv(path, encoding="utf-8-sig", low_memory=False)
+                    )
+                    payload["manifest"]["output_bytes"] = len(raw)
+                    payload["manifest"]["output_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+                    payload["manifest"]["output_sha256"] = canonical
+                    payload["manifest"]["output_canonical_sha256"] = canonical
+                else:
+                    payload["manifest"]["calendar_bytes"] = len(raw)
+                    payload["manifest"]["calendar_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+                self._persist_backfill_receipt(root, receipt, payload)
+                with self.assertRaisesRegex(BackfillArtifactError, "LF line endings"):
+                    validate_backfill_artifacts(
+                        root,
+                        receipt,
+                        start_date="20200101",
+                        end_date="20260821",
+                        max_missing_dates=1,
+                    )
+
+        root = Path(self.temp.name) / "backfill-invalid-calendar-date"
+        receipt, _output = self._write_backfill_validation_fixture(root)
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+        calendar_path = root / "data/market/trade_cal_sse.csv"
+        calendar = pd.read_csv(
+            calendar_path,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        calendar.loc[len(calendar)] = ["SSE", "20991399", "1", "20260821"]
+        write_backfill_csv(calendar, calendar_path)
+        raw = calendar_path.read_bytes()
+        payload["manifest"]["calendar_bytes"] = len(raw)
+        payload["manifest"]["calendar_bytes_sha256"] = hashlib.sha256(raw).hexdigest()
+        self._persist_backfill_receipt(root, receipt, payload)
+        with self.assertRaisesRegex(BackfillArtifactError, "real calendar date"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+
+        receipt.write_text(
+            '{"schema_version":"decision_v11_backfill_receipt_v1",'
+            '"schema_version":"duplicate","status":"up_to_date"}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(BackfillArtifactError, "duplicate key"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+
+    def test_owner_scoped_up_to_date_receipt_proves_target_window_coverage(self) -> None:
+        root = Path(self.temp.name) / "backfill-up-to-date"
+        _receipt, _output = self._write_backfill_validation_fixture(root)
+        receipt = root / "up-to-date-receipt.json"
+        payload = {
+            "schema_version": "decision_v11_backfill_receipt_v1",
+            "status": "up_to_date",
+            "requested_start_date": "20200101",
+            "requested_end_date": "20260821",
+            "max_missing_dates": 1,
+            "evaluated_at_utc": "2026-08-21T00:00:00+00:00",
+            "calendar_file": "data/market/trade_cal_sse.csv",
+            "calendar_bytes_sha256": json.loads(
+                _receipt.read_text(encoding="utf-8")
+            )["manifest"]["calendar_bytes_sha256"],
+            "calendar_bytes": json.loads(
+                _receipt.read_text(encoding="utf-8")
+            )["manifest"]["calendar_bytes"],
+            "calendar_open_dates": TARGET_HISTORY_DATES + 8,
+            "covered_signal_dates": TARGET_HISTORY_DATES,
+            "target_window_signal_dates": json.loads(
+                _receipt.read_text(encoding="utf-8")
+            )["manifest"]["target_window_signal_dates"],
+            "missing_signal_dates": [],
+            "credential_persisted": False,
+        }
+        receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        result = validate_backfill_artifacts(
+            root,
+            receipt,
+            start_date="20200101",
+            end_date="20260821",
+            max_missing_dates=1,
+        )
+        self.assertEqual(result["status"], "up_to_date")
+
+        window = payload["target_window_signal_dates"]
+        coverage_path = (
+            root
+            / "data/auction_v3/history"
+            / EXIT_POLICY_VERSION
+            / f"training_{window[0]}_{window[-2]}.csv"
+        )
+        original_coverage = coverage_path.read_bytes()
+        coverage = pd.read_csv(
+            coverage_path,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        coverage.loc[0, "signal_date"] = f"{coverage.loc[0, 'signal_date']}.0"
+        write_backfill_csv(coverage, coverage_path)
+        with self.assertRaisesRegex(BackfillArtifactError, "YYYYMMDD"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        coverage_path.write_bytes(original_coverage)
+
+        write_backfill_csv(
+            pd.DataFrame({"signal_date": window[:-1]}),
+            coverage_path,
+        )
+        with self.assertRaisesRegex(BackfillArtifactError, "schema is not reviewed"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        coverage_path.write_bytes(original_coverage)
+
+        coverage = pd.read_csv(
+            coverage_path,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        coverage.loc[0, "signal_date"] = window[-1]
+        write_backfill_csv(coverage, coverage_path)
+        with self.assertRaisesRegex(BackfillArtifactError, "outside its filename range"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        coverage_path.write_bytes(original_coverage)
+
+        def one_coverage_row(signal_date: str, code: str) -> pd.DataFrame:
+            return pd.DataFrame(
+                [
+                    {
+                        **{column: "" for column in EXPECTED_HISTORY_COLUMNS},
+                        "signal_date": signal_date,
+                        "ts_code": code,
+                    }
+                ],
+                columns=EXPECTED_HISTORY_COLUMNS,
+            )
+
+        duplicate_path = coverage_path.parent / (
+            f"training_{window[0]}_{window[0]}_part001.csv"
+        )
+        write_backfill_csv(
+            one_coverage_row(window[0], "600000.SH"),
+            duplicate_path,
+        )
+        with self.assertRaisesRegex(BackfillArtifactError, "duplicate identity"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        duplicate_path.unlink()
+
+        coverage = pd.read_csv(
+            coverage_path,
+            encoding="utf-8-sig",
+            dtype="string",
+            keep_default_na=False,
+        )
+        coverage.loc[0, ["signal_date", "ts_code"]] = [window[1], "600001.SH"]
+        write_backfill_csv(coverage, coverage_path)
+        with self.assertRaisesRegex(BackfillArtifactError, "filename differs"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        coverage_path.write_bytes(original_coverage)
+
+        gap_first = coverage_path.parent / "training_20190101_20190103_part001.csv"
+        gap_third = coverage_path.parent / "training_20190101_20190103_part003.csv"
+        write_backfill_csv(one_coverage_row("20190101", "600010.SH"), gap_first)
+        write_backfill_csv(one_coverage_row("20190103", "600011.SH"), gap_third)
+        with self.assertRaisesRegex(BackfillArtifactError, "not contiguous"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        gap_first.unlink()
+        gap_third.unlink()
+
+        short_part = coverage_path.parent / "training_20190101_20190102_part001.csv"
+        write_backfill_csv(one_coverage_row("20190101", "600012.SH"), short_part)
+        with self.assertRaisesRegex(BackfillArtifactError, "partition group differs"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
+        short_part.unlink()
+
+        checked_in_coverage = _covered_signal_dates(
+            ROOT / "data/auction_v3/history" / EXIT_POLICY_VERSION
+        )
+        self.assertEqual(len(checked_in_coverage), 714)
+        self.assertEqual(min(checked_in_coverage), "20230822")
+        self.assertEqual(max(checked_in_coverage), "20260804")
+
+        payload["target_window_signal_dates"] = payload[
+            "target_window_signal_dates"
+        ][1:]
+        receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(BackfillArtifactError, "verified SSE calendar"):
+            validate_backfill_artifacts(
+                root,
+                receipt,
+                start_date="20200101",
+                end_date="20260821",
+                max_missing_dates=1,
+            )
 
 
 class DecisionExecutionSemanticsContractTests(unittest.TestCase):

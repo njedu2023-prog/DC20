@@ -98,6 +98,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "scripts/sync_tushare_minute.py",
         "scripts/train_eret.py",
         "scripts/train_pfill.py",
+        "scripts/validate_backfill_artifacts.py",
         "scripts/validate_decision_model_freeze.py",
         "scripts/validate_io_contract.py",
         "scripts/validate_topn_targets.py",

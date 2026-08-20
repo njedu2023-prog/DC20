@@ -103,12 +103,60 @@ def _read_csv(path: Path) -> pd.DataFrame:
 
 def _write_csv(frame: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(path, index=False, encoding="utf-8-sig")
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8-sig",
+        newline="",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        temp_path = Path(handle.name)
+        frame.to_csv(handle, index=False, lineterminator="\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    try:
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def _sha256_frame(frame: pd.DataFrame) -> str:
     payload = frame.to_csv(index=False, lineterminator="\n").encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=2,
+        allow_nan=False,
+    ) + "\n"
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        temp_path = Path(handle.name)
+        handle.write(rendered)
+        handle.flush()
+        os.fsync(handle.fileno())
+    try:
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def _write_receipt(path_value: str, payload: dict[str, Any]) -> None:
+    value = str(path_value or "").strip()
+    if value:
+        _write_json_atomic(Path(value).resolve(), payload)
 
 
 def _call_paged(
@@ -282,6 +330,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=int, default=20)
     parser.add_argument("--request-sleep", type=float, default=0.08)
     parser.add_argument(
+        "--receipt",
+        default="",
+        help="Write one machine-verifiable JSON receipt outside repository outputs.",
+    )
+    parser.add_argument(
         "--optional",
         action="store_true",
         help="Commit successful dates and exit zero when an endpoint is unavailable",
@@ -296,8 +349,22 @@ def main() -> int:
     end_date = _date(args.end_date)
     if not start_date or not end_date or start_date > end_date:
         raise ValueError("start/end date must be valid YYYYMMDD")
+    if type(args.max_missing_dates) is not int or not 1 <= args.max_missing_dates <= 500:
+        raise ValueError("max_missing_dates must be a native integer from 1 through 500")
     if not str(os.environ.get("TUSHARE_TOKEN", "") or "").strip():
         if args.optional:
+            _write_receipt(
+                args.receipt,
+                {
+                    "schema_version": "decision_v11_backfill_receipt_v1",
+                    "status": "skipped",
+                    "reason": "tushare_token_unavailable",
+                    "requested_start_date": start_date,
+                    "requested_end_date": end_date,
+                    "max_missing_dates": int(args.max_missing_dates),
+                    "credential_persisted": False,
+                },
+            )
             print("[decision-v11-backfill] TUSHARE_TOKEN unavailable; skipped")
             return 0
         raise RuntimeError("TUSHARE_TOKEN is not configured")
@@ -306,12 +373,16 @@ def main() -> int:
         timeout_seconds=max(1, int(args.timeout_seconds))
     )
     calendar = client.trade_calendar(start_date, end_date)
-    write_calendar(calendar, root)
-    open_dates = _completed_open_dates(
-        calendar.loc[
-            calendar["is_open"].eq(1), "cal_date"
-        ].astype(str).tolist()
+    calendar_path = write_calendar(calendar, root)
+    evaluated_at_utc = (
+        datetime.now(ZoneInfo("UTC")).replace(microsecond=0).isoformat()
     )
+    open_dates = _completed_open_dates(
+        calendar.loc[calendar["is_open"].eq(1), "cal_date"].astype(str).tolist(),
+        now=datetime.fromisoformat(evaluated_at_utc),
+    )
+    calendar_bytes = calendar_path.read_bytes()
+    calendar_bytes_sha256 = hashlib.sha256(calendar_bytes).hexdigest()
     history_root = AuctionV3Config(root=root).historical_training_root
     history_root.mkdir(parents=True, exist_ok=True)
     covered = _covered_dates(history_root)
@@ -320,18 +391,43 @@ def main() -> int:
         covered,
         max_missing_dates=args.max_missing_dates,
     )
+    if len(target_window) != TARGET_HISTORY_DATES:
+        receipt = {
+            "schema_version": "decision_v11_backfill_receipt_v1",
+            "status": "insufficient_calendar_history",
+            "requested_start_date": start_date,
+            "requested_end_date": end_date,
+            "max_missing_dates": int(args.max_missing_dates),
+            "evaluated_at_utc": evaluated_at_utc,
+            "calendar_file": str(calendar_path.relative_to(root)),
+            "calendar_bytes_sha256": calendar_bytes_sha256,
+            "calendar_bytes": len(calendar_bytes),
+            "calendar_open_dates": len(open_dates),
+            "target_window_signal_dates": target_window,
+            "credential_persisted": False,
+        }
+        _write_receipt(args.receipt, receipt)
+        print(json.dumps(receipt, ensure_ascii=False, indent=2))
+        return 1
     if not target_dates:
-        print(
-            json.dumps(
-                {
-                    "status": "up_to_date",
-                    "calendar_open_dates": len(open_dates),
-                    "covered_signal_dates": len(covered),
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+        receipt = {
+            "schema_version": "decision_v11_backfill_receipt_v1",
+            "status": "up_to_date",
+            "requested_start_date": start_date,
+            "requested_end_date": end_date,
+            "max_missing_dates": int(args.max_missing_dates),
+            "evaluated_at_utc": evaluated_at_utc,
+            "calendar_file": str(calendar_path.relative_to(root)),
+            "calendar_bytes_sha256": calendar_bytes_sha256,
+            "calendar_bytes": len(calendar_bytes),
+            "calendar_open_dates": len(open_dates),
+            "covered_signal_dates": len(covered),
+            "target_window_signal_dates": target_window,
+            "missing_signal_dates": [],
+            "credential_persisted": False,
+        }
+        _write_receipt(args.receipt, receipt)
+        print(json.dumps(receipt, ensure_ascii=False, indent=2))
         return 0
 
     first_index = max(0, open_dates.index(target_dates[0]) - 5)
@@ -475,11 +571,18 @@ def main() -> int:
 
     if history.empty:
         summary = {
+            "schema_version": "decision_v11_backfill_receipt_v1",
             "status": "no_training_rows",
+            "requested_start_date": start_date,
+            "requested_end_date": end_date,
+            "max_missing_dates": int(args.max_missing_dates),
+            "target_window_signal_dates": target_window,
             "target_dates": target_dates,
             "fetch_dates": fetch_dates,
             "failures": failures,
+            "credential_persisted": False,
         }
+        _write_receipt(args.receipt, summary)
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0 if args.optional else 1
 
@@ -489,11 +592,15 @@ def main() -> int:
     history["take_profit_pct"] = EXIT_TAKE_PROFIT_PCT
     history["stop_loss_pct"] = EXIT_STOP_LOSS_PCT
     history["latest_exit_time"] = EXIT_LATEST_TIME
-    history["backfill_generated_at_utc"] = (
-        datetime.now(ZoneInfo("UTC"))
-        .replace(microsecond=0)
-        .isoformat()
-    )
+    history["signal_date"] = history["signal_date"].astype(str)
+    source_rank = pd.to_numeric(history["source_rank"], errors="coerce")
+    if (
+        source_rank.isna().any()
+        or source_rank.mod(1).ne(0).any()
+        or source_rank.le(0).any()
+    ):
+        raise RuntimeError("compact history source_rank must be a positive integer")
+    history["source_rank"] = source_rank.astype(int)
     history = history.sort_values(
         ["signal_date", "source_rank", "ts_code"],
         kind="stable",
@@ -517,21 +624,30 @@ def main() -> int:
             pd.Series(dtype=str),
         ).eq("tushare_stk_auction_o").sum()
     )
+    persisted_history = _read_csv(output_path)
+    persisted_canonical_sha256 = _sha256_frame(persisted_history)
+    output_bytes = output_path.read_bytes()
+    output_bytes_sha256 = hashlib.sha256(output_bytes).hexdigest()
     manifest = {
-        "schema_version": "decision_v11_history_manifest_v1",
-        "generated_at_utc": datetime.now(ZoneInfo("UTC"))
-        .replace(microsecond=0)
-        .isoformat(),
+        "schema_version": "decision_v11_history_manifest_v2",
+        "generated_at_utc": evaluated_at_utc,
+        "evaluated_at_utc": evaluated_at_utc,
         "calendar_source": "tushare:trade_cal:SSE",
         "strict_calendar": True,
+        "calendar_file": str(calendar_path.relative_to(root)),
+        "calendar_bytes_sha256": calendar_bytes_sha256,
+        "calendar_bytes": len(calendar_bytes),
+        "calendar_open_dates": len(open_dates),
         "requested_start_date": start_date,
         "requested_end_date": end_date,
         "target_signal_dates": target_dates,
         "target_window_start": target_window[0] if target_window else "",
         "target_window_end": target_window[-1] if target_window else "",
         "target_window_open_sessions": len(target_window),
+        "target_window_signal_dates": target_window,
         "target_history_sessions": TARGET_HISTORY_DATES,
         "walkforward_warmup_sessions": WALKFORWARD_WARMUP_DATES,
+        "max_missing_dates": int(args.max_missing_dates),
         "target_signal_date_count": len(target_dates),
         "produced_signal_dates": int(
             history["signal_date"].astype(str).nunique()
@@ -553,16 +669,26 @@ def main() -> int:
             "requires_intraday_truth": False,
         },
         "output_file": str(output_path.relative_to(root)),
-        "output_sha256": _sha256_frame(history),
+        "output_sha256": persisted_canonical_sha256,
+        "output_canonical_sha256": persisted_canonical_sha256,
+        "output_bytes_sha256": output_bytes_sha256,
+        "output_bytes": len(output_bytes),
         "endpoint_rows": endpoint_rows,
         "failures": failures,
         "credential_persisted": False,
     }
-    (history_root / "manifest_latest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    print(json.dumps(manifest, ensure_ascii=False, indent=2))
+    _write_json_atomic(history_root / "manifest_latest.json", manifest)
+    receipt = {
+        "schema_version": "decision_v11_backfill_receipt_v1",
+        "status": "produced",
+        "requested_start_date": start_date,
+        "requested_end_date": end_date,
+        "max_missing_dates": int(args.max_missing_dates),
+        "credential_persisted": False,
+        "manifest": manifest,
+    }
+    _write_receipt(args.receipt, receipt)
+    print(json.dumps(receipt, ensure_ascii=False, indent=2))
     return 0
 
 
