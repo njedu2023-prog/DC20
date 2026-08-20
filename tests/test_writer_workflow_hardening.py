@@ -477,6 +477,92 @@ def test_daily_candidate_staging_tolerates_absent_optional_reports_and_tracks_de
         exec(compile(publish_source, "<daily-publish-segment-allowlist>", "exec"), {})
 
 
+def test_daily_restores_auction_reports_before_live_source_mutation(
+    tmp_path: Path,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    replay_step = daily.split(
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+        1,
+    )[1].split("- name: Resolve Daily exchange write eligibility", 1)[0]
+    report_pathspec = ":(glob,top)docs/reports/auction_v3*.html"
+    assert "git ls-files -z --cached --" in replay_step
+    assert "git restore --worktree --source=HEAD" in replay_step
+    assert "--pathspec-from-file=\"${auction_reports}\" --pathspec-file-nul" in replay_step
+    assert f"git clean -f -- '{report_pathspec}'" in replay_step
+    assert "daily-auction-report-dirty.bin" in replay_step
+
+    repo = tmp_path / "report-restore"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    reports = repo / "docs/reports"
+    reports.mkdir(parents=True)
+    tracked = reports / "auction_v3_latest.html"
+    tracked.write_text("tracked baseline\n", encoding="utf-8")
+    daily_owned = reports / "daily.md"
+    daily_owned.write_text("daily baseline\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "docs"], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=DC20 Test",
+            "-c",
+            "user.email=dc20-test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "baseline",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    tracked.write_text("replay mutation\n", encoding="utf-8")
+    generated = reports / "auction_v3_generated.html"
+    generated.write_text("replay generated\n", encoding="utf-8")
+    daily_owned.write_text("daily mutation\n", encoding="utf-8")
+
+    tracked_paths = tmp_path / "tracked-auction-reports.bin"
+    tracked_paths.write_bytes(
+        subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--", report_pathspec],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        ).stdout
+    )
+    subprocess.run(
+        [
+            "git",
+            "restore",
+            "--worktree",
+            "--source=HEAD",
+            f"--pathspec-from-file={tracked_paths}",
+            "--pathspec-file-nul",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(["git", "clean", "-f", "--", report_pathspec], cwd=repo, check=True)
+    dirty = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--",
+            report_pathspec,
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert dirty == b""
+    assert tracked.read_text(encoding="utf-8") == "tracked baseline\n"
+    assert not generated.exists()
+    assert daily_owned.read_text(encoding="utf-8") == "daily mutation\n"
+
+
 def test_daily_allowlists_expose_both_sides_of_renames(
     tmp_path: Path,
 ) -> None:

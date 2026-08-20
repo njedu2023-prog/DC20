@@ -277,6 +277,17 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
               output.write(f"sha256={digest}\n")
           PY
+          auction_reports="${RUNNER_TEMP}/daily-auction-report-paths.bin"
+          git ls-files -z --cached -- ':(glob,top)docs/reports/auction_v3*.html' > "${auction_reports}"
+          if [ -s "${auction_reports}" ]; then
+            git restore --worktree --source=HEAD \
+              --pathspec-from-file="${auction_reports}" --pathspec-file-nul
+          fi
+          git clean -f -- ':(glob,top)docs/reports/auction_v3*.html'
+          git status --porcelain=v1 -z --untracked-files=all -- \
+            ':(glob,top)docs/reports/auction_v3*.html' \
+            > "${RUNNER_TEMP}/daily-auction-report-dirty.bin"
+          test ! -s "${RUNNER_TEMP}/daily-auction-report-dirty.bin"
       - name: Resolve Daily exchange write eligibility
         id: session
         env:
