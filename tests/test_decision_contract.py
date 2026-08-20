@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import sys
 import tempfile
@@ -27,8 +29,10 @@ from scripts.backfill_decision_v11_history import (  # noqa: E402
 from scripts.build_eret_truth import infer_eret_label  # noqa: E402
 from scripts.build_fill_truth import infer_fill_label  # noqa: E402
 from scripts.resolve_sample_maturity import (  # noqa: E402
+    SampleMaturityRow,
     resolve_sample_maturity_rows,
     resolve_trade_calendar,
+    write_csv as write_sample_maturity_csv,
 )
 from scripts.sync_tushare_minute import _collect_codes  # noqa: E402
 from scripts.validate_io_contract import _allows_unpromoted_no_trade  # noqa: E402
@@ -157,6 +161,33 @@ class DecisionCalendarContractTests(unittest.TestCase):
                 current_run_date="20260507",
                 trade_calendar_file=calendar_path,
             )
+
+    def test_sample_maturity_csv_is_lf_and_newline_parse_equivalent(self) -> None:
+        rows = [
+            SampleMaturityRow(
+                trade_date="20260814",
+                exec_date="20260817",
+                target_date="20260818",
+                sample_maturity="FULLY_READY",
+                PFILL_READY=1,
+                ERET_READY=1,
+                FULLY_READY=1,
+            )
+        ]
+        output = Path(self.temp.name) / "sample_maturity_latest.csv"
+
+        write_sample_maturity_csv(rows, output)
+
+        payload = output.read_bytes()
+        self.assertTrue(payload.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\r\n", payload)
+        self.assertEqual(payload.count(b"\n"), len(rows) + 1)
+
+        def parse(value: bytes) -> list[dict[str, str]]:
+            text = value.decode("utf-8-sig")
+            return list(csv.DictReader(io.StringIO(text, newline="")))
+
+        self.assertEqual(parse(payload), parse(payload.replace(b"\n", b"\r\n")))
 
     def test_two_year_oos_backfill_keeps_training_warmup(self) -> None:
         open_dates = [
@@ -712,7 +743,7 @@ class DecisionActionPlanTests(unittest.TestCase):
             "ready": bool(promoted),
             "reason": "chronological_policy_holdout_passed",
             "max_positions": 2,
-            "tail_risk_weight": 0.25,
+            "tail_risk_weight": 0.0,
             "thresholds": {
                 "min_trade_score": 0.1,
                 "min_mean_return_lcb": 0.0,
@@ -869,7 +900,7 @@ class DecisionActionPlanTests(unittest.TestCase):
         prediction["trade_predicted_outcome_q10"] = -0.01
         prediction["trade_tail_loss_proxy"] = -0.01
         prediction["trade_base_score"] = 0.02
-        prediction["trade_tail_risk_weight"] = 0.25
+        prediction["trade_tail_risk_weight"] = 0.0
         prediction["trade_gate_pass"] = 1
         prediction["trade_selector_policy_ready"] = int(promoted)
         prediction["trade_model_reason"] = "learned_policy_pass"
@@ -1189,6 +1220,13 @@ class DecisionActionPlanTests(unittest.TestCase):
             / "auction_v3"
             / "models"
             / "model_meta_latest.json"
+        )
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
         )
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         meta["model_artifact_sha256"] = "b" * 64
@@ -1615,6 +1653,116 @@ class DecisionActionPlanTests(unittest.TestCase):
 
                 self.assertFalse(contract_plan["model"]["canonical_contracts_match"])
                 self.assertEqual(contract_plan["formal_buy_count"], 0)
+
+    def test_v2_policy_projection_rejects_noncanonical_q8_aliases(self) -> None:
+        backtest_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "metrics"
+            / "backtest_latest.json"
+        )
+        meta_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "models"
+            / "model_meta_latest.json"
+        )
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        mutations = (
+            ("model", "min_selection_score", 0.1000000004),
+            ("trade_selector", "min_trade_score", 0.1000000004),
+            ("trade_selector", "tail_risk_weight", 0.0000000004),
+            ("model", "min_mean_return_lcb", 0),
+            ("trade_selector", "min_mean_return_lcb", 0),
+            ("trade_selector", "tail_risk_weight", 0),
+        )
+        for layer, field, value in mutations:
+            with self.subTest(layer=layer, field=field):
+                self._write_model_artifacts(promoted=True)
+                backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                for payload in (backtest, meta):
+                    if layer == "model":
+                        projection = payload["model_fingerprint_v2"][
+                            "policy_projection"
+                        ]
+                        projection["thresholds"][field] = value
+                    else:
+                        projection = payload["trade_selector"][
+                            "production_fingerprint_v2"
+                        ]["policy_projection"]
+                        if field == "tail_risk_weight":
+                            projection[field] = value
+                        else:
+                            projection["thresholds"][field] = value
+                if type(value) is int:
+                    for payload in (backtest, meta):
+                        if layer == "model":
+                            fingerprint = payload["model_fingerprint_v2"]
+                            policy_sha = canonical_mapping_sha256(
+                                {
+                                    "schema": CANONICAL_FINGERPRINT_SCHEMA,
+                                    "artifact_kind": "decision_model_executable_policy",
+                                    "projection": fingerprint["policy_projection"],
+                                },
+                                decimals=8,
+                                exact_strings=True,
+                            )
+                            artifact_kind = "decision_model_canonical_runtime_v2"
+                        else:
+                            selector = payload["trade_selector"]
+                            fingerprint = selector["production_fingerprint_v2"]
+                            policy_sha = canonical_policy_fingerprint(
+                                fingerprint["policy_projection"], decimals=8
+                            )["sha256"]
+                            artifact_kind = (
+                                "decision_trade_selector_canonical_runtime_v2"
+                            )
+                        fingerprint["policy_sha256"] = policy_sha
+                        artifact = compose_artifact_fingerprint(
+                            artifact_kind=artifact_kind,
+                            provenance_sha256=fingerprint["provenance_sha256"],
+                            semantic_sha256=fingerprint["semantic_sha256"],
+                            policy_sha256=policy_sha,
+                            decimals=8,
+                        )
+                        fingerprint["artifact_sha256"] = artifact
+                        if layer == "model":
+                            payload["model_artifact_v2_sha256"] = artifact
+                        else:
+                            selector["production_artifact_v2_sha256"] = artifact
+                    prediction = pd.read_csv(prediction_path)
+                    artifact_column = (
+                        "model_artifact_v2_sha256"
+                        if layer == "model"
+                        else "trade_selector_artifact_v2_sha256"
+                    )
+                    prediction[artifact_column] = artifact
+                    prediction.to_csv(prediction_path, index=False)
+                # Deliberately retain the original q8 policy/artifact hashes:
+                # raw aliases use the old q8 hashes; JSON int aliases are fully
+                # re-signed so only the strict envelope type gate can reject.
+                backtest_path.write_text(json.dumps(backtest), encoding="utf-8")
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+                plan = build_action_plan(self.root)
+
+                valid_field = (
+                    "fingerprint_v2_valid"
+                    if layer == "model"
+                    else "trade_selector_fingerprint_v2_valid"
+                )
+                self.assertFalse(plan["model"][valid_field])
+                self.assertEqual(plan["status_code"], "NO_TRADE_MODEL_NOT_PROMOTED")
+                self.assertEqual(plan["formal_buy_count"], 0)
 
     def test_v2_prediction_hard_types_and_all_row_promotion(self) -> None:
         prediction_path = (

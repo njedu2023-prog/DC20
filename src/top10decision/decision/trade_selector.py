@@ -18,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 
 from .canonical_fingerprint import (
     CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_execution_projection,
     canonical_frame_fingerprint,
     canonical_policy_fingerprint,
     canonical_mapping_sha256,
@@ -282,18 +283,15 @@ def _selector_executable_policy_projection(
 def _selector_policy_fingerprint_v2(
     policy: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    projection = _selector_executable_policy_projection(policy)
-    fingerprint = canonical_policy_fingerprint(
+    raw_projection = _selector_executable_policy_projection(policy)
+    projection = canonical_execution_projection(
+        raw_projection,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+    )
+    return canonical_policy_fingerprint(
         projection,
         decimals=RUNTIME_CANONICAL_DECIMALS,
     )
-    return {
-        **fingerprint,
-        # Consumers validate executable types directly.  The hash still uses
-        # canonical decimal tokens internally, but the published projection
-        # remains the strictly validated raw-float execution contract.
-        "projection": projection,
-    }
 
 
 def _safe_metric(value: Any) -> Optional[float]:

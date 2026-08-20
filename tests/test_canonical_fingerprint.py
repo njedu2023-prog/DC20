@@ -7,6 +7,7 @@ import pandas as pd
 
 from top10decision.decision.canonical_fingerprint import (
     CanonicalSchemaError,
+    canonical_execution_projection,
     canonical_float_token,
     canonical_frame_fingerprint,
     canonical_policy_fingerprint,
@@ -28,6 +29,29 @@ from scripts.diagnose_decision_fingerprint import (
 
 
 class CanonicalFingerprintTest(unittest.TestCase):
+    def test_execution_projection_is_json_native_half_even_and_fail_closed(self):
+        projection = canonical_execution_projection(
+            {
+                "positive_tie": 0.123456785,
+                "positive_up": 0.123456795,
+                "negative_zero": -0.0,
+                "positions": 2,
+                "ready": False,
+                "reason": " exact ",
+            },
+            decimals=8,
+        )
+        self.assertEqual(projection["positive_tie"], 0.12345678)
+        self.assertEqual(projection["positive_up"], 0.1234568)
+        self.assertEqual(projection["negative_zero"], 0.0)
+        self.assertIs(type(projection["positions"]), int)
+        self.assertIs(type(projection["ready"]), bool)
+        self.assertEqual(projection["reason"], " exact ")
+        for invalid in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(CanonicalSchemaError):
+                    canonical_execution_projection(invalid, decimals=8)
+
     def test_exact_text_preserves_execution_whitespace_and_unicode_form(self):
         base = canonical_value("NEUTRAL", decimals=8, kind="exact_text")
         self.assertEqual(base, "NEUTRAL")

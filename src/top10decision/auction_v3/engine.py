@@ -30,6 +30,7 @@ from top10decision.decision.contracts import (
 )
 from top10decision.decision.canonical_fingerprint import (
     CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_execution_projection,
     canonical_frame_fingerprint,
     canonical_mapping_sha256,
     compose_artifact_fingerprint,
@@ -618,7 +619,11 @@ def _model_executable_policy_projection(
 def _model_policy_fingerprint_v2(
     policy: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    projection = _model_executable_policy_projection(policy)
+    raw_projection = _model_executable_policy_projection(policy)
+    projection = canonical_execution_projection(
+        raw_projection,
+        decimals=RUNTIME_CANONICAL_DECIMALS,
+    )
     return {
         "sha256": canonical_mapping_sha256(
             {
@@ -6849,6 +6854,7 @@ class AuctionV3Engine:
             "ts_code",
             "name",
             "industry",
+            "limit_times",
             "stage",
             "stage_transition",
             "stage_focus",
@@ -6884,6 +6890,8 @@ class AuctionV3Engine:
             "source_rank",
             "d_close",
             "estimated_up_limit",
+            "diagnostic_gap",
+            "recommended_max_gap",
             "recommended_max_price",
             "max_auction_change_pct",
             "observation_max_price",
@@ -8245,6 +8253,12 @@ class AuctionV3Engine:
             bundle.runtime_canonical_contract
             if bundle is not None
             else _runtime_canonical_contract("model")
+        )
+        # Publish the untouched raw execution policy on both same-run JSON
+        # surfaces.  Runtime validation compares these bytes/type-sensitively,
+        # then verifies that each maps to the stable canonical q8 envelope.
+        backtest_metrics["selection_policy"] = (
+            bundle.selection_policy if bundle is not None else {}
         )
         _write_json(
             backtest_metrics,

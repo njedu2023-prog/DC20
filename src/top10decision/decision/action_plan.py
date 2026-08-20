@@ -13,6 +13,9 @@ import pandas as pd
 from .eligibility import annotate_standard_limit_universe, filter_standard_limit_universe
 from .canonical_fingerprint import (
     CANONICAL_FINGERPRINT_SCHEMA,
+    CanonicalSchemaError,
+    canonical_execution_projection,
+    canonical_json_bytes,
     canonical_mapping_sha256,
     canonical_policy_fingerprint,
     compose_artifact_fingerprint,
@@ -429,16 +432,19 @@ def _valid_policy_projection(value: Any, *, layer: str) -> bool:
         or reason == ""
     ):
         return False
-    if not isinstance(value.get("ready"), (bool, np.bool_)):
+    if type(value.get("ready")) is not bool:
         return False
     max_positions = value.get("max_positions")
-    if not _finite_number(max_positions):
+    if type(max_positions) is not int:
         return False
     max_positions_number = _strict_real_number(max_positions)
-    if max_positions_number is None or not max_positions_number.is_integer():
+    if max_positions_number is None:
         return False
-    if layer == "trade_selector" and not _finite_number(
-        value.get("tail_risk_weight")
+    if max_positions < (1 if layer == "trade_selector" else 0):
+        return False
+    if layer == "trade_selector" and (
+        type(value.get("tail_risk_weight")) is not float
+        or not math.isfinite(value["tail_risk_weight"])
     ):
         return False
     thresholds = value.get("thresholds")
@@ -451,7 +457,20 @@ def _valid_policy_projection(value: Any, *, layer: str) -> bool:
     )
     if set(thresholds) != expected_thresholds:
         return False
-    return all(_finite_number(thresholds[name]) for name in expected_thresholds)
+    if not all(
+        type(thresholds[name]) is float and math.isfinite(thresholds[name])
+        for name in expected_thresholds
+    ):
+        return False
+    # The V2 envelope carries the executable policy's q8 projection, never a
+    # raw-float alias that merely hashes to the same q8 value.  Keep this
+    # check type-sensitive (for example, ``True`` is not interchangeable with
+    # ``1``) so synchronized metadata tampering still fails closed.
+    try:
+        canonical = canonical_execution_projection(value, decimals=8)
+        return canonical_json_bytes(canonical) == canonical_json_bytes(value)
+    except (CanonicalSchemaError, TypeError, ValueError):
+        return False
 
 
 def _valid_v2_fingerprint(

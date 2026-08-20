@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import math
 from types import SimpleNamespace
 
 import pandas as pd
@@ -129,6 +130,23 @@ def test_model_policy_hash_uses_only_complete_executable_projection() -> None:
     )
 
 
+def test_known_model_raw_drift_collapses_to_one_q8_projection() -> None:
+    first = _model_policy()
+    second = _model_policy()
+    first["thresholds"]["min_selection_score"] = -0.023022523477772033
+    second["thresholds"]["min_selection_score"] = -0.02302252347777204
+    first_fingerprint = _model_policy_fingerprint_v2(first)
+    second_fingerprint = _model_policy_fingerprint_v2(second)
+    assert first_fingerprint == second_fingerprint
+    assert (
+        first_fingerprint["projection"]["thresholds"]["min_selection_score"]
+        == -0.02302252
+    )
+    assert first["thresholds"]["min_selection_score"] != second[
+        "thresholds"
+    ]["min_selection_score"]
+
+
 @pytest.mark.parametrize(
     "threshold",
     [
@@ -147,6 +165,17 @@ def test_each_model_executable_threshold_above_1e8_rotates_policy(
     original = _model_policy_fingerprint_v2(policy)["sha256"]
     policy["thresholds"][threshold] += 0.00000002
     assert _model_policy_fingerprint_v2(policy)["sha256"] != original
+
+
+def test_model_policy_one_ulp_raw_drift_inside_q8_is_fingerprint_equal() -> None:
+    policy = _model_policy()
+    original_value = policy["thresholds"]["min_fill_probability"]
+    original = _model_policy_fingerprint_v2(policy)["sha256"]
+    policy["thresholds"]["min_fill_probability"] = math.nextafter(
+        original_value, math.inf
+    )
+    assert policy["thresholds"]["min_fill_probability"] != original_value
+    assert _model_policy_fingerprint_v2(policy)["sha256"] == original
 
 
 @pytest.mark.parametrize(
@@ -185,6 +214,32 @@ def test_selector_policy_hash_excludes_metrics_and_checks() -> None:
     )
 
 
+def test_known_selector_raw_drift_collapses_to_one_q8_projection() -> None:
+    first = _selector_policy()
+    second = _selector_policy()
+    first["thresholds"].update(
+        {
+            "max_big_loss_probability": 0.5664759332566216,
+            "min_trade_score": -0.018372119893454344,
+        }
+    )
+    second["thresholds"].update(
+        {
+            "max_big_loss_probability": 0.5664759332565762,
+            "min_trade_score": -0.018372119893454195,
+        }
+    )
+    first_fingerprint = _selector_policy_fingerprint_v2(first)
+    second_fingerprint = _selector_policy_fingerprint_v2(second)
+    assert first_fingerprint == second_fingerprint
+    assert first_fingerprint["projection"]["thresholds"] == {
+        "min_trade_score": -0.01837212,
+        "min_mean_return_lcb": -0.03,
+        "min_fill_probability": 0.1,
+        "max_big_loss_probability": 0.56647593,
+    }
+
+
 @pytest.mark.parametrize(
     "threshold",
     [
@@ -201,6 +256,17 @@ def test_each_selector_executable_threshold_above_1e8_rotates_policy(
     original = _selector_policy_fingerprint_v2(policy)["sha256"]
     policy["thresholds"][threshold] += 0.00000002
     assert _selector_policy_fingerprint_v2(policy)["sha256"] != original
+
+
+def test_selector_policy_one_ulp_raw_drift_inside_q8_is_fingerprint_equal() -> None:
+    policy = _selector_policy()
+    original_value = policy["thresholds"]["min_fill_probability"]
+    original = _selector_policy_fingerprint_v2(policy)["sha256"]
+    policy["thresholds"]["min_fill_probability"] = math.nextafter(
+        original_value, math.inf
+    )
+    assert policy["thresholds"]["min_fill_probability"] != original_value
+    assert _selector_policy_fingerprint_v2(policy)["sha256"] == original
 
 
 @pytest.mark.parametrize(

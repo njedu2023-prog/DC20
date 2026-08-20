@@ -6,13 +6,8 @@ on:
     paths:
       - decision.html
       - outputs/decision/**
+      - models/decision_model_freeze.json
       - .github/workflows/deploy_dc20_pages.yml
-  workflow_run:
-    workflows:
-      - Run Top10 Decision (Auto Daily)
-      - Run Decision Top10 Trade Selector V12
-      - Verify Decision Top10 Observations
-    types: [completed]
   schedule:
     - cron: "30 9 * * 1-5"
     - cron: "30 13 * * 1-5"
@@ -29,10 +24,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main')
+    if: ${{ github.ref == 'refs/heads/main' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -50,6 +42,7 @@ jobs:
         id: site
         env:
           DC2_SYSTEM_NAME: DC2.0
+          MAX_REPORT_AGE_DAYS: "1"
         run: |
           set -euo pipefail
           mkdir -p _site/outputs
@@ -64,8 +57,11 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import html as html_module
+          import re
           from datetime import datetime, timezone
           from pathlib import Path
+          from zoneinfo import ZoneInfo
 
           index_path = Path("_site/outputs/decision/report_index.json")
           if not index_path.is_file():
@@ -82,6 +78,32 @@ jobs:
           if not report_path.is_file() or report_path.stat().st_size <= 0:
               raise SystemExit(f"latest report is missing or empty: {report_path}")
 
+          freeze_path = Path("models/decision_model_freeze.json")
+          if not freeze_path.is_file():
+              raise SystemExit(f"missing Decision freeze manifest: {freeze_path}")
+          freeze_manifest = json.loads(freeze_path.read_text(encoding="utf-8"))
+          freeze_active = freeze_manifest.get("active") is True
+
+          try:
+              report_day = datetime.strptime(report_date, "%Y%m%d").date()
+          except ValueError as exc:
+              raise SystemExit(f"invalid latest_report_date: {report_date!r}") from exc
+          today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+          report_age_days = (today - report_day).days
+          max_report_age_days = int(os.environ["MAX_REPORT_AGE_DAYS"])
+          if max_report_age_days < 0:
+              raise SystemExit("MAX_REPORT_AGE_DAYS must be non-negative")
+
+          stale_reasons = []
+          if not freeze_active:
+              stale_reasons.append("freeze_inactive")
+          if report_age_days < 0:
+              stale_reasons.append("report_date_in_future")
+          elif report_age_days > max_report_age_days:
+              stale_reasons.append("report_expired")
+          stale = bool(stale_reasons)
+          stale_reason = "+".join(stale_reasons) if stale_reasons else "none"
+
           head_sha = os.environ["HEAD_SHA"].strip()
           if len(head_sha) != 40:
               raise SystemExit(f"invalid checked-out HEAD SHA: {head_sha!r}")
@@ -89,7 +111,7 @@ jobs:
           repository = os.environ["GITHUB_REPOSITORY"]
           run_id = int(os.environ["GITHUB_RUN_ID"])
           revision = {
-              "schema_version": "decision_pages_revision_v1",
+              "schema_version": "decision_pages_revision_v2",
               "system_name": os.environ["DC2_SYSTEM_NAME"],
               "repository": repository,
               "branch": os.environ.get("GITHUB_REF_NAME", "main"),
@@ -102,6 +124,10 @@ jobs:
               "report_date": report_date,
               "report_file": report_file,
               "report_generated_at_utc": report_index.get("generated_at_utc"),
+              "freeze_active": freeze_active,
+              "report_age_days": report_age_days,
+              "stale": stale,
+              "stale_reason": stale_reason,
               "published_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
           }
 
@@ -111,9 +137,36 @@ jobs:
               encoding="utf-8",
           )
 
-          html = Path("_site/index.html").read_text(encoding="utf-8")
-          if "<title>DC2.0 Decision 竞价研究</title>" not in html:
+          entry_html = Path("_site/index.html").read_text(encoding="utf-8")
+          if "<title>DC2.0 Decision 竞价研究</title>" not in entry_html:
               raise SystemExit("index.html does not carry the DC2.0 display title")
+          banner_id = "dc20-truthfulness-banner"
+          if banner_id in entry_html:
+              raise SystemExit(f"source decision.html unexpectedly contains {banner_id}")
+          if stale:
+              reason_text = {
+                  "freeze_inactive": "生产冻结未启用",
+                  "report_expired": f"报告已过期（报告日 {report_date}，距今 {report_age_days} 天）",
+                  "report_date_in_future": f"报告日期异常（{report_date} 晚于当前日期）",
+              }
+              details = "；".join(reason_text[item] for item in stale_reasons)
+              banner = (
+                  f'<aside id="{banner_id}" role="alert" '
+                  f'data-freeze-active="{str(freeze_active).lower()}" '
+                  f'data-report-age-days="{report_age_days}" '
+                  f'data-stale-reason="{html_module.escape(stale_reason, quote=True)}" '
+                  'style="position:sticky;top:0;z-index:2147483647;padding:16px 20px;'
+                  'border:4px solid #7f1d1d;background:#fee2e2;color:#450a0a;'
+                  'font:800 18px/1.5 system-ui,sans-serif;text-align:center">'
+                  f'只读历史快照｜禁止据此交易｜{html_module.escape(details)}'
+                  '</aside>'
+              )
+              body = re.search(r"<body\b[^>]*>", entry_html, flags=re.IGNORECASE)
+              if body is None:
+                  raise SystemExit("decision.html is missing a body element for stale banner")
+              entry_html = entry_html[: body.end()] + banner + entry_html[body.end() :]
+              Path("_site/index.html").write_text(entry_html, encoding="utf-8")
+              Path("_site/decision.html").write_text(entry_html, encoding="utf-8")
           if Path("_site/decision.html").read_bytes() != Path("_site/index.html").read_bytes():
               raise SystemExit("index.html and decision.html must be identical entry points")
 
@@ -121,6 +174,10 @@ jobs:
               output.write(f"head_sha={head_sha}\n")
               output.write(f"report_date={report_date}\n")
               output.write(f"report_file={report_file}\n")
+              output.write(f"freeze_active={str(freeze_active).lower()}\n")
+              output.write(f"report_age_days={report_age_days}\n")
+              output.write(f"stale={str(stale).lower()}\n")
+              output.write(f"stale_reason={stale_reason}\n")
 
           print(json.dumps(revision, ensure_ascii=False, sort_keys=True))
           PY
@@ -139,6 +196,10 @@ jobs:
           EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
           EXPECTED_REPORT_DATE: ${{ steps.site.outputs.report_date }}
           EXPECTED_REPORT_FILE: ${{ steps.site.outputs.report_file }}
+          EXPECTED_FREEZE_ACTIVE: ${{ steps.site.outputs.freeze_active }}
+          EXPECTED_REPORT_AGE_DAYS: ${{ steps.site.outputs.report_age_days }}
+          EXPECTED_STALE: ${{ steps.site.outputs.stale }}
+          EXPECTED_STALE_REASON: ${{ steps.site.outputs.stale_reason }}
           EXPECTED_RUN_ID: ${{ github.run_id }}
           EXPECTED_REPOSITORY: ${{ github.repository }}
         run: |
@@ -154,6 +215,10 @@ jobs:
           expected_head = os.environ["EXPECTED_HEAD"]
           expected_report_date = os.environ["EXPECTED_REPORT_DATE"]
           expected_report_file = os.environ["EXPECTED_REPORT_FILE"]
+          expected_freeze_active = os.environ["EXPECTED_FREEZE_ACTIVE"] == "true"
+          expected_report_age_days = int(os.environ["EXPECTED_REPORT_AGE_DAYS"])
+          expected_stale = os.environ["EXPECTED_STALE"] == "true"
+          expected_stale_reason = os.environ["EXPECTED_STALE_REASON"]
           expected_run_id = os.environ["EXPECTED_RUN_ID"]
           expected_repository = os.environ["EXPECTED_REPOSITORY"]
           cache_buster = f"?run_id={expected_run_id}"
@@ -204,6 +269,14 @@ jobs:
                       raise RuntimeError(
                           "revision report_file does not match the built report index"
                       )
+                  if revision.get("freeze_active") is not expected_freeze_active:
+                      raise RuntimeError("revision freeze_active does not match the build")
+                  if revision.get("report_age_days") != expected_report_age_days:
+                      raise RuntimeError("revision report_age_days does not match the build")
+                  if revision.get("stale") is not expected_stale:
+                      raise RuntimeError("revision stale does not match the build")
+                  if revision.get("stale_reason") != expected_stale_reason:
+                      raise RuntimeError("revision stale_reason does not match the build")
                   if str(public_index.get("latest_report_date")) != expected_report_date:
                       raise RuntimeError(
                           "public report_index latest_report_date does not match revision.json"
@@ -214,6 +287,20 @@ jobs:
                       )
                   if not public_report.strip():
                       raise RuntimeError("public latest report is empty")
+                  banner_id = 'id="dc20-truthfulness-banner"'
+                  if expected_stale:
+                      required_banner_fragments = (
+                          banner_id,
+                          "只读历史快照",
+                          "禁止据此交易",
+                          f'data-freeze-active="{str(expected_freeze_active).lower()}"',
+                          f'data-report-age-days="{expected_report_age_days}"',
+                          f'data-stale-reason="{expected_stale_reason}"',
+                      )
+                      if any(fragment not in root_html for fragment in required_banner_fragments):
+                          raise RuntimeError("public stale banner does not match revision.json")
+                  elif banner_id in root_html:
+                      raise RuntimeError("fresh active page unexpectedly contains stale banner")
 
                   print(
                       json.dumps(
@@ -224,6 +311,10 @@ jobs:
                               "run_id": expected_run_id,
                               "report_date": expected_report_date,
                               "report_file": expected_report_file,
+                              "freeze_active": expected_freeze_active,
+                              "report_age_days": expected_report_age_days,
+                              "stale": expected_stale,
+                              "stale_reason": expected_stale_reason,
                           },
                           ensure_ascii=False,
                           sort_keys=True,

@@ -98,30 +98,42 @@ def _write_synthetic_legacy(
     )
 
 
-def test_current_v2_manifest_uses_complete_loader_without_mutating_disk() -> None:
+def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> None:
     manifest_path = ROOT / "models" / "decision_model_freeze.json"
     before = manifest_path.read_bytes()
     current = json.loads(before)
-    assert current["schema_version"] == "decision_model_freeze_v2"
+    assert current["schema_version"] in {
+        "decision_model_freeze_v1",
+        "decision_model_freeze_v2",
+    }
     history, manifest, audit = replay.load_forced_frozen_history(ROOT)
-    assert manifest["schema_version"] == "decision_model_freeze_v2"
+    assert manifest["schema_version"] == current["schema_version"]
     assert manifest["active"] is current["active"]
     assert manifest_path.read_bytes() == before
     assert len(history) == 40_355
     assert history["signal_date"].nunique() == 715
     assert audit["sha256"] == replay.EXPECTED_SNAPSHOT_SHA256
     assert audit["columns_sha256"] == replay.EXPECTED_HISTORY_COLUMNS_SHA256
-    assert audit["source"] == "forced_frozen_snapshot"
     assert audit["forced_frozen_replay"] is True
     assert audit["live_history_fallback"] is False
-    assert audit["loader_contract"] == "v2_complete_contract_and_pins_no_live_fallback"
     assert audit["manifest_active_on_disk"] is current["active"]
-    pinned_files = audit["pinned_files"]
-    assert pinned_files["active"] is current["active"]
-    assert pinned_files["forced_enforcement"] is (not current["active"])
-    assert pinned_files["validated"] is True
-    assert pinned_files["enforced"] is True
-    assert pinned_files["pinned_files"] == 17
+    if current["schema_version"] == "decision_model_freeze_v1":
+        assert current["active"] is False
+        assert hashlib.sha256(before).hexdigest() == replay.LEGACY_BOOTSTRAP_MANIFEST_SHA256
+        assert audit["source"] == "legacy_v1_exact_diagnostic_bootstrap"
+        assert audit["loader_contract"] == "one_time_exact_v1_no_live_fallback"
+        assert "pinned_files" not in audit
+    else:
+        assert audit["source"] == "forced_frozen_snapshot"
+        assert audit["loader_contract"] == "v2_complete_contract_and_pins_no_live_fallback"
+        pinned_files = audit["pinned_files"]
+        assert pinned_files["active"] is current["active"]
+        assert pinned_files["forced_enforcement"] is (not current["active"])
+        assert pinned_files["validated"] is True
+        assert pinned_files["enforced"] is True
+        assert pinned_files["pinned_files"] == len(
+            replay.freeze_contract.REQUIRED_ACTIVE_PIN_PATHS
+        )
 
 
 def test_exact_legacy_v1_fixture_bootstrap_is_independent_of_current_manifest(
@@ -664,8 +676,8 @@ def test_prediction_policy_exact_decimal_surface_and_51_9_domain_pass() -> None:
     result = replay.validate_prediction_policy_execution(
         frame,
         prediction_text=text,
-        model_projection=model,
-        selector_projection=selector,
+        model_execution_projection=model,
+        selector_execution_projection=selector,
     )
     assert result["rows"] == 51
     assert result["selector_domain_rows"] == 9
@@ -693,8 +705,8 @@ def test_prediction_policy_text_surface_rejects_any_decimal_drift(raw: str) -> N
         replay.validate_prediction_policy_execution(
             frame,
             prediction_text=text,
-            model_projection=model,
-            selector_projection=selector,
+            model_execution_projection=model,
+            selector_execution_projection=selector,
         )
 
 
@@ -714,8 +726,8 @@ def test_prediction_policy_text_surface_requires_same_row_count() -> None:
         replay.validate_prediction_policy_execution(
             frame,
             prediction_text=text.iloc[:-1].copy(),
-            model_projection=model,
-            selector_projection=selector,
+            model_execution_projection=model,
+            selector_execution_projection=selector,
         )
 
 
@@ -741,8 +753,8 @@ def test_prediction_policy_rejects_nonbinary_aliases(column: str, value) -> None
         replay.validate_prediction_policy_execution(
             frame,
             prediction_text=text,
-            model_projection=model,
-            selector_projection=selector,
+            model_execution_projection=model,
+            selector_execution_projection=selector,
         )
 
 
@@ -768,8 +780,8 @@ def test_prediction_selector_domain_contract_rejects_mixed_domain(
         replay.validate_prediction_policy_execution(
             frame,
             prediction_text=text,
-            model_projection=model,
-            selector_projection=selector,
+            model_execution_projection=model,
+            selector_execution_projection=selector,
         )
 
 
@@ -926,7 +938,7 @@ def _fingerprint_integrity_fixture() -> tuple[dict, dict, dict, dict]:
             "min_fill_probability": 0.1,
             "min_exit_probability": 0.9,
             "min_conservative_ev": -0.01,
-            "min_selection_score": 0.02,
+            "min_selection_score": 0.0,
         },
     }
     selector_policy = {
@@ -936,15 +948,19 @@ def _fingerprint_integrity_fixture() -> tuple[dict, dict, dict, dict]:
         "max_positions": 2,
         "tail_risk_weight": 0.75,
         "thresholds": {
-            "min_trade_score": -0.02,
+            "min_trade_score": 0.0,
             "min_mean_return_lcb": -0.03,
-            "min_fill_probability": 0.1,
+            "min_fill_probability": 1.0,
             "max_big_loss_probability": 0.5,
         },
     }
-    model_projection = replay._model_executable_policy_projection(model_policy)
-    selector_projection = replay._selector_executable_policy_projection(
-        selector_policy
+    model_projection = replay.canonical_execution_projection(
+        replay._model_executable_policy_projection(model_policy),
+        decimals=8,
+    )
+    selector_projection = replay.canonical_execution_projection(
+        replay._selector_executable_policy_projection(selector_policy),
+        decimals=8,
     )
     model_policy_sha = replay.canonical_mapping_sha256(
         {
@@ -1014,6 +1030,39 @@ def _fingerprint_integrity_fixture() -> tuple[dict, dict, dict, dict]:
     return model, selector, model_policy, selector_policy
 
 
+def _resign_policy_projection(
+    fingerprint: dict,
+    *,
+    layer: str,
+) -> None:
+    projection = fingerprint["policy_projection"]
+    if layer == "model":
+        policy_sha = replay.canonical_mapping_sha256(
+            {
+                "schema": replay.CANONICAL_FINGERPRINT_SCHEMA,
+                "artifact_kind": "decision_model_executable_policy",
+                "projection": projection,
+            },
+            decimals=8,
+            exact_strings=True,
+        )
+        artifact_kind = "decision_model_canonical_runtime_v2"
+    else:
+        policy_sha = replay.canonical_policy_fingerprint(
+            projection,
+            decimals=8,
+        )["sha256"]
+        artifact_kind = "decision_trade_selector_canonical_runtime_v2"
+    fingerprint["policy_sha256"] = policy_sha
+    fingerprint["artifact_sha256"] = replay.compose_artifact_fingerprint(
+        artifact_kind=artifact_kind,
+        provenance_sha256=fingerprint["provenance_sha256"],
+        semantic_sha256=fingerprint["semantic_sha256"],
+        policy_sha256=policy_sha,
+        decimals=8,
+    )
+
+
 def test_fingerprint_integrity_recomputes_live_policy_and_artifact() -> None:
     model, selector, model_policy, selector_policy = _fingerprint_integrity_fixture()
     report = replay.validate_fingerprint_integrity(
@@ -1024,9 +1073,28 @@ def test_fingerprint_integrity_recomputes_live_policy_and_artifact() -> None:
     )
     assert report["live_policies_match_fingerprint_projection"] is True
 
+    within_q8_model = json.loads(json.dumps(model_policy))
+    within_q8_model["thresholds"]["min_selection_score"] = 0.0000000004
+    within_q8_selector = json.loads(json.dumps(selector_policy))
+    within_q8_selector["thresholds"]["min_trade_score"] = -0.0000000004
+    stable = replay.validate_fingerprint_integrity(
+        model,
+        selector,
+        live_model_policy=within_q8_model,
+        live_selector_policy=within_q8_selector,
+    )
+    assert stable["model_projection"] == model["policy_projection"]
+    assert stable["selector_projection"] == selector["policy_projection"]
+    assert (
+        stable["model_execution_projection"]["thresholds"][
+            "min_selection_score"
+        ]
+        != model["policy_projection"]["thresholds"]["min_selection_score"]
+    )
+
     stale_model_policy = json.loads(json.dumps(model_policy))
     stale_model_policy["thresholds"]["min_selection_score"] += 0.00000002
-    with pytest.raises(RuntimeError, match="live model selection_policy differs"):
+    with pytest.raises(RuntimeError, match="does not canonicalize"):
         replay.validate_fingerprint_integrity(
             model,
             selector,
@@ -1036,7 +1104,7 @@ def test_fingerprint_integrity_recomputes_live_policy_and_artifact() -> None:
 
     stale_selector_policy = json.loads(json.dumps(selector_policy))
     stale_selector_policy["thresholds"]["min_trade_score"] += 0.00000002
-    with pytest.raises(RuntimeError, match="live selector production_policy differs"):
+    with pytest.raises(RuntimeError, match="does not canonicalize"):
         replay.validate_fingerprint_integrity(
             model,
             selector,
@@ -1049,6 +1117,140 @@ def test_fingerprint_integrity_recomputes_live_policy_and_artifact() -> None:
     with pytest.raises(RuntimeError, match="policy SHA does not recompute"):
         replay.validate_fingerprint_integrity(
             stale_fingerprint,
+            selector,
+            live_model_policy=model_policy,
+            live_selector_policy=selector_policy,
+        )
+
+
+@pytest.mark.parametrize(
+    ("layer", "mutation", "message"),
+    [
+        (
+            "model",
+            lambda projection: projection["thresholds"].__setitem__(
+                "min_selection_score", 0
+            ),
+            "threshold must be a native float",
+        ),
+        (
+            "selector",
+            lambda projection: projection.__setitem__("max_positions", 2.0),
+            "max_positions must be a native integer",
+        ),
+        (
+            "model",
+            lambda projection: projection.__setitem__("max_positions", True),
+            "max_positions must be a native integer",
+        ),
+        (
+            "model",
+            lambda projection: projection.__setitem__("ready", 0),
+            "ready must be a native boolean",
+        ),
+        (
+            "selector",
+            lambda projection: projection.__setitem__("ready", 1),
+            "ready must be a native boolean",
+        ),
+        (
+            "selector",
+            lambda projection: projection["thresholds"].__setitem__(
+                "min_trade_score", False
+            ),
+            "threshold must be a native float",
+        ),
+        (
+            "selector",
+            lambda projection: projection["thresholds"].__setitem__(
+                "min_fill_probability", True
+            ),
+            "threshold must be a native float",
+        ),
+        (
+            "selector",
+            lambda projection: projection.__setitem__("tail_risk_weight", 0),
+            "tail_risk_weight must be a native float",
+        ),
+        (
+            "model",
+            lambda projection: projection.__setitem__("unknown", 1),
+            "projection keys drifted",
+        ),
+        (
+            "selector",
+            lambda projection: projection["thresholds"].__setitem__(
+                "unknown", 0.0
+            ),
+            "threshold keys drifted",
+        ),
+    ],
+)
+def test_fingerprint_integrity_rejects_fully_resigned_json_type_aliases(
+    layer: str,
+    mutation,
+    message: str,
+) -> None:
+    model, selector, model_policy, selector_policy = _fingerprint_integrity_fixture()
+    fingerprint = model if layer == "model" else selector
+    mutation(fingerprint["policy_projection"])
+    _resign_policy_projection(fingerprint, layer=layer)
+    with pytest.raises(RuntimeError, match=message):
+        replay.validate_fingerprint_integrity(
+            model,
+            selector,
+            live_model_policy=model_policy,
+            live_selector_policy=selector_policy,
+        )
+
+
+@pytest.mark.parametrize("value", ["0.0", float("nan"), float("inf"), float("-inf")])
+def test_fingerprint_integrity_rejects_non_native_or_nonfinite_thresholds(
+    value,
+) -> None:
+    model, selector, model_policy, selector_policy = _fingerprint_integrity_fixture()
+    model["policy_projection"]["thresholds"]["min_selection_score"] = value
+    message = "native float" if isinstance(value, str) else "non-finite"
+    with pytest.raises(RuntimeError, match=message):
+        replay.validate_fingerprint_integrity(
+            model,
+            selector,
+            live_model_policy=model_policy,
+            live_selector_policy=selector_policy,
+        )
+
+
+def test_live_policy_projection_comparison_is_json_type_sensitive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model, selector, model_policy, selector_policy = _fingerprint_integrity_fixture()
+    aliased_live_projection = dict(model["policy_projection"])
+    aliased_live_projection["max_positions"] = 2.0
+    original_canonicalize = replay.canonical_execution_projection
+
+    def canonicalize_with_live_alias(value, *, decimals: int):
+        canonical = original_canonicalize(value, decimals=decimals)
+        if (
+            value is not model["policy_projection"]
+            and isinstance(value, dict)
+            and value.get("version") == model_policy["version"]
+        ):
+            return aliased_live_projection
+        return canonical
+
+    monkeypatch.setattr(
+        replay,
+        "canonical_execution_projection",
+        canonicalize_with_live_alias,
+    )
+    assert aliased_live_projection == model["policy_projection"]
+    assert (
+        replay.canonical_json_bytes(aliased_live_projection)
+        != replay.canonical_json_bytes(model["policy_projection"])
+    )
+    with pytest.raises(RuntimeError, match="does not canonicalize"):
+        replay.validate_fingerprint_integrity(
+            model,
             selector,
             live_model_policy=model_policy,
             live_selector_policy=selector_policy,

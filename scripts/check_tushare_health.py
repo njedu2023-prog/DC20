@@ -49,6 +49,19 @@ ApiCall = Callable[
 class HealthCheckError(RuntimeError):
     """A health contract failed and the workflow must fail."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str = "health_contract",
+        row_count: int = 0,
+        safe_details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.row_count = max(0, int(row_count))
+        self.safe_details = dict(safe_details or {})
+
 
 def _safe_text(value: object, token: str) -> str:
     text = str(value or "")
@@ -85,33 +98,53 @@ def _api_call(
         with request.urlopen(http_request, timeout=timeout_seconds) as response:
             raw = response.read()
     except error.HTTPError as exc:
-        raise HealthCheckError(f"{api_name}: HTTP {exc.code}") from exc
+        raise HealthCheckError(
+            f"{api_name}: HTTP {exc.code}",
+            reason="http_status",
+            safe_details={"http_status": int(exc.code)},
+        ) from exc
     except error.URLError as exc:
         reason = _safe_text(getattr(exc, "reason", "network error"), token)
-        raise HealthCheckError(f"{api_name}: network error: {reason}") from exc
+        raise HealthCheckError(
+            f"{api_name}: network error: {reason}", reason="network"
+        ) from exc
 
     try:
         result = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise HealthCheckError(f"{api_name}: invalid JSON response") from exc
+        raise HealthCheckError(
+            f"{api_name}: invalid JSON response", reason="response_schema"
+        ) from exc
     if not isinstance(result, dict):
-        raise HealthCheckError(f"{api_name}: invalid response object")
+        raise HealthCheckError(
+            f"{api_name}: invalid response object", reason="response_schema"
+        )
 
     try:
         code = int(result.get("code", -1))
     except (TypeError, ValueError) as exc:
-        raise HealthCheckError(f"{api_name}: invalid API status code") from exc
+        raise HealthCheckError(
+            f"{api_name}: invalid API status code", reason="response_schema"
+        ) from exc
     if code != 0:
         message = _safe_text(result.get("msg") or "request rejected", token)
-        raise HealthCheckError(f"{api_name}: API code={code}: {message}")
+        raise HealthCheckError(
+            f"{api_name}: API code={code}: {message}",
+            reason="api_code",
+            safe_details={"api_code": code},
+        )
 
     data = result.get("data") or {}
     if not isinstance(data, dict):
-        raise HealthCheckError(f"{api_name}: invalid data object")
+        raise HealthCheckError(
+            f"{api_name}: invalid data object", reason="response_schema"
+        )
     response_fields = list(data.get("fields") or [])
     rows = list(data.get("items") or [])
     if not all(isinstance(row, list) for row in rows):
-        raise HealthCheckError(f"{api_name}: invalid data rows")
+        raise HealthCheckError(
+            f"{api_name}: invalid data rows", reason="response_schema"
+        )
     return response_fields, rows
 
 
@@ -219,11 +252,42 @@ def _valid_realtime_rows(
     probe_code: str,
     now_shanghai: datetime,
 ) -> list[list[Any]]:
-    candidates = _valid_rows(
-        "rt_min_daily", fields, rows, REALTIME_FIELDS
-    )
+    row_count = len(rows)
+    if not rows:
+        raise HealthCheckError(
+            "rt_min_daily: no valid rows",
+            reason="empty_rows",
+            row_count=0,
+        )
+    missing = [field for field in REALTIME_FIELDS if field not in fields]
+    if missing:
+        raise HealthCheckError(
+            "rt_min_daily: required fields are missing",
+            reason="schema",
+            row_count=row_count,
+        )
+    indexes = [fields.index(field) for field in REALTIME_FIELDS]
+    candidates = [
+        row
+        for row in rows
+        if max(indexes, default=-1) < len(row)
+        and all(
+            str(row[index] if row[index] is not None else "").strip()
+            for index in indexes
+        )
+    ]
+    if not candidates:
+        raise HealthCheckError(
+            "rt_min_daily: rows do not match the required schema",
+            reason="schema",
+            row_count=row_count,
+        )
     if len(candidates) != len(rows):
-        raise HealthCheckError("rt_min_daily: one or more rows are incomplete")
+        raise HealthCheckError(
+            "rt_min_daily: one or more rows are incomplete",
+            reason="schema",
+            row_count=row_count,
+        )
     code_index = fields.index("ts_code")
     freq_index = fields.index("freq")
     time_index = fields.index("time")
@@ -232,16 +296,36 @@ def _valid_realtime_rows(
     latest_allowed = now_shanghai + REALTIME_CLOCK_SKEW
     for row in candidates:
         if str(row[code_index] or "").strip().upper() != expected_code:
-            raise HealthCheckError("rt_min_daily: returned ts_code differs from probe")
+            raise HealthCheckError(
+                "rt_min_daily: returned ts_code differs from probe",
+                reason="identity",
+                row_count=row_count,
+            )
         if str(row[freq_index] or "").strip().upper() != "1MIN":
-            raise HealthCheckError("rt_min_daily: returned freq is not 1MIN")
+            raise HealthCheckError(
+                "rt_min_daily: returned freq is not 1MIN",
+                reason="frequency",
+                row_count=row_count,
+            )
         observed = _parse_realtime_timestamp(row[time_index])
         if observed is None:
-            raise HealthCheckError("rt_min_daily: returned time is not a timestamp")
+            raise HealthCheckError(
+                "rt_min_daily: returned time is not a timestamp",
+                reason="timestamp",
+                row_count=row_count,
+            )
         if observed.date() != today:
-            raise HealthCheckError("rt_min_daily: returned date is not Shanghai today")
+            raise HealthCheckError(
+                "rt_min_daily: returned date is not Shanghai today",
+                reason="timestamp",
+                row_count=row_count,
+            )
         if observed > latest_allowed:
-            raise HealthCheckError("rt_min_daily: returned time is later than allowed skew")
+            raise HealthCheckError(
+                "rt_min_daily: returned time is later than allowed skew",
+                reason="timestamp",
+                row_count=row_count,
+            )
     return candidates
 
 
@@ -362,14 +446,14 @@ def run_health_check(
         realtime_rows = 0
         passing_code = ""
         for probe_code in probe_codes_tuple:
-            realtime_fields, rows = api_call(
-                "rt_min_daily",
-                {"ts_code": probe_code, "freq": "1MIN"},
-                REALTIME_FIELDS,
-                token,
-                timeout_seconds,
-            )
             try:
+                realtime_fields, rows = api_call(
+                    "rt_min_daily",
+                    {"ts_code": probe_code, "freq": "1MIN"},
+                    REALTIME_FIELDS,
+                    token,
+                    timeout_seconds,
+                )
                 valid_realtime_rows = _valid_realtime_rows(
                     realtime_fields,
                     rows,
@@ -380,8 +464,14 @@ def run_health_check(
                 attempts.append(
                     {
                         "ts_code": probe_code,
-                        "row_count": 0,
-                        "status": _safe_text(exc, token),
+                        "row_count": exc.row_count,
+                        "status": "fail",
+                        "reason": exc.reason,
+                        **{
+                            key: value
+                            for key, value in exc.safe_details.items()
+                            if key in {"api_code", "http_status"}
+                        },
                     }
                 )
                 continue
@@ -390,14 +480,34 @@ def run_health_check(
                     "ts_code": probe_code,
                     "row_count": len(valid_realtime_rows),
                     "status": "pass",
+                    "reason": "valid_rows",
                 }
             )
             realtime_rows = len(valid_realtime_rows)
             passing_code = probe_code
             break
-        if not realtime_rows:
+        hard_reasons = {
+            "api_code",
+            "http_status",
+            "network",
+            "response_schema",
+            "schema",
+            "identity",
+            "frequency",
+        }
+        hard_failure = any(
+            attempt.get("reason") in hard_reasons for attempt in attempts
+        )
+        if not realtime_rows or hard_failure:
+            safe_details = {
+                "endpoint": "rt_min_daily",
+                "active_window": True,
+                "probes": attempts,
+            }
             raise HealthCheckError(
-                "rt_min_daily: no valid rows for all probe codes during the active window"
+                "rt_min_daily: no valid rows or hard contract failure for active-window probes",
+                reason="active_window_probe_failure",
+                safe_details=safe_details,
             )
         checks.append(
             {
@@ -457,24 +567,35 @@ def main(argv: list[str] | None = None) -> int:
         error_text = _safe_text(exc, token)
         if not isinstance(exc, HealthCheckError):
             error_text = f"unexpected {type(exc).__name__}: {error_text}"
+        payload = {
+            "schema_version": 1,
+            "system": "DC2.0",
+            "overall_status": "fail",
+            "error": error_text,
+            "token_present": bool(token),
+            "token_persisted": False,
+            "filesystem_writes": 0,
+        }
+        if isinstance(exc, HealthCheckError) and exc.safe_details:
+            payload["diagnostic"] = exc.safe_details
         print(
             json.dumps(
-                {
-                    "schema_version": 1,
-                    "system": "DC2.0",
-                    "overall_status": "fail",
-                    "error": error_text,
-                    "token_present": bool(token),
-                    "token_persisted": False,
-                    "filesystem_writes": 0,
-                },
+                payload,
                 ensure_ascii=False,
                 sort_keys=True,
+                separators=(",", ":"),
             ),
             file=sys.stderr,
         )
         return 1
-    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            summary,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 

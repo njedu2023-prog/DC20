@@ -694,10 +694,14 @@ class FreezeV2Fixture(unittest.TestCase):
 
     def _write_runtime(self) -> None:
         model_projection = self.model_layer["fingerprint_v2"]["policy_projection"]
+        selector_projection = self.selector_layer["fingerprint_v2"][
+            "policy_projection"
+        ]
         selector = {
             "version": "selector-v2",
             "promoted": False,
             "production_artifact_sha256": "f" * 64,
+            "production_policy": copy.deepcopy(selector_projection),
             **self._selector_runtime_fields(),
             "formal_policy_oos": {
                 "all_candidates": {
@@ -713,6 +717,7 @@ class FreezeV2Fixture(unittest.TestCase):
             "model_artifact_sha256": "e" * 64,
             "promoted": False,
             "data_coverage": {"history_end": "20260805"},
+            "selection_policy": copy.deepcopy(model_projection),
             **self._model_runtime_fields(),
             "trade_selector": selector,
         }
@@ -723,6 +728,7 @@ class FreezeV2Fixture(unittest.TestCase):
             "signals": 0,
             "signal_dates": 0,
             "filled_trades": 0,
+            "selection_policy": copy.deepcopy(model_projection),
             **self._model_runtime_fields(),
             "trade_selector": selector,
         }
@@ -736,7 +742,47 @@ class FreezeV2Fixture(unittest.TestCase):
             "model_execution_numeric_mode": "raw_float64",
             "model_raw_execution_preserved": True,
             "selection_policy_version": model_projection["version"],
+            "signal_date": "20260814",
+            "ts_code": "000001.SZ",
+            "limit_times": 2,
+            "stage": "2→3",
+            "stage_transition": "2→3",
+            "mechanism_limit_pct": 20.0,
+            "stage_focus": 1,
+            "predicted_exit_probability": 0.9,
+            "predicted_big_loss_probability": 0.1,
+            "predicted_mean_return_lcb": 0.1,
+            "predicted_return_lcb": 0.1,
+            "conservative_ev": 0.1,
+            "selection_score": 0.2,
+            "source_rank": 1,
             "gate_policy_ready": int(model_projection["ready"]),
+            "gate_stage_focus": 1,
+            "gate_exit_probability": 1,
+            "gate_fill_probability": 1,
+            "gate_big_loss_probability": 1,
+            "gate_mean_return_lcb": 1,
+            "gate_conservative_ev": 1,
+            "gate_selection_score": 1,
+            "risk_gate_pass": 0,
+            "model_reason": "selection_policy_not_ready",
+            "shadow_rank": 1,
+            "shadow_selected": 1,
+            "first_layer_shadow_selected": 1,
+            "first_layer_selected": 0,
+            "selected": 0,
+            "model_promoted": 0,
+            "action": "REJECT",
+            "diagnostic_gap": 0.01,
+            "recommended_max_gap": None,
+            "recommended_max_price": None,
+            "max_auction_change_pct": None,
+            "estimated_up_limit": 12.0,
+            "d_close": 10.0,
+            "guidance_only": 1,
+            "broker_connected": 0,
+            "market_order_allowed": 0,
+            "order_type": "LIMIT_ONLY_MANUAL",
             "policy_max_positions": model_projection["max_positions"],
             **{
                 f"policy_{name}": value
@@ -751,6 +797,10 @@ class FreezeV2Fixture(unittest.TestCase):
             "trade_selector_execution_numeric_mode": "raw_float64",
             "trade_selector_raw_execution_preserved": True,
             "observation_selected": 0,
+            "observation_rank": None,
+            "observation_risk_tier": None,
+            "observation_risk_label": None,
+            "observation_pool_size": 1,
             "predicted_fill_probability": 0.25,
             "predicted_public_market_buyable_probability": 0.25,
             "trade_predicted_fill_probability": None,
@@ -794,6 +844,13 @@ class FreezeV2Fixture(unittest.TestCase):
                 "predicted_fill_probability": 0.30,
                 "predicted_public_market_buyable_probability": 0.30,
                 "observation_selected": 1,
+                "ts_code": "000002.SZ",
+                "mechanism_limit_pct": 10.0,
+                "shadow_rank": 2,
+                "source_rank": 2,
+                "observation_rank": 1,
+                "observation_risk_tier": 1,
+                "observation_risk_label": "观察风险可控",
                 "trade_selector_artifact_v2_sha256": self.selector_layer[
                     "artifact_v2_sha256"
                 ],
@@ -806,17 +863,18 @@ class FreezeV2Fixture(unittest.TestCase):
                 "promotion_rank_score": 0.7,
                 "predicted_promotion_probability": 0.6,
                 "trade_rank": 1,
-                "trade_score": 0.5,
+                "trade_score": 0.1998,
                 "trade_predicted_conditional_net_return": 0.03,
-                "trade_predicted_mean_return_lcb": 0.01,
+                "trade_predicted_mean_return_lcb": 0.5,
                 "trade_predicted_big_loss_probability": 0.1,
                 "trade_predicted_outcome_q10": -0.02,
-                "trade_tail_loss_proxy": -0.01,
-                "trade_base_score": 0.49,
+                "trade_tail_loss_proxy": -0.002,
+                "trade_base_score": 0.2,
                 "trade_tail_risk_weight": 0.25,
                 "trade_gate_pass": 1,
                 "trade_shadow_selected": 1,
-                "trade_model_reason": "selector_not_promoted",
+                "action": "SHADOW_ONLY",
+                "trade_model_reason": "relative_best_two_only",
             }
         )
         pd.DataFrame([prediction_row, second_prediction_row]).to_csv(
@@ -1137,6 +1195,23 @@ class DecisionModelFreezeV2SchemaTest(FreezeV2Fixture):
             "fingerprint_v2"
         ]["policy_projection"]["thresholds"]["min_trade_score"] = "0.1"
         mutations.append(numeric_string)
+        integer_model_threshold = copy.deepcopy(self.manifest)
+        integer_model_threshold["production"]["canonical_v2"]["model"][
+            "fingerprint_v2"
+        ]["policy_projection"]["thresholds"]["min_mean_return_lcb"] = 0
+        mutations.append(integer_model_threshold)
+        integer_selector_threshold = copy.deepcopy(self.manifest)
+        integer_selector_threshold["production"]["canonical_v2"][
+            "trade_selector"
+        ]["fingerprint_v2"]["policy_projection"]["thresholds"][
+            "min_mean_return_lcb"
+        ] = 0
+        mutations.append(integer_selector_threshold)
+        integer_selector_tail = copy.deepcopy(self.manifest)
+        integer_selector_tail["production"]["canonical_v2"]["trade_selector"][
+            "fingerprint_v2"
+        ]["policy_projection"]["tail_risk_weight"] = 0
+        mutations.append(integer_selector_tail)
         for manifest in mutations:
             _write_json(self.root / "models/decision_model_freeze.json", manifest)
             with self.assertRaises(DecisionModelFreezeError):
@@ -1475,6 +1550,321 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             1,
         )
 
+    def test_raw_policy_surfaces_canonical_relation_and_gates_are_fail_closed(self):
+        meta_path = self.root / "outputs/auction_v3/models/model_meta_latest.json"
+        backtest_path = self.root / "outputs/auction_v3/metrics/backtest_latest.json"
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+
+        self._write_runtime()
+        meta = json.loads(meta_path.read_text())
+        meta["selection_policy"]["thresholds"]["min_selection_score"] = (
+            0.15000000000000002
+        )
+        _write_json(meta_path, meta)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "raw execution policy differs"):
+            self._validate_runtime()
+
+        self._write_runtime()
+        prediction = pd.read_csv(prediction_path)
+        prediction.loc[0, "policy_min_selection_score"] = 0.15000000000000002
+        prediction.to_csv(prediction_path, index=False)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "raw execution policy"):
+            self._validate_runtime()
+
+        self._write_runtime()
+        for path in (meta_path, backtest_path):
+            payload = json.loads(path.read_text())
+            payload["selection_policy"]["thresholds"]["min_selection_score"] = (
+                0.1500000004
+            )
+            _write_json(path, payload)
+        prediction = pd.read_csv(prediction_path)
+        prediction["policy_min_selection_score"] = 0.1500000004
+        prediction.to_csv(prediction_path, index=False)
+        audit = self._validate_runtime()
+        self.assertTrue(
+            audit["execution_policy_relation"]["model_raw_canonical_q8_match"]
+        )
+        self.assertTrue(
+            audit["prediction_model_policy_text_surface"]["exact_decimal_match"]
+        )
+
+        self._write_runtime()
+        for path in (meta_path, backtest_path):
+            payload = json.loads(path.read_text())
+            payload["selection_policy"]["thresholds"]["min_selection_score"] = (
+                0.15000002
+            )
+            _write_json(path, payload)
+        prediction = pd.read_csv(prediction_path)
+        prediction["policy_min_selection_score"] = 0.15000002
+        prediction.to_csv(prediction_path, index=False)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "canonicalize"):
+            self._validate_runtime()
+
+        self._write_runtime()
+        for path in (meta_path, backtest_path):
+            payload = json.loads(path.read_text())
+            payload["trade_selector"]["production_policy"]["thresholds"][
+                "min_trade_score"
+            ] = 0.1000000004
+            _write_json(path, payload)
+        audit = self._validate_runtime()
+        self.assertTrue(
+            audit["execution_policy_relation"][
+                "selector_raw_canonical_q8_match"
+            ]
+        )
+
+        for column, row_number, value in (
+            ("gate_selection_score", 0, 0.5),
+            ("risk_gate_pass", 0, 1),
+            ("trade_gate_pass", 1, 0),
+            ("trade_selector_policy_ready", 1, 0.5),
+        ):
+            with self.subTest(column=column):
+                self._write_runtime()
+                prediction = pd.read_csv(prediction_path)
+                prediction[column] = prediction[column].astype(object)
+                prediction.loc[row_number, column] = value
+                prediction.to_csv(prediction_path, index=False)
+                with self.assertRaises(DecisionModelFreezeError):
+                    self._validate_runtime()
+
+    def test_prediction_stage_relationship_mutations_each_fail(self):
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        mutations = (
+            ("stage", "2\u21924"),
+            ("stage_transition", "2\u21924"),
+            ("stage_focus", 0),
+            ("limit_times", 2.5),
+            ("limit_times", -1),
+            ("limit_times", float("inf")),
+        )
+        for column, value in mutations:
+            with self.subTest(column=column, value=value):
+                self._write_runtime()
+                prediction = pd.read_csv(prediction_path)
+                prediction[column] = prediction[column].astype(object)
+                prediction.loc[0, column] = value
+                prediction.to_csv(prediction_path, index=False)
+                with self.assertRaisesRegex(
+                    DecisionModelFreezeError, "stage|limit_times"
+                ):
+                    self._validate_runtime()
+
+    def test_prediction_execution_surface_mutations_each_fail(self):
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        mutations = (
+            ("action", 0, "BUY"),
+            ("guidance_only", 0, 0),
+            ("broker_connected", 0, 1),
+            ("market_order_allowed", 0, 1),
+            ("order_type", 0, "MARKET"),
+            ("recommended_max_gap", 0, 0.099),
+            ("recommended_max_price", 0, 999.0),
+            ("max_auction_change_pct", 0, 9.9),
+        )
+        for column, row_number, value in mutations:
+            with self.subTest(column=column):
+                self._write_runtime()
+                prediction = pd.read_csv(prediction_path)
+                prediction[column] = prediction[column].astype(object)
+                prediction.loc[row_number, column] = value
+                prediction.to_csv(prediction_path, index=False)
+                with self.assertRaises(DecisionModelFreezeError):
+                    self._validate_runtime()
+
+        self._write_runtime()
+        prediction = pd.read_csv(prediction_path).drop(columns=["action"])
+        prediction.to_csv(prediction_path, index=False)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "missing columns"):
+            self._validate_runtime()
+
+    def test_raw_policy_rank_gate_shadow_and_formula_contracts_are_independent(self):
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        model_raw = copy.deepcopy(
+            self.model_layer["fingerprint_v2"]["policy_projection"]
+        )
+        model_raw["ready"] = True
+        model_raw["max_positions"] = 1
+        selector_raw = copy.deepcopy(
+            self.selector_layer["fingerprint_v2"]["policy_projection"]
+        )
+        selector_raw["ready"] = False
+        selector_raw["max_positions"] = 1
+
+        self._write_runtime()
+        template = pd.read_csv(prediction_path).iloc[1].to_dict()
+        scores = (0.4, 0.3, 0.2, 0.1)
+        selector_fills = (0.1, 0.8, 0.8, 0.8)
+        selector_means = (4.0, 0.375, 0.25, 0.125)
+        trade_scores = tuple(
+            fill * mean
+            for fill, mean in zip(selector_fills, selector_means)
+        )
+        promotion_scores = (0.1, 0.4, 0.3, 0.2)
+        promotion_ranks = (4, 1, 2, 3)
+        rows = []
+        for index in range(4):
+            row = dict(template)
+            model_gate = int(scores[index] >= MODEL_THRESHOLDS["min_selection_score"])
+            row.update(
+                {
+                    "signal_date": "20260814",
+                    "ts_code": f"00000{index + 1}.SZ",
+                    "stage_focus": 1,
+                    "predicted_exit_probability": 0.9,
+                    "predicted_fill_probability": 0.8,
+                    "predicted_big_loss_probability": 0.1,
+                    "predicted_mean_return_lcb": 0.1,
+                    "predicted_return_lcb": 0.05 - index * 0.001,
+                    "conservative_ev": 0.1,
+                    "selection_score": scores[index],
+                    "source_rank": index + 1,
+                    "gate_policy_ready": 1,
+                    "gate_stage_focus": 1,
+                    "gate_exit_probability": 1,
+                    "gate_fill_probability": 1,
+                    "gate_big_loss_probability": 1,
+                    "gate_mean_return_lcb": 1,
+                    "gate_conservative_ev": 1,
+                    "gate_selection_score": model_gate,
+                    "risk_gate_pass": model_gate,
+                    "recommended_max_gap": 0.01 if model_gate else None,
+                    "recommended_max_price": 10.1 if model_gate else None,
+                    "max_auction_change_pct": 1.0 if model_gate else None,
+                    "model_reason": (
+                        "ok" if model_gate else "selection_score_below_policy_cutoff"
+                    ),
+                    "shadow_rank": index + 1,
+                    "shadow_selected": int(index < 2),
+                    "first_layer_shadow_selected": int(index < 2),
+                    "first_layer_selected": int(index == 0),
+                    "observation_selected": 1,
+                    "observation_rank": index + 1,
+                    "promotion_rank_score": promotion_scores[index],
+                    "promotion_rank": promotion_ranks[index],
+                    "trade_rank": index + 1,
+                    "trade_predicted_fill_probability": selector_fills[index],
+                    "trade_predicted_mean_return_lcb": selector_means[index],
+                    "trade_predicted_big_loss_probability": 0.1,
+                    "trade_predicted_outcome_q10": 0.1,
+                    "trade_tail_loss_proxy": 0.0,
+                    "trade_base_score": trade_scores[index],
+                    "trade_tail_risk_weight": 0.25,
+                    "trade_score": trade_scores[index],
+                    "trade_gate_pass": int(index == 1),
+                    "trade_shadow_selected": int(index < 2),
+                    "trade_selected": 0,
+                    "selected": 0,
+                    "trade_selector_policy_ready": 0,
+                    "trade_selector_promoted": 0,
+                    "action": "SHADOW_ONLY" if index < 2 else "REJECT",
+                    "trade_model_reason": (
+                        "relative_best_two_only"
+                        if index < 2
+                        else "below_learned_policy"
+                    ),
+                }
+            )
+            rows.append(row)
+
+        def validate(frame: pd.DataFrame) -> dict:
+            frame.to_csv(prediction_path, index=False)
+            parsed = freeze_module._read_csv(prediction_path, "mixed prediction")
+            text = freeze_module._read_csv_exact_text(
+                prediction_path, "mixed prediction text"
+            )
+            return freeze_module._validate_prediction_policy_gates(
+                parsed,
+                text,
+                model_raw_projection=model_raw,
+                selector_raw_projection=selector_raw,
+            )
+
+        baseline = pd.DataFrame(rows)
+        audit = validate(baseline)
+        self.assertEqual(audit["selector_trade_gate_pass_rows"], 1)
+        self.assertTrue(audit["trade_base_and_tail_formula_exact"])
+
+        mutations = []
+        for column, row_number, value in (
+            ("trade_tail_risk_weight", 0, 0.2500000000000001),
+            ("trade_base_score", 0, 0.4000000000000001),
+            ("trade_tail_loss_proxy", 0, 0.0000000000000001),
+            ("trade_score", 0, 0.4000000000000001),
+            ("promotion_rank", 0, 1),
+            ("trade_selected", 1, 1),
+            ("model_reason", 0, "selection_policy_not_ready"),
+            ("trade_model_reason", 1, "shadow_policy_only"),
+            ("gate_selection_score", 0, 0.5),
+            ("limit_times", 0, 1),
+        ):
+            changed = baseline.copy(deep=True)
+            changed[column] = changed[column].astype(object)
+            changed.loc[row_number, column] = value
+            mutations.append((column, changed))
+        for label, left, right in (
+            ("trade_rank_swap", (0, "trade_rank"), (1, "trade_rank")),
+            ("shadow_rank_swap", (0, "shadow_rank"), (2, "shadow_rank")),
+            ("trade_gate_swap", (1, "trade_gate_pass"), (2, "trade_gate_pass")),
+            (
+                "trade_shadow_swap",
+                (0, "trade_shadow_selected"),
+                (2, "trade_shadow_selected"),
+            ),
+            (
+                "first_shadow_swap",
+                (0, "first_layer_shadow_selected"),
+                (2, "first_layer_shadow_selected"),
+            ),
+            (
+                "first_selected_swap",
+                (0, "first_layer_selected"),
+                (1, "first_layer_selected"),
+            ),
+        ):
+            changed = baseline.copy(deep=True)
+            changed.loc[left[0], left[1]], changed.loc[right[0], right[1]] = (
+                changed.loc[right[0], right[1]],
+                changed.loc[left[0], left[1]],
+            )
+            mutations.append((label, changed))
+        changed = baseline.copy(deep=True)
+        changed.loc[0, "trade_base_score"] = 0.41
+        changed.loc[0, "trade_score"] = 0.41
+        mutations.append(("base_and_score_synchronized", changed))
+        changed = baseline.copy(deep=True)
+        changed.loc[0, "trade_tail_loss_proxy"] = -0.001
+        changed.loc[0, "trade_score"] = 0.399975
+        mutations.append(("tail_and_score_synchronized", changed))
+        for label, changed in mutations:
+            with self.subTest(mutation=label):
+                with self.assertRaises(DecisionModelFreezeError):
+                    validate(changed)
+
+    def test_observation_membership_rank_risk_and_pool_are_recomputed(self):
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        mutations = (
+            (0, "observation_selected", 1),
+            (1, "observation_rank", 2),
+            (1, "observation_risk_tier", 2),
+            (1, "observation_risk_label", "观察风险可控 "),
+            (0, "observation_pool_size", 2),
+            (1, "stage_transition", "4→5"),
+            (1, "mechanism_limit_pct", 10.01),
+        )
+        for row_number, column, value in mutations:
+            with self.subTest(row=row_number, column=column):
+                self._write_runtime()
+                prediction = pd.read_csv(prediction_path)
+                prediction[column] = prediction[column].astype(object)
+                prediction.loc[row_number, column] = value
+                prediction.to_csv(prediction_path, index=False)
+                with self.assertRaises(DecisionModelFreezeError):
+                    self._validate_runtime()
+
     def test_legacy_v1_mismatch_is_audit_only(self):
         meta_path = self.root / "outputs/auction_v3/models/model_meta_latest.json"
         backtest_path = self.root / "outputs/auction_v3/metrics/backtest_latest.json"
@@ -1725,7 +2115,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
         prediction.loc[2, "trade_shadow_selected"] = 0
         prediction.loc[2, "trade_selector_artifact_v2_sha256"] = "1" * 64
         prediction.to_csv(prediction_path, index=False)
-        with self.assertRaisesRegex(DecisionModelFreezeError, "mixed"):
+        with self.assertRaises(DecisionModelFreezeError):
             self._validate_runtime()
 
     def test_missing_action_plan_buy_nonzero_target_and_watch_label_fail(self):
@@ -1934,6 +2324,26 @@ EXPECTED_ADAPTER_OOS_SCORES = (
 
 
 class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
+    def test_diagnose_workflow_has_explicit_post_replay_runtime_honest_gate(self):
+        workflow = (
+            diagnose.ROOT / ".github/workflows/diagnose_decision_fingerprint.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("id: runtime", workflow)
+        self.assertIn(
+            "validate_decision_model_freeze.py --runtime --force-inactive",
+            workflow,
+        )
+        self.assertIn(
+            "87605814bce9f2180e151ed91d6c16e2c22b46c3dcd147e8bdab7895c3f0975a",
+            workflow,
+        )
+        self.assertIn('"exact_v1_loader"', workflow)
+        self.assertIn('"live_policy_exact"', workflow)
+        self.assertIn('"prediction_domain"', workflow)
+        self.assertIn('"action_formal_zero"', workflow)
+        self.assertIn("RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}", workflow)
+        self.assertIn('if [ "${RUNTIME_OUTCOME}" != "success" ]', workflow)
+
     def test_shared_exact_envelope_and_order_are_snapshotted(self):
         self.assertEqual(
             freeze_module.FINGERPRINT_KEYS,
@@ -2295,7 +2705,7 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
                 "validated": True,
                 "enforced": True,
                 "forced_enforcement": False,
-                "pinned_files": 12,
+                "pinned_files": len(freeze_module.REQUIRED_ACTIVE_PIN_PATHS),
             },
         }
         self.assertTrue(

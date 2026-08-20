@@ -43,7 +43,9 @@ from top10decision.auction_v3.engine import (  # noqa: E402
 )
 from top10decision.decision.canonical_fingerprint import (  # noqa: E402
     CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_execution_projection,
     canonical_frame_fingerprint,
+    canonical_json_bytes,
     canonical_mapping_sha256,
     canonical_policy_fingerprint,
     compose_artifact_fingerprint,
@@ -55,7 +57,9 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     frame_columns_sha256,
     load_model_freeze,
     load_verified_frozen_history_snapshot,
+    model_freeze_active,
     validate_pinned_files,
+    validate_runtime_artifacts,
 )
 from top10decision.decision.trade_selector import (  # noqa: E402
     TRADE_SELECTOR_CANONICAL_V2,
@@ -1378,18 +1382,73 @@ def _finite_policy_projection(
     *,
     label: str,
     threshold_names: tuple[str, ...],
+    include_tail_risk_weight: bool = False,
 ) -> dict[str, Any]:
     projection = fingerprint.get("policy_projection")
     _require(isinstance(projection, dict), f"{label} policy projection missing")
+    expected_keys = {
+        "version",
+        "ready",
+        "reason",
+        "max_positions",
+        "thresholds",
+    }
+    if include_tail_risk_weight:
+        expected_keys.add("tail_risk_weight")
+    _require(
+        set(projection) == expected_keys,
+        f"{label} policy projection keys drifted",
+    )
+    _require(
+        type(projection.get("version")) is str
+        and bool(projection["version"].strip()),
+        f"{label} policy version invalid",
+    )
+    _require(
+        type(projection.get("reason")) is str
+        and bool(projection["reason"].strip()),
+        f"{label} policy reason invalid",
+    )
+    _require(
+        type(projection.get("ready")) is bool,
+        f"{label} policy ready must be a native boolean",
+    )
+    _require(
+        type(projection.get("max_positions")) is int,
+        f"{label} policy max_positions must be a native integer",
+    )
+    minimum_positions = 1 if include_tail_risk_weight else 0
+    _require(
+        projection["max_positions"] >= minimum_positions,
+        f"{label} policy max_positions is out of range",
+    )
     thresholds = projection.get("thresholds")
     _require(isinstance(thresholds, dict), f"{label} policy thresholds missing")
+    _require(
+        set(thresholds) == set(threshold_names),
+        f"{label} policy threshold keys drifted",
+    )
     for name in threshold_names:
-        _require(name in thresholds, f"{label} policy missing threshold {name}")
-        try:
-            number = float(thresholds[name])
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise RuntimeError(f"{label} policy threshold invalid: {name}") from exc
+        _require(
+            type(thresholds[name]) is float,
+            f"{label} policy threshold must be a native float: {name}",
+        )
+        number = thresholds[name]
         _require(math.isfinite(number), f"{label} policy threshold non-finite: {name}")
+    if include_tail_risk_weight:
+        _require(
+            type(projection.get("tail_risk_weight")) is float,
+            f"{label} policy tail_risk_weight must be a native float",
+        )
+        _require(
+            math.isfinite(projection["tail_risk_weight"]),
+            f"{label} policy tail_risk_weight non-finite",
+        )
+    canonical = canonical_execution_projection(projection, decimals=8)
+    _require(
+        canonical_json_bytes(canonical) == canonical_json_bytes(projection),
+        f"{label} policy projection is not exact half-even q8",
+    )
     return projection
 
 
@@ -1498,6 +1557,7 @@ def validate_fingerprint_integrity(
             "min_fill_probability",
             "max_big_loss_probability",
         ),
+        include_tail_risk_weight=True,
     )
     live_model_projection = _model_executable_policy_projection(
         live_model_policy
@@ -1505,13 +1565,23 @@ def validate_fingerprint_integrity(
     live_selector_projection = _selector_executable_policy_projection(
         live_selector_policy
     )
-    _require(
-        live_model_projection == model_projection,
-        "live model selection_policy differs from V2 policy projection",
+    live_model_canonical = canonical_execution_projection(
+        live_model_projection,
+        decimals=8,
+    )
+    live_selector_canonical = canonical_execution_projection(
+        live_selector_projection,
+        decimals=8,
     )
     _require(
-        live_selector_projection == selector_projection,
-        "live selector production_policy differs from V2 policy projection",
+        canonical_json_bytes(live_model_canonical)
+        == canonical_json_bytes(model_projection),
+        "live model selection_policy does not canonicalize to V2 q8 projection",
+    )
+    _require(
+        canonical_json_bytes(live_selector_canonical)
+        == canonical_json_bytes(selector_projection),
+        "live selector production_policy does not canonicalize to V2 q8 projection",
     )
     model_policy_sha = canonical_mapping_sha256(
         {
@@ -1563,6 +1633,8 @@ def validate_fingerprint_integrity(
         "selector_artifact_sha256": selector_artifact,
         "model_projection": model_projection,
         "selector_projection": selector_projection,
+        "model_execution_projection": live_model_projection,
+        "selector_execution_projection": live_selector_projection,
         "live_policies_match_fingerprint_projection": True,
     }
 
@@ -1571,10 +1643,10 @@ def validate_prediction_policy_execution(
     prediction: pd.DataFrame,
     *,
     prediction_text: pd.DataFrame,
-    model_projection: dict[str, Any],
-    selector_projection: dict[str, Any],
+    model_execution_projection: dict[str, Any],
+    selector_execution_projection: dict[str, Any],
 ) -> dict[str, Any]:
-    model_thresholds = dict(model_projection["thresholds"])
+    model_thresholds = dict(model_execution_projection["thresholds"])
     threshold_columns = {
         "max_big_loss_probability": "policy_max_big_loss_probability",
         "min_mean_return_lcb": "policy_min_mean_return_lcb",
@@ -1624,7 +1696,7 @@ def validate_prediction_policy_execution(
         )
     model_expected = {
         "gate_policy_ready": pd.Series(
-            int(model_projection["ready"] is True),
+            int(model_execution_projection["ready"] is True),
             index=prediction.index,
         ),
         "gate_stage_focus": model_binary["stage_focus"],
@@ -1669,7 +1741,7 @@ def validate_prediction_policy_execution(
         "prediction risk_gate_pass disagrees with six-gate policy",
     )
 
-    selector_thresholds = dict(selector_projection["thresholds"])
+    selector_thresholds = dict(selector_execution_projection["thresholds"])
     selector = _selector_prediction_domain_contract(prediction)
     domain = selector["domain"]
     selector_numeric = selector["numeric"]
@@ -1708,7 +1780,10 @@ def validate_prediction_policy_execution(
         ascending=[True, False, True, True, True, True],
         kind="stable",
     )
-    max_positions = max(1, min(2, int(selector_projection["max_positions"])))
+    max_positions = max(
+        1,
+        min(2, int(selector_execution_projection["max_positions"])),
+    )
     eligible = ordered.loc[
         ordered.groupby("_signal_date", sort=False).cumcount() < max_positions
     ]
@@ -1720,7 +1795,7 @@ def validate_prediction_policy_execution(
     )
     _require(
         selector_binary["trade_selector_policy_ready"].eq(
-            int(selector_projection["ready"] is True)
+            int(selector_execution_projection["ready"] is True)
         ).all(),
         "prediction selector policy-ready flag disagrees with V2 policy",
     )
@@ -2102,8 +2177,12 @@ def compare_frozen_golden(
     policy_execution = validate_prediction_policy_execution(
         prediction,
         prediction_text=prediction_text,
-        model_projection=fingerprint_integrity["model_projection"],
-        selector_projection=fingerprint_integrity["selector_projection"],
+        model_execution_projection=fingerprint_integrity[
+            "model_execution_projection"
+        ],
+        selector_execution_projection=fingerprint_integrity[
+            "selector_execution_projection"
+        ],
     )
     action_plan = _read_json(
         root / "outputs" / "decision" / "action_plan_latest.json"
@@ -2281,6 +2360,16 @@ def main() -> int:
             if args.reference_dir
             else {"status": "not_requested"}
         )
+        manifest = load_model_freeze(root, required=True)
+        runtime_validation = (
+            validate_runtime_artifacts(
+                root,
+                manifest,
+                force_enforcement=not model_freeze_active(manifest),
+            )
+            if manifest.get("schema_version") == FREEZE_SCHEMA_VERSION
+            else {"validated": False, "legacy_bootstrap_only": True}
+        )
         payload = {
             "status": "pass",
             "diagnostic_mode": "workspace_only_forced_frozen_canonical_v2",
@@ -2291,6 +2380,7 @@ def main() -> int:
             "action_plan_publish": action_publish,
             "behavior_contract_candidate": behavior_contract_candidate,
             "golden": golden,
+            "runtime_validation": runtime_validation,
         }
     except (DecisionModelFreezeError, RuntimeError, ValueError) as exc:
         payload = {

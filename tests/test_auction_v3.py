@@ -358,6 +358,8 @@ class AuctionV3Test(unittest.TestCase):
         signal_date = self.dates[1]
         candidates = engine.load_candidates(signal_date)
         first = engine.build_prediction(signal_date, candidates, bundle, metrics)
+        self.assertIn("diagnostic_gap", first.columns)
+        self.assertIn("recommended_max_gap", first.columns)
         self.assertIn("recommended_max_price", first.columns)
         self.assertIn("observation_max_price", first.columns)
         self.assertIn("observation_rank", first.columns)

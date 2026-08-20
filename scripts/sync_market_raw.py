@@ -30,10 +30,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import json
 import os
 import re
+import shutil
+import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +49,7 @@ import requests
 RAW_DIR = Path("data/market/raw")
 LATEST_DIR_NAME = "latest"
 TIMEOUT = 20
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True)
@@ -137,7 +142,16 @@ def _build_candidate_urls(owner: str, repo: str, branch: str, filename: str, tra
     return [f"{base}/{rel}" for rel in rels]
 
 
-def _http_get_text(url: str, token: str | None = None) -> tuple[bool, str, int]:
+def _retry_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _http_get_text(
+    url: str,
+    token: str | None = None,
+    *,
+    attempts: int = 3,
+) -> tuple[bool, str, int]:
     headers = {
         "User-Agent": "top10-decision-sync-market-raw/1.2",
         "Accept": "text/plain,application/json;q=0.9,*/*;q=0.8",
@@ -145,14 +159,27 @@ def _http_get_text(url: str, token: str | None = None) -> tuple[bool, str, int]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    try:
-        resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+    bounded_attempts = min(max(1, int(attempts)), 3)
+    last_code = 0
+    for attempt in range(1, bounded_attempts + 1):
+        try:
+            resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt < bounded_attempts:
+                _retry_sleep(0.1 * attempt)
+                continue
+            return False, "", 0
+        except Exception:
+            return False, "", 0
+        last_code = int(resp.status_code)
         if resp.status_code == 200:
             resp.encoding = resp.encoding or "utf-8"
             return True, resp.text, resp.status_code
-        return False, "", resp.status_code
-    except Exception:
-        return False, "", 0
+        retryable = resp.status_code == 429 or 500 <= resp.status_code <= 599
+        if not retryable or attempt == bounded_attempts:
+            return False, "", resp.status_code
+        _retry_sleep(0.1 * attempt)
+    return False, "", last_code
 
 
 def _fetch_first_available(urls: list[str], token: str | None = None) -> tuple[str | None, str | None, int | None]:
@@ -247,6 +274,73 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_staged_file(path: Path, data: bytes) -> None:
+    path.write_bytes(data)
+
+
+def _commit_replace(source: Path, target: Path) -> None:
+    os.replace(source, target)
+
+
+def _validate_transaction_targets(payloads: dict[Path, bytes | None]) -> None:
+    if not payloads:
+        raise RuntimeError("market transaction has no outputs")
+    for target, data in payloads.items():
+        if target.exists() and not target.is_file():
+            raise RuntimeError(f"market transaction target is not a file: {target}")
+        if data is not None and not isinstance(data, bytes):
+            raise RuntimeError(f"market transaction payload is not bytes: {target}")
+
+
+def _transactional_replace(payloads: dict[Path, bytes | None]) -> None:
+    """Install files/deletions as one rollback-capable market generation."""
+
+    _validate_transaction_targets(payloads)
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    stage_dir = Path(tempfile.mkdtemp(prefix=".market-sync-", dir=RAW_DIR))
+    staged: list[tuple[Path, Path | None, str | None]] = []
+    committed: list[tuple[Path, Path | None]] = []
+    try:
+        for index, (target, data) in enumerate(payloads.items()):
+            if data is None:
+                staged.append((target, None, None))
+                continue
+            staged_path = stage_dir / f"new-{index}"
+            _write_staged_file(staged_path, data)
+            expected = hashlib.sha256(data).hexdigest()
+            if hashlib.sha256(staged_path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"market staged hash mismatch: {target}")
+            staged.append((target, staged_path, expected))
+        _validate_transaction_targets(payloads)
+
+        for index, (target, staged_path, expected) in enumerate(staged):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup = stage_dir / f"old-{index}" if target.exists() else None
+            if backup is not None:
+                os.replace(target, backup)
+            try:
+                if staged_path is not None:
+                    _commit_replace(staged_path, target)
+                    if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+                        raise RuntimeError(f"market installed hash mismatch: {target}")
+            except Exception:
+                if target.exists():
+                    target.unlink()
+                if backup is not None and backup.exists():
+                    os.replace(backup, target)
+                raise
+            committed.append((target, backup))
+    except Exception:
+        for target, backup in reversed(committed):
+            if target.exists():
+                target.unlink()
+            if backup is not None and backup.exists():
+                os.replace(backup, target)
+        raise
+    finally:
+        shutil.rmtree(stage_dir, ignore_errors=True)
+
+
 def _load_upstream_meta(owner: str, repo: str, branch: str, trade_date: str | None, token: str | None) -> tuple[dict[str, Any], str | None]:
     urls = _build_candidate_urls(owner, repo, branch, UPSTREAM_META_NAME, trade_date)
     hit_url, text, _ = _fetch_first_available(urls, token=token)
@@ -254,9 +348,12 @@ def _load_upstream_meta(owner: str, repo: str, branch: str, trade_date: str | No
         return {}, None
 
     try:
-        return json.loads(text), hit_url
-    except Exception:
-        return {}, hit_url
+        payload = json.loads(text)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("upstream _meta.json is invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("upstream _meta.json must contain a JSON object")
+    return payload, hit_url
 
 
 def _dated_dir(trade_date: str) -> Path:
@@ -319,17 +416,26 @@ def main() -> int:
     owner = os.getenv("MARKET_RAW_OWNER", "njedu2023-prog")
     repo = os.getenv("MARKET_RAW_REPO", "a-share-top3-data")
     branch = os.getenv("MARKET_RAW_BRANCH", "main")
+    resolved_commit = os.getenv("MARKET_RAW_COMMIT", "")
     github_token = os.getenv("GITHUB_TOKEN", "").strip() or None
 
-    _ensure_dir(RAW_DIR)
+    if COMMIT_RE.fullmatch(resolved_commit) is None:
+        print(
+            "[sync_market_raw] ERROR: MARKET_RAW_COMMIT must be a 40-hex commit"
+        )
+        return 2
 
-    upstream_meta, upstream_meta_url = _load_upstream_meta(
-        owner=owner,
-        repo=repo,
-        branch=branch,
-        trade_date=trade_date,
-        token=github_token,
-    )
+    try:
+        upstream_meta, upstream_meta_url = _load_upstream_meta(
+            owner=owner,
+            repo=repo,
+            branch=resolved_commit,
+            trade_date=trade_date,
+            token=github_token,
+        )
+    except RuntimeError as exc:
+        print(f"[sync_market_raw] ERROR: {exc}")
+        return 2
 
     resolved_trade_date = trade_date or _infer_trade_date_from_meta(upstream_meta)
 
@@ -341,7 +447,7 @@ def main() -> int:
         urls = _build_candidate_urls(
             owner=owner,
             repo=repo,
-            branch=branch,
+            branch=resolved_commit,
             filename=spec.upstream_name,
             trade_date=trade_date,
         )
@@ -424,13 +530,11 @@ def main() -> int:
         )
         return 2
 
-    write_failures: list[str] = []
     enriched_results: list[dict[str, Any]] = []
+    transaction_payloads: dict[Path, bytes | None] = {}
 
     target_dated_dir = _dated_dir(resolved_trade_date)
     target_latest_dir = _latest_dir()
-    _ensure_dir(target_dated_dir)
-    _ensure_dir(target_latest_dir)
 
     for item in results:
         spec = next(s for s in SOURCE_SPECS if s.local_stem == item["name"])
@@ -440,26 +544,25 @@ def main() -> int:
             continue
 
         text = downloaded_texts[spec.local_stem]
+        payload = text.encode("utf-8")
 
         dated_path = _build_dated_path(spec.upstream_name, resolved_trade_date)
         latest_path = _build_latest_path(spec.upstream_name)
 
-        try:
-            _write_text(dated_path, text)
-            _write_text(latest_path, text)
-            item["dated_path"] = str(dated_path)
-            item["latest_path"] = str(latest_path)
-            item["bytes"] = len(text.encode("utf-8"))
-            enriched_results.append(item)
-        except Exception as e:
-            item["success"] = False
-            item["error"] = f"write_failed:{e}"
-            if spec.required:
-                required_failures.append(spec.local_stem)
-            write_failures.append(spec.local_stem)
-            enriched_results.append(item)
+        item["dated_path"] = str(dated_path)
+        item["latest_path"] = str(latest_path)
+        item["bytes"] = len(payload)
+        item["sha256"] = hashlib.sha256(payload).hexdigest()
+        enriched_results.append(item)
+        transaction_payloads[dated_path] = payload
+        transaction_payloads[latest_path] = payload
 
-    legacy_removed = _cleanup_legacy_flat_files(resolved_trade_date)
+    legacy_targets = [
+        path
+        for path in _legacy_flat_candidates(resolved_trade_date)
+        if path.exists() and path.is_file()
+    ]
+    legacy_removed = [str(path) for path in legacy_targets]
 
     sync_meta = {
         "trade_date": resolved_trade_date,
@@ -468,6 +571,7 @@ def main() -> int:
             "owner": owner,
             "repo": repo,
             "branch": branch,
+            "resolved_commit": resolved_commit,
         },
         "requested_trade_date": trade_date,
         "resolved_trade_date": resolved_trade_date,
@@ -478,7 +582,7 @@ def main() -> int:
         "upstream_meta": upstream_meta,
         "files": enriched_results,
         "required_failures": sorted(set(required_failures)),
-        "write_failures": sorted(set(write_failures)),
+        "write_failures": [],
         "legacy_cleanup": {
             "enabled": True,
             "removed_files": legacy_removed,
@@ -493,8 +597,20 @@ def main() -> int:
 
     meta_dated_path = _build_meta_dated_path(resolved_trade_date)
     meta_latest_path = _build_meta_latest_path()
-    _write_json(meta_dated_path, sync_meta)
-    _write_json(meta_latest_path, sync_meta)
+    meta_bytes = (json.dumps(sync_meta, ensure_ascii=False, indent=2) + "\n").encode(
+        "utf-8"
+    )
+    transaction_payloads[meta_dated_path] = meta_bytes
+    transaction_payloads[meta_latest_path] = meta_bytes
+    for path in legacy_targets:
+        transaction_payloads[path] = None
+    try:
+        _transactional_replace(transaction_payloads)
+    except Exception as exc:
+        print(
+            f"[sync_market_raw] ERROR: atomic generation install failed: {type(exc).__name__}: {exc}"
+        )
+        return 2
 
     print(f"[sync_market_raw] resolved_trade_date={resolved_trade_date}")
     print(f"[sync_market_raw] source_repo={owner}/{repo}@{branch}")
@@ -521,10 +637,6 @@ def main() -> int:
 
     print(f"[sync_market_raw] meta_dated={meta_dated_path}")
     print(f"[sync_market_raw] meta_latest={meta_latest_path}")
-
-    if required_failures:
-        print(f"[sync_market_raw] ERROR: required files missing -> {sorted(set(required_failures))}")
-        return 2
 
     return 0
 

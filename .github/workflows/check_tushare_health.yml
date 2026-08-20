@@ -43,4 +43,31 @@ jobs:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |
           set -euo pipefail
-          python -B scripts/check_tushare_health.py --timeout-seconds 15
+          safe_json="${RUNNER_TEMP}/dc20-tushare-health.json"
+          set +e
+          python -B scripts/check_tushare_health.py --timeout-seconds 15 >"${safe_json}" 2>&1
+          status=$?
+          set -e
+          SAFE_JSON="${safe_json}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SAFE_JSON"])
+          lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+          if len(lines) != 1:
+              raise SystemExit("health command must emit exactly one safe JSON line")
+          payload = json.loads(lines[0])
+          compact = json.dumps(
+              payload,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(",", ":"),
+          )
+          path.write_text(compact + "\n", encoding="utf-8")
+          print(compact)
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as out:
+              out.write("### DC2.0 Tushare health\n\n")
+              out.write(f"`{compact}`\n")
+          PY
+          exit "${status}"

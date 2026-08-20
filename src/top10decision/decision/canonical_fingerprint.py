@@ -347,23 +347,62 @@ def executable_policy_projection(policy: Mapping[str, Any] | None) -> dict[str, 
     }
 
 
+def canonical_execution_projection(value: Any, *, decimals: int) -> Any:
+    """Return a JSON-native, half-even canonical numeric projection.
+
+    This helper is deliberately separate from execution.  Callers retain and
+    execute their validated raw-float policy, while the fingerprint envelope
+    publishes this stable projection.  Strings and booleans remain exact;
+    only finite real numbers are quantized.
+    """
+
+    if isinstance(value, Mapping):
+        return {
+            str(key): canonical_execution_projection(item, decimals=decimals)
+            for key, item in value.items()
+        }
+    if isinstance(value, Sequence) and not isinstance(
+        value, (str, bytes, bytearray)
+    ):
+        return [
+            canonical_execution_projection(item, decimals=decimals)
+            for item in value
+        ]
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if type(value).__module__.startswith("numpy") and hasattr(value, "item"):
+        return canonical_execution_projection(value.item(), decimals=decimals)
+    if isinstance(value, Integral):
+        return int(value)
+    if isinstance(value, (Real, Decimal)):
+        token = canonical_float_token(value, decimals=decimals)
+        if "$float" not in token:
+            raise CanonicalSchemaError(
+                "canonical execution projection requires finite numeric values"
+            )
+        number = float(token["$float"])
+        return 0.0 if number == 0 else number
+    raise CanonicalSchemaError(
+        "canonical execution projection contains an unsupported value"
+    )
+
+
 def canonical_policy_fingerprint(
     policy: Mapping[str, Any] | None,
     *,
     decimals: int,
 ) -> dict[str, Any]:
-    projection = executable_policy_projection(policy)
+    projection = canonical_execution_projection(
+        executable_policy_projection(policy),
+        decimals=decimals,
+    )
     return {
         "sha256": canonical_mapping_sha256(
             projection,
             decimals=decimals,
             exact_strings=True,
         ),
-        "projection": canonical_value(
-            projection,
-            decimals=decimals,
-            kind="auto",
-        ),
+        "projection": projection,
         "excluded_diagnostics": (
             "metrics",
             "checks",
@@ -397,6 +436,7 @@ __all__ = [
     "CANONICAL_DECIMAL_PROBES",
     "CANONICAL_FINGERPRINT_SCHEMA",
     "canonical_float_token",
+    "canonical_execution_projection",
     "canonical_frame_fingerprint",
     "canonical_mapping_sha256",
     "canonical_policy_fingerprint",

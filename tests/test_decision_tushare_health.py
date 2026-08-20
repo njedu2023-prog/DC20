@@ -85,7 +85,7 @@ def test_api_nonzero_code_is_fail_hard() -> None:
         {"code": 40203, "msg": "permission denied", "data": None}
     )
     with mock.patch.object(health.request, "urlopen", return_value=response):
-        with pytest.raises(health.HealthCheckError, match="API code=40203"):
+        with pytest.raises(health.HealthCheckError, match="API code=40203") as caught:
             health._api_call(
                 "rt_min_daily",
                 {"ts_code": "600000.SH", "freq": "1MIN"},
@@ -93,6 +93,23 @@ def test_api_nonzero_code_is_fail_hard() -> None:
                 "secret-value",
                 15,
             )
+    assert caught.value.reason == "api_code"
+    assert caught.value.row_count == 0
+    assert caught.value.safe_details == {"api_code": 40203}
+
+
+def test_rt_min_daily_contract_matches_documented_fields_and_frequency() -> None:
+    assert health.REALTIME_FIELDS == (
+        "ts_code",
+        "freq",
+        "time",
+        "open",
+        "close",
+        "high",
+        "low",
+        "vol",
+        "amount",
+    )
 
 
 def test_weekend_checks_calendar_auction_and_realtime_entitlement() -> None:
@@ -159,12 +176,101 @@ def test_empty_realtime_during_active_window_fails() -> None:
             return list(fields), []
         raise AssertionError(api_name)
 
-    with pytest.raises(health.HealthCheckError, match="no valid rows"):
+    with pytest.raises(health.HealthCheckError, match="no valid rows") as caught:
         health.run_health_check(
             token="secret-value",
             now_shanghai=datetime(2026, 8, 16, 10, 40, tzinfo=health.SHANGHAI),
             api_call=fake_call,
         )
+
+    failure = caught.value
+    assert failure.reason == "active_window_probe_failure"
+    assert failure.safe_details["endpoint"] == "rt_min_daily"
+    assert failure.safe_details["active_window"] is True
+    assert failure.safe_details["probes"] == [
+        {
+            "ts_code": probe_code,
+            "row_count": 0,
+            "status": "fail",
+            "reason": "empty_rows",
+        }
+        for probe_code in health.DEFAULT_PROBE_CODES
+    ]
+
+
+def test_active_window_diagnostic_distinguishes_api_schema_and_timestamp() -> None:
+    def fake_call(api_name, params, fields, token, timeout):
+        if api_name == "trade_cal":
+            return _calendar(open_today=True)
+        if api_name == "stk_auction_o":
+            return _auction()
+        if api_name == "rt_min_daily":
+            probe_code = params["ts_code"]
+            if probe_code == health.DEFAULT_PROBE_CODES[0]:
+                raise health.HealthCheckError(
+                    "permission rejected",
+                    reason="api_code",
+                    safe_details={"api_code": 40203},
+                )
+            if probe_code == health.DEFAULT_PROBE_CODES[1]:
+                return ["ts_code", "freq"], [[probe_code, "1MIN"]]
+            return _realtime(ts_code=probe_code, timestamp="not-a-timestamp")
+        raise AssertionError(api_name)
+
+    with pytest.raises(health.HealthCheckError) as caught:
+        health.run_health_check(
+            token="secret-value",
+            now_shanghai=datetime(2026, 8, 16, 10, 40, tzinfo=health.SHANGHAI),
+            api_call=fake_call,
+        )
+
+    probes = caught.value.safe_details["probes"]
+    assert [probe["ts_code"] for probe in probes] == list(health.DEFAULT_PROBE_CODES)
+    assert [probe["reason"] for probe in probes] == [
+        "api_code",
+        "schema",
+        "timestamp",
+    ]
+    assert [probe["row_count"] for probe in probes] == [0, 1, 1]
+    assert probes[0]["api_code"] == 40203
+    encoded = json.dumps(caught.value.safe_details, ensure_ascii=False)
+    assert "secret-value" not in encoded
+    assert "permission rejected" not in encoded
+    assert "/tmp/" not in encoded
+
+
+def test_active_window_valid_fallback_cannot_mask_prior_api_failure() -> None:
+    realtime_calls: list[str] = []
+
+    def fake_call(api_name, params, fields, token, timeout):
+        if api_name == "trade_cal":
+            return _calendar(open_today=True)
+        if api_name == "stk_auction_o":
+            return _auction()
+        if api_name == "rt_min_daily":
+            probe_code = params["ts_code"]
+            realtime_calls.append(probe_code)
+            if len(realtime_calls) == 1:
+                raise health.HealthCheckError(
+                    "permission rejected",
+                    reason="api_code",
+                    safe_details={"api_code": 40203},
+                )
+            return _realtime(ts_code=probe_code, timestamp="2026-08-16 10:40:00")
+        raise AssertionError(api_name)
+
+    with pytest.raises(health.HealthCheckError) as caught:
+        health.run_health_check(
+            token="secret-value",
+            now_shanghai=datetime(2026, 8, 16, 10, 40, tzinfo=health.SHANGHAI),
+            api_call=fake_call,
+        )
+
+    assert realtime_calls == list(health.DEFAULT_PROBE_CODES[:2])
+    assert [probe["reason"] for probe in caught.value.safe_details["probes"]] == [
+        "api_code",
+        "valid_rows",
+    ]
 
 
 @pytest.mark.parametrize(("hour", "minute"), [(9, 35), (15, 30)])
@@ -410,6 +516,40 @@ def test_failure_output_redacts_token(capsys) -> None:
     assert "***" in captured.err
 
 
+def test_active_failure_output_is_one_line_safe_structured_json(capsys) -> None:
+    token = "very-secret-token"
+
+    def fake_call(api_name, params, fields, api_token, timeout):
+        assert api_token == token
+        if api_name == "trade_cal":
+            return _calendar(open_today=True)
+        if api_name == "stk_auction_o":
+            return _auction()
+        if api_name == "rt_min_daily":
+            return list(fields), []
+        raise AssertionError(api_name)
+
+    with mock.patch.dict(os.environ, {"TUSHARE_TOKEN": token}, clear=False), mock.patch.object(
+        health, "_api_call", side_effect=fake_call
+    ):
+        assert health.main(["--now-shanghai", "2026-08-16T10:40:00+08:00"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    lines = captured.err.splitlines()
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["overall_status"] == "fail"
+    assert payload["diagnostic"]["endpoint"] == "rt_min_daily"
+    assert len(payload["diagnostic"]["probes"]) == len(health.DEFAULT_PROBE_CODES)
+    assert all(
+        probe["reason"] == "empty_rows"
+        for probe in payload["diagnostic"]["probes"]
+    )
+    assert token not in lines[0]
+    assert "/tmp/" not in lines[0]
+
+
 def test_workflow_is_pinned_read_only_and_has_no_runtime_install() -> None:
     workflow = (
         Path(__file__).resolve().parents[1]
@@ -430,3 +570,8 @@ def test_workflow_is_pinned_read_only_and_has_no_runtime_install() -> None:
     assert "requirements" not in workflow
     assert "upload-artifact" not in workflow
     assert "git push" not in workflow
+    assert '${RUNNER_TEMP}/dc20-tushare-health.json' in workflow
+    assert 'health command must emit exactly one safe JSON line' in workflow
+    assert 'os.environ["GITHUB_STEP_SUMMARY"]' in workflow
+    assert 'exit "${status}"' in workflow
+    assert "continue-on-error" not in workflow

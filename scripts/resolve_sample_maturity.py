@@ -642,7 +642,7 @@ def write_csv(rows: Sequence[SampleMaturityRow], output_csv: Path) -> None:
         "FULLY_READY",
     ]
     with output_csv.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow(asdict(row))

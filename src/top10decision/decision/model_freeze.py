@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import csv
 import json
 import math
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -14,13 +16,16 @@ import pandas as pd
 
 from .canonical_fingerprint import (
     CANONICAL_FINGERPRINT_SCHEMA,
+    canonical_execution_projection,
     canonical_frame_fingerprint,
     canonical_float_token,
+    canonical_json_bytes,
     canonical_mapping_sha256,
     canonical_policy_fingerprint,
     compose_artifact_fingerprint,
     normalize_date,
 )
+from .observation import OBSERVATION_TOP_N, rank_observation_rows
 
 
 LEGACY_FREEZE_SCHEMA_VERSION = "decision_model_freeze_v1"
@@ -59,22 +64,110 @@ KNOWN_REFERENCE_EVIDENCE = {
 REQUIRED_ACTIVE_PIN_PATHS = frozenset(
     {
         ".github/workflows/backfill_decision_v11_history.yml",
+        ".github/workflows/check_tushare_health.yml",
+        ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
         ".github/workflows/run_auction_v3.yml",
         ".github/workflows/run_decision_daily.yml",
+        ".github/workflows/test_decision_core.yml",
         ".github/workflows/verify_decision_observations.yml",
+        "requirements-dev.lock",
         "requirements.lock",
         "models/decision_v12_frozen_history_20260805.csv.gz",
+        "scripts/backfill_decision_v11_history.py",
+        "scripts/backfill_prediction_window.py",
+        "scripts/backfill_topn_targets_validation.py",
+        "scripts/build_eret_trainset.py",
+        "scripts/build_eret_truth.py",
+        "scripts/build_fill_truth.py",
+        "scripts/build_market_fs.py",
+        "scripts/build_pfill_trainset.py",
+        "scripts/check_tushare_health.py",
         "scripts/diagnose_decision_fingerprint.py",
+        "scripts/merge_feedback_to_learning_table.py",
+        "scripts/mock_jq_feedback.py",
         "scripts/publish_decision_action.py",
+        "scripts/replay_frozen_canonical_v2.py",
+        "scripts/resolve_sample_maturity.py",
         "scripts/run_auction_v3.py",
+        "scripts/run_v2.py",
+        "scripts/sync_from_a_top10.py",
+        "scripts/sync_market_raw.py",
+        "scripts/sync_pred_source.py",
+        "scripts/sync_tushare_daily_close.py",
+        "scripts/sync_tushare_minute.py",
+        "scripts/train_eret.py",
+        "scripts/train_pfill.py",
         "scripts/validate_decision_model_freeze.py",
+        "scripts/validate_io_contract.py",
+        "scripts/validate_topn_targets.py",
+        "scripts/verify_decision_observations.py",
+        "tests/fixtures/decision_model_freeze_v1_46d8.json",
+        "tests/test_auction_v3.py",
+        "tests/test_canonical_fingerprint.py",
+        "tests/test_canonical_runtime_v2.py",
+        "tests/test_decision_contract.py",
+        "tests/test_decision_intraday_costs.py",
+        "tests/test_decision_model_freeze.py",
+        "tests/test_decision_pfill_calibration.py",
+        "tests/test_decision_regime_guardrails.py",
+        "tests/test_decision_trade_selector.py",
+        "tests/test_decision_tushare_health.py",
+        "tests/test_decision_v8_calibration.py",
+        "tests/test_eret_safety.py",
+        "tests/test_frozen_canonical_v2_replay.py",
+        "tests/test_pages_truthfulness_workflow.py",
+        "tests/test_promotion_model.py",
+        "tests/test_sync_market_raw.py",
+        "tests/test_sync_pred_source.py",
+        "tests/test_sync_tushare_minute_fail_closed.py",
+        "tests/test_tushare_close_truth.py",
+        "tests/test_writer_workflow_hardening.py",
+        "src/top10decision/__init__.py",
+        "src/top10decision/adapters/__init__.py",
+        "src/top10decision/adapters/decisio_adapter.py",
+        "src/top10decision/adapters/joinquant/write_latest_signal.py",
+        "src/top10decision/auction_v3/__init__.py",
+        "src/top10decision/auction_v3/calibration.py",
+        "src/top10decision/auction_v3/config.py",
         "src/top10decision/auction_v3/engine.py",
+        "src/top10decision/auction_v3/promotion_model.py",
+        "src/top10decision/auction_v3/reporting.py",
+        "src/top10decision/configs.py",
+        "src/top10decision/data/__init__.py",
+        "src/top10decision/data/tushare_minute.py",
+        "src/top10decision/decision/__init__.py",
         "src/top10decision/decision/action_plan.py",
         "src/top10decision/decision/canonical_fingerprint.py",
+        "src/top10decision/decision/contracts.py",
+        "src/top10decision/decision/eligibility.py",
+        "src/top10decision/decision/exit_policy.py",
         "src/top10decision/decision/model_freeze.py",
         "src/top10decision/decision/observation.py",
         "src/top10decision/decision/trade_selector.py",
+        "src/top10decision/decision_p0.py",
+        "src/top10decision/engines/eret_engine.py",
+        "src/top10decision/engines/pfill_engine.py",
+        "src/top10decision/ingest.py",
+        "src/top10decision/models/__init__.py",
+        "src/top10decision/models/costs.py",
+        "src/top10decision/models/fill_model.py",
+        "src/top10decision/models/overnight_model.py",
+        "src/top10decision/position/allocator.py",
+        "src/top10decision/regime/simple_regime.py",
+        "src/top10decision/reporting/daily_report.py",
+        "src/top10decision/risk/guardrails.py",
+        "src/top10decision/strategies/base_strategy.py",
+        "src/top10decision/strategies/score_router.py",
+        "src/top10decision/utils.py",
+        "src/top10decision/weights/__init__.py",
+        "src/top10decision/weights/engine.py",
+        "src/top10decision/writers.py",
+        "src/top10decision/writers/__init__.py",
+        "src/top10decision/writers/artifacts.py",
+        "src/top10decision/writers/filesystem.py",
+        "src/top10decision/writers/io_contract.py",
+        "src/top10decision/writers/reports.py",
     }
 )
 
@@ -504,7 +597,11 @@ def _validate_canonical_contract(
 
 
 def _validate_policy_projection(
-    value: Any, *, layer: str, context: str
+    value: Any,
+    *,
+    layer: str,
+    context: str,
+    require_canonical: bool = True,
 ) -> dict[str, Any]:
     projection = _require_mapping(value, context)
     expected_keys = MODEL_POLICY_KEYS if layer == "model" else SELECTOR_POLICY_KEYS
@@ -530,12 +627,66 @@ def _validate_policy_projection(
     if layer == "trade_selector":
         numeric_values.append(("tail_risk_weight", projection["tail_risk_weight"]))
     for name, raw in numeric_values:
-        if type(raw) not in (int, float):
-            _fail(f"{context}.{name} must be finite numeric")
-        number = float(raw)
-        if not math.isfinite(number):
-            _fail(f"{context}.{name} must be finite numeric")
+        if type(raw) is not float or not math.isfinite(raw):
+            _fail(f"{context}.{name} must be a finite JSON float")
+    if require_canonical:
+        canonical = canonical_execution_projection(projection, decimals=8)
+        if canonical_json_bytes(canonical) != canonical_json_bytes(projection):
+            _fail(f"{context} must be the exact half-even q8 projection")
     return projection
+
+
+def _live_execution_policy_projection(
+    value: Any, *, layer: str, context: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate a raw execution policy and derive its canonical q8 envelope.
+
+    Production policies may carry diagnostics beyond the executable contract.
+    Those fields remain raw audit data but cannot enter the hard fingerprint.
+    """
+
+    source = _require_mapping(value, context)
+    threshold_keys = (
+        MODEL_POLICY_THRESHOLD_KEYS
+        if layer == "model"
+        else SELECTOR_POLICY_THRESHOLD_KEYS
+    )
+    thresholds_source = _require_mapping(
+        source.get("thresholds"), f"{context}.thresholds"
+    )
+    missing = sorted(threshold_keys.difference(thresholds_source))
+    if missing:
+        _fail(f"{context}.thresholds missing executable keys: {missing!r}")
+    raw_projection = {
+        "version": source.get("version"),
+        "ready": source.get("ready"),
+        "reason": source.get("reason"),
+        "max_positions": source.get("max_positions"),
+        **(
+            {"tail_risk_weight": source.get("tail_risk_weight")}
+            if layer == "trade_selector"
+            else {}
+        ),
+        "thresholds": {
+            name: thresholds_source[name] for name in threshold_keys
+        },
+    }
+    _validate_policy_projection(
+        raw_projection,
+        layer=layer,
+        context=f"{context}.executable_projection",
+        require_canonical=False,
+    )
+    canonical_projection = canonical_execution_projection(
+        raw_projection,
+        decimals=8,
+    )
+    _validate_policy_projection(
+        canonical_projection,
+        layer=layer,
+        context=f"{context}.canonical_projection",
+    )
+    return raw_projection, canonical_projection
 
 
 def _validate_fingerprint(
@@ -1641,6 +1792,30 @@ def _read_csv(path: Path, context: str) -> pd.DataFrame:
         raise DecisionModelFreezeError(f"{context} unreadable: {path}") from exc
 
 
+def _read_csv_exact_text(path: Path, context: str) -> pd.DataFrame:
+    if not path.is_file():
+        _fail(f"{context} missing: {path}")
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                header = next(reader)
+            except StopIteration:
+                _fail(f"{context} is empty: {path}")
+            if not header or len(header) != len(set(header)):
+                _fail(f"{context} has an empty or duplicate header")
+            rows: list[list[str]] = []
+            for line_number, row in enumerate(reader, start=2):
+                if len(row) != len(header):
+                    _fail(
+                        f"{context} row width mismatch at line {line_number}"
+                    )
+                rows.append(row)
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise DecisionModelFreezeError(f"{context} unreadable: {path}") from exc
+    return pd.DataFrame(rows, columns=header, dtype=object)
+
+
 def _validate_model_policy_columns(
     frame: pd.DataFrame,
     expected_model: Mapping[str, Any],
@@ -1692,6 +1867,797 @@ def _validate_model_policy_columns(
                 _fail(
                     f"{context} threshold {threshold_name} drift at row {row_number}"
                 )
+
+
+def _validate_model_policy_text_surface(
+    frame_text: pd.DataFrame,
+    *,
+    parsed_rows: int,
+    raw_projection: Mapping[str, Any],
+    context: str,
+) -> dict[str, Any]:
+    if len(frame_text) != parsed_rows:
+        _fail(f"{context} row count differs from parsed prediction")
+    thresholds = _require_mapping(
+        raw_projection.get("thresholds"), f"{context}.raw_thresholds"
+    )
+    columns: list[str] = []
+    for name in sorted(MODEL_POLICY_THRESHOLD_KEYS):
+        column = f"policy_{name}"
+        columns.append(column)
+        if list(frame_text.columns).count(column) != 1:
+            _fail(f"{context} requires exactly one {column} header")
+        expected = Decimal(str(thresholds[name]))
+        if not expected.is_finite():
+            _fail(f"{context} expected {column} is non-finite")
+        for row_number, raw in enumerate(frame_text[column].tolist(), start=2):
+            if not isinstance(raw, str) or raw == "":
+                _fail(f"{context} has blank {column} at row {row_number}")
+            try:
+                actual = Decimal(raw)
+            except (InvalidOperation, ValueError) as exc:
+                raise DecisionModelFreezeError(
+                    f"{context} has malformed {column} at row {row_number}"
+                ) from exc
+            if not actual.is_finite():
+                _fail(f"{context} has non-finite {column} at row {row_number}")
+            if actual != expected:
+                _fail(
+                    f"{context} {column} differs from raw execution policy "
+                    f"at row {row_number}"
+                )
+    return {
+        "rows": parsed_rows,
+        "columns": columns,
+        "exact_decimal_match": True,
+    }
+
+
+def _prediction_finite_number(value: Any, context: str) -> float:
+    if _is_missing(value) or isinstance(value, bool):
+        _fail(f"{context} must be a finite number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        _fail(f"{context} must be a finite number")
+    if not math.isfinite(number):
+        _fail(f"{context} must be a finite number")
+    return number
+
+
+def _prediction_text_decimal(
+    frame_text: pd.DataFrame,
+    position: int,
+    column: str,
+    *,
+    probability: bool = False,
+) -> Decimal:
+    if column not in frame_text:
+        _fail(f"prediction exact-text contract missing column {column!r}")
+    raw = frame_text.iloc[position][column]
+    context = f"prediction.{column}[{position}]"
+    if not isinstance(raw, str) or raw == "" or raw != raw.strip():
+        _fail(f"{context} must be an exact finite decimal")
+    try:
+        number = Decimal(raw)
+    except (InvalidOperation, ValueError) as exc:
+        raise DecisionModelFreezeError(
+            f"{context} must be an exact finite decimal"
+        ) from exc
+    if not number.is_finite():
+        _fail(f"{context} must be an exact finite decimal")
+    if probability and not Decimal(0) <= number <= Decimal(1):
+        _fail(f"{context} must be within [0,1]")
+    return number
+
+
+def _validate_prediction_policy_gates(
+    prediction: pd.DataFrame,
+    prediction_text: pd.DataFrame,
+    *,
+    model_raw_projection: Mapping[str, Any],
+    selector_raw_projection: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recompute current prediction decisions in the raw execution domain."""
+
+    if prediction.empty:
+        _fail("prediction policy gates require nonempty rows")
+    if len(prediction_text) != len(prediction):
+        _fail("prediction exact-text rows differ from parsed prediction")
+    model_thresholds = model_raw_projection["thresholds"]
+    model_required = {
+        "signal_date",
+        "ts_code",
+        "limit_times",
+        "stage",
+        "stage_transition",
+        "stage_focus",
+        "gate_policy_ready",
+        "gate_stage_focus",
+        "gate_exit_probability",
+        "gate_fill_probability",
+        "gate_big_loss_probability",
+        "gate_mean_return_lcb",
+        "gate_conservative_ev",
+        "gate_selection_score",
+        "risk_gate_pass",
+        "predicted_exit_probability",
+        "predicted_fill_probability",
+        "predicted_big_loss_probability",
+        "predicted_mean_return_lcb",
+        "predicted_return_lcb",
+        "conservative_ev",
+        "selection_score",
+        "source_rank",
+        "shadow_rank",
+        "shadow_selected",
+        "first_layer_shadow_selected",
+        "first_layer_selected",
+        "selected",
+        "trade_selected",
+        "trade_shadow_selected",
+        "trade_selector_promoted",
+        "model_reason",
+        "model_promoted",
+        "action",
+        "diagnostic_gap",
+        "recommended_max_gap",
+        "recommended_max_price",
+        "max_auction_change_pct",
+        "estimated_up_limit",
+        "d_close",
+        "guidance_only",
+        "broker_connected",
+        "market_order_allowed",
+        "order_type",
+    }
+    missing = sorted(model_required.difference(prediction.columns))
+    if missing:
+        _fail(f"prediction raw model gate contract missing columns: {missing!r}")
+    model_risk_rows = 0
+    model_threshold_decimals = {
+        name: Decimal(str(value)) for name, value in model_thresholds.items()
+    }
+    model_rows: list[dict[str, Any]] = []
+    for position, (_, row) in enumerate(prediction.iterrows()):
+        actual_stage_focus = _behavior_boolean(
+            row["stage_focus"], f"prediction.stage_focus[{position}]"
+        )
+        limit_times = _prediction_text_decimal(
+            prediction_text, position, "limit_times"
+        )
+        if limit_times < 0 or limit_times != limit_times.to_integral_value():
+            _fail(
+                "prediction limit_times must be a finite nonnegative integer"
+            )
+        stage_number = int(limit_times)
+        expected_stage = f"{stage_number}\u2192{stage_number + 1}"
+        stage = _exact_text(
+            prediction_text.iloc[position]["stage"],
+            f"prediction.stage[{position}]",
+        )
+        if stage != expected_stage:
+            _fail("prediction stage disagrees with raw limit_times")
+        stage_transition = _exact_text(
+            prediction_text.iloc[position]["stage_transition"],
+            f"prediction.stage_transition[{position}]",
+        )
+        if stage_transition != stage:
+            _fail("prediction stage_transition disagrees with stage")
+        stage_focus = int(stage_number in (2, 3))
+        if actual_stage_focus != stage_focus:
+            _fail("prediction stage_focus disagrees with raw limit_times")
+        exit_probability = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "predicted_exit_probability",
+            probability=True,
+        )
+        fill_probability = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "predicted_fill_probability",
+            probability=True,
+        )
+        big_loss_probability = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "predicted_big_loss_probability",
+            probability=True,
+        )
+        mean_return_lcb = _prediction_text_decimal(
+            prediction_text, position, "predicted_mean_return_lcb"
+        )
+        conservative_ev = _prediction_text_decimal(
+            prediction_text, position, "conservative_ev"
+        )
+        selection_score = _prediction_text_decimal(
+            prediction_text, position, "selection_score"
+        )
+        predicted_return_lcb = _prediction_text_decimal(
+            prediction_text, position, "predicted_return_lcb"
+        )
+        source_rank = _behavior_integer(
+            row["source_rank"], f"prediction.source_rank[{position}]"
+        )
+        if source_rank < 1:
+            _fail("prediction source_rank must be positive")
+        expected = {
+            "gate_policy_ready": int(model_raw_projection["ready"] is True),
+            "gate_stage_focus": stage_focus,
+            "gate_exit_probability": int(
+                exit_probability
+                >= model_threshold_decimals["min_exit_probability"]
+            ),
+            "gate_fill_probability": int(
+                fill_probability
+                >= model_threshold_decimals["min_fill_probability"]
+            ),
+            "gate_big_loss_probability": int(
+                big_loss_probability
+                <= model_threshold_decimals["max_big_loss_probability"]
+            ),
+            "gate_mean_return_lcb": int(
+                mean_return_lcb
+                >= model_threshold_decimals["min_mean_return_lcb"]
+            ),
+            "gate_conservative_ev": int(
+                conservative_ev
+                >= model_threshold_decimals["min_conservative_ev"]
+            ),
+            "gate_selection_score": int(
+                selection_score
+                >= model_threshold_decimals["min_selection_score"]
+            ),
+        }
+        for column, expected_value in expected.items():
+            actual = _behavior_boolean(
+                row[column], f"prediction.{column}[{position}]"
+            )
+            if actual != expected_value:
+                _fail(f"prediction {column} disagrees with raw model policy")
+        expected_risk = int(all(expected.values()))
+        if _behavior_boolean(
+            row["risk_gate_pass"], f"prediction.risk_gate_pass[{position}]"
+        ) != expected_risk:
+            _fail("prediction risk_gate_pass disagrees with raw model policy")
+        reason_order = (
+            "outside_stage_2_to_3_3_to_4_focus"
+            if stage_focus != 1
+            else "selection_policy_not_ready"
+            if model_raw_projection["ready"] is not True
+            else "exit_probability_below_policy_floor"
+            if expected["gate_exit_probability"] != 1
+            else "fill_probability_below_policy_floor"
+            if expected["gate_fill_probability"] != 1
+            else "big_loss_probability_exceeds_cap"
+            if expected["gate_big_loss_probability"] != 1
+            else "mean_return_lcb_below_policy_floor"
+            if expected["gate_mean_return_lcb"] != 1
+            else "conservative_ev_below_policy_floor"
+            if expected["gate_conservative_ev"] != 1
+            else "selection_score_below_policy_cutoff"
+            if expected["gate_selection_score"] != 1
+            else "ok"
+            if expected_risk == 1
+            else "selection_policy_rejected"
+        )
+        if _exact_text(
+            row["model_reason"], f"prediction.model_reason[{position}]"
+        ) != reason_order:
+            _fail("prediction model_reason disagrees with raw model policy")
+        shadow = _behavior_boolean(
+            row["shadow_selected"], f"prediction.shadow_selected[{position}]"
+        )
+        first_shadow = _behavior_boolean(
+            row["first_layer_shadow_selected"],
+            f"prediction.first_layer_shadow_selected[{position}]",
+        )
+        if shadow != first_shadow:
+            _fail("prediction first-layer shadow alias drift")
+        shadow_rank = row["shadow_rank"]
+        actual_shadow_rank: int | None = None
+        if stage_focus == 1:
+            actual_shadow_rank = _behavior_integer(
+                shadow_rank, f"prediction.shadow_rank[{position}]"
+            )
+            if actual_shadow_rank < 1:
+                _fail("prediction first-layer shadow rank must be positive")
+        elif not _is_missing(shadow_rank) or shadow != 0:
+            _fail("prediction first-layer shadow must be empty outside stage focus")
+        first_selected = _behavior_boolean(
+            row["first_layer_selected"],
+            f"prediction.first_layer_selected[{position}]",
+        )
+        signal_date = prediction_text.iloc[position].get("signal_date")
+        if not isinstance(signal_date, str) or not DATE_PATTERN.fullmatch(signal_date):
+            _fail(f"prediction signal_date invalid at row {position}")
+        ts_code = prediction_text.iloc[position].get("ts_code")
+        if not isinstance(ts_code, str) or not CODE_PATTERN.fullmatch(ts_code):
+            _fail(f"prediction ts_code invalid at row {position}")
+        if str(row.get("signal_date")) != signal_date or str(row.get("ts_code")) != ts_code:
+            _fail(f"prediction parsed/text identity differs at row {position}")
+        model_rows.append(
+            {
+                "position": position,
+                "signal_date": signal_date,
+                "ts_code": ts_code,
+                "selection_score": selection_score,
+                "predicted_return_lcb": predicted_return_lcb,
+                "source_rank": source_rank,
+                "stage_focus": stage_focus,
+                "shadow_rank": actual_shadow_rank,
+                "shadow_selected": shadow,
+                "risk_gate_pass": expected_risk,
+                "first_layer_selected": first_selected,
+            }
+        )
+        selected = _behavior_boolean(
+            row["selected"], f"prediction.selected[{position}]"
+        )
+        trade_selected = _behavior_boolean(
+            row["trade_selected"], f"prediction.trade_selected[{position}]"
+        )
+        if selected != trade_selected:
+            _fail("prediction selected must equal final trade_selected")
+        model_promoted = _behavior_boolean(
+            row["model_promoted"], f"prediction.model_promoted[{position}]"
+        )
+        selector_promoted = _behavior_boolean(
+            row["trade_selector_promoted"],
+            f"prediction.trade_selector_promoted[{position}]",
+        )
+        if model_promoted != selector_promoted:
+            _fail("prediction promotion flags disagree across model layers")
+        trade_shadow_selected = _behavior_boolean(
+            row["trade_shadow_selected"],
+            f"prediction.trade_shadow_selected[{position}]",
+        )
+        expected_action = (
+            "BUY"
+            if selected == 1 and model_promoted == 1
+            else "SHADOW_ONLY"
+            if selected == 1 or trade_shadow_selected == 1
+            else "WATCH"
+            if reason_order == "insufficient_independent_history"
+            else "REJECT"
+        )
+        if _exact_text(
+            row["action"], f"prediction.action[{position}]"
+        ) != expected_action:
+            _fail("prediction action disagrees with selected/shadow/promotion state")
+        if _behavior_boolean(
+            row["guidance_only"], f"prediction.guidance_only[{position}]"
+        ) != 1:
+            _fail("prediction guidance_only must remain enabled")
+        if _behavior_boolean(
+            row["broker_connected"], f"prediction.broker_connected[{position}]"
+        ) != 0:
+            _fail("prediction broker_connected must remain disabled")
+        if _behavior_boolean(
+            row["market_order_allowed"],
+            f"prediction.market_order_allowed[{position}]",
+        ) != 0:
+            _fail("prediction market_order_allowed must remain disabled")
+        if _exact_text(
+            row["order_type"], f"prediction.order_type[{position}]"
+        ) != "LIMIT_ONLY_MANUAL":
+            _fail("prediction order_type must remain LIMIT_ONLY_MANUAL")
+
+        diagnostic_gap = _prediction_text_decimal(
+            prediction_text, position, "diagnostic_gap"
+        )
+        if expected_risk == 1:
+            recommended_gap = _prediction_text_decimal(
+                prediction_text, position, "recommended_max_gap"
+            )
+            if recommended_gap != diagnostic_gap:
+                _fail("prediction recommended_max_gap differs from diagnostic_gap")
+            d_close = _prediction_text_decimal(
+                prediction_text, position, "d_close"
+            )
+            estimated_up_limit = _prediction_text_decimal(
+                prediction_text, position, "estimated_up_limit"
+            )
+            expected_price = Decimal(
+                str(
+                    round(
+                        max(
+                            0.01,
+                            min(
+                                float(estimated_up_limit) - 0.01,
+                                float(d_close) * (1.0 + float(recommended_gap)),
+                            ),
+                        )
+                        + 1e-9,
+                        2,
+                    )
+                )
+            )
+            if _prediction_text_decimal(
+                prediction_text, position, "recommended_max_price"
+            ) != expected_price:
+                _fail("prediction recommended_max_price disagrees with limit formula")
+            expected_change_pct = Decimal(
+                str(round(100.0 * float(recommended_gap), 2))
+            )
+            if _prediction_text_decimal(
+                prediction_text, position, "max_auction_change_pct"
+            ) != expected_change_pct:
+                _fail("prediction max_auction_change_pct disagrees with max gap")
+        else:
+            for column in (
+                "recommended_max_gap",
+                "recommended_max_price",
+                "max_auction_change_pct",
+            ):
+                if not _is_missing(row[column]):
+                    _fail(
+                        f"prediction {column} must be missing when risk gate fails"
+                    )
+        model_risk_rows += expected_risk
+    model_order = sorted(
+        model_rows,
+        key=lambda item: (
+            item["signal_date"],
+            -item["selection_score"],
+            -item["predicted_return_lcb"],
+            item["source_rank"],
+            item["position"],
+        ),
+    )
+    shadow_counts: Counter[str] = Counter()
+    for item in model_order:
+        if item["stage_focus"] != 1:
+            continue
+        shadow_counts[item["signal_date"]] += 1
+        expected_rank = shadow_counts[item["signal_date"]]
+        if item["shadow_rank"] != expected_rank:
+            _fail("prediction shadow_rank disagrees with raw first-layer ordering")
+        if item["shadow_selected"] != int(expected_rank <= 2):
+            _fail("prediction shadow_selected disagrees with raw first-layer rank")
+    first_layer_selected_positions: set[int] = set()
+    first_layer_counts: Counter[str] = Counter()
+    for item in model_order:
+        if item["risk_gate_pass"] != 1:
+            continue
+        if first_layer_counts[item["signal_date"]] < int(
+            model_raw_projection["max_positions"]
+        ):
+            first_layer_selected_positions.add(item["position"])
+            first_layer_counts[item["signal_date"]] += 1
+    for item in model_rows:
+        if item["first_layer_selected"] != int(
+            item["position"] in first_layer_selected_positions
+        ):
+            _fail("prediction first-layer selection disagrees with raw risk gate")
+
+    observation_flags = _prediction_observation_flags(prediction)
+    selector_required = {
+        "signal_date",
+        "ts_code",
+        "observation_rank",
+        "promotion_rank",
+        "trade_score",
+        "promotion_rank_score",
+        "trade_base_score",
+        "trade_predicted_outcome_q10",
+        "trade_tail_loss_proxy",
+        "trade_tail_risk_weight",
+        "trade_predicted_mean_return_lcb",
+        "trade_predicted_fill_probability",
+        "trade_predicted_big_loss_probability",
+        "trade_gate_pass",
+        "trade_shadow_selected",
+        "trade_selected",
+        "trade_selector_policy_ready",
+        "trade_selector_promoted",
+        "trade_model_reason",
+    }
+    missing = sorted(selector_required.difference(prediction.columns))
+    if missing:
+        _fail(f"prediction raw selector gate contract missing columns: {missing!r}")
+    positions = [index for index, value in enumerate(observation_flags) if value]
+    if not positions:
+        _fail("prediction selector raw gate domain must not be empty")
+    selector_thresholds = selector_raw_projection["thresholds"]
+    selector_threshold_decimals = {
+        name: Decimal(str(value)) for name, value in selector_thresholds.items()
+    }
+    raw_tail = Decimal(str(selector_raw_projection["tail_risk_weight"]))
+    selector_rows: list[dict[str, Any]] = []
+    for position in positions:
+        row = prediction.iloc[position]
+        signal_date = prediction_text.iloc[position].get("signal_date")
+        ts_code = prediction_text.iloc[position].get("ts_code")
+        if not isinstance(signal_date, str) or not DATE_PATTERN.fullmatch(signal_date):
+            _fail(f"prediction selector signal_date invalid at row {position}")
+        if not isinstance(ts_code, str) or not CODE_PATTERN.fullmatch(ts_code):
+            _fail(f"prediction selector ts_code invalid at row {position}")
+        if str(row.get("signal_date")) != signal_date or str(row.get("ts_code")) != ts_code:
+            _fail(f"prediction selector parsed/text identity differs at row {position}")
+        promotion_score = _prediction_text_decimal(
+            prediction_text, position, "promotion_rank_score", probability=True
+        )
+        trade_score = _prediction_text_decimal(
+            prediction_text, position, "trade_score"
+        )
+        mean_lcb = _prediction_text_decimal(
+            prediction_text, position, "trade_predicted_mean_return_lcb"
+        )
+        fill_probability = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "trade_predicted_fill_probability",
+            probability=True,
+        )
+        big_loss_probability = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "trade_predicted_big_loss_probability",
+            probability=True,
+        )
+        base_score = _prediction_text_decimal(
+            prediction_text, position, "trade_base_score"
+        )
+        tail_loss = _prediction_text_decimal(
+            prediction_text, position, "trade_tail_loss_proxy"
+        )
+        outcome_q10 = _prediction_text_decimal(
+            prediction_text, position, "trade_predicted_outcome_q10"
+        )
+        tail_weight = _prediction_text_decimal(
+            prediction_text, position, "trade_tail_risk_weight"
+        )
+        if tail_weight != raw_tail:
+            _fail("prediction trade_tail_risk_weight differs from raw selector policy")
+        recomputed_base_score = Decimal(
+            str(float(fill_probability) * float(mean_lcb))
+        )
+        if base_score != recomputed_base_score:
+            _fail("prediction trade_base_score disagrees with raw selector formula")
+        recomputed_tail_loss = Decimal(
+            str(min(float(outcome_q10), 0.0) * float(big_loss_probability))
+        )
+        if tail_loss != recomputed_tail_loss:
+            _fail(
+                "prediction trade_tail_loss_proxy disagrees with raw selector formula"
+            )
+        # Mirror the raw float64 execution formula, then compare the exact CSV
+        # decimal spelling.  Decimal is used for the serialized contract and
+        # float only for the deliberately preserved execution arithmetic.
+        recomputed_trade_score = Decimal(
+            str(
+                float(base_score)
+                + float(raw_tail) * float(fill_probability) * float(tail_loss)
+            )
+        )
+        if trade_score != recomputed_trade_score:
+            _fail("prediction trade_score disagrees with raw selector formula")
+        promotion_rank = _behavior_integer(
+            row.get("promotion_rank"), f"prediction.promotion_rank[{position}]"
+        )
+        observation_rank = _behavior_integer(
+            row.get("observation_rank"),
+            f"prediction.observation_rank[{position}]",
+        )
+        if promotion_rank < 1 or observation_rank < 1:
+            _fail("prediction selector ranks must be positive")
+        qualifies = (
+            trade_score >= selector_threshold_decimals["min_trade_score"]
+            and mean_lcb >= selector_threshold_decimals["min_mean_return_lcb"]
+            and fill_probability
+            >= selector_threshold_decimals["min_fill_probability"]
+            and big_loss_probability
+            <= selector_threshold_decimals["max_big_loss_probability"]
+        )
+        selector_rows.append(
+            {
+                "position": position,
+                "signal_date": signal_date,
+                "ts_code": ts_code,
+                "trade_score": trade_score,
+                "promotion_score": promotion_score,
+                "big_loss_probability": big_loss_probability,
+                "promotion_rank": promotion_rank,
+                "observation_rank": observation_rank,
+                "qualifies": qualifies,
+            }
+        )
+        expected_ready = int(selector_raw_projection["ready"] is True)
+        if _behavior_boolean(
+            row.get("trade_selector_policy_ready"),
+            f"prediction.trade_selector_policy_ready[{position}]",
+        ) != expected_ready:
+            _fail(
+                "prediction trade_selector_policy_ready disagrees with raw selector policy"
+            )
+    promotion_order = sorted(
+        selector_rows,
+        key=lambda item: (
+            item["signal_date"],
+            -item["promotion_score"],
+            item["big_loss_probability"],
+            item["observation_rank"],
+            item["ts_code"],
+        ),
+    )
+    promotion_counts: Counter[str] = Counter()
+    for item in promotion_order:
+        promotion_counts[item["signal_date"]] += 1
+        if item["promotion_rank"] != promotion_counts[item["signal_date"]]:
+            _fail("prediction promotion_rank disagrees with raw selector ordering")
+    trade_order = sorted(
+        selector_rows,
+        key=lambda item: (
+            item["signal_date"],
+            -item["trade_score"],
+            item["big_loss_probability"],
+            item["promotion_rank"],
+            item["observation_rank"],
+            item["ts_code"],
+        ),
+    )
+    trade_counts: Counter[str] = Counter()
+    for item in trade_order:
+        trade_counts[item["signal_date"]] += 1
+        expected_rank = trade_counts[item["signal_date"]]
+        actual_rank = _behavior_integer(
+            prediction.iloc[item["position"]].get("trade_rank"),
+            f"prediction.trade_rank[{item['position']}]",
+        )
+        if actual_rank != expected_rank:
+            _fail("prediction trade_rank disagrees with raw selector ordering")
+        item["trade_rank"] = actual_rank
+    qualified = [item for item in trade_order if item["qualifies"]]
+    max_positions = int(selector_raw_projection["max_positions"])
+    selected_positions: set[int] = set()
+    date_counts: Counter[str] = Counter()
+    for item in qualified:
+        date = item["signal_date"]
+        if date_counts[date] < max_positions:
+            selected_positions.add(item["position"])
+            date_counts[date] += 1
+    relative_positions: set[int] = set()
+    relative_counts: Counter[str] = Counter()
+    for item in trade_order:
+        if relative_counts[item["signal_date"]] < 2:
+            relative_positions.add(item["position"])
+            relative_counts[item["signal_date"]] += 1
+    for item in selector_rows:
+        expected_gate = int(item["position"] in selected_positions)
+        row = prediction.iloc[item["position"]]
+        actual_gate = _behavior_boolean(
+            row.get("trade_gate_pass"),
+            f"prediction.trade_gate_pass[{item['position']}]",
+        )
+        if actual_gate != expected_gate:
+            _fail("prediction trade_gate_pass disagrees with raw selector policy")
+        shadow_selected = _behavior_boolean(
+            row.get("trade_shadow_selected"),
+            f"prediction.trade_shadow_selected[{item['position']}]",
+        )
+        expected_shadow = int(item["position"] in relative_positions)
+        if shadow_selected != expected_shadow:
+            _fail(
+                "prediction trade_shadow_selected disagrees with relative-best-two"
+            )
+        policy_ready = selector_raw_projection["ready"] is True
+        globally_promoted = bool(
+            _behavior_boolean(
+                row.get("trade_selector_promoted"),
+                f"prediction.trade_selector_promoted[{item['position']}]",
+            )
+        )
+        expected_selected = int(expected_gate and policy_ready and globally_promoted)
+        if _behavior_boolean(
+            row.get("trade_selected"),
+            f"prediction.trade_selected[{item['position']}]",
+        ) != expected_selected:
+            _fail("prediction trade_selected disagrees with raw trade gate/readiness")
+        # Current production applies the relative-best-two shadow layer after
+        # the learned-policy gate.  The two sets are intentionally independent;
+        # both are recomputed and validated without conflating research shadow
+        # routing with formal threshold eligibility.
+        expected_reason = "below_learned_policy"
+        if expected_gate:
+            expected_reason = (
+                "learned_policy_pass" if policy_ready else "shadow_policy_only"
+            )
+        if expected_gate and policy_ready and not globally_promoted:
+            expected_reason = "selector_not_promoted"
+        if expected_shadow and expected_selected == 0:
+            expected_reason = "relative_best_two_only"
+        if _exact_text(
+            row.get("trade_model_reason"),
+            f"prediction.trade_model_reason[{item['position']}]",
+        ) != expected_reason:
+            _fail("prediction trade_model_reason disagrees with final selector semantics")
+    return {
+        "rows": len(prediction),
+        "model_risk_gate_pass_rows": model_risk_rows,
+        "selector_domain_rows": len(selector_rows),
+        "selector_trade_gate_pass_rows": len(selected_positions),
+        "promotion_rank_exact": True,
+        "trade_rank_exact": True,
+        "trade_score_formula_exact": True,
+        "trade_base_and_tail_formula_exact": True,
+        "tail_risk_weight_exact": True,
+        "selection_and_reason_exact": True,
+        "raw_thresholds_and_gates_exact": True,
+    }
+
+
+def _validate_prediction_observation_contract(
+    prediction: pd.DataFrame,
+) -> dict[str, Any]:
+    required = {
+        "ts_code",
+        "observation_selected",
+        "observation_rank",
+        "observation_risk_tier",
+        "observation_risk_label",
+        "observation_pool_size",
+    }
+    missing = sorted(required.difference(prediction.columns))
+    if missing:
+        _fail(f"prediction observation contract missing columns: {missing!r}")
+    codes: list[str] = []
+    for position, value in enumerate(prediction["ts_code"].tolist()):
+        if not isinstance(value, str) or not CODE_PATTERN.fullmatch(value):
+            _fail(f"prediction observation ts_code invalid at row {position}")
+        if value in codes:
+            _fail("prediction observation ts_code must be unique")
+        codes.append(value)
+    ranked_rows, pool_size = rank_observation_rows(
+        prediction.to_dict(orient="records"),
+        limit=OBSERVATION_TOP_N,
+    )
+    expected = {str(row.get("ts_code")): row for row in ranked_rows}
+    if len(expected) != len(ranked_rows):
+        _fail("prediction observation recomputation produced duplicate codes")
+    for position, (_, row) in enumerate(prediction.iterrows()):
+        code = codes[position]
+        selected = _behavior_boolean(
+            row["observation_selected"],
+            f"prediction.observation_selected[{position}]",
+        )
+        if _behavior_integer(
+            row["observation_pool_size"],
+            f"prediction.observation_pool_size[{position}]",
+        ) != pool_size:
+            _fail("prediction observation_pool_size disagrees with recomputation")
+        expected_row = expected.get(code)
+        if expected_row is None:
+            if selected != 0:
+                _fail("prediction observation_selected includes an outside row")
+            for column in ("observation_rank", "observation_risk_tier"):
+                if not _is_missing(row[column]):
+                    _fail(f"prediction {column} must be missing outside observation")
+            label = row["observation_risk_label"]
+            if not _is_missing(label) and label != "":
+                _fail(
+                    "prediction observation_risk_label must be missing outside observation"
+                )
+            continue
+        if selected != 1:
+            _fail("prediction observation_selected omitted a ranked row")
+        for column in ("observation_rank", "observation_risk_tier"):
+            if _behavior_integer(
+                row[column], f"prediction.{column}[{position}]"
+            ) != int(expected_row[column]):
+                _fail(f"prediction {column} disagrees with recomputation")
+        if _exact_text(
+            row["observation_risk_label"],
+            f"prediction.observation_risk_label[{position}]",
+        ) != expected_row["observation_risk_label"]:
+            _fail("prediction observation_risk_label disagrees with recomputation")
+    return {
+        "rows": int(len(prediction)),
+        "pool_size": int(pool_size),
+        "selected_rows": int(len(ranked_rows)),
+        "rank_risk_and_membership_exact": True,
+    }
 
 
 def compute_action_watchlist_fingerprint(
@@ -2333,9 +3299,11 @@ def validate_runtime_artifacts(
         root_path / "outputs/auction_v3/models/model_meta_latest.json"
     )
     backtest = _read_json(root_path / "outputs/auction_v3/metrics/backtest_latest.json")
-    prediction = _read_csv(
-        root_path / "outputs/auction_v3/predictions/pred_latest.csv",
-        "prediction artifact",
+    prediction_path = root_path / "outputs/auction_v3/predictions/pred_latest.csv"
+    prediction = _read_csv(prediction_path, "prediction artifact")
+    prediction_text = _read_csv_exact_text(
+        prediction_path,
+        "prediction exact-text artifact",
     )
     production = manifest["production"]
     expected_canonical = production["canonical_v2"]
@@ -2368,6 +3336,58 @@ def validate_runtime_artifacts(
         _fail("model canonical V2 differs across manifest/meta/backtest")
     if meta_selector != expected_selector or backtest_selector != expected_selector:
         _fail("selector canonical V2 differs across manifest/meta/backtest")
+    meta_model_raw_policy, meta_model_canonical_policy = (
+        _live_execution_policy_projection(
+            model_meta.get("selection_policy"),
+            layer="model",
+            context="model_meta.selection_policy",
+        )
+    )
+    backtest_model_raw_policy, backtest_model_canonical_policy = (
+        _live_execution_policy_projection(
+            backtest.get("selection_policy"),
+            layer="model",
+            context="backtest.selection_policy",
+        )
+    )
+    meta_selector_raw_policy, meta_selector_canonical_policy = (
+        _live_execution_policy_projection(
+            meta_selector_raw.get("production_policy"),
+            layer="trade_selector",
+            context="model_meta.trade_selector.production_policy",
+        )
+    )
+    backtest_selector_raw_policy, backtest_selector_canonical_policy = (
+        _live_execution_policy_projection(
+            backtest_selector_raw.get("production_policy"),
+            layer="trade_selector",
+            context="backtest.trade_selector.production_policy",
+        )
+    )
+    if canonical_json_bytes(meta_model_raw_policy) != canonical_json_bytes(
+        backtest_model_raw_policy
+    ):
+        _fail("model raw execution policy differs across meta/backtest")
+    if canonical_json_bytes(meta_selector_raw_policy) != canonical_json_bytes(
+        backtest_selector_raw_policy
+    ):
+        _fail("selector raw execution policy differs across meta/backtest")
+    expected_model_projection = expected_model["fingerprint_v2"][
+        "policy_projection"
+    ]
+    expected_selector_projection = expected_selector["fingerprint_v2"][
+        "policy_projection"
+    ]
+    if (
+        meta_model_canonical_policy != expected_model_projection
+        or backtest_model_canonical_policy != expected_model_projection
+    ):
+        _fail("model raw execution policy does not canonicalize to frozen q8")
+    if (
+        meta_selector_canonical_policy != expected_selector_projection
+        or backtest_selector_canonical_policy != expected_selector_projection
+    ):
+        _fail("selector raw execution policy does not canonicalize to frozen q8")
     prediction_model = _prediction_layer_values(
         prediction, layer="model", expected=expected_model
     )
@@ -2377,6 +3397,21 @@ def validate_runtime_artifacts(
     # final-policy execution surface, so equality is enforced here instead.
     _validate_model_policy_columns(
         prediction, expected_model, context="prediction.final_model_policy"
+    )
+    model_policy_text_surface = _validate_model_policy_text_surface(
+        prediction_text,
+        parsed_rows=len(prediction),
+        raw_projection=meta_model_raw_policy,
+        context="prediction.final_model_raw_policy",
+    )
+    prediction_policy_gates = _validate_prediction_policy_gates(
+        prediction,
+        prediction_text,
+        model_raw_projection=meta_model_raw_policy,
+        selector_raw_projection=meta_selector_raw_policy,
+    )
+    prediction_observation = _validate_prediction_observation_contract(
+        prediction
     )
     selector_v1_meta = _require_sha256(
         meta_selector_raw.get("production_artifact_sha256"),
@@ -2670,6 +3705,12 @@ def validate_runtime_artifacts(
         "canonical_v2_enforced": True,
         "legacy_v1_enforced": False,
         "raw_execution_preserved": True,
+        "execution_policy_relation": {
+            "model_raw_meta_backtest_exact": True,
+            "model_raw_canonical_q8_match": True,
+            "selector_raw_meta_backtest_exact": True,
+            "selector_raw_canonical_q8_match": True,
+        },
         "pinned_files": pinned_files_audit,
         "snapshot": snapshot_audit,
         "model": {
@@ -2686,6 +3727,9 @@ def validate_runtime_artifacts(
             "prediction_domain": prediction_selector_domain,
         },
         "prediction_fill_relationships": prediction_fill_relationships,
+        "prediction_model_policy_text_surface": model_policy_text_surface,
+        "prediction_policy_gates": prediction_policy_gates,
+        "prediction_observation": prediction_observation,
         "legacy_v1_audit": {
             "enforcement": "audit_only",
             "expected": legacy_expected,

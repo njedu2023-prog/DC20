@@ -29,7 +29,11 @@ import os
 import re
 import shutil
 import sys
+import tempfile
+import time
 import urllib.request
+from urllib import error as urllib_error
+from urllib.parse import urlparse
 import csv
 import io
 from datetime import datetime, timezone
@@ -39,6 +43,7 @@ from pathlib import Path
 SNAPSHOT_PATH = Path("data/pred/pred_source_latest.csv")
 ARCHIVE_DIR = Path("data/pred/archive")
 META_PATH = Path("data/pred/_pred_source_meta.json")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 INTRADAY_REQUIRED_COLS = {
     "intraday_available",
@@ -55,10 +60,26 @@ INTRADAY_REQUIRED_COLS = {
 }
 
 
-def _download_bytes(url: str) -> bytes:
+def _retry_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _download_bytes(url: str, *, attempts: int = 3) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "top10-decision-sync"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read()
+    bounded_attempts = min(max(1, int(attempts)), 3)
+    for attempt in range(1, bounded_attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read()
+        except urllib_error.HTTPError as exc:
+            retryable = exc.code == 429 or 500 <= exc.code <= 599
+            if not retryable or attempt == bounded_attempts:
+                raise
+        except (urllib_error.URLError, TimeoutError):
+            if attempt == bounded_attempts:
+                raise
+        _retry_sleep(0.1 * attempt)
+    raise RuntimeError("prediction download retry loop exhausted")
 
 
 def _read_local_bytes(src: Path) -> bytes:
@@ -190,13 +211,52 @@ def _now_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _write_meta(*, source: str, source_ref: str, data: bytes, trade_date: str) -> None:
+def _validated_remote_source(
+    url: str,
+    resolved_commit: str,
+) -> dict[str, str]:
+    commit = str(resolved_commit or "")
+    if COMMIT_RE.fullmatch(commit) is None:
+        raise RuntimeError("TOP10_PRED_RESOLVED_COMMIT must be a 40-hex commit")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc.lower() != "raw.githubusercontent.com":
+        raise RuntimeError("remote prediction source must use raw.githubusercontent.com")
+    parts = parsed.path.lstrip("/").split("/", 3)
+    if len(parts) != 4 or not all(parts):
+        raise RuntimeError("remote prediction source URL is malformed")
+    owner, repo, url_ref, relative_path = parts
+    if COMMIT_RE.fullmatch(url_ref) is None:
+        raise RuntimeError("mutable prediction source ref is forbidden")
+    if url_ref != commit:
+        raise RuntimeError("prediction source URL commit differs from resolved commit")
+    return {
+        "owner": owner,
+        "repo": repo,
+        "resolved_commit": commit,
+        "relative_path": relative_path,
+    }
+
+
+def _meta_bytes(
+    *,
+    source: str,
+    source_ref: str,
+    data: bytes,
+    trade_date: str,
+    resolved_commit: str = "",
+    source_repository: str = "",
+) -> bytes:
     profile = _csv_profile(data)
+    body_sha256 = hashlib.sha256(data).hexdigest()
     payload = {
         "created_at_utc": _now_utc(),
         "source": source,
         "source_ref": source_ref,
-        "sha256": hashlib.sha256(data).hexdigest(),
+        "sha256": body_sha256,
+        "body_sha256": body_sha256,
+        "body_bytes": len(data),
+        "resolved_commit": resolved_commit,
+        "source_repository": source_repository,
         "resolved_trade_date": trade_date,
         "csv_profile": profile,
         "consistency": {
@@ -206,9 +266,70 @@ def _write_meta(*, source: str, source_ref: str, data: bytes, trade_date: str) -
             "target_trade_date": profile.get("target_trade_date", ""),
         },
     }
-    META_PATH.parent.mkdir(parents=True, exist_ok=True)
-    META_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[SYNC] wrote meta      -> {META_PATH}")
+    return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _write_staged_file(path: Path, data: bytes) -> None:
+    path.write_bytes(data)
+
+
+def _commit_replace(source: Path, target: Path) -> None:
+    os.replace(source, target)
+
+
+def _validate_transaction_targets(payloads: dict[Path, bytes]) -> None:
+    if not payloads:
+        raise RuntimeError("prediction transaction has no outputs")
+    for target, data in payloads.items():
+        if target.exists() and not target.is_file():
+            raise RuntimeError(f"prediction transaction target is not a file: {target}")
+        if not isinstance(data, bytes):
+            raise RuntimeError(f"prediction transaction payload is not bytes: {target}")
+
+
+def _transactional_replace(payloads: dict[Path, bytes]) -> None:
+    """Install one pred generation, rolling back every prior target on failure."""
+
+    _validate_transaction_targets(payloads)
+    SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    stage_dir = Path(tempfile.mkdtemp(prefix=".pred-sync-", dir=SNAPSHOT_PATH.parent))
+    staged: list[tuple[Path, Path, str]] = []
+    committed: list[tuple[Path, Path | None]] = []
+    try:
+        for index, (target, data) in enumerate(payloads.items()):
+            staged_path = stage_dir / f"new-{index}"
+            _write_staged_file(staged_path, data)
+            expected = hashlib.sha256(data).hexdigest()
+            if hashlib.sha256(staged_path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"prediction staged hash mismatch: {target}")
+            staged.append((target, staged_path, expected))
+        _validate_transaction_targets(payloads)
+
+        for index, (target, staged_path, expected) in enumerate(staged):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup = stage_dir / f"old-{index}" if target.exists() else None
+            if backup is not None:
+                os.replace(target, backup)
+            try:
+                _commit_replace(staged_path, target)
+                if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+                    raise RuntimeError(f"prediction installed hash mismatch: {target}")
+            except Exception:
+                if target.exists():
+                    target.unlink()
+                if backup is not None and backup.exists():
+                    os.replace(backup, target)
+                raise
+            committed.append((target, backup))
+    except Exception:
+        for target, backup in reversed(committed):
+            if target.exists():
+                target.unlink()
+            if backup is not None and backup.exists():
+                os.replace(backup, target)
+        raise
+    finally:
+        shutil.rmtree(stage_dir, ignore_errors=True)
 
 
 def _existing_snapshot_trade_date() -> str:
@@ -269,14 +390,18 @@ def _resolve_trade_date(url: str, path: str, data: bytes | None = None) -> str:
     return ""
 
 
-def _write_archive_if_possible(data: bytes, trade_date: str) -> None:
+def _generation_payloads(
+    *,
+    data: bytes,
+    trade_date: str,
+    meta: bytes,
+) -> dict[Path, bytes]:
+    payloads = {SNAPSHOT_PATH: data, META_PATH: meta}
     if not trade_date:
         print("[SYNC][WARN] 未识别到 trade_date；本次仅更新 latest，不落 archive。")
-        return
-
-    archive_path = ARCHIVE_DIR / f"pred_source_{trade_date}.csv"
-    _write_bytes(archive_path, data)
-    print(f"[SYNC] wrote archive  -> {archive_path}")
+        return payloads
+    payloads[ARCHIVE_DIR / f"pred_source_{trade_date}.csv"] = data
+    return payloads
 
 
 def main() -> int:
@@ -288,6 +413,14 @@ def main() -> int:
         return 2
 
     if url:
+        try:
+            remote = _validated_remote_source(
+                url,
+                os.getenv("TOP10_PRED_RESOLVED_COMMIT", ""),
+            )
+        except RuntimeError as exc:
+            print(f"[SYNC][ERR] {exc}", file=sys.stderr)
+            return 2
         print(f"[SYNC] use TOP10_PRED_URL={url}")
         data = _download_bytes(url)
         trade_date = _resolve_trade_date(url=url, path=path, data=data)
@@ -296,10 +429,21 @@ def main() -> int:
         else:
             print("[SYNC][WARN] trade_date unresolved")
         _guard_not_older_than_existing(trade_date)
-        _write_bytes(SNAPSHOT_PATH, data)
+        meta = _meta_bytes(
+            source="url",
+            source_ref=url,
+            data=data,
+            trade_date=trade_date,
+            resolved_commit=remote["resolved_commit"],
+            source_repository=f"{remote['owner']}/{remote['repo']}",
+        )
+        _transactional_replace(
+            _generation_payloads(data=data, trade_date=trade_date, meta=meta)
+        )
         print(f"[SYNC] wrote snapshot -> {SNAPSHOT_PATH}")
-        _write_archive_if_possible(data, trade_date)
-        _write_meta(source="url", source_ref=url, data=data, trade_date=trade_date)
+        if trade_date:
+            print(f"[SYNC] wrote archive  -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
+        print(f"[SYNC] wrote meta      -> {META_PATH}")
         return 0
 
     p = Path(path)
@@ -315,10 +459,14 @@ def main() -> int:
     else:
         print("[SYNC][WARN] trade_date unresolved")
     _guard_not_older_than_existing(trade_date)
-    _write_bytes(SNAPSHOT_PATH, data)
+    meta = _meta_bytes(source="path", source_ref=str(p), data=data, trade_date=trade_date)
+    _transactional_replace(
+        _generation_payloads(data=data, trade_date=trade_date, meta=meta)
+    )
     print(f"[SYNC] wrote snapshot -> {SNAPSHOT_PATH}")
-    _write_archive_if_possible(data, trade_date)
-    _write_meta(source="path", source_ref=str(p), data=data, trade_date=trade_date)
+    if trade_date:
+        print(f"[SYNC] wrote archive  -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
+    print(f"[SYNC] wrote meta      -> {META_PATH}")
     return 0
 
 

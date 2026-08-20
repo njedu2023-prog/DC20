@@ -2,10 +2,14 @@ name: Backfill Decision V11 Two-Year History
 
 on:
   schedule:
-    # Sunday 10:30 Beijing. Keep 500 OOS sessions plus conservative warmup complete.
     - cron: "30 2 * * 0"
   workflow_dispatch:
     inputs:
+      dry_run:
+        description: "只读演练；完成真实回填、重建和校验但不提交"
+        required: true
+        default: true
+        type: boolean
       start_date:
         description: "历史起始日 YYYYMMDD"
         required: false
@@ -22,48 +26,72 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
 
 concurrency:
   group: decision-auction-main-writer
   cancel-in-progress: false
 
 jobs:
-  backfill:
-    name: Build strict-calendar compact history
+  compute:
+    name: Read-only backfill, rebuild, and validate
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 300
-
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+      has_changes: ${{ steps.candidate.outputs.has_changes }}
     steps:
-      - name: Checkout latest main
+      - name: Checkout immutable main base without writer credentials
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
-          fetch-depth: 0
-          # This audited writer pushes scoped history/evidence commits.
-          persist-credentials: true
-
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Resolve dry-run mode and immutable base
+        id: mode
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          publish=true
+          if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ] && [ "${INPUT_DRY_RUN:-true}" != false ]; then publish=false; fi
+          git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
+          echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12.13"
           cache: pip
           cache-dependency-path: requirements.lock
-
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
           python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
           python -m pip check
-
-      - name: Set PYTHONPATH
-        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/src" >> "$GITHUB_ENV"
-
+      - name: Require active production freeze and enforced pins for real publication
+        env:
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from top10decision.decision.model_freeze import load_model_freeze, model_freeze_active, validate_pinned_files
+          root = Path('.').resolve(); manifest = load_model_freeze(root, required=True)
+          active = model_freeze_active(manifest)
+          if os.environ['PUBLISH'] == 'true' and not active: raise SystemExit('real Backfill publication requires active Decision freeze')
+          audit = validate_pinned_files(root, manifest, force_enforcement=not active)
+          if audit.get('enforced') is not True: raise SystemExit('Backfill preflight did not enforce frozen pins')
+          PY
       - name: Resolve bounded history request
         id: request
         env:
@@ -71,7 +99,7 @@ jobs:
           INPUT_END: ${{ inputs.end_date }}
           INPUT_MAX: ${{ inputs.max_missing_dates }}
         run: |
-          set -e
+          set -euo pipefail
           start="${INPUT_START:-20200101}"
           end="${INPUT_END:-$(TZ=Asia/Shanghai date +%Y%m%d)}"
           maximum="${INPUT_MAX:-500}"
@@ -80,85 +108,146 @@ jobs:
           echo "${maximum}" | grep -Eq '^[0-9]+$'
           test "${maximum}" -ge 1
           test "${maximum}" -le 500
-          echo "start_date=${start}" >> "$GITHUB_OUTPUT"
-          echo "end_date=${end}" >> "$GITHUB_OUTPUT"
-          echo "max_missing_dates=${maximum}" >> "$GITHUB_OUTPUT"
-
-      - name: Backfill immutable Decision history
+          echo "start_date=${start}" >> "${GITHUB_OUTPUT}"
+          echo "end_date=${end}" >> "${GITHUB_OUTPUT}"
+          echo "max_missing_dates=${maximum}" >> "${GITHUB_OUTPUT}"
+      - name: Backfill immutable history without publishing
         env:
+          PYTHONPATH: ${{ github.workspace }}/src
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
           python scripts/backfill_decision_v11_history.py \
             --start-date "${{ steps.request.outputs.start_date }}" \
             --end-date "${{ steps.request.outputs.end_date }}" \
             --max-missing-dates "${{ steps.request.outputs.max_missing_dates }}"
-
-      - name: Persist immutable history before model rebuild
+      - name: Run all Backfill gates before candidate creation
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          PUBLISH: ${{ steps.mode.outputs.publish }}
         run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/auction_v3/history
-          git add data/market/trade_cal_sse.csv
-          if git diff --cached --quiet; then
-            echo "Decision V11 two-year history is already current"
-            exit 0
-          fi
-          git commit -m "auto: extend Decision V11 two-year history"
-          pushed=0
-          for attempt in 1 2 3; do
-            git fetch origin main
-            if git rebase origin/main && git push origin HEAD:main; then
-              pushed=1
-              break
-            fi
-            git rebase --abort || true
-            sleep 3
-          done
-          test "${pushed}" = "1"
-
-      - name: Run Decision V11 calibration tests
-        run: |
-          set -e
+          set -euo pipefail
           python -m unittest discover -s tests -p 'test_auction_v3.py' -v
           python -m unittest discover -s tests -p 'test_decision_v8_calibration.py' -v
           python -m unittest discover -s tests -p 'test_decision_contract.py' -v
-
-      - name: Rebuild Decision V11 evidence and page data
-        run: |
-          set -e
           python scripts/run_auction_v3.py
           python scripts/publish_decision_action.py
           python scripts/validate_io_contract.py --strict-semantic
-
-      - name: Enforce two full out-of-sample years
-        run: |
-          set -e
-          python -c "import json; from top10decision.auction_v3.config import TARGET_INDEPENDENT_OOS_DATES as target; payload=json.load(open('outputs/auction_v3/metrics/backtest_latest.json', encoding='utf-8')); actual=int(payload.get('oos_dates') or 0); print(f'[Decision V11] independent_oos_dates={actual}, target={target}'); assert actual >= target, f'independent OOS coverage {actual} < {target}'"
-
-      - name: Commit Decision-only history and evidence
-        run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A outputs/auction_v3
-          git add outputs/decision/action_plan_*.json
-          git add outputs/decision/report_index.json
-          git add docs/reports/auction_v3*.html
-          if git diff --cached --quiet; then
-            echo "Decision V11 history is already current"
-            exit 0
+          if [ "${PUBLISH}" = "true" ]; then
+            python scripts/validate_decision_model_freeze.py --runtime
+          else
+            python scripts/validate_decision_model_freeze.py --runtime --force-inactive
           fi
-          git commit -m "auto: extend Decision V11 two-year history"
-          pushed=0
-          for attempt in 1 2 3; do
-            git fetch origin main
-            if git rebase origin/main && git push origin HEAD:main; then
-              pushed=1
-              break
-            fi
-            git rebase --abort || true
-            sleep 3
-          done
-          test "${pushed}" = "1"
+          python -c "import json; from top10decision.auction_v3.config import TARGET_INDEPENDENT_OOS_DATES as target; payload=json.load(open('outputs/auction_v3/metrics/backtest_latest.json', encoding='utf-8')); actual=int(payload.get('oos_dates') or 0); assert actual >= target, f'independent OOS coverage {actual} < {target}'"
+      - name: Build one exact allowlisted Backfill candidate patch
+        id: candidate
+        run: |
+          set -euo pipefail
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find . -type f -name '*.pyc' -delete
+          git add -A -- data/auction_v3/history data/market/trade_cal_sse.csv
+          git add -A -- outputs/auction_v3
+          git add -A -- 'outputs/decision/action_plan_*.json' outputs/decision/report_index.json
+          git add -A -- 'docs/reports/auction_v3*.html'
+          git diff --cached --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
+          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" python - <<'PY'
+          import fnmatch, os
+          from pathlib import Path
+          allowed=('data/auction_v3/history/**','data/market/trade_cal_sse.csv','outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','docs/reports/auction_v3*.html')
+          paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
+          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
+          if bad: raise SystemExit(f'non-allowlisted Backfill paths staged: {bad}')
+          PY
+          git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
+          CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" CANDIDATE_SHA="${RUNNER_TEMP}/candidate.patch.sha256" python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          patch = Path(os.environ['CANDIDATE_PATCH'])
+          Path(os.environ['CANDIDATE_SHA']).write_text(hashlib.sha256(patch.read_bytes()).hexdigest() + '\n', encoding='ascii')
+          PY
+          if git diff --cached --quiet; then echo 'has_changes=false' >> "${GITHUB_OUTPUT}"; else echo 'has_changes=true' >> "${GITHUB_OUTPUT}"; fi
+      - name: Upload immutable candidate patch
+        if: ${{ steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: backfill-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/base_sha.txt
+            ${{ runner.temp }}/candidate.patch
+            ${{ runner.temp }}/candidate.patch.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: CAS publish one Backfill commit
+    needs: compute
+    if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current main without persisted credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Download validated candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: backfill-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - name: Verify immutable candidate envelope
+        env:
+          CANDIDATE_DIR: ${{ runner.temp }}/candidate
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          root = Path(os.environ['CANDIDATE_DIR'])
+          expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}
+          if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
+              raise SystemExit('candidate envelope is missing or contains a symlink')
+          actual_files = {path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()}
+          if actual_files != expected_files:
+              raise SystemExit(f'candidate envelope file set mismatch: {sorted(actual_files)}')
+          base_sha = (root / 'base_sha.txt').read_text(encoding='ascii').strip()
+          claimed_sha = (root / 'candidate.patch.sha256').read_text(encoding='ascii').strip()
+          if re.fullmatch(r'[0-9a-f]{40}', base_sha) is None:
+              raise SystemExit('invalid candidate base SHA')
+          if re.fullmatch(r'[0-9a-f]{64}', claimed_sha) is None:
+              raise SystemExit('invalid candidate patch SHA256')
+          actual_sha = hashlib.sha256((root / 'candidate.patch').read_bytes()).hexdigest()
+          if actual_sha != claimed_sha:
+              raise SystemExit('candidate.patch SHA256 mismatch')
+          PY
+      - name: Apply exact base candidate and create one commit
+        run: |
+          set -euo pipefail
+          expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
+          test "$(git rev-parse HEAD)" = "${expected}"
+          git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
+          git diff --cached --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
+          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" python - <<'PY'
+          import fnmatch, os
+          from pathlib import Path
+          allowed=('data/auction_v3/history/**','data/market/trade_cal_sse.csv','outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','docs/reports/auction_v3*.html')
+          paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
+          bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed)]
+          if bad: raise SystemExit(f'non-allowlisted Backfill publish paths staged: {bad}')
+          if not paths: raise SystemExit('Backfill candidate patch became empty')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m 'auto: extend Decision V11 two-year history'
+      - name: Publish exact CAS commit with minimally injected token
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${expected}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
