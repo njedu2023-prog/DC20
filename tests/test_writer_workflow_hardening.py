@@ -78,6 +78,14 @@ def _embedded_python_after(text: str, marker: str) -> str:
     return textwrap.dedent(source)
 
 
+def _embedded_python_blocks_between(text: str, marker: str, end_marker: str) -> list[str]:
+    section = text.split(marker, 1)[1].split(end_marker, 1)[0]
+    return [
+        textwrap.dedent(block.split("\n          PY", 1)[0])
+        for block in section.split("python - <<'PY'\n")[1:]
+    ]
+
+
 def _assert_auction_trigger_isolated(text: str) -> None:
     header = text.split("\npermissions:", 1)[0]
     compute = text[text.index("  compute:") : text.index("\n  publish:")]
@@ -132,6 +140,17 @@ def test_every_writer_defaults_manual_dispatch_to_read_only_dry_run() -> None:
 
 def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     daily = _text("run_decision_daily.yml")
+    prerequisite_step = daily.split(
+        "- name: Require persisted Auction action for real Daily publication",
+        1,
+    )[1].split(
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+        1,
+    )[0]
+    replay_step = daily.split(
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+        1,
+    )[1].split("- name: Resolve Daily exchange write eligibility", 1)[0]
     preserve_step = daily.split(
         "- name: Pin the last Auction-validated action plan",
         1,
@@ -140,14 +159,45 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
         "- name: Run Daily Decision once with learning and refresh disabled",
         1,
     )[1].split("- name: Build exact allowlisted Daily candidate patch", 1)[0]
+    assert "outputs/decision/action_plan_latest.json" in prerequisite_step
+    assert "validate_action_plan_artifact" in prerequisite_step
+    assert "AUCTION_ACTION_PREREQUISITE_FAILED" in prerequisite_step
+    assert "path.is_symlink()" in prerequisite_step
+    assert "validated=false\\nsimulation=true\\nsemantic_sha256=\\n" in prerequisite_step
+    assert daily.index("Require persisted Auction action for real Daily publication") < daily.index(
+        "Rebuild exact-base frozen Auction runtime"
+    )
+    assert "PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}" in replay_step
+    assert "PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}" in replay_step
+    assert "canonical_json_bytes(action)" in prerequisite_step
+    assert "canonical_json_bytes(action)" in replay_step
+    assert "object_pairs_hook=reject_duplicate_keys" in prerequisite_step
+    assert "object_pairs_hook=reject_duplicate_keys" in replay_step
+    assert "action.pop('generated_at_utc', None)" in prerequisite_step
+    assert "action.pop('generated_at_utc', None)" in replay_step
+    assert "Daily replayed action semantics differ from persisted Auction action" in replay_step
     assert "outputs/decision/action_plan_latest.json" in preserve_step
     assert "validate_action_plan_artifact" in preserve_step
     assert "force_enforcement=not model_freeze_active(manifest)" in preserve_step
     assert "audit.get('validated') is not True" in preserve_step
     assert "audit.get('enforced') is not True" in preserve_step
     assert "hashlib.sha256(raw).hexdigest()" in preserve_step
-    assert "python scripts/replay_frozen_canonical_v2.py" in daily
-    assert "--report \"${RUNNER_TEMP}/daily-frozen-replay.json\"" in daily
+    assert "python scripts/replay_frozen_canonical_v2.py" in replay_step
+    assert 'replay_report="${RUNNER_TEMP}/daily-frozen-replay.json"' in replay_step
+    assert '> "${replay_stdout}"' in replay_step
+    assert "> /dev/null" not in replay_step
+    assert daily.index("Rebuild exact-base frozen Auction runtime") < daily.index(
+        "Resolve Daily exchange write eligibility"
+    )
+    assert daily.index("Resolve Daily exchange write eligibility") < daily.index(
+        "Sync prediction and market source snapshots"
+    )
+    assert daily.index("Sync prediction and market source snapshots") < daily.index(
+        "Pin the last Auction-validated action plan"
+    )
+    assert "FROZEN_ACTION_SHA256: ${{ steps.frozen_action.outputs.sha256 }}" in preserve_step
+    assert "hmac.compare_digest" in preserve_step
+    assert "Daily source synchronization modified the frozen Auction action plan" in preserve_step
     assert "python scripts/run_v2.py" in run_step
     assert "PRESERVED_ACTION_SHA256" in run_step
     assert "hmac.compare_digest" in run_step
@@ -158,11 +208,198 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "python scripts/publish_decision_action.py" not in run_step
     assert "python scripts/publish_decision_action.py" not in daily
     assert "git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json'" in daily
-    assert "forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in daily
+    assert "forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in daily
 
     auction = _text("run_auction_v3.yml")
     assert "python scripts/publish_decision_action.py" in auction
     assert "python scripts/validate_decision_model_freeze.py --runtime" in auction
+
+
+def test_daily_real_publication_rejects_invalid_persisted_auction_action(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from top10decision.decision import model_freeze
+
+    daily = _text("run_decision_daily.yml")
+    source = _embedded_python_after(
+        daily,
+        "- name: Require persisted Auction action for real Daily publication",
+    )
+    output_path = tmp_path / "github-output.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(model_freeze, "load_model_freeze", lambda *_args, **_kwargs: {"active": True})
+    monkeypatch.setattr(model_freeze, "model_freeze_active", lambda _manifest: True)
+
+    def reject_transient_repair(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise model_freeze.DecisionModelFreezeError(
+            "legacy action at /home/runner/work/DC20 contains 600000.SH token=TOPSECRET"
+        )
+
+    monkeypatch.setattr(model_freeze, "validate_action_plan_artifact", reject_transient_repair)
+    monkeypatch.setenv("PUBLISH", "true")
+    with pytest.raises(SystemExit) as exc_info:
+        exec(compile(source, "<daily-persisted-action-prerequisite>", "exec"), {})
+    assert exc_info.value.code == 1
+    rendered = capsys.readouterr().out
+    assert json.loads(rendered) == {
+        "component": "daily_auction_action_prerequisite",
+        "reason_code": "AUCTION_ACTION_PREREQUISITE_FAILED",
+        "status": "fail",
+    }
+    assert "/home/runner" not in rendered
+    assert "600000.SH" not in rendered
+    assert "TOPSECRET" not in rendered
+    assert not output_path.exists()
+
+
+def test_daily_dry_run_marks_persisted_action_as_simulation_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from top10decision.decision import model_freeze
+
+    daily = _text("run_decision_daily.yml")
+    source = _embedded_python_after(
+        daily,
+        "- name: Require persisted Auction action for real Daily publication",
+    )
+    output_path = tmp_path / "github-output.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("PUBLISH", "false")
+
+    def must_not_validate(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("dry-run must not claim that persisted Auction action is valid")
+
+    monkeypatch.setattr(model_freeze, "validate_action_plan_artifact", must_not_validate)
+    exec(compile(source, "<daily-persisted-action-dry-run>", "exec"), {})
+    assert output_path.read_text(encoding="utf-8") == (
+        "validated=false\nsimulation=true\nsemantic_sha256=\n"
+    )
+
+
+def test_daily_real_action_comparison_ignores_only_valid_generation_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from top10decision.decision import model_freeze
+
+    daily = _text("run_decision_daily.yml")
+    persisted_source = _embedded_python_after(
+        daily,
+        "- name: Require persisted Auction action for real Daily publication",
+    )
+    replay_blocks = _embedded_python_blocks_between(
+        daily,
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+        "- name: Resolve Daily exchange write eligibility",
+    )
+    assert len(replay_blocks) == 2
+    replay_validation_source = replay_blocks[1]
+    action_path = tmp_path / "outputs/decision/action_plan_latest.json"
+    action_path.parent.mkdir(parents=True)
+    action = {
+        "generated_at_utc": "2026-08-20T14:00:00+00:00",
+        "schema_version": "decision_action_plan_v12_top10_trade_selector",
+        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+        "candidates": [{"ts_code": "600000.SH", "action": "REJECT"}],
+    }
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    persisted_output = tmp_path / "persisted-output.txt"
+    replay_output = tmp_path / "replay-output.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PUBLISH", "true")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(persisted_output))
+    monkeypatch.setattr(model_freeze, "load_model_freeze", lambda *_args, **_kwargs: {"active": True})
+    monkeypatch.setattr(model_freeze, "model_freeze_active", lambda _manifest: True)
+    monkeypatch.setattr(
+        model_freeze,
+        "validate_action_plan_artifact",
+        lambda *_args, **_kwargs: {"validated": True, "enforced": True},
+    )
+    exec(compile(persisted_source, "<daily-persisted-action-positive>", "exec"), {})
+    persisted = dict(
+        line.split("=", 1)
+        for line in persisted_output.read_text(encoding="utf-8").splitlines()
+    )
+    assert persisted["validated"] == "true"
+    assert persisted["simulation"] == "false"
+    assert re.fullmatch(r"[0-9a-f]{64}", persisted["semantic_sha256"])
+
+    raw_persisted_sha = hashlib.sha256(action_path.read_bytes()).hexdigest()
+    action["generated_at_utc"] = "2026-08-20T14:00:01+00:00"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    assert hashlib.sha256(action_path.read_bytes()).hexdigest() != raw_persisted_sha
+    monkeypatch.setenv("GITHUB_OUTPUT", str(replay_output))
+    monkeypatch.setenv("PERSISTED_ACTION_VALIDATED", "true")
+    monkeypatch.setenv(
+        "PERSISTED_ACTION_SEMANTIC_SHA256",
+        persisted["semantic_sha256"],
+    )
+    exec(compile(replay_validation_source, "<daily-replay-action-positive>", "exec"), {})
+    assert re.fullmatch(
+        r"sha256=[0-9a-f]{64}\n",
+        replay_output.read_text(encoding="utf-8"),
+    )
+
+    action["status_code"] = "ACTIONABLE_BUY"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    with pytest.raises(SystemExit, match="semantics differ from persisted Auction action"):
+        exec(compile(replay_validation_source, "<daily-replay-action-drift>", "exec"), {})
+
+    duplicate_action = (
+        '{"generated_at_utc":"2026-08-20T14:00:00+00:00",'
+        '"generated_at_utc":"2026-08-20T14:00:01+00:00",'
+        '"schema_version":"decision_action_plan_v12_top10_trade_selector",'
+        '"status_code":"NO_TRADE_MODEL_NOT_PROMOTED","candidates":[]}'
+    )
+    action_path.write_text(duplicate_action, encoding="utf-8")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "duplicate-persisted-output.txt"))
+    with pytest.raises(SystemExit) as persisted_duplicate:
+        exec(compile(persisted_source, "<daily-persisted-action-duplicate>", "exec"), {})
+    assert persisted_duplicate.value.code == 1
+    with pytest.raises(SystemExit, match="replayed action JSON is invalid"):
+        exec(compile(replay_validation_source, "<daily-replay-action-duplicate>", "exec"), {})
+
+
+def test_daily_frozen_replay_failure_summary_is_safe_and_classified(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    source = _embedded_python_after(
+        daily,
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+    )
+    cases = (
+        ("pinned file mismatch at /home/runner/secret", "PIN_DRIFT"),
+        ("action watchlist differs for 600000.SH", "ACTION_WATCHLIST_DRIFT"),
+        ("canonical runtime differs", "CANONICAL_RUNTIME_DRIFT"),
+        ("frozen history snapshot differs", "FROZEN_HISTORY_DRIFT"),
+        ("unexpected token=TOPSECRET", "FROZEN_RUNTIME_VALIDATION_FAILED"),
+    )
+    report = tmp_path / "replay-report.json"
+    monkeypatch.setenv("REPLAY_REPORT", str(report))
+    for error, expected_reason in cases:
+        report.write_text(json.dumps({"status": "fail", "error": error}), encoding="utf-8")
+        exec(compile(source, "<daily-frozen-replay-summary>", "exec"), {})
+        rendered = capsys.readouterr().out
+        assert rendered.count("\n") == 1
+        payload = json.loads(rendered)
+        assert payload == {
+            "component": "daily_frozen_replay",
+            "error_sha256": hashlib.sha256(error.encode("utf-8")).hexdigest(),
+            "reason_code": expected_reason,
+            "status": "fail",
+        }
+        assert error not in rendered
+        assert "/home/runner" not in rendered
+        assert "600000.SH" not in rendered
+        assert "TOPSECRET" not in rendered
 
 
 def test_daily_action_plan_pin_and_byte_preservation_fail_closed(

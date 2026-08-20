@@ -88,6 +88,195 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then echo "${TRADE_DATE}" | grep -Eq '^[0-9]{8}$'; fi
+      - name: Require persisted Auction action for real Daily publication
+        id: persisted_action
+        env:
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+              validate_action_plan_artifact,
+          )
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError('duplicate JSON key')
+                  result[key] = value
+              return result
+
+          publish = os.environ['PUBLISH'] == 'true'
+          if not publish:
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+                  output.write('validated=false\nsimulation=true\nsemantic_sha256=\n')
+          else:
+              root = Path('.').resolve()
+              try:
+                  manifest = load_model_freeze(root, required=True)
+                  audit = validate_action_plan_artifact(
+                      root,
+                      manifest,
+                      force_enforcement=not model_freeze_active(manifest),
+                  )
+                  path = root / 'outputs/decision/action_plan_latest.json'
+                  if (
+                      audit.get('validated') is not True
+                      or audit.get('enforced') is not True
+                      or not path.is_file()
+                      or path.is_symlink()
+                  ):
+                      raise RuntimeError('persisted Auction action was not enforced')
+                  action = json.loads(
+                      path.read_text(encoding='utf-8'),
+                      object_pairs_hook=reject_duplicate_keys,
+                  )
+                  if not isinstance(action, dict):
+                      raise RuntimeError('persisted Auction action must be an object')
+                  generated_at = action.pop('generated_at_utc', None)
+                  generated_time = datetime.fromisoformat(generated_at)
+                  if (
+                      type(generated_at) is not str
+                      or generated_time.isoformat() != generated_at
+                      or generated_time.utcoffset() != timedelta(0)
+                      or generated_time.microsecond != 0
+                  ):
+                      raise RuntimeError('persisted Auction action timestamp is invalid')
+                  semantic_digest = hashlib.sha256(canonical_json_bytes(action)).hexdigest()
+              except Exception:
+                  print(json.dumps({
+                      'component': 'daily_auction_action_prerequisite',
+                      'reason_code': 'AUCTION_ACTION_PREREQUISITE_FAILED',
+                      'status': 'fail',
+                  }, separators=(',', ':'), sort_keys=True))
+                  raise SystemExit(1)
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+                  output.write(
+                      f'validated=true\nsimulation=false\nsemantic_sha256={semantic_digest}\n'
+                  )
+          PY
+      - name: Rebuild exact-base frozen Auction runtime before live source mutation
+        id: frozen_action
+        env:
+          PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}
+          PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          replay_report="${RUNNER_TEMP}/daily-frozen-replay.json"
+          replay_stdout="${RUNNER_TEMP}/daily-frozen-replay.stdout"
+          set +e
+          python scripts/replay_frozen_canonical_v2.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --report "${replay_report}" > "${replay_stdout}"
+          replay_status=$?
+          set -e
+          if [ "${replay_status}" -ne 0 ]; then
+            REPLAY_REPORT="${replay_report}" python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          report = Path(os.environ['REPLAY_REPORT'])
+          error = ''
+          if report.is_file():
+              try:
+                  payload = json.loads(report.read_text(encoding='utf-8'))
+              except (OSError, UnicodeError, json.JSONDecodeError):
+                  payload = {}
+              if isinstance(payload, dict) and isinstance(payload.get('error'), str):
+                  error = payload['error']
+          lowered = error.lower()
+          if 'pinned' in lowered:
+              reason = 'PIN_DRIFT'
+          elif 'action' in lowered or 'watchlist' in lowered:
+              reason = 'ACTION_WATCHLIST_DRIFT'
+          elif 'canonical' in lowered:
+              reason = 'CANONICAL_RUNTIME_DRIFT'
+          elif 'history' in lowered or 'snapshot' in lowered:
+              reason = 'FROZEN_HISTORY_DRIFT'
+          else:
+              reason = 'FROZEN_RUNTIME_VALIDATION_FAILED'
+          print(json.dumps({
+              'component': 'daily_frozen_replay',
+              'error_sha256': hashlib.sha256(error.encode('utf-8')).hexdigest(),
+              'reason_code': reason,
+              'status': 'fail',
+          }, separators=(',', ':'), sort_keys=True))
+          PY
+            exit "${replay_status}"
+          fi
+          python - <<'PY'
+          import hashlib, hmac, json, os
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+              validate_action_plan_artifact,
+          )
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError('duplicate JSON key')
+                  result[key] = value
+              return result
+
+          root=Path('.').resolve()
+          manifest=load_model_freeze(root, required=True)
+          audit=validate_action_plan_artifact(
+              root,
+              manifest,
+              force_enforcement=not model_freeze_active(manifest),
+          )
+          if audit.get('validated') is not True or audit.get('enforced') is not True:
+              raise SystemExit('Daily replayed action plan contract was not enforced')
+          raw=(root / 'outputs/decision/action_plan_latest.json').read_bytes()
+          digest=hashlib.sha256(raw).hexdigest()
+          try:
+              action=json.loads(
+                  raw.decode('utf-8'),
+                  object_pairs_hook=reject_duplicate_keys,
+              )
+          except (UnicodeError, ValueError):
+              raise SystemExit('Daily replayed action JSON is invalid')
+          if not isinstance(action, dict):
+              raise SystemExit('Daily replayed action must be an object')
+          generated_at=action.pop('generated_at_utc', None)
+          try:
+              generated_time=datetime.fromisoformat(generated_at)
+          except (TypeError, ValueError):
+              raise SystemExit('Daily replayed action timestamp is invalid')
+          if (
+              type(generated_at) is not str
+              or generated_time.isoformat() != generated_at
+              or generated_time.utcoffset() != timedelta(0)
+              or generated_time.microsecond != 0
+          ):
+              raise SystemExit('Daily replayed action timestamp is invalid')
+          semantic_digest=hashlib.sha256(canonical_json_bytes(action)).hexdigest()
+          if os.environ['PUBLISH'] == 'true':
+              if os.environ['PERSISTED_ACTION_VALIDATED'] != 'true':
+                  raise SystemExit('Daily real publication lacks a validated persisted Auction action')
+              if not hmac.compare_digest(
+                  semantic_digest,
+                  os.environ['PERSISTED_ACTION_SEMANTIC_SHA256'],
+              ):
+                  raise SystemExit('Daily replayed action semantics differ from persisted Auction action')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
+              output.write(f"sha256={digest}\n")
+          PY
       - name: Resolve Daily exchange write eligibility
         id: session
         env:
@@ -179,24 +368,16 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"; else python scripts/build_market_fs.py; fi
-      - name: Rebuild the frozen Auction runtime and action plan in workspace
-        if: ${{ steps.session.outputs.write_eligible == 'true' }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: |
-          set -euo pipefail
-          python scripts/replay_frozen_canonical_v2.py \
-            --root "${GITHUB_WORKSPACE}" \
-            --report "${RUNNER_TEMP}/daily-frozen-replay.json" > /dev/null
       - name: Pin the last Auction-validated action plan
         id: preserved_action
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
         env:
+          FROZEN_ACTION_SHA256: ${{ steps.frozen_action.outputs.sha256 }}
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, os
+          import hashlib, hmac, os
           from pathlib import Path
           from top10decision.decision.model_freeze import (
               load_model_freeze,
@@ -215,8 +396,11 @@ jobs:
               raise SystemExit('Daily action plan contract was not enforced')
           path=root / 'outputs/decision/action_plan_latest.json'
           raw=path.read_bytes()
+          digest=hashlib.sha256(raw).hexdigest()
+          if not hmac.compare_digest(digest, os.environ['FROZEN_ACTION_SHA256']):
+              raise SystemExit('Daily source synchronization modified the frozen Auction action plan')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
-              output.write(f"sha256={hashlib.sha256(raw).hexdigest()}\n")
+              output.write(f"sha256={digest}\n")
           PY
       - name: Run Daily Decision once with learning and refresh disabled
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -261,7 +445,7 @@ jobs:
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
-          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
           bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily paths staged: {bad}')
@@ -366,7 +550,7 @@ jobs:
           import fnmatch, os
           from pathlib import Path
           allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
-          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
           bad=[p for p in paths if not any(fnmatch.fnmatchcase(p,a) for a in allowed) or any(fnmatch.fnmatchcase(p,a) for a in forbidden)]
           if bad: raise SystemExit(f'non-allowlisted Daily publish paths staged: {bad}')
