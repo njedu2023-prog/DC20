@@ -1,6 +1,6 @@
 {
   "schema_version": "decision_model_freeze_v2",
-  "active": false,
+  "active": true,
   "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
   "training_cutoff_signal_date": "20260805",
   "history_snapshot": {
@@ -271,10 +271,10 @@
       },
       "precision_evidence": {
         "baseline_commit": "c6de497aaab48c40e205aa7fe8401ad6ad9780ad",
-        "candidate_commit": "ed9fa4cf1fb720fcb485bac6fccd5a5b3226080e",
+        "candidate_commit": "b157c474518eb740c3e1279e0084112a0cb1eff5",
         "github_run_ids": [
-          "32407756878",
-          "32408991522"
+          "32416549896",
+          "32417774079"
         ],
         "probes": [
           6,
