@@ -434,13 +434,13 @@ jobs:
           set -euo pipefail
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
-          git add -A -- data/pred/pred_source_latest.csv data/pred/_pred_source_meta.json data/pred/archive 'data/pred/pred_top10_*.csv'
+          git add -A -- data/pred
           git add -A -- data/market/raw data/market/trade_cal_sse.csv 'data/market/features_base_*.csv' 'data/market/features_limit_*.csv' 'data/market/truth_close_*.csv' 'data/market/_meta_*.json'
           git add -A -- docs/weights docs/signals
           git add -A -- outputs/decision data/decision
           git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json' 'outputs/decision/report_index.json'
           git add -A -- 'docs/reports/*.md'
-          git diff --cached --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
@@ -545,7 +545,7 @@ jobs:
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
           test "$(git rev-parse HEAD)" = "${expected}"
           git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
-          git diff --cached --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -363,6 +364,92 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     assert persisted_duplicate.value.code == 1
     with pytest.raises(SystemExit, match="replayed action JSON is invalid"):
         exec(compile(replay_validation_source, "<daily-replay-action-duplicate>", "exec"), {})
+
+
+def test_daily_candidate_staging_tolerates_absent_optional_pred_top10(
+    tmp_path: Path,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    candidate_step = daily.split(
+        "- name: Build exact allowlisted Daily candidate patch",
+        1,
+    )[1].split("- name: Upload immutable candidate patch", 1)[0]
+    staging_lines = [
+        line.strip()
+        for line in candidate_step.splitlines()
+        if line.strip().startswith("git add -A -- data/pred")
+    ]
+    assert staging_lines == ["git add -A -- data/pred"]
+    assert "git add -A -- 'data/pred/pred_top10_*.csv'" not in candidate_step
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    pred_root = tmp_path / "data/pred"
+    pred_root.mkdir(parents=True)
+    (pred_root / "pred_source_latest.csv").write_text("trade_date\n20260820\n", encoding="utf-8")
+    (pred_root / "_pred_source_meta.json").write_text("{}\n", encoding="utf-8")
+    result = subprocess.run(
+        staging_lines[0].split(),
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert staged == [
+        "data/pred/_pred_source_meta.json",
+        "data/pred/pred_source_latest.csv",
+    ]
+    assert not list(pred_root.glob("pred_top10_*.csv"))
+
+
+def test_daily_allowlists_expose_both_sides_of_renames(
+    tmp_path: Path,
+) -> None:
+    daily = _text("run_decision_daily.yml")
+    assert daily.count("git diff --cached --no-renames --name-only -z") == 2
+
+    repo = tmp_path / "rename-case"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    source = repo / "data/pred/unexpected_tracked.txt"
+    source.parent.mkdir(parents=True)
+    source.write_text("unexpected\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "data/pred"], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=DC20 Test",
+            "-c",
+            "user.email=dc20-test@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "baseline",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    destination = repo / "data/pred/archive/renamed.csv"
+    destination.parent.mkdir(parents=True)
+    source.rename(destination)
+    subprocess.run(["git", "add", "-A", "--", "data/pred"], cwd=repo, check=True)
+    visible = subprocess.run(
+        ["git", "diff", "--cached", "--no-renames", "--name-only", "-z"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout.split(b"\0")
+    assert {item.decode() for item in visible if item} == {
+        "data/pred/unexpected_tracked.txt",
+        "data/pred/archive/renamed.csv",
+    }
 
 
 def test_daily_frozen_replay_failure_summary_is_safe_and_classified(
