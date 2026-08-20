@@ -18,6 +18,10 @@ SPEC = importlib.util.spec_from_file_location("replay_frozen_canonical_v2", SCRI
 assert SPEC is not None and SPEC.loader is not None
 replay = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(replay)
+from top10decision.decision.model_freeze import (  # noqa: E402
+    REQUIRED_ACTIVE_PIN_PATHS,
+)
+
 LEGACY_V1_MANIFEST_FIXTURE = (
     Path(__file__).parent / "fixtures" / "decision_model_freeze_v1_46d8.json"
 )
@@ -131,9 +135,7 @@ def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> No
         assert pinned_files["forced_enforcement"] is (not current["active"])
         assert pinned_files["validated"] is True
         assert pinned_files["enforced"] is True
-        assert pinned_files["pinned_files"] == len(
-            replay.freeze_contract.REQUIRED_ACTIVE_PIN_PATHS
-        )
+        assert pinned_files["pinned_files"] == len(REQUIRED_ACTIVE_PIN_PATHS)
 
 
 def test_exact_legacy_v1_fixture_bootstrap_is_independent_of_current_manifest(
