@@ -2727,6 +2727,35 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
         workflow = (
             diagnose.ROOT / ".github/workflows/diagnose_decision_fingerprint.yml"
         ).read_text(encoding="utf-8")
+        self.assertIn("Checkout immutable C6 frozen references", workflow)
+        self.assertIn(
+            "ref: c6de497aaab48c40e205aa7fe8401ad6ad9780ad",
+            workflow,
+        )
+        self.assertIn("path: _dc20_fingerprint_reference_c6", workflow)
+        self.assertIn("sparse-checkout-cone-mode: false", workflow)
+        self.assertIn(
+            'expected_reference_commit="c6de497aaab48c40e205aa7fe8401ad6ad9780ad"',
+            workflow,
+        )
+        self.assertIn("persisted_reference_commit_verified=false", workflow)
+        reference_checkout = (
+            '"${{reference_checkout}}/outputs/auction_v3/{path}"'
+        )
+        for path in (
+            "metrics/backtest_top10_latest.csv",
+            "metrics/backtest_trade_selector_oos_latest.csv",
+            "metrics/backtest_latest.json",
+            "models/model_meta_latest.json",
+        ):
+            self.assertIn(reference_checkout.format(path=path), workflow)
+        for current_runtime_blob in (
+            "36f138c46c50ec07a192f0ce4072e68ed22e6d08",
+            "bc45b2969a3f77d07deb474bcdee77abf0bc0ca1",
+            "d9697f8946f8651444d21ebb0f05f831d789086b",
+            "64e80ab35ad0593fd8ba8a4f9ab779c51d5832a1",
+        ):
+            self.assertNotIn(current_runtime_blob, workflow)
         self.assertIn("id: runtime", workflow)
         self.assertIn(
             "validate_decision_model_freeze.py --runtime --force-inactive",

@@ -23,6 +23,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Checkout immutable C6 frozen references
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: c6de497aaab48c40e205aa7fe8401ad6ad9780ad
+          path: _dc20_fingerprint_reference_c6
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: |
+            outputs/auction_v3/metrics/backtest_top10_latest.csv
+            outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv
+            outputs/auction_v3/metrics/backtest_latest.json
+            outputs/auction_v3/models/model_meta_latest.json
+          sparse-checkout-cone-mode: false
+
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -56,6 +70,13 @@ jobs:
         run: |
           set -euo pipefail
           reference_dir="${RUNNER_TEMP}/dc20-fingerprint-reference"
+          reference_checkout="${GITHUB_WORKSPACE}/_dc20_fingerprint_reference_c6"
+          expected_reference_commit="c6de497aaab48c40e205aa7fe8401ad6ad9780ad"
+          actual_reference_commit="$(git -C "${reference_checkout}" rev-parse HEAD)"
+          if [ "${actual_reference_commit}" != "${expected_reference_commit}" ]; then
+            echo "::error::persisted_reference_commit_verified=false"
+            exit 1
+          fi
           mkdir -p "${reference_dir}"
           check_and_copy() {
             expected="$1"
@@ -69,16 +90,16 @@ jobs:
             cp "${source}" "${destination}"
           }
           check_and_copy "1bbebbbe4a3b94c0a95fd64f4e27b242ea5b0222" \
-            outputs/auction_v3/metrics/backtest_top10_latest.csv \
+            "${reference_checkout}/outputs/auction_v3/metrics/backtest_top10_latest.csv" \
             "${reference_dir}/backtest_top10_latest.csv"
           check_and_copy "6afd29e31cf98c434ac6e67183f7005a89663a49" \
-            outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv \
+            "${reference_checkout}/outputs/auction_v3/metrics/backtest_trade_selector_oos_latest.csv" \
             "${reference_dir}/backtest_trade_selector_oos_latest.csv"
           check_and_copy "e27511643fc5aa1ee5bdb60f1d3b15b7e90adef4" \
-            outputs/auction_v3/metrics/backtest_latest.json \
+            "${reference_checkout}/outputs/auction_v3/metrics/backtest_latest.json" \
             "${reference_dir}/backtest_latest.json"
           check_and_copy "9fee4a2bc9904bf703a292b5df3c367c4c39712b" \
-            outputs/auction_v3/models/model_meta_latest.json \
+            "${reference_checkout}/outputs/auction_v3/models/model_meta_latest.json" \
             "${reference_dir}/model_meta_latest.json"
           echo "FINGERPRINT_REFERENCE_DIR=${reference_dir}" >> "${GITHUB_ENV}"
           echo "FINGERPRINT_REPLAY_REPORT=${RUNNER_TEMP}/dc20-canonical-v2-replay.json" >> "${GITHUB_ENV}"
