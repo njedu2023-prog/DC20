@@ -55,9 +55,12 @@ from scripts.validate_io_contract import (  # noqa: E402
     _validate_learning_acceptance,
 )
 from top10decision.data.tushare_minute import (  # noqa: E402
+    MINUTE_FIELDS,
     TushareClient,
+    TushareResponseSchemaError,
     opening_auction_price_from_snapshot,
 )
+from top10decision.rt_min_contract import RTMinContractError  # noqa: E402
 from top10decision.auction_v3.config import (  # noqa: E402
     TARGET_HISTORY_DATES,
     TARGET_INDEPENDENT_OOS_DATES,
@@ -1337,6 +1340,159 @@ class DecisionStrictSemanticContractTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(_allows_unpromoted_no_trade(mutated, picked=0))
         self.assertFalse(_allows_unpromoted_no_trade(plan, picked=1))
+
+
+class DecisionRealtimeMinuteContractTests(unittest.TestCase):
+    @staticmethod
+    def _row(
+        *,
+        code: str = "600000.SH",
+        freq: str = "1MIN",
+    ) -> list[object]:
+        return [
+            code,
+            freq,
+            "2026-08-20 10:40:00",
+            10.0,
+            10.1,
+            10.2,
+            9.9,
+            1000,
+            10000,
+        ]
+
+    def test_current_minute_requests_identity_and_frequency_before_persist(self) -> None:
+        client = TushareClient(token="secret")
+        response_fields = ["code", *MINUTE_FIELDS[1:]]
+        with mock.patch.object(
+            TushareClient,
+            "_call_rows",
+            autospec=True,
+            return_value=(response_fields, [self._row()]),
+        ) as call:
+            frame = client.current_minute("600000.SH")
+
+        _, api_name, params, fields = call.call_args.args
+        self.assertEqual(api_name, "rt_min_daily")
+        self.assertEqual(params, {"ts_code": "600000.SH", "freq": "1MIN"})
+        self.assertEqual(tuple(fields), MINUTE_FIELDS)
+        self.assertEqual(
+            frame.columns.tolist(),
+            ["ts_code", "time", "open", "close", "high", "low", "vol", "amount"],
+        )
+        self.assertEqual(frame["ts_code"].tolist(), ["600000.SH"])
+
+    def test_current_minute_accepts_canonical_ts_code_header(self) -> None:
+        client = TushareClient(token="secret")
+        with mock.patch.object(
+            TushareClient,
+            "_call_rows",
+            autospec=True,
+            return_value=(list(MINUTE_FIELDS), [self._row()]),
+        ):
+            frame = client.current_minute("600000.SH")
+        self.assertEqual(frame["time"].tolist(), ["2026-08-20 10:40:00"])
+
+    def test_current_minute_empty_response_is_ordinary_no_data(self) -> None:
+        client = TushareClient(token="secret")
+        with mock.patch.object(
+            TushareClient,
+            "_call_rows",
+            autospec=True,
+            return_value=([], []),
+        ):
+            frame = client.current_minute("600000.SH")
+        self.assertTrue(frame.empty)
+
+    def test_current_minute_maps_response_shape_failure_to_hard_schema(self) -> None:
+        client = TushareClient(token="secret")
+        with mock.patch.object(
+            TushareClient,
+            "_call_rows",
+            autospec=True,
+            side_effect=TushareResponseSchemaError("invalid response shape"),
+        ):
+            with self.assertRaises(RTMinContractError) as caught:
+                client.current_minute("600000.SH")
+        self.assertEqual(caught.exception.reason, "schema")
+        self.assertEqual(caught.exception.row_count, 0)
+
+    def test_call_rows_rejects_malformed_response_objects(self) -> None:
+        client = TushareClient(token="secret")
+        payloads = [
+            [],
+            {"code": None, "data": {}},
+            {"code": 0, "data": "not-an-object"},
+            {"code": 0, "data": []},
+            {"code": 0, "data": {"fields": "time", "items": []}},
+            {"code": 0, "data": {"fields": {}, "items": []}},
+            {"code": 0, "data": {"fields": [], "items": {}}},
+            {"code": 0, "data": {"fields": [], "items": 0}},
+            {"code": 0, "data": {"fields": ["time"], "items": [{}]}},
+        ]
+        for payload in payloads:
+            response = mock.Mock()
+            response.json.return_value = payload
+            with self.subTest(payload=payload), mock.patch(
+                "top10decision.data.tushare_minute.requests.post",
+                return_value=response,
+            ):
+                with self.assertRaises(TushareResponseSchemaError):
+                    client._call_rows("rt_min_daily", {}, MINUTE_FIELDS)
+            response.raise_for_status.assert_called_once_with()
+
+    def test_current_minute_rejects_wrong_or_mixed_identity_and_frequency(self) -> None:
+        fields = list(MINUTE_FIELDS)
+        cases = {
+            "wrong_identity": (fields, [self._row(code="000001.SZ")], "identity"),
+            "mixed_identity": (
+                fields,
+                [self._row(), self._row(code="000001.SZ")],
+                "identity",
+            ),
+            "wrong_frequency": (fields, [self._row(freq="5MIN")], "frequency"),
+            "mixed_frequency": (
+                fields,
+                [self._row(), self._row(freq="5MIN")],
+                "frequency",
+            ),
+        }
+        client = TushareClient(token="secret")
+        for name, (response_fields, rows, reason) in cases.items():
+            with self.subTest(name=name), mock.patch.object(
+                TushareClient,
+                "_call_rows",
+                autospec=True,
+                return_value=(response_fields, rows),
+            ):
+                with self.assertRaises(RTMinContractError) as caught:
+                    client.current_minute("600000.SH")
+                self.assertEqual(caught.exception.reason, reason)
+
+    def test_current_minute_rejects_ambiguous_fields_and_bad_row_width(self) -> None:
+        cases = {
+            "ambiguous_identity": (
+                ["ts_code", "code", *MINUTE_FIELDS[1:]],
+                [["600000.SH", *self._row()]],
+            ),
+            "short_row": (list(MINUTE_FIELDS), [self._row()[:-1]]),
+            "long_row": (list(MINUTE_FIELDS), [[*self._row(), "extra"]]),
+            "empty_required_value": (
+                list(MINUTE_FIELDS),
+                [[*self._row()[:-1], None]],
+            ),
+        }
+        client = TushareClient(token="secret")
+        for name, (response_fields, rows) in cases.items():
+            with self.subTest(name=name), mock.patch.object(
+                TushareClient,
+                "_call_rows",
+                autospec=True,
+                return_value=(response_fields, rows),
+            ):
+                with self.assertRaises(RTMinContractError) as caught:
+                    client.current_minute("600000.SH")
+                self.assertEqual(caught.exception.reason, "schema")
 
 
 class DecisionExecutionTruthTests(unittest.TestCase):

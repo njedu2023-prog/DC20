@@ -190,6 +190,23 @@ def test_rt_min_daily_code_alias_still_enforces_probe_identity() -> None:
     assert caught.value.reason == "identity"
 
 
+@pytest.mark.parametrize("width_delta", [-1, 1])
+def test_rt_min_daily_rejects_rows_that_do_not_match_field_width(
+    width_delta: int,
+) -> None:
+    fields, rows = _realtime(code_field="code")
+    row = rows[0][:-1] if width_delta < 0 else [*rows[0], "extra"]
+    with pytest.raises(health.HealthCheckError) as caught:
+        health._valid_realtime_rows(
+            fields,
+            [row],
+            probe_code="600000.SH",
+            now_shanghai=datetime(2026, 8, 17, 10, 40, tzinfo=health.SHANGHAI),
+        )
+    assert caught.value.reason == "schema"
+    assert caught.value.row_count == 1
+
+
 def test_weekend_checks_calendar_auction_and_realtime_entitlement() -> None:
     calls: list[str] = []
 

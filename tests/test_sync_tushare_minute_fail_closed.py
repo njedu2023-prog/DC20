@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from scripts import sync_tushare_minute as sync
+from top10decision.rt_min_contract import RTMinContractError
 
 
 class _FakeClient:
@@ -74,6 +75,7 @@ def _run(
     monkeypatch: pytest.MonkeyPatch,
     client: _FakeClient,
     *extra_args: str,
+    workers: int = 1,
 ) -> int:
     monkeypatch.setenv("TUSHARE_TOKEN", "test-token")
     monkeypatch.setattr(
@@ -93,7 +95,7 @@ def _run(
             "--trade-date",
             "20260820",
             "--workers",
-            "1",
+            str(workers),
             *extra_args,
         ],
         now_shanghai=datetime(2026, 8, 20, 10, 40, tzinfo=sync.SHANGHAI),
@@ -143,6 +145,37 @@ def test_partial_minute_success_is_explicit_and_persists_only_valid_rows(
     assert persisted["failures"] == [
         {"ts_code": "000001.SZ", "reason": "no_valid_rows"}
     ]
+
+
+@pytest.mark.parametrize("contract_reason", ["schema", "identity", "frequency"])
+def test_hard_contract_failure_stages_then_writes_zero_minute_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    contract_reason: str,
+) -> None:
+    class _ContractFailureClient(_FakeClient):
+        def current_minute(self, code: str) -> pd.DataFrame:
+            self.minute_calls.append(code)
+            if code == "000001.SZ":
+                raise RTMinContractError(
+                    "rt_min_daily: hard response contract failure",
+                    reason=contract_reason,
+                    row_count=1,
+                )
+            return _minute()
+
+    client = _ContractFailureClient(is_open=1)
+    assert _run(tmp_path, monkeypatch, client, workers=2) == 1
+
+    failure = json.loads(capsys.readouterr().err)
+    assert failure["status"] == "fail"
+    assert failure["reason"] == "rt_min_contract_failure"
+    minute_root = tmp_path / "data" / "market" / "minute_1m"
+    if minute_root.exists():
+        assert not list(minute_root.rglob("*"))
+    assert not (minute_root / "sync_latest.json").exists()
+    assert sorted(client.minute_calls) == ["000001.SZ", "600000.SH"]
 
 
 def test_closed_session_is_not_applicable_and_never_requests_market_rows(

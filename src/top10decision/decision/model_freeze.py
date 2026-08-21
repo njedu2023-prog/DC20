@@ -156,6 +156,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "src/top10decision/models/overnight_model.py",
         "src/top10decision/position/allocator.py",
         "src/top10decision/regime/simple_regime.py",
+        "src/top10decision/rt_min_contract.py",
         "src/top10decision/reporting/daily_report.py",
         "src/top10decision/risk/guardrails.py",
         "src/top10decision/strategies/base_strategy.py",

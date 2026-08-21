@@ -27,6 +27,7 @@ from top10decision.data.tushare_minute import (  # noqa: E402
     write_minute_snapshot,
 )
 from top10decision.decision.eligibility import filter_standard_limit_universe  # noqa: E402
+from top10decision.rt_min_contract import RTMinContractError  # noqa: E402
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -449,27 +450,42 @@ def run_sync(
         and (active_window or post_close_truth_window)
     ):
         market_data_network_requests += len(codes)
+        fetched: dict[str, pd.DataFrame] = {}
+        hard_contract_failures: list[str] = []
 
-        def fetch_one(code: str) -> tuple[str, bool, str]:
+        def fetch_one(
+            code: str,
+        ) -> tuple[str, pd.DataFrame | None, str, bool]:
             try:
                 minute = client.current_minute(code)
                 valid = _valid_minute_rows(minute, trade_date=trade_date)
                 if valid.empty:
-                    return code, False, "no_valid_rows"
-                write_minute_snapshot(valid, root, trade_date, code)
-                return code, True, ""
+                    return code, None, "no_valid_rows", False
+                return code, valid, "", False
+            except RTMinContractError as exc:
+                return code, None, exc.reason, True
             except Exception as exc:
-                return code, False, type(exc).__name__
+                return code, None, type(exc).__name__, False
 
         workers = min(max(1, int(args.workers)), len(codes))
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="tushare-minute") as pool:
             futures = [pool.submit(fetch_one, code) for code in codes]
             for future in as_completed(futures):
-                code, success, reason = future.result()
-                if success:
-                    written += 1
+                code, valid, reason, hard_contract_failure = future.result()
+                if hard_contract_failure:
+                    hard_contract_failures.append(code)
+                elif valid is not None:
+                    fetched[code] = valid
                 else:
                     failures.append({"ts_code": code, "reason": reason})
+        if hard_contract_failures:
+            raise MinuteSyncError("rt_min_contract_failure")
+        for code in codes:
+            valid = fetched.get(code)
+            if valid is None:
+                continue
+            write_minute_snapshot(valid, root, trade_date, code)
+            written += 1
 
     if args.auction_only and auction_rows == 0:
         if args.optional and args.research_mode:

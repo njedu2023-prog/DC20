@@ -14,6 +14,20 @@ from urllib import error, request
 from zoneinfo import ZoneInfo
 
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "src")
+if SRC not in sys.path:
+    sys.path.insert(0, SRC)
+
+from top10decision.rt_min_contract import (  # noqa: E402
+    RT_MIN_CANONICAL_FIELDS,
+    RT_MIN_CODE_FIELDS,
+    RT_MIN_VALUE_FIELDS,
+    RTMinContractError,
+    validate_rt_min_response,
+)
+
+
 API_URL = "https://api.tushare.pro"
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 DEFAULT_PROBE_CODES = ("600000.SH", "000001.SZ", "600519.SH")
@@ -28,19 +42,9 @@ AUCTION_FIELDS = (
     "amount",
     "vwap",
 )
-REALTIME_FIELDS = (
-    "ts_code",
-    "freq",
-    "time",
-    "open",
-    "close",
-    "high",
-    "low",
-    "vol",
-    "amount",
-)
-REALTIME_CODE_FIELDS = ("ts_code", "code")
-REALTIME_VALUE_FIELDS = REALTIME_FIELDS[1:]
+REALTIME_FIELDS = RT_MIN_CANONICAL_FIELDS
+REALTIME_CODE_FIELDS = RT_MIN_CODE_FIELDS
+REALTIME_VALUE_FIELDS = RT_MIN_VALUE_FIELDS
 REALTIME_CLOCK_SKEW = timedelta(minutes=2)
 ApiCall = Callable[
     [str, dict[str, Any], Iterable[str], str, int],
@@ -261,72 +265,23 @@ def _valid_realtime_rows(
             reason="empty_rows",
             row_count=0,
         )
-    if (
-        any(type(field) is not str or not field for field in fields)
-        or len(set(fields)) != len(fields)
-    ):
+    try:
+        canonical_fields, candidates = validate_rt_min_response(
+            fields,
+            rows,
+            expected_code=probe_code,
+            expected_freq="1MIN",
+        )
+    except RTMinContractError as exc:
         raise HealthCheckError(
-            "rt_min_daily: response fields are invalid or duplicated",
-            reason="schema",
-            row_count=row_count,
-        )
-    code_fields = [field for field in REALTIME_CODE_FIELDS if field in fields]
-    if len(code_fields) != 1:
-        raise HealthCheckError(
-            "rt_min_daily: response identity field is missing or ambiguous",
-            reason="schema",
-            row_count=row_count,
-        )
-    missing = [field for field in REALTIME_VALUE_FIELDS if field not in fields]
-    if missing:
-        raise HealthCheckError(
-            "rt_min_daily: required fields are missing",
-            reason="schema",
-            row_count=row_count,
-        )
-    code_field = code_fields[0]
-    required_fields = (code_field, *REALTIME_VALUE_FIELDS)
-    indexes = [fields.index(field) for field in required_fields]
-    candidates = [
-        row
-        for row in rows
-        if len(row) == len(fields)
-        and all(
-            str(row[index] if row[index] is not None else "").strip()
-            for index in indexes
-        )
-    ]
-    if not candidates:
-        raise HealthCheckError(
-            "rt_min_daily: rows do not match the required schema",
-            reason="schema",
-            row_count=row_count,
-        )
-    if len(candidates) != len(rows):
-        raise HealthCheckError(
-            "rt_min_daily: one or more rows are incomplete",
-            reason="schema",
-            row_count=row_count,
-        )
-    code_index = fields.index(code_field)
-    freq_index = fields.index("freq")
-    time_index = fields.index("time")
-    expected_code = str(probe_code or "").strip().upper()
+            str(exc),
+            reason=exc.reason,
+            row_count=exc.row_count,
+        ) from exc
+    time_index = canonical_fields.index("time")
     today = now_shanghai.date()
     latest_allowed = now_shanghai + REALTIME_CLOCK_SKEW
     for row in candidates:
-        if str(row[code_index] or "").strip().upper() != expected_code:
-            raise HealthCheckError(
-                "rt_min_daily: returned code differs from probe",
-                reason="identity",
-                row_count=row_count,
-            )
-        if str(row[freq_index] or "").strip().upper() != "1MIN":
-            raise HealthCheckError(
-                "rt_min_daily: returned freq is not 1MIN",
-                reason="frequency",
-                row_count=row_count,
-            )
         observed = _parse_realtime_timestamp(row[time_index])
         if observed is None:
             raise HealthCheckError(

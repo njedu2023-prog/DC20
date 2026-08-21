@@ -10,9 +10,15 @@ from typing import Any, Iterable
 import pandas as pd
 import requests
 
+from top10decision.rt_min_contract import (
+    RT_MIN_CANONICAL_FIELDS,
+    RTMinContractError,
+    validate_rt_min_response,
+)
+
 
 API_URL = "https://api.tushare.pro"
-MINUTE_FIELDS = ("time", "open", "close", "high", "low", "vol", "amount")
+MINUTE_FIELDS = RT_MIN_CANONICAL_FIELDS
 HISTORICAL_MINUTE_FIELDS = (
     "ts_code",
     "trade_time",
@@ -72,6 +78,10 @@ AUCTION_OPEN_FIELDS = (
     "amount",
     "vwap",
 )
+
+
+class TushareResponseSchemaError(RuntimeError):
+    """The API response shape cannot be safely converted into tabular data."""
 
 
 def _normalize_trade_date_partition(
@@ -207,7 +217,12 @@ class TushareClient:
             raise RuntimeError(f"{env_name} is not configured")
         return cls(token=token, timeout_seconds=max(1, int(timeout_seconds)))
 
-    def call(self, api_name: str, params: dict[str, Any], fields: Iterable[str]) -> pd.DataFrame:
+    def _call_rows(
+        self,
+        api_name: str,
+        params: dict[str, Any],
+        fields: Iterable[str],
+    ) -> tuple[list[Any], list[Any]]:
         response = requests.post(
             API_URL,
             json={
@@ -219,14 +234,57 @@ class TushareClient:
             timeout=self.timeout_seconds,
         )
         response.raise_for_status()
-        payload = response.json()
-        code = int(payload.get("code", -1) or 0)
+        try:
+            payload = response.json()
+        except (TypeError, ValueError) as exc:
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned invalid JSON"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned a non-object payload"
+            )
+        raw_code = payload.get("code")
+        if isinstance(raw_code, bool):
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned an invalid status code"
+            )
+        try:
+            code = int(raw_code)
+        except (TypeError, ValueError) as exc:
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned an invalid status code"
+            ) from exc
         if code != 0:
             message = str(payload.get("msg") or "Tushare request failed")
             raise RuntimeError(f"Tushare {api_name} error code={code}: {message}")
-        data = payload.get("data") or {}
-        columns = list(data.get("fields") or [])
-        rows = list(data.get("items") or [])
+        data = payload.get("data")
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned a non-object data payload"
+            )
+        raw_columns = data.get("fields")
+        raw_rows = data.get("items")
+        if raw_columns is None:
+            raw_columns = []
+        if raw_rows is None:
+            raw_rows = []
+        if not isinstance(raw_columns, list) or not isinstance(raw_rows, list):
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned invalid fields or items"
+            )
+        columns = list(raw_columns)
+        rows = list(raw_rows)
+        if any(not isinstance(row, list) for row in rows):
+            raise TushareResponseSchemaError(
+                f"Tushare {api_name} returned a non-tabular row"
+            )
+        return columns, rows
+
+    def call(self, api_name: str, params: dict[str, Any], fields: Iterable[str]) -> pd.DataFrame:
+        columns, rows = self._call_rows(api_name, params, fields)
         return pd.DataFrame(rows, columns=columns)
 
     def trade_calendar(self, start_date: str, end_date: str) -> pd.DataFrame:
@@ -302,11 +360,32 @@ class TushareClient:
         code = normalize_code(ts_code)
         if not code:
             raise ValueError(f"Invalid A-share code: {ts_code}")
-        frame = self.call("rt_min_daily", {"ts_code": code, "freq": freq}, MINUTE_FIELDS)
-        if frame.empty:
-            return frame
-        frame = frame.copy()
-        frame.insert(0, "ts_code", code)
+        normalized_freq = str(freq or "").strip().upper()
+        if normalized_freq != "1MIN":
+            raise ValueError(f"Unsupported realtime minute frequency: {freq}")
+        try:
+            response_fields, response_rows = self._call_rows(
+                "rt_min_daily",
+                {"ts_code": code, "freq": normalized_freq},
+                MINUTE_FIELDS,
+            )
+        except TushareResponseSchemaError as exc:
+            raise RTMinContractError(
+                "rt_min_daily: response payload schema is invalid",
+                reason="schema",
+                row_count=0,
+            ) from exc
+        canonical_fields, canonical_rows = validate_rt_min_response(
+            response_fields,
+            response_rows,
+            expected_code=code,
+            expected_freq=normalized_freq,
+        )
+        if not canonical_rows:
+            return pd.DataFrame()
+        frame = pd.DataFrame(canonical_rows, columns=canonical_fields).drop(
+            columns=["freq"]
+        )
         for column in ("open", "close", "high", "low", "vol", "amount"):
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
         frame["time"] = frame["time"].astype(str).str.strip()
@@ -637,7 +716,9 @@ __all__ = [
     "DAILY_LIMIT_FIELDS",
     "DAILY_LIMIT_LIST_FIELDS",
     "MINUTE_FIELDS",
+    "RTMinContractError",
     "TushareClient",
+    "TushareResponseSchemaError",
     "auction_open_output_path",
     "minute_output_path",
     "normalize_code",
