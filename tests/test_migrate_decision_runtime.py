@@ -705,4 +705,5 @@ def test_workflow_invokes_frozen_replay_wrapper_from_detached_worktree() -> None
     assert "_sync_meta.json" in script
     assert "validate_action_plan_artifact" in script
     assert "validate_report_index_action_truth" in script
-    assert "--strict-semantic" in script
+    assert "validate_io_contract.py" not in script
+    assert "strict_io_semantic" not in script

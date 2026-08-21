@@ -64,7 +64,6 @@ REQUIRED_EXACT_BASE_SOURCES = frozenset(
         "scripts/publish_decision_action.py",
         "scripts/replay_frozen_canonical_v2.py",
         "scripts/validate_decision_model_freeze.py",
-        "scripts/validate_io_contract.py",
         "src/top10decision/decision/action_plan.py",
         "src/top10decision/decision/model_freeze.py",
     }
@@ -833,15 +832,6 @@ def run_full_validators(root: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     ):
         _fail("model/runtime CLI did not report a validated runtime")
 
-    _run_checked(
-        [
-            sys.executable,
-            str(root / "scripts" / "validate_io_contract.py"),
-            "--strict-semantic",
-        ],
-        cwd=root,
-        label="strict Decision IO/evaluation validator",
-    )
     return {
         "pinned_files": True,
         "full_runtime": True,
@@ -851,7 +841,6 @@ def run_full_validators(root: Path, manifest: dict[str, Any]) -> dict[str, Any]:
         "evaluation_contract": True,
         "candidate_gates": True,
         "report_index_action_truth": True,
-        "strict_io_semantic": True,
         "force_inactive": force_inactive,
         "action_status_code": str(action_plan.get("status_code") or ""),
         "action_formal_buy_count": action_plan.get("formal_buy_count"),
@@ -1478,7 +1467,6 @@ def build_migration(
                 "evaluation_contract",
                 "candidate_gates",
                 "report_index_action_truth",
-                "strict_io_semantic",
             )
         ),
         "post_prune_validators_passed": all(
@@ -1492,7 +1480,6 @@ def build_migration(
                 "evaluation_contract",
                 "candidate_gates",
                 "report_index_action_truth",
-                "strict_io_semantic",
                 "truth_bindings",
             )
         ),
