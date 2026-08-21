@@ -14,6 +14,12 @@ on:
     - cron: "30 9 * * 1-5"
     - cron: "30 13 * * 1-5"
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      expected_head:
+        description: "Exact writer commit that must be deployed"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -22,7 +28,7 @@ permissions:
 
 concurrency:
   group: dc20-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -35,8 +41,18 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ inputs.expected_head || github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify exact reusable-writer deployment revision
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          echo "${EXPECTED_HEAD}" | grep -Eq '^[0-9a-f]{40}$'
+          test "${actual}" = "${EXPECTED_HEAD}"
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 

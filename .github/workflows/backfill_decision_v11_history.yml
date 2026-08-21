@@ -346,6 +346,8 @@ jobs:
     name: CAS publish one Backfill commit
     needs: compute
     if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
+    outputs:
+      published_head: ${{ steps.publish.outputs.published_head }}
     permissions:
       contents: write
     runs-on: ubuntu-24.04
@@ -484,6 +486,7 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git commit -m 'auto: extend Decision V11 two-year history'
       - name: Publish exact CAS commit with minimally injected token
+        id: publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -492,3 +495,16 @@ jobs:
           git fetch origin main
           test "$(git rev-parse origin/main)" = "${expected}"
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+  deploy-pages:
+    name: Deploy exact published Backfill revision
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.published_head != '' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.publish.outputs.published_head }}

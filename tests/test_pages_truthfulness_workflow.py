@@ -70,15 +70,26 @@ def test_freeze_manifest_change_triggers_truthfulness_redeployment() -> None:
     assert "models/decision_model_freeze.json" in push_header
 
 
-def test_pages_has_no_writer_workflow_run_trigger_and_push_uses_event_commit() -> None:
+def test_pages_supports_exact_head_reusable_handoff_and_event_commits() -> None:
     text = _workflow()
     header = text.split("\npermissions:", 1)[0]
+    assert "workflow_call:" in header
+    assert "expected_head:" in header
+    workflow_call = header.split("workflow_call:", 1)[1]
+    assert "required: true" in workflow_call
+    assert "type: string" in workflow_call
     assert "workflow_run:" not in header
     assert "github.event.workflow_run" not in text
     assert "push:" in header and "schedule:" in header and "workflow_dispatch:" in header
+    assert "group: dc20-pages" in text
+    assert "cancel-in-progress: false" in text
     assert "if: ${{ github.ref == 'refs/heads/main' }}" in text
     checkout = text.split("actions/checkout@", 1)[1].split("actions/configure-pages@", 1)[0]
     assert "ref: main" not in checkout
+    assert "ref: ${{ inputs.expected_head || github.sha }}" in checkout
+    assert "EXPECTED_HEAD: ${{ inputs.expected_head || github.sha }}" in checkout
+    assert "echo \"${EXPECTED_HEAD}\" | grep -Eq '^[0-9a-f]{40}$'" in checkout
+    assert 'test "${actual}" = "${EXPECTED_HEAD}"' in checkout
     assert 'HEAD_SHA="$(git rev-parse HEAD)"' in text
 
 

@@ -18,6 +18,7 @@ WRITERS = (
     "verify_decision_observations.yml",
     "backfill_decision_v11_history.yml",
 )
+PAGES_HANDOFF_WRITERS = WRITERS + ("migrate_decision_runtime.yml",)
 UPLOAD_SHA = "ea165f8d65b6e75b540449e92b4886f43607fa02"
 DOWNLOAD_SHA = "d3f86a106a0bac45b974a628896c90dbdf5c8093"
 ALLOWLISTS = {
@@ -1652,6 +1653,29 @@ def test_publish_jobs_are_single_commit_exact_base_cas() -> None:
         assert "git apply --index --binary" in publish, name
         assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in publish, name
         assert "git rebase" not in text, name
+
+
+def test_successful_publishers_deploy_their_exact_commit_through_reusable_pages() -> None:
+    for name in PAGES_HANDOFF_WRITERS:
+        text = _text(name)
+        publish = text[text.index("\n  publish:") : text.index("\n  deploy-pages:")]
+        handoff = text[text.index("\n  deploy-pages:") :]
+        assert "published_head: ${{ steps.publish.outputs.published_head }}" in publish, name
+        assert "id: publish" in publish, name
+        if name == "migrate_decision_runtime.yml":
+            assert "core.setOutput('published_head', createdCommit.data.sha)" in publish, name
+        else:
+            assert 'echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"' in publish, name
+        assert "needs: publish" in handoff, name
+        assert "needs.publish.result == 'success'" in handoff, name
+        assert "needs.publish.outputs.published_head != ''" in handoff, name
+        assert "contents: read" in handoff, name
+        assert "pages: write" in handoff, name
+        assert "id-token: write" in handoff, name
+        assert "uses: ./.github/workflows/deploy_dc20_pages.yml" in handoff, name
+        assert "expected_head: ${{ needs.publish.outputs.published_head }}" in handoff, name
+        assert "workflow_run:" not in handoff, name
+        assert "github.event.workflow_run.head_sha" not in text, name
 
 
 def test_candidate_patches_enforce_exact_staged_path_allowlists() -> None:

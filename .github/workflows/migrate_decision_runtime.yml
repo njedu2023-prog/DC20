@@ -201,6 +201,8 @@ jobs:
     name: GitHub API exact-base CAS single commit
     needs: compute
     if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
+    outputs:
+      published_head: ${{ steps.publish.outputs.published_head }}
     permissions:
       actions: read
       contents: write
@@ -233,6 +235,7 @@ jobs:
             --root "${GITHUB_WORKSPACE}"
 
       - name: Publish one retrospective migration commit by GitHub API CAS
+        id: publish
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         env:
           BASE_SHA: ${{ needs.compute.outputs.base_sha }}
@@ -375,3 +378,16 @@ jobs:
               .addRaw(`Report: \`${receipt.report_date}\` (RETROSPECTIVE)\n\n`)
               .addRaw(`Paths: \`${changed.length}\`\n`);
             await core.summary.write();
+            core.setOutput('published_head', createdCommit.data.sha);
+
+  deploy-pages:
+    name: Deploy exact published migration revision
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && needs.publish.outputs.published_head != '' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.publish.outputs.published_head }}
