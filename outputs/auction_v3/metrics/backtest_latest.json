@@ -1,6 +1,6 @@
 {
   "status": "ok",
-  "generated_at_utc": "2026-08-15T15:48:26+00:00",
+  "generated_at_utc": "2026-08-21T18:11:44+00:00",
   "model_version": "auction_v13_five_year_promotion_blend_oos_1",
   "history_dates": 715,
   "oos_dates": 544,
@@ -3764,10 +3764,10 @@
       "target": "T_close_continuation_limit_up_hit",
       "rows": 3097,
       "dates": 363,
-      "probability_brier": 0.22581751702749267,
+      "probability_brier": 0.22581751702737413,
       "constant_probability_brier": 0.2320870687507956,
-      "probability_brier_skill": 0.027013791664691533,
-      "probability_ece_5bin": 0.10724838789828413,
+      "probability_brier_skill": 0.027013791665202347,
+      "probability_ece_5bin": 0.10724838789760036,
       "promotion_rank": {
         "top1_promotion_rate": 0.6473829201101928,
         "top3_promotion_rate": 0.5206611570247934,
@@ -3869,10 +3869,10 @@
       "max_positions": 2,
       "tail_risk_weight": 0.75,
       "thresholds": {
-        "min_trade_score": -0.018372119893454195,
+        "min_trade_score": -0.018372119893454344,
         "min_mean_return_lcb": -0.026957795555480946,
         "min_fill_probability": 0.0,
-        "max_big_loss_probability": 0.5664759332565762
+        "max_big_loss_probability": 0.5664759332566216
       },
       "ready": false,
       "checks": {
@@ -3968,9 +3968,9 @@
       "rejected_candidate": "ridge",
       "passed": false,
       "reason": "oos_rmse_skill_below_floor",
-      "relative_rmse_improvement": -0.014950055243519493,
+      "relative_rmse_improvement": -0.01495005524352077,
       "rmse": 0.08696165820598677,
-      "candidate_rmse": 0.08826173980023433,
+      "candidate_rmse": 0.08826173980023444,
       "constant_rmse": 0.08696165820598677,
       "fit_rows": 916,
       "calibration_rows": 329,
@@ -3980,26 +3980,68 @@
       "fill": {
         "method": "identity",
         "rows": 825,
-        "held_out_brier": 0.3049158775039004,
+        "held_out_brier": 0.30491587750387406,
         "constant_brier": 0.3175542195060362,
         "beats_constant": true
       },
       "big_loss": {
         "method": "platt",
         "rows": 329,
-        "held_out_brier": 0.2482570712720315,
+        "held_out_brier": 0.24825707127203187,
         "constant_brier": 0.2503629119986001,
         "beats_constant": true
       },
       "promotion": {
         "method": "isotonic",
         "rows": 825,
-        "held_out_brier": 0.20099189029840941,
+        "held_out_brier": 0.20099188987445715,
         "constant_brier": 0.22861909629723576,
         "beats_constant": true
       }
     },
-    "production_artifact_sha256": "2b41b4db772940d32d8fb5699a653ea3c1246a44b32efee81e8f17176f4206bf",
+    "production_artifact_sha256": "d0e792ce278c5809fdbaed486bd33ae301140e2abb7c77a24af8caa1a5d8361c",
+    "canonical_v2_version": "trade_selector_canonical_v2_raw_execution_q8_fingerprint",
+    "canonical_contract": {
+      "schema": "dc20_canonical_fingerprint_v2",
+      "layer": "trade_selector",
+      "decimals": 8,
+      "rounding": "decimal_string_half_even",
+      "execution_mode": "raw_float64",
+      "raw_execution_preserved": true
+    },
+    "production_artifact_v2_sha256": "b5b74f77d86404262c313b404bb316c9003035747c2d02c28db596755bd1444a",
+    "production_fingerprint_v2": {
+      "schema": "dc20_canonical_fingerprint_v2",
+      "canonical_version": "trade_selector_canonical_v2_raw_execution_q8_fingerprint",
+      "canonical_contract": {
+        "schema": "dc20_canonical_fingerprint_v2",
+        "layer": "trade_selector",
+        "decimals": 8,
+        "rounding": "decimal_string_half_even",
+        "execution_mode": "raw_float64",
+        "raw_execution_preserved": true
+      },
+      "provenance_sha256": "623fb4e8b99cf6d9b5aeb959301c8e45cd6f2e6354bad15bacca93abd50a84c9",
+      "semantic_sha256": "72293d7d2b0078f615c762083671999d3f2889caec3f1a0e51857665676f8b63",
+      "policy_sha256": "3b399c660395c408f4a3fdede59ede92e96533be13a78397fce993b239b18519",
+      "policy_projection": {
+        "version": "trade_selector_v2_nested_oos_top10_promotion_rank",
+        "ready": false,
+        "reason": "best_shadow_policy_failed_profit_or_coverage_gate",
+        "max_positions": 2,
+        "tail_risk_weight": 0.75,
+        "thresholds": {
+          "min_trade_score": -0.01837212,
+          "min_mean_return_lcb": -0.0269578,
+          "min_fill_probability": 0.0,
+          "max_big_loss_probability": 0.56647593
+        }
+      },
+      "artifact_sha256": "b5b74f77d86404262c313b404bb316c9003035747c2d02c28db596755bd1444a",
+      "schema_valid": true,
+      "missing_columns": [],
+      "invalid_cell_count": 0
+    },
     "promotion_checks": {
       "production_policy_ready": false,
       "return_model_chronological_skill": false,
@@ -4043,5 +4085,94 @@
   "model_quality_warnings": [
     "first_layer_probability_models_did_not_pass_brier_skill_gate"
   ],
-  "model_artifact_sha256": "d59d4b6eeea9858836ff987aa9354766e69c34dd4ba432a731a21818215f064a"
+  "model_artifact_sha256": "419e498f581a38c49457966ee318f4007b522370f839ddfc1d65c0ae1b146ef7",
+  "model_canonical_v2_version": "decision_model_canonical_v2_raw_execution_q8_fingerprint",
+  "model_artifact_v2_sha256": "7cf71e6cd96561e094bd83c2e04136c578b0e35cc965b600772b887eb33c3726",
+  "model_fingerprint_v2": {
+    "schema": "dc20_canonical_fingerprint_v2",
+    "canonical_version": "decision_model_canonical_v2_raw_execution_q8_fingerprint",
+    "canonical_contract": {
+      "schema": "dc20_canonical_fingerprint_v2",
+      "layer": "model",
+      "decimals": 8,
+      "rounding": "decimal_string_half_even",
+      "execution_mode": "raw_float64",
+      "raw_execution_preserved": true
+    },
+    "provenance_sha256": "d8c9b70aa64ac230f23d18070da149c1540d36c9878eeeb1673f195514beffef",
+    "semantic_sha256": "3e34fa8066a8219deb90607f5439408c42f9c850b7af111433ab95eb7dedfe22",
+    "policy_sha256": "206b4d38eff1188cce826fdae44804be873317055681a0d1dcbb27310785371f",
+    "policy_projection": {
+      "version": "nested_temporal_utility_v1",
+      "ready": false,
+      "reason": "no_policy_passed_independent_holdout",
+      "max_positions": 1,
+      "thresholds": {
+        "max_big_loss_probability": 0.45,
+        "min_mean_return_lcb": -0.05,
+        "min_fill_probability": 0.05,
+        "min_exit_probability": 0.9,
+        "min_conservative_ev": 0.0,
+        "min_selection_score": -0.02302252
+      }
+    },
+    "artifact_sha256": "7cf71e6cd96561e094bd83c2e04136c578b0e35cc965b600772b887eb33c3726",
+    "schema_valid": true,
+    "missing_columns": [],
+    "invalid_cell_count": 0
+  },
+  "model_canonical_contract": {
+    "schema": "dc20_canonical_fingerprint_v2",
+    "layer": "model",
+    "decimals": 8,
+    "rounding": "decimal_string_half_even",
+    "execution_mode": "raw_float64",
+    "raw_execution_preserved": true
+  },
+  "selection_policy": {
+    "version": "nested_temporal_utility_v1",
+    "ready": false,
+    "reason": "no_policy_passed_independent_holdout",
+    "tuning_rows": 3909,
+    "tuning_dates": 72,
+    "profit_probability_gate_enabled": false,
+    "profit_probability_gate_reason": "profit probability is diagnostic only; an uninformative constant model cannot veto every candidate",
+    "thresholds": {
+      "min_fill_probability": 0.05,
+      "min_exit_probability": 0.9,
+      "max_big_loss_probability": 0.45,
+      "min_mean_return_lcb": -0.05,
+      "min_conservative_ev": 0.0,
+      "min_selection_score": -0.023022523477772033
+    },
+    "max_positions": 1,
+    "diagnostics": {
+      "signals": 2,
+      "signal_dates": 2,
+      "signal_date_ratio": 0.0277777778,
+      "max_no_signal_streak": 40,
+      "filled_trades": 1,
+      "fill_rate": 0.5,
+      "mean_trade_net_return": 0.0275511602,
+      "mean_daily_return": 0.000382655,
+      "stress_2x_cost_mean_daily_return": 0.000320155,
+      "realized_big_loss_rate": 0.0,
+      "tail_10pct_mean_return": 0.0275511602,
+      "max_drawdown": 0.0,
+      "checks": {
+        "minimum_signal_dates": false,
+        "minimum_filled_trades": false,
+        "minimum_signal_date_ratio": false,
+        "maximum_no_signal_streak": false,
+        "positive_mean_daily_return": true,
+        "positive_2x_cost_stress": true,
+        "realized_big_loss_cap": true,
+        "tail_mean_floor": true
+      }
+    },
+    "tuning_start": "20260422",
+    "tuning_end": "20260805",
+    "candidate_policies_evaluated": 729,
+    "feasible_policy_count": 0
+  }
 }
