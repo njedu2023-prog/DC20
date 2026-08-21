@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 from pathlib import Path
@@ -49,9 +49,12 @@ def _realtime(
     ts_code: str = "600000.SH",
     freq: str = "1MIN",
     timestamp: str = "2026-08-17 10:40:00",
+    code_field: str = "ts_code",
 ) -> tuple[list[str], list[list[object]]]:
+    response_fields = list(health.REALTIME_FIELDS)
+    response_fields[0] = code_field
     return (
-        list(health.REALTIME_FIELDS),
+        response_fields,
         [[ts_code, freq, timestamp, 10, 10, 10, 10, 1000, 10000]],
     )
 
@@ -110,6 +113,81 @@ def test_rt_min_daily_contract_matches_documented_fields_and_frequency() -> None
         "vol",
         "amount",
     )
+    assert health.REALTIME_CODE_FIELDS == ("ts_code", "code")
+
+
+def test_rt_min_daily_accepts_documented_code_result_header() -> None:
+    fields, _ = _realtime(code_field="code")
+    start = datetime(2026, 8, 17, 9, 30)
+    rows = [
+        [
+            "600000.SH",
+            "1MIN",
+            (start + timedelta(minutes=offset)).strftime("%Y-%m-%d %H:%M:%S"),
+            10,
+            10,
+            10,
+            10,
+            1000,
+            10000,
+        ]
+        for offset in range(121)
+    ]
+    valid = health._valid_realtime_rows(
+        fields,
+        rows,
+        probe_code="600000.SH",
+        now_shanghai=datetime(2026, 8, 17, 11, 34, tzinfo=health.SHANGHAI),
+    )
+    assert valid == rows
+
+
+@pytest.mark.parametrize(
+    "identity_fields",
+    [
+        ("ts_code", "code"),
+        ("code", "code"),
+        ("symbol",),
+    ],
+)
+def test_rt_min_daily_rejects_ambiguous_or_unsupported_identity_fields(
+    identity_fields: tuple[str, ...],
+) -> None:
+    fields = [*identity_fields, *health.REALTIME_VALUE_FIELDS]
+    rows = [
+        [
+            *(["600000.SH"] * len(identity_fields)),
+            "1MIN",
+            "2026-08-17 10:40:00",
+            10,
+            10,
+            10,
+            10,
+            1000,
+            10000,
+        ]
+    ]
+    with pytest.raises(health.HealthCheckError) as caught:
+        health._valid_realtime_rows(
+            fields,
+            rows,
+            probe_code="600000.SH",
+            now_shanghai=datetime(2026, 8, 17, 10, 40, tzinfo=health.SHANGHAI),
+        )
+    assert caught.value.reason == "schema"
+    assert caught.value.row_count == 1
+
+
+def test_rt_min_daily_code_alias_still_enforces_probe_identity() -> None:
+    fields, rows = _realtime(ts_code="000001.SZ", code_field="code")
+    with pytest.raises(health.HealthCheckError) as caught:
+        health._valid_realtime_rows(
+            fields,
+            rows,
+            probe_code="600000.SH",
+            now_shanghai=datetime(2026, 8, 17, 10, 40, tzinfo=health.SHANGHAI),
+        )
+    assert caught.value.reason == "identity"
 
 
 def test_weekend_checks_calendar_auction_and_realtime_entitlement() -> None:

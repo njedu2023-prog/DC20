@@ -39,6 +39,8 @@ REALTIME_FIELDS = (
     "vol",
     "amount",
 )
+REALTIME_CODE_FIELDS = ("ts_code", "code")
+REALTIME_VALUE_FIELDS = REALTIME_FIELDS[1:]
 REALTIME_CLOCK_SKEW = timedelta(minutes=2)
 ApiCall = Callable[
     [str, dict[str, Any], Iterable[str], str, int],
@@ -259,18 +261,36 @@ def _valid_realtime_rows(
             reason="empty_rows",
             row_count=0,
         )
-    missing = [field for field in REALTIME_FIELDS if field not in fields]
+    if (
+        any(type(field) is not str or not field for field in fields)
+        or len(set(fields)) != len(fields)
+    ):
+        raise HealthCheckError(
+            "rt_min_daily: response fields are invalid or duplicated",
+            reason="schema",
+            row_count=row_count,
+        )
+    code_fields = [field for field in REALTIME_CODE_FIELDS if field in fields]
+    if len(code_fields) != 1:
+        raise HealthCheckError(
+            "rt_min_daily: response identity field is missing or ambiguous",
+            reason="schema",
+            row_count=row_count,
+        )
+    missing = [field for field in REALTIME_VALUE_FIELDS if field not in fields]
     if missing:
         raise HealthCheckError(
             "rt_min_daily: required fields are missing",
             reason="schema",
             row_count=row_count,
         )
-    indexes = [fields.index(field) for field in REALTIME_FIELDS]
+    code_field = code_fields[0]
+    required_fields = (code_field, *REALTIME_VALUE_FIELDS)
+    indexes = [fields.index(field) for field in required_fields]
     candidates = [
         row
         for row in rows
-        if max(indexes, default=-1) < len(row)
+        if len(row) == len(fields)
         and all(
             str(row[index] if row[index] is not None else "").strip()
             for index in indexes
@@ -288,7 +308,7 @@ def _valid_realtime_rows(
             reason="schema",
             row_count=row_count,
         )
-    code_index = fields.index("ts_code")
+    code_index = fields.index(code_field)
     freq_index = fields.index("freq")
     time_index = fields.index("time")
     expected_code = str(probe_code or "").strip().upper()
@@ -297,7 +317,7 @@ def _valid_realtime_rows(
     for row in candidates:
         if str(row[code_index] or "").strip().upper() != expected_code:
             raise HealthCheckError(
-                "rt_min_daily: returned ts_code differs from probe",
+                "rt_min_daily: returned code differs from probe",
                 reason="identity",
                 row_count=row_count,
             )

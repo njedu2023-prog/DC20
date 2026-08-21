@@ -1,6 +1,6 @@
 {
   "schema_version": "decision_model_freeze_v2",
-  "active": true,
+  "active": false,
   "freeze_id": "dc20_decision_v13_promotion_oos_d20260815_history20260805",
   "training_cutoff_signal_date": "20260805",
   "history_snapshot": {
@@ -496,7 +496,7 @@
     "scripts/diagnose_decision_fingerprint.py": "fc4ecfd85c4fccad2a6bf1546c98d9fa1bf24e8b90031840360c595586a44399",
     "src/top10decision/models/__init__.py": "8b084a9f378124b2b1a51563bf3c22444eb7ff33692017da28b2136ae56987ed",
     "src/top10decision/auction_v3/calibration.py": "06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9",
-    "tests/test_decision_tushare_health.py": "26158d161f8e8cf9207e137788395ab37f9bef476be6c367552c464f998d1219",
+    "tests/test_decision_tushare_health.py": "4f7a8ae4408d7f69424853b296dba0f5e3a455e849a5cb6caa1a475e1c969ef5",
     "src/top10decision/decision/eligibility.py": "31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7",
     "tests/test_auction_v3.py": "352d89880995b8893e83f232ab00f4a13a4332808c8e7d5d200ee15395713e38",
     "src/top10decision/decision_p0.py": "e4eb380dd06faebedd88100a4e221954c50ef08d8ba941e4a54e1fdbcb5f2db7",
@@ -572,7 +572,7 @@
     "tests/test_decision_trade_selector.py": "a92c8b19493ec4f000a216a02ec6c77e5ea57f4bd02bb9e9be8b4521b4509228",
     "tests/test_pages_truthfulness_workflow.py": "070a8ee5e02ce67c48dc486b6bc45bbdc4050f6b91a7caf1bff2edcd84a86430",
     "scripts/build_eret_trainset.py": "aca926a72503f8ad840ec7c62db8c79788e93e989c4953f34a7d5cfad61cdea8",
-    "scripts/check_tushare_health.py": "29267dfd9ec5331d8516bdfbe72957817ec01e06646c9fe4c1b722c9a7f698fd",
+    "scripts/check_tushare_health.py": "6c2e6b40233e7e50fdfc5c0a80ba08823f4443370c7778ce68478e78fb475773",
     "scripts/build_fill_truth.py": "ed55ba50bf7bac882658a753ccad605ca3d6dce4c93235f5b75308c9dd19d5a8",
     "scripts/build_market_fs.py": "ee6dc8d9e15ee39d4933ffbe56cd03f148d96871e90bfce13e8b1b3744a5d2fe",
     ".github/workflows/diagnose_decision_fingerprint.yml": "3f842e6f8a7661bf76a2a5be4396efe04a6201a5888144e37f8008340314dd8d",
