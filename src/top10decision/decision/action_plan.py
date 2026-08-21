@@ -175,6 +175,27 @@ def _strict_unique_exact_text_column_value(
     return (values[0], True) if len(unique) == 1 else ("", False)
 
 
+def _strict_unique_prediction_date(frame: pd.DataFrame, name: str) -> str:
+    if frame.empty:
+        return ""
+    if name not in frame.columns:
+        raise RuntimeError(f"prediction missing required date column: {name}")
+    values = [_date(value) for value in frame[name].tolist()]
+    if not values or any(
+        not re.fullmatch(r"20\d{6}", value)
+        for value in values
+    ):
+        raise RuntimeError(f"prediction has an invalid or empty {name}")
+    for value in values:
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError as exc:
+            raise RuntimeError(f"prediction has an invalid {name}") from exc
+    if len(set(values)) != 1:
+        raise RuntimeError(f"prediction mixes multiple {name} values")
+    return values[0]
+
+
 def _exact_nonempty_text(value: Any) -> str:
     return value if isinstance(value, str) and value != "" else ""
 
@@ -1540,9 +1561,9 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
                     return value
         return sentiment_meta.get(name)
 
-    pred_signal = _date(prediction.get("signal_date", pd.Series([""])).iloc[0]) if not prediction.empty else ""
-    pred_buy = _date(prediction.get("expected_buy_date", pd.Series([""])).iloc[0]) if not prediction.empty else ""
-    pred_exit = _date(prediction.get("expected_exit_date", pd.Series([""])).iloc[0]) if not prediction.empty else ""
+    pred_signal = _strict_unique_prediction_date(prediction, "signal_date")
+    pred_buy = _strict_unique_prediction_date(prediction, "expected_buy_date")
+    pred_exit = _strict_unique_prediction_date(prediction, "expected_exit_date")
     prediction_matches = bool(signal_date and pred_signal == signal_date and pred_buy == exec_date and pred_exit == exit_date)
     pred_version = _text(prediction.get("model_version", pd.Series([""])).iloc[0]) if not prediction.empty else ""
     backtest_version = _text(backtest.get("model_version"))
@@ -2115,23 +2136,45 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
 
 def build_report_index(root: Path, latest_report_date: str = "") -> dict[str, Any]:
     dates = _report_dates(root)
-    latest = _date(latest_report_date) or (dates[0] if dates else "")
-    reports = [
-        {
+    # Report freshness and action availability are independent truths.  A
+    # historical action recovery must never move the newest report pointer
+    # backwards, and a report without its dated action must not inherit the
+    # unrelated action_plan_latest alias in the dashboard.
+    latest = dates[0] if dates else ""
+    output = root / "outputs" / "decision"
+    def valid_dated_action(date: str) -> bool:
+        path = output / f"action_plan_{date}.json"
+        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+            return False
+        payload = _read_json(path)
+        return bool(payload) and _date(payload.get("report_date")) == date
+
+    action_dates = {date for date in dates if valid_dated_action(date)}
+    latest_action_date = next((date for date in dates if date in action_dates), "")
+    reports = []
+    for date in dates:
+        action_available = date in action_dates
+        report = {
             "report_date": date,
             "report_file": f"decision_report_{date}.md",
             "report_url": f"outputs/decision/decision_report_{date}.md",
             "eval_url": f"outputs/decision/eval_{date}.json",
-            "action_url": f"outputs/decision/action_plan_{date}.json",
+            "action_available": action_available,
         }
-        for date in dates
-    ]
+        if action_available:
+            report["action_url"] = f"outputs/decision/action_plan_{date}.json"
+        reports.append(report)
     return {
-        "schema_version": "decision_report_index_v1",
+        "schema_version": "decision_report_index_v2_action_truth",
         "generated_at_utc": _utc_now(),
         "latest_report_date": latest,
         "latest_report_file": f"decision_report_{latest}.md" if latest else "",
-        "latest_action_url": "outputs/decision/action_plan_latest.json" if latest else "",
+        "latest_action_report_date": latest_action_date,
+        "latest_action_url": (
+            f"outputs/decision/action_plan_{latest_action_date}.json"
+            if latest_action_date
+            else ""
+        ),
         "reports": reports,
     }
 

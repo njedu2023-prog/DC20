@@ -1289,8 +1289,9 @@ def _action_candidate_contract(action_plan: dict[str, Any]) -> dict[str, Any]:
     flagged_shadow = set(indexed.loc[trade_shadow.eq(1), "ts_code"].astype(str))
     shadow_labels = indexed.loc[actions.eq("SHADOW_ONLY"), "watch_label"].tolist()
     reject_labels = indexed.loc[actions.eq("REJECT"), "watch_label"].tolist()
+    expected_shadow_count = min(2, len(indexed))
     _require(
-        len(expected_shadow) == 2
+        len(expected_shadow) == expected_shadow_count
         and actual_shadow == expected_shadow
         and flagged_shadow == expected_shadow
         and all(value == "二筛影子" for value in shadow_labels)

@@ -6,7 +6,9 @@ on:
     paths:
       - decision.html
       - outputs/decision/**
+      - data/market/trade_cal_sse.csv
       - models/decision_model_freeze.json
+      - scripts/decision_pages_truth.py
       - .github/workflows/deploy_dc20_pages.yml
   schedule:
     - cron: "30 9 * * 1-5"
@@ -63,15 +65,36 @@ jobs:
           from pathlib import Path
           from zoneinfo import ZoneInfo
 
-          index_path = Path("_site/outputs/decision/report_index.json")
-          if not index_path.is_file():
-              raise SystemExit(f"missing report index: {index_path}")
+          from scripts.decision_pages_truth import (
+              assess_decision_pages_truth,
+              project_report_index_action_truth,
+              validate_report_index_action_truth,
+          )
 
+          index_path = Path("_site/outputs/decision/report_index.json")
+          source_index_path = Path("outputs/decision/report_index.json")
+          project_report_index_action_truth(
+              source_report_index_path=source_index_path,
+              site_root=Path("_site"),
+          )
+
+          action_truth = validate_report_index_action_truth(
+              report_index_path=index_path,
+              site_root=Path("_site"),
+          )
           report_index = json.loads(index_path.read_text(encoding="utf-8"))
           report_date = str(report_index.get("latest_report_date", "")).strip()
           report_file = str(report_index.get("latest_report_file", "")).strip()
+          inventory_projected = report_index.get("inventory_projected")
+          source_latest_report_date = report_index.get("source_latest_report_date")
           if not report_date or not report_file:
               raise SystemExit("report_index.json is missing latest_report_date/latest_report_file")
+          if type(inventory_projected) is not bool:
+              raise SystemExit("projected report_index inventory_projected must be a bool")
+          if not isinstance(source_latest_report_date, str):
+              raise SystemExit("projected report_index source_latest_report_date must be a string")
+          if inventory_projected and report_index.get("generated_at_utc") is not None:
+              raise SystemExit("projected inventory must not inherit source generated_at_utc")
           if Path(report_file).name != report_file:
               raise SystemExit(f"latest_report_file must be a basename: {report_file!r}")
           report_path = index_path.parent / report_file
@@ -89,20 +112,56 @@ jobs:
           except ValueError as exc:
               raise SystemExit(f"invalid latest_report_date: {report_date!r}") from exc
           today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
-          report_age_days = (today - report_day).days
           max_report_age_days = int(os.environ["MAX_REPORT_AGE_DAYS"])
           if max_report_age_days < 0:
               raise SystemExit("MAX_REPORT_AGE_DAYS must be non-negative")
 
-          stale_reasons = []
-          if not freeze_active:
+          evaluation_path = index_path.parent / f"eval_{report_date}.json"
+          truth = assess_decision_pages_truth(
+              evaluation_path=evaluation_path,
+              calendar_path=Path("data/market/trade_cal_sse.csv"),
+              report_date=report_date,
+              today=today,
+              freeze_active=freeze_active,
+              max_report_age_days=max_report_age_days,
+          )
+          signal_date = truth.signal_date
+          report_age_days = (today - report_day).days
+          prospective = truth.prospective
+
+          # Reconstruct the public state defensively so the workflow fails closed
+          # if its strict helper and the rendered truth ever diverge.
+          stale_reasons = list(truth.stale_reasons)
+          if not freeze_active and "freeze_inactive" not in stale_reasons:
               stale_reasons.append("freeze_inactive")
-          if report_age_days < 0:
+          if (
+              report_age_days < 0
+              and not prospective
+              and "report_date_in_future" not in stale_reasons
+          ):
               stale_reasons.append("report_date_in_future")
-          elif report_age_days > max_report_age_days:
+          elif (
+              report_age_days > max_report_age_days
+              and "report_expired" not in stale_reasons
+          ):
               stale_reasons.append("report_expired")
           stale = bool(stale_reasons)
           stale_reason = "+".join(stale_reasons) if stale_reasons else "none"
+          freshness_state = (
+              "STALE"
+              if stale
+              else "PROSPECTIVE_NEXT_SESSION"
+              if prospective
+              else "CURRENT"
+          )
+          if (
+              report_age_days != truth.report_age_days
+              or tuple(stale_reasons) != truth.stale_reasons
+              or stale is not truth.stale
+              or stale_reason != truth.stale_reason
+              or freshness_state != truth.freshness_state
+          ):
+              raise SystemExit("Pages freshness helper/rendered truth mismatch")
 
           head_sha = os.environ["HEAD_SHA"].strip()
           if len(head_sha) != 40:
@@ -111,7 +170,7 @@ jobs:
           repository = os.environ["GITHUB_REPOSITORY"]
           run_id = int(os.environ["GITHUB_RUN_ID"])
           revision = {
-              "schema_version": "decision_pages_revision_v2",
+              "schema_version": "decision_pages_revision_v3",
               "system_name": os.environ["DC2_SYSTEM_NAME"],
               "repository": repository,
               "branch": os.environ.get("GITHUB_REF_NAME", "main"),
@@ -121,11 +180,23 @@ jobs:
               "run_url": f"https://github.com/{repository}/actions/runs/{run_id}",
               "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
               "event_name": os.environ.get("GITHUB_EVENT_NAME", ""),
+              "signal_date": signal_date,
               "report_date": report_date,
               "report_file": report_file,
-              "report_generated_at_utc": report_index.get("generated_at_utc"),
+              "latest_action_report_date": action_truth.latest_action_report_date,
+              "latest_action_url": action_truth.latest_action_url,
+              # The index timestamp proves index reconstruction, not report
+              # generation.  Preserve the legacy key as an explicit null so
+              # consumers cannot mistake an Auction/migration time for report
+              # provenance.
+              "report_generated_at_utc": None,
+              "report_index_generated_at_utc": report_index.get("generated_at_utc"),
+              "report_index_inventory_projected": inventory_projected,
+              "source_index_latest_report_date": source_latest_report_date,
               "freeze_active": freeze_active,
               "report_age_days": report_age_days,
+              "prospective": prospective,
+              "freshness_state": freshness_state,
               "stale": stale,
               "stale_reason": stale_reason,
               "published_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -172,10 +243,13 @@ jobs:
 
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"head_sha={head_sha}\n")
+              output.write(f"signal_date={signal_date}\n")
               output.write(f"report_date={report_date}\n")
               output.write(f"report_file={report_file}\n")
               output.write(f"freeze_active={str(freeze_active).lower()}\n")
               output.write(f"report_age_days={report_age_days}\n")
+              output.write(f"prospective={str(prospective).lower()}\n")
+              output.write(f"freshness_state={freshness_state}\n")
               output.write(f"stale={str(stale).lower()}\n")
               output.write(f"stale_reason={stale_reason}\n")
 
@@ -194,10 +268,13 @@ jobs:
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
           EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
+          EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
           EXPECTED_REPORT_DATE: ${{ steps.site.outputs.report_date }}
           EXPECTED_REPORT_FILE: ${{ steps.site.outputs.report_file }}
           EXPECTED_FREEZE_ACTIVE: ${{ steps.site.outputs.freeze_active }}
           EXPECTED_REPORT_AGE_DAYS: ${{ steps.site.outputs.report_age_days }}
+          EXPECTED_PROSPECTIVE: ${{ steps.site.outputs.prospective }}
+          EXPECTED_FRESHNESS_STATE: ${{ steps.site.outputs.freshness_state }}
           EXPECTED_STALE: ${{ steps.site.outputs.stale }}
           EXPECTED_STALE_REASON: ${{ steps.site.outputs.stale_reason }}
           EXPECTED_RUN_ID: ${{ github.run_id }}
@@ -213,10 +290,13 @@ jobs:
 
           base_url = os.environ["PAGE_URL"].rstrip("/") + "/"
           expected_head = os.environ["EXPECTED_HEAD"]
+          expected_signal_date = os.environ["EXPECTED_SIGNAL_DATE"]
           expected_report_date = os.environ["EXPECTED_REPORT_DATE"]
           expected_report_file = os.environ["EXPECTED_REPORT_FILE"]
           expected_freeze_active = os.environ["EXPECTED_FREEZE_ACTIVE"] == "true"
           expected_report_age_days = int(os.environ["EXPECTED_REPORT_AGE_DAYS"])
+          expected_prospective = os.environ["EXPECTED_PROSPECTIVE"] == "true"
+          expected_freshness_state = os.environ["EXPECTED_FRESHNESS_STATE"]
           expected_stale = os.environ["EXPECTED_STALE"] == "true"
           expected_stale_reason = os.environ["EXPECTED_STALE_REASON"]
           expected_run_id = os.environ["EXPECTED_RUN_ID"]
@@ -243,6 +323,9 @@ jobs:
                   decision_html = fetch_text("decision.html")
                   revision = json.loads(fetch_text("revision.json"))
                   public_index = json.loads(fetch_text("outputs/decision/report_index.json"))
+                  public_eval = json.loads(
+                      fetch_text(f"outputs/decision/eval_{expected_report_date}.json")
+                  )
                   public_report = fetch_text(f"outputs/decision/{expected_report_file}")
 
                   if "<title>DC2.0 Decision 竞价研究</title>" not in root_html:
@@ -261,6 +344,8 @@ jobs:
                       raise RuntimeError("revision repository does not match this repository")
                   if revision.get("branch") != "main":
                       raise RuntimeError("revision branch is not main")
+                  if revision.get("signal_date") != expected_signal_date:
+                      raise RuntimeError("revision signal_date does not match the build")
                   if str(revision.get("report_date")) != expected_report_date:
                       raise RuntimeError(
                           "revision report_date does not match the built report index"
@@ -273,6 +358,10 @@ jobs:
                       raise RuntimeError("revision freeze_active does not match the build")
                   if revision.get("report_age_days") != expected_report_age_days:
                       raise RuntimeError("revision report_age_days does not match the build")
+                  if revision.get("prospective") is not expected_prospective:
+                      raise RuntimeError("revision prospective does not match the build")
+                  if revision.get("freshness_state") != expected_freshness_state:
+                      raise RuntimeError("revision freshness_state does not match the build")
                   if revision.get("stale") is not expected_stale:
                       raise RuntimeError("revision stale does not match the build")
                   if revision.get("stale_reason") != expected_stale_reason:
@@ -284,6 +373,50 @@ jobs:
                   if str(public_index.get("latest_report_file")) != expected_report_file:
                       raise RuntimeError(
                           "public report_index latest_report_file does not match revision.json"
+                      )
+                  if public_index.get("latest_action_report_date") != revision.get(
+                      "latest_action_report_date"
+                  ):
+                      raise RuntimeError(
+                          "public latest_action_report_date does not match revision.json"
+                      )
+                  if public_index.get("latest_action_url") != revision.get(
+                      "latest_action_url"
+                  ):
+                      raise RuntimeError(
+                          "public latest_action_url does not match revision.json"
+                      )
+                  if revision.get("report_generated_at_utc") is not None:
+                      raise RuntimeError(
+                          "legacy report_generated_at_utc must remain null without report provenance"
+                      )
+                  if public_index.get("generated_at_utc") != revision.get(
+                      "report_index_generated_at_utc"
+                  ):
+                      raise RuntimeError(
+                          "public report index generated_at_utc does not match revision.json"
+                      )
+                  if public_index.get("inventory_projected") is not revision.get(
+                      "report_index_inventory_projected"
+                  ):
+                      raise RuntimeError(
+                          "public report index projection state does not match revision.json"
+                      )
+                  if public_index.get("source_latest_report_date") != revision.get(
+                      "source_index_latest_report_date"
+                  ):
+                      raise RuntimeError(
+                          "public source latest report date does not match revision.json"
+                      )
+                  if not isinstance(public_eval, dict):
+                      raise RuntimeError("public latest eval is not an object")
+                  if str(public_eval.get("signal_date")) != expected_signal_date:
+                      raise RuntimeError(
+                          "public latest eval signal_date does not match revision.json"
+                      )
+                  if str(public_eval.get("exec_date")) != expected_report_date:
+                      raise RuntimeError(
+                          "public latest eval exec_date does not match revision.json"
                       )
                   if not public_report.strip():
                       raise RuntimeError("public latest report is empty")
@@ -309,10 +442,13 @@ jobs:
                               "page_url": base_url,
                               "head_sha": expected_head,
                               "run_id": expected_run_id,
+                              "signal_date": expected_signal_date,
                               "report_date": expected_report_date,
                               "report_file": expected_report_file,
                               "freeze_active": expected_freeze_active,
                               "report_age_days": expected_report_age_days,
+                              "prospective": expected_prospective,
+                              "freshness_state": expected_freshness_state,
                               "stale": expected_stale,
                               "stale_reason": expected_stale_reason,
                           },

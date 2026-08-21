@@ -71,6 +71,7 @@ from top10decision.decision.action_plan import (  # noqa: E402
     _selector_prediction_domain,
     _strict_all_true_column,
     build_action_plan,
+    build_report_index,
 )
 from top10decision.decision.canonical_fingerprint import (  # noqa: E402
     CANONICAL_FINGERPRINT_SCHEMA,
@@ -3110,6 +3111,27 @@ class DecisionActionPlanTests(unittest.TestCase):
             self.assertFalse(plan["model"]["v2_integrity_match"])
             self.assertEqual(plan["formal_buy_count"], 0)
 
+    def test_action_builder_rejects_mixed_prediction_date_chain(self) -> None:
+        prediction_path = (
+            self.root
+            / "outputs"
+            / "auction_v3"
+            / "predictions"
+            / "pred_latest.csv"
+        )
+        for column, value in (
+            ("signal_date", 20260719),
+            ("expected_buy_date", 20260722),
+            ("expected_exit_date", 20260723),
+        ):
+            with self.subTest(column=column):
+                self._write_model_artifacts(promoted=False)
+                prediction = pd.read_csv(prediction_path)
+                prediction.loc[1, column] = value
+                prediction.to_csv(prediction_path, index=False)
+                with self.assertRaisesRegex(RuntimeError, "prediction mixes"):
+                    build_action_plan(self.root)
+
 
 class DecisionWorkflowSerializationTests(unittest.TestCase):
     def test_all_decision_main_writers_share_one_non_cancelling_lock(self) -> None:
@@ -3136,6 +3158,84 @@ class DecisionWorkflowSerializationTests(unittest.TestCase):
             "git add data/pred/_pred_source_meta.json",
             learning,
         )
+
+
+class DecisionReportIndexTruthTests(unittest.TestCase):
+    def test_report_index_exposes_only_existing_dated_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root / "outputs" / "decision"
+            output.mkdir(parents=True)
+            for date in ("20260819", "20260820", "20260821"):
+                (output / f"decision_report_{date}.md").write_text(
+                    f"# {date}\n", encoding="utf-8"
+                )
+            for date in ("20260819", "20260820"):
+                (output / f"action_plan_{date}.json").write_text(
+                    json.dumps({"report_date": date}) + "\n", encoding="utf-8"
+                )
+
+            index = build_report_index(root, "20260819")
+
+            self.assertEqual(index["latest_report_date"], "20260821")
+            self.assertEqual(index["latest_action_report_date"], "20260820")
+            self.assertEqual(
+                index["latest_action_url"],
+                "outputs/decision/action_plan_20260820.json",
+            )
+            reports = {row["report_date"]: row for row in index["reports"]}
+            self.assertFalse(reports["20260821"]["action_available"])
+            self.assertNotIn("action_url", reports["20260821"])
+            self.assertTrue(reports["20260820"]["action_available"])
+            self.assertEqual(
+                reports["20260820"]["action_url"],
+                "outputs/decision/action_plan_20260820.json",
+            )
+
+    def test_report_index_rejects_symlink_as_action_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root / "outputs" / "decision"
+            output.mkdir(parents=True)
+            date = "20260821"
+            (output / f"decision_report_{date}.md").write_text(
+                "# report\n", encoding="utf-8"
+            )
+            target = output / "unrelated.json"
+            target.write_text(
+                json.dumps({"report_date": date}) + "\n", encoding="utf-8"
+            )
+            (output / f"action_plan_{date}.json").symlink_to(target)
+
+            index = build_report_index(root)
+
+            self.assertFalse(index["reports"][0]["action_available"])
+            self.assertNotIn("action_url", index["reports"][0])
+            self.assertEqual(index["latest_action_url"], "")
+
+    def test_report_index_rejects_corrupt_and_wrong_date_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root / "outputs" / "decision"
+            output.mkdir(parents=True)
+            for date in ("20260820", "20260821"):
+                (output / f"decision_report_{date}.md").write_text(
+                    "# report\n", encoding="utf-8"
+                )
+            (output / "action_plan_20260820.json").write_text(
+                "not json\n", encoding="utf-8"
+            )
+            (output / "action_plan_20260821.json").write_text(
+                json.dumps({"report_date": "20260820"}) + "\n",
+                encoding="utf-8",
+            )
+
+            index = build_report_index(root)
+
+            self.assertEqual(index["latest_action_url"], "")
+            self.assertTrue(
+                all(not row["action_available"] for row in index["reports"])
+            )
 
 
 if __name__ == "__main__":

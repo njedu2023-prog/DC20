@@ -822,7 +822,7 @@
       "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "candidateCount", "actionContent", "auditContent", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
-    const state = { reports: [], index: 0, current: null };
+    const state = { reports: [], reportIndex: null, index: 0, current: null };
 
     function escapeHtml(value) {
       return String(value == null ? "" : value)
@@ -1652,14 +1652,24 @@
       setNavigation();
       const info = state.reports[state.index];
       if (!info) throw new Error("报告索引为空");
-      const actionPath = info.action_url || `outputs/decision/action_plan_${info.report_date}.json`;
+      const actionPath = info.action_available === true && info.action_url
+        ? info.action_url
+        : "";
       const [planResult, reportResult] = await Promise.allSettled([
-        fetchPath(actionPath),
+        actionPath ? fetchPath(actionPath) : Promise.resolve(null),
         fetchPath(info.report_url || `outputs/decision/${info.report_file}`, "text")
       ]);
       let plan = planResult.status === "fulfilled" ? planResult.value : null;
-      if (!plan && state.index === 0) {
-        try { plan = await fetchPath("outputs/decision/action_plan_latest.json"); } catch (_) {}
+      if (plan && String(plan.report_date || "") !== String(info.report_date || "")) {
+        plan = null;
+      }
+      const latestActionPath = state.reportIndex?.latest_action_url || "";
+      const latestActionDate = String(state.reportIndex?.latest_action_report_date || "");
+      if (!plan && state.index === 0 && latestActionPath && latestActionDate === String(info.report_date || "")) {
+        try {
+          const latestPlan = await fetchPath(latestActionPath);
+          if (String(latestPlan?.report_date || "") === String(info.report_date || "")) plan = latestPlan;
+        } catch (_) {}
       }
       const md = reportResult.status === "fulfilled" ? reportResult.value : "";
       if (!plan) {
@@ -1692,13 +1702,14 @@
         if (force) state.reports = [];
         const index = await fetchPath("outputs/decision/report_index.json");
         const reports = Array.isArray(index?.reports) ? index.reports : [];
+        state.reportIndex = index;
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
         state.index = 0;
         await loadReport(0);
       } catch (error) {
         const cached = loadCache();
-        if (!cached?.plan) throw error;
+        if (!cached?.plan || String(cached.plan.report_date || "") !== String(cached.info?.report_date || "")) throw error;
         state.reports = [cached.info || { report_file: "cached_report", report_date: cached.plan.report_date || "" }];
         state.index = 0;
         renderStatus(cached.plan);

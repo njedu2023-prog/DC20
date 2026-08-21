@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import copy
 import hashlib
 import io
@@ -592,6 +593,9 @@ class FreezeV2Fixture(unittest.TestCase):
                 "nested_oos_trade_selected_count"
             ],
             "KNOWN_ACTION_SHADOW_ROWS": action["shadow_only_rows"],
+            "KNOWN_ACTION_REFERENCE_PATH": action["path"],
+            "KNOWN_ACTION_REFERENCE_ROWS": action["rows"],
+            "KNOWN_ACTION_REFERENCE_SHA256": action["sha256"],
         }
 
     def _load_forced(self, manifest: dict | None = None):
@@ -637,19 +641,47 @@ class FreezeV2Fixture(unittest.TestCase):
 
     def _action_payload(self) -> dict:
         model_contract = self.model_layer["canonical_contract"]
+        model_projection = self.model_layer["fingerprint_v2"]["policy_projection"]
         selector_contract = self.selector_layer["canonical_contract"]
         return {
+            "signal_date": "20260814",
+            "report_date": "20260817",
+            "exec_date": "20260817",
+            "exit_date": "20260818",
+            "report_file": "decision_report_20260817.md",
             "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
             "formal_buy_count": 0,
             "shadow_count": 1,
+            "stage_watch_count": 1,
+            "stage_watch_eligible_count": 1,
+            "stage_watch_display_limit": 10,
             "guidance_only": True,
             "broker_connected": False,
             "order_execution": "manual_only",
             "candidates": [
                 {
-                    "ts_code": "600001.SH",
+                    "ts_code": "000001.SZ",
+                    "rank": 1,
+                    "trade_rank": 0,
+                    "action": "REJECT",
+                    "target_weight": 0.0,
+                    "trade_gate_pass": 0,
+                    "trade_shadow_selected": 0,
+                    "trade_selected": 0,
+                    "trade_selector_promoted": 0,
+                    "market_order_allowed": 0,
+                    "risk_gate_pass": 0,
+                    "order_type": "LIMIT_ONLY_MANUAL",
+                    "recommended_max_price": None,
+                    "max_auction_change_pct": None,
+                },
+                {
+                    "ts_code": "000002.SZ",
+                    "rank": 2,
+                    "trade_rank": 1,
                     "action": "SHADOW_ONLY",
                     "target_weight": 0.0,
+                    "trade_gate_pass": 1,
                     "trade_shadow_selected": 1,
                     "trade_selected": 0,
                     "trade_selector_promoted": 0,
@@ -662,11 +694,13 @@ class FreezeV2Fixture(unittest.TestCase):
             ],
             "stage_watchlist": [
                 {
-                    "ts_code": "600001.SH",
+                    "ts_code": "000002.SZ",
                     "action": "SHADOW_ONLY",
                     "stage_watch_rank": 1,
+                    "trade_rank": 1,
                     "watch_label": "二筛影子",
                     "target_weight": 0.0,
+                    "trade_gate_pass": 1,
                     "trade_shadow_selected": 1,
                     "trade_selected": 0,
                     "trade_selector_promoted": 0,
@@ -680,6 +714,8 @@ class FreezeV2Fixture(unittest.TestCase):
             "model": {
                 "version": "auction-v13",
                 "promoted": False,
+                "prediction_matches_report": True,
+                "selection_policy": copy.deepcopy(model_projection),
                 "canonical_v2_version": self.model_layer[
                     "canonical_v2_version"
                 ],
@@ -754,7 +790,6 @@ class FreezeV2Fixture(unittest.TestCase):
             "signals": 0,
             "signal_dates": 0,
             "filled_trades": 0,
-            "selection_policy": copy.deepcopy(model_projection),
             **self._model_runtime_fields(),
             "trade_selector": selector,
         }
@@ -769,8 +804,9 @@ class FreezeV2Fixture(unittest.TestCase):
             "model_raw_execution_preserved": True,
             "selection_policy_version": model_projection["version"],
             "signal_date": "20260814",
+            "expected_buy_date": "20260817",
+            "expected_exit_date": "20260818",
             "ts_code": "000001.SZ",
-            "limit_times": 2,
             "stage": "2→3",
             "stage_transition": "2→3",
             "mechanism_limit_pct": 20.0,
@@ -799,8 +835,6 @@ class FreezeV2Fixture(unittest.TestCase):
             "selected": 0,
             "model_promoted": 0,
             "action": "REJECT",
-            "diagnostic_gap": 0.01,
-            "recommended_max_gap": None,
             "recommended_max_price": None,
             "max_auction_change_pct": None,
             "estimated_up_limit": 12.0,
@@ -906,8 +940,25 @@ class FreezeV2Fixture(unittest.TestCase):
         pd.DataFrame([prediction_row, second_prediction_row]).to_csv(
             prediction_path, index=False
         )
+        decision_root = self.root / "outputs/decision"
+        decision_root.mkdir(parents=True, exist_ok=True)
+        (decision_root / "decision_report_20260817.md").write_text(
+            "# Decision Report (20260817)\n\n"
+            "- signal_date: **20260814**\n"
+            "- exec_date: **20260817**\n"
+            "- exit_date: **20260818**\n",
+            encoding="utf-8",
+        )
         _write_json(
-            self.root / "outputs/decision/action_plan_latest.json", self.action
+            decision_root / "eval_20260817.json",
+            {
+                "signal_date": "20260814",
+                "exec_date": "20260817",
+                "exit_date": "20260818",
+            },
+        )
+        _write_json(
+            decision_root / "action_plan_latest.json", self.action
         )
 
 
@@ -1344,8 +1395,7 @@ class DecisionModelFreezeV2SchemaTest(FreezeV2Fixture):
         manifest["pinned_files"] = pinned
         with patch.multiple(
             freeze_module,
-            KNOWN_HISTORY_SHA256=reviewed_sha,
-            KNOWN_HISTORY_ROWS=len(self.history),
+            **self._known_contract_patches(manifest),
         ):
             audit = validate_pinned_files(self.root, manifest)
             self.assertTrue(audit["enforced"])
@@ -1546,6 +1596,241 @@ class DecisionModelFreezeV2BehaviorTest(FreezeV2Fixture):
 
 
 class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
+    def test_runtime_action_is_dynamic_but_bound_to_same_run_prediction(self):
+        reference_sha = self.manifest["behavior_contract"]["action_watchlist"][
+            "sha256"
+        ]
+        self.manifest["behavior_contract"]["action_watchlist"]["sha256"] = (
+            "9" * 64
+        )
+        self._write_manifest()
+
+        audit = self._validate_action()
+
+        self.assertTrue(audit["validated"])
+        action_audit = audit["action_plan"]
+        self.assertEqual(
+            action_audit["activation_reference"]["sha256"], "9" * 64
+        )
+        self.assertFalse(
+            action_audit["activation_reference"]["runtime_equality_required"]
+        )
+        self.assertNotEqual(action_audit["watchlist"]["sha256"], "9" * 64)
+        self.assertNotEqual(reference_sha, "9" * 64)
+        self.assertTrue(
+            action_audit["runtime_binding"]["candidate_rows_exact"]
+        )
+
+    def test_runtime_action_rejects_candidate_reorder_and_mixed_prediction_dates(self):
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        action = json.loads(action_path.read_text())
+        action["candidates"] = list(reversed(action["candidates"]))
+        _write_json(action_path, action)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "row order"):
+            self._validate_action()
+
+        self._write_runtime()
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        prediction = pd.read_csv(prediction_path, dtype={"signal_date": "string"})
+        prediction.loc[1, "expected_buy_date"] = 20260819
+        prediction.to_csv(prediction_path, index=False)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "must be uniform"):
+            self._validate_action()
+
+    def test_runtime_action_rejects_eval_and_action_date_chain_drift(self):
+        eval_path = self.root / "outputs/decision/eval_20260817.json"
+        evaluation = json.loads(eval_path.read_text())
+        evaluation["exit_date"] = "20260819"
+        _write_json(eval_path, evaluation)
+        with self.assertRaisesRegex(DecisionModelFreezeError, "evaluation exit_date"):
+            self._validate_action()
+
+        self._write_runtime()
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        action = json.loads(action_path.read_text())
+        action["model"]["prediction_matches_report"] = False
+        _write_json(action_path, action)
+        with self.assertRaisesRegex(
+            DecisionModelFreezeError, "prediction_matches_report"
+        ):
+            self._validate_action()
+
+    def test_runtime_action_report_binds_exact_date_chain(self):
+        report_path = self.root / "outputs/decision/decision_report_20260817.md"
+        cases = (
+            (
+                "header_report_date",
+                lambda text: text.replace(
+                    "# Decision Report (20260817)",
+                    "# Decision Report (20260818)",
+                ),
+                "report report_date differs",
+            ),
+            (
+                "signal_date",
+                lambda text: text.replace(
+                    "- signal_date: **20260814**",
+                    "- signal_date: **20260813**",
+                ),
+                "report signal_date differs",
+            ),
+            (
+                "exec_date_not_exact",
+                lambda text: text.replace(
+                    "- exec_date: **20260817**",
+                    "- exec_date: **exec=20260817**",
+                ),
+                "report exec_date must be an exact YYYYMMDD",
+            ),
+            (
+                "duplicate_exit_date",
+                lambda text: text + "- exit_date: **20260818**\n",
+                "exactly one exit_date line",
+            ),
+        )
+        for name, mutate, error in cases:
+            with self.subTest(name=name):
+                self._write_runtime()
+                report_path.write_text(
+                    mutate(report_path.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(DecisionModelFreezeError, error):
+                    self._validate_action()
+
+    def test_runtime_action_eval_rejects_duplicate_keys_and_date_substrings(self):
+        eval_path = self.root / "outputs/decision/eval_20260817.json"
+        raw = eval_path.read_text(encoding="utf-8")
+        eval_path.write_text(
+            '{"exec_date":"ATTACK",' + raw[1:], encoding="utf-8"
+        )
+        with self.assertRaisesRegex(DecisionModelFreezeError, "duplicate JSON key"):
+            self._validate_action()
+
+        self._write_runtime()
+        evaluation = json.loads(eval_path.read_text(encoding="utf-8"))
+        evaluation["signal_date"] = "signal=20260814"
+        _write_json(eval_path, evaluation)
+        with self.assertRaisesRegex(
+            DecisionModelFreezeError,
+            "evaluation signal_date must be an exact YYYYMMDD",
+        ):
+            self._validate_action()
+
+    def test_runtime_action_plan_rejects_duplicate_keys(self):
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        raw = action_path.read_text(encoding="utf-8")
+        action_path.write_text(
+            '{"status_code":"ATTACK",' + raw[1:], encoding="utf-8"
+        )
+        with self.assertRaisesRegex(DecisionModelFreezeError, "duplicate JSON key"):
+            self._validate_action()
+
+    def test_action_policy_recompute_rejects_joint_rank_and_is_reused(self):
+        original = freeze_module._validate_prediction_policy_gates
+        with patch.object(
+            freeze_module,
+            "_validate_prediction_policy_gates",
+            wraps=original,
+        ) as validator:
+            standalone_audit = self._validate_action()
+        self.assertEqual(validator.call_count, 1)
+        self.assertTrue(
+            standalone_audit["action_plan"]["prediction_policy_gates"][
+                "trade_rank_exact"
+            ]
+        )
+
+        self._write_runtime()
+        with patch.object(
+            freeze_module,
+            "_validate_prediction_policy_gates",
+            wraps=original,
+        ) as validator:
+            runtime_audit = self._validate_runtime()
+        self.assertEqual(validator.call_count, 1)
+        self.assertEqual(
+            runtime_audit["action_plan"]["prediction_policy_gates"],
+            runtime_audit["prediction_policy_gates"],
+        )
+
+        self._write_runtime()
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        with prediction_path.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+        self.assertIsNotNone(fieldnames)
+        rows[1]["trade_rank"] = "2"
+        with prediction_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        action = json.loads(action_path.read_text(encoding="utf-8"))
+        action["candidates"][1]["trade_rank"] = 2
+        action["stage_watchlist"][0]["trade_rank"] = 2
+        _write_json(action_path, action)
+        with self.assertRaisesRegex(
+            DecisionModelFreezeError,
+            "prediction trade_rank disagrees with raw selector ordering",
+        ):
+            self._validate_action()
+
+    def test_production_shape_without_backtest_model_policy_passes(self):
+        backtest_path = self.root / "outputs/auction_v3/metrics/backtest_latest.json"
+        backtest = json.loads(backtest_path.read_text(encoding="utf-8"))
+        self.assertNotIn("selection_policy", backtest)
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        prediction = pd.read_csv(prediction_path)
+        for intermediate in (
+            "limit_times",
+            "diagnostic_gap",
+            "recommended_max_gap",
+        ):
+            self.assertNotIn(intermediate, prediction.columns)
+
+        action_audit = self._validate_action()
+        self.assertTrue(action_audit["action_plan"]["model_raw_policy_match"])
+        runtime_audit = self._validate_runtime()
+        self.assertTrue(
+            runtime_audit["execution_policy_relation"][
+                "model_raw_meta_authoritative"
+            ]
+        )
+        self.assertTrue(runtime_audit["action_plan"]["model_raw_policy_match"])
+
+    def test_standalone_action_rejects_meta_and_prediction_formula_drift(self):
+        meta_path = self.root / "outputs/auction_v3/models/model_meta_latest.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["selection_policy"]["thresholds"]["min_selection_score"] = (
+            0.15000000000000002
+        )
+        _write_json(meta_path, meta)
+        with self.assertRaisesRegex(
+            DecisionModelFreezeError,
+            "selection_policy differs from authoritative model_meta",
+        ):
+            self._validate_action()
+
+        self._write_runtime()
+        prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        with prediction_path.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+        self.assertIsNotNone(fieldnames)
+        rows[1]["trade_score"] = "0.1999"
+        with prediction_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        with self.assertRaisesRegex(
+            DecisionModelFreezeError,
+            "trade_score disagrees with raw selector formula",
+        ):
+            self._validate_action()
+
     def test_standalone_action_contract_rejects_shallow_no_trade_bypasses(self):
         audit = self._validate_action()
         self.assertTrue(audit["validated"])
@@ -1656,6 +1941,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
         meta_path = self.root / "outputs/auction_v3/models/model_meta_latest.json"
         backtest_path = self.root / "outputs/auction_v3/metrics/backtest_latest.json"
         prediction_path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
 
         self._write_runtime()
         meta = json.loads(meta_path.read_text())
@@ -1663,7 +1949,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             0.15000000000000002
         )
         _write_json(meta_path, meta)
-        with self.assertRaisesRegex(DecisionModelFreezeError, "raw execution policy differs"):
+        with self.assertRaisesRegex(DecisionModelFreezeError, "raw execution policy"):
             self._validate_runtime()
 
         self._write_runtime()
@@ -1674,12 +1960,16 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             self._validate_runtime()
 
         self._write_runtime()
-        for path in (meta_path, backtest_path):
-            payload = json.loads(path.read_text())
-            payload["selection_policy"]["thresholds"]["min_selection_score"] = (
-                0.1500000004
-            )
-            _write_json(path, payload)
+        meta = json.loads(meta_path.read_text())
+        meta["selection_policy"]["thresholds"]["min_selection_score"] = (
+            0.1500000004
+        )
+        _write_json(meta_path, meta)
+        action = json.loads(action_path.read_text())
+        action["model"]["selection_policy"]["thresholds"][
+            "min_selection_score"
+        ] = 0.1500000004
+        _write_json(action_path, action)
         prediction = pd.read_csv(prediction_path)
         prediction["policy_min_selection_score"] = 0.1500000004
         prediction.to_csv(prediction_path, index=False)
@@ -1692,12 +1982,11 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
         )
 
         self._write_runtime()
-        for path in (meta_path, backtest_path):
-            payload = json.loads(path.read_text())
-            payload["selection_policy"]["thresholds"]["min_selection_score"] = (
-                0.15000002
-            )
-            _write_json(path, payload)
+        meta = json.loads(meta_path.read_text())
+        meta["selection_policy"]["thresholds"]["min_selection_score"] = (
+            0.15000002
+        )
+        _write_json(meta_path, meta)
         prediction = pd.read_csv(prediction_path)
         prediction["policy_min_selection_score"] = 0.15000002
         prediction.to_csv(prediction_path, index=False)
@@ -1739,9 +2028,9 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             ("stage", "2\u21924"),
             ("stage_transition", "2\u21924"),
             ("stage_focus", 0),
-            ("limit_times", 2.5),
-            ("limit_times", -1),
-            ("limit_times", float("inf")),
+            ("stage", "02\u21923"),
+            ("stage", "2->3"),
+            ("stage", "2\u219203"),
         )
         for column, value in mutations:
             with self.subTest(column=column, value=value):
@@ -1751,7 +2040,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
                 prediction.loc[0, column] = value
                 prediction.to_csv(prediction_path, index=False)
                 with self.assertRaisesRegex(
-                    DecisionModelFreezeError, "stage|limit_times"
+                    DecisionModelFreezeError, "stage"
                 ):
                     self._validate_runtime()
 
@@ -1763,7 +2052,6 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             ("broker_connected", 0, 1),
             ("market_order_allowed", 0, 1),
             ("order_type", 0, "MARKET"),
-            ("recommended_max_gap", 0, 0.099),
             ("recommended_max_price", 0, 999.0),
             ("max_auction_change_pct", 0, 9.9),
         )
@@ -1833,7 +2121,6 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
                     "gate_conservative_ev": 1,
                     "gate_selection_score": model_gate,
                     "risk_gate_pass": model_gate,
-                    "recommended_max_gap": 0.01 if model_gate else None,
                     "recommended_max_price": 10.1 if model_gate else None,
                     "max_auction_change_pct": 1.0 if model_gate else None,
                     "model_reason": (
@@ -1886,9 +2173,17 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             )
 
         baseline = pd.DataFrame(rows)
+        for intermediate in (
+            "limit_times",
+            "diagnostic_gap",
+            "recommended_max_gap",
+        ):
+            self.assertNotIn(intermediate, baseline.columns)
         audit = validate(baseline)
         self.assertEqual(audit["selector_trade_gate_pass_rows"], 1)
         self.assertTrue(audit["trade_base_and_tail_formula_exact"])
+        self.assertTrue(audit["stage_transition_exact"])
+        self.assertTrue(audit["persisted_execution_surface_exact"])
 
         mutations = []
         for column, row_number, value in (
@@ -1901,7 +2196,9 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
             ("model_reason", 0, "selection_policy_not_ready"),
             ("trade_model_reason", 1, "shadow_policy_only"),
             ("gate_selection_score", 0, 0.5),
-            ("limit_times", 0, 1),
+            ("stage", 0, "02\u21923"),
+            ("recommended_max_price", 0, 10.2),
+            ("max_auction_change_pct", 0, 2.0),
         ):
             changed = baseline.copy(deep=True)
             changed[column] = changed[column].astype(object)
@@ -2277,7 +2574,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
         self._write_runtime()
 
         action = json.loads(action_path.read_text())
-        action["candidates"][0]["trade_shadow_selected"] = 0
+        action["candidates"][1]["trade_shadow_selected"] = 0
         _write_json(action_path, action)
         with self.assertRaisesRegex(DecisionModelFreezeError, "relative-best-two"):
             self._validate_runtime()
@@ -2291,7 +2588,7 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
         self._write_runtime()
 
         action = json.loads(action_path.read_text())
-        action["candidates"][0]["ts_code"] = "000002.SZ"
+        action["candidates"][1]["ts_code"] = "000003.SZ"
         _write_json(action_path, action)
         with self.assertRaisesRegex(DecisionModelFreezeError, "matching candidate"):
             self._validate_runtime()

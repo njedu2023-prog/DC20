@@ -100,7 +100,7 @@ ACTIVATION_EVIDENCE_SCHEMA = "dc20_canonical_v2_activation_evidence_v1"
 ACTIVATION_EVIDENCE_MAX_BYTES = 512 * 1024
 ACTIVATION_SOURCE6_SCHEMA = "decision_canonical_v2_source6_v1"
 EXPECTED_ACTIVATION_SOURCE6_SHA256 = (
-    "4cdedb124ade2b57b21ec83e95400895a76c3bdb1d1abd4794ec66201ea09245"
+    "66d251c45e033ff781aba6d48cf986e80696694ba4ec6fc0ac25f42ee3a44f92"
 )
 EXPECTED_PERSISTED_BEHAVIOR_COUNTS = {
     "top10": {
@@ -1937,7 +1937,6 @@ def _runtime_surface_evidence(root: Path) -> tuple[dict[str, Any], dict[str, Any
             expected=meta_selector,
             expected_runtime_v1_artifact_sha256=selector_v1_artifact,
             expected_selector_version=selector_version,
-            expected_shadow_count=freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
         )
     )
     fill_relationships = freeze_contract._validate_prediction_fill_relationships(  # noqa: SLF001

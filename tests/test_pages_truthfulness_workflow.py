@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy_dc20_pages.yml"
+DASHBOARD = ROOT / "decision.html"
 
 
 def _workflow() -> str:
@@ -79,3 +80,46 @@ def test_pages_has_no_writer_workflow_run_trigger_and_push_uses_event_commit() -
     checkout = text.split("actions/checkout@", 1)[1].split("actions/configure-pages@", 1)[0]
     assert "ref: main" not in checkout
     assert 'HEAD_SHA="$(git rev-parse HEAD)"' in text
+
+
+def test_pages_projects_site_inventory_before_validating_or_selecting_latest() -> None:
+    text = _workflow()
+    projection = text.index("project_report_index_action_truth(")
+    validation = text.index("action_truth = validate_report_index_action_truth(")
+    selection = text.index("report_index = json.loads(index_path.read_text")
+    assert projection < validation < selection
+    assert 'source_index_path = Path("outputs/decision/report_index.json")' in text
+    assert 'source_report_index_path=source_index_path' in text
+    assert 'site_root=Path("_site")' in text
+    assert '"report_index_inventory_projected": inventory_projected' in text
+    assert '"source_index_latest_report_date": source_latest_report_date' in text
+    assert (
+        'inventory_projected and report_index.get("generated_at_utc") is not None'
+        in text
+    )
+    assert (
+        'public_index.get("generated_at_utc") != revision.get('
+        in text
+    )
+    assert '"report_generated_at_utc": None' in text
+    assert (
+        '"report_index_generated_at_utc": report_index.get("generated_at_utc")'
+        in text
+    )
+    assert 'revision.get("report_generated_at_utc") is not None' in text
+    assert '"report_index_generated_at_utc"' in text
+    assert (
+        'public_index.get("inventory_projected") is not revision.get('
+        in text
+    )
+
+
+def test_dashboard_never_falls_back_to_an_unrelated_latest_action() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    assert "info.action_available === true && info.action_url" in text
+    assert 'String(plan.report_date || "") !== String(info.report_date || "")' in text
+    assert "latest_action_report_date" in text
+    assert "latestActionDate === String(info.report_date || \"\")" in text
+    assert 'fetchPath("outputs/decision/action_plan_latest.json")' not in text
+    assert "action_plan_${info.report_date}" not in text
+    assert 'String(cached.plan.report_date || "") !== String(cached.info?.report_date || "")' in text

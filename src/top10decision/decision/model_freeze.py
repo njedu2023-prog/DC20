@@ -23,7 +23,6 @@ from .canonical_fingerprint import (
     canonical_mapping_sha256,
     canonical_policy_fingerprint,
     compose_artifact_fingerprint,
-    normalize_date,
 )
 from .observation import OBSERVATION_TOP_N, rank_observation_rows
 
@@ -54,6 +53,11 @@ KNOWN_NESTED_OOS_FILLED_TRADES = 158
 KNOWN_NESTED_OOS_MARKET_BUYABLE_FILLED_TRADES = 25
 KNOWN_NESTED_OOS_TRADE_SELECTED = 158
 KNOWN_ACTION_SHADOW_ROWS = 2
+KNOWN_ACTION_REFERENCE_PATH = "outputs/decision/action_plan_latest.json"
+KNOWN_ACTION_REFERENCE_ROWS = 9
+KNOWN_ACTION_REFERENCE_SHA256 = (
+    "6fb91ba0051aba8a078397df292accdf587b37e847c0eb34b372ab460c5dd9be"
+)
 KNOWN_REFERENCE_EVIDENCE = {
     "baseline_commit": "c6de497aaab48c40e205aa7fe8401ad6ad9780ad",
     "top10_blob_sha1": "1bbebbbe4a3b94c0a95fd64f4e27b242ea5b0222",
@@ -67,6 +71,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         ".github/workflows/check_tushare_health.yml",
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
+        ".github/workflows/migrate_decision_runtime.yml",
         ".github/workflows/run_auction_v3.yml",
         ".github/workflows/run_decision_daily.yml",
         ".github/workflows/test_decision_core.yml",
@@ -83,10 +88,13 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "scripts/build_market_fs.py",
         "scripts/build_pfill_trainset.py",
         "scripts/check_tushare_health.py",
+        "scripts/decision_pages_truth.py",
         "scripts/diagnose_decision_fingerprint.py",
         "scripts/merge_feedback_to_learning_table.py",
+        "scripts/migrate_decision_runtime.py",
         "scripts/mock_jq_feedback.py",
         "scripts/publish_decision_action.py",
+        "scripts/recover_decision_action_gaps.py",
         "scripts/replay_frozen_canonical_v2.py",
         "scripts/resolve_sample_maturity.py",
         "scripts/run_auction_v3.py",
@@ -111,14 +119,17 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "tests/test_decision_intraday_costs.py",
         "tests/test_decision_model_freeze.py",
         "tests/test_decision_pfill_calibration.py",
+        "tests/test_decision_pages_truth.py",
         "tests/test_decision_regime_guardrails.py",
         "tests/test_decision_trade_selector.py",
         "tests/test_decision_tushare_health.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_eret_safety.py",
         "tests/test_frozen_canonical_v2_replay.py",
+        "tests/test_migrate_decision_runtime.py",
         "tests/test_pages_truthfulness_workflow.py",
         "tests/test_promotion_model.py",
+        "tests/test_recover_decision_action_gaps.py",
         "tests/test_sync_market_raw.py",
         "tests/test_sync_pred_source.py",
         "tests/test_sync_tushare_minute_fail_closed.py",
@@ -437,6 +448,33 @@ def _read_json(path: Path) -> dict[str, Any]:
         raise DecisionModelFreezeError(f"JSON artifact unreadable: {path}") from exc
     if not isinstance(payload, dict):
         _fail(f"JSON artifact must be an object: {path}")
+    return payload
+
+
+def _read_json_strict(path: Path, context: str) -> dict[str, Any]:
+    """Read one JSON object while rejecting duplicate keys at every depth."""
+
+    def reject_duplicate_keys(
+        pairs: list[tuple[str, Any]],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in payload:
+                _fail(f"{context} contains duplicate JSON key {key!r}")
+            payload[key] = value
+        return payload
+
+    try:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+        )
+    except FileNotFoundError as exc:
+        raise DecisionModelFreezeError(f"{context} missing: {path}") from exc
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise DecisionModelFreezeError(f"{context} unreadable: {path}") from exc
+    if not isinstance(payload, dict):
+        _fail(f"{context} must be a JSON object")
     return payload
 
 
@@ -1231,8 +1269,13 @@ def _validate_v2_manifest(
     action_watchlist = _validate_action_watchlist_contract(
         root, behavior.get("action_watchlist")
     )
-    if complete and action_watchlist["shadow_only_rows"] != KNOWN_ACTION_SHADOW_ROWS:
-        _fail("complete action watchlist must pin two relative-best shadows")
+    if complete and (
+        action_watchlist["path"] != KNOWN_ACTION_REFERENCE_PATH
+        or action_watchlist["rows"] != KNOWN_ACTION_REFERENCE_ROWS
+        or action_watchlist["sha256"] != KNOWN_ACTION_REFERENCE_SHA256
+        or action_watchlist["shadow_only_rows"] != KNOWN_ACTION_SHADOW_ROWS
+    ):
+        _fail("complete activation action reference contract drift detected")
     if complete and (
         top10["rows"] != KNOWN_TOP10_ROWS
         or top10["signal_dates"] != KNOWN_TOP10_DATES
@@ -1970,7 +2013,6 @@ def _validate_prediction_policy_gates(
     model_required = {
         "signal_date",
         "ts_code",
-        "limit_times",
         "stage",
         "stage_transition",
         "stage_focus",
@@ -2002,8 +2044,6 @@ def _validate_prediction_policy_gates(
         "model_reason",
         "model_promoted",
         "action",
-        "diagnostic_gap",
-        "recommended_max_gap",
         "recommended_max_price",
         "max_auction_change_pct",
         "estimated_up_limit",
@@ -2025,21 +2065,16 @@ def _validate_prediction_policy_gates(
         actual_stage_focus = _behavior_boolean(
             row["stage_focus"], f"prediction.stage_focus[{position}]"
         )
-        limit_times = _prediction_text_decimal(
-            prediction_text, position, "limit_times"
-        )
-        if limit_times < 0 or limit_times != limit_times.to_integral_value():
-            _fail(
-                "prediction limit_times must be a finite nonnegative integer"
-            )
-        stage_number = int(limit_times)
-        expected_stage = f"{stage_number}\u2192{stage_number + 1}"
         stage = _exact_text(
             prediction_text.iloc[position]["stage"],
             f"prediction.stage[{position}]",
         )
-        if stage != expected_stage:
-            _fail("prediction stage disagrees with raw limit_times")
+        stage_match = re.fullmatch(r"(0|[1-9]\d*)\u2192([1-9]\d*)", stage)
+        if stage_match is None:
+            _fail("prediction stage must be an exact N\u2192N+1 transition")
+        stage_number = int(stage_match.group(1))
+        if int(stage_match.group(2)) != stage_number + 1:
+            _fail("prediction stage must be an exact N\u2192N+1 transition")
         stage_transition = _exact_text(
             prediction_text.iloc[position]["stage_transition"],
             f"prediction.stage_transition[{position}]",
@@ -2048,7 +2083,7 @@ def _validate_prediction_policy_gates(
             _fail("prediction stage_transition disagrees with stage")
         stage_focus = int(stage_number in (2, 3))
         if actual_stage_focus != stage_focus:
-            _fail("prediction stage_focus disagrees with raw limit_times")
+            _fail("prediction stage_focus disagrees with exact stage transition")
         exit_probability = _prediction_text_decimal(
             prediction_text,
             position,
@@ -2246,15 +2281,11 @@ def _validate_prediction_policy_gates(
         ) != "LIMIT_ONLY_MANUAL":
             _fail("prediction order_type must remain LIMIT_ONLY_MANUAL")
 
-        diagnostic_gap = _prediction_text_decimal(
-            prediction_text, position, "diagnostic_gap"
-        )
         if expected_risk == 1:
-            recommended_gap = _prediction_text_decimal(
-                prediction_text, position, "recommended_max_gap"
+            persisted_change_pct = _prediction_text_decimal(
+                prediction_text, position, "max_auction_change_pct"
             )
-            if recommended_gap != diagnostic_gap:
-                _fail("prediction recommended_max_gap differs from diagnostic_gap")
+            persisted_execution_gap = persisted_change_pct / Decimal(100)
             d_close = _prediction_text_decimal(
                 prediction_text, position, "d_close"
             )
@@ -2268,7 +2299,8 @@ def _validate_prediction_policy_gates(
                             0.01,
                             min(
                                 float(estimated_up_limit) - 0.01,
-                                float(d_close) * (1.0 + float(recommended_gap)),
+                                float(d_close)
+                                * (1.0 + float(persisted_execution_gap)),
                             ),
                         )
                         + 1e-9,
@@ -2280,19 +2312,8 @@ def _validate_prediction_policy_gates(
                 prediction_text, position, "recommended_max_price"
             ) != expected_price:
                 _fail("prediction recommended_max_price disagrees with limit formula")
-            expected_change_pct = Decimal(
-                str(round(100.0 * float(recommended_gap), 2))
-            )
-            if _prediction_text_decimal(
-                prediction_text, position, "max_auction_change_pct"
-            ) != expected_change_pct:
-                _fail("prediction max_auction_change_pct disagrees with max gap")
         else:
-            for column in (
-                "recommended_max_gap",
-                "recommended_max_price",
-                "max_auction_change_pct",
-            ):
+            for column in ("recommended_max_price", "max_auction_change_pct"):
                 if not _is_missing(row[column]):
                     _fail(
                         f"prediction {column} must be missing when risk gate fails"
@@ -2587,6 +2608,8 @@ def _validate_prediction_policy_gates(
         "tail_risk_weight_exact": True,
         "selection_and_reason_exact": True,
         "raw_thresholds_and_gates_exact": True,
+        "stage_transition_exact": True,
+        "persisted_execution_surface_exact": True,
     }
 
 
@@ -3030,7 +3053,6 @@ def _prediction_selector_domain_values(
     expected: Mapping[str, Any],
     expected_runtime_v1_artifact_sha256: str,
     expected_selector_version: str,
-    expected_shadow_count: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     required = {
         *SELECTOR_PREDICTION_CANONICAL_COLUMNS,
@@ -3104,6 +3126,7 @@ def _prediction_selector_domain_values(
         _fail("prediction must preserve zero formal trade_selected rows")
     if promoted_count != 0:
         _fail("prediction must preserve zero trade_selector_promoted rows")
+    expected_shadow_count = min(2, len(observation_positions))
     if shadow_selected_count != expected_shadow_count:
         _fail("prediction relative-best-two shadow count drift detected")
     for position in outside_positions:
@@ -3263,9 +3286,399 @@ def validate_behavior_artifacts(
     return audits
 
 
+def _prediction_runtime_date_chain(
+    prediction_text: pd.DataFrame,
+) -> dict[str, str]:
+    if prediction_text.empty:
+        _fail("prediction runtime date chain must not be empty")
+    columns = {
+        "signal_date": "signal_date",
+        "exec_date": "expected_buy_date",
+        "exit_date": "expected_exit_date",
+    }
+    missing = sorted(set(columns.values()).difference(prediction_text.columns))
+    if missing:
+        _fail(f"prediction runtime date chain missing columns: {missing!r}")
+    result: dict[str, str] = {}
+    for action_field, prediction_field in columns.items():
+        values: set[str] = set()
+        for row_number, value in enumerate(prediction_text[prediction_field]):
+            if (
+                not isinstance(value, str)
+                or not DATE_PATTERN.fullmatch(value)
+                or not _valid_date(value)
+            ):
+                _fail(
+                    f"prediction.{prediction_field}[{row_number}] must be an "
+                    "exact YYYYMMDD date"
+                )
+            values.add(value)
+        if len(values) != 1:
+            _fail(f"prediction {prediction_field} must be uniform across all rows")
+        result[action_field] = next(iter(values))
+    return result
+
+
+def _parse_decision_report_dates(report_path: Path) -> dict[str, str]:
+    """Parse the exact dated header and runtime date bullets from a report."""
+
+    try:
+        lines = report_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise DecisionModelFreezeError(
+            f"same-run action report unreadable: {report_path}"
+        ) from exc
+    if not lines:
+        _fail("same-run action report must not be empty")
+    header_match = re.fullmatch(r"# Decision Report \((20\d{6})\)", lines[0])
+    if header_match is None or not _valid_date(header_match.group(1)):
+        _fail("same-run report header must contain an exact YYYYMMDD report date")
+    result = {"report_date": header_match.group(1)}
+    for field in ("signal_date", "exec_date", "exit_date"):
+        prefix = f"- {field}:"
+        field_lines = [line for line in lines if line.lstrip().startswith(prefix)]
+        if len(field_lines) != 1:
+            _fail(f"same-run report must contain exactly one {field} line")
+        match = re.fullmatch(
+            rf"- {re.escape(field)}: \*\*(20\d{{6}})\*\*",
+            field_lines[0],
+        )
+        if match is None or not _valid_date(match.group(1)):
+            _fail(f"same-run report {field} must be an exact YYYYMMDD date")
+        result[field] = match.group(1)
+    return result
+
+
+def _validate_action_plan_runtime_binding(
+    root_path: Path,
+    action: Mapping[str, Any],
+    candidates: list[dict[str, Any]],
+    stage_watchlist: list[dict[str, Any]],
+    *,
+    prediction: pd.DataFrame,
+    prediction_text: pd.DataFrame,
+) -> dict[str, Any]:
+    if len(prediction) != len(prediction_text) or prediction.empty:
+        _fail("parsed and exact-text prediction rows must be identical and nonempty")
+    date_chain = _prediction_runtime_date_chain(prediction_text)
+    for field, expected in date_chain.items():
+        actual = _require_text(action.get(field), f"action_plan.{field}")
+        if actual != expected:
+            _fail(f"action plan {field} differs from same-run prediction")
+    report_date = _require_text(action.get("report_date"), "action_plan.report_date")
+    if report_date != date_chain["exec_date"]:
+        _fail("action plan report_date must equal the same-run execution date")
+    expected_report_file = f"decision_report_{report_date}.md"
+    if action.get("report_file") != expected_report_file:
+        _fail("action plan report_file differs from its report date")
+    action_model = _require_mapping(action.get("model"), "action_plan.model")
+    if action_model.get("prediction_matches_report") is not True:
+        _fail("action plan must attest prediction_matches_report=true")
+
+    report_path = root_path / "outputs" / "decision" / expected_report_file
+    eval_path = root_path / "outputs" / "decision" / f"eval_{report_date}.json"
+    for path, label in ((report_path, "report"), (eval_path, "evaluation")):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+            _fail(f"same-run action {label} must be a nonempty regular file")
+    report_dates = _parse_decision_report_dates(report_path)
+    expected_report_dates = {"report_date": report_date, **date_chain}
+    for field, expected in expected_report_dates.items():
+        if report_dates[field] != expected:
+            _fail(f"same-run report {field} differs from action/prediction")
+
+    evaluation = _read_json_strict(eval_path, "same-run action evaluation")
+    for field, expected in date_chain.items():
+        actual = evaluation.get(field)
+        if (
+            not isinstance(actual, str)
+            or not DATE_PATTERN.fullmatch(actual)
+            or not _valid_date(actual)
+        ):
+            _fail(
+                f"same-run evaluation {field} must be an exact YYYYMMDD date"
+            )
+        if actual != expected:
+            _fail(f"same-run evaluation {field} differs from action/prediction")
+
+    required_prediction = {
+        "ts_code",
+        "action",
+        "trade_rank",
+        "trade_gate_pass",
+        "trade_shadow_selected",
+        "trade_selected",
+        "trade_selector_promoted",
+        "market_order_allowed",
+        "risk_gate_pass",
+        "order_type",
+        "recommended_max_price",
+        "max_auction_change_pct",
+        "observation_selected",
+        "observation_rank",
+    }
+    missing = sorted(required_prediction.difference(prediction.columns))
+    if missing:
+        _fail(f"prediction/action binding missing columns: {missing!r}")
+    if len(candidates) != len(prediction):
+        _fail("action candidates must have the same rows as pred_latest")
+
+    binary_fields = (
+        "trade_gate_pass",
+        "trade_shadow_selected",
+        "trade_selected",
+        "trade_selector_promoted",
+        "market_order_allowed",
+        "risk_gate_pass",
+    )
+    prediction_rows: dict[str, dict[str, Any]] = {}
+    for position, (_, row) in enumerate(prediction.iterrows()):
+        code = row["ts_code"]
+        if (
+            not isinstance(code, str)
+            or not CODE_PATTERN.fullmatch(code)
+            or code in prediction_rows
+        ):
+            _fail(f"prediction/action binding has invalid code at row {position}")
+        trade_rank = (
+            0
+            if _is_missing(row["trade_rank"])
+            else _behavior_integer(row["trade_rank"], f"prediction.trade_rank[{position}]")
+        )
+        projection = {
+            "ts_code": code,
+            "rank": position + 1,
+            "trade_rank": trade_rank,
+            "action": _exact_text(row["action"], f"prediction.action[{position}]"),
+            "order_type": _exact_text(
+                row["order_type"], f"prediction.order_type[{position}]"
+            ),
+            **{
+                field: _behavior_boolean(
+                    row[field], f"prediction.{field}[{position}]"
+                )
+                for field in binary_fields
+            },
+        }
+        for field in ("recommended_max_price", "max_auction_change_pct"):
+            if not _is_missing(row[field]):
+                _fail(f"NO_TRADE prediction {field} must remain missing")
+        prediction_rows[code] = projection
+
+        candidate = candidates[position]
+        if candidate.get("ts_code") != code:
+            _fail("action candidates must preserve pred_latest row order and codes")
+        candidate_projection = {
+            "ts_code": code,
+            "rank": _require_int(
+                candidate.get("rank"), f"action candidate rank[{position}]", minimum=1
+            ),
+            "trade_rank": _require_int(
+                candidate.get("trade_rank"),
+                f"action candidate trade_rank[{position}]",
+                minimum=0,
+            ),
+            "action": _exact_text(
+                candidate.get("action"), f"action candidate action[{position}]"
+            ),
+            "order_type": _exact_text(
+                candidate.get("order_type"),
+                f"action candidate order_type[{position}]",
+            ),
+            **{
+                field: _require_binary_int(
+                    candidate.get(field), f"action candidate {field}[{position}]"
+                )
+                for field in binary_fields
+            },
+        }
+        if candidate_projection != projection:
+            _fail(f"action candidate row {position} differs from same-run prediction")
+
+    observation_audit = _validate_prediction_observation_contract(prediction)
+    selected_prediction_rows: list[tuple[int, dict[str, Any]]] = []
+    for position, (_, row) in enumerate(prediction.iterrows()):
+        selected = _behavior_boolean(
+            row["observation_selected"],
+            f"prediction.observation_selected[{position}]",
+        )
+        if selected != 1:
+            continue
+        observation_rank = _behavior_integer(
+            row["observation_rank"], f"prediction.observation_rank[{position}]"
+        )
+        selected_prediction_rows.append(
+            (observation_rank, prediction_rows[str(row["ts_code"])])
+        )
+    selected_prediction_rows.sort(key=lambda item: item[0])
+    if [rank for rank, _ in selected_prediction_rows] != list(
+        range(1, len(selected_prediction_rows) + 1)
+    ):
+        _fail("prediction observation ranks must be contiguous")
+    if not selected_prediction_rows or len(stage_watchlist) != len(
+        selected_prediction_rows
+    ):
+        _fail("action watchlist must exactly match the prediction observation domain")
+
+    watch_binary_fields = (
+        "trade_gate_pass",
+        "trade_shadow_selected",
+        "trade_selected",
+        "trade_selector_promoted",
+        "market_order_allowed",
+        "risk_gate_pass",
+    )
+    for position, ((observation_rank, expected), item) in enumerate(
+        zip(selected_prediction_rows, stage_watchlist, strict=True)
+    ):
+        expected_label = (
+            "二筛影子" if expected["trade_shadow_selected"] == 1 else "仅观察"
+        )
+        if item.get("ts_code") != expected["ts_code"]:
+            _fail("action watchlist must preserve observation rank order and codes")
+        watch_projection = {
+            "trade_rank": _require_int(
+                item.get("trade_rank"),
+                f"action watchlist trade_rank[{position}]",
+                minimum=0,
+            ),
+            "action": _exact_text(
+                item.get("action"), f"action watchlist action[{position}]"
+            ),
+            "order_type": _exact_text(
+                item.get("order_type"), f"action watchlist order_type[{position}]"
+            ),
+            **{
+                field: _require_binary_int(
+                    item.get(field), f"action watchlist {field}[{position}]"
+                )
+                for field in watch_binary_fields
+            },
+        }
+        expected_watch = {
+            key: expected[key]
+            for key in ("trade_rank", "action", "order_type", *watch_binary_fields)
+        }
+        if watch_projection != expected_watch:
+            _fail(f"action watchlist row {position} differs from same-run prediction")
+        if _require_int(
+            item.get("stage_watch_rank"),
+            f"action watchlist stage_watch_rank[{position}]",
+            minimum=1,
+        ) != observation_rank:
+            _fail("action stage_watch_rank differs from prediction observation_rank")
+        if item.get("watch_label") != expected_label:
+            _fail("action watch label differs from same-run prediction shadow state")
+
+    expected_shadow_count = sum(
+        row["trade_shadow_selected"] for _, row in selected_prediction_rows
+    )
+    if expected_shadow_count != min(2, len(selected_prediction_rows)):
+        _fail("same-run prediction does not preserve relative-best-two")
+    if _require_int(action.get("stage_watch_count"), "action_plan.stage_watch_count") != len(
+        selected_prediction_rows
+    ):
+        _fail("action stage_watch_count differs from the observation domain")
+    if _require_int(
+        action.get("stage_watch_eligible_count"),
+        "action_plan.stage_watch_eligible_count",
+    ) != observation_audit["pool_size"]:
+        _fail("action stage_watch_eligible_count differs from prediction")
+    if _require_int(
+        action.get("stage_watch_display_limit"),
+        "action_plan.stage_watch_display_limit",
+    ) != OBSERVATION_TOP_N:
+        _fail("action stage_watch_display_limit drift detected")
+    return {
+        "prediction_path": "outputs/auction_v3/predictions/pred_latest.csv",
+        "prediction_rows": len(prediction),
+        "signal_date": date_chain["signal_date"],
+        "exec_date": date_chain["exec_date"],
+        "exit_date": date_chain["exit_date"],
+        "report_dates_exact": True,
+        "evaluation_dates_exact": True,
+        "candidate_rows_exact": True,
+        "watchlist_rows_exact": True,
+        "shadow_rows": expected_shadow_count,
+    }
+
+
+def _standalone_prediction_policy_gates(
+    root_path: Path,
+    *,
+    expected_model: Mapping[str, Any],
+    expected_selector: Mapping[str, Any],
+    prediction: pd.DataFrame,
+    prediction_text: pd.DataFrame,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Recompute action-facing prediction policy gates outside full runtime."""
+
+    model_meta = _read_json(
+        root_path / "outputs/auction_v3/models/model_meta_latest.json"
+    )
+    backtest = _read_json(
+        root_path / "outputs/auction_v3/metrics/backtest_latest.json"
+    )
+    meta_selector = _require_mapping(
+        model_meta.get("trade_selector"), "model_meta.trade_selector"
+    )
+    backtest_selector = _require_mapping(
+        backtest.get("trade_selector"), "backtest.trade_selector"
+    )
+    meta_model_raw, meta_model_canonical = _live_execution_policy_projection(
+        model_meta.get("selection_policy"),
+        layer="model",
+        context="model_meta.selection_policy",
+    )
+    meta_selector_raw, meta_selector_canonical = (
+        _live_execution_policy_projection(
+            meta_selector.get("production_policy"),
+            layer="trade_selector",
+            context="model_meta.trade_selector.production_policy",
+        )
+    )
+    backtest_selector_raw, backtest_selector_canonical = (
+        _live_execution_policy_projection(
+            backtest_selector.get("production_policy"),
+            layer="trade_selector",
+            context="backtest.trade_selector.production_policy",
+        )
+    )
+    if canonical_json_bytes(meta_selector_raw) != canonical_json_bytes(
+        backtest_selector_raw
+    ):
+        _fail("selector raw execution policy differs across meta/backtest")
+    expected_model_projection = expected_model["fingerprint_v2"][
+        "policy_projection"
+    ]
+    expected_selector_projection = expected_selector["fingerprint_v2"][
+        "policy_projection"
+    ]
+    if meta_model_canonical != expected_model_projection:
+        _fail("model raw execution policy does not canonicalize to frozen q8")
+    if (
+        meta_selector_canonical != expected_selector_projection
+        or backtest_selector_canonical != expected_selector_projection
+    ):
+        _fail("selector raw execution policy does not canonicalize to frozen q8")
+    return (
+        _validate_prediction_policy_gates(
+            prediction,
+            prediction_text,
+            model_raw_projection=meta_model_raw,
+            selector_raw_projection=meta_selector_raw,
+        ),
+        meta_model_raw,
+    )
+
+
 def _validate_action_plan_contract(
     root_path: Path,
     manifest: dict[str, Any],
+    *,
+    prediction: pd.DataFrame | None = None,
+    prediction_text: pd.DataFrame | None = None,
+    prediction_policy_gates: Mapping[str, Any] | None = None,
+    model_raw_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     production = _require_mapping(manifest.get("production"), "manifest.production")
     canonical = _require_mapping(
@@ -3281,8 +3694,67 @@ def _validate_action_plan_contract(
     action_path = root_path / "outputs/decision/action_plan_latest.json"
     if action_path.is_symlink() or not action_path.is_file():
         _fail("frozen action plan must be a regular non-symlink file")
-    action = _read_json(action_path)
+    action = _read_json_strict(action_path, "frozen action plan")
+    prediction_path = root_path / "outputs/auction_v3/predictions/pred_latest.csv"
+    if prediction_path.is_symlink() or not prediction_path.is_file():
+        _fail("same-run prediction must be a regular non-symlink file")
+    if prediction is None:
+        prediction = _read_csv(prediction_path, "action prediction binding")
+    if prediction_text is None:
+        prediction_text = _read_csv_exact_text(
+            prediction_path, "action prediction exact-text binding"
+        )
+    if prediction_policy_gates is None and model_raw_policy is None:
+        prediction_policy_gates, model_raw_policy = (
+            _standalone_prediction_policy_gates(
+                root_path,
+                expected_model=expected_model,
+                expected_selector=expected_selector,
+                prediction=prediction,
+                prediction_text=prediction_text,
+            )
+        )
+    elif prediction_policy_gates is None or model_raw_policy is None:
+        _fail("prediction policy gates and authoritative model policy must be paired")
+    else:
+        prediction_policy_gates = _require_mapping(
+            prediction_policy_gates, "prediction policy gate audit"
+        )
+        model_raw_policy = _require_mapping(
+            model_raw_policy, "authoritative model raw policy"
+        )
+    _validate_policy_projection(
+        model_raw_policy,
+        layer="model",
+        context="authoritative model raw policy",
+        require_canonical=False,
+    )
+    for field in (
+        "promotion_rank_exact",
+        "trade_rank_exact",
+        "selection_and_reason_exact",
+        "raw_thresholds_and_gates_exact",
+    ):
+        if prediction_policy_gates.get(field) is not True:
+            _fail(f"prediction policy gate audit missing exact result: {field}")
     action_model = _require_mapping(action.get("model"), "action_plan.model")
+    action_model_raw_policy, action_model_canonical_policy = (
+        _live_execution_policy_projection(
+            action_model.get("selection_policy"),
+            layer="model",
+            context="action_plan.model.selection_policy",
+        )
+    )
+    if canonical_json_bytes(action_model_raw_policy) != canonical_json_bytes(
+        model_raw_policy
+    ):
+        _fail(
+            "action plan model selection_policy differs from authoritative model_meta"
+        )
+    if action_model_canonical_policy != expected_model["fingerprint_v2"][
+        "policy_projection"
+    ]:
+        _fail("action plan model selection_policy does not canonicalize to frozen q8")
     action_model_v2 = _action_layer_values(
         action_model, layer="model", expected=expected_model
     )
@@ -3390,8 +3862,6 @@ def _validate_action_plan_contract(
         _fail("NO_TRADE action plan contains BUY candidates")
     if _require_int(action.get("shadow_count"), "action_plan.shadow_count") != shadow_count:
         _fail("action plan shadow count drift detected")
-    if model_freeze_active(manifest) and shadow_count != 2:
-        _fail("active frozen action plan must preserve relative-best-two")
     if action_model.get("version") != production["model_version"]:
         _fail("action plan model version drift detected")
     if action_model.get("promoted") is not False:
@@ -3407,12 +3877,6 @@ def _validate_action_plan_contract(
     if action_path.relative_to(root_path).as_posix() != watch_contract["path"]:
         _fail("action watchlist contract path does not name action_plan_latest.json")
     watch_actual = compute_action_watchlist_fingerprint(action, watch_contract)
-    if (
-        watch_actual["rows"] != watch_contract["rows"]
-        or watch_actual["sha256"] != watch_contract["sha256"]
-        or watch_actual["shadow_only_rows"] != watch_contract["shadow_only_rows"]
-    ):
-        _fail("frozen action watchlist behavior drift detected")
     if watch_actual["shadow_only_rows"] != shadow_count:
         _fail("action watchlist/candidate relative-best-two drift detected")
     stage_watchlist = action.get("stage_watchlist")
@@ -3460,6 +3924,16 @@ def _validate_action_plan_contract(
             _fail(f"action watchlist row {row_number} differs from its candidate")
     if not watch_codes.issubset(candidate_projection):
         _fail("action watchlist contains an unknown candidate")
+    runtime_binding = _validate_action_plan_runtime_binding(
+        root_path,
+        action,
+        candidates,
+        stage_watchlist,
+        prediction=prediction,
+        prediction_text=prediction_text,
+    )
+    if runtime_binding["shadow_rows"] != shadow_count:
+        _fail("action candidate shadow count differs from same-run prediction")
     return {
         "present": True,
         "status_code": action["status_code"],
@@ -3469,6 +3943,15 @@ def _validate_action_plan_contract(
         "model_v2_match": True,
         "selector_v2_match": True,
         "watchlist": watch_actual,
+        "model_raw_policy_match": True,
+        "prediction_policy_gates": dict(prediction_policy_gates),
+        "runtime_binding": runtime_binding,
+        "activation_reference": {
+            "path": watch_contract["path"],
+            "rows": watch_contract["rows"],
+            "sha256": watch_contract["sha256"],
+            "runtime_equality_required": False,
+        },
     }
 
 
@@ -3584,13 +4067,6 @@ def validate_runtime_artifacts(
             context="model_meta.selection_policy",
         )
     )
-    backtest_model_raw_policy, backtest_model_canonical_policy = (
-        _live_execution_policy_projection(
-            backtest.get("selection_policy"),
-            layer="model",
-            context="backtest.selection_policy",
-        )
-    )
     meta_selector_raw_policy, meta_selector_canonical_policy = (
         _live_execution_policy_projection(
             meta_selector_raw.get("production_policy"),
@@ -3605,10 +4081,6 @@ def validate_runtime_artifacts(
             context="backtest.trade_selector.production_policy",
         )
     )
-    if canonical_json_bytes(meta_model_raw_policy) != canonical_json_bytes(
-        backtest_model_raw_policy
-    ):
-        _fail("model raw execution policy differs across meta/backtest")
     if canonical_json_bytes(meta_selector_raw_policy) != canonical_json_bytes(
         backtest_selector_raw_policy
     ):
@@ -3619,10 +4091,7 @@ def validate_runtime_artifacts(
     expected_selector_projection = expected_selector["fingerprint_v2"][
         "policy_projection"
     ]
-    if (
-        meta_model_canonical_policy != expected_model_projection
-        or backtest_model_canonical_policy != expected_model_projection
-    ):
+    if meta_model_canonical_policy != expected_model_projection:
         _fail("model raw execution policy does not canonicalize to frozen q8")
     if (
         meta_selector_canonical_policy != expected_selector_projection
@@ -3670,9 +4139,6 @@ def validate_runtime_artifacts(
             expected=expected_selector,
             expected_runtime_v1_artifact_sha256=selector_v1_meta,
             expected_selector_version=production["trade_selector_version"],
-            expected_shadow_count=manifest["behavior_contract"][
-                "action_watchlist"
-            ]["shadow_only_rows"],
         )
     )
     prediction_fill_relationships = _validate_prediction_fill_relationships(
@@ -3726,12 +4192,20 @@ def validate_runtime_artifacts(
     }
 
     action_checks: dict[str, Any] = {}
+    shared_action_checks: dict[str, Any] = {}
     if check_action_plan:
         # Keep standalone Daily action verification and the full runtime gate on
         # one fail-closed contract. The legacy inline projection below is kept
         # temporarily for return-shape compatibility and must only run after
         # this stricter shared validator succeeds.
-        _validate_action_plan_contract(root_path, manifest)
+        shared_action_checks = _validate_action_plan_contract(
+            root_path,
+            manifest,
+            prediction=prediction,
+            prediction_text=prediction_text,
+            prediction_policy_gates=prediction_policy_gates,
+            model_raw_policy=meta_model_raw_policy,
+        )
         action_path = root_path / "outputs/decision/action_plan_latest.json"
         if not action_path.is_file():
             _fail("frozen action plan is required but missing")
@@ -3821,8 +4295,6 @@ def validate_runtime_artifacts(
             shadow_count
         ):
             _fail("action plan shadow count drift detected")
-        if model_freeze_active(manifest) and shadow_count != 2:
-            _fail("active frozen action plan must preserve relative-best-two")
         if action_model.get("version") != production["model_version"]:
             _fail("action plan model version drift detected")
         if action_model.get("promoted") is not False:
@@ -3838,13 +4310,6 @@ def validate_runtime_artifacts(
         if action_path.relative_to(root_path).as_posix() != watch_contract["path"]:
             _fail("action watchlist contract path does not name action_plan_latest.json")
         watch_actual = compute_action_watchlist_fingerprint(action, watch_contract)
-        if (
-            watch_actual["rows"] != watch_contract["rows"]
-            or watch_actual["sha256"] != watch_contract["sha256"]
-            or watch_actual["shadow_only_rows"]
-            != watch_contract["shadow_only_rows"]
-        ):
-            _fail("frozen action watchlist behavior drift detected")
         if watch_actual["shadow_only_rows"] != shadow_count:
             _fail("action watchlist/candidate relative-best-two drift detected")
         for row_number, item in enumerate(action.get("stage_watchlist", [])):
@@ -3882,6 +4347,7 @@ def validate_runtime_artifacts(
             "selector_v2_match": True,
             "watchlist": watch_actual,
         }
+        action_checks = shared_action_checks
 
     behavior_audit = validate_behavior_artifacts(root_path, manifest)
     decision = manifest["behavior_contract"]["decision"]
@@ -3952,7 +4418,7 @@ def validate_runtime_artifacts(
         "legacy_v1_enforced": False,
         "raw_execution_preserved": True,
         "execution_policy_relation": {
-            "model_raw_meta_backtest_exact": True,
+            "model_raw_meta_authoritative": True,
             "model_raw_canonical_q8_match": True,
             "selector_raw_meta_backtest_exact": True,
             "selector_raw_canonical_q8_match": True,

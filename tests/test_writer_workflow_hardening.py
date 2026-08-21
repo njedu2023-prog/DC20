@@ -1086,6 +1086,142 @@ def test_auction_dry_run_rebuilds_verified_frozen_runtime_and_full_action_contra
     assert "validate_io_contract.py" not in run_step
 
 
+def test_auction_recovery_route_is_active_only_and_never_enters_live_pipeline() -> None:
+    text = _text("run_auction_v3.yml")
+    header = text.split("\npermissions:", 1)[0]
+    mode = text.split("- name: Resolve dry-run mode and immutable base", 1)[1].split(
+        "- name: Setup Python", 1
+    )[0]
+    preflight = text.split(
+        "- name: Require active production freeze and enforced pins for selected route", 1
+    )[1].split("- name: Run Decision execution tests", 1)[0]
+    sync = text.split("- name: Sync strict calendar and minute truth", 1)[1].split(
+        "- name: Run Auction pipeline and final runtime gates", 1
+    )[0]
+    recovery = text.split(
+        "- name: Build isolated retrospective action recovery candidate", 1
+    )[1].split("- name: Build exact allowlisted candidate patch", 1)[0]
+
+    assert "recovery_report_dates:" in header
+    assert "route=auction" in mode and "route=recovery" in mode
+    assert "recovery_report_dates is mutually exclusive with signal_date" in mode
+    assert "recovery_report_dates is mutually exclusive with a custom order_amount" in mode
+    assert "route=${route}" in mode
+    assert "route == 'recovery' and not active" in preflight
+    assert "requires active Decision freeze even in dry-run" in preflight
+    assert "if: ${{ steps.mode.outputs.route == 'auction' }}" in sync
+    assert "TUSHARE_TOKEN" in sync
+    assert "scripts/sync_tushare_minute.py" in sync
+
+    assert "if: ${{ steps.mode.outputs.route == 'recovery' }}" in recovery
+    assert "scripts/recover_decision_action_gaps.py" in recovery
+    assert '--report-dates "${RECOVERY_REPORT_DATES}"' in recovery
+    assert '--base-sha "$(cat "${RUNNER_TEMP}/base_sha.txt")"' in recovery
+    assert '--output-root "${candidate_root}"' in recovery
+    assert "validate_report_index_action_truth" in recovery
+    assert "report_index_path=root / 'outputs/decision/report_index.json'" in recovery
+    for forbidden in (
+        "TUSHARE_TOKEN",
+        "sync_tushare_minute.py",
+        "run_auction_v3.py",
+        "publish_decision_action.py",
+        "validate_decision_model_freeze.py --runtime",
+    ):
+        assert forbidden not in recovery
+
+
+def test_auction_recovery_candidate_and_publisher_are_exact_receipted_cas() -> None:
+    text = _text("run_auction_v3.yml")
+    candidate = text.split("- name: Build exact allowlisted candidate patch", 1)[1].split(
+        "- name: Upload immutable candidate patch", 1
+    )[0]
+    upload = text.split("- name: Upload immutable candidate patch", 1)[1].split(
+        "\n\n  publish:", 1
+    )[0]
+    envelope = text.split("- name: Verify immutable candidate envelope", 1)[1].split(
+        "- name: Apply candidate with base-SHA CAS and create one commit", 1
+    )[0]
+    publisher = text.split(
+        "- name: Apply candidate with base-SHA CAS and create one commit", 1
+    )[1].split("- name: Publish exact CAS commit", 1)[0]
+
+    assert "git add -A --pathspec-from-file=" in candidate
+    assert "receipt.get('changed_paths')" in candidate
+    assert "non-allowlisted Auction recovery paths staged" in candidate
+    assert "outputs/decision/action_plan_latest.json" in candidate
+    assert "steps.mode.outputs.publish == 'true'" in upload
+    assert "recovery-receipt.json" in upload
+    assert "steps.mode.outputs.route == 'recovery'" in upload
+    assert "steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true'" in upload
+
+    assert "expected_files.add('recovery-receipt.json')" in envelope
+    assert "recovery receipt base SHA mismatch" in envelope
+    assert "recovery receipt changed-path contract mismatch" in envelope
+    assert "recovery receipt output hash inventory mismatch" in envelope
+    assert "recovery receipt source hash inventory is empty" in envelope
+
+    assert 'test "$(git rev-parse HEAD)" = "${expected}"' in publisher
+    assert "non-allowlisted Auction recovery publish paths staged" in publisher
+    assert "recovery output SHA256 changed after patch apply" in publisher
+    assert "recovery receipt source hashes differ from action payloads" in publisher
+    assert "recovery source SHA256 differs from exact base" in publisher
+    assert "recovery source blob differs from exact base" in publisher
+    assert "action_plan_latest byte/blob identity changed during recovery" in publisher
+    assert "action_plan_latest byte SHA256 changed during recovery" in publisher
+    assert publisher.count("git commit -m") == 1
+    assert "git push" not in publisher
+
+
+def test_auction_recovery_envelope_rejects_latest_or_unbound_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    base_sha = "a" * 40
+    patch = b"recovery patch\n"
+    (candidate / "base_sha.txt").write_text(base_sha + "\n", encoding="ascii")
+    (candidate / "candidate.patch").write_bytes(patch)
+    (candidate / "candidate.patch.sha256").write_text(
+        hashlib.sha256(patch).hexdigest() + "\n", encoding="ascii"
+    )
+    dates = ["20260818", "20260819"]
+    paths = [f"outputs/decision/action_plan_{date}.json" for date in dates] + [
+        "outputs/decision/report_index.json"
+    ]
+    receipt = {
+        "schema_version": "decision_action_gap_recovery_receipt_v1",
+        "status": "candidate_generated",
+        "base_sha": base_sha,
+        "report_dates": dates,
+        "changed_paths": paths,
+        "source_sha256": {"models/decision_model_freeze.json": "b" * 64},
+        "output_sha256": {path: "c" * 64 for path in paths},
+        "action_plan_latest_changed": False,
+    }
+    receipt_path = candidate / "recovery-receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    monkeypatch.setenv("CANDIDATE_DIR", str(candidate))
+    monkeypatch.setenv("ROUTE", "recovery")
+    source = _embedded_python_after(
+        _text("run_auction_v3.yml"), "- name: Verify immutable candidate envelope"
+    )
+    exec(compile(source, "<auction-recovery-envelope>", "exec"), {})
+
+    receipt["changed_paths"][-1] = "outputs/decision/action_plan_latest.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(SystemExit, match="changed-path contract mismatch"):
+        exec(compile(source, "<auction-recovery-envelope-latest>", "exec"), {})
+
+    receipt["changed_paths"] = [
+        f"outputs/decision/action_plan_{date}.json" for date in dates
+    ] + ["outputs/decision/report_index.json"]
+    receipt["source_sha256"] = {"/tmp/unbound-secret": "b" * 64}
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(SystemExit, match="invalid recovery receipt source inventory"):
+        exec(compile(source, "<auction-recovery-envelope-source>", "exec"), {})
+
+
 def test_compute_jobs_are_read_only_and_never_publish() -> None:
     for name in WRITERS:
         text = _text(name)

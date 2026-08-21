@@ -29,6 +29,10 @@ on:
         required: false
         default: "100000"
         type: string
+      recovery_report_dates:
+        description: "历史 action 展示缺口恢复；1-5 个严格升序 YYYYMMDD，逗号分隔（与正常竞价 route 互斥）"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -57,6 +61,7 @@ jobs:
     timeout-minutes: 120
     outputs:
       publish: ${{ steps.mode.outputs.publish }}
+      route: ${{ steps.mode.outputs.route }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
@@ -69,12 +74,28 @@ jobs:
         id: mode
         env:
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_SIGNAL_DATE: ${{ inputs.signal_date }}
+          INPUT_ORDER_AMOUNT: ${{ inputs.order_amount }}
+          INPUT_RECOVERY_REPORT_DATES: ${{ inputs.recovery_report_dates }}
         run: |
           set -euo pipefail
           publish=true
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${INPUT_DRY_RUN:-true}" != "false" ]; then publish=false; fi
+          route=auction
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_RECOVERY_REPORT_DATES:-}" ]; then
+            route=recovery
+            if [ -n "${INPUT_SIGNAL_DATE:-}" ]; then
+              echo 'recovery_report_dates is mutually exclusive with signal_date' >&2
+              exit 2
+            fi
+            if [ -n "${INPUT_ORDER_AMOUNT:-}" ] && [ "${INPUT_ORDER_AMOUNT}" != "100000" ]; then
+              echo 'recovery_report_dates is mutually exclusive with a custom order_amount' >&2
+              exit 2
+            fi
+          fi
           git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
           echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
+          echo "route=${route}" >> "${GITHUB_OUTPUT}"
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -87,9 +108,10 @@ jobs:
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
           python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
           python -m pip check
-      - name: Require active production freeze and enforced pins for real publication
+      - name: Require active production freeze and enforced pins for selected route
         env:
           PUBLISH: ${{ steps.mode.outputs.publish }}
+          ROUTE: ${{ steps.mode.outputs.route }}
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           python - <<'PY'
@@ -99,12 +121,17 @@ jobs:
           root = Path('.').resolve()
           manifest = load_model_freeze(root, required=True)
           publish = os.environ['PUBLISH'] == 'true'
+          route = os.environ.get('ROUTE', 'auction')
           active = model_freeze_active(manifest)
-          if publish and not active: raise SystemExit('real Auction publication requires active Decision freeze')
+          if route == 'recovery' and not active:
+              raise SystemExit('Auction recovery requires active Decision freeze even in dry-run')
+          if route == 'auction' and publish and not active:
+              raise SystemExit('real Auction publication requires active Decision freeze')
           audit = validate_pinned_files(root, manifest, force_enforcement=not active)
           if audit.get('enforced') is not True: raise SystemExit('Auction preflight did not enforce frozen pins')
           PY
       - name: Run Decision execution tests
+        if: ${{ steps.mode.outputs.route == 'auction' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
@@ -116,6 +143,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_decision_model_freeze.py' -v
       - name: Sync strict calendar and minute truth
         id: minute_sync
+        if: ${{ steps.mode.outputs.route == 'auction' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
@@ -198,18 +226,109 @@ jobs:
           else
             python scripts/validate_decision_model_freeze.py --runtime --force-inactive
           fi
+      - name: Build isolated retrospective action recovery candidate
+        id: recovery
+        if: ${{ steps.mode.outputs.route == 'recovery' }}
+        env:
+          RECOVERY_REPORT_DATES: ${{ inputs.recovery_report_dates }}
+        run: |
+          set -euo pipefail
+          candidate_root="${RUNNER_TEMP}/recovery-output"
+          test ! -e "${candidate_root}"
+          python scripts/recover_decision_action_gaps.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --report-dates "${RECOVERY_REPORT_DATES}" \
+            --base-sha "$(cat "${RUNNER_TEMP}/base_sha.txt")" \
+            --output-root "${candidate_root}" \
+            > "${RUNNER_TEMP}/recovery-receipt.json"
+          CANDIDATE_ROOT="${candidate_root}" RECEIPT="${RUNNER_TEMP}/recovery-receipt.json" BASE_SHA_FILE="${RUNNER_TEMP}/base_sha.txt" python - <<'PY'
+          import hashlib, json, os, re, shutil
+          from pathlib import Path
+          from scripts.decision_pages_truth import validate_report_index_action_truth
+
+          root = Path('.').resolve()
+          candidate = Path(os.environ['CANDIDATE_ROOT']).resolve()
+          receipt_path = Path(os.environ['RECEIPT'])
+          base_sha = Path(os.environ['BASE_SHA_FILE']).read_text(encoding='ascii').strip()
+          receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+          if not isinstance(receipt, dict) or receipt.get('schema_version') != 'decision_action_gap_recovery_receipt_v1':
+              raise SystemExit('invalid recovery receipt schema')
+          if receipt.get('status') != 'candidate_generated' or receipt.get('base_sha') != base_sha:
+              raise SystemExit('recovery receipt is not bound to the immutable base')
+          if not isinstance(receipt.get('output_root'), str) or Path(receipt['output_root']).resolve() != candidate:
+              raise SystemExit('recovery receipt output root differs from isolated candidate')
+          dates = receipt.get('report_dates')
+          if (
+              not isinstance(dates, list)
+              or not 1 <= len(dates) <= 5
+              or any(not isinstance(item, str) or re.fullmatch(r'20[0-9]{6}', item) is None for item in dates)
+              or dates != sorted(dates)
+              or len(set(dates)) != len(dates)
+          ):
+              raise SystemExit('recovery receipt report dates are invalid')
+          expected = [f'outputs/decision/action_plan_{item}.json' for item in dates]
+          expected.append('outputs/decision/report_index.json')
+          if receipt.get('changed_paths') != expected or receipt.get('action_plan_latest_changed') is not False:
+              raise SystemExit('recovery receipt changed-path contract mismatch')
+          Path(os.environ['RUNNER_TEMP'], 'recovery-pathspec.bin').write_bytes(
+              b''.join(path.encode('utf-8') + b'\0' for path in expected)
+          )
+          output_sha = receipt.get('output_sha256')
+          if not isinstance(output_sha, dict) or set(output_sha) != set(expected):
+              raise SystemExit('recovery receipt output hash inventory mismatch')
+          actual_files = {
+              path.relative_to(candidate).as_posix()
+              for path in candidate.rglob('*')
+              if path.is_file()
+          }
+          if any(path.is_symlink() for path in candidate.rglob('*')) or actual_files != set(expected):
+              raise SystemExit('isolated recovery candidate file set mismatch')
+          for relative in expected:
+              source = candidate / relative
+              claimed = output_sha.get(relative)
+              if not isinstance(claimed, str) or re.fullmatch(r'[0-9a-f]{64}', claimed) is None:
+                  raise SystemExit(f'invalid recovery output hash: {relative}')
+              if hashlib.sha256(source.read_bytes()).hexdigest() != claimed:
+                  raise SystemExit(f'recovery output hash mismatch: {relative}')
+              target = root / relative
+              if relative == 'outputs/decision/report_index.json':
+                  if not target.is_file() or target.is_symlink():
+                      raise SystemExit('exact-base report_index.json is not a regular file')
+              elif target.exists() or target.is_symlink():
+                  raise SystemExit(f'recovery action target already exists: {relative}')
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, target)
+          latest = root / 'outputs/decision/action_plan_latest.json'
+          if not latest.is_file() or latest.is_symlink():
+              raise SystemExit('frozen action_plan_latest is not a regular file')
+          validate_report_index_action_truth(
+              report_index_path=root / 'outputs/decision/report_index.json',
+              site_root=root,
+          )
+          PY
       - name: Build exact allowlisted candidate patch
         id: candidate
-        if: ${{ steps.minute_sync.outputs.write_eligible == 'true' }}
+        if: >-
+          ${{
+            (steps.mode.outputs.route == 'auction' && steps.minute_sync.outputs.write_eligible == 'true') ||
+            steps.mode.outputs.route == 'recovery'
+          }}
+        env:
+          ROUTE: ${{ steps.mode.outputs.route }}
+          RECOVERY_RECEIPT: ${{ runner.temp }}/recovery-receipt.json
         run: |
           set -euo pipefail
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
-          git add -A -- outputs/auction_v3 outputs/decision models data/market docs/reports
+          if [ "${ROUTE}" = "recovery" ]; then
+            git add -A --pathspec-from-file="${RUNNER_TEMP}/recovery-pathspec.bin" --pathspec-file-nul
+          else
+            git add -A -- outputs/auction_v3 outputs/decision models data/market docs/reports
+          fi
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
-          import fnmatch, os
+          import fnmatch, json, os, re
           from datetime import datetime
           from pathlib import Path
           allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
@@ -252,8 +371,18 @@ jobs:
                   return False
               return parsed.strftime('%Y%m%d') == trade_date and year == trade_date[:4]
           paths = [p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
-          if bad: raise SystemExit(f'non-allowlisted Auction paths staged: {bad}')
+          route = os.environ.get('ROUTE', 'auction')
+          if route == 'recovery':
+              receipt = json.loads(Path(os.environ['RECOVERY_RECEIPT']).read_text(encoding='utf-8'))
+              expected = receipt.get('changed_paths')
+              bad = paths if paths != expected else []
+              if any(path == 'outputs/decision/action_plan_latest.json' for path in paths):
+                  bad = paths
+              if bad:
+                  raise SystemExit(f'non-allowlisted Auction recovery paths staged: {bad}')
+          else:
+              bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
+              if bad: raise SystemExit(f'non-allowlisted Auction paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
           for entry in Path(os.environ['STAGED_INDEX']).read_bytes().split(b'\0'):
@@ -279,7 +408,11 @@ jobs:
           PY
           if git diff --cached --quiet; then echo 'has_changes=false' >> "${GITHUB_OUTPUT}"; else echo 'has_changes=true' >> "${GITHUB_OUTPUT}"; fi
       - name: Upload immutable candidate patch
-        if: ${{ steps.minute_sync.outputs.write_eligible == 'true' && steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
+        if: >-
+          ${{
+            (steps.minute_sync.outputs.write_eligible == 'true' && steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true') ||
+            (steps.mode.outputs.route == 'recovery' && steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true')
+          }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: auction-candidate-${{ github.run_id }}-${{ github.run_attempt }}
@@ -287,6 +420,7 @@ jobs:
             ${{ runner.temp }}/base_sha.txt
             ${{ runner.temp }}/candidate.patch
             ${{ runner.temp }}/candidate.patch.sha256
+            ${{ runner.temp }}/recovery-receipt.json
           if-no-files-found: error
           retention-days: 1
 
@@ -313,13 +447,26 @@ jobs:
       - name: Verify immutable candidate envelope
         env:
           CANDIDATE_DIR: ${{ runner.temp }}/candidate
+          ROUTE: ${{ needs.compute.outputs.route }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, os, re
+          import hashlib, json, os, re
           from pathlib import Path
+          def unique_object(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise ValueError(f'duplicate recovery receipt key: {key}')
+                  value[key] = item
+              return value
           root = Path(os.environ['CANDIDATE_DIR'])
           expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}
+          route = os.environ.get('ROUTE', 'auction')
+          if route not in {'auction', 'recovery'}:
+              raise SystemExit(f'invalid candidate route: {route!r}')
+          if route == 'recovery':
+              expected_files.add('recovery-receipt.json')
           if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
               raise SystemExit('candidate envelope is missing or contains a symlink')
           actual_files = {path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()}
@@ -334,8 +481,52 @@ jobs:
           actual_sha = hashlib.sha256((root / 'candidate.patch').read_bytes()).hexdigest()
           if actual_sha != claimed_sha:
               raise SystemExit('candidate.patch SHA256 mismatch')
+          if route == 'recovery':
+              try:
+                  receipt = json.loads(
+                      (root / 'recovery-receipt.json').read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except Exception as exc:
+                  raise SystemExit('recovery receipt is not valid JSON') from exc
+              if not isinstance(receipt, dict) or receipt.get('schema_version') != 'decision_action_gap_recovery_receipt_v1':
+                  raise SystemExit('invalid recovery receipt schema')
+              if receipt.get('status') != 'candidate_generated' or receipt.get('base_sha') != base_sha:
+                  raise SystemExit('recovery receipt base SHA mismatch')
+              dates = receipt.get('report_dates')
+              if (
+                  not isinstance(dates, list)
+                  or not 1 <= len(dates) <= 5
+                  or any(not isinstance(item, str) or re.fullmatch(r'20[0-9]{6}', item) is None for item in dates)
+                  or dates != sorted(dates)
+                  or len(set(dates)) != len(dates)
+              ):
+                  raise SystemExit('invalid recovery receipt report dates')
+              expected_paths = [f'outputs/decision/action_plan_{item}.json' for item in dates]
+              expected_paths.append('outputs/decision/report_index.json')
+              if receipt.get('changed_paths') != expected_paths or receipt.get('action_plan_latest_changed') is not False:
+                  raise SystemExit('recovery receipt changed-path contract mismatch')
+              output_sha = receipt.get('output_sha256')
+              if not isinstance(output_sha, dict) or set(output_sha) != set(expected_paths):
+                  raise SystemExit('recovery receipt output hash inventory mismatch')
+              if any(not isinstance(value, str) or re.fullmatch(r'[0-9a-f]{64}', value) is None for value in output_sha.values()):
+                  raise SystemExit('invalid recovery receipt output SHA256')
+              source_sha = receipt.get('source_sha256')
+              if not isinstance(source_sha, dict) or not source_sha:
+                  raise SystemExit('recovery receipt source hash inventory is empty')
+              if any(
+                  not isinstance(path, str)
+                  or path.startswith('/')
+                  or '..' in Path(path).parts
+                  or not isinstance(value, str)
+                  or re.fullmatch(r'[0-9a-f]{64}', value) is None
+                  for path, value in source_sha.items()
+              ):
+                  raise SystemExit('invalid recovery receipt source inventory')
           PY
       - name: Apply candidate with base-SHA CAS and create one commit
+        env:
+          ROUTE: ${{ needs.compute.outputs.route }}
         run: |
           set -euo pipefail
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
@@ -343,10 +534,17 @@ jobs:
           git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/publish_staged_index.bin"
-          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
-          import fnmatch, os
+          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" RECOVERY_RECEIPT="${RUNNER_TEMP}/candidate/recovery-receipt.json" BASE_SHA="${expected}" python - <<'PY'
+          import fnmatch, hashlib, json, os, re, subprocess
           from datetime import datetime
           from pathlib import Path
+          def unique_object(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise SystemExit(f'duplicate recovery JSON key: {key}')
+                  value[key] = item
+              return value
           allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
           def matches(path, pattern):
               path_parts=path.split('/')
@@ -387,8 +585,22 @@ jobs:
                   return False
               return parsed.strftime('%Y%m%d') == trade_date and year == trade_date[:4]
           paths = [p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
-          if bad: raise SystemExit(f'non-allowlisted Auction publish paths staged: {bad}')
+          route = os.environ.get('ROUTE', 'auction')
+          receipt = None
+          if route == 'recovery':
+              receipt = json.loads(
+                  Path(os.environ['RECOVERY_RECEIPT']).read_text(encoding='utf-8'),
+                  object_pairs_hook=unique_object,
+              )
+              expected_paths = receipt.get('changed_paths')
+              bad = paths if paths != expected_paths else []
+              if any(path == 'outputs/decision/action_plan_latest.json' for path in paths):
+                  bad = paths
+              if bad:
+                  raise SystemExit(f'non-allowlisted Auction recovery publish paths staged: {bad}')
+          else:
+              bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
+              if bad: raise SystemExit(f'non-allowlisted Auction publish paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
           for entry in Path(os.environ['PUBLISH_STAGED_INDEX']).read_bytes().split(b'\0'):
@@ -405,10 +617,100 @@ jobs:
           bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
           if bad_modes: raise SystemExit(f'non-regular Auction publish paths staged: {bad_modes}')
           if not paths: raise SystemExit('Auction candidate patch became empty')
+          if route == 'recovery':
+              assert isinstance(receipt, dict)
+              root = Path('.').resolve()
+              base_sha = os.environ['BASE_SHA']
+              output_sha = receipt['output_sha256']
+              for relative in paths:
+                  target = root / relative
+                  if not target.is_file() or target.is_symlink():
+                      raise SystemExit(f'recovery output is not a regular file: {relative}')
+                  if hashlib.sha256(target.read_bytes()).hexdigest() != output_sha[relative]:
+                      raise SystemExit(f'recovery output SHA256 changed after patch apply: {relative}')
+
+              action_sources = {}
+              report_dates = receipt['report_dates']
+              for report_date in report_dates:
+                  action_path = root / f'outputs/decision/action_plan_{report_date}.json'
+                  action = json.loads(
+                      action_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+                  recovery = action.get('recovery')
+                  if (
+                      not isinstance(recovery, dict)
+                      or action.get('report_date') != report_date
+                      or action.get('retrospective') is not True
+                      or action.get('live_delivery_met') is not False
+                      or action.get('status_code') != 'NO_TRADE_MISSED_LIVE_AUCTION'
+                      or action.get('formal_buy_count') != 0
+                      or recovery.get('base_sha') != base_sha
+                      or recovery.get('action_plan_latest_changed') is not False
+                  ):
+                      raise SystemExit(f'recovery action contract mismatch: {report_date}')
+                  sources = recovery.get('source_sha256')
+                  if not isinstance(sources, dict):
+                      raise SystemExit(f'recovery action source inventory is invalid: {report_date}')
+                  signal_date = action.get('signal_date')
+                  if not isinstance(signal_date, str) or re.fullmatch(r'20[0-9]{6}', signal_date) is None:
+                      raise SystemExit(f'recovery action signal date is invalid: {report_date}')
+                  exact_sources = {
+                      'models/decision_model_freeze.json',
+                      'data/market/trade_cal_sse.csv',
+                      f'outputs/decision/decision_report_{report_date}.md',
+                      f'outputs/decision/eval_{report_date}.json',
+                      f'data/decision/decision_execution_{report_date}.csv',
+                      f'data/decision/decision_candidates_{signal_date}.csv',
+                  }
+                  if set(sources) != exact_sources:
+                      raise SystemExit(f'recovery action exact-base source set mismatch: {report_date}')
+                  for source, digest in sources.items():
+                      previous = action_sources.setdefault(source, digest)
+                      if previous != digest:
+                          raise SystemExit(f'conflicting recovery source hash: {source}')
+              if action_sources != receipt.get('source_sha256'):
+                  raise SystemExit('recovery receipt source hashes differ from action payloads')
+
+              def git_bytes(*args):
+                  return subprocess.run(
+                      ['git', *args], check=True, capture_output=True
+                  ).stdout
+
+              for relative, claimed_sha in sorted(action_sources.items()):
+                  target = root / relative
+                  if not target.is_file() or target.is_symlink():
+                      raise SystemExit(f'recovery source is not a regular worktree file: {relative}')
+                  base_bytes = git_bytes('show', f'{base_sha}:{relative}')
+                  if hashlib.sha256(base_bytes).hexdigest() != claimed_sha:
+                      raise SystemExit(f'recovery source SHA256 differs from exact base: {relative}')
+                  if hashlib.sha256(target.read_bytes()).hexdigest() != claimed_sha:
+                      raise SystemExit(f'recovery source worktree bytes changed: {relative}')
+                  base_oid = git_bytes('rev-parse', f'{base_sha}:{relative}').decode('ascii').strip()
+                  current_oid = git_bytes('hash-object', relative).decode('ascii').strip()
+                  if current_oid != base_oid:
+                      raise SystemExit(f'recovery source blob differs from exact base: {relative}')
+
+              latest = 'outputs/decision/action_plan_latest.json'
+              latest_path = root / latest
+              if not latest_path.is_file() or latest_path.is_symlink():
+                  raise SystemExit('action_plan_latest is not a regular file after recovery apply')
+              base_latest_oid = git_bytes('rev-parse', f'{base_sha}:{latest}').decode('ascii').strip()
+              worktree_latest_oid = git_bytes('hash-object', latest).decode('ascii').strip()
+              index_line = git_bytes('ls-files', '--stage', '--', latest).decode('utf-8').strip().split()
+              if len(index_line) < 2 or index_line[1] != base_latest_oid or worktree_latest_oid != base_latest_oid:
+                  raise SystemExit('action_plan_latest byte/blob identity changed during recovery')
+              base_latest_sha = hashlib.sha256(git_bytes('show', f'{base_sha}:{latest}')).hexdigest()
+              if hashlib.sha256(latest_path.read_bytes()).hexdigest() != base_latest_sha:
+                  raise SystemExit('action_plan_latest byte SHA256 changed during recovery')
           PY
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git commit -m 'auto: update Decision V12 trade selector and validation'
+          commit_message='auto: update Decision V12 trade selector and validation'
+          if [ "${ROUTE}" = "recovery" ]; then
+            commit_message='auto: recover retrospective Decision action display gaps'
+          fi
+          git commit -m "${commit_message}"
       - name: Publish exact CAS commit with minimally injected token
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
