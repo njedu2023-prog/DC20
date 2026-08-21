@@ -83,6 +83,281 @@ MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1 = frozenset(
 MIGRATION_SEMANTIC_SCHEMA_V1 = "decision_runtime_migration_v1"
 MIGRATION_BASE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 MIGRATION_DATE_RE = re.compile(r"^20\d{6}$")
+FULL_ACTION_COMPARISON_PROFILE_V2 = "full_action_v1"
+NATIVE_NO_TRADE_COMPARISON_PROFILE_V2 = "native_no_trade_dynamic_evidence_v2"
+RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2 = (
+    "retrospective_frozen_replay_dynamic_evidence_v2"
+)
+BACKFILL_MANIFEST_KEYS_V1 = frozenset(
+    {
+        "auction_truth_coverage",
+        "calendar_source",
+        "credential_persisted",
+        "endpoint_rows",
+        "exit_policy",
+        "failures",
+        "generated_at_utc",
+        "official_auction_truth_rows",
+        "output_file",
+        "output_sha256",
+        "produced_rows",
+        "produced_signal_dates",
+        "requested_end_date",
+        "requested_start_date",
+        "schema_version",
+        "strict_calendar",
+        "target_history_sessions",
+        "target_independent_dates",
+        "target_signal_date_count",
+        "target_signal_dates",
+        "target_window_end",
+        "target_window_open_sessions",
+        "target_window_start",
+        "total_compact_signal_dates",
+        "walkforward_warmup_sessions",
+    }
+)
+BACKFILL_MANIFEST_KEYS_V2 = BACKFILL_MANIFEST_KEYS_V1 | frozenset(
+    {
+        "calendar_bytes",
+        "calendar_bytes_sha256",
+        "calendar_file",
+        "calendar_open_dates",
+        "evaluated_at_utc",
+        "max_missing_dates",
+        "output_bytes",
+        "output_bytes_sha256",
+        "output_canonical_sha256",
+        "target_window_signal_dates",
+    }
+)
+OBSERVATION_VALIDATION_KEYS_V2 = frozenset(
+    {
+        "displayed_limit_affects_fill",
+        "exec_date",
+        "execution_mode",
+        "final_rows",
+        "generated_at_utc",
+        "manual_actual_separate",
+        "market_open_fill_assumption",
+        "pending_rows",
+        "premarket_valid_rows",
+        "public_market_proxy",
+        "retrospective_rows",
+        "rows",
+        "schema_version",
+        "t_validated_rows",
+    }
+)
+OBSERVATION_STATISTICS_KEYS_V2 = frozenset(
+    {
+        "above_display_limit_rows",
+        "all_truth_summary",
+        "continuation_hit_rate",
+        "continuation_hit_rate_95ci_high",
+        "continuation_hit_rate_95ci_low",
+        "continuation_hits",
+        "continuation_samples",
+        "daily_open_proxy_truth_rows",
+        "daily_portfolio",
+        "display_limit_met_rate",
+        "display_limit_met_rows",
+        "displayed_limit_affects_fill",
+        "equal_slot_cumulative_return",
+        "equal_slot_max_drawdown",
+        "equal_slot_mean_daily_return",
+        "fillable_rows",
+        "final_verified_trades",
+        "final_win_rate",
+        "final_win_rate_95ci_high",
+        "final_win_rate_95ci_low",
+        "forward_shadow",
+        "generated_at_utc",
+        "latest_all_truth_exec_date",
+        "latest_final_exec_date",
+        "latest_t_validated_exec_date",
+        "market_filled_rows",
+        "market_open_fill_assumption",
+        "market_positive_rate",
+        "matured_portfolio_dates",
+        "mean_final_net_return",
+        "mean_market_daily_return",
+        "mean_open_vs_display_limit",
+        "mean_t_observation_return",
+        "median_final_net_return",
+        "median_market_daily_return",
+        "median_t_observation_return",
+        "minute_proxy_truth_rows",
+        "observation_dates",
+        "observation_fill_rate",
+        "observation_rows",
+        "official_auction_truth_rows",
+        "path_performance",
+        "performance_scope",
+        "prediction_deadline",
+        "premarket_valid_rows",
+        "premarket_validated_rows",
+        "profit_factor",
+        "retrospective_truth_rows",
+        "schema_version",
+        "stage_2_to_3",
+        "stage_3_to_4",
+        "status",
+        "t_pending_rows",
+        "t_validated_rows",
+        "tail_10pct_mean_return",
+        "top10_continuation",
+        "top1_continuation",
+        "top3_continuation",
+        "top_n",
+        "trading_date_windows",
+        "unknown_timing_truth_rows",
+        "validation_mode",
+        "validation_start_exec_date",
+        "worst_final_net_return",
+    }
+)
+OBSERVATION_STATISTICS_EMPTY_KEYS_V2 = frozenset(
+    {
+        "schema_version",
+        "status",
+        "generated_at_utc",
+        "validation_start_exec_date",
+        "observation_rows",
+        "forward_shadow",
+    }
+)
+FORWARD_SHADOW_KEYS_V2 = frozenset(
+    {
+        "continuation_hit_rate",
+        "continuation_hits",
+        "continuation_samples",
+        "daily_portfolio",
+        "equal_slot_cumulative_return",
+        "equal_slot_max_drawdown",
+        "equal_slot_mean_daily_return",
+        "final_verified_trades",
+        "final_win_rate",
+        "final_win_rate_95ci_high",
+        "final_win_rate_95ci_low",
+        "finalized_entries",
+        "latest_final_signal_date",
+        "latest_signal_date",
+        "longest_no_signal_streak",
+        "market_buyable_entries",
+        "matured_portfolio_dates",
+        "mean_final_net_return",
+        "median_final_net_return",
+        "minimum_final_trades",
+        "observed_signal_dates",
+        "pending_t1_entries",
+        "pending_t_entries",
+        "performance_scope",
+        "profit_factor",
+        "realized_big_loss_rate",
+        "rows",
+        "sample_sufficient",
+        "schema_version",
+        "shadow_entries",
+        "shadow_signal_dates",
+        "shadow_signal_rate",
+        "start_signal_date",
+        "t_validated_entries",
+        "tail_10pct_mean_return",
+        "worst_final_net_return",
+    }
+)
+FORMAL_TRUTH_METRIC_KEYS_V2 = frozenset(
+    {
+        "big_loss_avoidance_rate",
+        "correct_rejection_rate",
+        "cumulative_trade_return",
+        "daily_open_proxy_trades",
+        "direction_accuracy",
+        "fill_rate",
+        "forecast_mae",
+        "frozen_predictions",
+        "generated_at_utc",
+        "mean_actual_net_return",
+        "minute_proxy_trades",
+        "missed_opportunity_rate",
+        "official_auction_truth_trades",
+        "pending_or_no_fill",
+        "price_guidance_accuracy",
+        "profit_factor",
+        "realized_big_loss_rate",
+        "risk_prediction_accuracy",
+        "rolling_trade_windows",
+        "selected_predictions",
+        "status",
+        "verified_trades",
+        "win_rate",
+    }
+)
+MANUAL_TRUTH_METRIC_KEYS_V2 = frozenset(
+    {
+        "cumulative_return",
+        "generated_at_utc",
+        "mean_net_return",
+        "profit_factor",
+        "schema_version",
+        "trades",
+        "truth_source",
+        "win_rate",
+    }
+)
+OBSERVATION_PATH_CODES_V2 = frozenset(
+    {
+        "ACCELERATION_CONSENSUS",
+        "DIVERGENCE_RESEAL",
+        "INSUFFICIENT",
+        "MIXED",
+        "STABLE_STRONG",
+        "STRONG_TO_WEAK",
+        "WEAK_TO_STRONG",
+    }
+)
+ACTION_PLAN_OBSERVATION_TRUTH_FIELDS_V2 = (
+    "observation_max_price",
+    "observation_auction_change_pct",
+    "observation_price_basis",
+    "observation_price_is_formal",
+    "observation_rank",
+    "observation_pool_size",
+    "validation_mode",
+    "observation_execution_mode",
+    "prediction_timing_status",
+    "prediction_timing_valid",
+    "prediction_deadline_utc",
+    "validation_status",
+    "actual_buy_date",
+    "actual_open_price",
+    "actual_t_close",
+    "market_daily_return",
+    "observation_fill",
+    "observation_fill_reason",
+    "observation_limit_accept",
+    "observation_price_vs_cap",
+    "market_buyable_diagnostic",
+    "market_buyable_reason",
+    "observation_t_return",
+    "continuation_limit_up_hit",
+    "actual_exit_date",
+    "actual_exit_price",
+    "actual_gross_return",
+    "actual_net_return",
+    "exit_reason",
+    "truth_source",
+    "truth_generated_at_utc",
+)
+ACTION_PLAN_OBSERVATION_DERIVED_FIELDS_V2 = (
+    "validation_status_label",
+    "prediction_timing_label",
+)
+ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2 = frozenset(
+    ACTION_PLAN_OBSERVATION_TRUTH_FIELDS_V2
+    + ACTION_PLAN_OBSERVATION_DERIVED_FIELDS_V2
+)
 
 
 def _utc_now() -> str:
@@ -215,6 +490,508 @@ def action_plan_semantic_projection_v1(
     projection = copy.deepcopy(payload)
     for field in MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1:
         del projection[field]
+    return projection
+
+
+def _semantic_exact_object_v2(
+    value: Any,
+    expected_keys: frozenset[str],
+    context: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        raise ValueError(f"{context} has an unknown or incomplete schema")
+    return value
+
+
+def _semantic_json_scalar_v2(value: Any, context: str) -> None:
+    if value is None or type(value) in {str, bool, int}:
+        return
+    if type(value) is float and math.isfinite(value):
+        return
+    raise ValueError(f"{context} is not a finite JSON scalar")
+
+
+def _semantic_scalar_object_v2(
+    value: Any,
+    expected_keys: frozenset[str],
+    context: str,
+) -> dict[str, Any]:
+    payload = _semantic_exact_object_v2(value, expected_keys, context)
+    for key, item in payload.items():
+        _semantic_json_scalar_v2(item, f"{context}.{key}")
+    return payload
+
+
+def _semantic_scalar_object_list_v2(
+    value: Any,
+    expected_keys: frozenset[str],
+    context: str,
+) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{context} must be a list")
+    for index, item in enumerate(value):
+        _semantic_scalar_object_v2(
+            item,
+            expected_keys,
+            f"{context}[{index}]",
+        )
+
+
+def _validate_backfill_manifest_evidence_v2(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("action plan backfill manifest must be an object")
+    schema = value.get("schema_version")
+    if schema == "decision_v11_history_manifest_v1":
+        expected_keys = BACKFILL_MANIFEST_KEYS_V1
+    elif schema == "decision_v11_history_manifest_v2":
+        expected_keys = BACKFILL_MANIFEST_KEYS_V2
+    else:
+        raise ValueError("action plan backfill manifest schema is not reviewed")
+    manifest = _semantic_exact_object_v2(
+        value,
+        expected_keys,
+        "action plan backfill manifest",
+    )
+    _semantic_scalar_object_v2(
+        manifest["endpoint_rows"],
+        frozenset(
+            {"daily", "daily_basic", "limit_list_d", "stk_auction_o", "stk_limit"}
+        ),
+        "action plan backfill manifest endpoint_rows",
+    )
+    _semantic_scalar_object_v2(
+        manifest["exit_policy"],
+        frozenset(
+            {
+                "latest_exit_time",
+                "requires_intraday_truth",
+                "stop_loss_pct",
+                "take_profit_pct",
+                "version",
+            }
+        ),
+        "action plan backfill manifest exit_policy",
+    )
+    _semantic_scalar_object_list_v2(
+        manifest["failures"],
+        frozenset({"endpoint", "reason", "trade_date"}),
+        "action plan backfill manifest failures",
+    )
+    date_lists = {"target_signal_dates"}
+    if schema == "decision_v11_history_manifest_v2":
+        date_lists.add("target_window_signal_dates")
+    for key in date_lists:
+        items = manifest[key]
+        if not isinstance(items, list) or any(type(item) is not str for item in items):
+            raise ValueError(f"action plan backfill manifest {key} is invalid")
+    nested = {"endpoint_rows", "exit_policy", "failures", *date_lists}
+    for key, item in manifest.items():
+        if key not in nested:
+            _semantic_json_scalar_v2(
+                item,
+                f"action plan backfill manifest.{key}",
+            )
+
+
+def _validate_forward_shadow_evidence_v2(value: Any, context: str) -> None:
+    payload = _semantic_exact_object_v2(value, FORWARD_SHADOW_KEYS_V2, context)
+    if payload.get("schema_version") != "decision_forward_shadow_validation_v1":
+        raise ValueError(f"{context} schema is not reviewed")
+    _semantic_scalar_object_list_v2(
+        payload["daily_portfolio"],
+        frozenset(
+            {
+                "equal_slot_net_return",
+                "nav",
+                "shadow_slots",
+                "signal_date",
+                "verified_trades",
+            }
+        ),
+        f"{context}.daily_portfolio",
+    )
+    _semantic_scalar_object_list_v2(
+        payload["rows"],
+        frozenset(
+            {
+                "actual_net_return",
+                "actual_open_price",
+                "actual_t_close",
+                "continuation_limit_up_hit",
+                "expected_buy_date",
+                "expected_exit_date",
+                "industry",
+                "market_buyable_diagnostic",
+                "name",
+                "observation_t_return",
+                "path_label",
+                "signal_date",
+                "stage_transition",
+                "trade_rank",
+                "ts_code",
+                "validation_status",
+                "validation_status_label",
+            }
+        ),
+        f"{context}.rows",
+    )
+    for key, item in payload.items():
+        if key not in {"daily_portfolio", "rows"}:
+            _semantic_json_scalar_v2(item, f"{context}.{key}")
+
+
+def _validate_observation_statistics_evidence_v2(
+    value: Any,
+    context: str,
+) -> None:
+    if not isinstance(value, dict):
+        raise ValueError(f"{context} must be an object")
+    keys = frozenset(value)
+    if keys not in {
+        OBSERVATION_STATISTICS_KEYS_V2,
+        OBSERVATION_STATISTICS_EMPTY_KEYS_V2,
+    }:
+        raise ValueError(f"{context} has an unknown or incomplete schema")
+    payload = value
+    if payload.get("schema_version") != "decision_observation_validation_v4_auction_truth":
+        raise ValueError(f"{context} schema is not reviewed")
+    _validate_forward_shadow_evidence_v2(
+        payload["forward_shadow"],
+        f"{context}.forward_shadow",
+    )
+    if keys == OBSERVATION_STATISTICS_EMPTY_KEYS_V2:
+        if payload.get("status") != "no_observation_predictions":
+            raise ValueError(f"{context} empty status is invalid")
+        for key, item in payload.items():
+            if key != "forward_shadow":
+                _semantic_json_scalar_v2(item, f"{context}.{key}")
+        return
+    if payload.get("status") != "ok":
+        raise ValueError(f"{context} status is invalid")
+    _semantic_scalar_object_list_v2(
+        payload["daily_portfolio"],
+        frozenset(
+            {
+                "equal_slot_net_return",
+                "exec_date",
+                "filled_slots",
+                "nav",
+                "observation_slots",
+            }
+        ),
+        f"{context}.daily_portfolio",
+    )
+    _semantic_scalar_object_v2(
+        payload["all_truth_summary"],
+        frozenset(
+            {
+                "fillable_rows",
+                "final_verified_trades",
+                "final_win_rate",
+                "mean_final_net_return",
+                "t_validated_rows",
+            }
+        ),
+        f"{context}.all_truth_summary",
+    )
+    for key in ("stage_2_to_3", "stage_3_to_4", "top3_continuation", "top10_continuation"):
+        _semantic_scalar_object_v2(
+            payload[key],
+            frozenset({"hit_rate", "hits", "samples"}),
+            f"{context}.{key}",
+        )
+    _semantic_scalar_object_v2(
+        payload["top1_continuation"],
+        frozenset(
+            {"hit_rate", "hits", "rank_field", "rank_value", "samples", "start_signal_date"}
+        ),
+        f"{context}.top1_continuation",
+    )
+    path_performance = payload["path_performance"]
+    if not isinstance(path_performance, dict) or not set(path_performance).issubset(
+        OBSERVATION_PATH_CODES_V2
+    ):
+        raise ValueError(f"{context}.path_performance has an unknown schema")
+    for code, item in path_performance.items():
+        _semantic_scalar_object_v2(
+            item,
+            frozenset(
+                {
+                    "continuation_hit_rate",
+                    "final_verified_trades",
+                    "label",
+                    "mean_final_net_return",
+                    "t_validated_rows",
+                    "win_rate",
+                }
+            ),
+            f"{context}.path_performance.{code}",
+        )
+    windows = _semantic_exact_object_v2(
+        payload["trading_date_windows"],
+        frozenset({"20", "60", "all"}),
+        f"{context}.trading_date_windows",
+    )
+    for label, item in windows.items():
+        _semantic_scalar_object_v2(
+            item,
+            frozenset(
+                {
+                    "equal_slot_cumulative_return",
+                    "filled_trades",
+                    "mean_net_return",
+                    "portfolio_dates",
+                    "win_rate",
+                }
+            ),
+            f"{context}.trading_date_windows.{label}",
+        )
+    nested = {
+        "all_truth_summary",
+        "daily_portfolio",
+        "forward_shadow",
+        "path_performance",
+        "stage_2_to_3",
+        "stage_3_to_4",
+        "top1_continuation",
+        "top3_continuation",
+        "top10_continuation",
+        "trading_date_windows",
+    }
+    for key, item in payload.items():
+        if key not in nested:
+            _semantic_json_scalar_v2(item, f"{context}.{key}")
+
+
+def _validate_truth_ledgers_evidence_v2(value: Any) -> None:
+    ledgers = _semantic_exact_object_v2(
+        value,
+        frozenset({"formal_limit_proxy", "manual_actual", "market_open_observation"}),
+        "action plan truth_ledgers",
+    )
+    expected_paths = {
+        "formal_limit_proxy": "outputs/auction_v3/verification/verify_latest.csv",
+        "manual_actual": "outputs/auction_v3/verification/manual_actual_latest.csv",
+        "market_open_observation": "outputs/auction_v3/verification/observation_latest.csv",
+    }
+    for name, expected_path in expected_paths.items():
+        ledger = _semantic_exact_object_v2(
+            ledgers[name],
+            frozenset({"metrics", "path"}),
+            f"action plan truth_ledgers.{name}",
+        )
+        if ledger.get("path") != expected_path:
+            raise ValueError(f"action plan truth_ledgers.{name}.path is invalid")
+    formal = ledgers["formal_limit_proxy"]["metrics"]
+    if not isinstance(formal, dict):
+        raise ValueError("action plan formal truth metrics must be an object")
+    formal_keys = frozenset(formal)
+    if formal_keys == frozenset({"generated_at_utc", "status", "verified_trades"}):
+        for key, item in formal.items():
+            _semantic_json_scalar_v2(item, f"action plan formal truth metrics.{key}")
+    else:
+        formal = _semantic_exact_object_v2(
+            formal,
+            FORMAL_TRUTH_METRIC_KEYS_V2,
+            "action plan formal truth metrics",
+        )
+        windows = formal["rolling_trade_windows"]
+        if not isinstance(windows, dict) or set(windows) not in (
+            set(),
+            {"20", "60", "120"},
+        ):
+            raise ValueError("action plan formal truth windows have an unknown schema")
+        for label, item in windows.items():
+            _semantic_scalar_object_v2(
+                item,
+                frozenset({"mean_net_return", "trades", "win_rate"}),
+                f"action plan formal truth windows.{label}",
+            )
+        for key, item in formal.items():
+            if key != "rolling_trade_windows":
+                _semantic_json_scalar_v2(item, f"action plan formal truth metrics.{key}")
+    manual = _semantic_scalar_object_v2(
+        ledgers["manual_actual"]["metrics"],
+        MANUAL_TRUTH_METRIC_KEYS_V2,
+        "action plan manual truth metrics",
+    )
+    if (
+        manual.get("schema_version") != "decision_manual_actual_v1"
+        or manual.get("truth_source") != "manual_actual"
+    ):
+        raise ValueError("action plan manual truth metrics schema is invalid")
+    _validate_observation_statistics_evidence_v2(
+        ledgers["market_open_observation"]["metrics"],
+        "action plan market observation truth metrics",
+    )
+
+
+def _validate_observation_validation_evidence_v2(
+    value: Any,
+    *,
+    exec_date: Any,
+    stage_watchlist: list[dict[str, Any]],
+) -> None:
+    evidence = _semantic_exact_object_v2(
+        value,
+        OBSERVATION_VALIDATION_KEYS_V2,
+        "action plan observation_validation",
+    )
+    if (
+        evidence.get("schema_version")
+        != "decision_observation_validation_v4_auction_truth"
+        or evidence.get("exec_date") != exec_date
+        or evidence.get("execution_mode") != "market_at_open_proxy"
+        or evidence.get("public_market_proxy") is not True
+        or evidence.get("market_open_fill_assumption") is not True
+        or evidence.get("displayed_limit_affects_fill") is not False
+        or evidence.get("manual_actual_separate") is not True
+        or evidence.get("rows") != len(stage_watchlist)
+    ):
+        raise ValueError("action plan observation_validation binding is invalid")
+    for key, item in evidence.items():
+        _semantic_json_scalar_v2(item, f"action plan observation_validation.{key}")
+
+
+def _validate_nonexecuting_action_proof_v2(payload: dict[str, Any]) -> None:
+    if payload.get("schema_version") != "decision_action_plan_v12_top10_trade_selector":
+        raise ValueError("action plan non-executing schema is invalid")
+    if payload.get("status_code") != "NO_TRADE_MODEL_NOT_PROMOTED":
+        raise ValueError("action plan non-executing status is invalid")
+    if type(payload.get("formal_buy_count")) is not int or payload[
+        "formal_buy_count"
+    ] != 0:
+        raise ValueError("action plan non-executing formal buy count is invalid")
+    if payload.get("guidance_only") is not True:
+        raise ValueError("action plan non-executing guidance flag is invalid")
+    if payload.get("broker_connected") is not False:
+        raise ValueError("action plan non-executing broker flag is invalid")
+    if payload.get("order_execution") != "manual_only":
+        raise ValueError("action plan non-executing order mode is invalid")
+    for collection in ("candidates", "stage_watchlist"):
+        rows = payload.get(collection)
+        if not isinstance(rows, list) or not rows:
+            raise ValueError(f"action plan non-executing {collection} is empty")
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"action plan non-executing {collection}[{index}] is invalid"
+                )
+            if row.get("action") not in {"REJECT", "SHADOW_ONLY"}:
+                raise ValueError(
+                    f"action plan non-executing {collection}[{index}] action is invalid"
+                )
+            weight = row.get("target_weight")
+            if type(weight) not in {int, float} or not math.isfinite(
+                float(weight)
+            ) or float(weight) != 0.0:
+                raise ValueError(
+                    f"action plan non-executing {collection}[{index}] weight is invalid"
+                )
+
+
+def action_plan_semantic_comparison_profile_v2(payload: dict[str, Any]) -> str:
+    """Derive the only comparison profile authorized by the persisted action."""
+
+    if not isinstance(payload, dict):
+        raise ValueError("action plan semantic payload must be an object")
+    present = MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1.intersection(payload)
+    if not present:
+        try:
+            _validate_nonexecuting_action_proof_v2(payload)
+        except ValueError:
+            return FULL_ACTION_COMPARISON_PROFILE_V2
+        return NATIVE_NO_TRADE_COMPARISON_PROFILE_V2
+    # This call is the authorization proof: all four fields must be present and
+    # form the exact retrospective, non-executing migration envelope.
+    projection = action_plan_semantic_projection_v1(payload)
+    _validate_nonexecuting_action_proof_v2(projection)
+    return RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2
+
+
+def action_plan_semantic_projection_v2(
+    payload: dict[str, Any],
+    *,
+    comparison_profile: str,
+) -> dict[str, Any]:
+    """Project only reviewed post-decision evidence after strict V2 validation.
+
+    V1 migration truth is validated first.  The four versioned audit containers
+    and the exact observation fields attached to stage-watch rows are then
+    normalized.  Every candidate, model/policy field outside those containers,
+    action/weight/date/count, execution contract, backtest field, and unknown
+    top/model/watch field remains byte-semantically visible to the digest.
+    """
+
+    projection = action_plan_semantic_projection_v1(payload)
+    if comparison_profile == FULL_ACTION_COMPARISON_PROFILE_V2:
+        if MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1.intersection(payload):
+            raise ValueError("migration evidence cannot use the full-action profile")
+        return projection
+    if comparison_profile not in {
+        NATIVE_NO_TRADE_COMPARISON_PROFILE_V2,
+        RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2,
+    }:
+        raise ValueError("action plan semantic comparison profile is invalid")
+    if (
+        comparison_profile == NATIVE_NO_TRADE_COMPARISON_PROFILE_V2
+        and MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1.intersection(payload)
+    ):
+        raise ValueError("migration evidence cannot use the native NO_TRADE profile")
+    _validate_nonexecuting_action_proof_v2(projection)
+    model = projection.get("model")
+    if not isinstance(model, dict):
+        raise ValueError("action plan semantic model must be an object")
+    data_coverage = model.get("data_coverage")
+    if not isinstance(data_coverage, dict):
+        raise ValueError("action plan semantic data_coverage must be an object")
+    _validate_backfill_manifest_evidence_v2(data_coverage.get("backfill_manifest"))
+    _validate_truth_ledgers_evidence_v2(model.get("truth_ledgers"))
+    _validate_observation_statistics_evidence_v2(
+        projection.get("observation_statistics"),
+        "action plan observation_statistics",
+    )
+    if (
+        model["truth_ledgers"]["market_open_observation"]["metrics"]
+        != projection["observation_statistics"]
+    ):
+        raise ValueError("action plan observation truth surfaces disagree")
+    rows = projection.get("stage_watchlist")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("action plan semantic stage_watchlist must be nonempty")
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError("action plan semantic stage row must be an object")
+        if not ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2.issubset(row):
+            raise ValueError(
+                f"action plan semantic stage row {index} observation evidence is incomplete"
+            )
+        for field in ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2:
+            _semantic_json_scalar_v2(
+                row[field],
+                f"action plan semantic stage row {index}.{field}",
+            )
+        if row.get("validation_status_label") != _observation_status_label(
+            row.get("validation_status")
+        ):
+            raise ValueError("action plan observation status label is invalid")
+        if row.get("prediction_timing_label") != _prediction_timing_label(
+            row.get("prediction_timing_status")
+        ):
+            raise ValueError("action plan prediction timing label is invalid")
+    _validate_observation_validation_evidence_v2(
+        projection.get("observation_validation"),
+        exec_date=projection.get("exec_date"),
+        stage_watchlist=rows,
+    )
+
+    del data_coverage["backfill_manifest"]
+    del model["truth_ledgers"]
+    del projection["observation_statistics"]
+    del projection["observation_validation"]
+    for row in rows:
+        for field in ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2:
+            del row[field]
     return projection
 
 
@@ -1458,43 +2235,10 @@ def _attach_observation_validation(
             _text(row.get("ts_code")): row
             for _, row in truth.drop_duplicates("ts_code", keep="last").iterrows()
         }
-    truth_fields = (
-        "observation_max_price",
-        "observation_auction_change_pct",
-        "observation_price_basis",
-        "observation_price_is_formal",
-        "observation_rank",
-        "observation_pool_size",
-        "validation_mode",
-        "observation_execution_mode",
-        "prediction_timing_status",
-        "prediction_timing_valid",
-        "prediction_deadline_utc",
-        "validation_status",
-        "actual_buy_date",
-        "actual_open_price",
-        "actual_t_close",
-        "market_daily_return",
-        "observation_fill",
-        "observation_fill_reason",
-        "observation_limit_accept",
-        "observation_price_vs_cap",
-        "market_buyable_diagnostic",
-        "market_buyable_reason",
-        "observation_t_return",
-        "continuation_limit_up_hit",
-        "actual_exit_date",
-        "actual_exit_price",
-        "actual_gross_return",
-        "actual_net_return",
-        "exit_reason",
-        "truth_source",
-        "truth_generated_at_utc",
-    )
     for row in watchlist:
         verified = lookup.get(_text(row.get("ts_code")))
         if verified is not None:
-            for field in truth_fields:
+            for field in ACTION_PLAN_OBSERVATION_TRUTH_FIELDS_V2:
                 value = verified.get(field)
                 row[field] = _json_safe(value)
         row["validation_status_label"] = _observation_status_label(
@@ -2348,7 +3092,9 @@ def refresh_action_plan_observations(
 
 
 __all__ = [
+    "action_plan_semantic_comparison_profile_v2",
     "action_plan_semantic_projection_v1",
+    "action_plan_semantic_projection_v2",
     "build_action_plan",
     "build_report_index",
     "publish_action_plan",

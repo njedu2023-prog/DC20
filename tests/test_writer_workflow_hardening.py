@@ -70,6 +70,33 @@ def _text(name: str) -> str:
     return (WORKFLOW_ROOT / name).read_text(encoding="utf-8")
 
 
+def _with_exact_retrospective_migration(action: dict[str, object]) -> dict[str, object]:
+    migrated = json.loads(json.dumps(action))
+    migrated.update(
+        {
+            "publication_timing": "RETROSPECTIVE",
+            "live_delivery_met": False,
+            "execution_or_fill_claimed": False,
+            "migration": {
+                "schema_version": "decision_runtime_migration_v1",
+                "source": "frozen_canonical_replay",
+                "timing": "RETROSPECTIVE",
+                "base_sha": "a" * 40,
+                "signal_date": migrated["signal_date"],
+                "report_date": migrated["report_date"],
+                "exec_date": migrated["exec_date"],
+                "exit_date": migrated["exit_date"],
+                "live_delivery_met": False,
+                "execution_created": False,
+                "fill_created": False,
+                "broker_execution_claimed": False,
+                "observation_truth_is_not_a_fill_claim": True,
+            },
+        }
+    )
+    return migrated
+
+
 def _embedded_python_after(text: str, marker: str) -> str:
     section = text.split(marker, 1)[1]
     source = section.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
@@ -165,15 +192,22 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "AUCTION_ACTION_PREREQUISITE_FAILED" in prerequisite_step
     assert "path.is_symlink()" in prerequisite_step
     assert "validated=false\\nsimulation=true\\nsemantic_sha256=\\n" in prerequisite_step
+    assert "comparison_profile=\\n" in prerequisite_step
     assert daily.index("Require persisted Auction action for real Daily publication") < daily.index(
         "Rebuild exact-base frozen Auction runtime"
     )
     assert "PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}" in replay_step
+    assert "PERSISTED_ACTION_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}" in replay_step
     assert "PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}" in replay_step
     assert "canonical_json_bytes(semantic_action)" in prerequisite_step
     assert "canonical_json_bytes(semantic_action)" in replay_step
-    assert "action_plan_semantic_projection_v1(action)" in prerequisite_step
-    assert "action_plan_semantic_projection_v1(action)" in replay_step
+    assert "action_plan_semantic_comparison_profile_v2" in prerequisite_step
+    assert "action_plan_semantic_projection_v2(" in prerequisite_step
+    assert "action_plan_semantic_projection_v2(" in replay_step
+    assert "comparison_profile=action_plan_semantic_comparison_profile_v2(action)" in replay_step
+    assert "daily_action_semantic_comparison_v2" in replay_step
+    assert "persisted_semantic_sha256" in replay_step
+    assert "replayed_semantic_sha256" in replay_step
     assert "object_pairs_hook=reject_duplicate_keys" in prerequisite_step
     assert "object_pairs_hook=reject_duplicate_keys" in replay_step
     assert "action.pop('generated_at_utc', None)" in prerequisite_step
@@ -281,6 +315,47 @@ def test_daily_dry_run_marks_persisted_action_as_simulation_only(
     exec(compile(source, "<daily-persisted-action-dry-run>", "exec"), {})
     assert output_path.read_text(encoding="utf-8") == (
         "validated=false\nsimulation=true\nsemantic_sha256=\n"
+        "comparison_profile=\n"
+    )
+
+    replay_blocks = _embedded_python_blocks_between(
+        daily,
+        "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
+        "- name: Resolve Daily exchange write eligibility",
+    )
+    replay_source = replay_blocks[1]
+    action_path = tmp_path / "outputs/decision/action_plan_latest.json"
+    action_path.parent.mkdir(parents=True)
+    action_path.write_text(
+        json.dumps(
+            {
+                "generated_at_utc": "2026-08-20T14:00:00+00:00",
+                "schema_version": "decision_action_plan_v12_top10_trade_selector",
+                "ordinary_prospective_semantics": {"must_remain": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    replay_output = tmp_path / "replay-output.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(replay_output))
+    monkeypatch.setenv("PERSISTED_ACTION_VALIDATED", "false")
+    monkeypatch.setenv("PERSISTED_ACTION_SEMANTIC_SHA256", "")
+    monkeypatch.setenv("PERSISTED_ACTION_COMPARISON_PROFILE", "")
+    monkeypatch.setattr(
+        model_freeze,
+        "load_model_freeze",
+        lambda *_args, **_kwargs: {"active": True},
+    )
+    monkeypatch.setattr(model_freeze, "model_freeze_active", lambda _manifest: True)
+    monkeypatch.setattr(
+        model_freeze,
+        "validate_action_plan_artifact",
+        lambda *_args, **_kwargs: {"validated": True, "enforced": True},
+    )
+    exec(compile(replay_source, "<daily-replay-action-dry-run>", "exec"), {})
+    assert re.fullmatch(
+        r"sha256=[0-9a-f]{64}\n",
+        replay_output.read_text(encoding="utf-8"),
     )
 
 
@@ -304,51 +379,14 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     replay_validation_source = replay_blocks[1]
     action_path = tmp_path / "outputs/decision/action_plan_latest.json"
     action_path.parent.mkdir(parents=True)
-    action = {
-        "generated_at_utc": "2026-08-20T14:00:00+00:00",
-        "schema_version": "decision_action_plan_v12_top10_trade_selector",
-        "signal_date": "20260814",
-        "report_date": "20260817",
-        "exec_date": "20260817",
-        "exit_date": "20260818",
-        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
-        "formal_buy_count": 0,
-        "guidance_only": True,
-        "broker_connected": False,
-        "order_execution": "manual_only",
-        "candidates": [
-            {
-                "ts_code": "600000.SH",
-                "action": "REJECT",
-                "target_weight": 0.0,
-            }
-        ],
-        "stage_watchlist": [
-            {
-                "ts_code": "600000.SH",
-                "action": "REJECT",
-                "target_weight": 0.0,
-            }
-        ],
-        "publication_timing": "RETROSPECTIVE",
-        "live_delivery_met": False,
-        "execution_or_fill_claimed": False,
-        "migration": {
-            "schema_version": "decision_runtime_migration_v1",
-            "source": "frozen_canonical_replay",
-            "timing": "RETROSPECTIVE",
-            "base_sha": "a" * 40,
-            "signal_date": "20260814",
-            "report_date": "20260817",
-            "exec_date": "20260817",
-            "exit_date": "20260818",
-            "live_delivery_met": False,
-            "execution_created": False,
-            "fill_created": False,
-            "broker_execution_claimed": False,
-            "observation_truth_is_not_a_fill_claim": True,
-        },
-    }
+    action = _with_exact_retrospective_migration(
+        json.loads(
+            (ROOT / "outputs/decision/action_plan_latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    action["generated_at_utc"] = "2026-08-20T14:00:00+00:00"
     action_path.write_text(json.dumps(action), encoding="utf-8")
     persisted_output = tmp_path / "persisted-output.txt"
     replay_output = tmp_path / "replay-output.txt"
@@ -370,6 +408,10 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     assert persisted["validated"] == "true"
     assert persisted["simulation"] == "false"
     assert re.fullmatch(r"[0-9a-f]{64}", persisted["semantic_sha256"])
+    assert (
+        persisted["comparison_profile"]
+        == "retrospective_frozen_replay_dynamic_evidence_v2"
+    )
 
     raw_persisted_sha = hashlib.sha256(action_path.read_bytes()).hexdigest()
     for field in (
@@ -388,6 +430,10 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
         "PERSISTED_ACTION_SEMANTIC_SHA256",
         persisted["semantic_sha256"],
     )
+    monkeypatch.setenv(
+        "PERSISTED_ACTION_COMPARISON_PROFILE",
+        persisted["comparison_profile"],
+    )
     exec(compile(replay_validation_source, "<daily-replay-action-positive>", "exec"), {})
     assert re.fullmatch(
         r"sha256=[0-9a-f]{64}\n",
@@ -402,7 +448,7 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
 
     action["status_code"] = "ACTIONABLE_BUY"
     action_path.write_text(json.dumps(action), encoding="utf-8")
-    with pytest.raises(SystemExit, match="semantics differ from persisted Auction action"):
+    with pytest.raises(SystemExit, match="semantic evidence is invalid"):
         exec(compile(replay_validation_source, "<daily-replay-action-drift>", "exec"), {})
 
     duplicate_action = (
@@ -503,6 +549,213 @@ def test_action_semantic_projection_excludes_only_exact_migration_truth() -> Non
     for candidate in invalid_payloads:
         with pytest.raises(ValueError):
             action_plan_semantic_projection_v1(candidate)  # type: ignore[arg-type]
+
+
+def test_action_semantic_projection_v2_is_strict_and_core_preserving() -> None:
+    from top10decision.decision.action_plan import (
+        action_plan_semantic_comparison_profile_v2,
+        action_plan_semantic_projection_v2,
+    )
+
+    persisted = _with_exact_retrospective_migration(
+        json.loads(
+            (ROOT / "outputs/decision/action_plan_latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    persisted.pop("generated_at_utc")
+    profile = action_plan_semantic_comparison_profile_v2(persisted)
+    assert profile == "retrospective_frozen_replay_dynamic_evidence_v2"
+    expected = action_plan_semantic_projection_v2(
+        persisted,
+        comparison_profile=profile,
+    )
+
+    replay = json.loads(json.dumps(persisted))
+    for field in (
+        "publication_timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "migration",
+    ):
+        replay.pop(field)
+    native_profile = action_plan_semantic_comparison_profile_v2(replay)
+    assert native_profile == "native_no_trade_dynamic_evidence_v2"
+    native_expected = action_plan_semantic_projection_v2(
+        replay,
+        comparison_profile=native_profile,
+    )
+    assert native_expected == expected
+
+    # Both reviewed backfill schemas and changed truth values normalize only
+    # under the retrospective profile authorized by the persisted V1 proof.
+    changed_evidence = json.loads(json.dumps(replay))
+    backfill = changed_evidence["model"]["data_coverage"]["backfill_manifest"]
+    backfill.update(
+        {
+            "schema_version": "decision_v11_history_manifest_v2",
+            "calendar_bytes": 123,
+            "calendar_bytes_sha256": "a" * 64,
+            "calendar_file": "data/market/trade_cal_sse.csv",
+            "calendar_open_dates": 300,
+            "evaluated_at_utc": "2026-08-22T00:00:00+00:00",
+            "max_missing_dates": 0,
+            "output_bytes": 456,
+            "output_bytes_sha256": "b" * 64,
+            "output_canonical_sha256": "c" * 64,
+            "target_window_signal_dates": list(backfill["target_signal_dates"]),
+        }
+    )
+    changed_evidence["observation_statistics"]["observation_rows"] += 1
+    changed_evidence["model"]["truth_ledgers"]["market_open_observation"][
+        "metrics"
+    ] = json.loads(json.dumps(changed_evidence["observation_statistics"]))
+    changed_evidence["model"]["truth_ledgers"]["formal_limit_proxy"][
+        "metrics"
+    ]["verified_trades"] += 1
+    changed_evidence["observation_validation"]["final_rows"] += 1
+    changed_evidence["stage_watchlist"][0]["truth_generated_at_utc"] = (
+        "2026-08-22T00:00:00+00:00"
+    )
+    assert (
+        action_plan_semantic_projection_v2(
+            changed_evidence,
+            comparison_profile=profile,
+        )
+        == expected
+    )
+    assert (
+        action_plan_semantic_projection_v2(
+            changed_evidence,
+            comparison_profile=native_profile,
+        )
+        == native_expected
+    )
+
+    malformed: list[dict[str, object]] = []
+    partial_backfill = json.loads(json.dumps(replay))
+    partial_backfill["model"]["data_coverage"]["backfill_manifest"].pop(
+        "output_sha256"
+    )
+    malformed.append(partial_backfill)
+    unknown_backfill = json.loads(json.dumps(replay))
+    unknown_backfill["model"]["data_coverage"]["backfill_manifest"][
+        "unknown_evidence"
+    ] = True
+    malformed.append(unknown_backfill)
+    unknown_statistics = json.loads(json.dumps(replay))
+    unknown_statistics["observation_statistics"]["unknown_evidence"] = True
+    malformed.append(unknown_statistics)
+    unknown_ledger = json.loads(json.dumps(replay))
+    unknown_ledger["model"]["truth_ledgers"]["manual_actual"]["metrics"][
+        "unknown_evidence"
+    ] = True
+    malformed.append(unknown_ledger)
+    partial_stage = json.loads(json.dumps(replay))
+    partial_stage["stage_watchlist"][0].pop("truth_generated_at_utc")
+    malformed.append(partial_stage)
+    for candidate in malformed:
+        with pytest.raises(ValueError):
+            action_plan_semantic_projection_v2(
+                candidate,  # type: ignore[arg-type]
+                comparison_profile=profile,
+            )
+
+    # Every field outside the four reviewed evidence containers and exact
+    # stage overlay remains in the digest, including all unknown fields.
+    core_mutations = (
+        (("candidates", 0, "trade_score"), 999.0),
+        (("model", "selection_policy", "unknown_core"), True),
+        (("backtest", "unknown_core"), True),
+        (("signal_date",), "20260813"),
+        (("execution_contract", "unknown_core"), True),
+        (("market_close_comparison", "unknown_core"), True),
+        (("unknown_top_level",), True),
+        (("model", "unknown_model_field"), True),
+        (("stage_watchlist", 0, "unknown_watch_field"), True),
+        (("candidates", 0, "trade_selected"), 1),
+        (("candidates", 0, "market_order_allowed"), 1),
+        (("candidates", 0, "risk_gate_pass"), 1),
+        (("candidates", 0, "trade_selector_promoted"), 1),
+        (("candidates", 0, "order_type"), "MARKET"),
+    )
+    for path, value in core_mutations:
+        candidate = json.loads(json.dumps(replay))
+        cursor: object = candidate
+        for part in path[:-1]:
+            cursor = cursor[part]  # type: ignore[index]
+        cursor[path[-1]] = value  # type: ignore[index]
+        assert action_plan_semantic_comparison_profile_v2(candidate) == native_profile
+        assert (
+            action_plan_semantic_projection_v2(
+                candidate,
+                comparison_profile=profile,
+            )
+            != expected
+        )
+
+    for collection in ("candidates", "stage_watchlist"):
+        candidate = json.loads(json.dumps(replay))
+        current_action = candidate[collection][0]["action"]
+        candidate[collection][0]["action"] = (
+            "REJECT" if current_action == "SHADOW_ONLY" else "SHADOW_ONLY"
+        )
+        assert (
+            action_plan_semantic_projection_v2(
+                candidate,
+                comparison_profile=profile,
+            )
+            != expected
+        )
+
+    unsafe_mutations = (
+        (("status_code",), "ACTIONABLE_BUY"),
+        (("formal_buy_count",), 1),
+        (("guidance_only",), False),
+        (("broker_connected",), True),
+        (("order_execution",), "broker_api"),
+        (("candidates", 0, "action"), "BUY"),
+        (("candidates", 0, "target_weight"), 0.01),
+        (("stage_watchlist", 0, "action"), "BUY"),
+        (("stage_watchlist", 0, "target_weight"), 0.01),
+    )
+    for path, value in unsafe_mutations:
+        candidate = json.loads(json.dumps(replay))
+        cursor: object = candidate
+        for part in path[:-1]:
+            cursor = cursor[part]  # type: ignore[index]
+        cursor[path[-1]] = value  # type: ignore[index]
+        assert action_plan_semantic_comparison_profile_v2(candidate) == "full_action_v1"
+        with pytest.raises(ValueError, match="non-executing"):
+            action_plan_semantic_projection_v2(
+                candidate,
+                comparison_profile=profile,
+            )
+
+    full_reference = action_plan_semantic_projection_v2(
+        replay,
+        comparison_profile="full_action_v1",
+    )
+    full_truth_change = json.loads(json.dumps(replay))
+    full_truth_change["observation_statistics"]["observation_rows"] += 1
+    assert (
+        action_plan_semantic_projection_v2(
+            full_truth_change,
+            comparison_profile="full_action_v1",
+        )
+        != full_reference
+    )
+    with pytest.raises(ValueError, match="cannot use the full-action profile"):
+        action_plan_semantic_projection_v2(
+            persisted,
+            comparison_profile="full_action_v1",
+        )
+    with pytest.raises(ValueError, match="comparison profile"):
+        action_plan_semantic_projection_v2(
+            replay,
+            comparison_profile="unknown",
+        )
 
 
 def test_daily_candidate_staging_tolerates_absent_optional_pred_top10(

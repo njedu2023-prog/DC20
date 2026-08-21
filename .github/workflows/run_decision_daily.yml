@@ -99,7 +99,10 @@ jobs:
           import hashlib, json, os
           from datetime import datetime, timedelta
           from pathlib import Path
-          from top10decision.decision.action_plan import action_plan_semantic_projection_v1
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v2,
+              action_plan_semantic_projection_v2,
+          )
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
               load_model_freeze,
@@ -118,7 +121,10 @@ jobs:
           publish = os.environ['PUBLISH'] == 'true'
           if not publish:
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-                  output.write('validated=false\nsimulation=true\nsemantic_sha256=\n')
+                  output.write(
+                      'validated=false\nsimulation=true\nsemantic_sha256=\n'
+                      'comparison_profile=\n'
+                  )
           else:
               root = Path('.').resolve()
               try:
@@ -151,7 +157,13 @@ jobs:
                       or generated_time.microsecond != 0
                   ):
                       raise RuntimeError('persisted Auction action timestamp is invalid')
-                  semantic_action = action_plan_semantic_projection_v1(action)
+                  comparison_profile = action_plan_semantic_comparison_profile_v2(
+                      action
+                  )
+                  semantic_action = action_plan_semantic_projection_v2(
+                      action,
+                      comparison_profile=comparison_profile,
+                  )
                   semantic_digest = hashlib.sha256(
                       canonical_json_bytes(semantic_action)
                   ).hexdigest()
@@ -164,13 +176,16 @@ jobs:
                   raise SystemExit(1)
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
                   output.write(
-                      f'validated=true\nsimulation=false\nsemantic_sha256={semantic_digest}\n'
+                      'validated=true\nsimulation=false\n'
+                      f'semantic_sha256={semantic_digest}\n'
+                      f'comparison_profile={comparison_profile}\n'
                   )
           PY
       - name: Rebuild exact-base frozen Auction runtime before live source mutation
         id: frozen_action
         env:
           PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}
+          PERSISTED_ACTION_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}
           PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PYTHONPATH: ${{ github.workspace }}/src
@@ -222,7 +237,10 @@ jobs:
           import hashlib, hmac, json, os
           from datetime import datetime, timedelta
           from pathlib import Path
-          from top10decision.decision.action_plan import action_plan_semantic_projection_v1
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v2,
+              action_plan_semantic_projection_v2,
+          )
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
               load_model_freeze,
@@ -270,14 +288,29 @@ jobs:
               or generated_time.microsecond != 0
           ):
               raise SystemExit('Daily replayed action timestamp is invalid')
+          comparison_profile=os.environ['PERSISTED_ACTION_COMPARISON_PROFILE']
+          if os.environ['PUBLISH'] != 'true':
+              comparison_profile=action_plan_semantic_comparison_profile_v2(action)
           try:
-              semantic_action=action_plan_semantic_projection_v1(action)
+              semantic_action=action_plan_semantic_projection_v2(
+                  action,
+                  comparison_profile=comparison_profile,
+              )
           except ValueError:
-              raise SystemExit('Daily replayed action migration provenance is invalid')
+              raise SystemExit('Daily replayed action semantic evidence is invalid')
           semantic_digest=hashlib.sha256(canonical_json_bytes(semantic_action)).hexdigest()
           if os.environ['PUBLISH'] == 'true':
               if os.environ['PERSISTED_ACTION_VALIDATED'] != 'true':
                   raise SystemExit('Daily real publication lacks a validated persisted Auction action')
+              print(json.dumps({
+                  'comparison_profile': comparison_profile,
+                  'component': 'daily_action_semantic_comparison_v2',
+                  'persisted_semantic_sha256': os.environ[
+                      'PERSISTED_ACTION_SEMANTIC_SHA256'
+                  ],
+                  'replayed_semantic_sha256': semantic_digest,
+                  'status': 'compare',
+              }, separators=(',', ':'), sort_keys=True))
               if not hmac.compare_digest(
                   semantic_digest,
                   os.environ['PERSISTED_ACTION_SEMANTIC_SHA256'],
