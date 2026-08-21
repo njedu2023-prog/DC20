@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -71,6 +72,17 @@ SELECTOR_ARTIFACT_COLUMNS = (
     "trade_selector_artifact_sha256",
     "trade_selector_artifact_v2_sha256",
 )
+MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1 = frozenset(
+    {
+        "publication_timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "migration",
+    }
+)
+MIGRATION_SEMANTIC_SCHEMA_V1 = "decision_runtime_migration_v1"
+MIGRATION_BASE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+MIGRATION_DATE_RE = re.compile(r"^20\d{6}$")
 
 
 def _utc_now() -> str:
@@ -103,6 +115,107 @@ def _text(value: Any) -> str:
         pass
     text = str(value or "").strip()
     return "" if text.lower() in {"nan", "none", "null"} else text
+
+
+def action_plan_semantic_projection_v1(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Project an action plan after validating retrospective provenance.
+
+    Canonical replay predates the four public migration annotations, so those
+    annotations are not decision semantics.  They may be excluded only as one
+    complete, exact and non-executing V1 proof.  Partial or altered provenance
+    fails closed, while every unknown top-level field remains in the semantic
+    projection and therefore continues to affect its digest.
+    """
+
+    if not isinstance(payload, dict):
+        raise ValueError("action plan semantic payload must be an object")
+    present = MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1.intersection(payload)
+    if not present:
+        return copy.deepcopy(payload)
+    if present != MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1:
+        raise ValueError("action plan migration provenance is incomplete")
+
+    if payload.get("publication_timing") != "RETROSPECTIVE":
+        raise ValueError("action plan migration timing is not retrospective")
+    if payload.get("live_delivery_met") is not False:
+        raise ValueError("action plan migration falsely claims live delivery")
+    if payload.get("execution_or_fill_claimed") is not False:
+        raise ValueError("action plan migration claims execution or fill")
+    if type(payload.get("formal_buy_count")) is not int or payload[
+        "formal_buy_count"
+    ] != 0:
+        raise ValueError("action plan migration formal buy count is not zero")
+    status_code = payload.get("status_code")
+    if type(status_code) is not str or not status_code.startswith("NO_TRADE"):
+        raise ValueError("action plan migration status is not NO_TRADE")
+    if payload.get("guidance_only") is not True:
+        raise ValueError("action plan migration is not guidance only")
+    if payload.get("broker_connected") is not False:
+        raise ValueError("action plan migration claims a broker connection")
+    if payload.get("order_execution") != "manual_only":
+        raise ValueError("action plan migration execution mode is not manual only")
+
+    dates: dict[str, str] = {}
+    for field in ("signal_date", "report_date", "exec_date", "exit_date"):
+        value = payload.get(field)
+        if type(value) is not str or MIGRATION_DATE_RE.fullmatch(value) is None:
+            raise ValueError("action plan migration date binding is invalid")
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError as exc:
+            raise ValueError("action plan migration date binding is invalid") from exc
+        dates[field] = value
+    if not (
+        dates["signal_date"]
+        < dates["report_date"]
+        == dates["exec_date"]
+        < dates["exit_date"]
+    ):
+        raise ValueError("action plan migration date sequence is invalid")
+
+    migration = payload.get("migration")
+    if not isinstance(migration, dict):
+        raise ValueError("action plan migration metadata is not an object")
+    base_sha = migration.get("base_sha")
+    if type(base_sha) is not str or MIGRATION_BASE_SHA_RE.fullmatch(base_sha) is None:
+        raise ValueError("action plan migration base SHA is invalid")
+    expected_migration = {
+        "schema_version": MIGRATION_SEMANTIC_SCHEMA_V1,
+        "source": "frozen_canonical_replay",
+        "timing": "RETROSPECTIVE",
+        "base_sha": base_sha,
+        "signal_date": dates["signal_date"],
+        "report_date": dates["report_date"],
+        "exec_date": dates["exec_date"],
+        "exit_date": dates["exit_date"],
+        "live_delivery_met": False,
+        "execution_created": False,
+        "fill_created": False,
+        "broker_execution_claimed": False,
+        "observation_truth_is_not_a_fill_claim": True,
+    }
+    if migration != expected_migration:
+        raise ValueError("action plan migration metadata is not exact V1 truth")
+
+    for collection in ("candidates", "stage_watchlist"):
+        rows = payload.get(collection)
+        if not isinstance(rows, list):
+            raise ValueError("action plan migration candidate collection is invalid")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("action plan migration candidate row is invalid")
+            if row.get("action") == "BUY":
+                raise ValueError("action plan migration candidate contains BUY")
+            weight = row.get("target_weight", 0)
+            if type(weight) not in {int, float} or float(weight) != 0.0:
+                raise ValueError("action plan migration candidate has nonzero weight")
+
+    projection = copy.deepcopy(payload)
+    for field in MIGRATION_SEMANTIC_PROVENANCE_FIELDS_V1:
+        del projection[field]
+    return projection
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -2235,6 +2348,7 @@ def refresh_action_plan_observations(
 
 
 __all__ = [
+    "action_plan_semantic_projection_v1",
     "build_action_plan",
     "build_report_index",
     "publish_action_plan",

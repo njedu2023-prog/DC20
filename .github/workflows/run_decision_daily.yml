@@ -99,6 +99,7 @@ jobs:
           import hashlib, json, os
           from datetime import datetime, timedelta
           from pathlib import Path
+          from top10decision.decision.action_plan import action_plan_semantic_projection_v1
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
               load_model_freeze,
@@ -150,7 +151,10 @@ jobs:
                       or generated_time.microsecond != 0
                   ):
                       raise RuntimeError('persisted Auction action timestamp is invalid')
-                  semantic_digest = hashlib.sha256(canonical_json_bytes(action)).hexdigest()
+                  semantic_action = action_plan_semantic_projection_v1(action)
+                  semantic_digest = hashlib.sha256(
+                      canonical_json_bytes(semantic_action)
+                  ).hexdigest()
               except Exception:
                   print(json.dumps({
                       'component': 'daily_auction_action_prerequisite',
@@ -218,6 +222,7 @@ jobs:
           import hashlib, hmac, json, os
           from datetime import datetime, timedelta
           from pathlib import Path
+          from top10decision.decision.action_plan import action_plan_semantic_projection_v1
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
               load_model_freeze,
@@ -265,7 +270,11 @@ jobs:
               or generated_time.microsecond != 0
           ):
               raise SystemExit('Daily replayed action timestamp is invalid')
-          semantic_digest=hashlib.sha256(canonical_json_bytes(action)).hexdigest()
+          try:
+              semantic_action=action_plan_semantic_projection_v1(action)
+          except ValueError:
+              raise SystemExit('Daily replayed action migration provenance is invalid')
+          semantic_digest=hashlib.sha256(canonical_json_bytes(semantic_action)).hexdigest()
           if os.environ['PUBLISH'] == 'true':
               if os.environ['PERSISTED_ACTION_VALIDATED'] != 'true':
                   raise SystemExit('Daily real publication lacks a validated persisted Auction action')

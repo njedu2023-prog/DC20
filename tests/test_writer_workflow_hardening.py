@@ -170,8 +170,10 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     )
     assert "PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}" in replay_step
     assert "PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}" in replay_step
-    assert "canonical_json_bytes(action)" in prerequisite_step
-    assert "canonical_json_bytes(action)" in replay_step
+    assert "canonical_json_bytes(semantic_action)" in prerequisite_step
+    assert "canonical_json_bytes(semantic_action)" in replay_step
+    assert "action_plan_semantic_projection_v1(action)" in prerequisite_step
+    assert "action_plan_semantic_projection_v1(action)" in replay_step
     assert "object_pairs_hook=reject_duplicate_keys" in prerequisite_step
     assert "object_pairs_hook=reject_duplicate_keys" in replay_step
     assert "action.pop('generated_at_utc', None)" in prerequisite_step
@@ -305,8 +307,47 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     action = {
         "generated_at_utc": "2026-08-20T14:00:00+00:00",
         "schema_version": "decision_action_plan_v12_top10_trade_selector",
+        "signal_date": "20260814",
+        "report_date": "20260817",
+        "exec_date": "20260817",
+        "exit_date": "20260818",
         "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
-        "candidates": [{"ts_code": "600000.SH", "action": "REJECT"}],
+        "formal_buy_count": 0,
+        "guidance_only": True,
+        "broker_connected": False,
+        "order_execution": "manual_only",
+        "candidates": [
+            {
+                "ts_code": "600000.SH",
+                "action": "REJECT",
+                "target_weight": 0.0,
+            }
+        ],
+        "stage_watchlist": [
+            {
+                "ts_code": "600000.SH",
+                "action": "REJECT",
+                "target_weight": 0.0,
+            }
+        ],
+        "publication_timing": "RETROSPECTIVE",
+        "live_delivery_met": False,
+        "execution_or_fill_claimed": False,
+        "migration": {
+            "schema_version": "decision_runtime_migration_v1",
+            "source": "frozen_canonical_replay",
+            "timing": "RETROSPECTIVE",
+            "base_sha": "a" * 40,
+            "signal_date": "20260814",
+            "report_date": "20260817",
+            "exec_date": "20260817",
+            "exit_date": "20260818",
+            "live_delivery_met": False,
+            "execution_created": False,
+            "fill_created": False,
+            "broker_execution_claimed": False,
+            "observation_truth_is_not_a_fill_claim": True,
+        },
     }
     action_path.write_text(json.dumps(action), encoding="utf-8")
     persisted_output = tmp_path / "persisted-output.txt"
@@ -331,6 +372,13 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     assert re.fullmatch(r"[0-9a-f]{64}", persisted["semantic_sha256"])
 
     raw_persisted_sha = hashlib.sha256(action_path.read_bytes()).hexdigest()
+    for field in (
+        "publication_timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "migration",
+    ):
+        action.pop(field)
     action["generated_at_utc"] = "2026-08-20T14:00:01+00:00"
     action_path.write_text(json.dumps(action), encoding="utf-8")
     assert hashlib.sha256(action_path.read_bytes()).hexdigest() != raw_persisted_sha
@@ -345,6 +393,12 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
         r"sha256=[0-9a-f]{64}\n",
         replay_output.read_text(encoding="utf-8"),
     )
+
+    action["unknown_business_semantics"] = "drift"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    with pytest.raises(SystemExit, match="semantics differ from persisted Auction action"):
+        exec(compile(replay_validation_source, "<daily-replay-action-unknown-drift>", "exec"), {})
+    action.pop("unknown_business_semantics")
 
     action["status_code"] = "ACTIONABLE_BUY"
     action_path.write_text(json.dumps(action), encoding="utf-8")
@@ -364,6 +418,91 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     assert persisted_duplicate.value.code == 1
     with pytest.raises(SystemExit, match="replayed action JSON is invalid"):
         exec(compile(replay_validation_source, "<daily-replay-action-duplicate>", "exec"), {})
+
+
+def test_action_semantic_projection_excludes_only_exact_migration_truth() -> None:
+    from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+    from top10decision.decision.action_plan import (
+        action_plan_semantic_projection_v1,
+    )
+
+    native = {
+        "schema_version": "decision_action_plan_v12_top10_trade_selector",
+        "signal_date": "20260814",
+        "report_date": "20260817",
+        "exec_date": "20260817",
+        "exit_date": "20260818",
+        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+        "formal_buy_count": 0,
+        "guidance_only": True,
+        "broker_connected": False,
+        "order_execution": "manual_only",
+        "candidates": [{"action": "REJECT", "target_weight": 0.0}],
+        "stage_watchlist": [{"action": "SHADOW_ONLY", "target_weight": 0}],
+        "unknown_business_semantics": {"must_remain": True},
+    }
+    migrated = json.loads(json.dumps(native))
+    migrated.update(
+        {
+            "publication_timing": "RETROSPECTIVE",
+            "live_delivery_met": False,
+            "execution_or_fill_claimed": False,
+            "migration": {
+                "schema_version": "decision_runtime_migration_v1",
+                "source": "frozen_canonical_replay",
+                "timing": "RETROSPECTIVE",
+                "base_sha": "a" * 40,
+                "signal_date": "20260814",
+                "report_date": "20260817",
+                "exec_date": "20260817",
+                "exit_date": "20260818",
+                "live_delivery_met": False,
+                "execution_created": False,
+                "fill_created": False,
+                "broker_execution_claimed": False,
+                "observation_truth_is_not_a_fill_claim": True,
+            },
+        }
+    )
+
+    assert action_plan_semantic_projection_v1(native) == native
+    assert action_plan_semantic_projection_v1(native) is not native
+    assert action_plan_semantic_projection_v1(migrated) == native
+    assert "migration" in migrated
+    without_unknown = json.loads(json.dumps(native))
+    without_unknown.pop("unknown_business_semantics")
+    assert hashlib.sha256(canonical_json_bytes(native)).digest() != hashlib.sha256(
+        canonical_json_bytes(without_unknown)
+    ).digest()
+
+    invalid_payloads: list[dict[str, object]] = []
+    partial = json.loads(json.dumps(migrated))
+    partial.pop("migration")
+    invalid_payloads.append(partial)
+    for path, value in (
+        (("publication_timing",), "PROSPECTIVE_LIVE"),
+        (("live_delivery_met",), True),
+        (("execution_or_fill_claimed",), True),
+        (("formal_buy_count",), 1),
+        (("migration", "schema_version"), "decision_runtime_migration_v2"),
+        (("migration", "base_sha"), "A" * 40),
+        (("migration", "report_date"), "20260818"),
+        (("migration", "unexpected"), False),
+        (("exit_date",), "20260230"),
+        (("exec_date",), "20260819"),
+        (("candidates", 0, "action"), "BUY"),
+        (("stage_watchlist", 0, "target_weight"), 0.01),
+    ):
+        candidate = json.loads(json.dumps(migrated))
+        cursor: object = candidate
+        for part in path[:-1]:
+            cursor = cursor[part]  # type: ignore[index]
+        cursor[path[-1]] = value  # type: ignore[index]
+        invalid_payloads.append(candidate)
+
+    for candidate in invalid_payloads:
+        with pytest.raises(ValueError):
+            action_plan_semantic_projection_v1(candidate)  # type: ignore[arg-type]
 
 
 def test_daily_candidate_staging_tolerates_absent_optional_pred_top10(
