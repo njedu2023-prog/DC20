@@ -102,6 +102,85 @@ def _write_synthetic_legacy(
     )
 
 
+def test_forced_replay_binds_engine_signal_and_publisher_report_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: dict[str, object] = {}
+    history = pd.DataFrame({"signal_date": ["20260805"]})
+    monkeypatch.setattr(
+        replay,
+        "load_forced_frozen_history",
+        lambda _root: (history, {}, {"validated": True}),
+    )
+    monkeypatch.setattr(
+        replay,
+        "AuctionV3Config",
+        lambda *, root: SimpleNamespace(root=root),
+    )
+
+    class FakeEngine:
+        def __init__(self, config, loaded_history, history_audit) -> None:
+            calls["engine_init"] = (config.root, loaded_history, history_audit)
+
+        def run(self, signal_date: str, *, force_prediction: bool):
+            calls["engine_run"] = (signal_date, force_prediction)
+            return SimpleNamespace(signal_date=signal_date)
+
+    def fake_subprocess_run(command, **kwargs):
+        calls["publisher_command"] = command
+        calls["publisher_kwargs"] = kwargs
+        return SimpleNamespace(returncode=0, stdout='{"status":"pass"}', stderr="")
+
+    monkeypatch.setattr(replay, "DiagnosticFrozenEngine", FakeEngine)
+    monkeypatch.setattr(replay.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(
+        replay,
+        "asdict",
+        lambda result: {"signal_date": result.signal_date},
+    )
+
+    result, audit, published = replay.run_forced_replay(
+        tmp_path,
+        signal_date="20260814",
+        report_date="20260817",
+    )
+    assert result == {"signal_date": "20260814"}
+    assert audit == {"validated": True}
+    assert published == {"status": "pass"}
+    assert calls["engine_run"] == ("20260814", True)
+    assert calls["publisher_command"][-2:] == ["--report-date", "20260817"]
+    assert calls["publisher_kwargs"] == {
+        "cwd": tmp_path,
+        "check": False,
+        "capture_output": True,
+        "text": True,
+    }
+
+
+@pytest.mark.parametrize(
+    ("signal_date", "report_date"),
+    (
+        ("20260230", ""),
+        ("", "20260817"),
+        ("20260817", "20260814"),
+        ("20260814 ", "20260817"),
+        ("20260814", "2026-08-17"),
+    ),
+)
+def test_forced_replay_rejects_invalid_explicit_date_binding(
+    tmp_path: Path,
+    signal_date: str,
+    report_date: str,
+) -> None:
+    with pytest.raises(RuntimeError, match="replay"):
+        replay.run_forced_replay(
+            tmp_path,
+            signal_date=signal_date,
+            report_date=report_date,
+        )
+
+
 def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> None:
     manifest_path = ROOT / "models" / "decision_model_freeze.json"
     before = manifest_path.read_bytes()

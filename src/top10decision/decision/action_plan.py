@@ -88,6 +88,46 @@ NATIVE_NO_TRADE_COMPARISON_PROFILE_V2 = "native_no_trade_dynamic_evidence_v2"
 RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2 = (
     "retrospective_frozen_replay_dynamic_evidence_v2"
 )
+NATIVE_NO_TRADE_COMPARISON_PROFILE_V3 = "native_no_trade_dynamic_evidence_v3"
+RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3 = (
+    "retrospective_frozen_replay_dynamic_evidence_v3"
+)
+MARKET_CLOSE_COMPARISON_KEYS_V3 = frozenset(
+    {
+        "d",
+        "model_input",
+        "ranking_anchor",
+        "scope",
+        "t",
+        "t_minimum_d_coverage",
+    }
+)
+MARKET_CLOSE_T_KEYS_V3 = frozenset(
+    {
+        "available",
+        "classified_limit_up_count",
+        "coverage_against_d",
+        "down_count",
+        "flat_count",
+        "industry_counts",
+        "industry_top10",
+        "limit_up_count",
+        "maturity_status",
+        "raw_close_available",
+        "return_coverage",
+        "scope",
+        "status",
+        "stock_count",
+        "trade_date",
+        "up_count",
+    }
+)
+MARKET_CLOSE_D_KEYS_V3 = MARKET_CLOSE_T_KEYS_V3.difference(
+    {"coverage_against_d", "raw_close_available"}
+)
+MARKET_CLOSE_INDUSTRY_ROW_KEYS_V3 = frozenset(
+    {"industry", "limit_up_count", "rank", "share"}
+)
 BACKFILL_MANIFEST_KEYS_V1 = frozenset(
     {
         "auction_truth_coverage",
@@ -992,6 +1032,320 @@ def action_plan_semantic_projection_v2(
     for row in rows:
         for field in ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2:
             del row[field]
+    return projection
+
+
+def _semantic_nonnegative_integer_v3(value: Any, context: str) -> int:
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{context} must be a nonnegative integer")
+    return value
+
+
+def _semantic_unit_interval_v3(value: Any, context: str) -> float:
+    if type(value) is not float or not math.isfinite(value):
+        raise ValueError(f"{context} must be a finite float")
+    number = value
+    if number < 0.0 or number > 1.0:
+        raise ValueError(f"{context} must be in [0, 1]")
+    return number
+
+
+def _semantic_nonnegative_ratio_v3(value: Any, context: str) -> float:
+    if type(value) is not float or not math.isfinite(value):
+        raise ValueError(f"{context} must be a finite float")
+    number = value
+    if number < 0.0:
+        raise ValueError(f"{context} must be nonnegative")
+    return number
+
+
+def _semantic_date_v3(value: Any, context: str) -> str:
+    if type(value) is not str or MIGRATION_DATE_RE.fullmatch(value) is None:
+        raise ValueError(f"{context} must be YYYYMMDD")
+    try:
+        parsed = datetime.strptime(value, "%Y%m%d")
+    except ValueError as exc:
+        raise ValueError(f"{context} must be a real calendar date") from exc
+    if parsed.strftime("%Y%m%d") != value:
+        raise ValueError(f"{context} must be a canonical calendar date")
+    return value
+
+
+def _validate_market_close_industries_v3(
+    snapshot: dict[str, Any],
+    context: str,
+) -> None:
+    stock_count = _semantic_nonnegative_integer_v3(
+        snapshot.get("stock_count"),
+        f"{context}.stock_count",
+    )
+    limit_up_count = _semantic_nonnegative_integer_v3(
+        snapshot.get("limit_up_count"),
+        f"{context}.limit_up_count",
+    )
+    classified_count = _semantic_nonnegative_integer_v3(
+        snapshot.get("classified_limit_up_count"),
+        f"{context}.classified_limit_up_count",
+    )
+    if not classified_count <= limit_up_count <= stock_count:
+        raise ValueError(f"{context} limit-up counts are inconsistent")
+
+    counts = snapshot.get("industry_counts")
+    if not isinstance(counts, dict):
+        raise ValueError(f"{context}.industry_counts must be an object")
+    normalized_counts: dict[str, int] = {}
+    for industry, count in counts.items():
+        if type(industry) is not str or not industry.strip() or industry != industry.strip():
+            raise ValueError(f"{context}.industry_counts has an invalid industry")
+        value = _semantic_nonnegative_integer_v3(
+            count,
+            f"{context}.industry_counts[{industry!r}]",
+        )
+        if value == 0:
+            raise ValueError(f"{context}.industry_counts contains a zero count")
+        normalized_counts[industry] = value
+    if sum(normalized_counts.values()) != classified_count:
+        raise ValueError(f"{context} classified industry count is inconsistent")
+
+    top = snapshot.get("industry_top10")
+    if not isinstance(top, list) or len(top) > 10:
+        raise ValueError(f"{context}.industry_top10 is invalid")
+    expected = sorted(
+        normalized_counts.items(),
+        key=lambda item: (-item[1], item[0]),
+    )[:10]
+    if len(top) != len(expected):
+        raise ValueError(f"{context}.industry_top10 length is inconsistent")
+    for index, (row, expected_item) in enumerate(zip(top, expected), start=1):
+        payload = _semantic_exact_object_v2(
+            row,
+            MARKET_CLOSE_INDUSTRY_ROW_KEYS_V3,
+            f"{context}.industry_top10[{index - 1}]",
+        )
+        industry, count = expected_item
+        share = _semantic_unit_interval_v3(
+            payload.get("share"),
+            f"{context}.industry_top10[{index - 1}].share",
+        )
+        expected_share = float(count / limit_up_count) if limit_up_count else 0.0
+        if (
+            type(payload.get("rank")) is not int
+            or payload.get("rank") != index
+            or payload.get("industry") != industry
+            or type(payload.get("limit_up_count")) is not int
+            or payload.get("limit_up_count") != count
+            or not math.isclose(share, expected_share, rel_tol=0.0, abs_tol=1e-12)
+        ):
+            raise ValueError(f"{context}.industry_top10 is inconsistent")
+
+
+def _validate_market_close_counts_v3(
+    snapshot: dict[str, Any],
+    context: str,
+) -> None:
+    stock_count = _semantic_nonnegative_integer_v3(
+        snapshot.get("stock_count"),
+        f"{context}.stock_count",
+    )
+    valid_return_rows = 0
+    for field in ("up_count", "down_count", "flat_count"):
+        valid_return_rows += _semantic_nonnegative_integer_v3(
+            snapshot.get(field),
+            f"{context}.{field}",
+        )
+    if valid_return_rows > stock_count:
+        raise ValueError(f"{context} return counts exceed stock_count")
+    coverage = _semantic_unit_interval_v3(
+        snapshot.get("return_coverage"),
+        f"{context}.return_coverage",
+    )
+    expected_coverage = (
+        float(valid_return_rows / stock_count) if stock_count else 0.0
+    )
+    if not math.isclose(coverage, expected_coverage, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError(f"{context} return coverage is inconsistent")
+    _validate_market_close_industries_v3(snapshot, context)
+
+
+def _validate_market_close_t_evidence_v3(projection: dict[str, Any]) -> None:
+    signal_date = _semantic_date_v3(
+        projection.get("signal_date"),
+        "action plan signal_date",
+    )
+    report_date = _semantic_date_v3(
+        projection.get("report_date"),
+        "action plan report_date",
+    )
+    exec_date = _semantic_date_v3(
+        projection.get("exec_date"),
+        "action plan exec_date",
+    )
+    exit_date = _semantic_date_v3(
+        projection.get("exit_date"),
+        "action plan exit_date",
+    )
+    if not signal_date < report_date == exec_date < exit_date:
+        raise ValueError("action plan date sequence is invalid")
+
+    comparison = _semantic_exact_object_v2(
+        projection.get("market_close_comparison"),
+        MARKET_CLOSE_COMPARISON_KEYS_V3,
+        "action plan market_close_comparison",
+    )
+    if (
+        comparison.get("scope") != "all_a_share_daily_close"
+        or comparison.get("ranking_anchor") != "D"
+        or type(comparison.get("t_minimum_d_coverage")) is not float
+        or comparison["t_minimum_d_coverage"] != 0.9
+        or comparison.get("model_input") is not False
+    ):
+        raise ValueError("action plan market-close comparison contract is invalid")
+
+    d_snapshot = _semantic_exact_object_v2(
+        comparison.get("d"),
+        MARKET_CLOSE_D_KEYS_V3,
+        "action plan market_close_comparison.d",
+    )
+    if (
+        d_snapshot.get("trade_date") != signal_date
+        or d_snapshot.get("scope") != comparison["scope"]
+        or d_snapshot.get("available") is not True
+        or d_snapshot.get("status") != "FINAL_CLOSE"
+        or d_snapshot.get("maturity_status") != "FINAL_D_CLOSE"
+    ):
+        raise ValueError("action plan D-close comparison binding is invalid")
+    _validate_market_close_counts_v3(
+        d_snapshot,
+        "action plan market_close_comparison.d",
+    )
+    d_stock_count = _semantic_nonnegative_integer_v3(
+        d_snapshot.get("stock_count"),
+        "action plan market_close_comparison.d.stock_count",
+    )
+    if d_stock_count == 0 or float(d_snapshot["return_coverage"]) < 0.8:
+        raise ValueError("action plan D-close comparison is not final")
+
+    t_snapshot = _semantic_exact_object_v2(
+        comparison.get("t"),
+        MARKET_CLOSE_T_KEYS_V3,
+        "action plan market_close_comparison.t",
+    )
+    if (
+        t_snapshot.get("trade_date") != exec_date
+        or t_snapshot.get("scope") != comparison["scope"]
+        or type(t_snapshot.get("available")) is not bool
+        or type(t_snapshot.get("raw_close_available")) is not bool
+    ):
+        raise ValueError("action plan T-close comparison binding is invalid")
+    _validate_market_close_counts_v3(
+        t_snapshot,
+        "action plan market_close_comparison.t",
+    )
+    t_stock_count = _semantic_nonnegative_integer_v3(
+        t_snapshot.get("stock_count"),
+        "action plan market_close_comparison.t.stock_count",
+    )
+    coverage_against_d = _semantic_nonnegative_ratio_v3(
+        t_snapshot.get("coverage_against_d"),
+        "action plan market_close_comparison.t.coverage_against_d",
+    )
+    expected_coverage_against_d = float(t_stock_count / d_stock_count)
+    if not math.isclose(
+        coverage_against_d,
+        expected_coverage_against_d,
+        rel_tol=0.0,
+        abs_tol=1e-12,
+    ):
+        raise ValueError("action plan T/D close coverage is inconsistent")
+
+    no_limit_surface = (
+        t_snapshot.get("limit_up_count") == 0
+        and t_snapshot.get("classified_limit_up_count") == 0
+        and t_snapshot.get("industry_top10") == []
+        and t_snapshot.get("industry_counts") == {}
+    )
+    empty_waiting = (
+        t_snapshot["available"] is False
+        and t_snapshot["raw_close_available"] is False
+        and t_snapshot.get("maturity_status") == "WAITING_T_CLOSE"
+        and t_snapshot.get("status") == "DAILY_CLOSE_UNAVAILABLE"
+        and t_stock_count == 0
+        and float(t_snapshot["return_coverage"]) == 0.0
+        and coverage_against_d == 0.0
+        and no_limit_surface
+    )
+    partial_waiting = (
+        t_snapshot["available"] is False
+        and t_snapshot["raw_close_available"] is False
+        and t_snapshot.get("maturity_status") == "WAITING_T_CLOSE"
+        and t_snapshot.get("status") == "INCOMPLETE_DAILY_CLOSE"
+        and t_stock_count > 0
+        and float(t_snapshot["return_coverage"]) < 0.8
+        and no_limit_surface
+    )
+    final = (
+        t_snapshot["available"] is True
+        and t_snapshot["raw_close_available"] is True
+        and t_snapshot.get("maturity_status") == "FINAL_T_CLOSE"
+        and t_snapshot.get("status") == "FINAL_CLOSE"
+        and t_stock_count > 0
+        and float(t_snapshot["return_coverage"]) >= 0.8
+        and coverage_against_d >= comparison["t_minimum_d_coverage"]
+    )
+    incomplete = (
+        t_snapshot["available"] is False
+        and t_snapshot["raw_close_available"] is True
+        and t_snapshot.get("maturity_status") == "INCOMPLETE_T_CLOSE"
+        and t_snapshot.get("status") == "FINAL_CLOSE"
+        and t_stock_count > 0
+        and float(t_snapshot["return_coverage"]) >= 0.8
+        and coverage_against_d < comparison["t_minimum_d_coverage"]
+    )
+    if sum((empty_waiting, partial_waiting, incomplete, final)) != 1:
+        raise ValueError("action plan T-close maturity state is invalid")
+
+
+def action_plan_semantic_comparison_profile_v3(payload: dict[str, Any]) -> str:
+    """Authorize V3 only for an already-valid V2 non-executing action."""
+
+    profile = action_plan_semantic_comparison_profile_v2(payload)
+    if profile == FULL_ACTION_COMPARISON_PROFILE_V2:
+        return FULL_ACTION_COMPARISON_PROFILE_V2
+    if profile == NATIVE_NO_TRADE_COMPARISON_PROFILE_V2:
+        return NATIVE_NO_TRADE_COMPARISON_PROFILE_V3
+    if profile == RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2:
+        return RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3
+    raise ValueError("action plan V2 comparison profile is invalid")
+
+
+def action_plan_semantic_projection_v3(
+    payload: dict[str, Any],
+    *,
+    comparison_profile: str,
+) -> dict[str, Any]:
+    """Normalize only a strictly bound post-decision T-close maturity surface."""
+
+    v2_profile = {
+        FULL_ACTION_COMPARISON_PROFILE_V2: FULL_ACTION_COMPARISON_PROFILE_V2,
+        NATIVE_NO_TRADE_COMPARISON_PROFILE_V3: NATIVE_NO_TRADE_COMPARISON_PROFILE_V2,
+        RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3: (
+            RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V2
+        ),
+    }.get(comparison_profile)
+    if v2_profile is None:
+        raise ValueError("action plan semantic V3 comparison profile is invalid")
+    projection = action_plan_semantic_projection_v2(
+        payload,
+        comparison_profile=v2_profile,
+    )
+    if comparison_profile == FULL_ACTION_COMPARISON_PROFILE_V2:
+        return projection
+    _validate_market_close_t_evidence_v3(projection)
+    comparison = projection["market_close_comparison"]
+    comparison["t"] = {
+        "evidence_class": "post_decision_t_close_v3",
+        "trade_date": projection["exec_date"],
+    }
     return projection
 
 
@@ -3093,8 +3447,10 @@ def refresh_action_plan_observations(
 
 __all__ = [
     "action_plan_semantic_comparison_profile_v2",
+    "action_plan_semantic_comparison_profile_v3",
     "action_plan_semantic_projection_v1",
     "action_plan_semantic_projection_v2",
+    "action_plan_semantic_projection_v3",
     "build_action_plan",
     "build_report_index",
     "publish_action_plan",

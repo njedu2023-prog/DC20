@@ -44,6 +44,8 @@ SNAPSHOT_PATH = Path("data/pred/pred_source_latest.csv")
 ARCHIVE_DIR = Path("data/pred/archive")
 META_PATH = Path("data/pred/_pred_source_meta.json")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+DATE_TOKEN_RE = re.compile(r"(?<!\d)(20\d{6})(?!\d)")
+CANONICAL_SOURCE_DATE_COLUMNS = ("trade_date", "signal_date", "date")
 
 INTRADAY_REQUIRED_COLS = {
     "intraday_available",
@@ -104,52 +106,106 @@ def _extract_trade_date(text: str) -> str:
     if not text:
         return ""
 
-    m = re.search(r"(?<!\d)(20\d{6})(?!\d)", text)
+    m = DATE_TOKEN_RE.search(text)
     return m.group(1) if m else ""
+
+
+def _strict_trade_date(value: object, *, label: str) -> str:
+    raw = str(value or "")
+    if re.fullmatch(r"20\d{6}", raw) is None:
+        raise RuntimeError(f"{label} must be exactly YYYYMMDD: {raw!r}")
+    try:
+        parsed = datetime.strptime(raw, "%Y%m%d")
+    except ValueError as exc:
+        raise RuntimeError(f"{label} is not a real calendar date: {raw!r}") from exc
+    if parsed.strftime("%Y%m%d") != raw:
+        raise RuntimeError(f"{label} is not canonical YYYYMMDD: {raw!r}")
+    return raw
 
 
 def _extract_trade_date_from_csv_bytes(data: bytes) -> str:
     """
-    从 CSV 内容中解析实际 trade_date。
-    latest URL 通常不带日期，必须以内文日期归档，否则历史学习样本会缺少
-    pred_source_{trade_date}.csv，甚至误用 latest。
+    全量、严格解析 CSV 的 canonical source date。
+
+    列优先级固定为 trade_date、signal_date、date；verify_date 和
+    target_trade_date 仅是下游日期，绝不能作为 source date。所选列的每一行
+    都必须是同一个真实 YYYYMMDD。若 trade_date 与 signal_date 同时存在，
+    还要求二者逐行一致。
     """
-    text = ""
-    for enc in ("utf-8-sig", "utf-8", "gbk", "gb18030"):
-        try:
-            text = data.decode(enc)
-            break
-        except Exception:
-            continue
+    text = _decode_csv_text(data)
     if not text:
-        return ""
+        raise RuntimeError("prediction CSV is empty or cannot be decoded")
 
     try:
         reader = csv.DictReader(io.StringIO(text))
-    except Exception:
-        return ""
+        columns = list(reader.fieldnames or [])
+    except (csv.Error, UnicodeError) as exc:
+        raise RuntimeError("prediction CSV header cannot be parsed") from exc
 
-    date_cols = (
-        "trade_date",
-        "signal_date",
-        "date",
-        "verify_date",
-        "target_trade_date",
+    source_column = next(
+        (column for column in CANONICAL_SOURCE_DATE_COLUMNS if column in columns),
+        "",
     )
-    counts: dict[str, int] = {}
-    for i, row in enumerate(reader):
-        if i >= 500:
-            break
-        for col in date_cols:
-            val = row.get(col)
-            td = _extract_trade_date(str(val or ""))
-            if td:
-                counts[td] = counts.get(td, 0) + 1
-                break
+    if not source_column:
+        raise RuntimeError(
+            "prediction CSV has no canonical source date column "
+            "(trade_date, signal_date, or date)"
+        )
+    for column in CANONICAL_SOURCE_DATE_COLUMNS:
+        if columns.count(column) > 1:
+            raise RuntimeError(f"prediction CSV has duplicate source date column: {column}")
 
-    if not counts:
+    compare_trade_signal = "trade_date" in columns and "signal_date" in columns
+    resolved = ""
+    rows = 0
+    try:
+        for row_number, row in enumerate(reader, start=2):
+            rows += 1
+            row_date = _strict_trade_date(
+                row.get(source_column),
+                label=f"prediction CSV row {row_number} {source_column}",
+            )
+            if compare_trade_signal:
+                trade_date = _strict_trade_date(
+                    row.get("trade_date"),
+                    label=f"prediction CSV row {row_number} trade_date",
+                )
+                signal_date = _strict_trade_date(
+                    row.get("signal_date"),
+                    label=f"prediction CSV row {row_number} signal_date",
+                )
+                if trade_date != signal_date:
+                    raise RuntimeError(
+                        "prediction CSV trade_date/signal_date mismatch at row "
+                        f"{row_number}: trade_date={trade_date}, signal_date={signal_date}"
+                    )
+            if not resolved:
+                resolved = row_date
+            elif row_date != resolved:
+                raise RuntimeError(
+                    "prediction CSV contains mixed source dates: "
+                    f"first={resolved}, row_{row_number}={row_date}"
+                )
+    except csv.Error as exc:
+        raise RuntimeError("prediction CSV body cannot be parsed") from exc
+
+    if rows == 0:
+        raise RuntimeError("prediction CSV has no data rows")
+    return resolved
+
+
+def _extract_trade_date_from_basename(source: str, *, label: str) -> str:
+    matches = DATE_TOKEN_RE.findall(source)
+    if not matches:
         return ""
-    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+    validated = {
+        _strict_trade_date(match, label=f"{label} basename date") for match in matches
+    }
+    if len(validated) != 1:
+        raise RuntimeError(
+            f"{label} basename has ambiguous trade dates: {sorted(validated)}"
+        )
+    return next(iter(validated))
 
 
 def _decode_csv_text(data: bytes) -> str:
@@ -281,7 +337,7 @@ def _validate_transaction_targets(payloads: dict[Path, bytes]) -> None:
     if not payloads:
         raise RuntimeError("prediction transaction has no outputs")
     for target, data in payloads.items():
-        if target.exists() and not target.is_file():
+        if target.is_symlink() or (target.exists() and not target.is_file()):
             raise RuntimeError(f"prediction transaction target is not a file: {target}")
         if not isinstance(data, bytes):
             raise RuntimeError(f"prediction transaction payload is not bytes: {target}")
@@ -359,35 +415,44 @@ def _guard_not_older_than_existing(new_trade_date: str) -> None:
 
 def _resolve_trade_date(url: str, path: str, data: bytes | None = None) -> str:
     """
-    trade_date 解析优先级：
-    1) 环境变量 TRADE_DATE
-    2) 从 TOP10_PRED_URL 中提取
-    3) 从 TOP10_PRED_PATH 中提取
-    4) 从 CSV 内容 trade_date/signal_date 等字段中提取
+    CSV 内文是 canonical source date；环境变量和 source basename 只能作为
+    一致性约束，不能覆盖内文。URL 只检查 path basename，绝不扫描 commit SHA。
     """
-    env_trade_date = (os.getenv("TRADE_DATE") or "").strip()
+    if data is None:
+        raise RuntimeError("prediction CSV body is required to resolve trade_date")
+    csv_trade_date = _extract_trade_date_from_csv_bytes(data)
+
+    env_trade_date = os.getenv("TRADE_DATE") or ""
     if env_trade_date:
-        if re.fullmatch(r"20\d{6}", env_trade_date):
-            return env_trade_date
-        print(
-            f"[SYNC][WARN] TRADE_DATE 格式非法，期望 YYYYMMDD，实际={env_trade_date}；将继续尝试自动提取。",
-            file=sys.stderr,
+        env_trade_date = _strict_trade_date(env_trade_date, label="TRADE_DATE")
+        if env_trade_date != csv_trade_date:
+            raise RuntimeError(
+                "TRADE_DATE differs from prediction CSV source date: "
+                f"env={env_trade_date}, csv={csv_trade_date}"
+            )
+
+    source_date = ""
+    source_label = ""
+    if url:
+        source_label = "TOP10_PRED_URL"
+        basename = Path(urlparse(url).path).name
+        source_date = _extract_trade_date_from_basename(
+            basename,
+            label=source_label,
+        )
+    elif path:
+        source_label = "TOP10_PRED_PATH"
+        source_date = _extract_trade_date_from_basename(
+            Path(path).name,
+            label=source_label,
+        )
+    if source_date and source_date != csv_trade_date:
+        raise RuntimeError(
+            f"{source_label} basename date differs from prediction CSV source date: "
+            f"basename={source_date}, csv={csv_trade_date}"
         )
 
-    from_url = _extract_trade_date(url)
-    if from_url:
-        return from_url
-
-    from_path = _extract_trade_date(path)
-    if from_path:
-        return from_path
-
-    if data:
-        from_csv = _extract_trade_date_from_csv_bytes(data)
-        if from_csv:
-            return from_csv
-
-    return ""
+    return csv_trade_date
 
 
 def _generation_payloads(
@@ -400,7 +465,29 @@ def _generation_payloads(
     if not trade_date:
         print("[SYNC][WARN] 未识别到 trade_date；本次仅更新 latest，不落 archive。")
         return payloads
-    payloads[ARCHIVE_DIR / f"pred_source_{trade_date}.csv"] = data
+    archive_path = ARCHIVE_DIR / f"pred_source_{trade_date}.csv"
+    if archive_path.is_symlink():
+        raise RuntimeError(f"prediction archive target must not be a symlink: {archive_path}")
+    if archive_path.exists():
+        if not archive_path.is_file():
+            raise RuntimeError(
+                f"prediction archive target is not a regular file: {archive_path}"
+            )
+        existing = archive_path.read_bytes()
+        existing_sha = hashlib.sha256(existing).hexdigest()
+        incoming_sha = hashlib.sha256(data).hexdigest()
+        if existing != data:
+            raise RuntimeError(
+                "immutable prediction archive conflict before latest/meta write: "
+                f"path={archive_path}, existing_sha256={existing_sha}, "
+                f"incoming_sha256={incoming_sha}"
+            )
+        print(
+            "[SYNC] immutable archive already matches; preserving existing file "
+            f"-> {archive_path} sha256={existing_sha}"
+        )
+        return payloads
+    payloads[archive_path] = data
     return payloads
 
 
@@ -423,26 +510,32 @@ def main() -> int:
             return 2
         print(f"[SYNC] use TOP10_PRED_URL={url}")
         data = _download_bytes(url)
-        trade_date = _resolve_trade_date(url=url, path=path, data=data)
-        if trade_date:
+        try:
+            trade_date = _resolve_trade_date(url=url, path=path, data=data)
             print(f"[SYNC] resolved trade_date={trade_date}")
-        else:
-            print("[SYNC][WARN] trade_date unresolved")
-        _guard_not_older_than_existing(trade_date)
-        meta = _meta_bytes(
-            source="url",
-            source_ref=url,
-            data=data,
-            trade_date=trade_date,
-            resolved_commit=remote["resolved_commit"],
-            source_repository=f"{remote['owner']}/{remote['repo']}",
-        )
-        _transactional_replace(
-            _generation_payloads(data=data, trade_date=trade_date, meta=meta)
-        )
+            _guard_not_older_than_existing(trade_date)
+            meta = _meta_bytes(
+                source="url",
+                source_ref=url,
+                data=data,
+                trade_date=trade_date,
+                resolved_commit=remote["resolved_commit"],
+                source_repository=f"{remote['owner']}/{remote['repo']}",
+            )
+            payloads = _generation_payloads(
+                data=data,
+                trade_date=trade_date,
+                meta=meta,
+            )
+        except RuntimeError as exc:
+            print(f"[SYNC][ERR] {exc}", file=sys.stderr)
+            return 2
+        _transactional_replace(payloads)
         print(f"[SYNC] wrote snapshot -> {SNAPSHOT_PATH}")
-        if trade_date:
+        if ARCHIVE_DIR / f"pred_source_{trade_date}.csv" in payloads:
             print(f"[SYNC] wrote archive  -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
+        else:
+            print(f"[SYNC] kept archive   -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
         print(f"[SYNC] wrote meta      -> {META_PATH}")
         return 0
 
@@ -453,19 +546,30 @@ def main() -> int:
 
     print(f"[SYNC] use TOP10_PRED_PATH={p}")
     data = _read_local_bytes(p)
-    trade_date = _resolve_trade_date(url=url, path=path, data=data)
-    if trade_date:
+    try:
+        trade_date = _resolve_trade_date(url=url, path=path, data=data)
         print(f"[SYNC] resolved trade_date={trade_date}")
-    else:
-        print("[SYNC][WARN] trade_date unresolved")
-    _guard_not_older_than_existing(trade_date)
-    meta = _meta_bytes(source="path", source_ref=str(p), data=data, trade_date=trade_date)
-    _transactional_replace(
-        _generation_payloads(data=data, trade_date=trade_date, meta=meta)
-    )
+        _guard_not_older_than_existing(trade_date)
+        meta = _meta_bytes(
+            source="path",
+            source_ref=str(p),
+            data=data,
+            trade_date=trade_date,
+        )
+        payloads = _generation_payloads(
+            data=data,
+            trade_date=trade_date,
+            meta=meta,
+        )
+    except RuntimeError as exc:
+        print(f"[SYNC][ERR] {exc}", file=sys.stderr)
+        return 2
+    _transactional_replace(payloads)
     print(f"[SYNC] wrote snapshot -> {SNAPSHOT_PATH}")
-    if trade_date:
+    if ARCHIVE_DIR / f"pred_source_{trade_date}.csv" in payloads:
         print(f"[SYNC] wrote archive  -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
+    else:
+        print(f"[SYNC] kept archive   -> {ARCHIVE_DIR / f'pred_source_{trade_date}.csv'}")
     print(f"[SYNC] wrote meta      -> {META_PATH}")
     return 0
 

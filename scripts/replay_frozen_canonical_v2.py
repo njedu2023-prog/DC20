@@ -23,6 +23,7 @@ import re
 import subprocess
 import sys
 from dataclasses import asdict
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -2288,20 +2289,44 @@ def run_forced_replay(
     root: Path,
     *,
     signal_date: str = "",
+    report_date: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    for label, value in (
+        ("signal_date", signal_date),
+        ("report_date", report_date),
+    ):
+        _require(type(value) is str, f"replay {label} must be a string")
+        if value:
+            _require(DATE_RE.fullmatch(value) is not None, f"replay {label} is invalid")
+            try:
+                parsed = datetime.strptime(value, "%Y%m%d")
+            except ValueError as exc:
+                raise RuntimeError(f"replay {label} is invalid") from exc
+            _require(parsed.strftime("%Y%m%d") == value, f"replay {label} is invalid")
+    if report_date:
+        _require(bool(signal_date), "replay report_date requires an explicit signal_date")
+        _require(signal_date < report_date, "replay signal/report date sequence is invalid")
     history, _forced_manifest, history_audit = load_forced_frozen_history(root)
     config = AuctionV3Config(root=root.resolve())
     engine = DiagnosticFrozenEngine(config, history, history_audit)
     # Mandatory in diagnostic mode: a pre-existing dated prediction may be V1
     # or from another replay.  Replacement is confined to this runner checkout.
     result = engine.run(signal_date, force_prediction=True)
+    if signal_date:
+        _require(
+            result.signal_date == signal_date,
+            "frozen replay engine returned a different signal_date",
+        )
+    publish_command = [
+        sys.executable,
+        str(root / "scripts" / "publish_decision_action.py"),
+        "--root",
+        str(root),
+    ]
+    if report_date:
+        publish_command.extend(["--report-date", report_date])
     published = subprocess.run(
-        [
-            sys.executable,
-            str(root / "scripts" / "publish_decision_action.py"),
-            "--root",
-            str(root),
-        ],
+        publish_command,
         cwd=root,
         check=False,
         capture_output=True,
@@ -2325,6 +2350,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--signal-date", default="")
+    parser.add_argument(
+        "--report-date",
+        default="",
+        help="Bind action-plan publication to this exact execution/report date",
+    )
     parser.add_argument("--reference-dir", default="")
     parser.add_argument(
         "--reference-profile",
@@ -2349,6 +2379,7 @@ def main() -> int:
         result, history_audit, action_publish = run_forced_replay(
             root,
             signal_date=args.signal_date,
+            report_date=args.report_date,
         )
         _require(_sha256(manifest_path) == manifest_before, "freeze manifest was mutated")
         behavior_contract_candidate = build_candidate_behavior_contract(root)

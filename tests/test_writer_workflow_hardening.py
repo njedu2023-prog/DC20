@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import re
 import subprocess
@@ -194,19 +196,33 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "path.is_symlink()" in prerequisite_step
     assert "validated=false\\nsimulation=true\\nsemantic_sha256=\\n" in prerequisite_step
     assert "comparison_profile=\\n" in prerequisite_step
+    assert "signal_date=\\n" in prerequisite_step
+    assert "report_date=\\n" in prerequisite_step
     assert daily.index("Require persisted Auction action for real Daily publication") < daily.index(
         "Rebuild exact-base frozen Auction runtime"
     )
     assert "PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}" in replay_step
     assert "PERSISTED_ACTION_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}" in replay_step
+    assert "PERSISTED_ACTION_SIGNAL_DATE: ${{ steps.persisted_action.outputs.signal_date }}" in replay_step
+    assert "PERSISTED_ACTION_REPORT_DATE: ${{ steps.persisted_action.outputs.report_date }}" in replay_step
     assert "PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}" in replay_step
+    assert "datetime.strptime(signal_date, '%Y%m%d')" in prerequisite_step
+    assert "f'signal_date={signal_date}\\n'" in prerequisite_step
+    assert "datetime.strptime(report_date, '%Y%m%d')" in prerequisite_step
+    assert "f'report_date={report_date}\\n'" in prerequisite_step
+    assert '--signal-date "${PERSISTED_ACTION_SIGNAL_DATE}"' in replay_step
+    assert '--report-date "${PERSISTED_ACTION_REPORT_DATE}"' in replay_step
+    assert '--signal-date "${TRADE_DATE}"' not in replay_step
+    assert "Daily replayed action signal_date differs from persisted Auction action" in replay_step
+    assert "Daily replayed action report_date differs from persisted Auction action" in replay_step
+    assert "Daily dry-run unexpectedly received persisted action dates" in replay_step
     assert "canonical_json_bytes(semantic_action)" in prerequisite_step
     assert "canonical_json_bytes(semantic_action)" in replay_step
-    assert "action_plan_semantic_comparison_profile_v2" in prerequisite_step
-    assert "action_plan_semantic_projection_v2(" in prerequisite_step
-    assert "action_plan_semantic_projection_v2(" in replay_step
-    assert "comparison_profile=action_plan_semantic_comparison_profile_v2(action)" in replay_step
-    assert "daily_action_semantic_comparison_v2" in replay_step
+    assert "action_plan_semantic_comparison_profile_v3" in prerequisite_step
+    assert "action_plan_semantic_projection_v3(" in prerequisite_step
+    assert "action_plan_semantic_projection_v3(" in replay_step
+    assert "comparison_profile=action_plan_semantic_comparison_profile_v3(action)" in replay_step
+    assert "daily_action_semantic_comparison_v3" in replay_step
     assert "persisted_semantic_sha256" in replay_step
     assert "replayed_semantic_sha256" in replay_step
     assert "object_pairs_hook=reject_duplicate_keys" in prerequisite_step
@@ -316,7 +332,7 @@ def test_daily_dry_run_marks_persisted_action_as_simulation_only(
     exec(compile(source, "<daily-persisted-action-dry-run>", "exec"), {})
     assert output_path.read_text(encoding="utf-8") == (
         "validated=false\nsimulation=true\nsemantic_sha256=\n"
-        "comparison_profile=\n"
+        "comparison_profile=\nsignal_date=\nreport_date=\n"
     )
 
     replay_blocks = _embedded_python_blocks_between(
@@ -342,6 +358,8 @@ def test_daily_dry_run_marks_persisted_action_as_simulation_only(
     monkeypatch.setenv("PERSISTED_ACTION_VALIDATED", "false")
     monkeypatch.setenv("PERSISTED_ACTION_SEMANTIC_SHA256", "")
     monkeypatch.setenv("PERSISTED_ACTION_COMPARISON_PROFILE", "")
+    monkeypatch.setenv("PERSISTED_ACTION_SIGNAL_DATE", "")
+    monkeypatch.setenv("PERSISTED_ACTION_REPORT_DATE", "")
     monkeypatch.setattr(
         model_freeze,
         "load_model_freeze",
@@ -358,6 +376,117 @@ def test_daily_dry_run_marks_persisted_action_as_simulation_only(
         r"sha256=[0-9a-f]{64}\n",
         replay_output.read_text(encoding="utf-8"),
     )
+
+    monkeypatch.setenv("PERSISTED_ACTION_SIGNAL_DATE", "20260814")
+    with pytest.raises(
+        SystemExit,
+        match="Daily dry-run unexpectedly received persisted action dates",
+    ):
+        exec(compile(replay_source, "<daily-replay-action-dry-run-signal>", "exec"), {})
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_action_date"),
+    (
+        ("signal_date", None),
+        ("signal_date", 20260814),
+        ("signal_date", ""),
+        ("signal_date", "20260814 "),
+        ("signal_date", "20260230"),
+        ("signal_date", "2026-08-14"),
+        ("report_date", None),
+        ("report_date", 20260817),
+        ("report_date", ""),
+        ("report_date", "20260817 "),
+        ("report_date", "20260230"),
+        ("report_date", "20260814"),
+    ),
+)
+def test_daily_real_publication_rejects_invalid_persisted_action_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    invalid_action_date: object,
+) -> None:
+    from top10decision.decision import model_freeze
+
+    source = _embedded_python_after(
+        _text("run_decision_daily.yml"),
+        "- name: Require persisted Auction action for real Daily publication",
+    )
+    action = json.loads(
+        (ROOT / "outputs/decision/action_plan_latest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for field in (
+        "publication_timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "migration",
+    ):
+        action.pop(field, None)
+    action["generated_at_utc"] = "2026-08-20T14:00:00+00:00"
+    action[field] = invalid_action_date
+    action_path = tmp_path / "outputs/decision/action_plan_latest.json"
+    action_path.parent.mkdir(parents=True)
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    output_path = tmp_path / "github-output.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("PUBLISH", "true")
+    monkeypatch.setattr(
+        model_freeze,
+        "load_model_freeze",
+        lambda *_args, **_kwargs: {"active": True},
+    )
+    monkeypatch.setattr(model_freeze, "model_freeze_active", lambda _manifest: True)
+    monkeypatch.setattr(
+        model_freeze,
+        "validate_action_plan_artifact",
+        lambda *_args, **_kwargs: {"validated": True, "enforced": True},
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        exec(compile(source, "<daily-persisted-action-invalid-signal>", "exec"), {})
+    assert exc_info.value.code == 1
+    assert not output_path.exists()
+
+
+def test_daily_bootstrap_candidate_archive_is_exact_remote_history() -> None:
+    archive = ROOT / "data/pred/archive/pred_source_20260814.csv"
+    assert archive.is_file() and not archive.is_symlink()
+    raw = archive.read_bytes()
+    assert len(raw) == 38_507
+    assert raw.startswith(b"\xef\xbb\xbf")
+    assert b"\r" not in raw
+    assert hashlib.sha256(raw).hexdigest() == (
+        "eda0f4008756b1c72ed0a9e03b8621b1a7790512809c42f6cf0da04d1cd0e041"
+    )
+    reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+    rows = list(reader)
+    assert reader.fieldnames is not None
+    assert len(reader.fieldnames) == len(set(reader.fieldnames)) == 65
+    assert len(rows) == 51
+    assert all(None not in row and len(row) == 65 for row in rows)
+    assert {row["trade_date"] for row in rows} == {"20260814"}
+    assert {row["verify_date"] for row in rows} == {"20260817"}
+    assert sorted(int(row["rank"]) for row in rows) == list(range(1, 52))
+    codes = [row["ts_code"] for row in rows]
+    assert len(codes) == len(set(codes)) == 51
+    assert all(re.fullmatch(r"\d{6}\.(?:SH|SZ|BJ)", code) for code in codes)
+
+    action = json.loads(
+        (ROOT / "outputs/decision/action_plan_latest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert (
+        action["signal_date"],
+        action["exec_date"],
+        action["exit_date"],
+    ) == ("20260814", "20260817", "20260818")
+    assert {row["ts_code"] for row in action["candidates"]} == set(codes)
 
 
 def test_daily_real_action_comparison_ignores_only_valid_generation_time(
@@ -411,8 +540,10 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
     assert re.fullmatch(r"[0-9a-f]{64}", persisted["semantic_sha256"])
     assert (
         persisted["comparison_profile"]
-        == "retrospective_frozen_replay_dynamic_evidence_v2"
+        == "retrospective_frozen_replay_dynamic_evidence_v3"
     )
+    assert persisted["signal_date"] == action["signal_date"]
+    assert persisted["report_date"] == action["report_date"]
 
     raw_persisted_sha = hashlib.sha256(action_path.read_bytes()).hexdigest()
     for field in (
@@ -435,11 +566,31 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
         "PERSISTED_ACTION_COMPARISON_PROFILE",
         persisted["comparison_profile"],
     )
+    monkeypatch.setenv("PERSISTED_ACTION_SIGNAL_DATE", persisted["signal_date"])
+    monkeypatch.setenv("PERSISTED_ACTION_REPORT_DATE", persisted["report_date"])
     exec(compile(replay_validation_source, "<daily-replay-action-positive>", "exec"), {})
     assert re.fullmatch(
         r"sha256=[0-9a-f]{64}\n",
         replay_output.read_text(encoding="utf-8"),
     )
+
+    action["signal_date"] = "20260817"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    with pytest.raises(
+        SystemExit,
+        match="signal_date differs from persisted Auction action",
+    ):
+        exec(compile(replay_validation_source, "<daily-replay-action-signal-drift>", "exec"), {})
+    action["signal_date"] = persisted["signal_date"]
+
+    action["report_date"] = "20260818"
+    action_path.write_text(json.dumps(action), encoding="utf-8")
+    with pytest.raises(
+        SystemExit,
+        match="report_date differs from persisted Auction action",
+    ):
+        exec(compile(replay_validation_source, "<daily-replay-action-report-drift>", "exec"), {})
+    action["report_date"] = persisted["report_date"]
 
     action["unknown_business_semantics"] = "drift"
     action_path.write_text(json.dumps(action), encoding="utf-8")
@@ -757,6 +908,209 @@ def test_action_semantic_projection_v2_is_strict_and_core_preserving() -> None:
             replay,
             comparison_profile="unknown",
         )
+
+
+def test_action_semantic_projection_v3_normalizes_only_valid_t_close_maturity() -> None:
+    from top10decision.decision.action_plan import (
+        action_plan_semantic_comparison_profile_v2,
+        action_plan_semantic_comparison_profile_v3,
+        action_plan_semantic_projection_v2,
+        action_plan_semantic_projection_v3,
+    )
+
+    persisted = json.loads(
+        (ROOT / "outputs/decision/action_plan_latest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    persisted.pop("generated_at_utc")
+    profile = action_plan_semantic_comparison_profile_v3(persisted)
+    assert profile == "retrospective_frozen_replay_dynamic_evidence_v3"
+    expected = action_plan_semantic_projection_v3(
+        persisted,
+        comparison_profile=profile,
+    )
+    assert expected["market_close_comparison"]["t"] == {
+        "evidence_class": "post_decision_t_close_v3",
+        "trade_date": persisted["exec_date"],
+    }
+
+    native = json.loads(json.dumps(persisted))
+    for field in (
+        "publication_timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "migration",
+    ):
+        native.pop(field)
+    assert (
+        action_plan_semantic_comparison_profile_v3(native)
+        == "native_no_trade_dynamic_evidence_v3"
+    )
+
+    mature = json.loads(json.dumps(native))
+    d_stock_count = mature["market_close_comparison"]["d"]["stock_count"]
+    mature["market_close_comparison"]["t"] = {
+        "trade_date": mature["exec_date"],
+        "available": True,
+        "status": "FINAL_CLOSE",
+        "scope": "all_a_share_daily_close",
+        "stock_count": d_stock_count + 1,
+        "return_coverage": 1.0,
+        "up_count": d_stock_count + 1,
+        "down_count": 0,
+        "flat_count": 0,
+        "limit_up_count": 2,
+        "classified_limit_up_count": 2,
+        "industry_top10": [
+            {
+                "rank": 1,
+                "industry": "化学制品",
+                "limit_up_count": 2,
+                "share": 1.0,
+            }
+        ],
+        "industry_counts": {"化学制品": 2},
+        "raw_close_available": True,
+        "coverage_against_d": (d_stock_count + 1) / d_stock_count,
+        "maturity_status": "FINAL_T_CLOSE",
+    }
+    mature_projection = action_plan_semantic_projection_v3(
+        mature,
+        comparison_profile=profile,
+    )
+    assert mature["market_close_comparison"]["t"]["coverage_against_d"] > 1.0
+    assert mature_projection == expected
+
+    v2_profile = action_plan_semantic_comparison_profile_v2(native)
+    assert action_plan_semantic_projection_v2(
+        mature,
+        comparison_profile=v2_profile,
+    ) != action_plan_semantic_projection_v2(
+        native,
+        comparison_profile=v2_profile,
+    )
+
+    malformed: list[dict[str, object]] = []
+    unknown_t = json.loads(json.dumps(mature))
+    unknown_t["market_close_comparison"]["t"]["unknown"] = True
+    malformed.append(unknown_t)
+    bad_coverage = json.loads(json.dumps(mature))
+    bad_coverage["market_close_comparison"]["t"]["coverage_against_d"] = 0.5
+    malformed.append(bad_coverage)
+    bad_industry = json.loads(json.dumps(mature))
+    bad_industry["market_close_comparison"]["t"]["industry_counts"] = {
+        "化学制品": 1
+    }
+    malformed.append(bad_industry)
+    boolean_rank = json.loads(json.dumps(mature))
+    boolean_rank["market_close_comparison"]["t"]["industry_top10"][0]["rank"] = True
+    malformed.append(boolean_rank)
+    boolean_count = json.loads(json.dumps(mature))
+    boolean_count["market_close_comparison"]["t"]["industry_top10"][0][
+        "limit_up_count"
+    ] = True
+    malformed.append(boolean_count)
+    integer_share = json.loads(json.dumps(mature))
+    integer_share["market_close_comparison"]["t"]["industry_top10"][0]["share"] = 1
+    malformed.append(integer_share)
+    integer_return_coverage = json.loads(json.dumps(mature))
+    integer_return_coverage["market_close_comparison"]["t"]["return_coverage"] = 1
+    malformed.append(integer_return_coverage)
+    integer_d_coverage = json.loads(json.dumps(mature))
+    integer_d_coverage["market_close_comparison"]["t"]["coverage_against_d"] = 1
+    malformed.append(integer_d_coverage)
+    bad_state = json.loads(json.dumps(mature))
+    bad_state["market_close_comparison"]["t"]["available"] = False
+    malformed.append(bad_state)
+    bad_binding = json.loads(json.dumps(mature))
+    bad_binding["market_close_comparison"]["t"]["trade_date"] = "20260818"
+    malformed.append(bad_binding)
+    unknown_parent = json.loads(json.dumps(mature))
+    unknown_parent["market_close_comparison"]["unknown"] = True
+    malformed.append(unknown_parent)
+    unknown_d = json.loads(json.dumps(mature))
+    unknown_d["market_close_comparison"]["d"]["unknown"] = True
+    malformed.append(unknown_d)
+    bad_signal_date = json.loads(json.dumps(mature))
+    bad_signal_date["signal_date"] = "not-a-date"
+    bad_signal_date["market_close_comparison"]["d"]["trade_date"] = "not-a-date"
+    malformed.append(bad_signal_date)
+    bad_exit_date = json.loads(json.dumps(mature))
+    bad_exit_date["exit_date"] = bad_exit_date["exec_date"]
+    malformed.append(bad_exit_date)
+    partial_waiting = json.loads(json.dumps(native))
+    partial_stock_count = 100
+    partial_waiting["market_close_comparison"]["t"].update(
+        {
+            "status": "INCOMPLETE_DAILY_CLOSE",
+            "stock_count": partial_stock_count,
+            "return_coverage": 0.5,
+            "up_count": 50,
+            "coverage_against_d": partial_stock_count / d_stock_count,
+        }
+    )
+    assert action_plan_semantic_projection_v3(
+        partial_waiting,
+        comparison_profile=profile,
+    ) == expected
+
+    incomplete_t = json.loads(json.dumps(mature))
+    incomplete_stock_count = max(2, int(d_stock_count * 0.8))
+    incomplete_t["market_close_comparison"]["t"].update(
+        {
+            "available": False,
+            "raw_close_available": True,
+            "maturity_status": "INCOMPLETE_T_CLOSE",
+            "status": "FINAL_CLOSE",
+            "stock_count": incomplete_stock_count,
+            "return_coverage": 1.0,
+            "up_count": incomplete_stock_count,
+            "coverage_against_d": incomplete_stock_count / d_stock_count,
+        }
+    )
+    assert action_plan_semantic_projection_v3(
+        incomplete_t,
+        comparison_profile=profile,
+    ) == expected
+    invalid_incomplete = json.loads(json.dumps(incomplete_t))
+    invalid_incomplete["market_close_comparison"]["t"]["available"] = True
+    malformed.append(invalid_incomplete)
+    invalid_partial = json.loads(json.dumps(partial_waiting))
+    invalid_partial["market_close_comparison"]["t"]["raw_close_available"] = True
+    malformed.append(invalid_partial)
+    waiting_integer_return = json.loads(json.dumps(native))
+    waiting_integer_return["market_close_comparison"]["t"]["return_coverage"] = 0
+    malformed.append(waiting_integer_return)
+    waiting_integer_d_coverage = json.loads(json.dumps(native))
+    waiting_integer_d_coverage["market_close_comparison"]["t"]["coverage_against_d"] = 0
+    malformed.append(waiting_integer_d_coverage)
+    for candidate in malformed:
+        with pytest.raises(ValueError):
+            action_plan_semantic_projection_v3(
+                candidate,  # type: ignore[arg-type]
+                comparison_profile=profile,
+            )
+
+    core_change = json.loads(json.dumps(native))
+    core_change["candidates"][0]["trade_score"] = 999.0
+    assert action_plan_semantic_projection_v3(
+        core_change,
+        comparison_profile=profile,
+    ) != expected
+
+    unsafe = json.loads(json.dumps(native))
+    unsafe["status_code"] = "ACTIONABLE_BUY"
+    assert action_plan_semantic_comparison_profile_v3(unsafe) == "full_action_v1"
+    full_waiting = action_plan_semantic_projection_v3(
+        unsafe,
+        comparison_profile="full_action_v1",
+    )
+    unsafe["market_close_comparison"]["t"] = mature["market_close_comparison"]["t"]
+    assert action_plan_semantic_projection_v3(
+        unsafe,
+        comparison_profile="full_action_v1",
+    ) != full_waiting
 
 
 def test_daily_candidate_staging_tolerates_absent_optional_pred_top10(

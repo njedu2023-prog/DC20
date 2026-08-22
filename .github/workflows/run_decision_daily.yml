@@ -100,8 +100,8 @@ jobs:
           from datetime import datetime, timedelta
           from pathlib import Path
           from top10decision.decision.action_plan import (
-              action_plan_semantic_comparison_profile_v2,
-              action_plan_semantic_projection_v2,
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
           )
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
@@ -123,7 +123,7 @@ jobs:
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
                   output.write(
                       'validated=false\nsimulation=true\nsemantic_sha256=\n'
-                      'comparison_profile=\n'
+                      'comparison_profile=\nsignal_date=\nreport_date=\n'
                   )
           else:
               root = Path('.').resolve()
@@ -157,10 +157,36 @@ jobs:
                       or generated_time.microsecond != 0
                   ):
                       raise RuntimeError('persisted Auction action timestamp is invalid')
-                  comparison_profile = action_plan_semantic_comparison_profile_v2(
+                  signal_date = action.get('signal_date')
+                  if type(signal_date) is not str:
+                      raise RuntimeError('persisted Auction action signal_date is invalid')
+                  try:
+                      parsed_signal_date = datetime.strptime(signal_date, '%Y%m%d')
+                  except ValueError as exc:
+                      raise RuntimeError(
+                          'persisted Auction action signal_date is invalid'
+                      ) from exc
+                  if parsed_signal_date.strftime('%Y%m%d') != signal_date:
+                      raise RuntimeError('persisted Auction action signal_date is invalid')
+                  report_date = action.get('report_date')
+                  if type(report_date) is not str:
+                      raise RuntimeError('persisted Auction action report_date is invalid')
+                  try:
+                      parsed_report_date = datetime.strptime(report_date, '%Y%m%d')
+                  except ValueError as exc:
+                      raise RuntimeError(
+                          'persisted Auction action report_date is invalid'
+                      ) from exc
+                  if (
+                      parsed_report_date.strftime('%Y%m%d') != report_date
+                      or parsed_signal_date >= parsed_report_date
+                      or action.get('exec_date') != report_date
+                  ):
+                      raise RuntimeError('persisted Auction action report_date is invalid')
+                  comparison_profile = action_plan_semantic_comparison_profile_v3(
                       action
                   )
-                  semantic_action = action_plan_semantic_projection_v2(
+                  semantic_action = action_plan_semantic_projection_v3(
                       action,
                       comparison_profile=comparison_profile,
                   )
@@ -179,6 +205,8 @@ jobs:
                       'validated=true\nsimulation=false\n'
                       f'semantic_sha256={semantic_digest}\n'
                       f'comparison_profile={comparison_profile}\n'
+                      f'signal_date={signal_date}\n'
+                      f'report_date={report_date}\n'
                   )
           PY
       - name: Rebuild exact-base frozen Auction runtime before live source mutation
@@ -186,6 +214,8 @@ jobs:
         env:
           PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}
           PERSISTED_ACTION_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}
+          PERSISTED_ACTION_SIGNAL_DATE: ${{ steps.persisted_action.outputs.signal_date }}
+          PERSISTED_ACTION_REPORT_DATE: ${{ steps.persisted_action.outputs.report_date }}
           PERSISTED_ACTION_VALIDATED: ${{ steps.persisted_action.outputs.validated }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PYTHONPATH: ${{ github.workspace }}/src
@@ -193,10 +223,27 @@ jobs:
           set -euo pipefail
           replay_report="${RUNNER_TEMP}/daily-frozen-replay.json"
           replay_stdout="${RUNNER_TEMP}/daily-frozen-replay.stdout"
+          replay_args=(
+            --root "${GITHUB_WORKSPACE}"
+            --report "${replay_report}"
+          )
+          if [ "${PUBLISH}" = true ]; then
+            if [[ ! "${PERSISTED_ACTION_SIGNAL_DATE}" =~ ^20[0-9]{6}$ ]]; then
+              echo 'Daily persisted Auction action signal_date is invalid' >&2
+              exit 1
+            fi
+            if [[ ! "${PERSISTED_ACTION_REPORT_DATE}" =~ ^20[0-9]{6}$ ]]; then
+              echo 'Daily persisted Auction action report_date is invalid' >&2
+              exit 1
+            fi
+            replay_args+=(
+              --signal-date "${PERSISTED_ACTION_SIGNAL_DATE}"
+              --report-date "${PERSISTED_ACTION_REPORT_DATE}"
+            )
+          fi
           set +e
           python scripts/replay_frozen_canonical_v2.py \
-            --root "${GITHUB_WORKSPACE}" \
-            --report "${replay_report}" > "${replay_stdout}"
+            "${replay_args[@]}" > "${replay_stdout}"
           replay_status=$?
           set -e
           if [ "${replay_status}" -ne 0 ]; then
@@ -238,8 +285,8 @@ jobs:
           from datetime import datetime, timedelta
           from pathlib import Path
           from top10decision.decision.action_plan import (
-              action_plan_semantic_comparison_profile_v2,
-              action_plan_semantic_projection_v2,
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
           )
           from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           from top10decision.decision.model_freeze import (
@@ -288,11 +335,39 @@ jobs:
               or generated_time.microsecond != 0
           ):
               raise SystemExit('Daily replayed action timestamp is invalid')
+          expected_signal_date=os.environ.get('PERSISTED_ACTION_SIGNAL_DATE', '')
+          expected_report_date=os.environ.get('PERSISTED_ACTION_REPORT_DATE', '')
+          if os.environ['PUBLISH'] == 'true':
+              try:
+                  parsed_signal_date=datetime.strptime(expected_signal_date, '%Y%m%d')
+              except ValueError:
+                  raise SystemExit('Daily persisted Auction action signal_date is invalid')
+              if parsed_signal_date.strftime('%Y%m%d') != expected_signal_date:
+                  raise SystemExit('Daily persisted Auction action signal_date is invalid')
+              if action.get('signal_date') != expected_signal_date:
+                  raise SystemExit(
+                      'Daily replayed action signal_date differs from persisted Auction action'
+                  )
+              try:
+                  parsed_report_date=datetime.strptime(expected_report_date, '%Y%m%d')
+              except ValueError:
+                  raise SystemExit('Daily persisted Auction action report_date is invalid')
+              if (
+                  parsed_report_date.strftime('%Y%m%d') != expected_report_date
+                  or parsed_signal_date >= parsed_report_date
+                  or action.get('report_date') != expected_report_date
+                  or action.get('exec_date') != expected_report_date
+              ):
+                  raise SystemExit(
+                      'Daily replayed action report_date differs from persisted Auction action'
+                  )
+          elif expected_signal_date or expected_report_date:
+              raise SystemExit('Daily dry-run unexpectedly received persisted action dates')
           comparison_profile=os.environ['PERSISTED_ACTION_COMPARISON_PROFILE']
           if os.environ['PUBLISH'] != 'true':
-              comparison_profile=action_plan_semantic_comparison_profile_v2(action)
+              comparison_profile=action_plan_semantic_comparison_profile_v3(action)
           try:
-              semantic_action=action_plan_semantic_projection_v2(
+              semantic_action=action_plan_semantic_projection_v3(
                   action,
                   comparison_profile=comparison_profile,
               )
@@ -304,7 +379,7 @@ jobs:
                   raise SystemExit('Daily real publication lacks a validated persisted Auction action')
               print(json.dumps({
                   'comparison_profile': comparison_profile,
-                  'component': 'daily_action_semantic_comparison_v2',
+                  'component': 'daily_action_semantic_comparison_v3',
                   'persisted_semantic_sha256': os.environ[
                       'PERSISTED_ACTION_SEMANTIC_SHA256'
                   ],
