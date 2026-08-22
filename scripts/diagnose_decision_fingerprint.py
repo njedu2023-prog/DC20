@@ -102,7 +102,7 @@ ACTIVATION_SOURCE6_SCHEMA = "decision_canonical_v2_source6_v1"
 EXPECTED_ACTIVATION_SOURCE6_SHA256 = (
     "1e00438a57b100e17637d016ee9c768accf78f04612bd00eef1c35131eedc467"
 )
-EXPECTED_PERSISTED_BEHAVIOR_COUNTS = {
+EXPECTED_FROZEN_BEHAVIOR_COUNTS = {
     "top10": {
         "rows": 4467,
         "signal_dates": 543,
@@ -133,12 +133,6 @@ EXPECTED_PERSISTED_BEHAVIOR_COUNTS = {
         "signals": 0,
         "signal_dates": 0,
         "filled_trades": 0,
-    },
-    "action_watchlist": {
-        "rows": 9,
-        "shadow_only_rows": 2,
-        "reject_rows": 7,
-        "formal_buy_count": 0,
     },
 }
 LEGACY_DIAGNOSTIC_MANIFEST_SHA256 = (
@@ -1596,7 +1590,12 @@ def _behavior_activation_evidence(
     oos: pd.DataFrame,
     backtest: Mapping[str, Any],
     action: Mapping[str, Any],
+    expected_action_rows: int,
 ) -> dict[str, Any]:
+    _evidence_require(
+        type(expected_action_rows) is int and expected_action_rows > 0,
+        "prediction observation-domain row count is invalid",
+    )
     top10_projection = _behavior_manifest_projection(
         top10,
         relative_path=TOP10_EVIDENCE_PATH,
@@ -1617,11 +1616,17 @@ def _behavior_activation_evidence(
     )
     action_contract = {"columns": list(ACTION_WATCHLIST_COLUMNS)}
     action_computed = compute_action_watchlist_fingerprint(action, action_contract)
-    _evidence_require(action_computed["rows"] == 9, "action watchlist must have 9 rows")
     _evidence_require(
-        action_computed["shadow_only_rows"]
-        == freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
-        "action watchlist must preserve exactly two relative-best shadows",
+        action_computed["rows"] == expected_action_rows,
+        "action watchlist rows differ from prediction observation domain",
+    )
+    expected_shadow_rows = min(
+        freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+        expected_action_rows,
+    )
+    _evidence_require(
+        action_computed["shadow_only_rows"] == expected_shadow_rows,
+        "action watchlist must preserve the available relative-best shadows",
     )
     action_projection = {
         "path": ACTION_EVIDENCE_PATH,
@@ -1759,6 +1764,11 @@ def _behavior_activation_evidence(
         for row in watchlist
         if isinstance(row, Mapping) and row.get("action") == "REJECT"
     )
+    _evidence_require(
+        reject_rows + action_computed["shadow_only_rows"]
+        == action_computed["rows"],
+        "action watchlist contains an unexpected executable action",
+    )
     persisted_counts = {
         "top10": {
             "rows": top10_projection["rows"],
@@ -1821,9 +1831,12 @@ def _behavior_activation_evidence(
             "formal_buy_count": decision["formal_buy_count"],
         },
     }
+    frozen_counts = {
+        key: persisted_counts[key] for key in EXPECTED_FROZEN_BEHAVIOR_COUNTS
+    }
     _evidence_require(
-        persisted_counts == EXPECTED_PERSISTED_BEHAVIOR_COUNTS,
-        "persisted C6 behavior counts drifted",
+        frozen_counts == EXPECTED_FROZEN_BEHAVIOR_COUNTS,
+        "persisted C6 frozen behavior counts drifted",
     )
     return {
         "schema_version": BEHAVIOR_SCHEMA_VERSION,
@@ -2185,6 +2198,13 @@ def _build_activation_evidence(
     source = _activation_source_evidence(root, report)
     reference = _activation_reference_evidence(report)
     canonical, runtime = _runtime_surface_evidence(root)
+    prediction_domain = canonical["surface_consistency"][
+        "prediction_trade_selector_domain"
+    ]
+    expected_action_rows = _evidence_strict_int(
+        prediction_domain.get("observation_domain_rows"),
+        "prediction observation-domain rows",
+    )
     top10 = _evidence_csv(root, TOP10_EVIDENCE_PATH)
     oos = _evidence_csv(root, OOS_EVIDENCE_PATH)
     behavior = _behavior_activation_evidence(
@@ -2193,6 +2213,7 @@ def _build_activation_evidence(
         oos=oos,
         backtest=runtime["backtest"],
         action=runtime["action"],
+        expected_action_rows=expected_action_rows,
     )
     _evidence_require(
         behavior["reference_evidence"] == reference,
@@ -2626,9 +2647,19 @@ def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> N
         },
         "public evidence selector domain",
     )
+    observation_domain_rows = _public_int(
+        domain["observation_domain_rows"],
+        "public evidence selector domain observation rows",
+    )
+    outside_domain_rows = _public_int(
+        domain["outside_domain_rows"],
+        "public evidence selector domain outside rows",
+    )
+    _evidence_require(
+        observation_domain_rows > 0 and outside_domain_rows >= 0,
+        "public selector domain row counts are invalid",
+    )
     expected_domain = {
-        "observation_domain_rows": 9,
-        "outside_domain_rows": 42,
         "global_selector_v2_declarations_match": True,
         "domain_v2_artifact_manifest_match": True,
         "domain_v1_artifact_same_run_match": True,
@@ -2636,7 +2667,10 @@ def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> N
         "outside_trade_semantics_valid": True,
         "formal_trade_selected_count": 0,
         "trade_selector_promoted_count": 0,
-        "shadow_selected_count": freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+        "shadow_selected_count": min(
+            freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
+            observation_domain_rows,
+        ),
     }
     for key, expected in expected_domain.items():
         if type(expected) is bool:
@@ -2660,20 +2694,37 @@ def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> N
         },
         "public evidence fill relationships",
     )
-    expected_fill = {
-        "rows": 51,
-        "public_fill_equals_fill": True,
-        "trade_public_fill_equals_trade_fill": True,
-        "trade_fill_observation_domain_rows": 9,
-        "trade_fill_outside_domain_rows": 42,
-        "actual_fill_available_rows": 0,
-        "actual_fill_missing_rows": 51,
-    }
-    for key, expected in expected_fill.items():
-        if type(expected) is bool:
-            _public_bool(fill[key], f"public evidence fill {key}", expected=expected)
-        else:
-            _public_int(fill[key], f"public evidence fill {key}", expected=expected)
+    for key in ("public_fill_equals_fill", "trade_public_fill_equals_trade_fill"):
+        _public_bool(fill[key], f"public evidence fill {key}", expected=True)
+    fill_rows = _public_int(fill["rows"], "public evidence fill rows")
+    fill_observation_rows = _public_int(
+        fill["trade_fill_observation_domain_rows"],
+        "public evidence fill observation rows",
+    )
+    fill_outside_rows = _public_int(
+        fill["trade_fill_outside_domain_rows"],
+        "public evidence fill outside rows",
+    )
+    actual_fill_available_rows = _public_int(
+        fill["actual_fill_available_rows"],
+        "public evidence available fill rows",
+    )
+    actual_fill_missing_rows = _public_int(
+        fill["actual_fill_missing_rows"],
+        "public evidence missing fill rows",
+    )
+    _evidence_require(
+        fill_rows == observation_domain_rows + outside_domain_rows
+        and fill_observation_rows == observation_domain_rows
+        and fill_outside_rows == outside_domain_rows,
+        "public prediction/fill domain partition drifted",
+    )
+    _evidence_require(
+        actual_fill_available_rows >= 0
+        and actual_fill_missing_rows >= 0
+        and actual_fill_available_rows + actual_fill_missing_rows == fill_rows,
+        "public available/missing fill partition drifted",
+    )
     behavior = _public_exact_keys(
         top["behavior_contract"],
         {
@@ -2764,18 +2815,25 @@ def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> N
         "public evidence.behavior_contract.action_watchlist",
     )
     _public_exact_json(
-        {
-            key: action[key]
-            for key in ("path", "rows", "columns", "unique_codes", "shadow_only_rows")
-        },
+        {key: action[key] for key in ("path", "columns", "unique_codes")},
         {
             "path": ACTION_EVIDENCE_PATH,
-            "rows": 9,
             "columns": list(ACTION_WATCHLIST_COLUMNS),
             "unique_codes": True,
-            "shadow_only_rows": freeze_contract.KNOWN_ACTION_SHADOW_ROWS,
         },
         "public evidence action watchlist contract",
+    )
+    action_rows = _public_int(
+        action["rows"], "public evidence action watchlist rows"
+    )
+    action_shadow_rows = _public_int(
+        action["shadow_only_rows"],
+        "public evidence action watchlist shadow rows",
+    )
+    _evidence_require(
+        action_rows == observation_domain_rows
+        and action_shadow_rows == domain["shadow_selected_count"],
+        "public action watchlist differs from prediction observation domain",
     )
     _public_sha256(action["sha256"], "public evidence action watchlist hash")
     behavior_reference = _public_exact_keys(
@@ -2849,19 +2907,33 @@ def _validate_public_activation_evidence_shape(evidence: Mapping[str, Any]) -> N
     )
     counts = _public_exact_keys(
         behavior["persisted_counts"],
-        set(EXPECTED_PERSISTED_BEHAVIOR_COUNTS),
+        set(EXPECTED_FROZEN_BEHAVIOR_COUNTS) | {"action_watchlist"},
         "public evidence.behavior_contract.persisted_counts",
     )
-    for key, expected in EXPECTED_PERSISTED_BEHAVIOR_COUNTS.items():
+    for key, expected in EXPECTED_FROZEN_BEHAVIOR_COUNTS.items():
         _public_exact_keys(
             counts[key],
             set(expected),
             f"public evidence.behavior_contract.persisted_counts.{key}",
         )
     _public_exact_json(
-        counts,
-        EXPECTED_PERSISTED_BEHAVIOR_COUNTS,
-        "public persisted behavior counts",
+        {key: counts[key] for key in EXPECTED_FROZEN_BEHAVIOR_COUNTS},
+        EXPECTED_FROZEN_BEHAVIOR_COUNTS,
+        "public persisted frozen behavior counts",
+    )
+    action_counts = _public_exact_keys(
+        counts["action_watchlist"],
+        {"rows", "shadow_only_rows", "reject_rows", "formal_buy_count"},
+        "public evidence.behavior_contract.persisted_counts.action_watchlist",
+    )
+    for key in action_counts:
+        _public_int(action_counts[key], f"public persisted action {key}")
+    _evidence_require(
+        action_counts["rows"] == action_rows
+        and action_counts["shadow_only_rows"] == action_shadow_rows
+        and action_counts["reject_rows"] == action_rows - action_shadow_rows
+        and action_counts["formal_buy_count"] == decision["formal_buy_count"] == 0,
+        "public persisted action counts drifted",
     )
     precision = _public_exact_keys(
         top["canonical_precision"],

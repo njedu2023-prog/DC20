@@ -103,6 +103,16 @@ def _public_evidence_shape_fixture() -> dict:
             "scores_sha256": "4" * 64,
         }
     reference = dict(KNOWN_REFERENCE_EVIDENCE)
+    prediction_rows = 92
+    observation_domain_rows = 10
+    outside_domain_rows = prediction_rows - observation_domain_rows
+    persisted_counts = copy.deepcopy(diagnose.EXPECTED_FROZEN_BEHAVIOR_COUNTS)
+    persisted_counts["action_watchlist"] = {
+        "rows": observation_domain_rows,
+        "shadow_only_rows": 2,
+        "reject_rows": observation_domain_rows - 2,
+        "formal_buy_count": 0,
+    }
     return {
         "schema_version": diagnose.ACTIVATION_EVIDENCE_SCHEMA,
         "system": "DC2.0",
@@ -152,8 +162,8 @@ def _public_evidence_shape_fixture() -> dict:
                 "prediction_model": prediction_projection(model),
                 "prediction_trade_selector": prediction_projection(selector),
                 "prediction_trade_selector_domain": {
-                    "observation_domain_rows": 9,
-                    "outside_domain_rows": 42,
+                    "observation_domain_rows": observation_domain_rows,
+                    "outside_domain_rows": outside_domain_rows,
                     "global_selector_v2_declarations_match": True,
                     "domain_v2_artifact_manifest_match": True,
                     "domain_v1_artifact_same_run_match": True,
@@ -165,13 +175,13 @@ def _public_evidence_shape_fixture() -> dict:
                     "shadow_selected_count": 2,
                 },
                 "prediction_fill_relationships": {
-                    "rows": 51,
+                    "rows": prediction_rows,
                     "public_fill_equals_fill": True,
                     "trade_public_fill_equals_trade_fill": True,
-                    "trade_fill_observation_domain_rows": 9,
-                    "trade_fill_outside_domain_rows": 42,
+                    "trade_fill_observation_domain_rows": observation_domain_rows,
+                    "trade_fill_outside_domain_rows": outside_domain_rows,
                     "actual_fill_available_rows": 0,
-                    "actual_fill_missing_rows": 51,
+                    "actual_fill_missing_rows": prediction_rows,
                 },
             },
         },
@@ -194,7 +204,7 @@ def _public_evidence_shape_fixture() -> dict:
             ),
             "action_watchlist": {
                 "path": "outputs/decision/action_plan_latest.json",
-                "rows": 9,
+                "rows": observation_domain_rows,
                 "columns": list(ACTION_WATCHLIST_COLUMNS),
                 "sha256": "a" * 64,
                 "unique_codes": True,
@@ -221,9 +231,7 @@ def _public_evidence_shape_fixture() -> dict:
                 "production_backtest_fills": 0,
                 "reason_values": ["selection_policy_not_ready"],
             },
-            "persisted_counts": copy.deepcopy(
-                diagnose.EXPECTED_PERSISTED_BEHAVIOR_COUNTS
-            ),
+            "persisted_counts": persisted_counts,
         },
         "canonical_precision": {
             precision: {
@@ -2984,7 +2992,7 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
             "KNOWN_NESTED_OOS_MARKET_BUYABLE_FILLED_TRADES": 0,
             "KNOWN_NESTED_OOS_TRADE_SELECTED": 1,
         }
-        expected_counts = {
+        expected_frozen_counts = {
             "top10": {
                 "rows": 2,
                 "signal_dates": 2,
@@ -3016,20 +3024,14 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
                 "signal_dates": 0,
                 "filled_trades": 0,
             },
-            "action_watchlist": {
-                "rows": 9,
-                "shadow_only_rows": 2,
-                "reject_rows": 7,
-                "formal_buy_count": 0,
-            },
         }
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch.multiple(diagnose.freeze_contract, **constants),
                 patch.object(
                     diagnose,
-                    "EXPECTED_PERSISTED_BEHAVIOR_COUNTS",
-                    expected_counts,
+                    "EXPECTED_FROZEN_BEHAVIOR_COUNTS",
+                    expected_frozen_counts,
                 ),
             ):
                 result = diagnose._behavior_activation_evidence(
@@ -3038,8 +3040,100 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
                     oos=oos,
                     backtest=backtest,
                     action=action,
+                    expected_action_rows=9,
                 )
-                self.assertEqual(result["persisted_counts"], expected_counts)
+                self.assertEqual(
+                    {
+                        key: result["persisted_counts"][key]
+                        for key in expected_frozen_counts
+                    },
+                    expected_frozen_counts,
+                )
+                self.assertEqual(
+                    result["persisted_counts"]["action_watchlist"],
+                    {
+                        "rows": 9,
+                        "shadow_only_rows": 2,
+                        "reject_rows": 7,
+                        "formal_buy_count": 0,
+                    },
+                )
+                expanded = copy.deepcopy(action)
+                expanded["stage_watchlist"].append(
+                    {
+                        "ts_code": "000010.SZ",
+                        "action": "REJECT",
+                        "stage_watch_rank": 10,
+                        "watch_label": "仅观察",
+                        "target_weight": 0.0,
+                        "trade_shadow_selected": 0,
+                    }
+                )
+                expanded_result = diagnose._behavior_activation_evidence(
+                    Path(directory),
+                    top10=top10,
+                    oos=oos,
+                    backtest=backtest,
+                    action=expanded,
+                    expected_action_rows=10,
+                )
+                self.assertEqual(
+                    expanded_result["persisted_counts"]["action_watchlist"],
+                    {
+                        "rows": 10,
+                        "shadow_only_rows": 2,
+                        "reject_rows": 8,
+                        "formal_buy_count": 0,
+                    },
+                )
+                single = copy.deepcopy(action)
+                single["stage_watchlist"] = single["stage_watchlist"][:1]
+                single_result = diagnose._behavior_activation_evidence(
+                    Path(directory),
+                    top10=top10,
+                    oos=oos,
+                    backtest=backtest,
+                    action=single,
+                    expected_action_rows=1,
+                )
+                self.assertEqual(
+                    single_result["persisted_counts"]["action_watchlist"],
+                    {
+                        "rows": 1,
+                        "shadow_only_rows": 1,
+                        "reject_rows": 0,
+                        "formal_buy_count": 0,
+                    },
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "rows differ from prediction observation domain",
+                ):
+                    diagnose._behavior_activation_evidence(
+                        Path(directory),
+                        top10=top10,
+                        oos=oos,
+                        backtest=backtest,
+                        action=expanded,
+                        expected_action_rows=9,
+                    )
+                third_shadow = copy.deepcopy(expanded)
+                third_shadow["stage_watchlist"][2].update(
+                    {
+                        "action": "SHADOW_ONLY",
+                        "watch_label": "二筛影子",
+                        "trade_shadow_selected": 1,
+                    }
+                )
+                with self.assertRaisesRegex(RuntimeError, "relative-best shadows"):
+                    diagnose._behavior_activation_evidence(
+                        Path(directory),
+                        top10=top10,
+                        oos=oos,
+                        backtest=backtest,
+                        action=third_shadow,
+                        expected_action_rows=10,
+                    )
                 changed = copy.deepcopy(backtest)
                 changed["trade_selector"]["formal_policy_oos"]["all_candidates"][
                     "signals"
@@ -3051,6 +3145,7 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
                         oos=oos,
                         backtest=changed,
                         action=action,
+                        expected_action_rows=9,
                     )
 
     def test_latest_prediction_final_policy_all_nine_fields_are_direct(self):
@@ -3242,6 +3337,74 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
         public = diagnose._public_activation_evidence_line(safe)
         self.assertEqual(public, safe)
         self.assertNotIn("\n", public)
+        legacy = copy.deepcopy(evidence)
+        legacy_domain = legacy["canonical_v2"]["surface_consistency"][
+            "prediction_trade_selector_domain"
+        ]
+        legacy_fill = legacy["canonical_v2"]["surface_consistency"][
+            "prediction_fill_relationships"
+        ]
+        legacy_domain.update(
+            {"observation_domain_rows": 9, "outside_domain_rows": 42}
+        )
+        legacy_fill.update(
+            {
+                "rows": 51,
+                "trade_fill_observation_domain_rows": 9,
+                "trade_fill_outside_domain_rows": 42,
+                "actual_fill_available_rows": 0,
+                "actual_fill_missing_rows": 51,
+            }
+        )
+        legacy["behavior_contract"]["action_watchlist"]["rows"] = 9
+        legacy["behavior_contract"]["persisted_counts"]["action_watchlist"].update(
+            {"rows": 9, "reject_rows": 7}
+        )
+        legacy_rendered = diagnose._render_compact_activation_evidence(legacy)
+        self.assertEqual(
+            diagnose._public_activation_evidence_line(legacy_rendered),
+            legacy_rendered,
+        )
+        relationship_mutations = []
+        outside_partition = copy.deepcopy(evidence)
+        outside_partition["canonical_v2"]["surface_consistency"][
+            "prediction_trade_selector_domain"
+        ]["outside_domain_rows"] += 1
+        relationship_mutations.append(outside_partition)
+        fill_total = copy.deepcopy(evidence)
+        fill_total["canonical_v2"]["surface_consistency"][
+            "prediction_fill_relationships"
+        ]["rows"] += 1
+        relationship_mutations.append(fill_total)
+        fill_observation = copy.deepcopy(evidence)
+        fill_observation["canonical_v2"]["surface_consistency"][
+            "prediction_fill_relationships"
+        ]["trade_fill_observation_domain_rows"] += 1
+        relationship_mutations.append(fill_observation)
+        fill_availability = copy.deepcopy(evidence)
+        fill_availability["canonical_v2"]["surface_consistency"][
+            "prediction_fill_relationships"
+        ]["actual_fill_available_rows"] += 1
+        relationship_mutations.append(fill_availability)
+        action_rows = copy.deepcopy(evidence)
+        action_rows["behavior_contract"]["action_watchlist"]["rows"] += 1
+        relationship_mutations.append(action_rows)
+        action_shadow = copy.deepcopy(evidence)
+        action_shadow["behavior_contract"]["action_watchlist"][
+            "shadow_only_rows"
+        ] += 1
+        relationship_mutations.append(action_shadow)
+        persisted_reject = copy.deepcopy(evidence)
+        persisted_reject["behavior_contract"]["persisted_counts"][
+            "action_watchlist"
+        ]["reject_rows"] += 1
+        relationship_mutations.append(persisted_reject)
+        for index, changed in enumerate(relationship_mutations):
+            with self.subTest(relationship_mutation=index):
+                with self.assertRaises(RuntimeError):
+                    diagnose._public_activation_evidence_line(
+                        diagnose._render_compact_activation_evidence(changed)
+                    )
         for active in (False, True):
             v2_evidence = copy.deepcopy(evidence)
             v2_evidence["history_snapshot"].update(
@@ -3427,7 +3590,7 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
             ),
             (("behavior_contract", "top10", "rows"), 4467.0),
             (("behavior_contract", "top10", "score_decimals"), True),
-            (("behavior_contract", "action_watchlist", "rows"), 9.0),
+            (("behavior_contract", "action_watchlist", "rows"), 10.0),
             (("behavior_contract", "nested_oos_research", "signals"), 158.0),
             (("behavior_contract", "decision", "formal_buy_count"), False),
             (
