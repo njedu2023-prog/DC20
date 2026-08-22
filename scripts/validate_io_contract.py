@@ -44,6 +44,29 @@ except Exception:
     is_a_share_trading_day = None  # type: ignore
 
 
+MISSING_LEARNING_ACCEPTANCE_NO_TRADE = (
+    "NO_TRADE_MISSING_LEARNING_ACCEPTANCE"
+)
+SIGNAL_COLUMNS = [
+    "trade_date",
+    "target_trade_date",
+    "jq_code",
+    "target_weight",
+    "risk_budget",
+    "regime",
+    "reason",
+]
+WEIGHT_COLUMNS = [
+    "exec_date",
+    "ts_code",
+    "name",
+    "weight",
+    "target_rank",
+    "backup_rank",
+    "ev_pred",
+]
+
+
 # =========================
 # helpers
 # =========================
@@ -253,6 +276,60 @@ def _validate_missing_acceptance_fallback(cand_text_df: pd.DataFrame) -> None:
             )
 
 
+def _validate_missing_acceptance_execution_surface(
+    *,
+    exec_date: str,
+    payload: dict,
+    weights_latest_df: pd.DataFrame,
+    weights_dated_df: pd.DataFrame,
+    signal_latest_df: pd.DataFrame,
+    signal_dated_df: pd.DataFrame,
+    top_evr_latest_df: pd.DataFrame,
+    top_evr_dated_df: pd.DataFrame,
+    execution_df: pd.DataFrame,
+) -> None:
+    """Prove the missing-acceptance fallback cannot leak an order surface."""
+
+    if payload.get("execution_gate") != MISSING_LEARNING_ACCEPTANCE_NO_TRADE:
+        _fail(
+            "learning_acceptance 缺失时 eval.execution_gate 必须精确为 "
+            f"{MISSING_LEARNING_ACCEPTANCE_NO_TRADE}"
+        )
+
+    for label, frame in (
+        ("weights_latest", weights_latest_df),
+        ("weights_dated", weights_dated_df),
+    ):
+        if frame.empty:
+            _fail(f"{label} 不得为空；必须保留可独立推导日期的全零观察池")
+        dates = frame["exec_date"].map(_norm_ymd)
+        if not dates.eq(exec_date).all():
+            _fail(f"{label}.exec_date 必须逐行精确为 {exec_date}")
+        weights = pd.to_numeric(frame["weight"], errors="coerce")
+        if weights.isna().any() or not weights.eq(0.0).all():
+            _fail(f"{label} 在 learning_acceptance 缺失时必须逐行全零权重")
+        execution_ev = pd.to_numeric(frame["ev_pred"], errors="coerce")
+        if execution_ev.isna().any() or not execution_ev.eq(0.0).all():
+            _fail(f"{label} 在 learning_acceptance 缺失时必须逐行关闭执行 EV")
+        target_rank = frame["target_rank"].fillna("").astype(str).str.strip()
+        if not target_rank.eq("").all():
+            _fail(f"{label} 在 learning_acceptance 缺失时不得保留 target_rank")
+
+    for label, frame in (
+        ("signals_latest", signal_latest_df),
+        ("signals_dated", signal_dated_df),
+        ("TopEVR_latest", top_evr_latest_df),
+        ("TopEVR_dated", top_evr_dated_df),
+    ):
+        if not frame.empty:
+            _fail(f"{label} 在 learning_acceptance 缺失时必须为空信号表")
+
+    if not execution_df.empty:
+        _fail("learning_acceptance 缺失时 execution_table 必须为空，不得保留执行行")
+
+    _ok("learning_acceptance 缺失执行面验收通过：全零 weights、空 Top10/TopEVR、空 execution")
+
+
 def _validate_learning_acceptance(
     *,
     learning_path: Path,
@@ -261,7 +338,7 @@ def _validate_learning_acceptance(
     cand_text_df: pd.DataFrame,
 ) -> None:
     action_plan = _read_json_any(action_plan_path)
-    if learning_path.exists():
+    if learning_path.exists() or learning_path.is_symlink():
         _fail(
             "冻结部署禁用在线学习；发现未受冻结合同约束的 learning_acceptance 产物："
             f"{learning_path.as_posix()}"
@@ -283,6 +360,13 @@ def _validate_semantic_health(
     payload: dict,
     cand_df: pd.DataFrame,
     cand_text_df: pd.DataFrame,
+    weights_latest_df: pd.DataFrame,
+    weights_dated_df: pd.DataFrame,
+    signal_latest_df: pd.DataFrame,
+    signal_dated_df: pd.DataFrame,
+    top_evr_latest_df: pd.DataFrame,
+    top_evr_dated_df: pd.DataFrame,
+    execution_df: pd.DataFrame,
 ) -> None:
     if is_a_share_trading_day is None:
         _fail("无法导入 A 股交易日历校验函数 top10decision.writers.io_contract.is_a_share_trading_day")
@@ -297,6 +381,17 @@ def _validate_semantic_health(
         action_plan_path=Path("outputs/decision/action_plan_latest.json"),
         picked=picked,
         cand_text_df=cand_text_df,
+    )
+    _validate_missing_acceptance_execution_surface(
+        exec_date=exec_date,
+        payload=payload,
+        weights_latest_df=weights_latest_df,
+        weights_dated_df=weights_dated_df,
+        signal_latest_df=signal_latest_df,
+        signal_dated_df=signal_dated_df,
+        top_evr_latest_df=top_evr_latest_df,
+        top_evr_dated_df=top_evr_dated_df,
+        execution_df=execution_df,
     )
 
     for prefix in ("pfill", "eret"):
@@ -378,14 +473,14 @@ def main() -> int:
     sig_df = _read_csv_any(signal_latest)
     _ensure_cols(
         sig_df,
-        ["trade_date", "target_trade_date", "jq_code", "target_weight", "risk_budget", "regime", "reason"],
+        SIGNAL_COLUMNS,
         "signals_latest.csv",
     )
 
     w_df = _read_csv_any(weights_latest)
     _ensure_cols(
         w_df,
-        ["exec_date", "ts_code", "name", "weight", "target_rank", "backup_rank", "ev_pred"],
+        WEIGHT_COLUMNS,
         "weights_latest.csv",
     )
 
@@ -440,7 +535,7 @@ def main() -> int:
     sig_dated_df = _read_csv_any(signal_dated)
     _ensure_cols(
         sig_dated_df,
-        ["trade_date", "target_trade_date", "jq_code", "target_weight", "risk_budget", "regime", "reason"],
+        SIGNAL_COLUMNS,
         f"signals_dated(top10_{trade_date}.csv)",
     )
     if signal_empty and sig_dated_df.empty:
@@ -468,6 +563,26 @@ def main() -> int:
     _ensure_exists(eval_json, "eval_json(exec_date)")
     _ensure_exists(execution_table, "decision_execution(exec_date)")
 
+    w_dated_df = _read_csv_any(weights_dated)
+    _ensure_cols(
+        w_dated_df,
+        WEIGHT_COLUMNS,
+        f"weights_dated(weights_{exec_date}.csv)",
+    )
+
+    top_evr_latest = Path("docs/signals/TopEVR_latest.csv")
+    top_evr_dated = Path(f"docs/signals/TopEVR_{trade_date}.csv")
+    _ensure_exists(top_evr_latest, "TopEVR_latest")
+    _ensure_exists(top_evr_dated, "TopEVR_dated(trade_date)")
+    top_evr_latest_df = _read_csv_any(top_evr_latest)
+    top_evr_dated_df = _read_csv_any(top_evr_dated)
+    _ensure_cols(top_evr_latest_df, SIGNAL_COLUMNS, "TopEVR_latest.csv")
+    _ensure_cols(
+        top_evr_dated_df,
+        SIGNAL_COLUMNS,
+        f"TopEVR_dated(TopEVR_{trade_date}.csv)",
+    )
+
     exec_df = _read_csv_any(execution_table)
     _ensure_cols(
         exec_df,
@@ -493,6 +608,13 @@ def main() -> int:
 
     if "paths" not in payload or not isinstance(payload["paths"], dict):
         _fail("eval JSON 缺少 paths 字段或格式不对")
+    expected_top_evr_paths = {
+        "top_evr_latest": top_evr_latest.as_posix(),
+        "top_evr_dated": top_evr_dated.as_posix(),
+    }
+    for key, expected_path in expected_top_evr_paths.items():
+        if payload["paths"].get(key) != expected_path:
+            _fail(f"eval.paths.{key} 必须精确绑定 {expected_path}")
     _ok("eval JSON 结构验收通过")
 
     if args.strict_semantic:
@@ -502,6 +624,13 @@ def main() -> int:
             payload=payload,
             cand_df=cand_df,
             cand_text_df=cand_text_df,
+            weights_latest_df=w_df,
+            weights_dated_df=w_dated_df,
+            signal_latest_df=sig_df,
+            signal_dated_df=sig_dated_df,
+            top_evr_latest_df=top_evr_latest_df,
+            top_evr_dated_df=top_evr_dated_df,
+            execution_df=exec_df,
         )
 
     # ---- 兜底：确保 outputs/decision 至少有内容

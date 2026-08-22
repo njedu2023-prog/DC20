@@ -21,7 +21,15 @@ for path in (ROOT, SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from scripts.run_v2 import _apply_ev_upgrade_v1  # noqa: E402
+from scripts.run_v2 import (  # noqa: E402
+    MISSING_LEARNING_ACCEPTANCE_NO_TRADE,
+    MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE,
+    _apply_ev_upgrade_v1,
+    _build_execution_weights,
+    _execution_gate_reason,
+    _strict_uniform_bool_column,
+    _strict_uniform_text_column,
+)
 from scripts.backfill_decision_v11_history import (  # noqa: E402
     _completed_open_dates,
     _latest_target_dates,
@@ -53,6 +61,7 @@ from scripts.validate_io_contract import (  # noqa: E402
     _allows_unpromoted_no_trade,
     _strict_picked_count,
     _validate_learning_acceptance,
+    _validate_missing_acceptance_execution_surface,
 )
 from top10decision.data.tushare_minute import (  # noqa: E402
     MINUTE_FIELDS,
@@ -79,6 +88,7 @@ from top10decision.decision.canonical_fingerprint import (  # noqa: E402
     canonical_policy_fingerprint,
     compose_artifact_fingerprint,
 )
+from top10decision.weights.engine import WeightCaps  # noqa: E402
 from top10decision.decision.contracts import (  # noqa: E402
     ACTUAL_ORDER_FILL_OBSERVED_COLUMN,
     ACTUAL_ORDER_FILL_TARGET_COLUMN,
@@ -1341,6 +1351,337 @@ class DecisionStrictSemanticContractTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(_allows_unpromoted_no_trade(mutated, picked=0))
         self.assertFalse(_allows_unpromoted_no_trade(plan, picked=1))
+
+
+class DecisionExecutionGateContractTests(unittest.TestCase):
+    MISSING_REASON = (
+        "model_rejected_by_learning_acceptance:acceptance_file_missing"
+    )
+    EXEC_DATE = "20260819"
+
+    @staticmethod
+    def _candidates() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "ts_code": ["600001.SH", "600002.SH", "600003.SH"],
+                "name": ["甲", "乙", "丙"],
+                "ev_pred": [0.20, 0.10, -0.05],
+                "industry": ["行业甲", "行业乙", "行业丙"],
+            }
+        )
+
+    @classmethod
+    def _missing_audits(cls) -> tuple[dict[str, object], dict[str, object]]:
+        return (
+            {
+                "p_fill_model_loaded": False,
+                "p_fill_model_acceptance_pass": False,
+                "p_fill_pred_src": "rule",
+                "p_fill_degrade_reason": cls.MISSING_REASON,
+            },
+            {
+                "eret_model_loaded": False,
+                "eret_model_acceptance_pass": False,
+                "eret_pred_src": "rule",
+                "eret_degrade_reason": cls.MISSING_REASON,
+            },
+        )
+
+    @staticmethod
+    def _authorized_audits() -> tuple[dict[str, object], dict[str, object]]:
+        return (
+            {
+                "p_fill_model_loaded": True,
+                "p_fill_model_acceptance_pass": True,
+                "p_fill_pred_src": "model:lgbm",
+                "p_fill_degrade_reason": "",
+            },
+            {
+                "eret_model_loaded": True,
+                "eret_model_acceptance_pass": True,
+                "eret_pred_src": "model:lr",
+                "eret_degrade_reason": "",
+            },
+        )
+
+    @staticmethod
+    def _caps() -> WeightCaps:
+        return WeightCaps(w_max=0.5, theme_cap=1.0, gross_cap=1.0)
+
+    @staticmethod
+    def _empty_signal() -> pd.DataFrame:
+        return pd.DataFrame(
+            columns=[
+                "trade_date",
+                "target_trade_date",
+                "jq_code",
+                "target_weight",
+                "risk_budget",
+                "regime",
+                "reason",
+            ]
+        )
+
+    @classmethod
+    def _closed_surface(cls) -> dict[str, object]:
+        weights = pd.DataFrame(
+            {
+                "exec_date": [cls.EXEC_DATE, cls.EXEC_DATE],
+                "ts_code": ["600001.SH", "600002.SH"],
+                "name": ["甲", "乙"],
+                "weight": [0.0, 0.0],
+                "target_rank": ["", ""],
+                "backup_rank": [1, 2],
+                "ev_pred": [0.0, 0.0],
+            }
+        )
+        return {
+            "exec_date": cls.EXEC_DATE,
+            "payload": {
+                "execution_gate": MISSING_LEARNING_ACCEPTANCE_NO_TRADE,
+            },
+            "weights_latest_df": weights.copy(deep=True),
+            "weights_dated_df": weights.copy(deep=True),
+            "signal_latest_df": cls._empty_signal(),
+            "signal_dated_df": cls._empty_signal(),
+            "top_evr_latest_df": cls._empty_signal(),
+            "top_evr_dated_df": cls._empty_signal(),
+            "execution_df": pd.DataFrame(
+                columns=[
+                    "exec_date",
+                    "ts_code",
+                    "jq_code",
+                    "filled_flag",
+                ]
+            ),
+        }
+
+    def test_exact_missing_acceptance_closes_weights_without_mutating_candidates(
+        self,
+    ) -> None:
+        candidates = self._candidates()
+        original = candidates.copy(deep=True)
+        pfill_audit, eret_audit = self._missing_audits()
+
+        weights, gate = _build_execution_weights(
+            candidates,
+            caps=self._caps(),
+            exec_date=self.EXEC_DATE,
+            pfill_audit=pfill_audit,
+            eret_audit=eret_audit,
+        )
+
+        pd.testing.assert_frame_equal(candidates, original)
+        self.assertEqual(gate, MISSING_LEARNING_ACCEPTANCE_NO_TRADE)
+        self.assertFalse(weights.empty)
+        self.assertEqual(len(weights), len(candidates))
+        self.assertEqual(set(weights["exec_date"]), {self.EXEC_DATE})
+        self.assertTrue(pd.to_numeric(weights["weight"]).eq(0.0).all())
+        self.assertTrue(pd.to_numeric(weights["ev_pred"]).eq(0.0).all())
+        self.assertTrue(weights["target_rank"].fillna("").eq("").all())
+        self.assertEqual(weights["backup_rank"].tolist(), [1, 2, 3])
+        self.assertEqual(original["ev_pred"].tolist(), [0.20, 0.10, -0.05])
+
+    def test_only_complete_native_authorized_audits_can_emit_positive_weights(
+        self,
+    ) -> None:
+        candidates = self._candidates()
+        pfill_audit, eret_audit = self._authorized_audits()
+        weights, gate = _build_execution_weights(
+            candidates,
+            caps=self._caps(),
+            exec_date=self.EXEC_DATE,
+            pfill_audit=pfill_audit,
+            eret_audit=eret_audit,
+        )
+        self.assertEqual(gate, "")
+        self.assertGreater(int(pd.to_numeric(weights["weight"]).gt(0.0).sum()), 0)
+
+        required = (
+            ("pfill", "p_fill_model_loaded"),
+            ("pfill", "p_fill_model_acceptance_pass"),
+            ("pfill", "p_fill_pred_src"),
+            ("pfill", "p_fill_degrade_reason"),
+            ("eret", "eret_model_loaded"),
+            ("eret", "eret_model_acceptance_pass"),
+            ("eret", "eret_pred_src"),
+            ("eret", "eret_degrade_reason"),
+        )
+        for side, field in required:
+            bad_pfill = dict(pfill_audit)
+            bad_eret = dict(eret_audit)
+            (bad_pfill if side == "pfill" else bad_eret).pop(field)
+            with self.subTest(side=side, field=field, mutation="missing"):
+                bad_weights, bad_gate = _build_execution_weights(
+                    candidates,
+                    caps=self._caps(),
+                    exec_date=self.EXEC_DATE,
+                    pfill_audit=bad_pfill,
+                    eret_audit=bad_eret,
+                )
+                self.assertEqual(
+                    bad_gate,
+                    MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE,
+                )
+                self.assertTrue(pd.to_numeric(bad_weights["weight"]).eq(0.0).all())
+
+        for alias in ("True", 1):
+            bad_pfill = dict(pfill_audit)
+            bad_pfill["p_fill_model_loaded"] = alias
+            with self.subTest(alias=alias, gate="authorized"):
+                self.assertEqual(
+                    _execution_gate_reason(bad_pfill, eret_audit),
+                    MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE,
+                )
+
+        missing_pfill, missing_eret = self._missing_audits()
+        for alias in ("False", 0):
+            bad_missing = dict(missing_pfill)
+            bad_missing["p_fill_model_loaded"] = alias
+            with self.subTest(alias=alias, gate="missing_acceptance"):
+                self.assertEqual(
+                    _execution_gate_reason(bad_missing, missing_eret),
+                    MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE,
+                )
+
+        uniform = pd.DataFrame(
+            {
+                "bool_true": pd.Series([True, True], dtype=bool),
+                "bool_false": pd.Series([False, False], dtype=bool),
+                "text": ["model:lgbm", "model:lgbm"],
+            }
+        )
+        self.assertIs(_strict_uniform_bool_column(uniform, "bool_true"), True)
+        self.assertIs(_strict_uniform_bool_column(uniform, "bool_false"), False)
+        self.assertEqual(_strict_uniform_text_column(uniform, "text"), "model:lgbm")
+
+        for values in ([True, False], ["True", "True"], [1, 1]):
+            mixed = pd.DataFrame({"value": values})
+            with self.subTest(values=values, helper="bool"):
+                self.assertIsNone(_strict_uniform_bool_column(mixed, "value"))
+        for values in (["model:lgbm", "model:lr"], [1, 1]):
+            mixed = pd.DataFrame({"value": values})
+            with self.subTest(values=values, helper="text"):
+                self.assertIsNone(_strict_uniform_text_column(mixed, "value"))
+
+        mixed_bool = pd.DataFrame({"value": pd.Series([True, False], dtype=bool)})
+        mixed_audit = dict(pfill_audit)
+        mixed_audit["p_fill_model_loaded"] = _strict_uniform_bool_column(
+            mixed_bool,
+            "value",
+        )
+        self.assertEqual(
+            _execution_gate_reason(mixed_audit, eret_audit),
+            MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE,
+        )
+
+    def test_missing_acceptance_validator_rejects_every_execution_leak(self) -> None:
+        _validate_missing_acceptance_execution_surface(**self._closed_surface())
+
+        for frame_name in ("weights_latest_df", "weights_dated_df"):
+            for field, value in (
+                ("weight", 0.01),
+                ("ev_pred", 0.01),
+                ("target_rank", "1"),
+            ):
+                surface = self._closed_surface()
+                frame = surface[frame_name]
+                assert isinstance(frame, pd.DataFrame)
+                frame.loc[0, field] = value
+                with self.subTest(frame=frame_name, field=field):
+                    with self.assertRaisesRegex(SystemExit, "2"):
+                        _validate_missing_acceptance_execution_surface(**surface)
+
+        leaked_signal = {
+            "trade_date": "20260818",
+            "target_trade_date": self.EXEC_DATE,
+            "jq_code": "600001.XSHG",
+            "target_weight": 0.1,
+            "risk_budget": 1.0,
+            "regime": "RISK_ON",
+            "reason": "leak",
+        }
+        for frame_name in (
+            "signal_latest_df",
+            "signal_dated_df",
+            "top_evr_latest_df",
+            "top_evr_dated_df",
+        ):
+            surface = self._closed_surface()
+            surface[frame_name] = pd.DataFrame([leaked_signal])
+            with self.subTest(frame=frame_name):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    _validate_missing_acceptance_execution_surface(**surface)
+
+        surface = self._closed_surface()
+        surface["execution_df"] = pd.DataFrame(
+            [{"exec_date": self.EXEC_DATE, "ts_code": "600001.SH"}]
+        )
+        with self.assertRaisesRegex(SystemExit, "2"):
+            _validate_missing_acceptance_execution_surface(**surface)
+
+        for alias in (
+            None,
+            False,
+            MISSING_LEARNING_ACCEPTANCE_NO_TRADE.lower(),
+            MISSING_LEARNING_ACCEPTANCE_NO_TRADE + " ",
+        ):
+            surface = self._closed_surface()
+            payload = surface["payload"]
+            assert isinstance(payload, dict)
+            if alias is None:
+                payload.pop("execution_gate")
+            else:
+                payload["execution_gate"] = alias
+            with self.subTest(gate_alias=alias):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    _validate_missing_acceptance_execution_surface(**surface)
+
+    def test_broken_acceptance_symlink_is_not_treated_as_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            learning_path = root / "outputs/learning/learning_acceptance_latest.json"
+            learning_path.parent.mkdir(parents=True)
+            try:
+                learning_path.symlink_to(root / "missing-acceptance-target.json")
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"symlink unsupported: {exc}")
+            self.assertTrue(learning_path.is_symlink())
+            self.assertFalse(learning_path.exists())
+
+            action_path = root / "outputs/decision/action_plan_latest.json"
+            action_path.parent.mkdir(parents=True, exist_ok=True)
+            action_path.write_text(
+                json.dumps(
+                    {
+                        "status_code": "NO_TRADE_MODEL_NOT_PROMOTED",
+                        "formal_buy_count": 0,
+                        "guidance_only": True,
+                        "broker_connected": False,
+                        "order_execution": "manual_only",
+                        "candidates": [{"action": "SHADOW_ONLY"}],
+                        "model": {"promoted": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            candidates = pd.DataFrame(
+                {
+                    "p_fill_model_loaded": ["False"],
+                    "eret_model_loaded": ["False"],
+                    "p_fill_model_acceptance_pass": ["False"],
+                    "eret_model_acceptance_pass": ["False"],
+                    "p_fill_degrade_reason": [self.MISSING_REASON],
+                    "eret_degrade_reason": [self.MISSING_REASON],
+                }
+            )
+            with self.assertRaisesRegex(SystemExit, "2"):
+                _validate_learning_acceptance(
+                    learning_path=learning_path,
+                    action_plan_path=action_path,
+                    picked=0,
+                    cand_text_df=candidates,
+                )
 
 
 class DecisionRealtimeMinuteContractTests(unittest.TestCase):

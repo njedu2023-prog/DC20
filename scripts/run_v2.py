@@ -88,6 +88,134 @@ from top10decision.writers.io_contract import (
 )
 
 
+WEIGHT_OUTPUT_COLUMNS = [
+    "exec_date",
+    "ts_code",
+    "name",
+    "weight",
+    "target_rank",
+    "backup_rank",
+    "ev_pred",
+]
+MISSING_LEARNING_ACCEPTANCE_REASON = (
+    "model_rejected_by_learning_acceptance:acceptance_file_missing"
+)
+MISSING_LEARNING_ACCEPTANCE_NO_TRADE = (
+    "NO_TRADE_MISSING_LEARNING_ACCEPTANCE"
+)
+MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE = (
+    "NO_TRADE_MODEL_EXECUTION_NOT_AUTHORIZED"
+)
+
+
+def _strict_uniform_bool_column(df: pd.DataFrame, column: str) -> bool | None:
+    """Return one native bool only for a complete uniform boolean column."""
+
+    if df is None or df.empty or column not in df.columns:
+        return None
+    values = df[column]
+    if not pd.api.types.is_bool_dtype(values.dtype) or values.isna().any():
+        return None
+    unique = values.astype(bool).unique().tolist()
+    return bool(unique[0]) if len(unique) == 1 else None
+
+
+def _strict_uniform_text_column(df: pd.DataFrame, column: str) -> str | None:
+    """Return text only when every row carries the same native string."""
+
+    if df is None or df.empty or column not in df.columns:
+        return None
+    values = df[column]
+    if not values.map(lambda value: type(value) is str).all():
+        return None
+    unique = values.unique().tolist()
+    return str(unique[0]) if len(unique) == 1 else None
+
+
+def _requires_missing_acceptance_no_trade(
+    pfill_audit: dict[str, Any],
+    eret_audit: dict[str, Any],
+) -> bool:
+    """Match only the exact frozen missing-acceptance degradation."""
+
+    return bool(
+        pfill_audit.get("p_fill_model_loaded") is False
+        and pfill_audit.get("p_fill_model_acceptance_pass") is False
+        and pfill_audit.get("p_fill_degrade_reason")
+        == MISSING_LEARNING_ACCEPTANCE_REASON
+        and eret_audit.get("eret_model_loaded") is False
+        and eret_audit.get("eret_model_acceptance_pass") is False
+        and eret_audit.get("eret_degrade_reason")
+        == MISSING_LEARNING_ACCEPTANCE_REASON
+    )
+
+
+def _execution_gate_reason(
+    pfill_audit: dict[str, Any],
+    eret_audit: dict[str, Any],
+) -> str:
+    """Authorize execution only for two accepted, loaded model predictions."""
+
+    if _requires_missing_acceptance_no_trade(pfill_audit, eret_audit):
+        return MISSING_LEARNING_ACCEPTANCE_NO_TRADE
+
+    pfill_authorized = bool(
+        pfill_audit.get("p_fill_model_loaded") is True
+        and pfill_audit.get("p_fill_model_acceptance_pass") is True
+        and pfill_audit.get("p_fill_pred_src") in {"model:lgbm", "model:lr"}
+        and pfill_audit.get("p_fill_degrade_reason") == ""
+    )
+    eret_authorized = bool(
+        eret_audit.get("eret_model_loaded") is True
+        and eret_audit.get("eret_model_acceptance_pass") is True
+        and eret_audit.get("eret_pred_src") in {"model:lgbm", "model:lr"}
+        and eret_audit.get("eret_degrade_reason") == ""
+    )
+    if pfill_authorized and eret_authorized:
+        return ""
+    return MODEL_EXECUTION_NOT_AUTHORIZED_NO_TRADE
+
+
+def _build_execution_weights(
+    routed_df: pd.DataFrame,
+    *,
+    caps: WeightCaps,
+    exec_date: str,
+    pfill_audit: dict[str, Any],
+    eret_audit: dict[str, Any],
+) -> tuple[pd.DataFrame, str]:
+    """Build weights, or close the executable surface for unaccepted models."""
+
+    targets, backups = build_weights_with_backups(
+        routed_df,
+        topn=TOPN_DEFAULT,
+        caps=caps,
+    )
+    weights_out = pd.concat([targets, backups], ignore_index=True)
+    weights_out["exec_date"] = norm_ymd(exec_date)
+
+    execution_gate = _execution_gate_reason(pfill_audit, eret_audit)
+    if execution_gate:
+        # Keep the complete ranked observation pool so exec_date remains
+        # independently inferable, but close every executable weight.  Rows
+        # become deterministic backups only; no target rank survives.
+        weights_out["weight"] = 0.0
+        weights_out["target_rank"] = ""
+        weights_out = weights_out.sort_values(
+            by=["ev_pred", "ts_code"],
+            ascending=[False, True],
+            kind="mergesort",
+        ).reset_index(drop=True)
+        weights_out["ev_pred"] = 0.0
+        weights_out["backup_rank"] = list(range(1, len(weights_out) + 1))
+        return (
+            weights_out[WEIGHT_OUTPUT_COLUMNS].copy(),
+            execution_gate,
+        )
+
+    return weights_out[WEIGHT_OUTPUT_COLUMNS].copy(), ""
+
+
 def _ensure_required_cols(df: pd.DataFrame, required_cols: list[str]) -> None:
     if df is None or df.empty:
         raise RuntimeError("输入数据为空，无法继续运行。")
@@ -293,11 +421,14 @@ def _run_pfill_engine(
         out = apply_func(out)
 
     audit = {
-        "p_fill_pred_src": str(_safe_first_value(out, "p_fill_pred_src", "unknown")),
-        "p_fill_model_loaded": bool(_safe_first_value(out, "p_fill_model_loaded", False)),
+        "p_fill_pred_src": _strict_uniform_text_column(out, "p_fill_pred_src"),
+        "p_fill_model_loaded": _strict_uniform_bool_column(out, "p_fill_model_loaded"),
+        "p_fill_model_acceptance_pass": _strict_uniform_bool_column(
+            out, "p_fill_model_acceptance_pass"
+        ),
         "p_fill_model_kind": str(_safe_first_value(out, "p_fill_model_kind", "")),
         "p_fill_model_path": str(_safe_first_value(out, "p_fill_model_path", "")),
-        "p_fill_degrade_reason": str(_safe_first_value(out, "p_fill_degrade_reason", "")),
+        "p_fill_degrade_reason": _strict_uniform_text_column(out, "p_fill_degrade_reason"),
     }
     return out, audit
 
@@ -332,11 +463,14 @@ def _run_eret_engine(
         out["eret_pred"] = out["e_ret_pred"]
 
     audit = {
-        "eret_pred_src": str(_safe_first_value(out, "eret_pred_src", "unknown")),
-        "eret_model_loaded": bool(_safe_first_value(out, "eret_model_loaded", False)),
+        "eret_pred_src": _strict_uniform_text_column(out, "eret_pred_src"),
+        "eret_model_loaded": _strict_uniform_bool_column(out, "eret_model_loaded"),
+        "eret_model_acceptance_pass": _strict_uniform_bool_column(
+            out, "eret_model_acceptance_pass"
+        ),
         "eret_model_kind": str(_safe_first_value(out, "eret_model_kind", "")),
         "eret_model_path": str(_safe_first_value(out, "eret_model_path", "")),
-        "eret_degrade_reason": str(_safe_first_value(out, "eret_degrade_reason", "")),
+        "eret_degrade_reason": _strict_uniform_text_column(out, "eret_degrade_reason"),
     }
     return out, audit
 
@@ -943,9 +1077,7 @@ def main() -> int:
 
         cand_path = write_candidates_snapshot(cand_snapshot, signal_date=trade_date)
 
-        weights_df = pd.DataFrame(
-            columns=["exec_date", "ts_code", "name", "weight", "target_rank", "backup_rank", "ev_pred"]
-        )
+        weights_df = pd.DataFrame(columns=WEIGHT_OUTPUT_COLUMNS)
         weights_latest_path, weights_dated_path = write_weights(weights_df, exec_date=exec_date)
 
         top_evr_signal_df = build_top_evr_signal_df(
@@ -1059,14 +1191,15 @@ def main() -> int:
         theme_cap=THEME_CAP_DEFAULT,
         gross_cap=GROSS_CAP_DEFAULT * max(0.0, min(1.0, risk_budget)),
     )
-    targets, backups = build_weights_with_backups(routed_df, topn=TOPN_DEFAULT, caps=caps)
-
-    # weights：目标 + 候补（同一文件，候补 weight=0）
-    weights_out = pd.concat([targets, backups], ignore_index=True)
-    weights_out["exec_date"] = norm_ymd(exec_date)
-    weights_out = weights_out[
-        ["exec_date", "ts_code", "name", "weight", "target_rank", "backup_rank", "ev_pred"]
-    ].copy()
+    # weights：目标 + 候补（同一文件，候补 weight=0）。冻结部署没有
+    # learning_acceptance 时仍保留候选观察面，但可执行权重必须全部归零。
+    weights_out, execution_gate = _build_execution_weights(
+        routed_df,
+        caps=caps,
+        exec_date=exec_date,
+        pfill_audit=pfill_audit,
+        eret_audit=eret_audit,
+    )
     weights_latest_path, weights_dated_path = write_weights(weights_out, exec_date=exec_date)
 
     # signals：只输出目标（weight>0）——保持旧 joinquant 契约
@@ -1079,9 +1212,10 @@ def main() -> int:
     )
     write_signals(signal_df, trade_date=trade_date)
 
-    # TopEVR：动态票数，允许空表
+    # TopEVR：动态票数，允许空表。执行门关闭时必须同步关闭这一旁路。
+    top_evr_candidates = routed_df.iloc[0:0] if execution_gate else routed_df
     top_evr_signal_df = build_top_evr_signal_df(
-        candidates_df=routed_df,
+        candidates_df=top_evr_candidates,
         risk_budget=risk_budget,
         regime_name=regime_name,
         trade_date=trade_date,
@@ -1105,6 +1239,7 @@ def main() -> int:
         routed_df,
         selected_rows=int(len(top_targets)),
         risk_budget=risk_budget,
+        stop_reason=execution_gate,
     )
 
     # 报告展示口径：先统一成精简表，再按 EV 降序拆成 TopN / 剩余候选
@@ -1132,6 +1267,7 @@ def main() -> int:
     lines.append(f"- risk_budget: **{fmt_num(risk_budget, 4)}**\n")
     lines.append(f"- regime_reason: **{str(getattr(reg, 'reason', '') or 'none')}**\n")
     lines.append(f"- guardrail_reason: **{str(getattr(gr, 'reason', '') or 'none')}**\n")
+    lines.append(f"- execution_gate: **{execution_gate or 'MODEL_ACCEPTED'}**\n")
     lines.append(f"- input_mode: **{input_mode}**\n")
     lines.append(f"- fs_degrade_reason: **{fs_degrade_reason or 'none'}**\n\n")
 
@@ -1149,10 +1285,12 @@ def main() -> int:
     lines.append("## Engine Status\n\n")
     lines.append(f"- p_fill_pred_src: **{pfill_audit.get('p_fill_pred_src', '') or 'unknown'}**\n")
     lines.append(f"- p_fill_model_loaded: **{pfill_audit.get('p_fill_model_loaded', False)}**\n")
+    lines.append(f"- p_fill_model_acceptance_pass: **{pfill_audit.get('p_fill_model_acceptance_pass', False)}**\n")
     lines.append(f"- p_fill_model_kind: **{pfill_audit.get('p_fill_model_kind', '') or 'none'}**\n")
     lines.append(f"- p_fill_degrade_reason: **{pfill_audit.get('p_fill_degrade_reason', '') or 'none'}**\n")
     lines.append(f"- eret_pred_src: **{eret_audit.get('eret_pred_src', '') or 'unknown'}**\n")
     lines.append(f"- eret_model_loaded: **{eret_audit.get('eret_model_loaded', False)}**\n")
+    lines.append(f"- eret_model_acceptance_pass: **{eret_audit.get('eret_model_acceptance_pass', False)}**\n")
     lines.append(f"- eret_model_kind: **{eret_audit.get('eret_model_kind', '') or 'none'}**\n")
     lines.append(f"- eret_degrade_reason: **{eret_audit.get('eret_degrade_reason', '') or 'none'}**\n\n")
 
@@ -1183,6 +1321,7 @@ def main() -> int:
         "risk_budget": risk_budget,
         "regime_reason": str(getattr(reg, "reason", "") or ""),
         "guardrail_reason": str(getattr(gr, "reason", "") or ""),
+        "execution_gate": execution_gate or "MODEL_ACCEPTED",
         "topk": int(len(routed_df)),
         "picked": int(len(top_targets)),
         "cost_est_mean": float(pd.to_numeric(routed_df["cost_est"], errors="coerce").fillna(0.0).mean()),
@@ -1207,11 +1346,13 @@ def main() -> int:
         "engine_status": {
             "p_fill_pred_src": pfill_audit.get("p_fill_pred_src", ""),
             "p_fill_model_loaded": pfill_audit.get("p_fill_model_loaded", False),
+            "p_fill_model_acceptance_pass": pfill_audit.get("p_fill_model_acceptance_pass", False),
             "p_fill_model_kind": pfill_audit.get("p_fill_model_kind", ""),
             "p_fill_model_path": pfill_audit.get("p_fill_model_path", ""),
             "p_fill_degrade_reason": pfill_audit.get("p_fill_degrade_reason", ""),
             "eret_pred_src": eret_audit.get("eret_pred_src", ""),
             "eret_model_loaded": eret_audit.get("eret_model_loaded", False),
+            "eret_model_acceptance_pass": eret_audit.get("eret_model_acceptance_pass", False),
             "eret_model_kind": eret_audit.get("eret_model_kind", ""),
             "eret_model_path": eret_audit.get("eret_model_path", ""),
             "eret_degrade_reason": eret_audit.get("eret_degrade_reason", ""),
