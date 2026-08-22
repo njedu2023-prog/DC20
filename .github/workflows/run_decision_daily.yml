@@ -52,7 +52,7 @@ jobs:
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 1
@@ -68,7 +68,7 @@ jobs:
           git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
           echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip
@@ -624,7 +624,7 @@ jobs:
           if git diff --cached --quiet; then echo 'has_changes=false' >> "${GITHUB_OUTPUT}"; else echo 'has_changes=true' >> "${GITHUB_OUTPUT}"; fi
       - name: Upload immutable candidate patch
         if: ${{ steps.session.outputs.write_eligible == 'true' && steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: daily-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -670,13 +670,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout current main without persisted credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 1
           persist-credentials: false
       - name: Download validated candidate
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: daily-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate
