@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
+import platform
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,10 +36,10 @@ def _threadpools(*, blas_threads: int = 1, architecture: str = "Haswell"):
 
 def test_configured_environment_is_exact_and_preserves_unrelated_values() -> None:
     configured = runtime.configured_environment(
-        {"NPY_ENABLE_CPU_FEATURES": "X86_V4", "UNRELATED": "kept"}
+        {"NPY_DISABLE_CPU_FEATURES": "X86_V4", "UNRELATED": "kept"}
     )
     assert configured["UNRELATED"] == "kept"
-    assert "NPY_ENABLE_CPU_FEATURES" not in configured
+    assert "NPY_DISABLE_CPU_FEATURES" not in configured
     assert configured[runtime.BOOTSTRAP_ENV] == runtime.RUNTIME_SCHEMA
     assert {key: configured[key] for key in runtime.REQUIRED_ENV} == runtime.REQUIRED_ENV
     runtime.validate_environment(configured)
@@ -46,9 +51,110 @@ def test_environment_validation_rejects_any_contract_drift() -> None:
     with pytest.raises(runtime.DeterministicNumericRuntimeError, match="environment drift"):
         runtime.validate_environment(configured)
     forbidden = runtime.configured_environment({})
-    forbidden["NPY_ENABLE_CPU_FEATURES"] = "X86_V4"
+    forbidden["NPY_DISABLE_CPU_FEATURES"] = "X86_V4"
     with pytest.raises(runtime.DeterministicNumericRuntimeError, match="is forbidden"):
         runtime.validate_environment(forbidden)
+
+
+def test_numpy_dispatch_allows_raw_avx512_hardware_outside_dispatch() -> None:
+    runtime.validate_numpy_dispatch(
+        cpu_features={
+            "X86_V3": True,
+            "X86_V4": False,
+            "AVX512F": True,
+        },
+        cpu_baseline=("SSE", "SSE2", "SSE3"),
+        cpu_dispatch=("X86_V3", "X86_V4"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("features", "baseline", "dispatch", "message"),
+    [
+        (
+            {"X86_V3": True, "X86_V4": True},
+            ("SSE", "SSE2", "SSE3"),
+            ("X86_V3", "X86_V4"),
+            "not exactly X86_V3",
+        ),
+        (
+            {"X86_V3": True, "AVX512F": True},
+            ("SSE", "SSE2", "SSE3"),
+            ("X86_V3", "AVX512F"),
+            "not exactly X86_V3",
+        ),
+        (
+            {"X86_V3": True},
+            ("SSE", "SSE2", "SSE3", "AVX2"),
+            ("X86_V3",),
+            "baseline exceeds X86_V2",
+        ),
+        (
+            {"AVX2": True},
+            ("SSE", "SSE2", "SSE3"),
+            ("AVX2",),
+            "does not provide the required X86_V3",
+        ),
+        (
+            {"X86_V3": False},
+            ("SSE", "SSE2", "SSE3"),
+            ("X86_V3",),
+            "not exactly X86_V3",
+        ),
+        (
+            {"X86_V3": True, "X86_V4": 0},
+            ("SSE", "SSE2", "SSE3"),
+            ("X86_V3", "X86_V4"),
+            "not boolean",
+        ),
+    ],
+)
+def test_numpy_dispatch_rejects_baseline_or_active_target_drift(
+    features, baseline, dispatch, message
+) -> None:
+    with pytest.raises(runtime.DeterministicNumericRuntimeError, match=message):
+        runtime.validate_numpy_dispatch(
+            cpu_features=features,
+            cpu_baseline=baseline,
+            cpu_dispatch=dispatch,
+        )
+
+
+@pytest.mark.skipif(
+    platform.system() != "Linux" or platform.machine().lower() not in {"amd64", "x86_64"},
+    reason="production NumPy dispatch contract is Linux x86_64 only",
+)
+def test_pinned_numpy_starts_with_exact_x86_v3_dispatch_in_fresh_process() -> None:
+    root = Path(__file__).resolve().parents[1]
+    source = """
+import json
+import numpy as np
+from scripts import run_deterministic_numeric as runtime
+
+multiarray = np._core._multiarray_umath
+features = multiarray.__cpu_features__
+baseline = multiarray.__cpu_baseline__
+dispatch = multiarray.__cpu_dispatch__
+runtime.validate_numpy_dispatch(
+    cpu_features=features,
+    cpu_baseline=baseline,
+    cpu_dispatch=dispatch,
+)
+print(json.dumps({
+    "active": sorted(name for name in dispatch if features.get(name) is True),
+    "baseline": list(baseline),
+}, sort_keys=True))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=root,
+        env=runtime.configured_environment(os.environ),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    evidence = json.loads(completed.stdout)
+    assert evidence["active"] == ["X86_V3"]
 
 
 def test_target_resolution_is_repo_local_allowlisted_and_not_a_symlink(tmp_path: Path) -> None:

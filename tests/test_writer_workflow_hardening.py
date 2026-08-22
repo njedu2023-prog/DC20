@@ -2337,13 +2337,14 @@ def test_all_model_workflows_pin_one_numeric_runtime_before_import() -> None:
         'BLIS_NUM_THREADS: "1"',
         'VECLIB_MAXIMUM_THREADS: "1"',
         'NUMEXPR_NUM_THREADS: "1"',
-        'NPY_DISABLE_CPU_FEATURES: "X86_V4"',
+        'NPY_ENABLE_CPU_FEATURES: "X86_V3"',
     }
     for name in NUMERIC_WORKFLOWS:
         text = _text(name)
         global_header = text.split("\njobs:", 1)[0]
         for binding in exact_env:
             assert binding in global_header, (name, binding)
+        assert "NPY_DISABLE_CPU_FEATURES" not in global_header, name
         assert "runs-on: ubuntu-24.04" in text, name
 
     assert (

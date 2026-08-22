@@ -38,8 +38,24 @@ REQUIRED_ENV = {
     "BLIS_NUM_THREADS": "1",
     "VECLIB_MAXIMUM_THREADS": "1",
     "NUMEXPR_NUM_THREADS": "1",
-    "NPY_DISABLE_CPU_FEATURES": "X86_V4",
+    "NPY_ENABLE_CPU_FEATURES": "X86_V3",
 }
+NUMPY_ALLOWED_BASELINE_FEATURES = frozenset(
+    {
+        "MMX",
+        "SSE",
+        "SSE2",
+        "SSE3",
+        "SSSE3",
+        "SSE41",
+        "POPCNT",
+        "SSE42",
+        "LAHF",
+        "CX16",
+        "X86_V2",
+    }
+)
+NUMPY_REQUIRED_ACTIVE_DISPATCH = ("X86_V3",)
 ALLOWED_TARGETS = frozenset(
     {
         "replay_frozen_canonical_v2.py",
@@ -54,7 +70,7 @@ class DeterministicNumericRuntimeError(RuntimeError):
 
 def configured_environment(base: Mapping[str, str]) -> dict[str, str]:
     env = dict(base)
-    env.pop("NPY_ENABLE_CPU_FEATURES", None)
+    env.pop("NPY_DISABLE_CPU_FEATURES", None)
     env.update(REQUIRED_ENV)
     env[BOOTSTRAP_ENV] = RUNTIME_SCHEMA
     return env
@@ -72,9 +88,73 @@ def validate_environment(env: Mapping[str, str]) -> None:
             "deterministic numeric environment drift: "
             + json.dumps(drift, sort_keys=True, separators=(",", ":"))
         )
-    if "NPY_ENABLE_CPU_FEATURES" in env:
+    if "NPY_DISABLE_CPU_FEATURES" in env:
         raise DeterministicNumericRuntimeError(
-            "NPY_ENABLE_CPU_FEATURES is forbidden by the numeric runtime"
+            "NPY_DISABLE_CPU_FEATURES is forbidden by the numeric runtime"
+        )
+
+
+def validate_numpy_dispatch(
+    *,
+    cpu_features: Mapping[str, Any],
+    cpu_baseline: Sequence[str],
+    cpu_dispatch: Sequence[str],
+) -> None:
+    """Require a V2-or-lower baseline and exactly one active V3 target.
+
+    ``__cpu_features__`` also contains raw hardware capability flags.  A raw
+    AVX512 leaf may therefore remain true when it is not a compiled dispatch
+    target.  NumPy defines the active targets as the intersection of
+    ``__cpu_dispatch__`` and true entries in ``__cpu_features__``; validate
+    that surface instead of treating every hardware flag as executable code.
+    """
+
+    if isinstance(cpu_baseline, (str, bytes)) or isinstance(cpu_dispatch, (str, bytes)):
+        raise DeterministicNumericRuntimeError(
+            "NumPy baseline and dispatch metadata must be sequences"
+        )
+    if any(type(name) is not str or not name or name != name.upper() for name in cpu_baseline):
+        raise DeterministicNumericRuntimeError("NumPy baseline metadata is invalid")
+    if any(type(name) is not str or not name or name != name.upper() for name in cpu_dispatch):
+        raise DeterministicNumericRuntimeError("NumPy dispatch metadata is invalid")
+
+    baseline = tuple(cpu_baseline)
+    dispatch = tuple(cpu_dispatch)
+    if len(set(baseline)) != len(baseline) or len(set(dispatch)) != len(dispatch):
+        raise DeterministicNumericRuntimeError(
+            "NumPy baseline or dispatch metadata contains duplicates"
+        )
+    forbidden_baseline = sorted(
+        set(baseline).difference(NUMPY_ALLOWED_BASELINE_FEATURES)
+    )
+    if forbidden_baseline:
+        raise DeterministicNumericRuntimeError(
+            "NumPy baseline exceeds X86_V2: " + ", ".join(forbidden_baseline)
+        )
+
+    if "X86_V3" not in dispatch:
+        raise DeterministicNumericRuntimeError(
+            "NumPy wheel does not provide the required X86_V3 dispatch target"
+        )
+    invalid_feature_values = sorted(
+        name for name in dispatch if type(cpu_features.get(name)) is not bool
+    )
+    if invalid_feature_values:
+        raise DeterministicNumericRuntimeError(
+            "NumPy dispatch feature values are not boolean: "
+            + ", ".join(invalid_feature_values)
+        )
+    active = tuple(
+        sorted(
+            name
+            for name in dispatch
+            if cpu_features.get(name) is True
+        )
+    )
+    if active != NUMPY_REQUIRED_ACTIVE_DISPATCH:
+        rendered = ", ".join(active) if active else "none"
+        raise DeterministicNumericRuntimeError(
+            "NumPy active dispatch targets are not exactly X86_V3: " + rendered
         )
 
 
@@ -216,23 +296,15 @@ def runtime_evidence(target: Path) -> dict[str, Any]:
 
     # Force one BLAS call before inspecting the loaded libraries.
     np.matmul(np.ones((2, 2), dtype=np.float64), np.ones((2, 2), dtype=np.float64))
-    cpu_features = getattr(np._core._multiarray_umath, "__cpu_features__", {})
-    active_avx512 = sorted(
-        str(name)
-        for name, enabled in cpu_features.items()
-        if str(name).upper().startswith("AVX512") and enabled is True
+    multiarray = np._core._multiarray_umath
+    cpu_features = getattr(multiarray, "__cpu_features__", {})
+    cpu_baseline = getattr(multiarray, "__cpu_baseline__", ())
+    cpu_dispatch = getattr(multiarray, "__cpu_dispatch__", ())
+    validate_numpy_dispatch(
+        cpu_features=cpu_features,
+        cpu_baseline=cpu_baseline,
+        cpu_dispatch=cpu_dispatch,
     )
-    if active_avx512:
-        raise DeterministicNumericRuntimeError(
-            "NumPy X86_V4 dispatch is still active: " + ", ".join(active_avx512)
-        )
-    missing_x86_v3 = [
-        name for name in ("AVX2", "FMA3") if cpu_features.get(name) is not True
-    ]
-    if missing_x86_v3:
-        raise DeterministicNumericRuntimeError(
-            "NumPy X86_V3 dispatch is unavailable: " + ", ".join(missing_x86_v3)
-        )
     pools = validate_threadpools(threadpool_info())
     return {
         "schema_version": RUNTIME_SCHEMA,
