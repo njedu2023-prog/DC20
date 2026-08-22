@@ -9,7 +9,7 @@ on:
         type: boolean
         default: true
       signal_date:
-        description: Optional exact latest-report signal date (YYYYMMDD)
+        description: Optional exact latest-action signal date (YYYYMMDD)
         required: false
         type: string
         default: ""
@@ -26,6 +26,18 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_DISABLE_CPU_FEATURES: "X86_V4"
 
 concurrency:
   group: decision-auction-main-writer
@@ -222,6 +234,23 @@ jobs:
           name: decision-runtime-migration-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/decision-runtime-candidate
 
+      # The publisher independently re-runs the exact-observation verifier.
+      # Jobs do not share Python environments, so use the same interpreter and
+      # hash-locked dependencies as compute before any publication is possible.
+      - name: Setup Python for independent envelope verification
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked dependencies for independent envelope verification
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
+
       - name: Reverify strict envelope from exact base
         env:
           BASE_SHA: ${{ needs.compute.outputs.base_sha }}
@@ -250,8 +279,33 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const baseSha = process.env.BASE_SHA;
+            const exactKeys = (value, expected, label) => {
+              if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                throw new Error(`${label} must be an object`);
+              }
+              const actual = Object.keys(value).sort();
+              const wanted = [...expected].sort();
+              if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+                throw new Error(`${label} keys are not exact`);
+              }
+            };
+            exactKeys(receipt, [
+              'schema_version', 'allowlist_version', 'status', 'mode', 'base_sha',
+              'base_tree_sha', 'signal_date', 'report_date', 'exec_date', 'exit_date',
+              'timing', 'live_delivery_met', 'execution_or_fill_claimed',
+              'replay_source', 'replay_status', 'replay_report_sha256',
+              'replay_numeric_runtime', 'action_rebuild_stability',
+              'freeze_active', 'forced_inactive', 'pins_enforced',
+              'validators_passed', 'post_prune_validators_passed', 'validator_summary',
+              'changed_paths', 'restored_paths', 'output_sha256', 'output_size',
+              'base_blob_sha1', 'source_evidence', 'truth_reference_evidence',
+              'truth_binding_summary'
+            ], 'migration receipt V2');
             if (receipt.mode !== 'publish_candidate') {
               throw new Error(`publisher rejects receipt mode: ${receipt.mode}`);
+            }
+            if (receipt.schema_version !== 'decision_runtime_migration_receipt_v2') {
+              throw new Error('publisher requires migration receipt V2');
             }
             if (receipt.base_sha !== baseSha || receipt.timing !== 'RETROSPECTIVE') {
               throw new Error('receipt base/timing mismatch');
@@ -259,9 +313,104 @@ jobs:
             if (receipt.live_delivery_met !== false || receipt.execution_or_fill_claimed !== false) {
               throw new Error('receipt contains a live delivery or execution/fill claim');
             }
+            const runtime = receipt.replay_numeric_runtime;
+            exactKeys(runtime, [
+              'schema_version', 'host_contract', 'launcher_sha256',
+              'numpy_cpu_dispatch_cap', 'numpy_x86_v4_disabled',
+              'openblas_coretype', 'target', 'target_sha256', 'threadpools'
+            ], 'numeric runtime');
+            if (runtime.schema_version !== 'dc20_deterministic_numeric_runtime_v1' ||
+                runtime.host_contract !== 'github_ubuntu_24_04_x86_64' ||
+                runtime.numpy_cpu_dispatch_cap !== 'X86_V3' ||
+                runtime.numpy_x86_v4_disabled !== true ||
+                runtime.openblas_coretype !== 'Haswell' ||
+                runtime.target !== 'replay_frozen_canonical_v2.py') {
+              throw new Error('numeric runtime contract is invalid');
+            }
+            if (!Array.isArray(runtime.threadpools) || runtime.threadpools.length < 2) {
+              throw new Error('numeric runtime threadpools are missing');
+            }
+            const runtimeApis = new Set();
+            const runtimePoolRecords = new Set();
+            for (const [index, pool] of runtime.threadpools.entries()) {
+              exactKeys(pool, [
+                'architecture', 'internal_api', 'num_threads', 'prefix', 'version'
+              ], `numeric threadpool ${index}`);
+              if (!['openblas', 'openmp'].includes(pool.internal_api) ||
+                  !Number.isInteger(pool.num_threads) || pool.num_threads !== 1) {
+                throw new Error(`numeric threadpool ${index} is not allowlisted single-threaded`);
+              }
+              if ((pool.internal_api === 'openblas' && pool.architecture !== 'Haswell') ||
+                  (pool.internal_api === 'openmp' && pool.architecture !== null)) {
+                throw new Error(`numeric threadpool ${index} architecture is invalid`);
+              }
+              for (const field of ['prefix', 'version']) {
+                const value = pool[field];
+                if (value !== null &&
+                    (typeof value !== 'string' || value.length === 0 || value.trim() !== value)) {
+                  throw new Error(`numeric threadpool ${index} ${field} is invalid`);
+                }
+              }
+              const canonical = JSON.stringify(Object.fromEntries(
+                Object.entries(pool).sort(([left], [right]) => left.localeCompare(right))
+              ));
+              if (runtimePoolRecords.has(canonical)) {
+                throw new Error('numeric runtime threadpool record is duplicated');
+              }
+              runtimePoolRecords.add(canonical);
+              runtimeApis.add(pool.internal_api);
+            }
+            if (runtimeApis.size !== 2 || !runtimeApis.has('openblas') || !runtimeApis.has('openmp')) {
+              throw new Error('numeric runtime API set is not exact');
+            }
+            const nullableText = value => value === null ? 'None' : String(value);
+            const sortedPools = [...runtime.threadpools].sort((left, right) => {
+              const leftKey = [left.internal_api, nullableText(left.prefix), nullableText(left.version)];
+              const rightKey = [right.internal_api, nullableText(right.prefix), nullableText(right.version)];
+              const leftText = leftKey.join('\0');
+              const rightText = rightKey.join('\0');
+              return leftText < rightText ? -1 : (leftText > rightText ? 1 : 0);
+            });
+            if (runtime.threadpools.some((pool, index) => pool !== sortedPools[index])) {
+              throw new Error('numeric runtime threadpool order is not canonical');
+            }
+            const launcherPath = 'scripts/run_deterministic_numeric.py';
+            const replayPath = 'scripts/replay_frozen_canonical_v2.py';
+            const launcherEvidence = receipt.source_evidence?.[launcherPath];
+            const replayEvidence = receipt.source_evidence?.[replayPath];
+            exactKeys(launcherEvidence, ['git_blob_sha1', 'sha256', 'size'], 'launcher source evidence');
+            exactKeys(replayEvidence, ['git_blob_sha1', 'sha256', 'size'], 'replay source evidence');
+            const sha256Pattern = /^[0-9a-f]{64}$/;
+            if (!launcherEvidence || !replayEvidence ||
+                !sha256Pattern.test(runtime.launcher_sha256) ||
+                !sha256Pattern.test(runtime.target_sha256) ||
+                !Number.isInteger(launcherEvidence.size) || launcherEvidence.size <= 0 ||
+                !Number.isInteger(replayEvidence.size) || replayEvidence.size <= 0 ||
+                runtime.launcher_sha256 !== launcherEvidence.sha256 ||
+                runtime.target_sha256 !== replayEvidence.sha256) {
+              throw new Error('numeric runtime hashes are not bound to source evidence');
+            }
+            const rebuild = receipt.action_rebuild_stability;
+            exactKeys(rebuild, [
+              'schema_version', 'projection', 'replay_sha256', 'final_sha256',
+              'matched', 'candidate_rows', 'stage_watch_rows'
+            ], 'action rebuild stability');
+            if (rebuild.schema_version !== 'decision_action_rebuild_stability_v2' ||
+                rebuild.projection !== 'raw_action_excluding_generation_and_exact_base_observation_truth' ||
+                rebuild.matched !== true ||
+                !sha256Pattern.test(rebuild.replay_sha256) ||
+                rebuild.replay_sha256 !== rebuild.final_sha256 ||
+                !Number.isInteger(rebuild.candidate_rows) || rebuild.candidate_rows < 0 ||
+                !Number.isInteger(rebuild.stage_watch_rows) || rebuild.stage_watch_rows < 0) {
+              throw new Error('action rebuild stability evidence is invalid');
+            }
             const changed = receipt.changed_paths;
             if (!Array.isArray(changed) || changed.length === 0) {
               throw new Error('publisher requires a nonempty changed path set');
+            }
+            if (changed.some(relative => typeof relative !== 'string') ||
+                changed.some((relative, index) => relative !== [...new Set(changed)].sort()[index])) {
+              throw new Error('publisher requires sorted unique changed paths');
             }
 
             async function readMain() {
@@ -288,6 +437,20 @@ jobs:
                 throw new Error(`exact-base source blob mismatch: ${sourcePath}`);
               }
             }
+            async function verifyNumericSourceBytes(sourcePath, evidence, expectedSha256) {
+              const entry = baseEntries.get(sourcePath);
+              const blob = await github.rest.git.getBlob({owner, repo, file_sha: entry.sha});
+              if (blob.data.sha !== entry.sha || blob.data.encoding !== 'base64') {
+                throw new Error(`numeric source blob response mismatch: ${sourcePath}`);
+              }
+              const bytes = Buffer.from(blob.data.content.replace(/\s/g, ''), 'base64');
+              const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+              if (bytes.length !== evidence.size || digest !== evidence.sha256 || digest !== expectedSha256) {
+                throw new Error(`numeric source byte evidence mismatch: ${sourcePath}`);
+              }
+            }
+            await verifyNumericSourceBytes(launcherPath, launcherEvidence, runtime.launcher_sha256);
+            await verifyNumericSourceBytes(replayPath, replayEvidence, runtime.target_sha256);
             for (const relative of changed) {
               const entry = baseEntries.get(relative);
               const claimed = receipt.base_blob_sha1[relative];
@@ -298,17 +461,47 @@ jobs:
               }
             }
 
-            const treeItems = [];
+            exactKeys(receipt.output_sha256, changed, 'candidate SHA256 inventory');
+            exactKeys(receipt.output_size, changed, 'candidate size inventory');
+            exactKeys(receipt.base_blob_sha1, changed, 'candidate base blob inventory');
+            const candidateFilesRoot = fs.realpathSync(path.join(root, 'files'));
+            const prepared = [];
             for (const relative of changed) {
-              const bytes = fs.readFileSync(path.join(root, 'files', ...relative.split('/')));
+              const parts = relative.split('/');
+              if (relative.includes('\\') || relative.includes('\0') ||
+                  path.posix.isAbsolute(relative) ||
+                  parts.some(part => part === '' || part === '.' || part === '..') ||
+                  parts.join('/') !== relative) {
+                throw new Error(`candidate path is not safe: ${relative}`);
+              }
+              const candidatePath = path.join(root, 'files', ...parts);
+              const stat = fs.lstatSync(candidatePath);
+              if (!stat.isFile() || stat.isSymbolicLink()) {
+                throw new Error(`candidate path is not a regular file: ${relative}`);
+              }
+              const realCandidate = fs.realpathSync(candidatePath);
+              if (realCandidate !== path.resolve(candidatePath) ||
+                  !realCandidate.startsWith(`${candidateFilesRoot}${path.sep}`)) {
+                throw new Error(`candidate path escapes candidate root: ${relative}`);
+              }
+              const bytes = fs.readFileSync(candidatePath);
               const digest = crypto.createHash('sha256').update(bytes).digest('hex');
-              if (digest !== receipt.output_sha256[relative] || bytes.length !== receipt.output_size[relative]) {
+              if (!sha256Pattern.test(receipt.output_sha256[relative]) ||
+                  !Number.isInteger(receipt.output_size[relative]) ||
+                  receipt.output_size[relative] <= 0 ||
+                  digest !== receipt.output_sha256[relative] ||
+                  bytes.length !== receipt.output_size[relative]) {
                 throw new Error(`candidate byte inventory mismatch: ${relative}`);
               }
               const localBlob = crypto.createHash('sha1')
                 .update(Buffer.from(`blob ${bytes.length}\0`, 'utf8'))
                 .update(bytes)
                 .digest('hex');
+              prepared.push({relative, bytes, localBlob});
+            }
+
+            const treeItems = [];
+            for (const {relative, bytes, localBlob} of prepared) {
               const created = await github.rest.git.createBlob({
                 owner, repo, content: bytes.toString('base64'), encoding: 'base64'
               });

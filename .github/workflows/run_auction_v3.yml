@@ -41,6 +41,18 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_DISABLE_CPU_FEATURES: "X86_V4"
 
 concurrency:
   group: decision-auction-main-writer
@@ -201,7 +213,7 @@ jobs:
           args=(--order-amount "${ORDER_AMOUNT}")
           if [ -n "${SIGNAL_DATE}" ]; then echo "${SIGNAL_DATE}" | grep -Eq '^[0-9]{8}$'; args+=(--signal-date "${SIGNAL_DATE}"); fi
           if [ "${PUBLISH}" != "true" ]; then args+=(--force-inactive); fi
-          python scripts/run_auction_v3.py "${args[@]}"
+          python scripts/run_deterministic_numeric.py scripts/run_auction_v3.py "${args[@]}"
           python scripts/publish_decision_action.py
           python - <<'PY'
           from pathlib import Path

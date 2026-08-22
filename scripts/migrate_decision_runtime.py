@@ -25,7 +25,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,9 +39,76 @@ for _entry in (SRC, SCRIPTS):
 SHA1_RE = re.compile(r"[0-9a-f]{40}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 DATE_RE = re.compile(r"20\d{6}")
-RECEIPT_SCHEMA = "decision_runtime_migration_receipt_v1"
+RECEIPT_SCHEMA = "decision_runtime_migration_receipt_v2"
 MIGRATION_SCHEMA = "decision_runtime_migration_v1"
 ALLOWLIST_VERSION = "decision_runtime_migration_paths_v1"
+NUMERIC_RUNTIME_SCHEMA = "dc20_deterministic_numeric_runtime_v1"
+NUMERIC_RUNTIME_HOST = "github_ubuntu_24_04_x86_64"
+NUMERIC_EVIDENCE_ENV = "DC20_NUMERIC_RUNTIME_EVIDENCE_FILE"
+NUMERIC_LAUNCHER_PATH = "scripts/run_deterministic_numeric.py"
+NUMERIC_REPLAY_TARGET_PATH = "scripts/replay_frozen_canonical_v2.py"
+ACTION_REBUILD_STABILITY_SCHEMA = "decision_action_rebuild_stability_v2"
+ACTION_REBUILD_PROJECTION = (
+    "raw_action_excluding_generation_and_exact_base_observation_truth"
+)
+NUMERIC_RUNTIME_KEYS = frozenset(
+    {
+        "schema_version",
+        "host_contract",
+        "launcher_sha256",
+        "numpy_cpu_dispatch_cap",
+        "numpy_x86_v4_disabled",
+        "openblas_coretype",
+        "target",
+        "target_sha256",
+        "threadpools",
+    }
+)
+NUMERIC_THREADPOOL_KEYS = frozenset(
+    {
+        "architecture",
+        "internal_api",
+        "num_threads",
+        "prefix",
+        "version",
+    }
+)
+RECEIPT_V2_KEYS = frozenset(
+    {
+        "schema_version",
+        "allowlist_version",
+        "status",
+        "mode",
+        "base_sha",
+        "base_tree_sha",
+        "signal_date",
+        "report_date",
+        "exec_date",
+        "exit_date",
+        "timing",
+        "live_delivery_met",
+        "execution_or_fill_claimed",
+        "replay_source",
+        "replay_status",
+        "replay_report_sha256",
+        "replay_numeric_runtime",
+        "action_rebuild_stability",
+        "freeze_active",
+        "forced_inactive",
+        "pins_enforced",
+        "validators_passed",
+        "post_prune_validators_passed",
+        "validator_summary",
+        "changed_paths",
+        "restored_paths",
+        "output_sha256",
+        "output_size",
+        "base_blob_sha1",
+        "source_evidence",
+        "truth_reference_evidence",
+        "truth_binding_summary",
+    }
+)
 
 STATIC_CANDIDATE_PATHS = frozenset(
     {
@@ -63,6 +130,7 @@ REQUIRED_EXACT_BASE_SOURCES = frozenset(
         "scripts/migrate_decision_runtime.py",
         "scripts/publish_decision_action.py",
         "scripts/replay_frozen_canonical_v2.py",
+        "scripts/run_deterministic_numeric.py",
         "scripts/validate_decision_model_freeze.py",
         "src/top10decision/decision/action_plan.py",
         "src/top10decision/decision/model_freeze.py",
@@ -116,6 +184,13 @@ ACTION_OBSERVATION_TRUTH_FIELDS = (
     "exit_reason",
     "truth_source",
     "truth_generated_at_utc",
+)
+ACTION_OBSERVATION_DERIVED_FIELDS = (
+    "validation_status_label",
+    "prediction_timing_label",
+)
+ACTION_OBSERVATION_OVERLAY_FIELDS = frozenset(
+    ACTION_OBSERVATION_TRUTH_FIELDS + ACTION_OBSERVATION_DERIVED_FIELDS
 )
 
 
@@ -236,6 +311,105 @@ def _sha256_file(path: Path) -> str:
     except OSError as exc:
         raise MigrationError(f"cannot hash file: {path}") from exc
     return digest.hexdigest()
+
+
+def validate_numeric_runtime_evidence(
+    evidence: Any,
+    *,
+    expected_launcher_sha256: str = "",
+    expected_target_sha256: str = "",
+) -> dict[str, Any]:
+    """Validate the stable, non-sensitive numeric runtime receipt surface."""
+
+    if not isinstance(evidence, dict):
+        _fail("numeric runtime evidence must be an object")
+    if set(evidence) != NUMERIC_RUNTIME_KEYS:
+        _fail("numeric runtime evidence keys are not exact")
+    exact_values = {
+        "schema_version": NUMERIC_RUNTIME_SCHEMA,
+        "host_contract": NUMERIC_RUNTIME_HOST,
+        "numpy_cpu_dispatch_cap": "X86_V3",
+        "numpy_x86_v4_disabled": True,
+        "openblas_coretype": "Haswell",
+        "target": Path(NUMERIC_REPLAY_TARGET_PATH).name,
+    }
+    for field, expected in exact_values.items():
+        if evidence.get(field) != expected or type(evidence.get(field)) is not type(expected):
+            _fail(f"numeric runtime evidence has invalid {field}")
+
+    launcher_sha256 = _strict_sha(
+        evidence.get("launcher_sha256"),
+        "numeric runtime launcher_sha256",
+        SHA256_RE,
+    )
+    target_sha256 = _strict_sha(
+        evidence.get("target_sha256"),
+        "numeric runtime target_sha256",
+        SHA256_RE,
+    )
+    if expected_launcher_sha256:
+        expected_launcher = _strict_sha(
+            expected_launcher_sha256,
+            "expected numeric runtime launcher SHA256",
+            SHA256_RE,
+        )
+        if launcher_sha256 != expected_launcher:
+            _fail("numeric runtime launcher SHA256 differs from exact source")
+    if expected_target_sha256:
+        expected_target = _strict_sha(
+            expected_target_sha256,
+            "expected numeric runtime target SHA256",
+            SHA256_RE,
+        )
+        if target_sha256 != expected_target:
+            _fail("numeric runtime target SHA256 differs from exact source")
+
+    pools = evidence.get("threadpools")
+    if not isinstance(pools, list) or not pools:
+        _fail("numeric runtime threadpools must be a nonempty list")
+    validated_pools: list[dict[str, Any]] = []
+    seen_records: set[str] = set()
+    seen_apis: set[str] = set()
+    for position, pool in enumerate(pools):
+        if not isinstance(pool, dict) or set(pool) != NUMERIC_THREADPOOL_KEYS:
+            _fail(f"numeric runtime threadpool {position} keys are not exact")
+        internal_api = pool.get("internal_api")
+        if internal_api not in {"openblas", "openmp"} or type(internal_api) is not str:
+            _fail(f"numeric runtime threadpool {position} API is not allowlisted")
+        if type(pool.get("num_threads")) is not int or pool["num_threads"] != 1:
+            _fail(f"numeric runtime threadpool {position} is not single-threaded")
+        architecture = pool.get("architecture")
+        if internal_api == "openblas":
+            if architecture != "Haswell" or type(architecture) is not str:
+                _fail("numeric runtime OpenBLAS architecture is not Haswell")
+        elif architecture is not None:
+            _fail("numeric runtime OpenMP architecture must be null")
+        for field in ("prefix", "version"):
+            value = pool.get(field)
+            if value is not None and (
+                type(value) is not str or not value or value.strip() != value
+            ):
+                _fail(f"numeric runtime threadpool {position} {field} is invalid")
+        canonical = json.dumps(pool, sort_keys=True, separators=(",", ":"))
+        if canonical in seen_records:
+            _fail("numeric runtime threadpool evidence contains a duplicate record")
+        seen_records.add(canonical)
+        seen_apis.add(internal_api)
+        validated_pools.append(copy.deepcopy(pool))
+
+    if seen_apis != {"openblas", "openmp"}:
+        _fail("numeric runtime threadpool API set is not exact")
+    canonical_order = sorted(
+        validated_pools,
+        key=lambda item: (
+            str(item["internal_api"]),
+            str(item["prefix"]),
+            str(item["version"]),
+        ),
+    )
+    if validated_pools != canonical_order:
+        _fail("numeric runtime threadpool evidence is not canonically ordered")
+    return copy.deepcopy(evidence)
 
 
 def _git(
@@ -374,6 +548,12 @@ def _exact_base_file_evidence(
 
 
 def discover_binding(root: Path, requested_signal_date: str = "") -> MigrationBinding:
+    from decision_pages_truth import (
+        DecisionPagesTruthError,
+        validate_report_index_action_truth,
+    )
+
+    root = root.resolve()
     index = load_strict_json(
         root / "outputs" / "decision" / "report_index.json", "report_index"
     )
@@ -382,18 +562,40 @@ def discover_binding(root: Path, requested_signal_date: str = "") -> MigrationBi
     reports = index.get("reports")
     if not isinstance(reports, list) or not reports or not isinstance(reports[0], dict):
         _fail("report_index.reports must be a nonempty object list")
-    report_date = _strict_date(index.get("latest_report_date"), "latest_report_date")
-    first_date = _strict_date(reports[0].get("report_date"), "reports[0].report_date")
-    if report_date != first_date:
-        _fail("latest_report_date does not match reports[0]")
+    try:
+        action_truth = validate_report_index_action_truth(
+            report_index_path=root / "outputs" / "decision" / "report_index.json",
+            site_root=root,
+        )
+    except DecisionPagesTruthError as exc:
+        raise MigrationError(f"report_index action truth is invalid: {exc}") from exc
+    report_date = _strict_date(
+        action_truth.latest_action_report_date,
+        "latest_action_report_date",
+    )
+    if index.get("latest_action_report_date") != report_date:
+        _fail("report_index latest action date differs from validated action truth")
+    expected_action_url = f"outputs/decision/action_plan_{report_date}.json"
+    if index.get("latest_action_url") != expected_action_url:
+        _fail("report_index latest_action_url is not exact")
+    selected_reports = [
+        report
+        for report in reports
+        if isinstance(report, dict) and report.get("report_date") == report_date
+    ]
+    if len(selected_reports) != 1:
+        _fail("report_index does not contain exactly one latest action report")
+    selected_report = selected_reports[0]
     expected_index_fields = {
         "report_file": f"decision_report_{report_date}.md",
         "report_url": f"outputs/decision/decision_report_{report_date}.md",
         "eval_url": f"outputs/decision/eval_{report_date}.json",
+        "action_available": True,
+        "action_url": expected_action_url,
     }
     for key, expected in expected_index_fields.items():
-        if reports[0].get(key) != expected:
-            _fail(f"latest report index {key} is not exact")
+        if selected_report.get(key) != expected:
+            _fail(f"latest action report index {key} is not exact")
 
     evaluation_path = f"outputs/decision/eval_{report_date}.json"
     evaluation = load_strict_json(_child(root, evaluation_path, "evaluation"), "evaluation")
@@ -401,15 +603,15 @@ def discover_binding(root: Path, requested_signal_date: str = "") -> MigrationBi
     exec_date = _strict_date(evaluation.get("exec_date"), "evaluation.exec_date")
     exit_date = _strict_date(evaluation.get("exit_date"), "evaluation.exit_date")
     if exec_date != report_date:
-        _fail("evaluation.exec_date does not equal latest report_date")
+        _fail("evaluation.exec_date does not equal latest action report_date")
     if not (signal_date < exec_date < exit_date):
         _fail("evaluation dates are not strictly signal < exec < exit")
     if requested_signal_date:
         requested = _strict_date(requested_signal_date, "requested signal_date")
         if requested != signal_date:
             _fail(
-                "requested signal_date is not the exact latest report signal: "
-                f"requested={requested} latest={signal_date}"
+                "requested signal_date is not the exact latest action signal: "
+                f"requested={requested} latest_action={signal_date}"
             )
 
     paths = evaluation.get("paths")
@@ -515,11 +717,23 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _run_checked(
-    command: list[str], *, cwd: Path, label: str
+    command: list[str],
+    *,
+    cwd: Path,
+    label: str,
+    extra_env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
+    env.pop(NUMERIC_EVIDENCE_ENV, None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONHASHSEED"] = "0"
+    if extra_env is not None:
+        if set(extra_env) != {NUMERIC_EVIDENCE_ENV}:
+            _fail("subprocess extra environment is not allowlisted")
+        evidence_path = extra_env.get(NUMERIC_EVIDENCE_ENV)
+        if type(evidence_path) is not str or not evidence_path:
+            _fail("numeric evidence subprocess path is invalid")
+        env[NUMERIC_EVIDENCE_ENV] = evidence_path
     completed = subprocess.run(
         command,
         cwd=cwd,
@@ -534,20 +748,36 @@ def _run_checked(
     return completed
 
 
-def run_frozen_replay(root: Path, binding: MigrationBinding, report_path: Path) -> dict[str, Any]:
+def run_frozen_replay(
+    root: Path,
+    binding: MigrationBinding,
+    report_path: Path,
+    evidence_path: Path,
+) -> dict[str, Any]:
+    supplied_evidence = evidence_path.absolute()
+    if supplied_evidence.exists() or supplied_evidence.is_symlink():
+        _fail("numeric runtime evidence output must not already exist")
+    if supplied_evidence.parent.is_symlink() or not supplied_evidence.parent.is_dir():
+        _fail("numeric runtime evidence parent is invalid")
+    if supplied_evidence.parent.resolve() != report_path.absolute().parent.resolve():
+        _fail("numeric runtime evidence must share the replay temporary directory")
     completed = _run_checked(
         [
             sys.executable,
+            str(root / "scripts" / "run_deterministic_numeric.py"),
             str(root / "scripts" / "replay_frozen_canonical_v2.py"),
             "--root",
             str(root),
             "--signal-date",
             binding.signal_date,
+            "--report-date",
+            binding.report_date,
             "--report",
             str(report_path),
         ],
         cwd=root,
         label="frozen canonical V2 replay",
+        extra_env={NUMERIC_EVIDENCE_ENV: str(supplied_evidence)},
     )
     del completed
     replay = load_strict_json(report_path, "frozen replay report")
@@ -562,10 +792,123 @@ def run_frozen_replay(root: Path, binding: MigrationBinding, report_path: Path) 
         _fail("frozen replay did not complete runtime validation")
     if runtime.get("canonical_v2_enforced") is not True:
         _fail("frozen replay did not enforce canonical V2")
+    numeric_runtime = validate_numeric_runtime_evidence(
+        load_strict_json(supplied_evidence, "numeric runtime evidence"),
+        expected_launcher_sha256=_sha256_file(root / NUMERIC_LAUNCHER_PATH),
+        expected_target_sha256=_sha256_file(root / NUMERIC_REPLAY_TARGET_PATH),
+    )
+    replay["numeric_runtime"] = numeric_runtime
     return replay
 
 
-def _annotate_action_files(root: Path, binding: MigrationBinding, base_sha: str) -> None:
+def action_rebuild_stability_projection(action: Any) -> dict[str, Any]:
+    """Keep raw semantics except exact-base-reconstructed observation truth."""
+
+    if not isinstance(action, dict):
+        _fail("action rebuild stability input must be an object")
+    from top10decision.decision.action_plan import (
+        ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2,
+    )
+
+    if ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2 != ACTION_OBSERVATION_OVERLAY_FIELDS:
+        _fail("migration observation overlay allowlist differs from action contract")
+    projection = copy.deepcopy(action)
+    projection.pop("generated_at_utc", None)
+    projection.pop("observation_statistics", None)
+    projection.pop("observation_validation", None)
+    model = projection.get("model")
+    if model is not None:
+        if not isinstance(model, dict):
+            _fail("action rebuild stability model must be an object")
+        model.pop("truth_ledgers", None)
+    for collection in ("candidates", "stage_watchlist"):
+        rows = projection.get(collection)
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            _fail(f"action rebuild stability {collection} must be an object list")
+    for row in projection["stage_watchlist"]:
+        for field in ACTION_OBSERVATION_OVERLAY_FIELDS:
+            row.pop(field, None)
+    return projection
+
+
+def _action_rebuild_sha256(action: Any) -> str:
+    projection = action_rebuild_stability_projection(action)
+    try:
+        rendered = json.dumps(
+            projection,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise MigrationError("action rebuild stability projection is not strict JSON") from exc
+    return _sha256_bytes(rendered)
+
+
+def build_action_rebuild_stability(
+    replayed_action: dict[str, Any], final_action: dict[str, Any]
+) -> dict[str, Any]:
+    replay_sha256 = _action_rebuild_sha256(replayed_action)
+    final_sha256 = _action_rebuild_sha256(final_action)
+    evidence = {
+        "schema_version": ACTION_REBUILD_STABILITY_SCHEMA,
+        "projection": ACTION_REBUILD_PROJECTION,
+        "replay_sha256": replay_sha256,
+        "final_sha256": final_sha256,
+        "matched": replay_sha256 == final_sha256,
+        "candidate_rows": len(final_action.get("candidates", [])),
+        "stage_watch_rows": len(final_action.get("stage_watchlist", [])),
+    }
+    if evidence["matched"] is not True:
+        _fail("post-prune action rebuild changed replayed raw action semantics")
+    return evidence
+
+
+def validate_action_rebuild_stability(
+    evidence: Any,
+    *,
+    final_action: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    expected_keys = {
+        "schema_version",
+        "projection",
+        "replay_sha256",
+        "final_sha256",
+        "matched",
+        "candidate_rows",
+        "stage_watch_rows",
+    }
+    if not isinstance(evidence, dict) or set(evidence) != expected_keys:
+        _fail("action rebuild stability evidence keys are not exact")
+    if evidence.get("schema_version") != ACTION_REBUILD_STABILITY_SCHEMA:
+        _fail("action rebuild stability schema is invalid")
+    if evidence.get("projection") != ACTION_REBUILD_PROJECTION:
+        _fail("action rebuild stability projection is invalid")
+    replay_sha256 = _strict_sha(
+        evidence.get("replay_sha256"), "replayed action stability SHA256", SHA256_RE
+    )
+    final_sha256 = _strict_sha(
+        evidence.get("final_sha256"), "final action stability SHA256", SHA256_RE
+    )
+    if evidence.get("matched") is not True or replay_sha256 != final_sha256:
+        _fail("action rebuild stability evidence does not prove an exact match")
+    for field in ("candidate_rows", "stage_watch_rows"):
+        if type(evidence.get(field)) is not int or evidence[field] < 0:
+            _fail(f"action rebuild stability {field} is invalid")
+    if final_action is not None:
+        if _action_rebuild_sha256(final_action) != final_sha256:
+            _fail("final action differs from action rebuild stability evidence")
+        if len(final_action.get("candidates", [])) != evidence["candidate_rows"]:
+            _fail("final action candidate count differs from rebuild evidence")
+        if len(final_action.get("stage_watchlist", [])) != evidence["stage_watch_rows"]:
+            _fail("final action watchlist count differs from rebuild evidence")
+    return copy.deepcopy(evidence)
+
+
+def _annotate_action_files(
+    root: Path, binding: MigrationBinding, base_sha: str
+) -> dict[str, Any]:
     dated_relative = f"outputs/decision/action_plan_{binding.report_date}.json"
     latest_relative = "outputs/decision/action_plan_latest.json"
     dated = load_strict_json(_child(root, dated_relative, "dated action"), "dated action")
@@ -573,14 +916,15 @@ def _annotate_action_files(root: Path, binding: MigrationBinding, base_sha: str)
     for key in ("schema_version", "signal_date", "report_date", "exec_date", "exit_date"):
         if dated.get(key) != latest.get(key):
             _fail(f"dated/latest actions disagree on {key}")
-    _write_json(
-        _child(root, dated_relative, "dated action"),
-        annotate_retrospective_action(dated, binding, base_sha),
-    )
-    _write_json(
-        _child(root, latest_relative, "latest action"),
-        annotate_retrospective_action(latest, binding, base_sha),
-    )
+    annotated_dated = annotate_retrospective_action(dated, binding, base_sha)
+    annotated_latest = annotate_retrospective_action(latest, binding, base_sha)
+    if _action_rebuild_sha256(annotated_dated) != _action_rebuild_sha256(
+        annotated_latest
+    ):
+        _fail("replayed dated/latest action semantics differ before migration")
+    _write_json(_child(root, dated_relative, "dated action"), annotated_dated)
+    _write_json(_child(root, latest_relative, "latest action"), annotated_latest)
+    return annotated_latest
 
 
 def rebind_model_truth_ledgers(root: Path) -> dict[str, Any]:
@@ -629,8 +973,79 @@ def rebuild_current_action_after_prune(
     )
     _write_json(decision_root / "action_plan_latest.json", annotated)
     index = build_report_index(root, binding.report_date)
+    if (
+        index.get("latest_action_report_date") != binding.report_date
+        or index.get("latest_action_url")
+        != f"outputs/decision/action_plan_{binding.report_date}.json"
+    ):
+        _fail("rebuilt report index did not retain the migration action binding")
     _write_json(decision_root / "report_index.json", index)
+    rebound = discover_binding(root, binding.signal_date)
+    if rebound != binding:
+        _fail("rebuilt report index changed the migration binding")
     return annotated
+
+
+def _validate_exact_observation_surface(
+    action: Any,
+    *,
+    reference_root: Path,
+    binding: MigrationBinding,
+    label: str,
+) -> dict[str, int]:
+    """Rebuild every excluded observation field from exact reference bytes."""
+
+    from top10decision.decision.action_plan import (
+        _attach_observation_validation,
+        _observation_frame,
+    )
+
+    if not isinstance(action, dict):
+        _fail(f"{label} must be an object")
+    reconstructed = _attach_observation_validation(
+        reference_root,
+        copy.deepcopy(action),
+    )
+    surface_fields = (
+        "stage_watchlist",
+        "stage_watch_count",
+        "stage_watch_eligible_count",
+        "stage_watch_display_limit",
+        "observation_validation",
+        "observation_statistics",
+    )
+    for field in surface_fields:
+        if action.get(field) != reconstructed.get(field):
+            _fail(f"{label} {field} differs from exact observation reconstruction")
+
+    watchlist = action.get("stage_watchlist")
+    if not isinstance(watchlist, list) or not watchlist:
+        _fail(f"{label} stage_watchlist must be a nonempty list")
+    codes: list[str] = []
+    for row_number, row in enumerate(watchlist, start=1):
+        if not isinstance(row, dict):
+            _fail(f"{label} stage_watchlist[{row_number}] is not an object")
+        code = str(row.get("ts_code") or "").strip()
+        if not code:
+            _fail(f"{label} stage_watchlist[{row_number}] has no ts_code")
+        codes.append(code)
+    if len(codes) != len(set(codes)):
+        _fail(f"{label} stage_watchlist ts_code values are not unique")
+
+    truth = _observation_frame(reference_root, binding.exec_date)
+    if truth.empty or "ts_code" not in truth.columns:
+        _fail(f"{label} exact observation truth is empty or lacks ts_code")
+    truth_codes = {
+        str(row.get("ts_code") or "").strip()
+        for _, row in truth.drop_duplicates("ts_code", keep="last").iterrows()
+    }
+    missing = [code for code in codes if code not in truth_codes]
+    if missing:
+        _fail(f"{label} exact observation truth lacks watchlist rows: {missing!r}")
+    return {
+        "watchlist_rows": len(watchlist),
+        "matched_observation_rows": len(codes),
+    }
 
 
 def validate_embedded_truth_bindings(
@@ -639,8 +1054,6 @@ def validate_embedded_truth_bindings(
     binding: MigrationBinding,
 ) -> dict[str, Any]:
     """Prove published summaries/watch rows equal their restored references."""
-
-    from top10decision.decision.action_plan import _json_safe, _observation_frame
 
     model_meta = load_strict_json(
         root / "outputs" / "auction_v3" / "models" / "model_meta_latest.json",
@@ -671,49 +1084,65 @@ def validate_embedded_truth_bindings(
         _fail("action.model is missing after current-only rebuild")
     if action_model.get("truth_ledgers") != truth_ledgers:
         _fail("action model truth ledgers differ from rebound model metadata")
-    observation_metrics = load_strict_json(
-        root
-        / "outputs"
-        / "auction_v3"
-        / "metrics"
-        / "observation_cumulative_latest.json",
-        "observation cumulative metrics",
+    observation_surface = _validate_exact_observation_surface(
+        action,
+        reference_root=root,
+        binding=binding,
+        label="rebuilt action",
     )
-    if action.get("observation_statistics") != observation_metrics:
-        _fail("action observation_statistics differ from restored metrics JSON")
-
-    truth = _observation_frame(root, binding.exec_date)
-    lookup: dict[str, Any] = {}
-    if not truth.empty and "ts_code" in truth.columns:
-        lookup = {
-            str(row.get("ts_code") or "").strip(): row
-            for _, row in truth.drop_duplicates("ts_code", keep="last").iterrows()
-        }
-    watchlist = action.get("stage_watchlist")
-    if not isinstance(watchlist, list):
-        _fail("action stage_watchlist is not a list after current-only rebuild")
-    matched_rows = 0
-    for row_number, row in enumerate(watchlist, start=1):
-        if not isinstance(row, dict):
-            _fail(f"action stage_watchlist[{row_number}] is not an object")
-        verified = lookup.get(str(row.get("ts_code") or "").strip())
-        if verified is None:
-            continue
-        matched_rows += 1
-        for field in ACTION_OBSERVATION_TRUTH_FIELDS:
-            expected = _json_safe(verified.get(field))
-            if row.get(field) != expected:
-                _fail(
-                    "action watchlist truth differs from restored observation bytes: "
-                    f"row={row_number} field={field}"
-                )
     return {
         "model_truth_metrics_exact": True,
         "action_truth_ledgers_exact": True,
         "action_observation_statistics_exact": True,
         "action_watchlist_truth_exact": True,
-        "watchlist_rows": len(watchlist),
-        "matched_observation_rows": matched_rows,
+        **observation_surface,
+    }
+
+
+def validate_action_truth_against_reference(
+    action: Any,
+    *,
+    model_meta: Any,
+    reference_root: Path,
+    binding: MigrationBinding,
+) -> dict[str, Any]:
+    """Recompute the two excluded truth summaries from an exact-base checkout."""
+
+    if not isinstance(action, dict):
+        _fail("candidate action truth binding input must be an object")
+    expected_ledgers: dict[str, dict[str, Any]] = {}
+    for name, (ledger_path, metrics_path) in TRUTH_LEDGER_BINDINGS.items():
+        ledger = _child(reference_root, ledger_path, f"{name} reference ledger")
+        if ledger.is_symlink() or not ledger.is_file() or ledger.stat().st_size <= 0:
+            _fail(f"exact-base truth ledger is missing: {ledger_path}")
+        expected_ledgers[name] = {
+            "path": ledger_path,
+            "metrics": load_strict_json(
+                _child(reference_root, metrics_path, f"{name} reference metrics"),
+                f"{name} reference metrics",
+            ),
+        }
+    if not isinstance(model_meta, dict):
+        _fail("candidate model metadata is missing for exact-base truth binding")
+    if model_meta.get("truth_ledgers") != expected_ledgers:
+        _fail("candidate model truth ledgers differ from exact-base references")
+    action_model = action.get("model")
+    if not isinstance(action_model, dict):
+        _fail("candidate action model is missing for exact-base truth binding")
+    if action_model.get("truth_ledgers") != expected_ledgers:
+        _fail("candidate action truth ledgers differ from exact-base references")
+    observation_surface = _validate_exact_observation_surface(
+        action,
+        reference_root=reference_root,
+        binding=binding,
+        label="candidate action",
+    )
+    return {
+        "model_truth_metrics_exact": True,
+        "action_truth_ledgers_exact": True,
+        "action_observation_statistics_exact": True,
+        "action_watchlist_truth_exact": True,
+        **observation_surface,
     }
 
 
@@ -1158,7 +1587,9 @@ def verify_envelope(
     if _sha256_file(receipt_path) != digest_text.strip():
         _fail("migration receipt digest mismatch")
     if receipt.get("schema_version") != RECEIPT_SCHEMA:
-        _fail("migration receipt schema is not V1")
+        _fail("migration receipt schema is not V2")
+    if set(receipt) != RECEIPT_V2_KEYS:
+        _fail("migration receipt V2 keys are not exact")
     if receipt.get("allowlist_version") != ALLOWLIST_VERSION:
         _fail("migration receipt allowlist version is unknown")
     base_sha = _strict_sha(receipt.get("base_sha"), "receipt.base_sha", SHA1_RE)
@@ -1187,10 +1618,23 @@ def verify_envelope(
         "receipt.replay_report_sha256",
         SHA256_RE,
     )
+    numeric_runtime = validate_numeric_runtime_evidence(
+        receipt.get("replay_numeric_runtime")
+    )
+    action_rebuild_stability = validate_action_rebuild_stability(
+        receipt.get("action_rebuild_stability")
+    )
     if receipt.get("validators_passed") is not True:
         _fail("migration receipt validators_passed is not true")
     if receipt.get("post_prune_validators_passed") is not True:
         _fail("migration receipt post-prune validators did not pass")
+    validator_summary = receipt.get("validator_summary")
+    if (
+        not isinstance(validator_summary, dict)
+        or set(validator_summary) != {"before_prune", "after_prune"}
+        or not all(isinstance(value, dict) for value in validator_summary.values())
+    ):
+        _fail("migration receipt validator_summary is not exact")
     if type(receipt.get("freeze_active")) is not bool:
         _fail("migration receipt freeze_active must be a bool")
     if type(receipt.get("forced_inactive")) is not bool:
@@ -1226,6 +1670,15 @@ def verify_envelope(
     expected_status = "candidate_generated" if changed else "no_change"
     if status_value != expected_status:
         _fail("migration receipt status does not match changed path set")
+    restored = receipt.get("restored_paths")
+    if not isinstance(restored, list) or any(type(path) is not str for path in restored):
+        _fail("migration receipt restored_paths must be a string list")
+    if restored != sorted(set(restored)):
+        _fail("migration receipt restored_paths is not sorted and unique")
+    for relative in restored:
+        _safe_repo_path(relative, "restored path")
+    if set(restored).intersection(changed) or set(restored).intersection(allowed):
+        _fail("migration receipt restored_paths overlap candidate paths")
     bundle_paths = _walk_bundle_files(root / "files")
     if bundle_paths != changed:
         _fail("bundle file path set differs from receipt changed_paths")
@@ -1269,6 +1722,15 @@ def verify_envelope(
                 exit_date=receipt["exit_date"],
                 base_sha=base_sha,
             )
+        for relative in sorted(expected_actions):
+            final_action = load_strict_json(
+                _child(root / "files", relative, "migration action output"),
+                "migration action output",
+            )
+            validate_action_rebuild_stability(
+                action_rebuild_stability,
+                final_action=final_action,
+            )
 
     sources = receipt.get("source_evidence")
     if not isinstance(sources, dict) or not sources:
@@ -1289,6 +1751,15 @@ def verify_envelope(
         _strict_sha(evidence.get("sha256"), "source sha256", SHA256_RE)
         if type(evidence.get("size")) is not int or evidence["size"] <= 0:
             _fail(f"source evidence size is invalid: {relative}")
+    launcher_source = sources.get(NUMERIC_LAUNCHER_PATH)
+    replay_source = sources.get(NUMERIC_REPLAY_TARGET_PATH)
+    if not isinstance(launcher_source, dict) or not isinstance(replay_source, dict):
+        _fail("migration receipt lacks numeric runtime exact sources")
+    validate_numeric_runtime_evidence(
+        numeric_runtime,
+        expected_launcher_sha256=launcher_source.get("sha256", ""),
+        expected_target_sha256=replay_source.get("sha256", ""),
+    )
     truth_references = receipt.get("truth_reference_evidence")
     if not isinstance(truth_references, dict) or not truth_references:
         _fail("migration receipt truth_reference_evidence must be nonempty")
@@ -1349,6 +1820,32 @@ def verify_envelope(
         )
         if truth_references != expected_truth_references:
             _fail("receipt truth reference set differs from exact-base reconstruction")
+        if changed:
+            model_meta_relative = "outputs/auction_v3/models/model_meta_latest.json"
+            model_meta_path = (
+                _child(root / "files", model_meta_relative, "candidate model metadata")
+                if model_meta_relative in changed
+                else _child(source_root, model_meta_relative, "exact-base model metadata")
+            )
+            candidate_model_meta = load_strict_json(
+                model_meta_path,
+                "candidate model metadata",
+            )
+            for relative in sorted(expected_actions):
+                candidate_action = load_strict_json(
+                    _child(root / "files", relative, "migration action output"),
+                    "migration action output",
+                )
+                reconstructed_truth = validate_action_truth_against_reference(
+                    candidate_action,
+                    model_meta=candidate_model_meta,
+                    reference_root=source_root,
+                    binding=source_binding,
+                )
+                if reconstructed_truth != truth_summary:
+                    _fail(
+                        "receipt truth summary differs from exact-base reconstruction"
+                    )
         for relative in changed:
             entry = _git_tree_entry(source_root, base_sha, relative)
             claimed = base_blobs[relative]
@@ -1409,10 +1906,16 @@ def build_migration(
         prefix="decision-runtime-replay.", dir=output_root.parent
     ) as temporary:
         replay_report_path = Path(temporary) / "replay-report.json"
-        replay = run_frozen_replay(root, binding, replay_report_path)
+        numeric_evidence_path = Path(temporary) / "numeric-runtime.json"
+        replay = run_frozen_replay(
+            root,
+            binding,
+            replay_report_path,
+            numeric_evidence_path,
+        )
         replay_report_sha256 = _sha256_file(replay_report_path)
 
-    _annotate_action_files(root, binding, git_base.sha)
+    replayed_action = _annotate_action_files(root, binding, git_base.sha)
     pre_prune = run_full_validators(root, manifest)
     restored = restore_outside_allowlist(root, git_base.sha, allowed)
     truth_reference_evidence = assert_truth_references_are_exact_base(
@@ -1421,7 +1924,11 @@ def build_migration(
         binding=binding,
     )
     rebind_model_truth_ledgers(root)
-    rebuild_current_action_after_prune(root, binding, git_base.sha)
+    final_action = rebuild_current_action_after_prune(root, binding, git_base.sha)
+    action_rebuild_stability = build_action_rebuild_stability(
+        replayed_action,
+        final_action,
+    )
     _assert_historical_actions_unchanged(root, git_base.sha, binding.report_date)
     truth_bindings = validate_embedded_truth_bindings(root, binding=binding)
     post_prune = run_full_validators(root, manifest)
@@ -1453,6 +1960,8 @@ def build_migration(
         "replay_source": "frozen_canonical_replay",
         "replay_status": replay.get("status"),
         "replay_report_sha256": replay_report_sha256,
+        "replay_numeric_runtime": replay.get("numeric_runtime"),
+        "action_rebuild_stability": action_rebuild_stability,
         "freeze_active": active,
         "forced_inactive": not active,
         "pins_enforced": True,

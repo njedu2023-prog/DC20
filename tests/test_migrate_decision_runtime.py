@@ -55,8 +55,22 @@ def _action_payload() -> dict[str, object]:
         "guidance_only": True,
         "broker_connected": False,
         "order_execution": "manual_only",
-        "candidates": [{"action": "WATCH", "target_weight": 0.0}],
-        "stage_watchlist": [{"action": "WATCH", "target_weight": 0.0}],
+        "candidates": [
+            {
+                "ts_code": "000001.SZ",
+                "stage_transition": "2→3",
+                "action": "WATCH",
+                "target_weight": 0.0,
+            }
+        ],
+        "stage_watchlist": [
+            {
+                "ts_code": "000001.SZ",
+                "stage_transition": "2→3",
+                "action": "WATCH",
+                "target_weight": 0.0,
+            }
+        ],
     }
 
 
@@ -109,6 +123,33 @@ def _write_bundle(
         }
         for relative in sorted(source_paths)
     }
+    numeric_runtime = {
+        "schema_version": MIGRATION.NUMERIC_RUNTIME_SCHEMA,
+        "host_contract": MIGRATION.NUMERIC_RUNTIME_HOST,
+        "launcher_sha256": source_evidence[MIGRATION.NUMERIC_LAUNCHER_PATH]["sha256"],
+        "numpy_cpu_dispatch_cap": "X86_V3",
+        "numpy_x86_v4_disabled": True,
+        "openblas_coretype": "Haswell",
+        "target": Path(MIGRATION.NUMERIC_REPLAY_TARGET_PATH).name,
+        "target_sha256": source_evidence[MIGRATION.NUMERIC_REPLAY_TARGET_PATH]["sha256"],
+        "threadpools": [
+            {
+                "architecture": "Haswell",
+                "internal_api": "openblas",
+                "num_threads": 1,
+                "prefix": "libscipy_openblas",
+                "version": "0.3.30",
+            },
+            {
+                "architecture": None,
+                "internal_api": "openmp",
+                "num_threads": 1,
+                "prefix": "libgomp",
+                "version": None,
+            },
+        ],
+    }
+    action_rebuild_stability = MIGRATION.build_action_rebuild_stability(action, action)
     receipt: dict[str, object] = {
         "schema_version": MIGRATION.RECEIPT_SCHEMA,
         "allowlist_version": MIGRATION.ALLOWLIST_VERSION,
@@ -126,6 +167,8 @@ def _write_bundle(
         "replay_source": "frozen_canonical_replay",
         "replay_status": "pass",
         "replay_report_sha256": "4" * 64,
+        "replay_numeric_runtime": numeric_runtime,
+        "action_rebuild_stability": action_rebuild_stability,
         "freeze_active": False,
         "forced_inactive": True,
         "pins_enforced": True,
@@ -139,7 +182,7 @@ def _write_bundle(
             "watchlist_rows": 1,
             "matched_observation_rows": 0,
         },
-        "validator_summary": {},
+        "validator_summary": {"before_prune": {}, "after_prune": {}},
         "changed_paths": sorted(contents),
         "restored_paths": ["outputs/decision/action_plan_20260817.json"],
         "output_sha256": {
@@ -207,6 +250,352 @@ def test_strict_json_rejects_duplicate_keys_and_nonfinite(tmp_path: Path) -> Non
         MIGRATION.load_strict_json(nonfinite, "nonfinite")
 
 
+def test_numeric_runtime_evidence_is_exact_and_source_bound(tmp_path: Path) -> None:
+    _bundle, receipt = _write_bundle(tmp_path)
+    evidence = receipt["replay_numeric_runtime"]
+    sources = receipt["source_evidence"]
+    validated = MIGRATION.validate_numeric_runtime_evidence(
+        evidence,
+        expected_launcher_sha256=sources[MIGRATION.NUMERIC_LAUNCHER_PATH]["sha256"],
+        expected_target_sha256=sources[MIGRATION.NUMERIC_REPLAY_TARGET_PATH]["sha256"],
+    )
+    assert validated == evidence
+    assert validated is not evidence
+
+
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("extra_top_key", True),
+        ("missing_top_key", None),
+        ("schema", "dc20_deterministic_numeric_runtime_v0"),
+        ("host", "local_mac"),
+        ("cap", "X86_V4"),
+        ("disabled", False),
+        ("coretype", "Zen"),
+        ("target", "run_auction_v3.py"),
+        ("threads", 2),
+        ("threads", True),
+        ("threads", 1.0),
+        ("architecture", "Zen"),
+        ("unknown_api", "mkl"),
+        ("missing_openmp", None),
+        ("missing_openblas", None),
+        ("empty_pools", None),
+        ("pool_extra_key", True),
+        ("duplicate_pool", None),
+        ("reversed_pools", None),
+    ],
+)
+def test_numeric_runtime_evidence_rejects_contract_drift(
+    tmp_path: Path, kind: str, value: object
+) -> None:
+    _bundle, receipt = _write_bundle(tmp_path)
+    evidence = copy.deepcopy(receipt["replay_numeric_runtime"])
+    if kind == "extra_top_key":
+        evidence["unexpected"] = value
+    elif kind == "missing_top_key":
+        del evidence["openblas_coretype"]
+    elif kind == "schema":
+        evidence["schema_version"] = value
+    elif kind == "host":
+        evidence["host_contract"] = value
+    elif kind == "cap":
+        evidence["numpy_cpu_dispatch_cap"] = value
+    elif kind == "disabled":
+        evidence["numpy_x86_v4_disabled"] = value
+    elif kind == "coretype":
+        evidence["openblas_coretype"] = value
+    elif kind == "target":
+        evidence["target"] = value
+    elif kind == "threads":
+        evidence["threadpools"][0]["num_threads"] = value
+    elif kind == "architecture":
+        evidence["threadpools"][0]["architecture"] = value
+    elif kind == "unknown_api":
+        evidence["threadpools"][0]["internal_api"] = value
+    elif kind == "missing_openmp":
+        evidence["threadpools"] = evidence["threadpools"][:1]
+    elif kind == "missing_openblas":
+        evidence["threadpools"] = evidence["threadpools"][1:]
+    elif kind == "empty_pools":
+        evidence["threadpools"] = []
+    elif kind == "pool_extra_key":
+        evidence["threadpools"][0]["filepath"] = "/secret/library.so"
+    elif kind == "duplicate_pool":
+        evidence["threadpools"].append(copy.deepcopy(evidence["threadpools"][0]))
+    elif kind == "reversed_pools":
+        evidence["threadpools"].reverse()
+    else:  # pragma: no cover - parametrization is exhaustive
+        raise AssertionError(kind)
+    with pytest.raises(MIGRATION.MigrationError):
+        MIGRATION.validate_numeric_runtime_evidence(evidence)
+
+
+@pytest.mark.parametrize("field", ["launcher_sha256", "target_sha256"])
+def test_verify_rejects_numeric_hash_not_bound_to_source(
+    tmp_path: Path, field: str
+) -> None:
+    bundle, receipt = _write_bundle(tmp_path)
+    receipt["replay_numeric_runtime"][field] = "f" * 64
+    _rewrite_receipt(bundle, receipt)
+    with pytest.raises(MIGRATION.MigrationError, match="differs from exact source"):
+        MIGRATION.verify_envelope(bundle, expected_base_sha=BASE_SHA)
+
+
+def test_run_frozen_replay_captures_numeric_runtime_in_same_temp_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True)
+    launcher = scripts / "run_deterministic_numeric.py"
+    target = scripts / "replay_frozen_canonical_v2.py"
+    launcher.write_text("# deterministic launcher\n", encoding="utf-8")
+    target.write_text("# frozen replay\n", encoding="utf-8")
+    report_path = tmp_path / "replay-report.json"
+    evidence_path = tmp_path / "numeric-runtime.json"
+    captured: dict[str, object] = {}
+
+    def fake_run_checked(
+        command: list[str],
+        *,
+        cwd: Path,
+        label: str,
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.update(command=command, cwd=cwd, label=label, extra_env=extra_env)
+        report_path.write_text(
+            json.dumps(
+                {
+                    "status": "pass",
+                    "diagnostic_mode": "workspace_only_forced_frozen_canonical_v2",
+                    "force_prediction": True,
+                    "runtime_validation": {
+                        "validated": True,
+                        "canonical_v2_enforced": True,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        evidence_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": MIGRATION.NUMERIC_RUNTIME_SCHEMA,
+                    "host_contract": MIGRATION.NUMERIC_RUNTIME_HOST,
+                    "launcher_sha256": hashlib.sha256(launcher.read_bytes()).hexdigest(),
+                    "numpy_cpu_dispatch_cap": "X86_V3",
+                    "numpy_x86_v4_disabled": True,
+                    "openblas_coretype": "Haswell",
+                    "target": target.name,
+                    "target_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+                    "threadpools": [
+                        {
+                            "architecture": "Haswell",
+                            "internal_api": "openblas",
+                            "num_threads": 1,
+                            "prefix": "libopenblas",
+                            "version": "0.3.30",
+                        },
+                        {
+                            "architecture": None,
+                            "internal_api": "openmp",
+                            "num_threads": 1,
+                            "prefix": "libgomp",
+                            "version": None,
+                        },
+                    ],
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(MIGRATION, "_run_checked", fake_run_checked)
+    replay = MIGRATION.run_frozen_replay(
+        root, _binding(), report_path, evidence_path
+    )
+    assert replay["numeric_runtime"]["target"] == target.name
+    assert captured["command"] == [
+        sys.executable,
+        str(launcher),
+        str(target),
+        "--root",
+        str(root),
+        "--signal-date",
+        SIGNAL_DATE,
+        "--report-date",
+        REPORT_DATE,
+        "--report",
+        str(report_path),
+    ]
+    assert captured["cwd"] == root
+    assert captured["label"] == "frozen canonical V2 replay"
+    assert captured["extra_env"] == {
+        MIGRATION.NUMERIC_EVIDENCE_ENV: str(evidence_path.absolute())
+    }
+
+
+def test_run_frozen_replay_fails_if_launcher_omits_numeric_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "run_deterministic_numeric.py").write_text("# launcher\n", encoding="utf-8")
+    (scripts / "replay_frozen_canonical_v2.py").write_text("# replay\n", encoding="utf-8")
+    report_path = tmp_path / "replay-report.json"
+    evidence_path = tmp_path / "numeric-runtime.json"
+
+    def fake_run_checked(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        report_path.write_text(
+            json.dumps(
+                {
+                    "status": "pass",
+                    "diagnostic_mode": "workspace_only_forced_frozen_canonical_v2",
+                    "force_prediction": True,
+                    "runtime_validation": {
+                        "validated": True,
+                        "canonical_v2_enforced": True,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    monkeypatch.setattr(MIGRATION, "_run_checked", fake_run_checked)
+    with pytest.raises(MIGRATION.MigrationError, match="numeric runtime evidence"):
+        MIGRATION.run_frozen_replay(root, _binding(), report_path, evidence_path)
+
+
+def test_run_frozen_replay_rejects_unsafe_numeric_evidence_paths(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    report_path = tmp_path / "replay-report.json"
+    existing = tmp_path / "existing-runtime.json"
+    existing.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(MIGRATION.MigrationError, match="must not already exist"):
+        MIGRATION.run_frozen_replay(root, _binding(), report_path, existing)
+
+    existing.unlink()
+    target = tmp_path / "target-runtime.json"
+    target.write_text("{}\n", encoding="utf-8")
+    existing.symlink_to(target)
+    with pytest.raises(MIGRATION.MigrationError, match="must not already exist"):
+        MIGRATION.run_frozen_replay(root, _binding(), report_path, existing)
+
+    other = tmp_path / "other"
+    other.mkdir()
+    with pytest.raises(MIGRATION.MigrationError, match="replay temporary directory"):
+        MIGRATION.run_frozen_replay(
+            root, _binding(), report_path, other / "numeric-runtime.json"
+        )
+
+
+def _write_binding_root(root: Path) -> dict[str, object]:
+    from top10decision.decision.action_plan import build_report_index
+
+    decision = root / "outputs" / "decision"
+    decision.mkdir(parents=True)
+    newer_report_date = "20260825"
+    for report_date in (newer_report_date, REPORT_DATE):
+        (decision / f"decision_report_{report_date}.md").write_text(
+            f"report {report_date}\n",
+            encoding="utf-8",
+        )
+        (decision / f"eval_{report_date}.json").write_text(
+            json.dumps(
+                {
+                    "signal_date": SIGNAL_DATE if report_date == REPORT_DATE else REPORT_DATE,
+                    "exec_date": report_date,
+                    "exit_date": EXIT_DATE if report_date == REPORT_DATE else "20260826",
+                    "paths": {
+                        "decision_report": (
+                            f"outputs/decision/decision_report_{report_date}.md"
+                        ),
+                        "candidates": (
+                            f"data/decision/decision_candidates_{SIGNAL_DATE}.csv"
+                        ),
+                        "execution": (
+                            f"data/decision/decision_execution_{report_date}.csv"
+                        ),
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    (decision / f"action_plan_{REPORT_DATE}.json").write_text(
+        json.dumps({"report_date": REPORT_DATE}) + "\n",
+        encoding="utf-8",
+    )
+    for relative in (
+        f"data/decision/decision_candidates_{SIGNAL_DATE}.csv",
+        f"data/decision/decision_execution_{REPORT_DATE}.csv",
+    ):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("header\n", encoding="utf-8")
+    index = build_report_index(root, REPORT_DATE)
+    (decision / "report_index.json").write_text(
+        json.dumps(index) + "\n",
+        encoding="utf-8",
+    )
+    return index
+
+
+def test_discover_binding_uses_latest_action_not_newer_report(tmp_path: Path) -> None:
+    index = _write_binding_root(tmp_path)
+    assert index["latest_report_date"] == "20260825"
+    assert index["latest_action_report_date"] == REPORT_DATE
+    assert MIGRATION.discover_binding(tmp_path, SIGNAL_DATE) == _binding()
+
+
+@pytest.mark.parametrize(
+    ("tamper", "message"),
+    (
+        ("latest_action_date", "latest_action_report_date"),
+        ("latest_action_url", "latest_action_url"),
+        ("hidden_action", "action truth"),
+        ("duplicate_report", "duplicate report_date"),
+    ),
+)
+def test_discover_binding_rejects_invalid_latest_action_truth(
+    tmp_path: Path,
+    tamper: str,
+    message: str,
+) -> None:
+    index = _write_binding_root(tmp_path)
+    if tamper == "latest_action_date":
+        index["latest_action_report_date"] = "20260825"
+        index["latest_action_url"] = "outputs/decision/action_plan_20260825.json"
+    elif tamper == "latest_action_url":
+        index["latest_action_url"] = "outputs/decision/action_plan_20260825.json"
+    elif tamper == "hidden_action":
+        row = next(
+            item for item in index["reports"] if item["report_date"] == REPORT_DATE
+        )
+        row["action_available"] = False
+        row.pop("action_url")
+    elif tamper == "duplicate_report":
+        index["reports"].append(copy.deepcopy(index["reports"][-1]))
+    else:  # pragma: no cover - parametrization is exhaustive
+        raise AssertionError(tamper)
+    (tmp_path / "outputs" / "decision" / "report_index.json").write_text(
+        json.dumps(index) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(MIGRATION.MigrationError, match=message):
+        MIGRATION.discover_binding(tmp_path, SIGNAL_DATE)
+
+
 def test_action_annotation_is_explicitly_retrospective_and_nonexecuting() -> None:
     action = MIGRATION.annotate_retrospective_action(
         _action_payload(), _binding(), BASE_SHA
@@ -229,6 +618,81 @@ def test_action_annotation_is_explicitly_retrospective_and_nonexecuting() -> Non
         "broker_execution_claimed": False,
         "observation_truth_is_not_a_fill_claim": True,
     }
+
+
+def test_action_rebuild_stability_excludes_only_reviewed_dynamic_truth() -> None:
+    replayed = MIGRATION.annotate_retrospective_action(
+        {
+            **_action_payload(),
+            "generated_at_utc": "2026-08-21T01:00:00+00:00",
+            "observation_statistics": {"rows": 1},
+            "observation_validation": {"status": "pending"},
+            "model": {
+                "selection_policy": {"threshold": 0.123456789012},
+                "truth_ledgers": {"market_open_observation": {"rows": 1}},
+            },
+        },
+        _binding(),
+        BASE_SHA,
+    )
+    final = copy.deepcopy(replayed)
+    final["generated_at_utc"] = "2026-08-21T01:01:00+00:00"
+    final["observation_statistics"] = {"rows": 2}
+    final["model"]["truth_ledgers"] = {
+        "market_open_observation": {"rows": 2}
+    }
+    assert MIGRATION.build_action_rebuild_stability(replayed, final)["matched"] is True
+
+    numeric_drift = copy.deepcopy(final)
+    numeric_drift["model"]["selection_policy"]["threshold"] += 1e-12
+    with pytest.raises(MIGRATION.MigrationError, match="raw action semantics"):
+        MIGRATION.build_action_rebuild_stability(replayed, numeric_drift)
+
+    row_truth_drift = copy.deepcopy(final)
+    row_truth_drift["stage_watchlist"][0]["truth_generated_at_utc"] = (
+        "2026-08-21T01:01:00+00:00"
+    )
+    assert (
+        MIGRATION.build_action_rebuild_stability(replayed, row_truth_drift)["matched"]
+        is True
+    )
+
+    validation_drift = copy.deepcopy(final)
+    validation_drift["observation_validation"] = {"status": "final"}
+    assert (
+        MIGRATION.build_action_rebuild_stability(replayed, validation_drift)["matched"]
+        is True
+    )
+
+    derived_label_drift = copy.deepcopy(final)
+    derived_label_drift["stage_watchlist"][0]["validation_status_label"] = "final"
+    assert (
+        MIGRATION.build_action_rebuild_stability(replayed, derived_label_drift)["matched"]
+        is True
+    )
+
+    candidate_truth_drift = copy.deepcopy(final)
+    candidate_truth_drift["candidates"][0]["truth_generated_at_utc"] = "tampered"
+    with pytest.raises(MIGRATION.MigrationError, match="raw action semantics"):
+        MIGRATION.build_action_rebuild_stability(replayed, candidate_truth_drift)
+
+    unknown_stage_drift = copy.deepcopy(final)
+    unknown_stage_drift["stage_watchlist"][0]["unknown_field"] = "tampered"
+    with pytest.raises(MIGRATION.MigrationError, match="raw action semantics"):
+        MIGRATION.build_action_rebuild_stability(replayed, unknown_stage_drift)
+
+    watch_label_drift = copy.deepcopy(final)
+    watch_label_drift["stage_watchlist"][0]["watch_label"] = "tampered"
+    with pytest.raises(MIGRATION.MigrationError, match="raw action semantics"):
+        MIGRATION.build_action_rebuild_stability(replayed, watch_label_drift)
+
+    reordered = copy.deepcopy(final)
+    reordered["candidates"].append(
+        {"action": "WATCH", "target_weight": 0.0, "ts_code": "000002.SZ"}
+    )
+    reordered["candidates"].reverse()
+    with pytest.raises(MIGRATION.MigrationError, match="raw action semantics"):
+        MIGRATION.build_action_rebuild_stability(replayed, reordered)
 
 
 @pytest.mark.parametrize(
@@ -260,6 +724,20 @@ def test_verify_envelope_accepts_exact_retrospective_bundle(tmp_path: Path) -> N
     assert MIGRATION.verify_envelope(bundle, expected_base_sha=BASE_SHA) == receipt
 
 
+@pytest.mark.parametrize("kind", ["extra", "missing"])
+def test_verify_envelope_rejects_nonexact_receipt_v2_keys(
+    tmp_path: Path, kind: str
+) -> None:
+    bundle, receipt = _write_bundle(tmp_path)
+    if kind == "extra":
+        receipt["unreviewed_claim"] = True
+    else:
+        del receipt["validator_summary"]
+    _rewrite_receipt(bundle, receipt)
+    with pytest.raises(MIGRATION.MigrationError, match="V2 keys are not exact"):
+        MIGRATION.verify_envelope(bundle, expected_base_sha=BASE_SHA)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -269,6 +747,9 @@ def test_verify_envelope_accepts_exact_retrospective_bundle(tmp_path: Path) -> N
         ("pins_enforced", False),
         ("forced_inactive", False),
         ("post_prune_validators_passed", False),
+        ("replay_numeric_runtime", None),
+        ("action_rebuild_stability", None),
+        ("schema_version", "decision_runtime_migration_receipt_v1"),
     ],
 )
 def test_verify_envelope_rejects_false_receipt_claims(
@@ -331,6 +812,21 @@ def test_verify_envelope_rejects_action_payload_lie(tmp_path: Path) -> None:
     receipt["output_size"][latest_relative] = len(data)
     _rewrite_receipt(bundle, receipt)
     with pytest.raises(MIGRATION.MigrationError):
+        MIGRATION.verify_envelope(bundle, expected_base_sha=BASE_SHA)
+
+
+def test_verify_envelope_rejects_final_action_stability_drift(tmp_path: Path) -> None:
+    bundle, receipt = _write_bundle(tmp_path)
+    latest_relative = "outputs/decision/action_plan_latest.json"
+    latest = bundle / "files" / latest_relative
+    payload = json.loads(latest.read_text(encoding="utf-8"))
+    payload["candidates"][0]["name"] = "tampered identity"
+    data = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode()
+    latest.write_bytes(data)
+    receipt["output_sha256"][latest_relative] = hashlib.sha256(data).hexdigest()
+    receipt["output_size"][latest_relative] = len(data)
+    _rewrite_receipt(bundle, receipt)
+    with pytest.raises(MIGRATION.MigrationError, match="stability evidence"):
         MIGRATION.verify_envelope(bundle, expected_base_sha=BASE_SHA)
 
 
@@ -462,18 +958,20 @@ def test_rebound_embedded_truth_equals_restored_json_and_observation_bytes(
             "metrics": truth_metrics[name],
         }
 
-    action = {
+    from top10decision.decision.action_plan import _attach_observation_validation
+
+    action = _attach_observation_validation(root, {
         "model": {"truth_ledgers": rebound["truth_ledgers"]},
-        "observation_statistics": truth_metrics["market_open_observation"],
-        "stage_watchlist": [
+        "exec_date": REPORT_DATE,
+        "candidates": [
             {
                 "ts_code": "000001.SZ",
-                "actual_open_price": 10.5,
-                "validation_status": "FINAL_VERIFIED",
-                "truth_generated_at_utc": "2026-08-18T08:00:00+00:00",
+                "stage_transition": "2→3",
+                "action": "WATCH",
+                "target_weight": 0.0,
             }
         ],
-    }
+    })
     action_path = root / "outputs" / "decision" / "action_plan_latest.json"
     action_path.parent.mkdir(parents=True, exist_ok=True)
     action_path.write_text(
@@ -489,7 +987,44 @@ def test_rebound_embedded_truth_equals_restored_json_and_observation_bytes(
     action_path.write_text(
         json.dumps(action, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    with pytest.raises(MIGRATION.MigrationError, match="observation bytes"):
+    with pytest.raises(MIGRATION.MigrationError, match="exact observation reconstruction"):
+        MIGRATION.validate_embedded_truth_bindings(root, binding=_binding())
+
+    action = _attach_observation_validation(root, action)
+    action_path.write_text(
+        json.dumps(action, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    dated_observation.write_text(
+        "ts_code,actual_open_price,validation_status,truth_generated_at_utc\n"
+        "999999.SZ,10.5,FINAL_VERIFIED,2026-08-18T08:00:00+00:00\n",
+        encoding="utf-8",
+    )
+    action = _attach_observation_validation(root, action)
+    action_path.write_text(
+        json.dumps(action, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(MIGRATION.MigrationError, match="lacks watchlist rows"):
+        MIGRATION.validate_embedded_truth_bindings(root, binding=_binding())
+
+    dated_observation.write_text(
+        "ts_code,actual_open_price,validation_status,truth_generated_at_utc\n"
+        "000001.SZ,10.5,FINAL_VERIFIED,2026-08-18T08:00:00+00:00\n",
+        encoding="utf-8",
+    )
+    action = _attach_observation_validation(root, action)
+    action["stage_watchlist"][0]["validation_status_label"] = "tampered"
+    action_path.write_text(
+        json.dumps(action, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(MIGRATION.MigrationError, match="exact observation reconstruction"):
+        MIGRATION.validate_embedded_truth_bindings(root, binding=_binding())
+
+    action = _attach_observation_validation(root, action)
+    action["observation_validation"]["final_rows"] = 0
+    action_path.write_text(
+        json.dumps(action, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    with pytest.raises(MIGRATION.MigrationError, match="exact observation reconstruction"):
         MIGRATION.validate_embedded_truth_bindings(root, binding=_binding())
 
 
@@ -543,16 +1078,55 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
         path = source_root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"exact base source: {relative}\n", encoding="utf-8")
+    exact_truth_metrics: dict[str, dict[str, object]] = {}
+    for name, (_ledger_path, metrics_path) in MIGRATION.TRUTH_LEDGER_BINDINGS.items():
+        exact_truth_metrics[name] = {"status": f"exact-{name}", "rows": 0}
+        (source_root / metrics_path).write_text(
+            json.dumps(exact_truth_metrics[name]) + "\n",
+            encoding="utf-8",
+        )
+    exact_truth_ledgers = {
+        name: {"path": ledger_path, "metrics": exact_truth_metrics[name]}
+        for name, (ledger_path, _metrics_path) in MIGRATION.TRUTH_LEDGER_BINDINGS.items()
+    }
+    exact_model_meta = (
+        source_root / "outputs" / "auction_v3" / "models" / "model_meta_latest.json"
+    )
+    exact_model_meta.parent.mkdir(parents=True, exist_ok=True)
+    exact_model_meta.write_text(
+        json.dumps({"truth_ledgers": exact_truth_ledgers}) + "\n",
+        encoding="utf-8",
+    )
+    observation_path = (
+        source_root
+        / "outputs"
+        / "auction_v3"
+        / "verification"
+        / "observation_latest.csv"
+    )
+    observation_path.write_text(
+        "ts_code,expected_buy_date,actual_open_price,validation_status,"
+        "truth_generated_at_utc,prediction_timing_status,prediction_timing_valid\n"
+        f"000001.SZ,{REPORT_DATE},10.5,FINAL_VERIFIED,"
+        "2026-08-24T08:00:00+00:00,PREMARKET_VALID,1\n",
+        encoding="utf-8",
+    )
 
     index = {
         "schema_version": "decision_report_index_v2_action_truth",
+        "generated_at_utc": "2026-08-24T08:00:00+00:00",
         "latest_report_date": REPORT_DATE,
+        "latest_report_file": f"decision_report_{REPORT_DATE}.md",
+        "latest_action_report_date": REPORT_DATE,
+        "latest_action_url": f"outputs/decision/action_plan_{REPORT_DATE}.json",
         "reports": [
             {
                 "report_date": REPORT_DATE,
                 "report_file": f"decision_report_{REPORT_DATE}.md",
                 "report_url": report_path,
                 "eval_url": evaluation_path,
+                "action_available": True,
+                "action_url": f"outputs/decision/action_plan_{REPORT_DATE}.json",
             }
         ],
     }
@@ -571,6 +1145,13 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
     }
     (source_root / evaluation_path).write_text(
         json.dumps(evaluation) + "\n", encoding="utf-8"
+    )
+    source_action_path = (
+        source_root / "outputs" / "decision" / f"action_plan_{REPORT_DATE}.json"
+    )
+    source_action_path.write_text(
+        json.dumps({"report_date": REPORT_DATE}) + "\n",
+        encoding="utf-8",
     )
     pinned_sha = hashlib.sha256((source_root / pinned_path).read_bytes()).hexdigest()
     manifest = {
@@ -602,15 +1183,39 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
     receipt["base_tree_sha"] = base_tree
     receipt["source_evidence"] = source_evidence
     receipt["truth_reference_evidence"] = truth_evidence
+    receipt["replay_numeric_runtime"]["launcher_sha256"] = source_evidence[
+        MIGRATION.NUMERIC_LAUNCHER_PATH
+    ]["sha256"]
+    receipt["replay_numeric_runtime"]["target_sha256"] = source_evidence[
+        MIGRATION.NUMERIC_REPLAY_TARGET_PATH
+    ]["sha256"]
+    from top10decision.decision.action_plan import _attach_observation_validation
+
     for relative in receipt["changed_paths"]:
         action_path = bundle / "files" / relative
         action = json.loads(action_path.read_text(encoding="utf-8"))
         action["migration"]["base_sha"] = base_sha
+        action["model"] = {"truth_ledgers": exact_truth_ledgers}
+        action = _attach_observation_validation(source_root, action)
         data = (json.dumps(action, ensure_ascii=False, indent=2) + "\n").encode()
         action_path.write_bytes(data)
         receipt["output_sha256"][relative] = hashlib.sha256(data).hexdigest()
         receipt["output_size"][relative] = len(data)
-        receipt["base_blob_sha1"][relative] = None
+        base_entry = MIGRATION._git_tree_entry(source_root, base_sha, relative)
+        receipt["base_blob_sha1"][relative] = (
+            base_entry["sha"] if base_entry is not None else None
+        )
+    receipt["action_rebuild_stability"] = MIGRATION.build_action_rebuild_stability(
+        action, action
+    )
+    receipt["truth_binding_summary"] = {
+        "model_truth_metrics_exact": True,
+        "action_truth_ledgers_exact": True,
+        "action_observation_statistics_exact": True,
+        "action_watchlist_truth_exact": True,
+        "watchlist_rows": 1,
+        "matched_observation_rows": 1,
+    }
     _rewrite_receipt(bundle, receipt)
     assert (
         MIGRATION.verify_envelope(
@@ -620,6 +1225,57 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
         )["source_evidence"]
         == source_evidence
     )
+
+    for runtime_field, source_path in (
+        ("launcher_sha256", MIGRATION.NUMERIC_LAUNCHER_PATH),
+        ("target_sha256", MIGRATION.NUMERIC_REPLAY_TARGET_PATH),
+    ):
+        original_runtime_sha = receipt["replay_numeric_runtime"][runtime_field]
+        original_source_sha = receipt["source_evidence"][source_path]["sha256"]
+        fake_sha = "f" * 64
+        receipt["replay_numeric_runtime"][runtime_field] = fake_sha
+        receipt["source_evidence"][source_path]["sha256"] = fake_sha
+        _rewrite_receipt(bundle, receipt)
+        with pytest.raises(MIGRATION.MigrationError, match="exact reconstructed set"):
+            MIGRATION.verify_envelope(
+                bundle,
+                expected_base_sha=base_sha,
+                exact_base_root=source_root,
+            )
+        receipt["replay_numeric_runtime"][runtime_field] = original_runtime_sha
+        receipt["source_evidence"][source_path]["sha256"] = original_source_sha
+
+    model_meta_relative = "outputs/auction_v3/models/model_meta_latest.json"
+    tampered_model_meta = bundle / "files" / model_meta_relative
+    tampered_model_meta.parent.mkdir(parents=True, exist_ok=True)
+    tampered_bytes = (
+        json.dumps({"truth_ledgers": {"tampered": True}}, indent=2) + "\n"
+    ).encode()
+    tampered_model_meta.write_bytes(tampered_bytes)
+    receipt["changed_paths"] = sorted(
+        [*receipt["changed_paths"], model_meta_relative]
+    )
+    receipt["output_sha256"][model_meta_relative] = hashlib.sha256(
+        tampered_bytes
+    ).hexdigest()
+    receipt["output_size"][model_meta_relative] = len(tampered_bytes)
+    model_meta_entry = MIGRATION._git_tree_entry(
+        source_root, base_sha, model_meta_relative
+    )
+    assert model_meta_entry is not None
+    receipt["base_blob_sha1"][model_meta_relative] = model_meta_entry["sha"]
+    _rewrite_receipt(bundle, receipt)
+    with pytest.raises(MIGRATION.MigrationError, match="model truth ledgers"):
+        MIGRATION.verify_envelope(
+            bundle,
+            expected_base_sha=base_sha,
+            exact_base_root=source_root,
+        )
+    tampered_model_meta.unlink()
+    receipt["changed_paths"].remove(model_meta_relative)
+    del receipt["output_sha256"][model_meta_relative]
+    del receipt["output_size"][model_meta_relative]
+    del receipt["base_blob_sha1"][model_meta_relative]
 
     omitted = pinned_path
     del receipt["source_evidence"][omitted]
@@ -673,7 +1329,15 @@ def test_workflow_uses_pinned_actions_and_remote_api_cas() -> None:
     ):
         assert pin in text
     assert text.count("github.rest.git.getRef") >= 2
-    for method in ("getCommit", "getTree", "createBlob", "createTree", "createCommit", "updateRef"):
+    for method in (
+        "getCommit",
+        "getTree",
+        "getBlob",
+        "createBlob",
+        "createTree",
+        "createCommit",
+        "updateRef",
+    ):
         assert f"github.rest.git.{method}" in text
     assert "base_tree: receipt.base_tree_sha" in text
     assert "parents: [baseSha]" in text
@@ -687,6 +1351,43 @@ def test_workflow_uses_pinned_actions_and_remote_api_cas() -> None:
     assert "isChangedAncestor" in text
     assert "RETROSPECTIVE" in text
     assert "execution_or_fill_claimed" in text
+    assert "decision_runtime_migration_receipt_v2" in text
+    assert "receipt.replay_numeric_runtime" in text
+
+
+def test_publish_job_installs_locked_runtime_before_independent_reverification() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    publish = text[text.index("\n  publish:") :]
+    setup = (
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
+    )
+    install = (
+        "python -m pip install --disable-pip-version-check --only-binary=:all: "
+        "--require-hashes -r requirements.lock"
+    )
+    verify = "python scripts/migrate_decision_runtime.py verify"
+
+    assert publish.count(setup) == 1
+    assert 'python-version: "3.12.13"' in publish
+    assert publish.count(install) == 1
+    assert "python -m pip check" in publish
+    assert publish.index(setup) < publish.index(install) < publish.index(verify)
+    assert "dc20_deterministic_numeric_runtime_v1" in text
+    assert "receipt.action_rebuild_stability" in text
+    assert "decision_action_rebuild_stability_v2" in text
+    assert "raw_action_excluding_generation_and_exact_base_observation_truth" in text
+    assert "runtime.launcher_sha256 !== launcherEvidence.sha256" in text
+    assert "runtime.target_sha256 !== replayEvidence.sha256" in text
+    assert text.index("github.rest.git.getBlob") < text.index(
+        "github.rest.git.createBlob"
+    )
+    assert text.index("exactKeys(receipt.output_sha256") < text.index(
+        "github.rest.git.createBlob"
+    )
+    assert text.index("prepared.push({relative, bytes, localBlob})") < text.index(
+        "github.rest.git.createBlob"
+    )
+    assert text.count("github.rest.git.createBlob") == 1
 
 
 def test_workflow_invokes_frozen_replay_wrapper_from_detached_worktree() -> None:
@@ -696,6 +1397,12 @@ def test_workflow_invokes_frozen_replay_wrapper_from_detached_worktree() -> None
     assert "--base-sha" in workflow
     assert "--candidate-root" in workflow
     assert "replay_frozen_canonical_v2.py" in script
+    assert "run_deterministic_numeric.py" in script
+    assert '"scripts/run_deterministic_numeric.py"' in script
+    assert (
+        'str(root / "scripts" / "run_deterministic_numeric.py")'
+        in script
+    )
     assert "run_full_validators(root, manifest)" in script
     assert script.count("run_full_validators(root, manifest)") == 2
     assert "restore_outside_allowlist" in script

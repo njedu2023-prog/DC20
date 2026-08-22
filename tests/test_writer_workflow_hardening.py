@@ -21,6 +21,10 @@ WRITERS = (
     "backfill_decision_v11_history.yml",
 )
 PAGES_HANDOFF_WRITERS = WRITERS + ("migrate_decision_runtime.yml",)
+NUMERIC_WORKFLOWS = PAGES_HANDOFF_WRITERS + (
+    "diagnose_decision_fingerprint.yml",
+    "test_decision_core.yml",
+)
 UPLOAD_SHA = "ea165f8d65b6e75b540449e92b4886f43607fa02"
 DOWNLOAD_SHA = "d3f86a106a0bac45b974a628896c90dbdf5c8093"
 ALLOWLISTS = {
@@ -236,7 +240,10 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "audit.get('validated') is not True" in preserve_step
     assert "audit.get('enforced') is not True" in preserve_step
     assert "hashlib.sha256(raw).hexdigest()" in preserve_step
-    assert "python scripts/replay_frozen_canonical_v2.py" in replay_step
+    assert (
+        "python scripts/run_deterministic_numeric.py "
+        "scripts/replay_frozen_canonical_v2.py"
+    ) in replay_step
     assert 'replay_report="${RUNNER_TEMP}/daily-frozen-replay.json"' in replay_step
     assert '> "${replay_stdout}"' in replay_step
     assert "> /dev/null" not in replay_step
@@ -1521,7 +1528,8 @@ def test_backfill_uses_owner_scoped_frozen_runtime_gates() -> None:
     )
     assert 'git worktree add --detach "${runtime_root}"' in gates
     assert 'git -C "${runtime_root}" apply --index --binary' in gates
-    assert 'python "${runtime_root}/scripts/replay_frozen_canonical_v2.py"' in gates
+    assert 'python "${runtime_root}/scripts/run_deterministic_numeric.py"' in gates
+    assert '"${runtime_root}/scripts/replay_frozen_canonical_v2.py"' in gates
     assert "backfill-frozen-replay.json" in gates
     assert "backfill_frozen_replay" in gates
     assert '"${runtime_root}/scripts/validate_decision_model_freeze.py"' in gates
@@ -1825,7 +1833,9 @@ def test_auction_dry_run_rebuilds_verified_frozen_runtime_and_full_action_contra
         "- name: Run Auction pipeline and final runtime gates", 1
     )[1].split("- name: Build exact allowlisted candidate patch", 1)[0]
     assert 'args+=(--force-inactive)' in run_step
-    assert "python scripts/run_auction_v3.py" in run_step
+    assert (
+        "python scripts/run_deterministic_numeric.py scripts/run_auction_v3.py"
+    ) in run_step
     assert "python scripts/publish_decision_action.py" in run_step
     assert "validate_action_plan_artifact" in run_step
     assert "python scripts/validate_decision_model_freeze.py --runtime" in run_step
@@ -2289,6 +2299,8 @@ def test_verify_isolates_full_runtime_from_observation_settlement() -> None:
     assert 'git worktree add --detach "${runtime_root}"' in runtime
     assert '--root "${runtime_root}"' in runtime
     assert '--root "${GITHUB_WORKSPACE}"' not in runtime
+    assert 'python "${runtime_root}/scripts/run_deterministic_numeric.py"' in runtime
+    assert '"${runtime_root}/scripts/replay_frozen_canonical_v2.py"' in runtime
     assert "validate_decision_model_freeze.py" in runtime
     assert "--runtime --force-inactive" in runtime
     assert "--history-only" not in runtime
@@ -2309,6 +2321,64 @@ def test_verify_isolates_full_runtime_from_observation_settlement() -> None:
     )
     assert "refresh_action_plan_observations" not in verify_script
     assert "refreshed_action_plans" not in verify_script
+
+
+def test_all_model_workflows_pin_one_numeric_runtime_before_import() -> None:
+    exact_env = {
+        'PYTHONHASHSEED: "0"',
+        'OMP_NUM_THREADS: "1"',
+        'OMP_THREAD_LIMIT: "1"',
+        'OMP_DYNAMIC: "FALSE"',
+        'OPENBLAS_NUM_THREADS: "1"',
+        'OPENBLAS_CORETYPE: "Haswell"',
+        'GOTO_NUM_THREADS: "1"',
+        'MKL_NUM_THREADS: "1"',
+        'MKL_DYNAMIC: "FALSE"',
+        'BLIS_NUM_THREADS: "1"',
+        'VECLIB_MAXIMUM_THREADS: "1"',
+        'NUMEXPR_NUM_THREADS: "1"',
+        'NPY_DISABLE_CPU_FEATURES: "X86_V4"',
+    }
+    for name in NUMERIC_WORKFLOWS:
+        text = _text(name)
+        global_header = text.split("\njobs:", 1)[0]
+        for binding in exact_env:
+            assert binding in global_header, (name, binding)
+        assert "runs-on: ubuntu-24.04" in text, name
+
+    assert (
+        "python scripts/run_deterministic_numeric.py scripts/run_auction_v3.py"
+        in _text("run_auction_v3.yml")
+    )
+    assert (
+        "python scripts/run_deterministic_numeric.py "
+        "scripts/replay_frozen_canonical_v2.py"
+        in _text("run_decision_daily.yml")
+    )
+    assert (
+        "python scripts/run_deterministic_numeric.py "
+        "scripts/replay_frozen_canonical_v2.py"
+        in _text("diagnose_decision_fingerprint.yml")
+    )
+
+
+def test_diagnostic_compares_persisted_and_replayed_exact_v3_action() -> None:
+    text = _text("diagnose_decision_fingerprint.yml")
+    assert "DC20_NUMERIC_RUNTIME_EVIDENCE_FILE" in text
+    assert "Validate allowlisted deterministic numeric runtime evidence" in text
+    assert "dc20_deterministic_numeric_runtime_v1" in text
+    assert "github_ubuntu_24_04_x86_64" in text
+    assert "numpy_x86_v4_disabled" in text
+    assert "deterministic numeric libraries were not both audited" in text
+    assert "Snapshot enforced persisted action semantics" in text
+    assert "Require exact V3 action semantics across the independent replay" in text
+    assert text.count("validate_action_plan_artifact(") >= 2
+    assert text.count("action_plan_semantic_projection_v3(") >= 2
+    assert "diagnostic_action_semantic_comparison_v3" in text
+    assert "PERSISTED_IDENTITY_SHA256" in text
+    assert "persisted_subtree_sha256" in text
+    assert "replayed_subtree_sha256" in text
+    assert "Persisted and replayed exact V3 action semantics differ" in text
 
 
 def test_truth_writers_do_not_keep_optional_or_continue_on_error_bypasses() -> None:

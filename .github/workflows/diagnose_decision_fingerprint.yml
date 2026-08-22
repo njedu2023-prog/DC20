@@ -10,6 +10,18 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_DISABLE_CPU_FEATURES: "X86_V4"
 
 jobs:
   diagnose:
@@ -66,6 +78,104 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python scripts/validate_decision_model_freeze.py > /dev/null 2>&1
 
+      - name: Snapshot enforced persisted action semantics
+        id: persisted_action
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime
+          from pathlib import Path
+
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
+          )
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+              validate_action_plan_artifact,
+          )
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f'duplicate JSON key: {key}')
+                  result[key] = value
+              return result
+
+          root = Path('.').resolve()
+          manifest = load_model_freeze(root, required=True)
+          audit = validate_action_plan_artifact(
+              root,
+              manifest,
+              force_enforcement=not model_freeze_active(manifest),
+          )
+          if audit.get('validated') is not True or audit.get('enforced') is not True:
+              raise SystemExit('diagnostic persisted action contract was not enforced')
+          action = json.loads(
+              (root / 'outputs/decision/action_plan_latest.json').read_text(encoding='utf-8'),
+              object_pairs_hook=reject_duplicate_keys,
+          )
+          generated_at = action.pop('generated_at_utc', None)
+          if type(generated_at) is not str:
+              raise SystemExit('diagnostic persisted action timestamp is invalid')
+          try:
+              datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+          except ValueError as exc:
+              raise SystemExit('diagnostic persisted action timestamp is invalid') from exc
+          profile = action_plan_semantic_comparison_profile_v3(action)
+          projection = action_plan_semantic_projection_v3(
+              action,
+              comparison_profile=profile,
+          )
+          digest = hashlib.sha256(canonical_json_bytes(projection)).hexdigest()
+          identity_fields = (
+              'action', 'first_layer_selected', 'first_layer_shadow_selected',
+              'promotion_rank', 'rank', 'shadow_rank', 'shadow_selected',
+              'target_weight', 'trade_gate_pass', 'trade_rank',
+              'trade_selected', 'trade_shadow_selected', 'ts_code',
+          )
+          identity = {
+              key: [
+                  {field: row.get(field) for field in identity_fields}
+                  for row in projection[key]
+              ]
+              for key in ('candidates', 'stage_watchlist')
+          }
+          other = {
+              key: value
+              for key, value in projection.items()
+              if key not in {'model', 'backtest', 'candidates', 'stage_watchlist'}
+          }
+          subtree = {
+              'backtest': hashlib.sha256(canonical_json_bytes(projection['backtest'])).hexdigest(),
+              'candidates': hashlib.sha256(canonical_json_bytes(projection['candidates'])).hexdigest(),
+              'identity': hashlib.sha256(canonical_json_bytes(identity)).hexdigest(),
+              'model': hashlib.sha256(canonical_json_bytes(projection['model'])).hexdigest(),
+              'other': hashlib.sha256(canonical_json_bytes(other)).hexdigest(),
+              'stage_watchlist': hashlib.sha256(canonical_json_bytes(projection['stage_watchlist'])).hexdigest(),
+          }
+          evidence = {
+              'comparison_profile': profile,
+              'component': 'diagnostic_persisted_action_semantic_v3',
+              'semantic_sha256': digest,
+              'status': 'validated',
+              'subtree_sha256': subtree,
+          }
+          print(json.dumps(evidence, sort_keys=True, separators=(',', ':')))
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
+              output.write(f'comparison_profile={profile}\n')
+              output.write(f'semantic_sha256={digest}\n')
+              for key, value in subtree.items():
+                  output.write(f'{key}_sha256={value}\n')
+          PY
+
       - name: Snapshot persisted reference artifacts
         run: |
           set -euo pipefail
@@ -110,12 +220,107 @@ jobs:
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}/src
+          DC20_NUMERIC_RUNTIME_EVIDENCE_FILE: ${{ runner.temp }}/dc20-numeric-runtime.json
         run: |
-          python scripts/replay_frozen_canonical_v2.py \
+          python scripts/run_deterministic_numeric.py scripts/replay_frozen_canonical_v2.py \
             --root "${GITHUB_WORKSPACE}" \
             --reference-dir "${FINGERPRINT_REFERENCE_DIR}" \
             --reference-profile persisted-c6 \
             --report "${FINGERPRINT_REPLAY_REPORT}" > /dev/null 2>&1
+
+      - name: Validate allowlisted deterministic numeric runtime evidence
+        id: numeric_runtime
+        continue-on-error: true
+        if: ${{ steps.replay.outcome == 'success' }}
+        env:
+          NUMERIC_RUNTIME_EVIDENCE: ${{ runner.temp }}/dc20-numeric-runtime.json
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f'duplicate JSON key: {key}')
+                  result[key] = value
+              return result
+
+          path = Path(os.environ['NUMERIC_RUNTIME_EVIDENCE'])
+          if not path.is_file() or path.is_symlink():
+              raise SystemExit('deterministic numeric runtime evidence is missing')
+          evidence = json.loads(
+              path.read_text(encoding='utf-8'),
+              object_pairs_hook=reject_duplicate_keys,
+          )
+          expected_keys = {
+              'host_contract', 'launcher_sha256', 'numpy_cpu_dispatch_cap',
+              'numpy_x86_v4_disabled', 'openblas_coretype', 'schema_version',
+              'target', 'target_sha256', 'threadpools',
+          }
+          if not isinstance(evidence, dict) or set(evidence) != expected_keys:
+              raise SystemExit('deterministic numeric runtime evidence schema drifted')
+          if evidence['schema_version'] != 'dc20_deterministic_numeric_runtime_v1':
+              raise SystemExit('deterministic numeric runtime schema drifted')
+          if evidence['host_contract'] != 'github_ubuntu_24_04_x86_64':
+              raise SystemExit('deterministic numeric host contract drifted')
+          if evidence['numpy_cpu_dispatch_cap'] != 'X86_V3' or evidence['numpy_x86_v4_disabled'] is not True:
+              raise SystemExit('NumPy CPU dispatch contract drifted')
+          if evidence['openblas_coretype'] != 'Haswell':
+              raise SystemExit('OpenBLAS core contract drifted')
+          bindings = {
+              'launcher_sha256': Path('scripts/run_deterministic_numeric.py'),
+              'target_sha256': Path('scripts/replay_frozen_canonical_v2.py'),
+          }
+          for field, source in bindings.items():
+              actual = hashlib.sha256(source.read_bytes()).hexdigest()
+              if evidence[field] != actual:
+                  raise SystemExit(f'deterministic numeric {field} binding drifted')
+          if evidence['target'] != 'replay_frozen_canonical_v2.py':
+              raise SystemExit('deterministic numeric target drifted')
+          pools = evidence['threadpools']
+          if not isinstance(pools, list) or not pools:
+              raise SystemExit('deterministic numeric threadpool evidence is empty')
+          apis = set()
+          seen = set()
+          for item in pools:
+              if not isinstance(item, dict) or set(item) != {
+                  'architecture', 'internal_api', 'num_threads', 'prefix', 'version'
+              }:
+                  raise SystemExit('deterministic numeric threadpool schema drifted')
+              api = item['internal_api']
+              if api not in {'openblas', 'openmp'} or type(api) is not str:
+                  raise SystemExit('deterministic numeric threadpool API drifted')
+              if type(item['num_threads']) is not int or item['num_threads'] != 1:
+                  raise SystemExit('deterministic numeric threadpool count drifted')
+              if api == 'openblas' and item['architecture'] != 'Haswell':
+                  raise SystemExit('deterministic OpenBLAS architecture drifted')
+              if api == 'openmp' and item['architecture'] is not None:
+                  raise SystemExit('deterministic OpenMP architecture drifted')
+              for field in ('prefix', 'version'):
+                  value = item[field]
+                  if value is not None and (type(value) is not str or not value or value.strip() != value):
+                      raise SystemExit(f'deterministic numeric threadpool {field} drifted')
+              canonical = json.dumps(item, sort_keys=True, separators=(',', ':'))
+              if canonical in seen:
+                  raise SystemExit('deterministic numeric threadpool record duplicated')
+              seen.add(canonical)
+              apis.add(api)
+          expected_order = sorted(
+              pools,
+              key=lambda item: (
+                  str(item['internal_api']), str(item['prefix']), str(item['version'])
+              ),
+          )
+          if pools != expected_order:
+              raise SystemExit('deterministic numeric threadpool order drifted')
+          if apis != {'openblas', 'openmp'}:
+              raise SystemExit('deterministic numeric libraries were not both audited')
+          print(json.dumps(evidence, sort_keys=True, separators=(',', ':')))
+          PY
 
       - name: Validate post-replay production runtime contract
         id: runtime
@@ -178,6 +383,128 @@ jobs:
             exit 1
           fi
 
+      - name: Require exact V3 action semantics across the independent replay
+        id: action_compare
+        continue-on-error: true
+        if: ${{ steps.replay.outcome == 'success' && steps.numeric_runtime.outcome == 'success' && steps.runtime.outcome == 'success' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          PERSISTED_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}
+          PERSISTED_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}
+          PERSISTED_BACKTEST_SHA256: ${{ steps.persisted_action.outputs.backtest_sha256 }}
+          PERSISTED_CANDIDATES_SHA256: ${{ steps.persisted_action.outputs.candidates_sha256 }}
+          PERSISTED_IDENTITY_SHA256: ${{ steps.persisted_action.outputs.identity_sha256 }}
+          PERSISTED_MODEL_SHA256: ${{ steps.persisted_action.outputs.model_sha256 }}
+          PERSISTED_OTHER_SHA256: ${{ steps.persisted_action.outputs.other_sha256 }}
+          PERSISTED_STAGE_WATCHLIST_SHA256: ${{ steps.persisted_action.outputs.stage_watchlist_sha256 }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          from datetime import datetime
+          from pathlib import Path
+
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
+          )
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+          from top10decision.decision.model_freeze import (
+              load_model_freeze,
+              model_freeze_active,
+              validate_action_plan_artifact,
+          )
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f'duplicate JSON key: {key}')
+                  result[key] = value
+              return result
+
+          root = Path('.').resolve()
+          manifest = load_model_freeze(root, required=True)
+          audit = validate_action_plan_artifact(
+              root,
+              manifest,
+              force_enforcement=not model_freeze_active(manifest),
+          )
+          if audit.get('validated') is not True or audit.get('enforced') is not True:
+              raise SystemExit('diagnostic replayed action contract was not enforced')
+          action = json.loads(
+              (root / 'outputs/decision/action_plan_latest.json').read_text(encoding='utf-8'),
+              object_pairs_hook=reject_duplicate_keys,
+          )
+          generated_at = action.pop('generated_at_utc', None)
+          if type(generated_at) is not str:
+              raise SystemExit('diagnostic replayed action timestamp is invalid')
+          try:
+              datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+          except ValueError as exc:
+              raise SystemExit('diagnostic replayed action timestamp is invalid') from exc
+          profile = action_plan_semantic_comparison_profile_v3(action)
+          if profile != os.environ['PERSISTED_COMPARISON_PROFILE']:
+              raise SystemExit('diagnostic replayed action comparison profile drifted')
+          projection = action_plan_semantic_projection_v3(
+              action,
+              comparison_profile=profile,
+          )
+          digest = hashlib.sha256(canonical_json_bytes(projection)).hexdigest()
+          identity_fields = (
+              'action', 'first_layer_selected', 'first_layer_shadow_selected',
+              'promotion_rank', 'rank', 'shadow_rank', 'shadow_selected',
+              'target_weight', 'trade_gate_pass', 'trade_rank',
+              'trade_selected', 'trade_shadow_selected', 'ts_code',
+          )
+          identity = {
+              key: [
+                  {field: row.get(field) for field in identity_fields}
+                  for row in projection[key]
+              ]
+              for key in ('candidates', 'stage_watchlist')
+          }
+          other = {
+              key: value
+              for key, value in projection.items()
+              if key not in {'model', 'backtest', 'candidates', 'stage_watchlist'}
+          }
+          replayed_subtree = {
+              'backtest': hashlib.sha256(canonical_json_bytes(projection['backtest'])).hexdigest(),
+              'candidates': hashlib.sha256(canonical_json_bytes(projection['candidates'])).hexdigest(),
+              'identity': hashlib.sha256(canonical_json_bytes(identity)).hexdigest(),
+              'model': hashlib.sha256(canonical_json_bytes(projection['model'])).hexdigest(),
+              'other': hashlib.sha256(canonical_json_bytes(other)).hexdigest(),
+              'stage_watchlist': hashlib.sha256(canonical_json_bytes(projection['stage_watchlist'])).hexdigest(),
+          }
+          persisted_subtree = {
+              'backtest': os.environ['PERSISTED_BACKTEST_SHA256'],
+              'candidates': os.environ['PERSISTED_CANDIDATES_SHA256'],
+              'identity': os.environ['PERSISTED_IDENTITY_SHA256'],
+              'model': os.environ['PERSISTED_MODEL_SHA256'],
+              'other': os.environ['PERSISTED_OTHER_SHA256'],
+              'stage_watchlist': os.environ['PERSISTED_STAGE_WATCHLIST_SHA256'],
+          }
+          evidence = {
+              'comparison_profile': profile,
+              'component': 'diagnostic_action_semantic_comparison_v3',
+              'persisted_semantic_sha256': os.environ['PERSISTED_SEMANTIC_SHA256'],
+              'replayed_semantic_sha256': digest,
+              'status': 'compare',
+              'subtree_match': {
+                  key: hmac.compare_digest(replayed_subtree[key], persisted_subtree[key])
+                  for key in replayed_subtree
+              },
+              'persisted_subtree_sha256': persisted_subtree,
+              'replayed_subtree_sha256': replayed_subtree,
+          }
+          print(json.dumps(evidence, sort_keys=True, separators=(',', ':')))
+          if not hmac.compare_digest(digest, os.environ['PERSISTED_SEMANTIC_SHA256']):
+              raise SystemExit('diagnostic replayed action semantics differ from persisted action')
+          PY
+
       - name: Publish strict allowlisted activation evidence
         id: evidence
         continue-on-error: true
@@ -190,13 +517,17 @@ jobs:
         if: ${{ always() }}
         env:
           REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+          NUMERIC_RUNTIME_OUTCOME: ${{ steps.numeric_runtime.outcome }}
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          ACTION_COMPARE_OUTCOME: ${{ steps.action_compare.outcome }}
           EVIDENCE_OUTCOME: ${{ steps.evidence.outcome }}
         run: |
           {
             echo "### DC2.0 forced frozen canonical V2 diagnostic"
             echo "- replay outcome: ${REPLAY_OUTCOME}"
+            echo "- deterministic numeric runtime outcome: ${NUMERIC_RUNTIME_OUTCOME}"
             echo "- post-replay runtime outcome: ${RUNTIME_OUTCOME}"
+            echo "- persisted/replayed exact V3 action outcome: ${ACTION_COMPARE_OUTCOME}"
             echo "- activation evidence outcome: ${EVIDENCE_OUTCOME}"
             echo "- activation evidence: one strict allowlisted JSON line in the previous step"
             echo "- canonical gate: q8 hard; q6/q10/q12 audit-only"
@@ -209,8 +540,16 @@ jobs:
             echo "::error::Forced frozen canonical V2 replay failed. Review the named invariant checks without disclosing the runner-temp evidence payload."
             failed=1
           fi
+          if [ "${NUMERIC_RUNTIME_OUTCOME}" != "success" ]; then
+            echo "::error::Deterministic numeric runtime evidence failed."
+            failed=1
+          fi
           if [ "${RUNTIME_OUTCOME}" != "success" ]; then
             echo "::error::Post-replay production runtime validation failed."
+            failed=1
+          fi
+          if [ "${ACTION_COMPARE_OUTCOME}" != "success" ]; then
+            echo "::error::Persisted and replayed exact V3 action semantics differ."
             failed=1
           fi
           if [ "${EVIDENCE_OUTCOME}" != "success" ]; then

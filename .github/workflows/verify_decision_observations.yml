@@ -27,6 +27,18 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_DISABLE_CPU_FEATURES: "X86_V4"
 
 concurrency:
   group: decision-auction-main-writer
@@ -184,7 +196,8 @@ jobs:
           git worktree add --detach "${runtime_root}" "$(cat "${RUNNER_TEMP}/base_sha.txt")" >/dev/null
           cleanup() { git worktree remove --force "${runtime_root}" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
-          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
+          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
+            "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
             --root "${runtime_root}" \
             --report "${RUNNER_TEMP}/verify-frozen-replay.json" >/dev/null
           if [ "${PUBLISH}" = "true" ]; then

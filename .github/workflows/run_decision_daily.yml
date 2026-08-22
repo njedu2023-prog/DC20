@@ -22,6 +22,18 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_DISABLE_CPU_FEATURES: "X86_V4"
 
 concurrency:
   group: decision-auction-main-writer
@@ -242,7 +254,7 @@ jobs:
             )
           fi
           set +e
-          python scripts/replay_frozen_canonical_v2.py \
+          python scripts/run_deterministic_numeric.py scripts/replay_frozen_canonical_v2.py \
             "${replay_args[@]}" > "${replay_stdout}"
           replay_status=$?
           set -e
