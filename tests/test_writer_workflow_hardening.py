@@ -2372,9 +2372,24 @@ def test_diagnostic_compares_persisted_and_replayed_exact_v3_action() -> None:
     assert "deterministic numeric libraries were not both audited" in text
     assert "Snapshot enforced persisted action semantics" in text
     assert "Require exact V3 action semantics across the independent replay" in text
+    assert "f\"signal_date={bound_dates['signal_date']}\\n\"" in text
+    assert "f\"report_date={bound_dates['report_date']}\\n\"" in text
+    assert '--signal-date "${{ steps.persisted_action.outputs.signal_date }}"' in text
+    assert '--report-date "${{ steps.persisted_action.outputs.report_date }}"' in text
+    assert "PERSISTED_SIGNAL_DATE: ${{ steps.persisted_action.outputs.signal_date }}" in text
+    assert "PERSISTED_REPORT_DATE: ${{ steps.persisted_action.outputs.report_date }}" in text
+    assert "diagnostic replayed action signal_date drifted" in text
+    assert "diagnostic replayed action report_date drifted" in text
     assert text.count("validate_action_plan_artifact(") >= 2
     assert text.count("action_plan_semantic_projection_v3(") >= 2
-    assert "diagnostic_action_semantic_comparison_v3" in text
+    assert "diagnostic_action_semantic_comparison_v4" in text
+    assert "NATIVE_NO_TRADE_COMPARISON_PROFILE_V3" in text
+    assert "RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3" in text
+    assert "retrospective_persisted_vs_native_replay" in text
+    assert "comparison_profile=persisted_profile" in text
+    assert "persisted_comparison_profile" in text
+    assert "replayed_comparison_profile" in text
+    assert "profile_relation" in text
     assert "PERSISTED_IDENTITY_SHA256" in text
     assert "persisted_subtree_sha256" in text
     assert "replayed_subtree_sha256" in text

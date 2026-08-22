@@ -129,6 +129,25 @@ jobs:
               datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
           except ValueError as exc:
               raise SystemExit('diagnostic persisted action timestamp is invalid') from exc
+          bound_dates = {}
+          for field in ('signal_date', 'report_date'):
+              value = action.get(field)
+              if type(value) is not str:
+                  raise SystemExit(f'diagnostic persisted action {field} is invalid')
+              try:
+                  parsed = datetime.strptime(value, '%Y%m%d')
+              except ValueError as exc:
+                  raise SystemExit(
+                      f'diagnostic persisted action {field} is invalid'
+                  ) from exc
+              if parsed.strftime('%Y%m%d') != value:
+                  raise SystemExit(f'diagnostic persisted action {field} is invalid')
+              bound_dates[field] = value
+          if (
+              bound_dates['signal_date'] >= bound_dates['report_date']
+              or action.get('exec_date') != bound_dates['report_date']
+          ):
+              raise SystemExit('diagnostic persisted action date binding is invalid')
           profile = action_plan_semantic_comparison_profile_v3(action)
           projection = action_plan_semantic_projection_v3(
               action,
@@ -172,6 +191,8 @@ jobs:
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
               output.write(f'comparison_profile={profile}\n')
               output.write(f'semantic_sha256={digest}\n')
+              output.write(f"signal_date={bound_dates['signal_date']}\n")
+              output.write(f"report_date={bound_dates['report_date']}\n")
               for key, value in subtree.items():
                   output.write(f'{key}_sha256={value}\n')
           PY
@@ -224,6 +245,8 @@ jobs:
         run: |
           python scripts/run_deterministic_numeric.py scripts/replay_frozen_canonical_v2.py \
             --root "${GITHUB_WORKSPACE}" \
+            --signal-date "${{ steps.persisted_action.outputs.signal_date }}" \
+            --report-date "${{ steps.persisted_action.outputs.report_date }}" \
             --reference-dir "${FINGERPRINT_REFERENCE_DIR}" \
             --reference-profile persisted-c6 \
             --report "${FINGERPRINT_REPLAY_REPORT}" > /dev/null 2>&1
@@ -397,6 +420,8 @@ jobs:
           PERSISTED_MODEL_SHA256: ${{ steps.persisted_action.outputs.model_sha256 }}
           PERSISTED_OTHER_SHA256: ${{ steps.persisted_action.outputs.other_sha256 }}
           PERSISTED_STAGE_WATCHLIST_SHA256: ${{ steps.persisted_action.outputs.stage_watchlist_sha256 }}
+          PERSISTED_SIGNAL_DATE: ${{ steps.persisted_action.outputs.signal_date }}
+          PERSISTED_REPORT_DATE: ${{ steps.persisted_action.outputs.report_date }}
         run: |
           python - <<'PY'
           import hashlib
@@ -407,6 +432,8 @@ jobs:
           from pathlib import Path
 
           from top10decision.decision.action_plan import (
+              NATIVE_NO_TRADE_COMPARISON_PROFILE_V3,
+              RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3,
               action_plan_semantic_comparison_profile_v3,
               action_plan_semantic_projection_v3,
           )
@@ -445,12 +472,27 @@ jobs:
               datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
           except ValueError as exc:
               raise SystemExit('diagnostic replayed action timestamp is invalid') from exc
-          profile = action_plan_semantic_comparison_profile_v3(action)
-          if profile != os.environ['PERSISTED_COMPARISON_PROFILE']:
+          if action.get('signal_date') != os.environ['PERSISTED_SIGNAL_DATE']:
+              raise SystemExit('diagnostic replayed action signal_date drifted')
+          if (
+              action.get('report_date') != os.environ['PERSISTED_REPORT_DATE']
+              or action.get('exec_date') != os.environ['PERSISTED_REPORT_DATE']
+          ):
+              raise SystemExit('diagnostic replayed action report_date drifted')
+          persisted_profile = os.environ['PERSISTED_COMPARISON_PROFILE']
+          replayed_profile = action_plan_semantic_comparison_profile_v3(action)
+          if replayed_profile == persisted_profile:
+              profile_relation = 'identical'
+          elif (
+              persisted_profile == RETROSPECTIVE_REPLAY_COMPARISON_PROFILE_V3
+              and replayed_profile == NATIVE_NO_TRADE_COMPARISON_PROFILE_V3
+          ):
+              profile_relation = 'retrospective_persisted_vs_native_replay'
+          else:
               raise SystemExit('diagnostic replayed action comparison profile drifted')
           projection = action_plan_semantic_projection_v3(
               action,
-              comparison_profile=profile,
+              comparison_profile=persisted_profile,
           )
           digest = hashlib.sha256(canonical_json_bytes(projection)).hexdigest()
           identity_fields = (
@@ -488,9 +530,11 @@ jobs:
               'stage_watchlist': os.environ['PERSISTED_STAGE_WATCHLIST_SHA256'],
           }
           evidence = {
-              'comparison_profile': profile,
-              'component': 'diagnostic_action_semantic_comparison_v3',
+              'component': 'diagnostic_action_semantic_comparison_v4',
               'persisted_semantic_sha256': os.environ['PERSISTED_SEMANTIC_SHA256'],
+              'persisted_comparison_profile': persisted_profile,
+              'profile_relation': profile_relation,
+              'replayed_comparison_profile': replayed_profile,
               'replayed_semantic_sha256': digest,
               'status': 'compare',
               'subtree_match': {
