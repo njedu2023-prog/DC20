@@ -348,6 +348,31 @@ def test_publisher_is_contents_write_only_and_uses_base_sha_cas() -> None:
     assert "git commit -m 'model: retrain independent Decision three engines'" in publish
 
 
+def test_publisher_installs_hash_locked_runtime_before_model_revalidation() -> None:
+    text = _text()
+    publish = _section(text, "\n  publish:", "\n  verify-writer-states:")
+    envelope = publish.index(
+        "- name: Verify immutable envelope hashes and promotion-safe authorization"
+    )
+    setup = publish.index("- name: Setup publisher Python")
+    install = publish.index(
+        "- name: Install hash-locked publisher runtime dependencies"
+    )
+    revalidate = publish.index(
+        "- name: Apply candidate to exact base and revalidate paths modes hashes and models"
+    )
+    assert envelope < setup < install < revalidate
+    assert (
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
+        in publish
+    )
+    assert 'python-version: "3.12.13"' in publish
+    assert "cache-dependency-path: requirements.lock" in publish
+    assert "--only-binary=:all: --require-hashes -r requirements.lock" in publish
+    assert "import joblib, numpy, pandas, sklearn" in publish
+    assert "python -m pip check" in publish
+
+
 def test_workflow_never_changes_existing_writer_activation_state() -> None:
     text = _text()
     snapshot = _section(

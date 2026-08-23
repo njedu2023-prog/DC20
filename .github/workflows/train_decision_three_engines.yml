@@ -790,8 +790,22 @@ jobs:
               raise SystemExit("candidate does not atomically carry its freeze manifest")
           for item in entries:
               if item.get("status") not in {"A", "M"} or item.get("mode") != "100644" or re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or "")) is None:
-                  raise SystemExit(f"invalid candidate path metadata: {item}")
+              raise SystemExit(f"invalid candidate path metadata: {item}")
           PY
+
+      - name: Setup publisher Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install hash-locked publisher runtime dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import joblib, numpy, pandas, sklearn; import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
 
       - name: Apply candidate to exact base and revalidate paths modes hashes and models
         env:
