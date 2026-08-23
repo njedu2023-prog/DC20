@@ -246,7 +246,54 @@
     .empty strong { display: block; margin-bottom: 4px; color: var(--ink); }
 
     .table-wrap { width: 100%; overflow: auto; border-top: 1px solid var(--line); }
+    .three-rank-toolbar {
+      padding: 10px 16px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: var(--surface-soft);
+    }
+    .three-rank-models {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(200px, 1fr));
+      gap: 8px;
+      padding: 0 16px 12px;
+    }
+    .three-rank-model {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--surface-soft);
+      min-width: 0;
+    }
+    .three-rank-model strong { display: block; margin-bottom: 5px; }
+    .three-rank-model span { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+    .three-rank-model.ready { border-color: #9ac9b3; background: var(--good-soft); }
+    .three-rank-model.not-ready { border-color: #e2c778; background: var(--warn-soft); }
+    .three-rank-model.shadow-only { border-style: dashed; }
+    .three-rank-sort,
+    .three-rank-downloads { display: flex; gap: 7px; flex-wrap: wrap; }
+    .three-rank-btn {
+      border: 1px solid var(--line-strong);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 6px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .three-rank-btn:hover,
+    .three-rank-btn.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+    .three-rank-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .three-rank-proof { color: var(--muted); font-size: 11px; padding: 0 16px 10px; overflow-wrap: anywhere; }
+    .three-rank-shadow { margin: 10px 16px 14px; color: var(--muted); }
+    .three-rank-shadow summary { cursor: pointer; font-weight: 650; color: var(--ink); }
     table { border-collapse: collapse; width: 100%; min-width: 1380px; font-size: 12px; }
+    table.three-rank-table { min-width: 1120px; }
     table.top10-backtest-table { min-width: 1040px; table-layout: fixed; font-size: 11px; }
     table.top10-backtest-table th,
     table.top10-backtest-table td { padding: 7px 6px; }
@@ -624,6 +671,7 @@
       .date-contract { grid-template-columns: repeat(3, minmax(144px, 1fr)); }
       .audit-grid { grid-template-columns: 1fr; }
       .report-meta { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+      .three-rank-models { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
     }
     @media (max-width: 640px) {
       .topbar-inner {
@@ -667,6 +715,7 @@
       .panel-metrics { padding: 0 12px; }
       .sentiment-industries { margin: -2px 12px 12px; }
       .market-breadth-grid { grid-template-columns: 1fr; }
+      .three-rank-models { grid-template-columns: 1fr; padding: 0 12px 12px; }
       table.industry-table {
         min-width: 100%;
         table-layout: fixed;
@@ -829,14 +878,15 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v3-cache";
-    const DASHBOARD_VERSION = "independent-full-parity-v4";
+    const DASHBOARD_VERSION = "independent-three-rank-v5";
+    const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
       "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
-    const state = { reports: [], reportIndex: null, index: 0, current: null };
+    const state = { reports: [], reportIndex: null, index: 0, current: null, currentThreeRank: null };
 
     function escapeHtml(value) {
       return String(value == null ? "" : value)
@@ -860,7 +910,9 @@
         try {
           const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return kind === "text" ? await response.text() : await response.json();
+          if (kind === "text") return await response.text();
+          if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
+          return await response.json();
         } catch (error) {
           lastError = error;
         }
@@ -1294,7 +1346,305 @@
       </details>`;
     }
 
+    function threeRankModelLabel(status) {
+      return status === "READY" ? "READY · 可用" : `模型未就绪 · ${status || "缺少状态"}`;
+    }
+
+    function isSha256(value) {
+      return /^[0-9a-f]{64}$/.test(String(value || ""));
+    }
+
+    function validValidationGateSummary(meta) {
+      if (!meta || ![
+        "validation_gate_pass_count",
+        "validation_gate_total_count",
+        "validation_gate_score_pct"
+      ].every(field => Object.prototype.hasOwnProperty.call(meta, field))) return false;
+      const passCount = meta?.validation_gate_pass_count;
+      const totalCount = meta?.validation_gate_total_count;
+      const score = meta?.validation_gate_score_pct;
+      if (passCount == null && totalCount == null && score == null) return true;
+      if (!Number.isInteger(passCount) || !Number.isInteger(totalCount) || totalCount <= 0) return false;
+      if (passCount < 0 || passCount > totalCount || typeof score !== "number" || !Number.isFinite(score)) return false;
+      const expected = Math.round((1000 * passCount) / totalCount) / 10;
+      return Math.abs(score - expected) < 1e-9;
+    }
+
+    async function sha256Hex(bytes) {
+      if (!globalThis.crypto?.subtle || !(bytes instanceof Uint8Array)) {
+        throw new Error("浏览器无法执行三排名SHA256校验");
+      }
+      const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+      return [...new Uint8Array(digest)]
+        .map(value => value.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function validatedThreeRankContract(plan) {
+      const contract = plan?.three_rank;
+      if (contract == null) return null;
+      if (typeof contract !== "object" || Array.isArray(contract)) return false;
+      if (contract.schema_version !== "decision_three_rank_top10_v1") return false;
+      if (contract.contract_version !== "decision_three_rank_v1") return false;
+      if (contract.artifact_kind !== "d_close_independent_three_rank_top10") return false;
+      const signalDate = canonicalYmd(contract.signal_date);
+      const execDate = canonicalYmd(contract.exec_date);
+      const exitDate = canonicalYmd(contract.exit_date);
+      if (!signalDate || !execDate || !exitDate || !(signalDate < execDate && execDate < exitDate)) return false;
+      if (signalDate !== canonicalYmd(plan?.signal_date)) return false;
+      if (execDate !== canonicalYmd(plan?.exec_date)) return false;
+      if (exitDate !== canonicalYmd(plan?.exit_date)) return false;
+      if (contract.feature_as_of_date !== signalDate) return false;
+      const rows = contract.rows;
+      const poolSize = contract.promotion_pool_size;
+      if (!Array.isArray(rows) || rows.length > 10 || !Number.isInteger(contract.top10_count) || contract.top10_count !== rows.length) return false;
+      if (!Number.isInteger(poolSize) || poolSize < rows.length || poolSize < 0) return false;
+      const codes = rows.map(row => String(row?.ts_code || "").trim());
+      if (codes.some(code => !code) || new Set(codes).size !== codes.length) return false;
+      if (rows.some(row => row?.top10_selected !== 1)) return false;
+      if (rows.some(row => !["2→3", "3→4"].includes(String(row?.stage_transition || "")))) return false;
+      if (!isSha256(contract.top10_members_sha256) || !isSha256(contract.bundle_sha256)) return false;
+      const models = contract.models;
+      if (!models || typeof models !== "object" || Array.isArray(models)) return false;
+      const heads = [
+        ["promotion", "promotion_rank", "predicted_promotion_probability"],
+        ["big_loss", "big_loss_safety_rank", "predicted_big_loss_probability"],
+        ["profit", "profit_rank", "predicted_profit_probability"]
+      ];
+      if (Object.keys(models).sort().join(",") !== heads.map(([head]) => head).sort().join(",")) return false;
+      let readyHeads = 0;
+      for (const [head, rankField, probabilityField] of heads) {
+        const model = models[head];
+        if (!model || typeof model !== "object" || Array.isArray(model)) return false;
+        const status = String(model.status || "");
+        if (status !== "READY" && !status.startsWith("NOT_READY_")) return false;
+        if (String(model.input_members_sha256 || "") !== String(contract.top10_members_sha256 || "")) return false;
+        const ready = status === "READY";
+        readyHeads += ready ? 1 : 0;
+        if (model.ranking_ready !== ready || model.probability_ready !== ready) return false;
+        if (model.rank_field !== rankField || model.probability_field !== probabilityField) return false;
+        if (!validValidationGateSummary(model)) return false;
+        const ranks = rows.map(row => row?.[rankField]);
+        const probabilities = rows.map(row => row?.[probabilityField]);
+        if (ready) {
+          if (!String(model.version || "").trim()) return false;
+          if (!canonicalYmd(model.model_as_of_date) || model.model_as_of_date >= signalDate) return false;
+          if (!isSha256(model.artifact_sha256)) return false;
+          if (ranks.some(value => !Number.isInteger(value))) return false;
+          const expected = Array.from({ length: rows.length }, (_, index) => index + 1);
+          const actual = [...ranks].sort((left, right) => left - right);
+          if (actual.some((value, index) => value !== expected[index])) return false;
+          if (probabilities.some(value => typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1)) return false;
+        } else if (ranks.some(value => value != null) || probabilities.some(value => value != null)) {
+          // A constant or failed model must not manufacture a 1..N order.
+          return false;
+        }
+      }
+      if (models.promotion.status !== "READY" && (
+        models.big_loss.status !== "NOT_READY_NO_FROZEN_TOP10" ||
+        models.profit.status !== "NOT_READY_NO_FROZEN_TOP10"
+      )) return false;
+      if (models.promotion.status !== "READY" && rows.length) return false;
+      if (models.promotion.status === "READY" && rows.length !== Math.min(10, poolSize)) return false;
+      if (models.promotion.status === "READY" && rows.length && !isSha256(contract.feature_snapshot_sha256)) return false;
+      const expectedStatus = readyHeads === 3 ? "READY" : models.promotion.status === "READY" ? "PARTIAL_MODELS_NOT_READY" : "NOT_READY_PROMOTION";
+      if (contract.status !== expectedStatus) return false;
+      const shadow = contract.shadow_contract;
+      if (!shadow || shadow.status !== "ANNOTATION_ONLY" || shadow.may_change_membership !== false || shadow.may_override_core_ranks !== false) return false;
+      if (String(shadow.input_members_sha256 || "") !== String(contract.top10_members_sha256 || "")) return false;
+      const shadowModelStatus = String(shadow.model_status || "");
+      if (!shadowModelStatus.startsWith("SHADOW_") && !shadowModelStatus.startsWith("NOT_READY_")) return false;
+      if (!validValidationGateSummary(shadow)) return false;
+      if (shadowModelStatus === "SHADOW_READY" && (
+        !String(shadow.model_version || "").trim() ||
+        !canonicalYmd(shadow.model_as_of_date) ||
+        shadow.model_as_of_date >= signalDate ||
+        !isSha256(shadow.model_artifact_sha256)
+      )) return false;
+      const downloads = contract.downloads;
+      const expectedPrefix = `outputs/decision/three_rank_top10_${signalDate}`;
+      if (!downloads || downloads.json_url !== `${expectedPrefix}.json` || downloads.csv_url !== `${expectedPrefix}.csv`) return false;
+      if (!isSha256(downloads.csv_sha256) || downloads.row_count !== rows.length) return false;
+      return contract;
+    }
+
+    async function loadCurrentThreeRank() {
+      let index;
+      try {
+        index = await fetchPath("outputs/decision/three_rank_index.json");
+      } catch (_) {
+        return null;
+      }
+      if (!index || index.schema_version !== "decision_three_rank_index_v1") throw new Error("三排名索引合同无效");
+      if (index.index_kind !== "dated_three_rank_pointer_only" || index.data_alias !== false) throw new Error("三排名索引不得作为latest数据别名");
+      const signalDate = canonicalYmd(index.latest_signal_date);
+      const execDate = canonicalYmd(index.latest_exec_date);
+      const exitDate = canonicalYmd(index.latest_exit_date);
+      if (!signalDate || signalDate < INDEPENDENCE_CUTOVER_SIGNAL_DATE) throw new Error("三排名索引早于DC20独立切换日");
+      if (!execDate || !exitDate || !(signalDate < execDate && execDate < exitDate)) throw new Error("三排名索引日期无效");
+      const prefix = `outputs/decision/three_rank_top10_${signalDate}`;
+      if (index.latest_contract_url !== `${prefix}.json` || index.latest_csv_url !== `${prefix}.csv`) throw new Error("三排名索引未指向dated工件");
+      if (![index.latest_contract_sha256, index.latest_csv_sha256, index.latest_bundle_sha256, index.latest_top10_members_sha256].every(isSha256)) throw new Error("三排名索引哈希无效");
+      const [artifactBytes, csvBytes] = await Promise.all([
+        fetchPath(index.latest_contract_url, "bytes"),
+        fetchPath(index.latest_csv_url, "bytes")
+      ]);
+      const [artifactSha256, csvSha256] = await Promise.all([
+        sha256Hex(artifactBytes),
+        sha256Hex(csvBytes)
+      ]);
+      if (artifactSha256 !== index.latest_contract_sha256 || csvSha256 !== index.latest_csv_sha256) throw new Error("三排名dated工件字节哈希不一致");
+      let artifact;
+      try {
+        artifact = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(artifactBytes));
+      } catch (_) {
+        throw new Error("三排名dated JSON不是严格UTF-8 JSON");
+      }
+      const wrapper = { signal_date: signalDate, exec_date: execDate, exit_date: exitDate, three_rank: artifact, independent_dc20_sidecar: true };
+      const contract = validatedThreeRankContract(wrapper);
+      if (!contract) throw new Error("三排名dated工件未通过合同校验");
+      if (contract.bundle_sha256 !== index.latest_bundle_sha256 || contract.top10_members_sha256 !== index.latest_top10_members_sha256) throw new Error("三排名索引与dated工件哈希不一致");
+      if (contract.downloads?.csv_sha256 !== index.latest_csv_sha256 || contract.status !== index.latest_status) throw new Error("三排名索引状态或下载哈希不一致");
+      return wrapper;
+    }
+
+    function renderThreeRankWatchlist(plan, contract) {
+      const models = contract.models || {};
+      const gateSummary = meta => {
+        if (!validValidationGateSummary(meta) || meta?.validation_gate_total_count == null) {
+          return "验证门通过率：暂无严格派生值";
+        }
+        const score = Number(meta.validation_gate_score_pct);
+        const scoreText = Number.isInteger(score) ? score.toFixed(0) : score.toFixed(1);
+        return `验证门通过率 ${meta.validation_gate_pass_count}/${meta.validation_gate_total_count} = ${scoreText}%`;
+      };
+      const modelCards = [
+        ["promotion", "晋级引擎", "排名1＝T日涨停概率最高", "价值：在D日2→3/3→4全池中估计T日晋级涨停概率，并唯一冻结官方Top10。"],
+        ["big_loss", "大跌安全引擎", "排名1＝大跌概率最低", "价值：只在冻结Top10内估计T至T+1净收益≤-3%的概率，排名1最安全。"],
+        ["profit", "盈利引擎", "排名1＝T+1盈利概率最高", "价值：只在冻结Top10内估计T+1净收益>0的概率，排名1盈利概率最高。"]
+      ].map(([key, label, rule, value]) => {
+        const model = models[key] || {};
+        const ready = model.status === "READY";
+        return `<div class="three-rank-model ${ready ? "ready" : "not-ready"}">
+          <strong>${escapeHtml(label)} · ${escapeHtml(threeRankModelLabel(model.status))}</strong>
+          <span>${escapeHtml(value)}</span>
+          <span>${escapeHtml(rule)}</span>
+          <span>${escapeHtml(gateSummary(model))}</span>
+          <span>100%为全部门通过；不是收益率或准确率</span>
+          <span>版本：${escapeHtml(model.version || "-")}</span>
+          <span>训练真值截至：${dateText(model.model_as_of_date)}</span>
+        </div>`;
+      }).join("") + (() => {
+        const shadow = contract.shadow_contract || {};
+        const ready = shadow.model_status === "SHADOW_READY";
+        const status = ready ? "SHADOW_READY · 影子可用" : `影子未就绪 · ${shadow.model_status || "缺少状态"}`;
+        return `<div class="three-rank-model shadow-only ${ready ? "ready" : "not-ready"}">
+          <strong>P_fill 可买性影子 · ${escapeHtml(status)}</strong>
+          <span>价值：观察T日公开市场可买性代理；仅影子，不得改变成员或三核心排名。</span>
+          <span>SHADOW_ONLY · 不进入三核心模型READY聚合</span>
+          <span>${escapeHtml(gateSummary(shadow))}</span>
+          <span>100%为全部门通过；不是收益率或准确率</span>
+          <span>版本：${escapeHtml(shadow.model_version || "-")}</span>
+          <span>训练真值截至：${dateText(shadow.model_as_of_date)}</span>
+        </div>`;
+      })();
+      const downloads = contract.downloads || {};
+      const expectedPrefix = `outputs/decision/three_rank_top10_${contract.signal_date}`;
+      const safeJson = String(downloads.json_url || "") === `${expectedPrefix}.json` ? downloads.json_url : "";
+      const safeCsv = String(downloads.csv_url || "") === `${expectedPrefix}.csv` ? downloads.csv_url : "";
+      const downloadButtons = [
+        safeCsv ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeCsv))}" download>下载 CSV</a>` : "",
+        safeJson ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeJson))}" download>下载 JSON</a>` : ""
+      ].join("");
+      const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
+      const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
+      const fixedRows = contract.rows.map(row => ({ ...(truthByCode.get(String(row.ts_code)) || {}), ...row }));
+      const poolSize = Number(contract.promotion_pool_size || fixedRows.length);
+      els.stageCount.textContent = `晋级池 ${poolSize} 只 · 官方Top10 ${fixedRows.length} 只`;
+      els.stageGeneratedTime.textContent = beijingDateTimeText(contract.generated_at_utc)
+        ? `D榜生成时间 ${beijingDateTimeText(contract.generated_at_utc)}`
+        : "";
+
+      const renderRows = sortField => {
+        const sorted = [...fixedRows].sort((left, right) => {
+          const leftRank = finiteNumber(left?.[sortField]) ?? Number.POSITIVE_INFINITY;
+          const rightRank = finiteNumber(right?.[sortField]) ?? Number.POSITIVE_INFINITY;
+          return leftRank - rightRank || String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
+        });
+        const body = sorted.map(row => `<tr>
+          <td class="left">${escapeHtml(row.ts_code || "-")}</td>
+          <td class="left name">${escapeHtml(row.name || "-")}</td>
+          <td class="left">${escapeHtml(row.industry || "未分类")}</td>
+          <td>${escapeHtml(row.stage_transition || "-")}</td>
+          <td><span class="truth-badge">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
+          <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
+          <td><span class="truth-badge">${models.big_loss?.status === "READY" ? escapeHtml(row.big_loss_safety_rank) : "-"}</span></td>
+          <td>${models.big_loss?.status === "READY" ? pct(row.predicted_big_loss_probability) : "模型未就绪"}</td>
+          <td><span class="truth-badge">${models.profit?.status === "READY" ? escapeHtml(row.profit_rank) : "-"}</span></td>
+          <td>${models.profit?.status === "READY" ? pct(row.predicted_profit_probability) : "模型未就绪"}</td>
+          <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
+          <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
+          <td><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></td>
+        </tr>`).join("");
+        const table = els.stageContent.querySelector("tbody[data-three-rank-body]");
+        if (table) table.innerHTML = body;
+        els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
+          button.classList.toggle("active", button.dataset.threeRankSort === sortField);
+        });
+      };
+
+      if (models.promotion?.status !== "READY") {
+        els.stageContent.innerHTML = `<div class="three-rank-models">${modelCards}</div>
+          <div class="empty"><strong>官方Top10未生成</strong>晋级引擎没有达到READY合同；系统不会使用常数或旧观察顺序伪造Top10。</div>`;
+        return;
+      }
+      const shadowRows = sourceRows.filter(row => Number(row?.trade_shadow_selected || 0) === 1);
+      els.stageContent.innerHTML = `<div class="three-rank-models">${modelCards}</div>
+        <div class="three-rank-proof">同一Top10集合指纹：${escapeHtml(contract.top10_members_sha256 || "-")} · B/C仅对该集合重排，不得改票。</div>
+        <div class="three-rank-toolbar">
+          <div class="three-rank-sort">
+            <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank">按晋级排序</button>
+            <button class="three-rank-btn" type="button" data-three-rank-sort="big_loss_safety_rank" ${models.big_loss?.status === "READY" ? "" : "disabled"}>按大跌排序（安全优先）</button>
+            <button class="three-rank-btn" type="button" data-three-rank-sort="profit_rank" ${models.profit?.status === "READY" ? "" : "disabled"}>按盈利排序</button>
+          </div>
+          <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
+        </div>
+        ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
+          <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
+          <th>晋级排序</th><th>晋级概率</th><th>大跌排序（安全优先）</th><th>大跌概率</th><th>盈利排序</th><th>盈利概率</th>
+          <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
+        </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
+        <details class="three-rank-shadow"><summary>二筛影子（仅注释，不影响三排名） · ${shadowRows.length}只</summary>
+          <p>${shadowRows.length ? shadowRows.map(row => `${escapeHtml(row.ts_code || "-")} · 影子交易排名 ${escapeHtml(row.trade_rank || "-")}`).join("；") : "当日无影子入选。"}</p>
+        </details>`;
+      els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
+        button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));
+      });
+      renderRows("promotion_rank");
+    }
+
     function renderStageWatchlist(plan) {
+      const sidecarPlan = state.index === 0 ? state.currentThreeRank : null;
+      const sidecarContract = sidecarPlan
+        ? validatedThreeRankContract(sidecarPlan)
+        : null;
+      const planSignalDate = canonicalYmd(plan?.signal_date);
+      const sidecarSignalDate = canonicalYmd(sidecarPlan?.signal_date);
+      const displayPlan = sidecarContract && sidecarSignalDate >= INDEPENDENCE_CUTOVER_SIGNAL_DATE && (
+        plan?.historical_parity === true || !planSignalDate || sidecarSignalDate >= planSignalDate
+      ) ? sidecarPlan : plan;
+      const threeRank = displayPlan === sidecarPlan
+        ? sidecarContract
+        : validatedThreeRankContract(displayPlan);
+      if (threeRank === false) {
+        els.stageCount.textContent = "三排名合同错误";
+        els.stageContent.innerHTML = '<div class="empty"><strong>三排名工件未通过合同校验</strong>页面已失败关闭，不会回退到旧排名或展示部分数据。</div>';
+        return;
+      }
+      if (threeRank) {
+        renderThreeRankWatchlist(displayPlan, threeRank);
+        return;
+      }
       const rows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const displayRows = [...rows].sort((left, right) => {
         const leftPromotionRank = finiteNumber(left?.promotion_rank);
@@ -1850,6 +2200,7 @@
       const reportDate = String(info?.report_date || "");
       if (info?.research_available !== true || !reportDate) return null;
       if (context.schema_version === "decision_research_context_v1_historical_parity") {
+        if (info?.research_kind === "dc20_independent") return null;
         return decodeHistoricalParityContext(info, context);
       }
       if (context.schema_version !== "decision_research_context_v1_daily") return null;
@@ -1858,7 +2209,26 @@
       if (context.action_authorized !== false || context.formal_buy_count !== 0) return null;
       if (context.broker_connected !== false || context.execution_or_fill_claimed !== false) return null;
       if (String(context.report_date || "") !== reportDate || String(context.exec_date || "") !== reportDate) return null;
-      if (context?.model?.prediction_matches_report !== true || context?.model?.action_authorized !== false) return null;
+      const independentDc20 = info?.research_kind === "dc20_independent";
+      if (independentDc20) {
+        if (canonicalYmd(context.signal_date) < INDEPENDENCE_CUTOVER_SIGNAL_DATE) return null;
+        if (context.independent_dc20_context !== true || context.independence_cutover_signal_date !== INDEPENDENCE_CUTOVER_SIGNAL_DATE) return null;
+        if (context.active_evidence_scope !== "dc20_owned_dated_three_rank_bundle_only" || context.historical_parity !== false) return null;
+        if (context?.source_binding?.scope !== "same_repository_dc20_three_rank_artifacts_only") return null;
+        const threeRank = validatedThreeRankContract(context);
+        if (!threeRank || threeRank.models?.promotion?.status !== "READY" || !threeRank.rows?.length) return null;
+        const files = context?.source_binding?.files;
+        const downloads = threeRank.downloads || {};
+        const expectedSources = [downloads.json_url, downloads.csv_url].sort();
+        if (!files || typeof files !== "object" || Array.isArray(files)) return null;
+        if (Object.keys(files).sort().join(",") !== expectedSources.join(",")) return null;
+        if (!expectedSources.every(path => isSha256(files[path]))) return null;
+        if (files[downloads.csv_url] !== downloads.csv_sha256) return null;
+      } else {
+        if (context.independent_dc20_context === true) return null;
+        if (context?.model?.prediction_matches_report !== true) return null;
+      }
+      if (context?.model?.action_authorized !== false) return null;
       const collections = [context.candidates, context.stage_watchlist];
       if (collections.some(rows => !Array.isArray(rows))) return null;
       if (collections.some(rows => rows.some(row =>
@@ -1910,7 +2280,7 @@
       const reportDate = String(info?.report_date || "");
       if (!targetInfo) return null;
       if (cachedPlan?.historical_parity === true || cachedPlan?.schema_version === "decision_research_context_v1_historical_parity") return null;
-      const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url"];
+      const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url", "research_kind", "research_archive_url"];
       if (identityFields.some(key => String(info?.[key] || "") !== String(targetInfo?.[key] || ""))) return null;
       if ((info?.action_available === true) !== (targetInfo?.action_available === true)) return null;
       if ((info?.research_available === true) !== (targetInfo?.research_available === true)) return null;
@@ -1971,6 +2341,11 @@
       if (actionExpected && !plan) {
         throw new Error("同日行动计划内容无效，不能降级成研究状态");
       }
+      const actionThreeRank = plan ? validatedThreeRankContract(plan) : null;
+      if (actionThreeRank === false) throw new Error("同日行动的三排名合同无效");
+      const independentDc20Action = Boolean(
+        actionThreeRank && canonicalYmd(plan?.signal_date) >= INDEPENDENCE_CUTOVER_SIGNAL_DATE
+      );
       if (researchExpected) {
         if (researchResult.status !== "fulfilled") {
           throw new Error("同日完整研究上下文读取失败，不能伪装为无数据");
@@ -1978,7 +2353,9 @@
         const researchPlan = validatedResearchContext(info, researchResult.value);
         if (!researchPlan) throw new Error("同日完整研究上下文合同无效");
         if (researchPlan.historical_parity === true) {
-          plan = researchPlan;
+          // Historical parity remains a navigable archive.  From the DC20
+          // cutover onward it can never replace a valid independent action.
+          if (!independentDc20Action) plan = researchPlan;
         } else if (!plan) {
           plan = researchPlan;
         }
@@ -2031,6 +2408,7 @@
         state.reportIndex = index;
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
+        state.currentThreeRank = await loadCurrentThreeRank();
         state.index = 0;
         targetInfo = state.reports[0];
         await loadReport(0);

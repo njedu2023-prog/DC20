@@ -1,0 +1,111 @@
+{
+  "coverage": {
+    "codes": 2555,
+    "d_price": 1.0,
+    "end_signal_date": "20260814",
+    "executable_return_truth": 0.8788346047719526,
+    "promotion_truth": 1.0,
+    "rows": 12322,
+    "signal_dates": 1210,
+    "start_signal_date": "20210813",
+    "t_price": 1.0,
+    "tplus1_price": 0.9989449764648596
+  },
+  "generated_at_utc": "2026-08-23T13:50:33.552827+00:00",
+  "ledger_path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_supervised_ledger.csv.gz",
+  "ledger_sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+  "owner": "njedu2023-prog/DC20",
+  "runtime_dependency_on_top10_decision": false,
+  "runtime_feature_contract": {
+    "available_by_d_close": true,
+    "columns": [
+      "returns_1d",
+      "high_low_range",
+      "candle_body",
+      "gap_open",
+      "vol",
+      "volume_ratio",
+      "volatility_5d",
+      "volatility_10d",
+      "volatility_20d",
+      "atr",
+      "ret_2d",
+      "ret_5d",
+      "ret_10d",
+      "bid_ask_proxy",
+      "spread_proxy"
+    ],
+    "future_columns_used": [],
+    "version": "dc20_daily_candidate_d_close_v1"
+  },
+  "schema_version": "dc20_three_engine_five_year_ledger_v1",
+  "source": {
+    "adjustment": "none (exchange transaction prices)",
+    "cache_hits": 2557,
+    "codes": 2557,
+    "event_artifact": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+    "event_sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
+    "event_source_inventory": {
+      "canonical_prediction_file_count": 3,
+      "canonical_prediction_files": [
+        {
+          "eligible_rows": 13,
+          "path": "outputs/auction_v3/predictions/pred_20260812.csv",
+          "sha256": "cbcd0f6b21c7ebdf0410ade39e4c053c8bab8c7efa416a89f2752aa74b912527",
+          "signal_date": "20260812",
+          "source_rows": 86
+        },
+        {
+          "eligible_rows": 14,
+          "path": "outputs/auction_v3/predictions/pred_20260813.csv",
+          "sha256": "e7d8a04fa98ff948b3e3502ca755faf696f722b2ce28a1afadd062d611159122",
+          "signal_date": "20260813",
+          "source_rows": 50
+        },
+        {
+          "eligible_rows": 9,
+          "path": "outputs/auction_v3/predictions/pred_20260814.csv",
+          "sha256": "0b5ddb7f025c099ce4a89aeeee658e46a0e6aa8510d32cbba540d9cc643deca4",
+          "signal_date": "20260814",
+          "source_rows": 51
+        }
+      ],
+      "new_eligible_rows_discovered": 36,
+      "seed_end_signal_date": "20260811",
+      "seed_path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+      "seed_sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e"
+    },
+    "fetch_failures": {},
+    "price_endpoint": "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+    "price_provider": "Tencent ifzq public daily kline",
+    "prior_grid_truth_cutoff_rule": "strictly_before_signal_date",
+    "requested_begin": "20210709",
+    "requested_end": "20260823",
+    "successful_codes": 2557
+  },
+  "target_contract": {
+    "big_loss_threshold": -0.03,
+    "market_fill": "T bar exists and is not a one-price 10% limit-up",
+    "nonfill_return_targets": "null",
+    "promotion_hit": "T close equals exchange-rounded pre_close * 1.10",
+    "return_window": "T open proxy to T+1 open",
+    "round_trip_cost_rate": 0.0045
+  },
+  "targets": {
+    "big_loss_hit": {
+      "positives": 5363,
+      "rate": 0.49524425154677254,
+      "rows": 10829
+    },
+    "profit_hit": {
+      "positives": 4035,
+      "rate": 0.37261058269461633,
+      "rows": 10829
+    },
+    "promotion_hit": {
+      "positives": 4872,
+      "rate": 0.39539035870800193,
+      "rows": 12322
+    }
+  }
+}

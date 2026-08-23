@@ -1,0 +1,131 @@
+{
+  "exec_date": "20260824",
+  "execution": {
+    "actual_execution_claimed": false,
+    "buy_count": 0,
+    "decision": "NO_TRADE",
+    "reason": "dated research ranking recovery; B/C validation gates are not READY"
+  },
+  "exit_date": "20260825",
+  "model_bindings": {
+    "artifacts": {
+      "big_loss": {
+        "path": "data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib",
+        "sha256": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6"
+      },
+      "p_fill_shadow": {
+        "path": "data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib",
+        "sha256": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06"
+      },
+      "profit": {
+        "path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+        "sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3"
+      },
+      "promotion": {
+        "path": "data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib",
+        "sha256": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b"
+      }
+    },
+    "data_validation": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/data_validation.json",
+      "sha256": "34ab2950fa2e6226173392fa4a17cab5f9f102fe2d10a01c3b2175346b2323da"
+    },
+    "ledger": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_supervised_ledger.csv.gz",
+      "sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026"
+    },
+    "ledger_manifest": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_ledger_manifest.json",
+      "sha256": "18042d3d6f81d2b86fe6e50b97cb5849512db98de959e493049e3c7c9226524d"
+    },
+    "oof_top10": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/three_engine_oof_top10.csv.gz",
+      "sha256": "df5b57877fd29c6a4c64a45061a42357144151994cc83bb5ee8a2b2d71f5244b"
+    },
+    "validation": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+      "sha256": "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4"
+    }
+  },
+  "outputs": {
+    "csv": {
+      "path": "outputs/decision/three_rank_top10_20260821.csv",
+      "sha256": "4187be9f56ac4f66d8066edffee51c21c296fe4339f70ab92275ff63cc5fd7bf"
+    },
+    "json": {
+      "path": "outputs/decision/three_rank_top10_20260821.json",
+      "sha256": "32b90ad4cf3478a3b9f89b527628f2f50f6aaf4945da27655654a4850c34038b"
+    }
+  },
+  "owner": "njedu2023-prog/DC20",
+  "point_in_time_proof": {
+    "bars_later_than_cutoff_persisted": 0,
+    "cutoff_date": "20260821",
+    "feature_columns": [
+      "returns_1d",
+      "high_low_range",
+      "candle_body",
+      "gap_open",
+      "vol",
+      "volume_ratio",
+      "volatility_5d",
+      "volatility_10d",
+      "volatility_20d",
+      "atr",
+      "ret_2d",
+      "ret_5d",
+      "ret_10d",
+      "bid_ask_proxy",
+      "spread_proxy"
+    ],
+    "feature_contract_version": "dc20_daily_candidate_d_close_v1",
+    "feature_snapshot_sha256": "5e7795d20fd2a6e6128a34ce8592e0cf32fdd1b7e6881706084cfd7676191b4f",
+    "normalized_market_max_date": "20260821"
+  },
+  "ranking_proof": {
+    "bundle_sha256": "303e727ac7b157efcace4363c292d4317ab6ac00bda46a37e19989e8097a17db",
+    "head_statuses": {
+      "big_loss": "NOT_READY_VALIDATION_GATE",
+      "profit": "NOT_READY_VALIDATION_GATE",
+      "promotion": "READY"
+    },
+    "promotion_pool_size": 9,
+    "promotion_ranks": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "status": "PARTIAL_MODELS_NOT_READY",
+    "top10_count": 9,
+    "top10_members_sha256": "9826ac3097e46de7feca3c16c640eb3c39d21ee7b0b62f03773b2669405af2b8",
+    "unready_head_fields_are_null": true
+  },
+  "runtime_dependency_on_external_repository": false,
+  "runtime_dependency_on_top10_decision": false,
+  "schema_version": "dc20_three_rank_snapshot_evidence_v1",
+  "signal_date": "20260821",
+  "source_bindings": {
+    "candidate": {
+      "path": "data/decision_three_engines/recovery/20260821/source_candidates.csv",
+      "sha256": "7934e1fd038801b3c95d646c38c3dfe1d3ade28e44bf735749f10557d220fada"
+    },
+    "candidate_meta": {
+      "path": "data/decision_three_engines/recovery/20260821/source_meta.json",
+      "sha256": "59cc25c876178d98b2c74638706b549c2ceb8b9a28de62a91dcf6a09cf370695"
+    },
+    "recovery_manifest": {
+      "path": "data/decision_three_engines/recovery/20260821/manifest.json",
+      "sha256": "14ecaad8e8b393e98a80c0f08d10b9e6e17e51213586cb88973d102dff66d1c8"
+    },
+    "stock_priors": {
+      "path": "data/decision_three_engines/recovery/20260821/stock_priors.csv",
+      "sha256": "6d219ed52c23f369d4958ae814972a2bb761317bd429ebc4c7ee6118085e5462"
+    }
+  }
+}

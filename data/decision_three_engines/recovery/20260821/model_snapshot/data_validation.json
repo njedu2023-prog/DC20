@@ -1,0 +1,363 @@
+{
+  "coverage": {
+    "codes": 2555,
+    "d_price": 1.0,
+    "end_signal_date": "20260814",
+    "rows": 12322,
+    "signal_dates": 1210,
+    "start_signal_date": "20210813",
+    "t_price": 1.0,
+    "tplus1_price": 0.9989449764648596
+  },
+  "failed_gates": [],
+  "generated_at_utc": "2026-08-23T13:51:39.374743+00:00",
+  "hard_gates": {
+    "big_loss_hit_dual_class": {
+      "actual": {
+        "invalid": 0,
+        "labeled": 10829,
+        "missing": 1493,
+        "one": 5363,
+        "zero": 5466
+      },
+      "passed": true,
+      "requirement": "both binary classes >= 200; invalid == 0"
+    },
+    "big_loss_hit_legacy_agreement": {
+      "actual": {
+        "agreement": 0.9725542275343072,
+        "comparable_rows": 6777,
+        "matches": 6591,
+        "mismatches": 186
+      },
+      "passed": true,
+      "requirement": ">= 0.95 on mutually labeled overlap rows"
+    },
+    "d_price_coverage": {
+      "actual": 1.0,
+      "passed": true,
+      "requirement": ">= 0.98"
+    },
+    "exact_stage_2_and_3_universe": {
+      "actual": {
+        "invalid_rows": 0,
+        "observed_stages": [
+          2,
+          3
+        ]
+      },
+      "passed": true,
+      "requirement": "only stages 2 and 3 are present, with both represented"
+    },
+    "ledger_sha256_matches_manifest": {
+      "actual": {
+        "computed": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+        "manifest": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026"
+      },
+      "passed": true,
+      "requirement": "manifest ledger_sha256 equals ledger bytes SHA-256"
+    },
+    "legacy_identity_unique": {
+      "actual": {
+        "duplicate_rows": 0
+      },
+      "passed": true,
+      "requirement": "legacy (signal_date, ts_code) identities are unique"
+    },
+    "minimum_legacy_overlap": {
+      "actual": 7715,
+      "passed": true,
+      "requirement": ">= 7000"
+    },
+    "minimum_rows": {
+      "actual": 12322,
+      "passed": true,
+      "requirement": ">= 10000"
+    },
+    "minimum_signal_dates": {
+      "actual": 1210,
+      "passed": true,
+      "requirement": ">= 1100"
+    },
+    "no_top10_decision_runtime_dependency": {
+      "actual": false,
+      "passed": true,
+      "requirement": "runtime_dependency_on_top10_decision is exactly false"
+    },
+    "owned_event_source_inventory": {
+      "actual": {
+        "canonical_prediction_file_count": 3,
+        "dates": [
+          "20260812",
+          "20260813",
+          "20260814"
+        ],
+        "new_eligible_rows_discovered": 36,
+        "seed_end_signal_date": "20260811"
+      },
+      "passed": true,
+      "requirement": "hashed canonical pred_YYYYMMDD DC20 event files, unique and newer than seed"
+    },
+    "owner_is_dc20": {
+      "actual": "njedu2023-prog/DC20",
+      "passed": true,
+      "requirement": "owner == njedu2023-prog/DC20"
+    },
+    "profit_hit_dual_class": {
+      "actual": {
+        "invalid": 0,
+        "labeled": 10829,
+        "missing": 1493,
+        "one": 4035,
+        "zero": 6794
+      },
+      "passed": true,
+      "requirement": "both binary classes >= 200; invalid == 0"
+    },
+    "profit_hit_legacy_agreement": {
+      "actual": {
+        "agreement": 0.9750627121145049,
+        "comparable_rows": 6777,
+        "matches": 6608,
+        "mismatches": 169
+      },
+      "passed": true,
+      "requirement": ">= 0.95 on mutually labeled overlap rows"
+    },
+    "promotion_hit_dual_class": {
+      "actual": {
+        "invalid": 0,
+        "labeled": 12322,
+        "missing": 0,
+        "one": 4872,
+        "zero": 7450
+      },
+      "passed": true,
+      "requirement": "both binary classes >= 200; invalid == 0"
+    },
+    "promotion_hit_legacy_agreement": {
+      "actual": {
+        "agreement": 0.9992222942320156,
+        "comparable_rows": 7715,
+        "matches": 7709,
+        "mismatches": 6
+      },
+      "passed": true,
+      "requirement": ">= 0.99 on mutually labeled overlap rows"
+    },
+    "promotion_prior_truth_is_strictly_lagged": {
+      "actual": "strictly_before_signal_date",
+      "passed": true,
+      "requirement": "prior_grid_truth_cutoff_rule == strictly_before_signal_date"
+    },
+    "runtime_feature_coverage": {
+      "actual": {
+        "atr": 0.9849050478818374,
+        "bid_ask_proxy": 1.0,
+        "candle_body": 1.0,
+        "gap_open": 1.0,
+        "high_low_range": 1.0,
+        "ret_10d": 0.9840123356597955,
+        "ret_2d": 0.9922902126278201,
+        "ret_5d": 0.9849050478818374,
+        "returns_1d": 1.0,
+        "spread_proxy": 1.0,
+        "vol": 1.0,
+        "volatility_10d": 0.9849050478818374,
+        "volatility_20d": 0.9840123356597955,
+        "volatility_5d": 0.9922902126278201,
+        "volume_ratio": 0.9849862035383866
+      },
+      "passed": true,
+      "requirement": "every runtime-aligned D-close feature coverage >= 0.98"
+    },
+    "runtime_feature_manifest_exact": {
+      "actual": {
+        "available_by_d_close": true,
+        "columns": [
+          "returns_1d",
+          "high_low_range",
+          "candle_body",
+          "gap_open",
+          "vol",
+          "volume_ratio",
+          "volatility_5d",
+          "volatility_10d",
+          "volatility_20d",
+          "atr",
+          "ret_2d",
+          "ret_5d",
+          "ret_10d",
+          "bid_ask_proxy",
+          "spread_proxy"
+        ],
+        "future_columns_used": [],
+        "version": "dc20_daily_candidate_d_close_v1"
+      },
+      "passed": true,
+      "requirement": "exact dc20_daily_candidate_d_close_v1 D-close runtime feature contract"
+    },
+    "signal_date_code_identity_unique": {
+      "actual": {
+        "duplicate_rows": 0,
+        "invalid_codes": 0,
+        "invalid_signal_dates": 0
+      },
+      "passed": true,
+      "requirement": "every (signal_date, ts_code) is valid and unique"
+    },
+    "standard_10pct_main_board_only": {
+      "actual": {
+        "invalid_board_rows": 0,
+        "invalid_mechanism_rows": 0,
+        "observed_boards": [
+          "SH_MAIN",
+          "SZ_MAIN"
+        ]
+      },
+      "passed": true,
+      "requirement": "SH_MAIN/SZ_MAIN rows with mechanism_limit_pct == 10"
+    },
+    "t_price_coverage": {
+      "actual": 1.0,
+      "passed": true,
+      "requirement": ">= 0.98"
+    },
+    "tplus1_price_coverage": {
+      "actual": 0.9989449764648596,
+      "passed": true,
+      "requirement": ">= 0.98"
+    }
+  },
+  "independence": {
+    "owner": "njedu2023-prog/DC20",
+    "runtime_dependency_on_top10_decision": false
+  },
+  "inputs": {
+    "ledger": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_supervised_ledger.csv.gz",
+      "sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026"
+    },
+    "legacy_history": {
+      "path": "models/decision_v12_frozen_history_20260805.csv.gz",
+      "sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e"
+    },
+    "manifest": {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_ledger_manifest.json",
+      "sha256": "18042d3d6f81d2b86fe6e50b97cb5849512db98de959e493049e3c7c9226524d"
+    }
+  },
+  "labels": {
+    "big_loss_hit": {
+      "invalid": 0,
+      "labeled": 10829,
+      "missing": 1493,
+      "one": 5363,
+      "zero": 5466
+    },
+    "profit_hit": {
+      "invalid": 0,
+      "labeled": 10829,
+      "missing": 1493,
+      "one": 4035,
+      "zero": 6794
+    },
+    "promotion_hit": {
+      "invalid": 0,
+      "labeled": 12322,
+      "missing": 0,
+      "one": 4872,
+      "zero": 7450
+    }
+  },
+  "legacy_overlap": {
+    "agreements": {
+      "big_loss_hit": {
+        "agreement": 0.9725542275343072,
+        "comparable_rows": 6777,
+        "matches": 6591,
+        "mismatches": 186
+      },
+      "profit_hit": {
+        "agreement": 0.9750627121145049,
+        "comparable_rows": 6777,
+        "matches": 6608,
+        "mismatches": 169
+      },
+      "promotion_hit": {
+        "agreement": 0.9992222942320156,
+        "comparable_rows": 7715,
+        "matches": 7709,
+        "mismatches": 6
+      }
+    },
+    "history_sources": {
+      "repository_market_raw": 1084,
+      "tushare_compact_backfill": 6631
+    },
+    "rows": 7715
+  },
+  "market_fill_diagnostic": {
+    "actual_order_claimed_by_this_report": false,
+    "actual_order_fill_labeled_rows": 0,
+    "actual_order_fill_observed_positive_rows": 0,
+    "comparable_rows": 7715,
+    "conflict_is_hard_gate": false,
+    "conflict_rate": 0.5180816591056384,
+    "conflict_rows": 3997,
+    "ledger_contract": "T bar exists and is not a one-price 10% limit-up",
+    "note": "Proxy disagreement is reported only. It is not evidence of an actual submitted or filled order.",
+    "semantic": "public_market_feasibility_proxy_not_actual_order_fill"
+  },
+  "runtime_feature_contract": {
+    "available_by_d_close": true,
+    "columns": [
+      "returns_1d",
+      "high_low_range",
+      "candle_body",
+      "gap_open",
+      "vol",
+      "volume_ratio",
+      "volatility_5d",
+      "volatility_10d",
+      "volatility_20d",
+      "atr",
+      "ret_2d",
+      "ret_5d",
+      "ret_10d",
+      "bid_ask_proxy",
+      "spread_proxy"
+    ],
+    "coverage": {
+      "atr": 0.9849050478818374,
+      "bid_ask_proxy": 1.0,
+      "candle_body": 1.0,
+      "gap_open": 1.0,
+      "high_low_range": 1.0,
+      "ret_10d": 0.9840123356597955,
+      "ret_2d": 0.9922902126278201,
+      "ret_5d": 0.9849050478818374,
+      "returns_1d": 1.0,
+      "spread_proxy": 1.0,
+      "vol": 1.0,
+      "volatility_10d": 0.9849050478818374,
+      "volatility_20d": 0.9840123356597955,
+      "volatility_5d": 0.9922902126278201,
+      "volume_ratio": 0.9849862035383866
+    },
+    "future_columns_used": [],
+    "version": "dc20_daily_candidate_d_close_v1"
+  },
+  "schema_version": "dc20_three_engine_five_year_data_validation_v1",
+  "status": "PASS",
+  "thresholds": {
+    "min_class_rows": 200,
+    "min_legacy_overlap_rows": 7000,
+    "min_price_coverage": 0.98,
+    "min_promotion_agreement": 0.99,
+    "min_return_label_agreement": 0.95,
+    "min_rows": 10000,
+    "min_signal_dates": 1100
+  },
+  "valid": true
+}

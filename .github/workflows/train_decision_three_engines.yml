@@ -1,0 +1,900 @@
+name: Train DC20 Decision Three Engines
+
+on:
+  schedule:
+    - cron: "15 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只读重训演练；生成并验证完整模型候选但不提交"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_ENABLE_CPU_FEATURES: "X86_V3"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  compute:
+    name: Build and validate immutable three-engine candidate
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        (
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'schedule' && vars.DC20_THREE_ENGINE_RETRAIN_ENABLED == 'true')
+        )
+      }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    outputs:
+      publish: ${{ steps.release.outputs.publish || 'false' }}
+      ready: ${{ steps.release.outputs.ready || 'false' }}
+      promotion_release_eligible: ${{ steps.release.outputs.promotion_release_eligible || 'false' }}
+      release_mode: ${{ steps.release.outputs.release_mode || 'NONE' }}
+      has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
+      writer_states_b64: ${{ steps.writer_snapshot.outputs.writer_states_b64 }}
+    steps:
+      - name: Checkout immutable main base without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve dry-run mode and immutable base
+        id: mode
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          RETRAIN_ENABLED: ${{ vars.DC20_THREE_ENGINE_RETRAIN_ENABLED }}
+        run: |
+          set -euo pipefail
+          requested_publish=false
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            test "${RETRAIN_ENABLED:-false}" = "true"
+            requested_publish=true
+          elif [ "${INPUT_DRY_RUN:-true}" = "false" ]; then
+            if [ "${RETRAIN_ENABLED:-false}" != "true" ]; then
+              echo 'Real three-engine publication requires vars.DC20_THREE_ENGINE_RETRAIN_ENABLED=true' >&2
+              exit 2
+            fi
+            requested_publish=true
+          fi
+          git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
+          test "$(wc -c < "${RUNNER_TEMP}/base_sha.txt")" -eq 41
+          echo "requested_publish=${requested_publish}" >> "${GITHUB_OUTPUT}"
+
+      - name: Snapshot the four existing writer workflow states
+        id: writer_snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows?per_page=100" > "${RUNNER_TEMP}/writer-workflows-before.json"
+          WRITER_API_JSON="${RUNNER_TEMP}/writer-workflows-before.json" python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+
+          expected = {
+              ".github/workflows/run_decision_daily.yml",
+              ".github/workflows/run_auction_v3.yml",
+              ".github/workflows/verify_decision_observations.yml",
+              ".github/workflows/backfill_decision_v11_history.yml",
+          }
+          payload = json.loads(Path(os.environ["WRITER_API_JSON"]).read_text(encoding="utf-8"))
+          workflows = payload.get("workflows") if isinstance(payload, dict) else None
+          if not isinstance(workflows, list):
+              raise SystemExit("GitHub writer workflow inventory is invalid")
+          states = {
+              item.get("path"): item.get("state")
+              for item in workflows
+              if isinstance(item, dict) and item.get("path") in expected
+          }
+          if set(states) != expected or any(not isinstance(value, str) or not value for value in states.values()):
+              raise SystemExit(f"cannot snapshot all existing writer states: {states}")
+          canonical = json.dumps(states, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          encoded = base64.urlsafe_b64encode(canonical).decode("ascii")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"writer_states_b64={encoded}\n")
+          PY
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install hash-locked runtime and test dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
+
+      - name: Validate the active freeze before overwriting any model asset
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python scripts/validate_decision_model_freeze.py
+
+      - name: Restore best-effort Tencent market-data download cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/dc20-three-engine-tencent-cache
+          key: >-
+            dc20-three-engine-tencent-${{ runner.os }}-seed-57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e-${{ github.run_id }}
+          restore-keys: |
+            dc20-three-engine-tencent-${{ runner.os }}-seed-57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e-
+
+      - name: Build DC20-owned five-year point-in-time ledger
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python scripts/build_three_engine_five_year_ledger.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --cache-root "${RUNNER_TEMP}/dc20-three-engine-tencent-cache" \
+            --max-workers 12 \
+            --timeout 20 \
+            --attempts 4 \
+            --minimum-price-coverage 0.98
+
+      - name: Validate five-year ledger and independent ownership
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python scripts/validate_three_engine_five_year_ledger.py
+
+      - name: Train nested chronological three-engine models
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python scripts/run_deterministic_numeric.py scripts/train_three_engine_models.py
+
+      - name: Resolve fail-closed model release eligibility
+        id: release
+        env:
+          REQUESTED_PUBLISH: ${{ steps.mode.outputs.requested_publish }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate JSON key: {key}")
+                  result[key] = value
+              return result
+
+          def load(path):
+              target = Path(path)
+              if not target.is_file() or target.is_symlink():
+                  raise SystemExit(f"release evidence is not a regular file: {path}")
+              return json.loads(target.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates)
+
+          def sha256(path):
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+          validation_path = Path("models/decision_three_engines/validation_latest.json")
+          data_validation_path = Path("models/decision_three_engine_data_validation.json")
+          ledger_path = Path("data/decision_three_engines/five_year_supervised_ledger.csv.gz")
+          manifest_path = Path("data/decision_three_engines/five_year_ledger_manifest.json")
+          validation = load(validation_path)
+          data_validation = load(data_validation_path)
+          manifest = load(manifest_path)
+          if data_validation.get("valid") is not True or data_validation.get("status") != "PASS" or data_validation.get("failed_gates") != []:
+              raise SystemExit("five-year data validation is not PASS")
+          independence = data_validation.get("independence")
+          if not isinstance(independence, dict) or independence.get("owner") != "njedu2023-prog/DC20" or independence.get("runtime_dependency_on_top10_decision") is not False:
+              raise SystemExit("five-year validation does not prove DC20 ownership and isolation")
+          if manifest.get("owner") != "njedu2023-prog/DC20" or manifest.get("runtime_dependency_on_top10_decision") is not False:
+              raise SystemExit("five-year ledger manifest violates DC20 isolation")
+          if manifest.get("ledger_sha256") != sha256(ledger_path):
+              raise SystemExit("ledger bytes differ from the validated manifest")
+          source = validation.get("source")
+          if not isinstance(source, dict) or source.get("ledger_sha256") != sha256(ledger_path):
+              raise SystemExit("model validation is not bound to the current ledger")
+          if int(source.get("rows") or 0) < 10_000 or int(source.get("dates") or 0) < 1_100:
+              raise SystemExit("model validation source coverage is below the five-year gate")
+          heads = validation.get("heads")
+          if not isinstance(heads, dict):
+              raise SystemExit("model validation heads are missing")
+          core_heads = ("promotion", "big_loss", "profit")
+          for head in core_heads:
+              item = heads.get(head)
+              if not isinstance(item, dict) or not isinstance(item.get("status"), str):
+                  raise SystemExit(f"missing model validation head: {head}")
+          artifacts = validation.get("artifacts")
+          if not isinstance(artifacts, dict):
+              raise SystemExit("model artifact inventory is missing")
+          required_artifacts = (*core_heads, "p_fill_shadow", "oof_top10")
+          for name in required_artifacts:
+              item = artifacts.get(name)
+              if not isinstance(item, dict):
+                  raise SystemExit(f"missing artifact inventory: {name}")
+              path = item.get("path")
+              digest = item.get("sha256")
+              if not isinstance(path, str) or path.startswith("/") or ".." in Path(path).parts:
+                  raise SystemExit(f"invalid artifact path: {name}")
+              if re.fullmatch(r"[0-9a-f]{64}", str(digest or "")) is None or sha256(path) != digest:
+                  raise SystemExit(f"artifact hash mismatch: {name}")
+          all_core_ready = (
+              validation.get("ready") is True
+              and validation.get("status") == "READY"
+              and validation.get("all_core_heads_promoted") is True
+              and all(
+                  heads[head].get("status") == "READY"
+                  and heads[head].get("promoted") is True
+                  and heads[head].get("gate_failures") == []
+                  for head in core_heads
+              )
+          )
+          promotion = heads["promotion"]
+          secondary = [heads[head] for head in ("big_loss", "profit")]
+          promotion_ready = (
+              promotion.get("status") == "READY"
+              and promotion.get("promoted") is True
+              and promotion.get("gate_failures") == []
+          )
+          partial_ready = (
+              promotion_ready
+              and validation.get("ready") is False
+              and validation.get("status") == "NOT_READY_VALIDATION_GATE"
+              and validation.get("all_core_heads_promoted") is False
+              and all(
+                  item.get("promoted") is False
+                  and isinstance(item.get("status"), str)
+                  and item["status"].startswith("NOT_READY_")
+                  and isinstance(item.get("gate_failures"), list)
+                  and len(item["gate_failures"]) > 0
+                  for item in secondary
+              )
+          )
+          p_fill = heads.get("p_fill_shadow")
+          shadow_safe = (
+              isinstance(p_fill, dict)
+              and p_fill.get("promoted") is False
+              and (
+                  p_fill.get("status") == "SHADOW_READY"
+                  or (
+                      isinstance(p_fill.get("status"), str)
+                      and p_fill["status"].startswith("NOT_READY_")
+                  )
+              )
+              and p_fill.get("cannot_change_core_members_or_ranks") is True
+          )
+          release_contract = validation.get("release_contract")
+          fail_closed = (
+              isinstance(release_contract, dict)
+              and release_contract.get("actual_execution_claimed") is False
+              and release_contract.get("failed_or_constant_head_must_not_emit_official_rank") is True
+              and release_contract.get("p_fill_is_shadow_only") is True
+              and release_contract.get("promoted_only_when_all_core_heads_and_top10_integrity_pass") is True
+          )
+          release_mode = (
+              "ALL_CORE_READY"
+              if all_core_ready and shadow_safe and fail_closed
+              else "PROMOTION_READY_PARTIAL"
+              if partial_ready and shadow_safe and fail_closed
+              else "NONE"
+          )
+          promotion_release_eligible = release_mode != "NONE"
+          requested = os.environ.get("REQUESTED_PUBLISH") == "true"
+          publish = promotion_release_eligible and requested
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"ready={'true' if all_core_ready else 'false'}\n")
+              output.write(f"promotion_release_eligible={'true' if promotion_release_eligible else 'false'}\n")
+              output.write(f"release_mode={release_mode}\n")
+              output.write(f"publish={'true' if publish else 'false'}\n")
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as output:
+              output.write("## DC20 three-engine release gate\n\n")
+              output.write(f"- requested_publish: `{str(requested).lower()}`\n")
+              output.write(f"- all_core_ready: `{str(all_core_ready).lower()}`\n")
+              output.write(f"- promotion_release_eligible: `{str(promotion_release_eligible).lower()}`\n")
+              output.write(f"- release_mode: `{release_mode}`\n")
+              output.write(f"- publish_requested_and_eligible: `{str(publish).lower()}`\n")
+              output.write(f"- validation_status: `{validation.get('status')}`\n")
+              for head in (*core_heads, "p_fill_shadow"):
+                  item = heads.get(head, {})
+                  output.write(f"- {head}: `{item.get('status')}`; failed gates: `{item.get('gate_failures', [])}`\n")
+          PY
+
+      - name: Atomically re-freeze one promotion-safe release candidate
+        if: ${{ steps.release.outputs.promotion_release_eligible == 'true' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          RELEASE_MODE: ${{ steps.release.outputs.release_mode }}
+        run: |
+          set -euo pipefail
+          python scripts/refreeze_decision_three_rank.py \
+            --expected-release-mode "${RELEASE_MODE}"
+          python scripts/refreeze_decision_three_rank.py \
+            --check \
+            --expected-release-mode "${RELEASE_MODE}"
+
+      - name: Build exact allowlisted immutable candidate
+        id: candidate
+        env:
+          MODEL_READY: ${{ steps.release.outputs.ready }}
+          PROMOTION_RELEASE_ELIGIBLE: ${{ steps.release.outputs.promotion_release_eligible }}
+          RELEASE_MODE: ${{ steps.release.outputs.release_mode }}
+        run: |
+          set -euo pipefail
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find . -type f -name '*.pyc' -delete
+          git add -A -- \
+            data/decision_three_engines \
+            models/decision_model_freeze.json \
+            models/decision_three_engine_data_validation.json \
+            models/decision_three_engines \
+            outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/candidate-paths.bin"
+          git diff --cached --no-renames --name-status -z > "${RUNNER_TEMP}/candidate-status.bin"
+          git ls-files --stage -z > "${RUNNER_TEMP}/candidate-index.bin"
+          git diff --cached --binary --full-index --no-renames > "${RUNNER_TEMP}/candidate.patch"
+          CANDIDATE_PATHS="${RUNNER_TEMP}/candidate-paths.bin" \
+          CANDIDATE_STATUS="${RUNNER_TEMP}/candidate-status.bin" \
+          CANDIDATE_INDEX="${RUNNER_TEMP}/candidate-index.bin" \
+          CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" \
+          BASE_SHA_FILE="${RUNNER_TEMP}/base_sha.txt" \
+          MODEL_READY="${MODEL_READY}" \
+          PROMOTION_RELEASE_ELIGIBLE="${PROMOTION_RELEASE_ELIGIBLE}" \
+          RELEASE_MODE="${RELEASE_MODE}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          def sha256_bytes(value):
+              return hashlib.sha256(value).hexdigest()
+
+          def sha256_path(path):
+              return sha256_bytes(Path(path).read_bytes())
+
+          allowed_paths = {
+              "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+              "data/decision_three_engines/five_year_ledger_manifest.json",
+              "models/decision_model_freeze.json",
+              "models/decision_three_engine_data_validation.json",
+              "models/decision_three_engines/promotion.joblib",
+              "models/decision_three_engines/big_loss.joblib",
+              "models/decision_three_engines/profit.joblib",
+              "models/decision_three_engines/p_fill_shadow.joblib",
+              "models/decision_three_engines/validation_latest.json",
+              "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+          }
+
+          def allowed(path):
+              return path in allowed_paths
+
+          paths = [item.decode("utf-8") for item in Path(os.environ["CANDIDATE_PATHS"]).read_bytes().split(b"\0") if item]
+          if paths != sorted(paths) or len(paths) != len(set(paths)):
+              raise SystemExit("three-engine candidate paths must be unique and sorted")
+          bad = [path for path in paths if not allowed(path)]
+          if bad:
+              raise SystemExit(f"non-allowlisted three-engine candidate paths staged: {bad}")
+          raw_status = [item.decode("utf-8") for item in Path(os.environ["CANDIDATE_STATUS"]).read_bytes().split(b"\0") if item]
+          if len(raw_status) % 2:
+              raise SystemExit("invalid candidate status inventory")
+          statuses = dict(zip(raw_status[1::2], raw_status[0::2]))
+          if set(statuses) != set(paths) or any(value not in {"A", "M"} for value in statuses.values()):
+              raise SystemExit(f"candidate may only add or modify regular files: {statuses}")
+          path_set = set(paths)
+          modes = {}
+          for entry in Path(os.environ["CANDIDATE_INDEX"]).read_bytes().split(b"\0"):
+              if not entry:
+                  continue
+              metadata, raw_path = entry.split(b"\t", 1)
+              mode, _object_id, stage = metadata.decode("ascii").split()
+              path = raw_path.decode("utf-8")
+              if path not in path_set:
+                  continue
+              if stage != "0" or path in modes:
+                  raise SystemExit(f"non-stage-zero three-engine candidate index entry: {path}")
+              modes[path] = mode
+          if set(modes) != path_set or any(mode != "100644" for mode in modes.values()):
+              raise SystemExit(f"non-regular three-engine candidate modes staged: {modes}")
+          promotion_release_eligible = os.environ.get("PROMOTION_RELEASE_ELIGIBLE") == "true"
+          release_mode = os.environ.get("RELEASE_MODE", "NONE")
+          if release_mode not in {"ALL_CORE_READY", "PROMOTION_READY_PARTIAL", "NONE"}:
+              raise SystemExit(f"invalid three-engine release mode: {release_mode}")
+          if promotion_release_eligible != (release_mode != "NONE"):
+              raise SystemExit("candidate release eligibility/mode is inconsistent")
+          freeze_path = "models/decision_model_freeze.json"
+          if promotion_release_eligible and path_set and freeze_path not in path_set:
+              raise SystemExit("release candidate did not atomically update its freeze manifest")
+          if not promotion_release_eligible and freeze_path in path_set:
+              raise SystemExit("ineligible candidate attempted to alter production freeze")
+          mandatory = allowed_paths
+          missing = sorted(path for path in mandatory if not Path(path).is_file() or Path(path).is_symlink())
+          if missing:
+              raise SystemExit(f"mandatory three-engine candidate files are missing: {missing}")
+          patch = Path(os.environ["CANDIDATE_PATCH"])
+          patch_sha = sha256_path(patch)
+          Path(os.environ["RUNNER_TEMP"], "candidate.patch.sha256").write_text(patch_sha + "\n", encoding="ascii")
+          base_sha = Path(os.environ["BASE_SHA_FILE"]).read_text(encoding="ascii").strip()
+          if re.fullmatch(r"[0-9a-f]{40}", base_sha) is None:
+              raise SystemExit("invalid immutable base SHA")
+          manifest = {
+              "schema_version": "dc20_three_engine_candidate_v2",
+              "base_sha": base_sha,
+              "all_core_heads_ready": os.environ.get("MODEL_READY") == "true",
+              "promotion_release_eligible": promotion_release_eligible,
+              "release_mode": release_mode,
+              "candidate_patch_sha256": patch_sha,
+              "release_validation_sha256": sha256_path("models/decision_three_engines/validation_latest.json"),
+              "paths": [
+                  {
+                      "path": path,
+                      "status": statuses[path],
+                      "mode": modes[path],
+                      "sha256": sha256_path(path),
+                  }
+                  for path in paths
+              ],
+          }
+          manifest_path = Path(os.environ["RUNNER_TEMP"], "candidate_manifest.json")
+          manifest_path.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n", encoding="utf-8")
+          Path(os.environ["RUNNER_TEMP"], "candidate_manifest.sha256").write_text(sha256_path(manifest_path) + "\n", encoding="ascii")
+          PY
+          if git diff --cached --quiet; then
+            echo 'has_changes=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'has_changes=true' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Replay candidate on exact base and run all three-engine tests
+        env:
+          HAS_CHANGES: ${{ steps.candidate.outputs.has_changes }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          replay_root="${RUNNER_TEMP}/three-engine-exact-base-replay"
+          test ! -e "${replay_root}"
+          git worktree add --detach "${replay_root}" "$(cat "${RUNNER_TEMP}/base_sha.txt")"
+          cleanup() {
+            cd "${GITHUB_WORKSPACE}"
+            git worktree remove --force "${replay_root}"
+          }
+          trap cleanup EXIT
+          if [ "${HAS_CHANGES}" = "true" ]; then
+            git -C "${replay_root}" apply --index --binary "${RUNNER_TEMP}/candidate.patch"
+          else
+            test ! -s "${RUNNER_TEMP}/candidate.patch"
+          fi
+          cd "${replay_root}"
+          PYTHONPATH="${replay_root}/src" python -m pytest -q \
+            tests/test_three_engine_five_year_ledger.py \
+            tests/test_validate_three_engine_five_year_ledger.py \
+            tests/test_three_engine_models.py \
+            tests/test_d_close_features.py \
+            tests/test_auction_v3_three_engine_runtime.py \
+            tests/test_decision_three_rank_contract.py \
+            tests/test_decision_three_rank_frontend.py \
+            tests/test_build_decision_three_rank_snapshot.py \
+            tests/test_three_engine_training_workflow.py \
+            tests/test_three_rank_freeze.py
+
+      - name: Upload one-day immutable candidate envelope
+        if: ${{ steps.release.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: three-engine-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/base_sha.txt
+            ${{ runner.temp }}/candidate.patch
+            ${{ runner.temp }}/candidate.patch.sha256
+            ${{ runner.temp }}/candidate_manifest.json
+            ${{ runner.temp }}/candidate_manifest.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify existing writer states were not changed during compute
+        if: ${{ always() && steps.writer_snapshot.outputs.writer_states_b64 != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_WRITER_STATES_B64: ${{ steps.writer_snapshot.outputs.writer_states_b64 }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows?per_page=100" > "${RUNNER_TEMP}/writer-workflows-after-compute.json"
+          WRITER_API_JSON="${RUNNER_TEMP}/writer-workflows-after-compute.json" python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+
+          expected = json.loads(base64.urlsafe_b64decode(os.environ["EXPECTED_WRITER_STATES_B64"]).decode("utf-8"))
+          payload = json.loads(Path(os.environ["WRITER_API_JSON"]).read_text(encoding="utf-8"))
+          actual = {
+              item.get("path"): item.get("state")
+              for item in payload.get("workflows", [])
+              if isinstance(item, dict) and item.get("path") in expected
+          }
+          if actual != expected:
+              raise SystemExit(f"existing writer states changed during compute: before={expected}, after={actual}")
+          PY
+
+  publish:
+    name: CAS publish one promotion-safe three-engine commit
+    needs: compute
+    if: >-
+      ${{
+        vars.DC20_THREE_ENGINE_RETRAIN_ENABLED == 'true' &&
+        needs.compute.outputs.publish == 'true' &&
+        needs.compute.outputs.promotion_release_eligible == 'true' &&
+        needs.compute.outputs.has_changes == 'true'
+      }}
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      published_head: ${{ steps.publish.outputs.published_head }}
+    steps:
+      - name: Checkout current main without persisted credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download validated candidate envelope
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: three-engine-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+
+      - name: Verify immutable envelope hashes and promotion-safe authorization
+        env:
+          CANDIDATE_DIR: ${{ runner.temp }}/candidate
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(os.environ["CANDIDATE_DIR"])
+          expected_files = {
+              "base_sha.txt",
+              "candidate.patch",
+              "candidate.patch.sha256",
+              "candidate_manifest.json",
+              "candidate_manifest.sha256",
+          }
+          if not root.is_dir() or any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("candidate envelope is missing or contains a symlink")
+          actual_files = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
+          if actual_files != expected_files:
+              raise SystemExit(f"candidate envelope file set mismatch: {sorted(actual_files)}")
+          sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          patch_sha = (root / "candidate.patch.sha256").read_text(encoding="ascii").strip()
+          manifest_sha = (root / "candidate_manifest.sha256").read_text(encoding="ascii").strip()
+          base_sha = (root / "base_sha.txt").read_text(encoding="ascii").strip()
+          if re.fullmatch(r"[0-9a-f]{40}", base_sha) is None:
+              raise SystemExit("invalid candidate base SHA")
+          if re.fullmatch(r"[0-9a-f]{64}", patch_sha) is None or sha(root / "candidate.patch") != patch_sha:
+              raise SystemExit("candidate.patch SHA256 mismatch")
+          if re.fullmatch(r"[0-9a-f]{64}", manifest_sha) is None or sha(root / "candidate_manifest.json") != manifest_sha:
+              raise SystemExit("candidate manifest SHA256 mismatch")
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate candidate manifest key: {key}")
+                  result[key] = value
+              return result
+
+          manifest = json.loads(
+              (root / "candidate_manifest.json").read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicates,
+          )
+          if manifest.get("schema_version") != "dc20_three_engine_candidate_v2" or manifest.get("base_sha") != base_sha:
+              raise SystemExit("candidate manifest base contract mismatch")
+          release_mode = manifest.get("release_mode")
+          if (
+              manifest.get("promotion_release_eligible") is not True
+              or release_mode not in {"ALL_CORE_READY", "PROMOTION_READY_PARTIAL"}
+              or manifest.get("all_core_heads_ready") is not (release_mode == "ALL_CORE_READY")
+              or manifest.get("candidate_patch_sha256") != patch_sha
+          ):
+              raise SystemExit("candidate lacks a consistent promotion-safe authorization")
+          entries = manifest.get("paths")
+          if not isinstance(entries, list) or not entries:
+              raise SystemExit("candidate path inventory is empty")
+          paths = [item.get("path") for item in entries if isinstance(item, dict)]
+          if len(paths) != len(entries) or paths != sorted(paths) or len(paths) != len(set(paths)):
+              raise SystemExit("candidate path inventory is invalid")
+          if "models/decision_model_freeze.json" not in paths:
+              raise SystemExit("candidate does not atomically carry its freeze manifest")
+          for item in entries:
+              if item.get("status") not in {"A", "M"} or item.get("mode") != "100644" or re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or "")) is None:
+                  raise SystemExit(f"invalid candidate path metadata: {item}")
+          PY
+
+      - name: Apply candidate to exact base and revalidate paths modes hashes and models
+        env:
+          CANDIDATE_DIR: ${{ runner.temp }}/candidate
+        run: |
+          set -euo pipefail
+          expected="$(cat "${CANDIDATE_DIR}/base_sha.txt")"
+          test "$(git rev-parse HEAD)" = "${expected}"
+          git apply --index --binary "${CANDIDATE_DIR}/candidate.patch"
+          git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish-paths.bin"
+          git diff --cached --no-renames --name-status -z > "${RUNNER_TEMP}/publish-status.bin"
+          git ls-files --stage -z > "${RUNNER_TEMP}/publish-index.bin"
+          PUBLISH_PATHS="${RUNNER_TEMP}/publish-paths.bin" \
+          PUBLISH_STATUS="${RUNNER_TEMP}/publish-status.bin" \
+          PUBLISH_INDEX="${RUNNER_TEMP}/publish-index.bin" \
+          CANDIDATE_MANIFEST="${CANDIDATE_DIR}/candidate_manifest.json" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          allowed_paths = {
+              "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+              "data/decision_three_engines/five_year_ledger_manifest.json",
+              "models/decision_model_freeze.json",
+              "models/decision_three_engine_data_validation.json",
+              "models/decision_three_engines/promotion.joblib",
+              "models/decision_three_engines/big_loss.joblib",
+              "models/decision_three_engines/profit.joblib",
+              "models/decision_three_engines/p_fill_shadow.joblib",
+              "models/decision_three_engines/validation_latest.json",
+              "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+          }
+
+          def allowed(path):
+              return path in allowed_paths
+
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate candidate JSON key: {key}")
+                  result[key] = value
+              return result
+
+          manifest = json.loads(
+              Path(os.environ["CANDIDATE_MANIFEST"]).read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicates,
+          )
+          entries = manifest["paths"]
+          expected = {item["path"]: item for item in entries}
+          paths = [item.decode("utf-8") for item in Path(os.environ["PUBLISH_PATHS"]).read_bytes().split(b"\0") if item]
+          if paths != sorted(expected) or any(not allowed(path) for path in paths):
+              raise SystemExit(f"non-allowlisted three-engine publish paths staged: {paths}")
+          raw_status = [item.decode("utf-8") for item in Path(os.environ["PUBLISH_STATUS"]).read_bytes().split(b"\0") if item]
+          if len(raw_status) % 2:
+              raise SystemExit("invalid publish status inventory")
+          statuses = dict(zip(raw_status[1::2], raw_status[0::2]))
+          if {path: expected[path]["status"] for path in paths} != statuses:
+              raise SystemExit(f"three-engine publish status inventory mismatch: {statuses}")
+          path_set = set(paths)
+          modes = {}
+          for entry in Path(os.environ["PUBLISH_INDEX"]).read_bytes().split(b"\0"):
+              if not entry:
+                  continue
+              metadata, raw_path = entry.split(b"\t", 1)
+              mode, _object_id, stage = metadata.decode("ascii").split()
+              path = raw_path.decode("utf-8")
+              if path not in path_set:
+                  continue
+              if stage != "0" or path in modes:
+                  raise SystemExit(f"non-stage-zero three-engine publish index entry: {path}")
+              modes[path] = mode
+          if {path: expected[path]["mode"] for path in paths} != modes or any(mode != "100644" for mode in modes.values()):
+              raise SystemExit(f"non-regular three-engine publish modes staged: {modes}")
+          for path in paths:
+              target = Path(path)
+              if not target.is_file() or target.is_symlink():
+                  raise SystemExit(f"published candidate path is not a regular file: {path}")
+              actual_sha = hashlib.sha256(target.read_bytes()).hexdigest()
+              if actual_sha != expected[path]["sha256"]:
+                  raise SystemExit(f"published candidate hash mismatch: {path}")
+
+          validation_path = Path("models/decision_three_engines/validation_latest.json")
+          validation = json.loads(
+              validation_path.read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicates,
+          )
+          data_validation = json.loads(
+              Path("models/decision_three_engine_data_validation.json").read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicates,
+          )
+          ledger_manifest = json.loads(
+              Path("data/decision_three_engines/five_year_ledger_manifest.json").read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicates,
+          )
+          ledger_path = Path("data/decision_three_engines/five_year_supervised_ledger.csv.gz")
+          ledger_sha = hashlib.sha256(ledger_path.read_bytes()).hexdigest()
+          if hashlib.sha256(validation_path.read_bytes()).hexdigest() != manifest["release_validation_sha256"]:
+              raise SystemExit("release validation hash changed after candidate replay")
+          if data_validation.get("valid") is not True or data_validation.get("status") != "PASS" or data_validation.get("failed_gates") != []:
+              raise SystemExit("published five-year data validation is not PASS")
+          data_independence = data_validation.get("independence")
+          if not isinstance(data_independence, dict) or data_independence.get("owner") != "njedu2023-prog/DC20" or data_independence.get("runtime_dependency_on_top10_decision") is not False:
+              raise SystemExit("published data validation violates DC20 isolation")
+          if ledger_manifest.get("owner") != "njedu2023-prog/DC20" or ledger_manifest.get("runtime_dependency_on_top10_decision") is not False or ledger_manifest.get("ledger_sha256") != ledger_sha:
+              raise SystemExit("published ledger manifest violates DC20 isolation or hash binding")
+          source = validation.get("source")
+          if not isinstance(source, dict) or source.get("ledger_sha256") != ledger_sha or int(source.get("rows") or 0) < 10_000 or int(source.get("dates") or 0) < 1_100:
+              raise SystemExit("published model validation is not bound to sufficient data")
+          heads = validation.get("heads")
+          core = ("promotion", "big_loss", "profit")
+          release_mode = manifest.get("release_mode")
+          if not isinstance(heads, dict):
+              raise SystemExit("published three-engine head validation is missing")
+          promotion = heads.get("promotion")
+          secondary = [heads.get(head) for head in ("big_loss", "profit")]
+          promotion_ready = (
+              isinstance(promotion, dict)
+              and promotion.get("status") == "READY"
+              and promotion.get("promoted") is True
+              and promotion.get("gate_failures") == []
+          )
+          all_core_ready = (
+              promotion_ready
+              and validation.get("ready") is True
+              and validation.get("status") == "READY"
+              and validation.get("all_core_heads_promoted") is True
+              and all(
+                  isinstance(item, dict)
+                  and item.get("status") == "READY"
+                  and item.get("promoted") is True
+                  and item.get("gate_failures") == []
+                  for item in secondary
+              )
+          )
+          promotion_partial = (
+              promotion_ready
+              and validation.get("ready") is False
+              and validation.get("status") == "NOT_READY_VALIDATION_GATE"
+              and validation.get("all_core_heads_promoted") is False
+              and all(
+                  isinstance(item, dict)
+                  and item.get("promoted") is False
+                  and isinstance(item.get("status"), str)
+                  and item["status"].startswith("NOT_READY_")
+                  and isinstance(item.get("gate_failures"), list)
+                  and len(item["gate_failures"]) > 0
+                  for item in secondary
+              )
+          )
+          expected_mode_valid = (
+              release_mode == "ALL_CORE_READY" and all_core_ready
+          ) or (
+              release_mode == "PROMOTION_READY_PARTIAL" and promotion_partial
+          )
+          if not expected_mode_valid:
+              raise SystemExit("published validation differs from authorized release mode")
+          p_fill = heads.get("p_fill_shadow")
+          if (
+              not isinstance(p_fill, dict)
+              or p_fill.get("promoted") is not False
+              or p_fill.get("cannot_change_core_members_or_ranks") is not True
+              or not (
+                  p_fill.get("status") == "SHADOW_READY"
+                  or (
+                      isinstance(p_fill.get("status"), str)
+                      and p_fill["status"].startswith("NOT_READY_")
+                  )
+              )
+          ):
+              raise SystemExit("published P_fill is not a safe shadow-only head")
+          artifacts = validation.get("artifacts")
+          required_artifacts = (*core, "p_fill_shadow", "oof_top10")
+          if not isinstance(artifacts, dict):
+              raise SystemExit("published model artifact inventory is missing")
+          for name in required_artifacts:
+              item = artifacts.get(name)
+              if not isinstance(item, dict) or not isinstance(item.get("path"), str) or not isinstance(item.get("sha256"), str):
+                  raise SystemExit(f"published model artifact inventory is invalid: {name}")
+              artifact_path = Path(item["path"])
+              if item["path"].startswith("/") or ".." in artifact_path.parts or not artifact_path.is_file() or artifact_path.is_symlink():
+                  raise SystemExit(f"published model artifact path is invalid: {name}")
+              if hashlib.sha256(artifact_path.read_bytes()).hexdigest() != item["sha256"]:
+                  raise SystemExit(f"published model artifact hash mismatch: {name}")
+          Path(os.environ["RUNNER_TEMP"], "publisher-release-mode.txt").write_text(
+              release_mode + "\n", encoding="ascii"
+          )
+          PY
+          release_mode="$(cat "${RUNNER_TEMP}/publisher-release-mode.txt")"
+          PYTHONPATH="${GITHUB_WORKSPACE}/src" \
+            python scripts/refreeze_decision_three_rank.py \
+              --check \
+              --expected-release-mode "${release_mode}"
+          PYTHONPATH="${GITHUB_WORKSPACE}/src" \
+            python scripts/validate_decision_model_freeze.py
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m 'model: retrain independent Decision three engines'
+
+      - name: Publish exact CAS commit with minimally injected token
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${expected}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+  verify-writer-states:
+    name: Finally verify all pre-existing writer states are unchanged
+    needs: [compute, publish]
+    if: ${{ always() && needs.compute.outputs.writer_states_b64 != '' }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Compare writer workflow states to the pre-run snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_WRITER_STATES_B64: ${{ needs.compute.outputs.writer_states_b64 }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows?per_page=100" > "${RUNNER_TEMP}/writer-workflows-final.json"
+          WRITER_API_JSON="${RUNNER_TEMP}/writer-workflows-final.json" python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+
+          expected = json.loads(base64.urlsafe_b64decode(os.environ["EXPECTED_WRITER_STATES_B64"]).decode("utf-8"))
+          payload = json.loads(Path(os.environ["WRITER_API_JSON"]).read_text(encoding="utf-8"))
+          actual = {
+              item.get("path"): item.get("state")
+              for item in payload.get("workflows", [])
+              if isinstance(item, dict) and item.get("path") in expected
+          }
+          if actual != expected:
+              raise SystemExit(f"existing writer states changed: before={expected}, after={actual}")
+          PY

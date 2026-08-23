@@ -9,12 +9,18 @@ from pathlib import Path
 from typing import Any
 
 from .action_plan import build_action_plan
+from .three_rank import (
+    materialize_three_rank_artifacts,
+    validate_three_rank_contract,
+)
 
 
 RESEARCH_CONTEXT_SCHEMA = "decision_research_context_v1_daily"
 RESEARCH_CONTEXT_KIND = "daily_research_context"
 HISTORICAL_PARITY_SCHEMA = "decision_research_context_v1_historical_parity"
 HISTORICAL_PARITY_KIND = "historical_parity_research_context"
+INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821"
+DC20_RESEARCH_FILENAME_PREFIX = "research_context_dc20_"
 HISTORICAL_ARTIFACT_KEYS = ("action_plan", "decision_report", "evaluation")
 DATE_RE = re.compile(r"20\d{6}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -65,6 +71,35 @@ def _research_row(value: Any) -> dict[str, Any]:
     return row
 
 
+def _independent_three_rank_ready(
+    payload: dict[str, Any],
+    *,
+    require_downloads: bool,
+) -> bool:
+    signal_date = str(payload.get("signal_date") or "")
+    contract = payload.get("three_rank")
+    if (
+        not DATE_RE.fullmatch(signal_date)
+        or signal_date < INDEPENDENCE_CUTOVER_SIGNAL_DATE
+        or not isinstance(contract, dict)
+    ):
+        return False
+    try:
+        validate_three_rank_contract(contract)
+    except ValueError:
+        return False
+    if (
+        contract.get("signal_date") != signal_date
+        or contract.get("exec_date") != payload.get("exec_date")
+        or contract.get("exit_date") != payload.get("exit_date")
+        or contract.get("models", {}).get("promotion", {}).get("status")
+        != "READY"
+        or not contract.get("rows")
+    ):
+        return False
+    return not require_downloads or isinstance(contract.get("downloads"), dict)
+
+
 def git_blob_sha(data: bytes) -> str:
     header = f"blob {len(data)}\0".encode("ascii")
     return hashlib.sha1(header + data).hexdigest()
@@ -82,7 +117,14 @@ def project_research_context(plan: dict[str, Any], *, source_files: dict[str, st
     if not isinstance(plan, dict):
         raise ResearchContextError("source action projection must be an object")
     model = plan.get("model")
-    if not isinstance(model, dict) or model.get("prediction_matches_report") is not True:
+    independent_dc20 = _independent_three_rank_ready(
+        plan,
+        require_downloads=False,
+    )
+    if not isinstance(model, dict) or (
+        model.get("prediction_matches_report") is not True
+        and not independent_dc20
+    ):
         raise ResearchContextError("research source prediction is not exactly bound to the report")
 
     context = copy.deepcopy(plan)
@@ -111,11 +153,42 @@ def project_research_context(plan: dict[str, Any], *, source_files: dict[str, st
             "live_delivery_met": False,
             "execution_or_fill_claimed": False,
             "source_binding": {
-                "scope": "same_repository_local_artifacts_only",
-                "files": dict(sorted(source_files.items())),
+                "scope": (
+                    "same_repository_dc20_three_rank_artifacts_only"
+                    if independent_dc20
+                    else "same_repository_local_artifacts_only"
+                ),
+                "files": dict(
+                    sorted(
+                        (
+                            (relative, digest)
+                            for relative, digest in source_files.items()
+                            if not independent_dc20
+                            or not relative.startswith(
+                                "outputs/decision/decision_report_"
+                            )
+                            and not relative.startswith(
+                                "outputs/decision/eval_"
+                            )
+                        )
+                    )
+                ),
             },
         }
     )
+    if independent_dc20:
+        context.update(
+            {
+                "independent_dc20_context": True,
+                "independence_cutover_signal_date": (
+                    INDEPENDENCE_CUTOVER_SIGNAL_DATE
+                ),
+                "active_evidence_scope": (
+                    "dc20_owned_dated_three_rank_bundle_only"
+                ),
+                "historical_parity": False,
+            }
+        )
     context.pop("migration", None)
     context["candidates"] = [
         _research_row(row) for row in context.get("candidates", [])
@@ -137,11 +210,19 @@ def project_research_context(plan: dict[str, Any], *, source_files: dict[str, st
         }
     )
     context["execution_contract"] = contract
-    validate_research_context(context)
+    validate_research_context(
+        context,
+        require_independent_downloads=False,
+    )
     return context
 
 
-def validate_research_context(context: dict[str, Any], *, expected_report_date: str = "") -> None:
+def validate_research_context(
+    context: dict[str, Any],
+    *,
+    expected_report_date: str = "",
+    require_independent_downloads: bool = True,
+) -> None:
     if not isinstance(context, dict):
         raise ResearchContextError("research context must be an object")
     if context.get("schema_version") != RESEARCH_CONTEXT_SCHEMA:
@@ -173,17 +254,62 @@ def validate_research_context(context: dict[str, Any], *, expected_report_date: 
     if not dates["signal_date"] < dates["exec_date"] < dates["exit_date"]:
         raise ResearchContextError("research context date order is invalid")
 
+    independent_dc20 = context.get("independent_dc20_context") is True
+    if independent_dc20:
+        if (
+            context.get("independence_cutover_signal_date")
+            != INDEPENDENCE_CUTOVER_SIGNAL_DATE
+            or context.get("active_evidence_scope")
+            != "dc20_owned_dated_three_rank_bundle_only"
+            or context.get("historical_parity") is not False
+            or not _independent_three_rank_ready(
+                context,
+                require_downloads=require_independent_downloads,
+            )
+        ):
+            raise ResearchContextError(
+                "independent DC20 research context is not cutover-bound"
+            )
     model = context.get("model")
-    if not isinstance(model, dict) or model.get("prediction_matches_report") is not True:
+    if not isinstance(model, dict) or (
+        model.get("prediction_matches_report") is not True
+        and not independent_dc20
+    ):
         raise ResearchContextError("research context model is not date-bound")
     if model.get("action_authorized") is not False:
         raise ResearchContextError("research context model cannot authorize action")
+
+    three_rank = context.get("three_rank")
+    if three_rank is not None:
+        try:
+            validate_three_rank_contract(three_rank)
+        except ValueError as exc:
+            raise ResearchContextError(
+                f"research context three-rank contract is invalid: {exc}"
+            ) from exc
+        if (
+            three_rank.get("signal_date") != dates["signal_date"]
+            or three_rank.get("exec_date") != dates["exec_date"]
+            or three_rank.get("exit_date") != dates["exit_date"]
+        ):
+            raise ResearchContextError(
+                "research context three-rank dates are not bound to the context"
+            )
 
     binding = context.get("source_binding")
     if not isinstance(binding, dict):
         raise ResearchContextError("research context source scope is invalid")
     scope = binding.get("scope")
-    if scope == "same_repository_local_artifacts_only":
+    if scope in {
+        "same_repository_local_artifacts_only",
+        "same_repository_dc20_three_rank_artifacts_only",
+    }:
+        if independent_dc20 != (
+            scope == "same_repository_dc20_three_rank_artifacts_only"
+        ):
+            raise ResearchContextError(
+                "research context source scope disagrees with cutover mode"
+            )
         files = binding.get("files")
         if not isinstance(files, dict) or not files:
             raise ResearchContextError("research context source files are missing")
@@ -199,6 +325,31 @@ def validate_research_context(context: dict[str, Any], *, expected_report_date: 
                 raise ResearchContextError("research context source digest is invalid")
     else:
         raise ResearchContextError("research context source scope is invalid")
+
+    if independent_dc20 and require_independent_downloads:
+        three_rank = context.get("three_rank")
+        downloads = (
+            three_rank.get("downloads")
+            if isinstance(three_rank, dict)
+            else None
+        )
+        if not isinstance(downloads, dict):
+            raise ResearchContextError(
+                "independent DC20 source downloads are missing"
+            )
+        expected_sources = {
+            downloads.get("json_url"),
+            downloads.get("csv_url"),
+        }
+        if (
+            None in expected_sources
+            or set(files) != expected_sources
+            or files.get(downloads.get("csv_url"))
+            != downloads.get("csv_sha256")
+        ):
+            raise ResearchContextError(
+                "independent DC20 source inventory is not the exact dated bundle"
+            )
 
     for collection in ("candidates", "stage_watchlist"):
         rows = context.get(collection)
@@ -540,10 +691,30 @@ def publish_vendored_research_context(
     output = output_root.resolve() / "outputs" / "decision"
     output.mkdir(parents=True, exist_ok=True)
     path = output / f"research_context_{report_date}.json"
-    path.write_text(
-        json.dumps(context, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    encoded = (
+        json.dumps(context, ensure_ascii=False, indent=2, allow_nan=False)
+        + "\n"
+    ).encode("utf-8")
+    if path.exists():
+        if not path.is_file() or path.is_symlink():
+            raise ResearchContextError(
+                "existing historical research context is unsafe"
+            )
+        existing_raw = path.read_bytes()
+        existing = _strict_json_object(
+            existing_raw,
+            label="existing historical research context",
+        )
+        validate_historical_parity_context(
+            existing,
+            expected_report_date=report_date,
+        )
+        if existing_raw != encoded:
+            raise ResearchContextError(
+                "historical parity dated context cannot be overwritten"
+            )
+        return path, existing
+    path.write_bytes(encoded)
     return path, context
 
 
@@ -556,7 +727,26 @@ def publish_research_context(
     chosen_date = str(context["report_date"])
     output = output_root.resolve() / "outputs" / "decision"
     output.mkdir(parents=True, exist_ok=True)
-    path = output / f"research_context_{chosen_date}.json"
+    if isinstance(context.get("three_rank"), dict):
+        json_path, csv_path, three_rank = materialize_three_rank_artifacts(
+            output_root,
+            context["three_rank"],
+        )
+        context["three_rank"] = three_rank
+        if context.get("independent_dc20_context") is True:
+            context.setdefault("source_binding", {})["files"] = {
+                three_rank["downloads"]["json_url"]: _sha256(json_path),
+                three_rank["downloads"]["csv_url"]: _sha256(csv_path),
+            }
+    independent_dc20 = _independent_three_rank_ready(
+        context,
+        require_downloads=True,
+    )
+    path = output / (
+        f"{DC20_RESEARCH_FILENAME_PREFIX}{chosen_date}.json"
+        if independent_dc20
+        else f"research_context_{chosen_date}.json"
+    )
     if path.exists():
         try:
             existing = _strict_json_object(
@@ -568,11 +758,33 @@ def publish_research_context(
                 f"existing research context is not readable strict JSON: {path}"
             ) from exc
         if isinstance(existing, dict) and existing.get("schema_version") == HISTORICAL_PARITY_SCHEMA:
+            if independent_dc20:
+                raise ResearchContextError(
+                    "independent DC20 path cannot contain historical parity"
+                )
             validate_historical_parity_context(
                 existing,
                 expected_report_date=chosen_date,
             )
             return path, existing
+        if independent_dc20:
+            validate_research_context(
+                existing,
+                expected_report_date=chosen_date,
+            )
+            existing_contract = existing.get("three_rank") or {}
+            current_contract = context.get("three_rank") or {}
+            if (
+                existing_contract.get("bundle_sha256")
+                != current_contract.get("bundle_sha256")
+                or existing_contract.get("downloads")
+                != current_contract.get("downloads")
+            ):
+                raise ResearchContextError(
+                    "independent DC20 dated context cannot be overwritten"
+                )
+            return path, existing
+    validate_research_context(context, expected_report_date=chosen_date)
     path.write_text(
         json.dumps(context, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
         encoding="utf-8",
@@ -581,8 +793,10 @@ def publish_research_context(
 
 
 __all__ = [
+    "DC20_RESEARCH_FILENAME_PREFIX",
     "HISTORICAL_PARITY_KIND",
     "HISTORICAL_PARITY_SCHEMA",
+    "INDEPENDENCE_CUTOVER_SIGNAL_DATE",
     "HISTORICAL_ARTIFACT_KEYS",
     "RESEARCH_CONTEXT_KIND",
     "RESEARCH_CONTEXT_SCHEMA",

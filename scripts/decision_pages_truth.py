@@ -7,6 +7,7 @@ import base64
 import csv
 import hashlib
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -20,6 +21,9 @@ DATED_REPORT_RE = re.compile(r"decision_report_(\d{8})\.md")
 DATED_EVALUATION_RE = re.compile(r"eval_(\d{8})\.json")
 DATED_ACTION_RE = re.compile(r"action_plan_(\d{8})\.json")
 DATED_RESEARCH_RE = re.compile(r"research_context_(\d{8})\.json")
+DATED_DC20_RESEARCH_RE = re.compile(r"research_context_dc20_(\d{8})\.json")
+DATED_THREE_RANK_JSON_RE = re.compile(r"three_rank_top10_(\d{8})\.json")
+DATED_THREE_RANK_CSV_RE = re.compile(r"three_rank_top10_(\d{8})\.csv")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 GIT_OBJECT_RE = re.compile(r"[0-9a-f]{40}")
 REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
@@ -27,6 +31,70 @@ UTC_TIMESTAMP_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)"
 )
 REQUIRED_CALENDAR_COLUMNS = frozenset({"exchange", "cal_date", "is_open"})
+THREE_RANK_SCHEMA = "decision_three_rank_top10_v1"
+THREE_RANK_CONTRACT_VERSION = "decision_three_rank_v1"
+THREE_RANK_INDEX_SCHEMA = "decision_three_rank_index_v1"
+THREE_RANK_INDEX_KIND = "dated_three_rank_pointer_only"
+INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821"
+THREE_RANK_HEAD_FIELDS = {
+    "promotion": ("promotion_rank", "predicted_promotion_probability"),
+    "big_loss": ("big_loss_safety_rank", "predicted_big_loss_probability"),
+    "profit": ("profit_rank", "predicted_profit_probability"),
+}
+THREE_RANK_CSV_FIELDS = (
+    "contract_version",
+    "schema_version",
+    "contract_status",
+    "bundle_sha256",
+    "top10_members_sha256",
+    "signal_date",
+    "exec_date",
+    "exit_date",
+    "feature_as_of_date",
+    "feature_snapshot_sha256",
+    "promotion_pool_size",
+    "top10_count",
+    "ts_code",
+    "name",
+    "industry",
+    "stage_transition",
+    "top10_selected",
+    "promotion_rank",
+    "predicted_promotion_probability",
+    "big_loss_safety_rank",
+    "predicted_big_loss_probability",
+    "profit_rank",
+    "predicted_profit_probability",
+    "promotion_model_status",
+    "promotion_model_version",
+    "promotion_model_as_of_date",
+    "promotion_model_artifact_sha256",
+    "promotion_validation_gate_pass_count",
+    "promotion_validation_gate_total_count",
+    "promotion_validation_gate_score_pct",
+    "big_loss_model_status",
+    "big_loss_model_version",
+    "big_loss_model_as_of_date",
+    "big_loss_model_artifact_sha256",
+    "big_loss_validation_gate_pass_count",
+    "big_loss_validation_gate_total_count",
+    "big_loss_validation_gate_score_pct",
+    "profit_model_status",
+    "profit_model_version",
+    "profit_model_as_of_date",
+    "profit_model_artifact_sha256",
+    "profit_validation_gate_pass_count",
+    "profit_validation_gate_total_count",
+    "profit_validation_gate_score_pct",
+    "p_fill_shadow_probability",
+    "p_fill_shadow_status",
+    "p_fill_shadow_model_version",
+    "p_fill_shadow_model_as_of_date",
+    "p_fill_shadow_model_artifact_sha256",
+    "p_fill_shadow_validation_gate_pass_count",
+    "p_fill_shadow_validation_gate_total_count",
+    "p_fill_shadow_validation_gate_score_pct",
+)
 
 
 class DecisionPagesTruthError(ValueError):
@@ -164,6 +232,667 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     return payload
 
 
+def _canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _three_rank_member_hash(signal_date: str, codes: list[str]) -> str:
+    payload = {
+        "schema": "dc20_three_rank_member_set_v1",
+        "signal_date": signal_date,
+        "members": sorted(set(codes)),
+    }
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
+def _three_rank_core_projection(contract: dict[str, Any]) -> dict[str, Any]:
+    row_fields = (
+        "ts_code",
+        "name",
+        "industry",
+        "stage_transition",
+        "top10_selected",
+        "promotion_rank",
+        "predicted_promotion_probability",
+        "big_loss_safety_rank",
+        "predicted_big_loss_probability",
+        "profit_rank",
+        "predicted_profit_probability",
+    )
+    return {
+        "schema_version": contract.get("schema_version"),
+        "artifact_kind": contract.get("artifact_kind"),
+        "contract_version": contract.get("contract_version"),
+        "signal_date": contract.get("signal_date"),
+        "exec_date": contract.get("exec_date"),
+        "exit_date": contract.get("exit_date"),
+        "feature_as_of_date": contract.get("feature_as_of_date"),
+        "feature_snapshot_sha256": contract.get("feature_snapshot_sha256"),
+        "promotion_pool_size": contract.get("promotion_pool_size"),
+        "top10_count": contract.get("top10_count"),
+        "top10_members_sha256": contract.get("top10_members_sha256"),
+        "models": contract.get("models"),
+        "rows": [
+            {field: row.get(field) for field in row_fields}
+            for row in contract.get("rows", [])
+        ],
+    }
+
+
+def _strict_probability(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise DecisionPagesTruthError(f"{field} must be a numeric probability")
+    number = float(value)
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        raise DecisionPagesTruthError(f"{field} is outside [0,1]")
+    return number
+
+
+def _validate_validation_gate_summary(
+    meta: dict[str, Any],
+    *,
+    label: str,
+) -> None:
+    for field in (
+        "validation_gate_pass_count",
+        "validation_gate_total_count",
+        "validation_gate_score_pct",
+    ):
+        if field not in meta:
+            raise DecisionPagesTruthError(
+                f"{label} validation gate metadata is missing"
+            )
+    pass_count = meta.get("validation_gate_pass_count")
+    total_count = meta.get("validation_gate_total_count")
+    score = meta.get("validation_gate_score_pct")
+    if pass_count is None and total_count is None and score is None:
+        return
+    if (
+        type(pass_count) is not int
+        or type(total_count) is not int
+        or total_count <= 0
+        or pass_count < 0
+        or pass_count > total_count
+        or isinstance(score, bool)
+        or not isinstance(score, (int, float))
+        or not math.isfinite(float(score))
+    ):
+        raise DecisionPagesTruthError(
+            f"{label} validation gate summary is invalid"
+        )
+    expected = round(100.0 * pass_count / total_count, 1)
+    if not math.isclose(float(score), expected, abs_tol=1e-9):
+        raise DecisionPagesTruthError(
+            f"{label} validation gate score is inconsistent"
+        )
+
+
+def _validate_three_rank_contract_payload(
+    payload: dict[str, Any],
+    *,
+    label: str,
+) -> dict[str, Any] | None:
+    contract = payload.get("three_rank")
+    if contract is None:
+        return None
+    if not isinstance(contract, dict):
+        raise DecisionPagesTruthError(f"{label}.three_rank must be an object")
+    if contract.get("schema_version") != THREE_RANK_SCHEMA:
+        raise DecisionPagesTruthError(f"{label}.three_rank schema is invalid")
+    if contract.get("contract_version") != THREE_RANK_CONTRACT_VERSION:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank contract version is invalid"
+        )
+    if contract.get("artifact_kind") != "d_close_independent_three_rank_top10":
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank artifact kind is invalid"
+        )
+    signal_date, signal_day = _strict_date(
+        contract.get("signal_date"), f"{label}.three_rank.signal_date"
+    )
+    exec_date, exec_day = _strict_date(
+        contract.get("exec_date"), f"{label}.three_rank.exec_date"
+    )
+    exit_date, exit_day = _strict_date(
+        contract.get("exit_date"), f"{label}.three_rank.exit_date"
+    )
+    if not signal_day < exec_day < exit_day:
+        raise DecisionPagesTruthError(f"{label}.three_rank dates are invalid")
+    if (
+        signal_date != payload.get("signal_date")
+        or exec_date != payload.get("exec_date")
+        or exit_date != payload.get("exit_date")
+        or contract.get("feature_as_of_date") != signal_date
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank is not bound to its parent dates"
+        )
+    rows = contract.get("rows")
+    if not isinstance(rows, list) or len(rows) > 10 or any(
+        not isinstance(row, dict) for row in rows
+    ):
+        raise DecisionPagesTruthError(f"{label}.three_rank rows are invalid")
+    pool_size = contract.get("promotion_pool_size")
+    if (
+        type(pool_size) is not int
+        or pool_size < 0
+        or pool_size < len(rows)
+        or contract.get("top10_count") != len(rows)
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank pool or row count is invalid"
+        )
+    codes: list[str] = []
+    required_row_fields = {
+        "ts_code",
+        "name",
+        "industry",
+        "stage_transition",
+        "top10_selected",
+        *(field for fields in THREE_RANK_HEAD_FIELDS.values() for field in fields),
+    }
+    for position, row in enumerate(rows, start=1):
+        if not required_row_fields.issubset(row):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank row {position} lacks required fields"
+            )
+        code = row.get("ts_code")
+        if type(code) is not str or not code.strip():
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank row {position} code is invalid"
+            )
+        if row.get("top10_selected") != 1:
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank row {position} escaped the frozen set"
+            )
+        if row.get("stage_transition") not in {"2→3", "3→4"}:
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank row {position} escaped the hard stages"
+            )
+        codes.append(code.strip())
+    if len(set(codes)) != len(codes):
+        raise DecisionPagesTruthError(f"{label}.three_rank has duplicate codes")
+    expected_members = _three_rank_member_hash(signal_date, codes)
+    if contract.get("top10_members_sha256") != expected_members:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank frozen member hash is invalid"
+        )
+    models = contract.get("models")
+    if not isinstance(models, dict) or set(models) != set(
+        THREE_RANK_HEAD_FIELDS
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank model inventory is invalid"
+        )
+    ready_heads = 0
+    for head, (rank_field, probability_field) in THREE_RANK_HEAD_FIELDS.items():
+        meta = models[head]
+        if not isinstance(meta, dict):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank {head} model metadata is invalid"
+            )
+        status = meta.get("status")
+        if type(status) is not str or not (
+            status == "READY" or status.startswith("NOT_READY_")
+        ):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank {head} status is invalid"
+            )
+        ready = status == "READY"
+        ready_heads += int(ready)
+        if (
+            meta.get("ranking_ready") is not ready
+            or meta.get("probability_ready") is not ready
+            or meta.get("rank_field") != rank_field
+            or meta.get("probability_field") != probability_field
+            or meta.get("input_members_sha256") != expected_members
+        ):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank {head} binding is invalid"
+            )
+        _validate_validation_gate_summary(
+            meta,
+            label=f"{label}.three_rank.{head}",
+        )
+        ranks = [row.get(rank_field) for row in rows]
+        probabilities = [row.get(probability_field) for row in rows]
+        if ready:
+            version = meta.get("version")
+            model_as_of, model_as_of_day = _strict_date(
+                meta.get("model_as_of_date"),
+                f"{label}.three_rank.{head}.model_as_of_date",
+            )
+            if (
+                type(version) is not str
+                or not version.strip()
+                or model_as_of_day >= signal_day
+                or type(meta.get("artifact_sha256")) is not str
+                or SHA256_RE.fullmatch(meta["artifact_sha256"]) is None
+            ):
+                raise DecisionPagesTruthError(
+                    f"{label}.three_rank {head} READY provenance is invalid"
+                )
+            if any(type(rank) is not int or isinstance(rank, bool) for rank in ranks):
+                raise DecisionPagesTruthError(
+                    f"{label}.three_rank {head} ranks are invalid"
+                )
+            if sorted(ranks) != list(range(1, len(rows) + 1)):
+                raise DecisionPagesTruthError(
+                    f"{label}.three_rank {head} ranks are not 1..N"
+                )
+            for position, probability in enumerate(probabilities, start=1):
+                _strict_probability(
+                    probability,
+                    f"{label}.three_rank row {position}.{probability_field}",
+                )
+        elif any(
+            rank is not None or probability is not None
+            for rank, probability in zip(ranks, probabilities)
+        ):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank {head} emitted a fake unready rank"
+            )
+    promotion_ready = models["promotion"]["status"] == "READY"
+    if not promotion_ready and any(
+        models[head]["status"] != "NOT_READY_NO_FROZEN_TOP10"
+        for head in ("big_loss", "profit")
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank downstream READY without engine A"
+        )
+    if (not promotion_ready and rows) or (
+        promotion_ready and len(rows) != min(10, pool_size)
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank official Top10 membership is invalid"
+        )
+    snapshot = contract.get("feature_snapshot_sha256")
+    if (
+        promotion_ready
+        and rows
+        and (type(snapshot) is not str or SHA256_RE.fullmatch(snapshot) is None)
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank feature snapshot is invalid"
+        )
+    expected_status = (
+        "READY"
+        if ready_heads == 3
+        else "PARTIAL_MODELS_NOT_READY"
+        if promotion_ready
+        else "NOT_READY_PROMOTION"
+    )
+    if contract.get("status") != expected_status:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank aggregate status is invalid"
+        )
+    shadow = contract.get("shadow_contract")
+    if (
+        not isinstance(shadow, dict)
+        or shadow.get("status") != "ANNOTATION_ONLY"
+        or shadow.get("input_members_sha256") != expected_members
+        or shadow.get("may_change_membership") is not False
+        or shadow.get("may_override_core_ranks") is not False
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank shadow override contract is invalid"
+        )
+    shadow_model_status = shadow.get("model_status")
+    if type(shadow_model_status) is not str or not (
+        shadow_model_status.startswith("SHADOW_")
+        or shadow_model_status.startswith("NOT_READY_")
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank shadow model status is invalid"
+        )
+    if shadow_model_status == "SHADOW_READY":
+        shadow_as_of, shadow_as_of_day = _strict_date(
+            shadow.get("model_as_of_date"),
+            f"{label}.three_rank.p_fill_shadow.model_as_of_date",
+        )
+        if (
+            type(shadow.get("model_version")) is not str
+            or not shadow["model_version"].strip()
+            or shadow_as_of_day >= signal_day
+            or type(shadow.get("model_artifact_sha256")) is not str
+            or SHA256_RE.fullmatch(shadow["model_artifact_sha256"]) is None
+        ):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank SHADOW_READY provenance is invalid"
+            )
+    _validate_validation_gate_summary(
+        shadow,
+        label=f"{label}.three_rank.p_fill_shadow",
+    )
+    expected_bundle = hashlib.sha256(
+        _canonical_json_bytes(_three_rank_core_projection(contract))
+    ).hexdigest()
+    if contract.get("bundle_sha256") != expected_bundle:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank bundle hash is invalid"
+        )
+    downloads = contract.get("downloads")
+    expected_prefix = f"outputs/decision/three_rank_top10_{signal_date}"
+    if (
+        not isinstance(downloads, dict)
+        or downloads.get("json_url") != f"{expected_prefix}.json"
+        or downloads.get("csv_url") != f"{expected_prefix}.csv"
+        or type(downloads.get("csv_sha256")) is not str
+        or SHA256_RE.fullmatch(downloads["csv_sha256"]) is None
+        or downloads.get("row_count") != len(rows)
+    ):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank download binding is invalid"
+        )
+    return contract
+
+
+def _csv_scalar(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _validate_three_rank_downloads(
+    *,
+    payload: dict[str, Any],
+    site_root: Path,
+    label: str,
+) -> None:
+    contract = _validate_three_rank_contract_payload(payload, label=label)
+    if contract is None:
+        return
+    signal_date = contract["signal_date"]
+    json_path = _site_child(
+        site_root,
+        ("outputs", "decision", f"three_rank_top10_{signal_date}.json"),
+        f"{label}.three_rank JSON download",
+    )
+    artifact = _load_json_object(
+        json_path, f"{label}.three_rank JSON download"
+    )
+    artifact_wrapper = {
+        "signal_date": contract["signal_date"],
+        "exec_date": contract["exec_date"],
+        "exit_date": contract["exit_date"],
+        "three_rank": artifact,
+    }
+    _validate_three_rank_contract_payload(
+        artifact_wrapper,
+        label=f"{label}.three_rank JSON download",
+    )
+    if artifact != contract:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank JSON download differs from the embedded contract"
+        )
+    csv_path = _site_child(
+        site_root,
+        ("outputs", "decision", f"three_rank_top10_{signal_date}.csv"),
+        f"{label}.three_rank CSV download",
+    )
+    if csv_path.is_symlink() or not csv_path.is_file() or csv_path.stat().st_size <= 0:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank CSV download is missing, empty, or a symlink"
+        )
+    csv_bytes = csv_path.read_bytes()
+    if hashlib.sha256(csv_bytes).hexdigest() != contract["downloads"][
+        "csv_sha256"
+    ]:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank CSV download hash drifted"
+        )
+    try:
+        reader = csv.DictReader(csv_bytes.decode("utf-8-sig").splitlines())
+        csv_rows = list(reader)
+    except (UnicodeError, csv.Error) as exc:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank CSV download is invalid"
+        ) from exc
+    if tuple(reader.fieldnames or ()) != THREE_RANK_CSV_FIELDS:
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank CSV header is invalid"
+        )
+    if len(csv_rows) != len(contract["rows"]):
+        raise DecisionPagesTruthError(
+            f"{label}.three_rank CSV row count is invalid"
+        )
+    models = contract["models"]
+    common = {
+        "contract_version": contract["contract_version"],
+        "schema_version": contract["schema_version"],
+        "contract_status": contract["status"],
+        "bundle_sha256": contract["bundle_sha256"],
+        "top10_members_sha256": contract["top10_members_sha256"],
+        "signal_date": contract["signal_date"],
+        "exec_date": contract["exec_date"],
+        "exit_date": contract["exit_date"],
+        "feature_as_of_date": contract["feature_as_of_date"],
+        "feature_snapshot_sha256": contract["feature_snapshot_sha256"],
+        "promotion_pool_size": contract["promotion_pool_size"],
+        "top10_count": contract["top10_count"],
+    }
+    for head in THREE_RANK_HEAD_FIELDS:
+        common[f"{head}_model_status"] = models[head]["status"]
+        common[f"{head}_model_version"] = models[head]["version"]
+        common[f"{head}_model_as_of_date"] = models[head][
+            "model_as_of_date"
+        ]
+        common[f"{head}_model_artifact_sha256"] = models[head][
+            "artifact_sha256"
+        ]
+        common[f"{head}_validation_gate_pass_count"] = models[head][
+            "validation_gate_pass_count"
+        ]
+        common[f"{head}_validation_gate_total_count"] = models[head][
+            "validation_gate_total_count"
+        ]
+        common[f"{head}_validation_gate_score_pct"] = models[head][
+            "validation_gate_score_pct"
+        ]
+    shadow = contract["shadow_contract"]
+    common["p_fill_shadow_model_version"] = shadow["model_version"]
+    common["p_fill_shadow_model_as_of_date"] = shadow[
+        "model_as_of_date"
+    ]
+    common["p_fill_shadow_model_artifact_sha256"] = shadow[
+        "model_artifact_sha256"
+    ]
+    common["p_fill_shadow_validation_gate_pass_count"] = shadow[
+        "validation_gate_pass_count"
+    ]
+    common["p_fill_shadow_validation_gate_total_count"] = shadow[
+        "validation_gate_total_count"
+    ]
+    common["p_fill_shadow_validation_gate_score_pct"] = shadow[
+        "validation_gate_score_pct"
+    ]
+    for position, (csv_row, contract_row) in enumerate(
+        zip(csv_rows, contract["rows"]), start=1
+    ):
+        expected = {**common, **contract_row}
+        if any(
+            csv_row[field] != _csv_scalar(expected.get(field))
+            for field in THREE_RANK_CSV_FIELDS
+        ):
+            raise DecisionPagesTruthError(
+                f"{label}.three_rank CSV row {position} differs from JSON"
+            )
+
+
+def _three_rank_index_payload(
+    contract: dict[str, Any],
+    *,
+    contract_sha256: str,
+) -> dict[str, Any]:
+    downloads = contract["downloads"]
+    return {
+        "schema_version": THREE_RANK_INDEX_SCHEMA,
+        "index_kind": THREE_RANK_INDEX_KIND,
+        "data_alias": False,
+        "latest_signal_date": contract["signal_date"],
+        "latest_exec_date": contract["exec_date"],
+        "latest_exit_date": contract["exit_date"],
+        "latest_status": contract["status"],
+        "latest_contract_url": downloads["json_url"],
+        "latest_csv_url": downloads["csv_url"],
+        "latest_contract_sha256": contract_sha256,
+        "latest_csv_sha256": downloads["csv_sha256"],
+        "latest_bundle_sha256": contract["bundle_sha256"],
+        "latest_top10_members_sha256": contract[
+            "top10_members_sha256"
+        ],
+    }
+
+
+def validate_three_rank_index_truth(
+    *,
+    index_path: Path,
+    site_root: Path,
+) -> dict[str, Any]:
+    site_root, _decision_root = _site_decision_root(Path(site_root))
+    expected_path = _site_child(
+        site_root,
+        ("outputs", "decision", "three_rank_index.json"),
+        "three-rank index",
+    )
+    supplied = _without_symlink_components(Path(index_path), "three-rank index")
+    if supplied != expected_path:
+        raise DecisionPagesTruthError("three-rank index path is not exact")
+    index = _load_json_object(supplied, "three-rank index")
+    if (
+        index.get("schema_version") != THREE_RANK_INDEX_SCHEMA
+        or index.get("index_kind") != THREE_RANK_INDEX_KIND
+        or index.get("data_alias") is not False
+    ):
+        raise DecisionPagesTruthError("three-rank index contract is invalid")
+    signal_date, _ = _strict_date(
+        index.get("latest_signal_date"),
+        "three-rank index.latest_signal_date",
+    )
+    exec_date, signal_exec_day = _strict_date(
+        index.get("latest_exec_date"),
+        "three-rank index.latest_exec_date",
+    )
+    exit_date, exit_day = _strict_date(
+        index.get("latest_exit_date"),
+        "three-rank index.latest_exit_date",
+    )
+    _, signal_day = _strict_date(signal_date, "three-rank index signal date")
+    if not signal_day < signal_exec_day < exit_day:
+        raise DecisionPagesTruthError("three-rank index date order is invalid")
+    expected_prefix = f"outputs/decision/three_rank_top10_{signal_date}"
+    if (
+        index.get("latest_contract_url") != f"{expected_prefix}.json"
+        or index.get("latest_csv_url") != f"{expected_prefix}.csv"
+    ):
+        raise DecisionPagesTruthError("three-rank index URL is not dated")
+    contract_path = _site_child(
+        site_root,
+        ("outputs", "decision", f"three_rank_top10_{signal_date}.json"),
+        "three-rank index contract",
+    )
+    contract = _load_json_object(contract_path, "three-rank index contract")
+    contract_sha256 = hashlib.sha256(contract_path.read_bytes()).hexdigest()
+    wrapper = {
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "three_rank": contract,
+    }
+    _validate_three_rank_downloads(
+        payload=wrapper,
+        site_root=site_root,
+        label="three-rank index contract",
+    )
+    expected = _three_rank_index_payload(
+        contract,
+        contract_sha256=contract_sha256,
+    )
+    if index != expected:
+        raise DecisionPagesTruthError(
+            "three-rank index differs from its immutable dated contract"
+        )
+    return contract
+
+
+def _project_three_rank_index(site_root: Path, decision_root: Path) -> None:
+    json_dates: set[str] = set()
+    csv_dates: set[str] = set()
+    contracts: dict[str, tuple[dict[str, Any], str]] = {}
+    for path in decision_root.iterdir():
+        json_match = DATED_THREE_RANK_JSON_RE.fullmatch(path.name)
+        csv_match = DATED_THREE_RANK_CSV_RE.fullmatch(path.name)
+        if json_match:
+            signal_date, _ = _strict_date(
+                json_match.group(1), "three-rank JSON filename date"
+            )
+            json_dates.add(signal_date)
+            contract = _load_json_object(
+                path, f"dated three-rank contract {signal_date}"
+            )
+            if contract.get("signal_date") != signal_date:
+                raise DecisionPagesTruthError(
+                    "dated three-rank contract filename is date-inconsistent"
+                )
+            wrapper = {
+                "signal_date": contract.get("signal_date"),
+                "exec_date": contract.get("exec_date"),
+                "exit_date": contract.get("exit_date"),
+                "three_rank": contract,
+            }
+            _validate_three_rank_downloads(
+                payload=wrapper,
+                site_root=site_root,
+                label=f"dated three-rank contract {signal_date}",
+            )
+            contracts[signal_date] = (
+                contract,
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+        elif csv_match:
+            signal_date, _ = _strict_date(
+                csv_match.group(1), "three-rank CSV filename date"
+            )
+            csv_dates.add(signal_date)
+    index_path = _site_child(
+        site_root,
+        ("outputs", "decision", "three_rank_index.json"),
+        "three-rank index",
+    )
+    if json_dates != csv_dates:
+        raise DecisionPagesTruthError(
+            "dated three-rank JSON/CSV inventory mismatch"
+        )
+    if not contracts:
+        if index_path.exists():
+            raise DecisionPagesTruthError(
+                "three-rank index exists without a dated contract"
+            )
+        return
+    latest, latest_contract_sha256 = contracts[max(contracts)]
+    if index_path.exists() and (
+        not index_path.is_file() or index_path.is_symlink()
+    ):
+        raise DecisionPagesTruthError("three-rank index is not a regular file")
+    index_path.write_text(
+        json.dumps(
+            _three_rank_index_payload(
+                latest,
+                contract_sha256=latest_contract_sha256,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    validate_three_rank_index_truth(index_path=index_path, site_root=site_root)
+
+
 def _load_evaluation(path: Path) -> dict[str, Any]:
     return _load_json_object(path, "evaluation")
 
@@ -203,6 +932,7 @@ def _validate_action_payload(
     # no execution claim; an affirmative claim is always rejected.
     if payload.get("execution_or_fill_claimed", False) is not False:
         raise DecisionPagesTruthError(f"{label} cannot claim execution or fill")
+    _validate_three_rank_contract_payload(payload, label=label)
 
 
 def _validate_research_context_payload(
@@ -210,10 +940,16 @@ def _validate_research_context_payload(
     *,
     report_date: str,
     label: str,
+    site_root: Path,
+    independent_dc20_path: bool = False,
 ) -> None:
     """Validate a public research artifact without importing model code."""
 
     if payload.get("schema_version") == "decision_research_context_v1_historical_parity":
+        if independent_dc20_path:
+            raise DecisionPagesTruthError(
+                f"{label} cannot place historical parity in the DC20 path"
+            )
         if payload.get("artifact_kind") != "historical_parity_research_context":
             raise DecisionPagesTruthError(f"{label}.artifact_kind is invalid")
         if payload.get("historical_parity") is not True or payload.get("research_only") is not True:
@@ -403,8 +1139,29 @@ def _validate_research_context_payload(
     if not signal_day < report_day == exec_day < exit_day:
         raise DecisionPagesTruthError(f"{label} date order is invalid")
 
+    if independent_dc20_path:
+        if (
+            signal_date < INDEPENDENCE_CUTOVER_SIGNAL_DATE
+            or payload.get("independent_dc20_context") is not True
+            or payload.get("independence_cutover_signal_date")
+            != INDEPENDENCE_CUTOVER_SIGNAL_DATE
+            or payload.get("active_evidence_scope")
+            != "dc20_owned_dated_three_rank_bundle_only"
+            or payload.get("historical_parity") is not False
+        ):
+            raise DecisionPagesTruthError(
+                f"{label} independent DC20 cutover binding is invalid"
+            )
+    elif payload.get("independent_dc20_context") is True:
+        raise DecisionPagesTruthError(
+            f"{label} independent DC20 context is in the legacy path"
+        )
+
     model = payload.get("model")
-    if not isinstance(model, dict) or model.get("prediction_matches_report") is not True:
+    if not isinstance(model, dict) or (
+        model.get("prediction_matches_report") is not True
+        and not independent_dc20_path
+    ):
         raise DecisionPagesTruthError(f"{label}.model is not date-bound")
     if model.get("action_authorized") is not False:
         raise DecisionPagesTruthError(f"{label}.model cannot authorize action")
@@ -413,7 +1170,12 @@ def _validate_research_context_payload(
     if not isinstance(binding, dict):
         raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
     scope = binding.get("scope")
-    if scope != "same_repository_local_artifacts_only":
+    expected_scope = (
+        "same_repository_dc20_three_rank_artifacts_only"
+        if independent_dc20_path
+        else "same_repository_local_artifacts_only"
+    )
+    if scope != expected_scope:
         raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
     files = binding.get("files")
     if not isinstance(files, dict) or not files:
@@ -444,6 +1206,49 @@ def _validate_research_context_payload(
                 raise DecisionPagesTruthError(f"{label}.{collection} contains selected action")
             if row.get("market_order_allowed") is not False:
                 raise DecisionPagesTruthError(f"{label}.{collection} permits a market order")
+    three_rank = _validate_three_rank_contract_payload(payload, label=label)
+    if independent_dc20_path and (
+        not isinstance(three_rank, dict)
+        or three_rank.get("models", {})
+        .get("promotion", {})
+        .get("status")
+        != "READY"
+        or not three_rank.get("rows")
+        or not isinstance(three_rank.get("downloads"), dict)
+    ):
+        raise DecisionPagesTruthError(
+            f"{label} lacks a complete engine-A three-rank download contract"
+        )
+    if independent_dc20_path:
+        assert isinstance(three_rank, dict)
+        downloads = three_rank["downloads"]
+        expected_sources = {
+            downloads["json_url"],
+            downloads["csv_url"],
+        }
+        if (
+            set(files) != expected_sources
+            or files.get(downloads["csv_url"]) != downloads["csv_sha256"]
+        ):
+            raise DecisionPagesTruthError(
+                f"{label} source inventory is not the exact dated bundle"
+            )
+        for relative, claimed_digest in files.items():
+            source_path = _site_child(
+                site_root,
+                tuple(relative.split("/")),
+                f"{label} source bundle file",
+            )
+            if (
+                source_path.is_symlink()
+                or not source_path.is_file()
+                or source_path.stat().st_size <= 0
+                or hashlib.sha256(source_path.read_bytes()).hexdigest()
+                != claimed_digest
+            ):
+                raise DecisionPagesTruthError(
+                    f"{label} source bundle SHA256 drifted"
+                )
 
 
 def _load_sse_calendar(path: Path) -> dict[str, bool]:
@@ -562,12 +1367,18 @@ def project_report_index_action_truth(
     evaluation_paths: dict[str, Path] = {}
     action_paths: dict[str, Path] = {}
     research_paths: dict[str, Path] = {}
+    dc20_research_paths: dict[str, Path] = {}
     for path in decision_root.iterdir():
         for pattern, inventory, label in (
             (DATED_REPORT_RE, report_paths, "dated report"),
             (DATED_EVALUATION_RE, evaluation_paths, "dated evaluation"),
             (DATED_ACTION_RE, action_paths, "dated action"),
             (DATED_RESEARCH_RE, research_paths, "dated research context"),
+            (
+                DATED_DC20_RESEARCH_RE,
+                dc20_research_paths,
+                "dated independent DC20 research context",
+            ),
         ):
             match = pattern.fullmatch(path.name)
             if match is None:
@@ -609,6 +1420,14 @@ def project_report_index_action_truth(
     if orphan_research:
         raise DecisionPagesTruthError(
             f"dated research contexts have no matching report: {orphan_research!r}"
+        )
+    orphan_dc20_research = sorted(
+        set(dc20_research_paths).difference(report_paths)
+    )
+    if orphan_dc20_research:
+        raise DecisionPagesTruthError(
+            "dated independent DC20 research contexts have no matching report: "
+            f"{orphan_dc20_research!r}"
         )
 
     reports: list[dict[str, Any]] = []
@@ -660,22 +1479,78 @@ def project_report_index_action_truth(
                 report_date=report_date,
                 label=f"dated action for {report_date}",
             )
+            _validate_three_rank_downloads(
+                payload=action,
+                site_root=site_root,
+                label=f"dated action for {report_date}",
+            )
             row["action_url"] = f"outputs/decision/action_plan_{report_date}.json"
             action_dates.append(report_date)
+        historical_archive = None
         if report_date in research_paths:
-            research = _load_json_object(
+            historical_archive = _load_json_object(
                 research_paths[report_date],
                 f"dated research context for {report_date}",
             )
             _validate_research_context_payload(
-                research,
+                historical_archive,
                 report_date=report_date,
                 label=f"dated research context for {report_date}",
+                site_root=site_root,
             )
+            _validate_three_rank_downloads(
+                payload=historical_archive,
+                site_root=site_root,
+                label=f"dated research context for {report_date}",
+            )
+        if report_date in dc20_research_paths:
+            research = _load_json_object(
+                dc20_research_paths[report_date],
+                f"dated independent DC20 research context for {report_date}",
+            )
+            _validate_research_context_payload(
+                research,
+                report_date=report_date,
+                label=(
+                    f"dated independent DC20 research context for {report_date}"
+                ),
+                site_root=site_root,
+                independent_dc20_path=True,
+            )
+            _validate_three_rank_downloads(
+                payload=research,
+                site_root=site_root,
+                label=(
+                    f"dated independent DC20 research context for {report_date}"
+                ),
+            )
+            row["research_url"] = (
+                f"outputs/decision/research_context_dc20_{report_date}.json"
+            )
+            row["research_available"] = True
+            row["research_kind"] = "dc20_independent"
+            if historical_archive is not None:
+                if historical_archive.get("schema_version") != (
+                    "decision_research_context_v1_historical_parity"
+                ):
+                    raise DecisionPagesTruthError(
+                        "only historical parity may coexist as a DC20 archive"
+                    )
+                row["research_archive_available"] = True
+                row["research_archive_url"] = (
+                    f"outputs/decision/research_context_{report_date}.json"
+                )
+        elif historical_archive is not None:
             row["research_url"] = (
                 f"outputs/decision/research_context_{report_date}.json"
             )
             row["research_available"] = True
+            row["research_kind"] = (
+                "historical_archive"
+                if historical_archive.get("schema_version")
+                == "decision_research_context_v1_historical_parity"
+                else "legacy_daily"
+            )
         reports.append(row)
 
     latest_report_date = str(reports[0]["report_date"])
@@ -702,6 +1577,7 @@ def project_report_index_action_truth(
         ),
         "reports": reports,
     }
+    _project_three_rank_index(site_root, decision_root)
     index_path = _site_child(
         site_root,
         ("outputs", "decision", "report_index.json"),
@@ -806,6 +1682,11 @@ def validate_report_index_action_truth(
                 report_date=report_date,
                 label=f"dated action for {report_date}",
             )
+            _validate_three_rank_downloads(
+                payload=action_payload,
+                site_root=site_root,
+                label=f"dated action for {report_date}",
+            )
         except DecisionPagesTruthError as exc:
             action_error = exc
 
@@ -835,42 +1716,122 @@ def validate_report_index_action_truth(
             raise DecisionPagesTruthError(
                 f"report_index.reports[{row_number}].research_available must be a bool"
             )
-        expected_research_url = (
-            f"outputs/decision/research_context_{report_date}.json"
-        )
-        research_path = _site_child(
+        legacy_research_path = _site_child(
             site_root,
             ("outputs", "decision", f"research_context_{report_date}.json"),
             f"dated research context for {report_date}",
         )
-        research_payload: dict[str, Any] | None = None
-        research_error: DecisionPagesTruthError | None = None
-        try:
-            research_payload = _load_json_object(
-                research_path, f"dated research context for {report_date}"
+        dc20_research_path = _site_child(
+            site_root,
+            (
+                "outputs",
+                "decision",
+                f"research_context_dc20_{report_date}.json",
+            ),
+            f"dated independent DC20 research context for {report_date}",
+        )
+        legacy_research: dict[str, Any] | None = None
+        dc20_research: dict[str, Any] | None = None
+        if legacy_research_path.exists():
+            legacy_research = _load_json_object(
+                legacy_research_path,
+                f"dated research context for {report_date}",
             )
             _validate_research_context_payload(
-                research_payload,
+                legacy_research,
                 report_date=report_date,
                 label=f"dated research context for {report_date}",
+                site_root=site_root,
             )
-        except DecisionPagesTruthError as exc:
-            research_error = exc
-        valid_dated_research = (
-            research_payload is not None and research_error is None
-        )
+            _validate_three_rank_downloads(
+                payload=legacy_research,
+                site_root=site_root,
+                label=f"dated research context for {report_date}",
+            )
+        if dc20_research_path.exists():
+            dc20_research = _load_json_object(
+                dc20_research_path,
+                f"dated independent DC20 research context for {report_date}",
+            )
+            _validate_research_context_payload(
+                dc20_research,
+                report_date=report_date,
+                label=(
+                    f"dated independent DC20 research context for {report_date}"
+                ),
+                site_root=site_root,
+                independent_dc20_path=True,
+            )
+            _validate_three_rank_downloads(
+                payload=dc20_research,
+                site_root=site_root,
+                label=(
+                    f"dated independent DC20 research context for {report_date}"
+                ),
+            )
+        if dc20_research is not None:
+            expected_research_url = (
+                f"outputs/decision/research_context_dc20_{report_date}.json"
+            )
+            expected_research_kind = "dc20_independent"
+            if legacy_research is not None and legacy_research.get(
+                "schema_version"
+            ) != "decision_research_context_v1_historical_parity":
+                raise DecisionPagesTruthError(
+                    "only historical parity may coexist as a DC20 archive"
+                )
+        elif legacy_research is not None:
+            expected_research_url = (
+                f"outputs/decision/research_context_{report_date}.json"
+            )
+            expected_research_kind = (
+                "historical_archive"
+                if legacy_research.get("schema_version")
+                == "decision_research_context_v1_historical_parity"
+                else "legacy_daily"
+            )
+        else:
+            expected_research_url = ""
+            expected_research_kind = ""
+        valid_dated_research = bool(expected_research_url)
         if research_available:
             if report.get("research_url") != expected_research_url:
                 raise DecisionPagesTruthError(
-                    f"report_index.reports[{row_number}].research_url is not exact"
+                    f"report_index.reports[{row_number}].research_url is not the preferred exact path"
+                )
+            if report.get("research_kind") != expected_research_kind:
+                raise DecisionPagesTruthError(
+                    f"report_index.reports[{row_number}].research_kind is invalid"
                 )
             if not valid_dated_research:
                 raise DecisionPagesTruthError(
-                    f"advertised dated research context is invalid for {report_date}: {research_error}"
+                    f"advertised dated research context is invalid for {report_date}"
+                )
+            has_archive = dc20_research is not None and legacy_research is not None
+            if has_archive:
+                if (
+                    report.get("research_archive_available") is not True
+                    or report.get("research_archive_url")
+                    != f"outputs/decision/research_context_{report_date}.json"
+                ):
+                    raise DecisionPagesTruthError(
+                        "historical parity archive is not explicitly separated"
+                    )
+            elif "research_archive_available" in report or "research_archive_url" in report:
+                raise DecisionPagesTruthError(
+                    "report_index advertises a nonexistent research archive"
                 )
             research_dates.append(report_date)
         else:
-            if "research_url" in report:
+            if any(
+                field in report
+                for field in (
+                    "research_url",
+                    "research_kind",
+                    "research_archive_available",
+                    "research_archive_url",
+                )
+            ):
                 raise DecisionPagesTruthError(
                     f"unavailable research context for {report_date} must not have research_url"
                 )
@@ -917,6 +1878,25 @@ def validate_report_index_action_truth(
     if report_index.get("latest_action_url") != expected_latest_action_url:
         raise DecisionPagesTruthError(
             "report_index.latest_action_url is not the newest valid dated action URL"
+        )
+
+    three_rank_index_path = _site_child(
+        site_root,
+        ("outputs", "decision", "three_rank_index.json"),
+        "three-rank index",
+    )
+    dated_three_rank_exists = any(
+        DATED_THREE_RANK_JSON_RE.fullmatch(path.name)
+        for path in _decision_root.iterdir()
+    )
+    if three_rank_index_path.exists():
+        validate_three_rank_index_truth(
+            index_path=three_rank_index_path,
+            site_root=site_root,
+        )
+    elif dated_three_rank_exists:
+        raise DecisionPagesTruthError(
+            "dated three-rank contract is hidden without three_rank_index.json"
         )
 
     return DecisionActionIndexTruth(
@@ -1026,7 +2006,9 @@ __all__ = [
     "DecisionActionIndexTruth",
     "DecisionPagesTruth",
     "DecisionPagesTruthError",
+    "INDEPENDENCE_CUTOVER_SIGNAL_DATE",
     "assess_decision_pages_truth",
     "project_report_index_action_truth",
     "validate_report_index_action_truth",
+    "validate_three_rank_index_truth",
 ]

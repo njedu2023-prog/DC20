@@ -28,6 +28,12 @@ from top10decision.decision.contracts import (
     HISTORY_CONTRACT_VERSION,
     PREOPEN_AUCTION_GATE_AUDIT,
 )
+from top10decision.decision.d_close_features import (
+    D_CLOSE_FEATURE_COLUMNS,
+    D_CLOSE_MAX_HISTORY_BARS,
+    compute_d_close_features,
+    empty_d_close_feature_values,
+)
 from top10decision.decision.canonical_fingerprint import (
     CANONICAL_FINGERPRINT_SCHEMA,
     canonical_execution_projection,
@@ -50,6 +56,13 @@ from top10decision.decision.trade_selector import (
     prepare_observation_top10,
     score_trade_selector,
     walkforward_trade_selector,
+)
+from top10decision.decision.three_engine_models import (
+    THREE_ENGINE_CONTRACT_VERSION,
+    ThreeEngineArtifactError,
+    load_three_engine_artifacts,
+    score_three_engine_snapshot,
+    top10_members_sha256 as three_engine_top10_members_sha256,
 )
 from top10decision.writers.io_contract import (
     choose_exec_date,
@@ -90,6 +103,58 @@ MODEL_EXECUTABLE_POLICY_THRESHOLDS = (
     "min_exit_probability",
     "min_conservative_ev",
     "min_selection_score",
+)
+
+# These are the only columns the independent three-engine runtime is allowed
+# to project back onto the legacy Auction frame.  Keeping an explicit list
+# prevents a model artifact from overwriting prices, membership inputs, or the
+# legacy observation/trade-selector shadow diagnostics.
+THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS = (
+    "promotion_pool_size",
+    "three_rank_contract_version",
+    "feature_snapshot_sha256",
+    "top10_selected",
+    "promotion_rank",
+    "promotion_rank_score",
+    "predicted_promotion_probability",
+    "big_loss_safety_rank",
+    "big_loss_rank_score",
+    "predicted_big_loss_probability",
+    "profit_rank",
+    "profit_rank_score",
+    "predicted_profit_probability",
+    "p_fill_shadow_probability",
+    "p_fill_shadow_score",
+    "p_fill_shadow_rank",
+    "top10_members_sha256",
+    "p_fill_shadow_status",
+    "promotion_model_status",
+    "promotion_model_version",
+    "promotion_model_as_of_date",
+    "promotion_model_artifact_sha256",
+    "promotion_validation_gate_pass_count",
+    "promotion_validation_gate_total_count",
+    "promotion_validation_gate_score_pct",
+    "big_loss_model_status",
+    "big_loss_model_version",
+    "big_loss_model_as_of_date",
+    "big_loss_model_artifact_sha256",
+    "big_loss_validation_gate_pass_count",
+    "big_loss_validation_gate_total_count",
+    "big_loss_validation_gate_score_pct",
+    "profit_model_status",
+    "profit_model_version",
+    "profit_model_as_of_date",
+    "profit_model_artifact_sha256",
+    "profit_validation_gate_pass_count",
+    "profit_validation_gate_total_count",
+    "profit_validation_gate_score_pct",
+    "p_fill_shadow_model_version",
+    "p_fill_shadow_model_as_of_date",
+    "p_fill_shadow_model_artifact_sha256",
+    "p_fill_shadow_validation_gate_pass_count",
+    "p_fill_shadow_validation_gate_total_count",
+    "p_fill_shadow_validation_gate_score_pct",
 )
 
 
@@ -5460,6 +5525,64 @@ class AuctionV3Engine:
             "diagnostics": best["diagnostics"],
         }
 
+    def _three_engine_d_close_market_features(
+        self,
+        signal_date: str,
+        code: str,
+        dates: Sequence[str],
+    ) -> dict[str, Any]:
+        """Reproduce the five-year ledger's D-close market feature contract.
+
+        Only stock-local bars at or before ``signal_date`` are considered.  A
+        suspended stock therefore uses its preceding observed bars, matching
+        the public daily-kline ledger rather than accidentally treating a
+        suspension as a zero-return session.
+        """
+
+        result: dict[str, Any] = empty_d_close_feature_values()
+        target_date = _normal_date(signal_date)
+        if not target_date:
+            return result
+        history: list[dict[str, float | str]] = []
+        eligible_dates = [
+            _normal_date(date)
+            for date in dates
+            if _normal_date(date) and _normal_date(date) <= target_date
+        ]
+        seen_dates: set[str] = set()
+        # Twenty-one observed bars cover every registered runtime feature.
+        for trade_date in reversed(eligible_dates):
+            if trade_date in seen_dates:
+                continue
+            seen_dates.add(trade_date)
+            daily = self._row(self.market_table(trade_date, "daily"), code)
+            if daily is None:
+                continue
+            close = _numeric_from(daily, ("close",))
+            if not math.isfinite(close) or close <= 0:
+                continue
+            history.append(
+                {
+                    "trade_date": trade_date,
+                    "open": _numeric_from(daily, ("open",)),
+                    "close": close,
+                    "high": _numeric_from(daily, ("high",)),
+                    "low": _numeric_from(daily, ("low",)),
+                    "volume": _numeric_from(daily, ("vol", "volume")),
+                }
+            )
+            if len(history) >= D_CLOSE_MAX_HISTORY_BARS:
+                break
+        history.reverse()
+        canonical = compute_d_close_features(
+            pd.DataFrame(history),
+            cutoff_date=target_date,
+        )
+        if canonical.empty or canonical.iloc[-1]["trade_date"] != target_date:
+            return result
+        latest = canonical.iloc[-1]
+        return {name: latest[name] for name in D_CLOSE_FEATURE_COLUMNS}
+
     def _current_base(self, signal_date: str, candidates: pd.DataFrame) -> pd.DataFrame:
         dates = self.market_dates()
         d_daily_table = self.market_table(signal_date, "daily")
@@ -5475,6 +5598,10 @@ class AuctionV3Engine:
             if d_close <= 0:
                 continue
             d_limit = self._row(d_limit_table, code)
+            d_daily_basic = self._row(
+                self.market_table(signal_date, "daily_basic"),
+                code,
+            )
             limit_ratio = self._limit_ratio(d_daily, d_limit)
             mechanism_limit_pct = _finite(
                 candidate.get("decision_limit_pct"),
@@ -5493,7 +5620,19 @@ class AuctionV3Engine:
                 signal_date=signal_date,
             )
             consecutive_limit_ups = self._consecutive_limit_up_count(signal_date, code, dates)
+            # Engine A's official universe is the complete hard 2->3/3->4
+            # standard-main-board pool.  No pre-ranking or old observation
+            # Top10 is allowed to narrow this frame.
+            if consecutive_limit_ups not in (2, 3) or not code.endswith((".SH", ".SZ")):
+                continue
             features["limit_times"] = float(consecutive_limit_ups)
+            features.update(
+                self._three_engine_d_close_market_features(
+                    signal_date,
+                    code,
+                    dates,
+                )
+            )
             features.update(
                 self._streak_path_features(
                     signal_date,
@@ -5515,8 +5654,27 @@ class AuctionV3Engine:
                     "name": str(candidate.get("name", candidate.get("股票", ""))),
                     "industry": _text_from(candidate, INDUSTRY_ALIASES),
                     "stage": f"{consecutive_limit_ups}→{consecutive_limit_ups + 1}",
+                    "board": "SH_MAIN" if code.endswith(".SH") else "SZ_MAIN",
                     "source_rank": features["source_rank"],
+                    "d_open": _numeric_from(d_daily, ("open",)),
                     "d_close": d_close,
+                    "d_high": _numeric_from(d_daily, ("high",)),
+                    "d_low": _numeric_from(d_daily, ("low",)),
+                    "d_volume": _numeric_from(d_daily, ("vol", "volume")),
+                    "d_amount": _numeric_from(d_daily, ("amount",)),
+                    "d_pct_change": (
+                        100.0 * (d_close / _pre_close(d_daily) - 1.0)
+                        if _pre_close(d_daily) > 0
+                        else _numeric_from(d_daily, ("pct_chg",))
+                    ),
+                    "d_turnover_pct": (
+                        _numeric_from(
+                            d_daily_basic,
+                            ("turnover_rate", "turnover_rate_f"),
+                        )
+                        if d_daily_basic is not None
+                        else np.nan
+                    ),
                     "estimated_up_limit": _round_price(d_close * (1.0 + limit_ratio)),
                     "mechanism_limit_pct": mechanism_limit_pct,
                     "decision_universe_rule": str(candidate.get("decision_universe_rule", "a_share_price_limit_le_10_v2")),
@@ -5525,6 +5683,10 @@ class AuctionV3Engine:
                 }
             )
         base = self._attach_cohort_features(pd.DataFrame(rows))
+        if not base.empty:
+            stage = pd.to_numeric(base["limit_times"], errors="coerce").round()
+            base["stage2_pool_size"] = float(stage.eq(2.0).sum())
+            base["stage3_pool_size"] = float(stage.eq(3.0).sum())
         return attach_promotion_source_features(base, self.config.root)
 
     def _walkforward_predictions(self, history: pd.DataFrame) -> pd.DataFrame:
@@ -6570,6 +6732,157 @@ class AuctionV3Engine:
             return False
         return (now.hour, now.minute, now.second) < (9, 25, 0)
 
+    def _apply_three_engine_runtime(
+        self,
+        scored: pd.DataFrame,
+        inference_pool: pd.DataFrame,
+        signal_date: str,
+    ) -> pd.DataFrame:
+        """Overlay hash-bound official ranks without touching shadow outputs.
+
+        The legacy Auction model and selector execute first, but their
+        promotion/profit/loss values are copied into explicitly named shadow
+        columns before this overlay.  A missing, stale, or hash-drifted model
+        inventory therefore yields blank official fields rather than silently
+        falling back to the old composite ranking.
+        """
+
+        output = scored.copy()
+        legacy_shadow_fields = {
+            "promotion_rank": "legacy_shadow_promotion_rank",
+            "promotion_rank_score": "legacy_shadow_promotion_rank_score",
+            "predicted_promotion_probability": (
+                "legacy_shadow_predicted_promotion_probability"
+            ),
+            "predicted_big_loss_probability": (
+                "legacy_shadow_predicted_big_loss_probability"
+            ),
+            "predicted_profit_probability": (
+                "legacy_shadow_predicted_profit_probability"
+            ),
+        }
+        for source, shadow in legacy_shadow_fields.items():
+            output[shadow] = (
+                output[source]
+                if source in output.columns
+                else pd.Series(np.nan, index=output.index, dtype=float)
+            )
+
+        validation_path = (
+            self.config.root
+            / "models"
+            / "decision_three_engines"
+            / "validation_latest.json"
+        )
+
+        def fail_closed(reason: str) -> pd.DataFrame:
+            failed = output.copy()
+            failed["promotion_pool_size"] = int(len(inference_pool))
+            failed["three_rank_contract_version"] = (
+                THREE_ENGINE_CONTRACT_VERSION
+            )
+            failed["feature_snapshot_sha256"] = ""
+            failed["top10_selected"] = 0
+            for column in (
+                "promotion_rank",
+                "big_loss_safety_rank",
+                "profit_rank",
+                "p_fill_shadow_rank",
+            ):
+                failed[column] = pd.Series(
+                    pd.NA,
+                    index=failed.index,
+                    dtype="Int64",
+                )
+            for column in (
+                "promotion_rank_score",
+                "predicted_promotion_probability",
+                "big_loss_rank_score",
+                "predicted_big_loss_probability",
+                "profit_rank_score",
+                "predicted_profit_probability",
+                "p_fill_shadow_probability",
+                "p_fill_shadow_score",
+            ):
+                failed[column] = np.nan
+            failed["top10_members_sha256"] = (
+                three_engine_top10_members_sha256(signal_date, [])
+            )
+            failed["p_fill_shadow_status"] = (
+                "SHADOW_NOT_READY_ARTIFACT_PROVENANCE"
+            )
+            failed["p_fill_shadow_model_version"] = ""
+            failed["p_fill_shadow_model_as_of_date"] = ""
+            failed["p_fill_shadow_model_artifact_sha256"] = ""
+            for field in (
+                "validation_gate_pass_count",
+                "validation_gate_total_count",
+                "validation_gate_score_pct",
+            ):
+                failed[f"p_fill_shadow_{field}"] = np.nan
+            for head in ("promotion", "big_loss", "profit"):
+                failed[f"{head}_model_status"] = reason
+                failed[f"{head}_model_version"] = ""
+                failed[f"{head}_model_as_of_date"] = ""
+                failed[f"{head}_model_artifact_sha256"] = ""
+                for field in (
+                    "validation_gate_pass_count",
+                    "validation_gate_total_count",
+                    "validation_gate_score_pct",
+                ):
+                    failed[f"{head}_{field}"] = np.nan
+            failed["three_engine_runtime_status"] = "NOT_READY_PROMOTION"
+            failed["three_engine_runtime_feature_gate_passed"] = 0
+            failed["three_engine_runtime_artifacts_hash_bound"] = 0
+            failed["three_engine_runtime_input_pool_complete"] = 1
+            failed["three_engine_runtime_failure"] = reason
+            return failed
+
+        try:
+            loaded = load_three_engine_artifacts(
+                validation_path,
+                root=self.config.root,
+            )
+            snapshot = score_three_engine_snapshot(
+                inference_pool,
+                loaded,
+                signal_date=signal_date,
+            )
+            official = snapshot.rows.copy()
+            if (
+                official["ts_code"].duplicated().any()
+                or output["ts_code"].duplicated().any()
+                or set(official["ts_code"].astype(str))
+                != set(output["ts_code"].astype(str))
+                or len(official) != len(output)
+            ):
+                raise ValueError(
+                    "three-engine scorer changed the complete D candidate pool"
+                )
+            official = official.set_index("ts_code", drop=False)
+            keys = output["ts_code"].astype(str)
+            for column in THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS:
+                if column not in official.columns:
+                    raise ValueError(
+                        f"three-engine scorer omitted required output: {column}"
+                    )
+                output[column] = keys.map(official[column])
+            output["three_engine_runtime_status"] = snapshot.status
+            output["three_engine_runtime_feature_gate_passed"] = int(
+                snapshot.diagnostics.get("runtime_feature_gate_passed") is True
+            )
+            output["three_engine_runtime_artifacts_hash_bound"] = 1
+            output["three_engine_runtime_input_pool_complete"] = 1
+            output["three_engine_runtime_failure"] = ""
+            return output
+        except (ThreeEngineArtifactError, OSError, ValueError, KeyError, TypeError):
+            reason = (
+                "NOT_READY_ARTIFACT_PROVENANCE"
+                if validation_path.exists()
+                else "NOT_READY_ARTIFACT_MISSING"
+            )
+            return fail_closed(reason)
+
     def build_prediction(
         self,
         signal_date: str,
@@ -6585,6 +6898,18 @@ class AuctionV3Engine:
             signal_date,
             candidates,
         )
+        # ``force`` may refresh a still-open D/T snapshot, but it is never an
+        # authorization to rewrite a dated prediction after its 09:25
+        # deadline.  Historical files are evidence, not mutable cache.
+        if (
+            dated_path.exists()
+            and force
+            and not self._prediction_revision_allowed(expected_buy)
+        ):
+            frozen = _read_csv(dated_path)
+            if not frozen.empty:
+                _write_csv(frozen, latest_path)
+                return frozen
         if (
             not dated_path.exists()
             and latest_path.exists()
@@ -6747,6 +7072,14 @@ class AuctionV3Engine:
             for name in trade_fields:
                 if name in trade_scored.columns:
                     scored.loc[trade_scored.index, name] = trade_scored[name]
+        # Official A/B/C inference always sees the complete hard-range D pool.
+        # It runs after both legacy selectors so neither can overwrite model A
+        # membership nor any of the three independent rank fields.
+        scored = self._apply_three_engine_runtime(
+            scored,
+            base,
+            signal_date,
+        )
         promotion_audit = (
             ((backtest_metrics.get("trade_selector") or {}).get("promotion_rank_oos"))
             or {}
@@ -6878,6 +7211,8 @@ class AuctionV3Engine:
             "path_divergence_reseal",
             "stage_pool_size",
             "focus_pool_size",
+            "stage2_pool_size",
+            "stage3_pool_size",
             "market_max_limit_times",
             "same_industry_stage_count",
             "stage_pool_share",
@@ -6888,7 +7223,30 @@ class AuctionV3Engine:
             "market_return_dispersion",
             *MARKET_SENTIMENT_OUTPUT_FIELDS,
             "source_rank",
+            "board",
+            "d_open",
             "d_close",
+            "d_high",
+            "d_low",
+            "d_volume",
+            "d_amount",
+            "d_pct_change",
+            "d_turnover_pct",
+            "returns_1d",
+            "high_low_range",
+            "candle_body",
+            "gap_open",
+            "vol",
+            "volume_ratio",
+            "volatility_5d",
+            "volatility_10d",
+            "volatility_20d",
+            "atr",
+            "ret_2d",
+            "ret_5d",
+            "ret_10d",
+            "bid_ask_proxy",
+            "spread_proxy",
             "estimated_up_limit",
             "diagnostic_gap",
             "recommended_max_gap",
@@ -6903,9 +7261,59 @@ class AuctionV3Engine:
             "observation_risk_label",
             "observation_selected",
             "observation_pool_size",
+            "promotion_pool_size",
+            "top10_selected",
+            "three_rank_contract_version",
+            "feature_snapshot_sha256",
+            "top10_members_sha256",
             "promotion_rank",
             "promotion_rank_score",
             "predicted_promotion_probability",
+            "promotion_model_status",
+            "promotion_model_version",
+            "promotion_model_as_of_date",
+            "promotion_model_artifact_sha256",
+            "promotion_validation_gate_pass_count",
+            "promotion_validation_gate_total_count",
+            "promotion_validation_gate_score_pct",
+            "big_loss_safety_rank",
+            "big_loss_rank_score",
+            "big_loss_model_status",
+            "big_loss_model_version",
+            "big_loss_model_as_of_date",
+            "big_loss_model_artifact_sha256",
+            "big_loss_validation_gate_pass_count",
+            "big_loss_validation_gate_total_count",
+            "big_loss_validation_gate_score_pct",
+            "profit_rank",
+            "profit_rank_score",
+            "profit_model_status",
+            "profit_model_version",
+            "profit_model_as_of_date",
+            "profit_model_artifact_sha256",
+            "profit_validation_gate_pass_count",
+            "profit_validation_gate_total_count",
+            "profit_validation_gate_score_pct",
+            "p_fill_shadow_rank",
+            "p_fill_shadow_probability",
+            "p_fill_shadow_score",
+            "p_fill_shadow_status",
+            "p_fill_shadow_model_version",
+            "p_fill_shadow_model_as_of_date",
+            "p_fill_shadow_model_artifact_sha256",
+            "p_fill_shadow_validation_gate_pass_count",
+            "p_fill_shadow_validation_gate_total_count",
+            "p_fill_shadow_validation_gate_score_pct",
+            "three_engine_runtime_status",
+            "three_engine_runtime_feature_gate_passed",
+            "three_engine_runtime_artifacts_hash_bound",
+            "three_engine_runtime_input_pool_complete",
+            "three_engine_runtime_failure",
+            "legacy_shadow_promotion_rank",
+            "legacy_shadow_promotion_rank_score",
+            "legacy_shadow_predicted_promotion_probability",
+            "legacy_shadow_predicted_big_loss_probability",
+            "legacy_shadow_predicted_profit_probability",
             "promotion_rank_quality_ready",
             "promotion_probability_quality_ready",
             "trade_rank",

@@ -24,7 +24,13 @@ from .canonical_fingerprint import (
 from .observation import (
     OBSERVATION_START_EXEC_DATE,
     OBSERVATION_TOP_N,
+    observation_price_contract,
     rank_observation_rows,
+)
+from .three_rank import (
+    THREE_RANK_CONTRACT_VERSION,
+    build_three_rank_contract,
+    materialize_three_rank_artifacts,
 )
 
 
@@ -397,6 +403,54 @@ ACTION_PLAN_OBSERVATION_DERIVED_FIELDS_V2 = (
 ACTION_PLAN_OBSERVATION_OVERLAY_FIELDS_V2 = frozenset(
     ACTION_PLAN_OBSERVATION_TRUTH_FIELDS_V2
     + ACTION_PLAN_OBSERVATION_DERIVED_FIELDS_V2
+)
+THREE_RANK_PENDING_PASSTHROUGH_FIELDS = (
+    "signal_date",
+    "expected_buy_date",
+    "expected_exit_date",
+    "top10_selected",
+    "three_rank_contract_version",
+    "promotion_pool_size",
+    "top10_members_sha256",
+    "feature_snapshot_sha256",
+    "promotion_rank",
+    "promotion_rank_score",
+    "predicted_promotion_probability",
+    "promotion_model_status",
+    "promotion_model_version",
+    "promotion_model_as_of_date",
+    "promotion_model_artifact_sha256",
+    "promotion_validation_gate_pass_count",
+    "promotion_validation_gate_total_count",
+    "promotion_validation_gate_score_pct",
+    "big_loss_safety_rank",
+    "big_loss_rank_score",
+    "predicted_big_loss_probability",
+    "big_loss_model_status",
+    "big_loss_model_version",
+    "big_loss_model_as_of_date",
+    "big_loss_model_artifact_sha256",
+    "big_loss_validation_gate_pass_count",
+    "big_loss_validation_gate_total_count",
+    "big_loss_validation_gate_score_pct",
+    "profit_rank",
+    "profit_rank_score",
+    "predicted_profit_probability",
+    "profit_model_status",
+    "profit_model_version",
+    "profit_model_as_of_date",
+    "profit_model_artifact_sha256",
+    "profit_validation_gate_pass_count",
+    "profit_validation_gate_total_count",
+    "profit_validation_gate_score_pct",
+    "p_fill_shadow_probability",
+    "p_fill_shadow_status",
+    "p_fill_shadow_model_version",
+    "p_fill_shadow_model_as_of_date",
+    "p_fill_shadow_model_artifact_sha256",
+    "p_fill_shadow_validation_gate_pass_count",
+    "p_fill_shadow_validation_gate_total_count",
+    "p_fill_shadow_validation_gate_score_pct",
 )
 
 
@@ -2162,8 +2216,7 @@ def _pending_candidates(frame: pd.DataFrame, limit: int = 20) -> list[dict[str, 
     eligible, _ = filter_standard_limit_universe(frame, code_col="ts_code", name_col="name")
     rows: list[dict[str, Any]] = []
     for index, (_, row) in enumerate(eligible.head(limit).iterrows(), start=1):
-        rows.append(
-            {
+        pending = {
                 "rank": index,
                 "action": "PENDING",
                 "ts_code": _text(row.get("ts_code")),
@@ -2192,8 +2245,14 @@ def _pending_candidates(frame: pd.DataFrame, limit: int = 20) -> list[dict[str, 
                 "decision_cost": _number(row.get("cost_est")),
                 "decision_risk_penalty": _number(row.get("risk_penalty")),
                 "rejection_reason": "等待 Decision 竞价指导模型完成严格样本外定价",
-            }
-        )
+        }
+        # A legacy action gate may be pending or stopped after engine A has
+        # already frozen a valid D-close Top10.  Keep the entire independent
+        # three-head surface intact; action authorization is removed by the
+        # fields above, not by deleting research evidence.
+        for field in THREE_RANK_PENDING_PASSTHROUGH_FIELDS:
+            pending[field] = _json_safe(row.get(field))
+        rows.append(pending)
     return rows
 
 
@@ -2264,11 +2323,115 @@ def _merge_auction_candidates(
                 ),
                 "trade_rank": _integer(row.get("trade_rank")),
                 "promotion_rank": _integer(row.get("promotion_rank")),
+                "big_loss_safety_rank": (
+                    _integer(row.get("big_loss_safety_rank")) or None
+                ),
+                "profit_rank": _integer(row.get("profit_rank")) or None,
+                "top10_selected": _integer(row.get("top10_selected")),
+                "three_rank_contract_version": _text(
+                    row.get("three_rank_contract_version")
+                ),
+                "promotion_pool_size": _integer(
+                    row.get("promotion_pool_size")
+                ),
+                "top10_members_sha256": _text(
+                    row.get("top10_members_sha256")
+                ),
+                "feature_snapshot_sha256": _text(
+                    row.get("feature_snapshot_sha256")
+                ),
                 "promotion_rank_score": _number(
                     row.get("promotion_rank_score")
                 ),
                 "predicted_promotion_probability": _number(
                     row.get("predicted_promotion_probability")
+                ),
+                "promotion_model_status": _text(
+                    row.get("promotion_model_status")
+                ),
+                "promotion_model_version": _text(
+                    row.get("promotion_model_version")
+                ),
+                "promotion_model_as_of_date": _text(
+                    row.get("promotion_model_as_of_date")
+                ),
+                "promotion_model_artifact_sha256": _text(
+                    row.get("promotion_model_artifact_sha256")
+                ),
+                "promotion_validation_gate_pass_count": _json_safe(
+                    row.get("promotion_validation_gate_pass_count")
+                ),
+                "promotion_validation_gate_total_count": _json_safe(
+                    row.get("promotion_validation_gate_total_count")
+                ),
+                "promotion_validation_gate_score_pct": _json_safe(
+                    row.get("promotion_validation_gate_score_pct")
+                ),
+                "big_loss_model_status": _text(
+                    row.get("big_loss_model_status")
+                ),
+                "big_loss_model_version": _text(
+                    row.get("big_loss_model_version")
+                ),
+                "big_loss_model_as_of_date": _text(
+                    row.get("big_loss_model_as_of_date")
+                ),
+                "big_loss_model_artifact_sha256": _text(
+                    row.get("big_loss_model_artifact_sha256")
+                ),
+                "big_loss_validation_gate_pass_count": _json_safe(
+                    row.get("big_loss_validation_gate_pass_count")
+                ),
+                "big_loss_validation_gate_total_count": _json_safe(
+                    row.get("big_loss_validation_gate_total_count")
+                ),
+                "big_loss_validation_gate_score_pct": _json_safe(
+                    row.get("big_loss_validation_gate_score_pct")
+                ),
+                "profit_model_status": _text(
+                    row.get("profit_model_status")
+                ),
+                "profit_model_version": _text(
+                    row.get("profit_model_version")
+                ),
+                "profit_model_as_of_date": _text(
+                    row.get("profit_model_as_of_date")
+                ),
+                "profit_model_artifact_sha256": _text(
+                    row.get("profit_model_artifact_sha256")
+                ),
+                "profit_validation_gate_pass_count": _json_safe(
+                    row.get("profit_validation_gate_pass_count")
+                ),
+                "profit_validation_gate_total_count": _json_safe(
+                    row.get("profit_validation_gate_total_count")
+                ),
+                "profit_validation_gate_score_pct": _json_safe(
+                    row.get("profit_validation_gate_score_pct")
+                ),
+                "p_fill_shadow_probability": _number(
+                    row.get("p_fill_shadow_probability")
+                ),
+                "p_fill_shadow_status": _text(
+                    row.get("p_fill_shadow_status")
+                ),
+                "p_fill_shadow_model_version": _text(
+                    row.get("p_fill_shadow_model_version")
+                ),
+                "p_fill_shadow_model_as_of_date": _text(
+                    row.get("p_fill_shadow_model_as_of_date")
+                ),
+                "p_fill_shadow_model_artifact_sha256": _text(
+                    row.get("p_fill_shadow_model_artifact_sha256")
+                ),
+                "p_fill_shadow_validation_gate_pass_count": _json_safe(
+                    row.get("p_fill_shadow_validation_gate_pass_count")
+                ),
+                "p_fill_shadow_validation_gate_total_count": _json_safe(
+                    row.get("p_fill_shadow_validation_gate_total_count")
+                ),
+                "p_fill_shadow_validation_gate_score_pct": _json_safe(
+                    row.get("p_fill_shadow_validation_gate_score_pct")
                 ),
                 "promotion_rank_quality_ready": _integer(
                     row.get("promotion_rank_quality_ready")
@@ -2449,10 +2612,118 @@ def _merge_auction_candidates(
     return rows
 
 
+def _independent_d_close_research_rows(
+    prediction: pd.DataFrame,
+    candidates: pd.DataFrame,
+    *,
+    signal_date: str,
+    exec_date: str,
+    exit_date: str,
+    risk_budget: float,
+) -> list[dict[str, Any]]:
+    """Keep a valid engine-A D list even when the legacy action gate stops.
+
+    Only the D identity must match here.  A stale/mismatched legacy T or T+1
+    execution projection cannot authorize a trade, but it also must not erase
+    an independently frozen D-close research list.  The regular three-rank
+    builder performs the complete membership, provenance, feature-snapshot and
+    set-hash validation before any row is retained.
+    """
+
+    if prediction.empty or not signal_date or not exec_date or not exit_date:
+        return []
+    if _strict_unique_prediction_date(prediction, "signal_date") != signal_date:
+        return []
+    versions = {
+        _text(value)
+        for value in prediction.get(
+            "three_rank_contract_version", pd.Series(dtype=object)
+        ).tolist()
+        if _text(value)
+    }
+    if versions != {THREE_RANK_CONTRACT_VERSION}:
+        return []
+    rows = _merge_auction_candidates(
+        prediction,
+        candidates,
+        promoted=False,
+        risk_budget=risk_budget,
+    )
+    probe = {
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "candidates": rows,
+        "stage_watchlist": [],
+        "model": {},
+    }
+    try:
+        contract = build_three_rank_contract(probe)
+    except ValueError:
+        return []
+    if (
+        contract.get("models", {}).get("promotion", {}).get("status")
+        != "READY"
+        or not contract.get("rows")
+    ):
+        return []
+    reason = (
+        "独立D收盘Top10已冻结；legacy行动条件未通过，全部仅作研究并禁止买入"
+    )
+    for row in rows:
+        row["action"] = "REJECT"
+        row["target_weight"] = 0.0
+        row["trade_selected"] = 0
+        row["market_order_allowed"] = False
+        row["order_type"] = "NONE_RESEARCH_ONLY"
+        row["rejection_reason"] = reason
+    return rows
+
+
 def _stage_watchlist(
     rows: list[dict[str, Any]],
     limit: int = OBSERVATION_TOP_N,
 ) -> tuple[list[dict[str, Any]], int]:
+    # New contract: engine A alone freezes membership.  Engines B/C and the
+    # shadow selector may annotate these rows, but may not add, remove, or
+    # reorder members.  Legacy plans without top10_selected retain the old
+    # observation ranking path for historical compatibility.
+    if any(
+        _text(row.get("three_rank_contract_version"))
+        or _text(row.get("promotion_model_status"))
+        for row in rows
+    ):
+        selected = [
+            dict(row)
+            for row in rows
+            if _integer(row.get("top10_selected")) == 1
+        ]
+        selected.sort(
+            key=lambda row: (
+                _integer(row.get("promotion_rank"), 999999),
+                _text(row.get("ts_code")),
+            )
+        )
+        selected = selected[: max(0, int(limit))]
+        pool_sizes = {
+            _integer(row.get("promotion_pool_size"))
+            for row in rows
+            if _integer(row.get("promotion_pool_size")) > 0
+        }
+        total = next(iter(pool_sizes)) if len(pool_sizes) == 1 else len(selected)
+        for row in selected:
+            # Explicit compatibility alias only.  It is no longer a fourth
+            # ranking engine and never feeds membership selection.
+            if _integer(row.get("promotion_rank")) > 0:
+                row["observation_rank"] = _integer(row.get("promotion_rank"))
+                row["stage_watch_rank"] = _integer(row.get("promotion_rank"))
+            row["observation_selected"] = 1
+            row["observation_pool_size"] = total
+            row.update(observation_price_contract(row))
+            row["watch_label"] = (
+                "正式买入" if _text(row.get("action")) == "BUY" else "仅观察"
+            )
+        return selected, total
     return rank_observation_rows(rows, limit=limit)
 
 
@@ -2656,7 +2927,34 @@ def _attach_observation_validation(
             "observation_statistics": metrics,
         }
     )
-    return _json_safe(plan)
+    plan = _json_safe(plan)
+    contract_rows = [
+        row
+        for collection in (plan.get("candidates"), plan.get("stage_watchlist"))
+        if isinstance(collection, list)
+        for row in collection
+        if isinstance(row, dict)
+    ]
+    if any(
+        row.get("three_rank_contract_version")
+        or row.get("promotion_model_status")
+        for row in contract_rows
+    ):
+        previous_three_rank = plan.get("three_rank")
+        three_rank = build_three_rank_contract(plan)
+        if (
+            isinstance(previous_three_rank, dict)
+            and previous_three_rank.get("bundle_sha256")
+            == three_rank.get("bundle_sha256")
+            and isinstance(previous_three_rank.get("downloads"), dict)
+        ):
+            three_rank["downloads"] = copy.deepcopy(
+                previous_three_rank["downloads"]
+            )
+        plan["three_rank"] = three_rank
+        plan["three_rank_contract_version"] = three_rank["contract_version"]
+        plan["top10_members_sha256"] = three_rank["top10_members_sha256"]
+    return plan
 
 
 def _attach_market_close_comparison(
@@ -2933,17 +3231,33 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
         and v2_eligibility_match
     )
 
+    independent_research_rows = (
+        _independent_d_close_research_rows(
+            prediction,
+            candidates,
+            signal_date=signal_date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            risk_budget=risk_budget,
+        )
+        if evaluation.get("stop_trading") is True or not prediction_matches
+        else []
+    )
+
     if evaluation.get("stop_trading") is True:
         status_code = "NO_TRADE_GUARDRAIL"
         status_label = "停手：风控阻止交易"
-        action_rows = _pending_candidates(candidates)
+        action_rows = independent_research_rows or _pending_candidates(candidates)
         for row in action_rows:
             row["action"] = "REJECT"
+            row["target_weight"] = 0.0
+            row["trade_selected"] = 0
+            row["market_order_allowed"] = False
             row["rejection_reason"] = _text(evaluation.get("reason")) or "Decision guardrail stopped trading"
     elif not prediction_matches:
         status_code = "PENDING_AUCTION_MODEL"
         status_label = "等待竞价执行模型完成"
-        action_rows = _pending_candidates(candidates)
+        action_rows = independent_research_rows or _pending_candidates(candidates)
     else:
         action_rows = _merge_auction_candidates(prediction, candidates, promoted=promoted, risk_budget=risk_budget)
         formal_count = sum(row["action"] == "BUY" for row in action_rows)
@@ -2957,7 +3271,8 @@ def build_action_plan(root: Path, report_date: str = "") -> dict[str, Any]:
             status_code = "ACTIONABLE_BUY"
             status_label = "人工参考：按竞价上限自行挂单"
 
-    action_rows = _ensure_relative_best_two(action_rows)
+    if not independent_research_rows:
+        action_rows = _ensure_relative_best_two(action_rows)
     formal_count = sum(row["action"] == "BUY" for row in action_rows)
     shadow_count = sum(row["action"] == "SHADOW_ONLY" for row in action_rows)
     stage_watchlist, stage_watch_total = _stage_watchlist(action_rows)
@@ -3393,6 +3708,12 @@ def build_report_index(root: Path, latest_report_date: str = "") -> dict[str, An
 def publish_action_plan(root: Path, report_date: str = "") -> tuple[Path, Path, Path, dict[str, Any]]:
     root = root.resolve()
     plan = build_action_plan(root, report_date)
+    if isinstance(plan.get("three_rank"), dict):
+        _, _, three_rank = materialize_three_rank_artifacts(
+            root,
+            plan["three_rank"],
+        )
+        plan["three_rank"] = three_rank
     report_date = str(plan["report_date"])
     output = root / "outputs" / "decision"
     dated_path = output / f"action_plan_{report_date}.json"

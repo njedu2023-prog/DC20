@@ -609,6 +609,10 @@ class FreezeV2Fixture(unittest.TestCase):
         action = behavior["action_watchlist"]
         decision = behavior["decision"]
         return {
+            # This fixture exercises the reviewed pre-three-rank canonical-V2
+            # baseline.  Patch its local freeze id as that one compatibility
+            # target instead of fabricating a production.three_rank overlay.
+            "LEGACY_PRE_THREE_RANK_FREEZE_ID": candidate["freeze_id"],
             "KNOWN_HISTORY_PATH": snapshot["path"],
             "KNOWN_HISTORY_SHA256": snapshot["sha256"],
             "KNOWN_HISTORY_ROWS": snapshot["rows"],
@@ -2933,16 +2937,34 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
             )["sha256"],
         )
 
-    def test_current_source_six_matches_reviewed_activation(self):
+    def test_current_source_six_matches_reviewed_activation_or_new_freeze(self):
         actual = {
             path: diagnose._sha256(diagnose.ROOT / path)
             for path in diagnose.ACTIVATION_SOURCE_PATHS
         }
-        self.assertEqual(actual, REVIEWED_ACTIVATION_SOURCE_FILES)
-        self.assertEqual(
-            diagnose._activation_source6_sha256(actual),
-            diagnose.EXPECTED_ACTIVATION_SOURCE6_SHA256,
+        manifest = json.loads(
+            (diagnose.ROOT / "models/decision_model_freeze.json").read_text(
+                encoding="utf-8"
+            )
         )
+        three_rank = (manifest.get("production") or {}).get("three_rank")
+        if three_rank is None:
+            # The historical activation evidence remains byte-for-byte exact
+            # until a separately signed three-rank freeze supersedes the live
+            # source surface.
+            self.assertEqual(actual, REVIEWED_ACTIVATION_SOURCE_FILES)
+            self.assertEqual(
+                diagnose._activation_source6_sha256(actual),
+                diagnose.EXPECTED_ACTIVATION_SOURCE6_SHA256,
+            )
+        else:
+            # Do not rewrite the historical evidence constants.  The upgraded
+            # live files are instead authorized by the new active pin set.
+            pins = manifest.get("pinned_files") or {}
+            self.assertEqual(
+                actual,
+                {path: pins.get(path) for path in diagnose.ACTIVATION_SOURCE_PATHS},
+            )
 
     def test_source_six_drift_and_candidate_alias_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:

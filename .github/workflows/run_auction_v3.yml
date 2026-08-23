@@ -343,7 +343,7 @@ jobs:
           import fnmatch, json, os, re
           from datetime import datetime
           from pathlib import Path
-          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
+          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -559,7 +559,7 @@ jobs:
                       raise SystemExit(f'duplicate recovery JSON key: {key}')
                   value[key] = item
               return value
-          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
+          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')

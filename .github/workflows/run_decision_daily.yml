@@ -603,7 +603,11 @@ jobs:
             --source-root "${research_root}" \
             --output-root "${GITHUB_WORKSPACE}" \
             --report-date "${report_date}"
-          RESEARCH_PATH="outputs/decision/research_context_${report_date}.json" \
+          research_path="outputs/decision/research_context_dc20_${report_date}.json"
+          if [ ! -f "${research_path}" ]; then
+            research_path="outputs/decision/research_context_${report_date}.json"
+          fi
+          RESEARCH_PATH="${research_path}" \
             REPORT_DATE="${report_date}" \
             PYTHONPATH="${GITHUB_WORKSPACE}/src" \
             python - <<'PY'
@@ -650,7 +654,7 @@ jobs:
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
@@ -782,7 +786,7 @@ jobs:
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):

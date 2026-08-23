@@ -38,6 +38,106 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 GITHUB_RUN_ID_PATTERN = re.compile(r"^[1-9][0-9]*$")
 
+# The canonical-V2 Decision baseline predates the independent three-rank
+# overlay.  It remains a valid replay target, but it is the *only* complete V2
+# freeze allowed to omit ``production.three_rank``.  Every newly signed freeze
+# must carry the strict contract below.
+LEGACY_PRE_THREE_RANK_FREEZE_ID = (
+    "dc20_decision_v13_promotion_oos_d20260815_history20260805"
+)
+THREE_RANK_FREEZE_SCHEMA_VERSION = "decision_three_rank_production_freeze_v2"
+THREE_RANK_VALIDATION_SCHEMA_VERSION = "decision_three_engine_validation_v2"
+THREE_RANK_CONTRACT_VERSION = "decision_three_rank_v1"
+THREE_RANK_FEATURE_CONTRACT = "D_CLOSE_RUNTIME_ALIGNED_NO_CROSS_HEAD_OUTPUTS_V2"
+THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION = "dc20_daily_candidate_d_close_v1"
+THREE_RANK_TOP_N = 10
+THREE_RANK_RUNTIME_FEATURE_COLUMNS = (
+    "returns_1d",
+    "high_low_range",
+    "candle_body",
+    "gap_open",
+    "vol",
+    "volume_ratio",
+    "volatility_5d",
+    "volatility_10d",
+    "volatility_20d",
+    "atr",
+    "ret_2d",
+    "ret_5d",
+    "ret_10d",
+    "bid_ask_proxy",
+    "spread_proxy",
+)
+THREE_RANK_CORE_HEADS = ("promotion", "big_loss", "profit")
+THREE_RANK_ALL_HEADS = (*THREE_RANK_CORE_HEADS, "p_fill_shadow")
+THREE_RANK_RELEASE_MODES = ("ALL_CORE_READY", "PROMOTION_READY_PARTIAL")
+THREE_RANK_DYNAMIC_ASSET_PATHS = frozenset(
+    {
+        "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+        "data/decision_three_engines/five_year_ledger_manifest.json",
+        "models/decision_three_engine_data_validation.json",
+        "models/decision_three_engines/promotion.joblib",
+        "models/decision_three_engines/big_loss.joblib",
+        "models/decision_three_engines/profit.joblib",
+        "models/decision_three_engines/p_fill_shadow.joblib",
+        "models/decision_three_engines/validation_latest.json",
+        "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+    }
+)
+THREE_RANK_BEHAVIOR_PIN_PATHS = frozenset(
+    {
+        ".github/workflows/train_decision_three_engines.yml",
+        "scripts/build_decision_three_rank_snapshot.py",
+        "scripts/build_three_engine_five_year_ledger.py",
+        "scripts/refreeze_decision_three_rank.py",
+        "scripts/train_three_engine_models.py",
+        "scripts/validate_three_engine_five_year_ledger.py",
+        "src/top10decision/decision/d_close_features.py",
+        "src/top10decision/decision/three_engine_models.py",
+        "src/top10decision/decision/three_rank.py",
+        "tests/test_auction_v3_three_engine_runtime.py",
+        "tests/test_build_decision_three_rank_snapshot.py",
+        "tests/test_d_close_features.py",
+        "tests/test_decision_three_rank_contract.py",
+        "tests/test_decision_three_rank_frontend.py",
+        "tests/test_three_engine_five_year_ledger.py",
+        "tests/test_three_engine_models.py",
+        "tests/test_three_engine_training_workflow.py",
+        "tests/test_three_rank_freeze.py",
+        "tests/test_validate_three_engine_five_year_ledger.py",
+    }
+)
+THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS = frozenset(
+    {
+        "data/decision_three_engines/recovery/20260821/candidate_pool.csv",
+        "data/decision_three_engines/recovery/20260821/daily_bars/000017_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/000710_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/000931_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/002038_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/002412_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/002491_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/002903_SZ.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/603626_SH.csv.gz",
+        "data/decision_three_engines/recovery/20260821/daily_bars/603958_SH.csv.gz",
+        "data/decision_three_engines/recovery/20260821/manifest.json",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/data_validation.json",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_ledger_manifest.json",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_supervised_ledger.csv.gz",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/three_engine_oof_top10.csv.gz",
+        "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+        "data/decision_three_engines/recovery/20260821/source_candidates.csv",
+        "data/decision_three_engines/recovery/20260821/source_meta.json",
+        "data/decision_three_engines/recovery/20260821/stock_priors.csv",
+        "outputs/decision/three_rank_top10_20260821.csv",
+        "outputs/decision/three_rank_top10_20260821.evidence.json",
+        "outputs/decision/three_rank_top10_20260821.json",
+    }
+)
+
 KNOWN_HISTORY_PATH = "models/decision_v12_frozen_history_20260805.csv.gz"
 KNOWN_HISTORY_SHA256 = (
     "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e"
@@ -192,6 +292,9 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "src/top10decision/writers/io_contract.py",
         "src/top10decision/writers/reports.py",
     }
+    | THREE_RANK_DYNAMIC_ASSET_PATHS
+    | THREE_RANK_BEHAVIOR_PIN_PATHS
+    | THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS
 )
 
 CANONICAL_CONTRACT_KEYS = frozenset(
@@ -616,6 +719,390 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def validate_production_three_rank_contract(
+    root: Path | str,
+    manifest: Mapping[str, Any],
+    *,
+    require_complete: bool = False,
+) -> dict[str, Any] | None:
+    """Validate the independently trained A/B/C production overlay.
+
+    Canonical V2 itself is intentionally unchanged.  The single reviewed
+    pre-three-rank freeze may still be replayed byte-for-byte; every later
+    complete freeze must carry this exact-key overlay and pin all of its source
+    evidence and executable assets.
+    """
+
+    root_path = Path(root).resolve()
+    production = _require_mapping(manifest.get("production"), "production")
+    value = production.get("three_rank")
+    if value is None:
+        if require_complete and manifest.get("freeze_id") != (
+            LEGACY_PRE_THREE_RANK_FREEZE_ID
+        ):
+            _fail("complete post-baseline V2 freeze requires production.three_rank")
+        return None
+
+    context = "production.three_rank"
+    contract = _require_mapping(value, context)
+    _require_exact_keys(
+        contract,
+        frozenset(
+            {
+                "schema_version",
+                "contract_version",
+                "validation_schema_version",
+                "feature_contract",
+                "runtime_feature_contract_version",
+                "runtime_feature_columns",
+                "runtime_feature_columns_sha256",
+                "feature_columns_sha256",
+                "top_n",
+                "eligible_pool",
+                "membership_authority",
+                "downstream_scope",
+                "fail_closed",
+                "source_ledger",
+                "validation",
+                "heads",
+                "oof_top10",
+                "all_core_heads_promoted",
+                "release_mode",
+            }
+        ),
+        context,
+    )
+    _require_text(
+        contract["schema_version"],
+        f"{context}.schema_version",
+        exact=THREE_RANK_FREEZE_SCHEMA_VERSION,
+    )
+    _require_text(
+        contract["contract_version"],
+        f"{context}.contract_version",
+        exact=THREE_RANK_CONTRACT_VERSION,
+    )
+    _require_text(
+        contract["validation_schema_version"],
+        f"{context}.validation_schema_version",
+        exact=THREE_RANK_VALIDATION_SCHEMA_VERSION,
+    )
+    _require_text(
+        contract["feature_contract"],
+        f"{context}.feature_contract",
+        exact=THREE_RANK_FEATURE_CONTRACT,
+    )
+    _require_text(
+        contract["runtime_feature_contract_version"],
+        f"{context}.runtime_feature_contract_version",
+        exact=THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION,
+    )
+    runtime_columns = _require_string_list(
+        contract["runtime_feature_columns"],
+        f"{context}.runtime_feature_columns",
+        exact=THREE_RANK_RUNTIME_FEATURE_COLUMNS,
+    )
+    runtime_columns_sha = _require_sha256(
+        contract["runtime_feature_columns_sha256"],
+        f"{context}.runtime_feature_columns_sha256",
+    )
+    if runtime_columns_sha != frame_columns_sha256(runtime_columns):
+        _fail(f"{context}.runtime_feature_columns_sha256 differs from columns")
+    _require_sha256(
+        contract["feature_columns_sha256"],
+        f"{context}.feature_columns_sha256",
+    )
+    _require_int(contract["top_n"], f"{context}.top_n", exact=THREE_RANK_TOP_N)
+    _require_text(
+        contract["eligible_pool"],
+        f"{context}.eligible_pool",
+        exact="hard_stage_2_to_3_and_3_to_4_pool",
+    )
+    _require_text(
+        contract["membership_authority"],
+        f"{context}.membership_authority",
+        exact="promotion_probability_engine_only",
+    )
+    _require_text(
+        contract["downstream_scope"],
+        f"{context}.downstream_scope",
+        exact="exact_frozen_promotion_top10",
+    )
+
+    fail_closed = _require_mapping(contract["fail_closed"], f"{context}.fail_closed")
+    _require_exact_keys(
+        fail_closed,
+        frozenset(
+            {
+                "artifact_or_ledger_drift",
+                "missing_or_invalid_runtime_feature",
+                "promotion_not_ready",
+                "unready_secondary_head",
+                "shadow_may_change_membership",
+                "shadow_may_override_core_ranks",
+                "formal_trade_status",
+            }
+        ),
+        f"{context}.fail_closed",
+    )
+    for key, exact in {
+        "artifact_or_ledger_drift": "ZERO_OFFICIAL_CORE_RANKS",
+        "missing_or_invalid_runtime_feature": "ZERO_OFFICIAL_CORE_RANKS",
+        "promotion_not_ready": "EMPTY_OFFICIAL_TOP10",
+        "unready_secondary_head": "NULL_HEAD_FIELDS",
+        "formal_trade_status": "NO_TRADE_MODEL_NOT_PROMOTED",
+    }.items():
+        _require_text(
+            fail_closed[key], f"{context}.fail_closed.{key}", exact=exact
+        )
+    for key in ("shadow_may_change_membership", "shadow_may_override_core_ranks"):
+        if _require_bool(fail_closed[key], f"{context}.fail_closed.{key}"):
+            _fail(f"{context}.fail_closed.{key} must remain false")
+
+    source = _require_mapping(contract["source_ledger"], f"{context}.source_ledger")
+    _require_exact_keys(
+        source,
+        frozenset(
+            {
+                "owner",
+                "runtime_dependency_on_top10_decision",
+                "schema_version",
+                "ledger_path",
+                "ledger_sha256",
+                "ledger_manifest_path",
+                "ledger_manifest_sha256",
+                "data_validation_path",
+                "data_validation_sha256",
+                "data_validation_schema_version",
+                "data_validation_status",
+                "data_validation_valid",
+                "rows",
+                "signal_dates",
+                "start_signal_date",
+                "end_signal_date",
+                "prior_truth_cutoff_rule",
+                "event_source_inventory_sha256",
+                "canonical_prediction_file_count",
+            }
+        ),
+        f"{context}.source_ledger",
+    )
+    _require_text(source["owner"], f"{context}.source_ledger.owner", exact="njedu2023-prog/DC20")
+    if _require_bool(
+        source["runtime_dependency_on_top10_decision"],
+        f"{context}.source_ledger.runtime_dependency_on_top10_decision",
+    ):
+        _fail(f"{context} must not depend on top10-decision at runtime")
+    _require_text(
+        source["schema_version"],
+        f"{context}.source_ledger.schema_version",
+        exact="dc20_three_engine_five_year_ledger_v1",
+    )
+    exact_source_paths = {
+        "ledger_path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+        "ledger_manifest_path": "data/decision_three_engines/five_year_ledger_manifest.json",
+        "data_validation_path": "models/decision_three_engine_data_validation.json",
+    }
+    for key, exact in exact_source_paths.items():
+        _require_text(source[key], f"{context}.source_ledger.{key}", exact=exact)
+    for key in ("ledger_sha256", "ledger_manifest_sha256", "data_validation_sha256", "event_source_inventory_sha256"):
+        _require_sha256(source[key], f"{context}.source_ledger.{key}")
+    _require_text(
+        source["data_validation_schema_version"],
+        f"{context}.source_ledger.data_validation_schema_version",
+        exact="dc20_three_engine_five_year_data_validation_v1",
+    )
+    _require_text(
+        source["data_validation_status"],
+        f"{context}.source_ledger.data_validation_status",
+        exact="PASS",
+    )
+    if not _require_bool(
+        source["data_validation_valid"],
+        f"{context}.source_ledger.data_validation_valid",
+    ):
+        _fail(f"{context}.source_ledger.data_validation_valid must be true")
+    _require_int(source["rows"], f"{context}.source_ledger.rows", minimum=10_000)
+    _require_int(
+        source["signal_dates"], f"{context}.source_ledger.signal_dates", minimum=1_100
+    )
+    for key in ("start_signal_date", "end_signal_date"):
+        date = _require_text(source[key], f"{context}.source_ledger.{key}")
+        if not _valid_date(date):
+            _fail(f"{context}.source_ledger.{key} must be YYYYMMDD")
+    if source["start_signal_date"] > source["end_signal_date"]:
+        _fail(f"{context}.source_ledger date range is reversed")
+    _require_text(
+        source["prior_truth_cutoff_rule"],
+        f"{context}.source_ledger.prior_truth_cutoff_rule",
+        exact="strictly_before_signal_date",
+    )
+    _require_int(
+        source["canonical_prediction_file_count"],
+        f"{context}.source_ledger.canonical_prediction_file_count",
+        minimum=0,
+    )
+
+    validation = _require_mapping(contract["validation"], f"{context}.validation")
+    _require_exact_keys(
+        validation,
+        frozenset(
+            {
+                "path",
+                "sha256",
+                "schema_version",
+                "status",
+                "ready",
+                "generated_at_utc",
+            }
+        ),
+        f"{context}.validation",
+    )
+    _require_text(
+        validation["path"],
+        f"{context}.validation.path",
+        exact="models/decision_three_engines/validation_latest.json",
+    )
+    _require_sha256(validation["sha256"], f"{context}.validation.sha256")
+    _require_text(
+        validation["schema_version"],
+        f"{context}.validation.schema_version",
+        exact=THREE_RANK_VALIDATION_SCHEMA_VERSION,
+    )
+    ready = _require_bool(validation["ready"], f"{context}.validation.ready")
+    expected_validation_status = "READY" if ready else "NOT_READY_VALIDATION_GATE"
+    _require_text(
+        validation["status"],
+        f"{context}.validation.status",
+        exact=expected_validation_status,
+    )
+    _require_text(
+        validation["generated_at_utc"], f"{context}.validation.generated_at_utc"
+    )
+
+    heads = _require_mapping(contract["heads"], f"{context}.heads")
+    _require_exact_keys(heads, frozenset(THREE_RANK_ALL_HEADS), f"{context}.heads")
+    expected_head_paths = {
+        head: f"models/decision_three_engines/{head}.joblib"
+        for head in THREE_RANK_ALL_HEADS
+    }
+    promoted: dict[str, bool] = {}
+    for head in THREE_RANK_ALL_HEADS:
+        head_context = f"{context}.heads.{head}"
+        item = _require_mapping(heads[head], head_context)
+        _require_exact_keys(
+            item,
+            frozenset(
+                {
+                    "role",
+                    "status",
+                    "promoted",
+                    "model_version",
+                    "model_as_of_date",
+                    "artifact_path",
+                    "artifact_sha256",
+                }
+            ),
+            head_context,
+        )
+        role = "core" if head in THREE_RANK_CORE_HEADS else "shadow_only"
+        _require_text(item["role"], f"{head_context}.role", exact=role)
+        status = _require_text(item["status"], f"{head_context}.status")
+        is_promoted = _require_bool(item["promoted"], f"{head_context}.promoted")
+        promoted[head] = is_promoted
+        if head == "p_fill_shadow":
+            if is_promoted:
+                _fail(f"{head_context}.promoted must remain false")
+            if status != "SHADOW_READY" and not status.startswith("NOT_READY_"):
+                _fail(f"{head_context}.status must be SHADOW_READY or NOT_READY_*")
+        elif is_promoted != (status == "READY"):
+            _fail(f"{head_context} READY and promoted must agree")
+        elif status != "READY" and not status.startswith("NOT_READY_"):
+            _fail(f"{head_context}.status must be READY or NOT_READY_*")
+        _require_text(item["model_version"], f"{head_context}.model_version")
+        as_of = _require_text(item["model_as_of_date"], f"{head_context}.model_as_of_date")
+        if not _valid_date(as_of) or as_of > source["end_signal_date"]:
+            _fail(f"{head_context}.model_as_of_date exceeds source truth")
+        expected_prefix = f"decision_three_engine_models_v2:{head}:{as_of}:"
+        if not item["model_version"].startswith(expected_prefix):
+            _fail(f"{head_context}.model_version is not bound to head/as-of")
+        _require_text(
+            item["artifact_path"],
+            f"{head_context}.artifact_path",
+            exact=expected_head_paths[head],
+        )
+        _require_sha256(item["artifact_sha256"], f"{head_context}.artifact_sha256")
+    if not promoted["promotion"]:
+        _fail(f"{context} production freeze requires a READY promotion authority")
+    all_core = _require_bool(
+        contract["all_core_heads_promoted"],
+        f"{context}.all_core_heads_promoted",
+    )
+    computed_all_core = all(promoted[head] for head in THREE_RANK_CORE_HEADS)
+    if all_core != computed_all_core or ready != computed_all_core:
+        _fail(f"{context} all-core/READY state is internally inconsistent")
+    release_mode = _require_text(
+        contract["release_mode"], f"{context}.release_mode"
+    )
+    expected_release_mode = (
+        "ALL_CORE_READY" if computed_all_core else "PROMOTION_READY_PARTIAL"
+    )
+    if release_mode != expected_release_mode:
+        _fail(f"{context}.release_mode is inconsistent with head state")
+    if release_mode == "PROMOTION_READY_PARTIAL" and any(
+        promoted[head] or not heads[head]["status"].startswith("NOT_READY_")
+        for head in ("big_loss", "profit")
+    ):
+        _fail(f"{context} partial mode requires both B/C heads NOT_READY")
+
+    oof = _require_mapping(contract["oof_top10"], f"{context}.oof_top10")
+    _require_exact_keys(
+        oof,
+        frozenset(
+            {
+                "path",
+                "sha256",
+                "dataset_sha256",
+                "rows",
+                "dates",
+                "valid",
+            }
+        ),
+        f"{context}.oof_top10",
+    )
+    _require_text(
+        oof["path"],
+        f"{context}.oof_top10.path",
+        exact="outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+    )
+    _require_sha256(oof["sha256"], f"{context}.oof_top10.sha256")
+    _require_sha256(oof["dataset_sha256"], f"{context}.oof_top10.dataset_sha256")
+    _require_int(oof["rows"], f"{context}.oof_top10.rows", minimum=1)
+    _require_int(oof["dates"], f"{context}.oof_top10.dates", minimum=1)
+    if not _require_bool(oof["valid"], f"{context}.oof_top10.valid"):
+        _fail(f"{context}.oof_top10.valid must be true")
+
+    pinned = _require_mapping(manifest.get("pinned_files"), "pinned_files")
+    contract_hashes = {
+        source["ledger_path"]: source["ledger_sha256"],
+        source["ledger_manifest_path"]: source["ledger_manifest_sha256"],
+        source["data_validation_path"]: source["data_validation_sha256"],
+        validation["path"]: validation["sha256"],
+        oof["path"]: oof["sha256"],
+        **{
+            heads[head]["artifact_path"]: heads[head]["artifact_sha256"]
+            for head in THREE_RANK_ALL_HEADS
+        },
+    }
+    if set(contract_hashes) != set(THREE_RANK_DYNAMIC_ASSET_PATHS):
+        _fail(f"{context} dynamic asset inventory is not exact")
+    for path, digest in contract_hashes.items():
+        _safe_repository_path(root_path, path, f"{context}.asset[{path!r}]")
+        if pinned.get(path) != digest:
+            _fail(f"{context} asset hash differs from pinned_files: {path}")
+    return dict(contract)
 
 
 def _validate_canonical_contract(
@@ -1365,6 +1852,11 @@ def _validate_v2_manifest(
     for relative, expected_sha in pinned.items():
         _safe_repository_path(root, relative, f"pinned_files[{relative!r}]")
         _require_sha256(expected_sha, f"pinned_files[{relative!r}]")
+    validate_production_three_rank_contract(
+        root,
+        payload,
+        require_complete=complete,
+    )
 
 
 def _validate_legacy_inactive_manifest(root: Path, payload: dict[str, Any]) -> None:
@@ -4484,6 +4976,7 @@ __all__ = [
     "KNOWN_HISTORY_ROWS",
     "KNOWN_HISTORY_SHA256",
     "KNOWN_REFERENCE_EVIDENCE",
+    "LEGACY_PRE_THREE_RANK_FREEZE_ID",
     "OOS_DISCRETE_BEHAVIOR_COLUMNS",
     "OOS_SCORE_COLUMNS",
     "MODEL_PREDICTION_CANONICAL_COLUMNS",
@@ -4493,6 +4986,19 @@ __all__ = [
     "SELECTOR_OUTSIDE_BINARY_ZERO_COLUMNS",
     "SELECTOR_OUTSIDE_NUMERIC_MISSING_COLUMNS",
     "REQUIRED_ACTIVE_PIN_PATHS",
+    "THREE_RANK_ALL_HEADS",
+    "THREE_RANK_BEHAVIOR_PIN_PATHS",
+    "THREE_RANK_CONTRACT_VERSION",
+    "THREE_RANK_CORE_HEADS",
+    "THREE_RANK_DYNAMIC_ASSET_PATHS",
+    "THREE_RANK_FEATURE_CONTRACT",
+    "THREE_RANK_FREEZE_SCHEMA_VERSION",
+    "THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS",
+    "THREE_RANK_RUNTIME_FEATURE_COLUMNS",
+    "THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION",
+    "THREE_RANK_RELEASE_MODES",
+    "THREE_RANK_TOP_N",
+    "THREE_RANK_VALIDATION_SCHEMA_VERSION",
     "TOP10_DISCRETE_BEHAVIOR_COLUMNS",
     "TOP10_SCORE_COLUMNS",
     "apply_frozen_history_cutoff",
@@ -4508,5 +5014,6 @@ __all__ = [
     "validate_behavior_artifacts",
     "validate_action_plan_artifact",
     "validate_pinned_files",
+    "validate_production_three_rank_contract",
     "validate_runtime_artifacts",
 ]

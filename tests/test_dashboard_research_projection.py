@@ -34,7 +34,7 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
-    assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url"]' in text
+    assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url", "research_kind", "research_archive_url"]' in text
     assert "targetInfo?.action_available === true" in text
     assert "if (!evidence.available) return null" in text
 
@@ -73,6 +73,21 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     assert 'if (researchPlan.historical_parity === true)' in text
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
-    assert 'const DASHBOARD_VERSION = "independent-full-parity-v4"' in text
+    assert 'const DASHBOARD_VERSION = "independent-three-rank-v5"' in text
     assert 'const researchExpected = info.research_available === true' in text
     assert "validatedResearchContext(info, researchResult.value)" in text
+
+
+def test_dashboard_prefers_hash_bound_dc20_cutover_evidence() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    assert 'const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821"' in text
+    assert 'fetchPath("outputs/decision/three_rank_index.json")' in text
+    assert 'index.index_kind !== "dated_three_rank_pointer_only"' in text
+    assert "index.data_alias !== false" in text
+    assert "index.latest_contract_sha256" in text
+    assert 'fetchPath(index.latest_contract_url, "bytes")' in text
+    assert 'fetchPath(index.latest_csv_url, "bytes")' in text
+    assert "sha256Hex(artifactBytes)" in text
+    assert "NOT_READY_NO_FROZEN_TOP10" in text
+    assert 'info?.research_kind === "dc20_independent"' in text
+    assert "if (!independentDc20Action) plan = researchPlan" in text

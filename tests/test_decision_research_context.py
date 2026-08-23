@@ -27,6 +27,10 @@ from top10decision.decision.research_context import (  # noqa: E402
     validate_research_context,
 )
 from top10decision.decision import research_context as research_context_module  # noqa: E402
+from top10decision.decision.three_rank import (  # noqa: E402
+    THREE_RANK_CONTRACT_VERSION,
+    build_three_rank_contract,
+)
 from scripts.decision_pages_truth import (  # noqa: E402
     project_report_index_action_truth,
 )
@@ -75,6 +79,44 @@ def _sources() -> dict[str, str]:
     }
 
 
+def _independent_plan() -> dict[str, object]:
+    plan = _plan()
+    row = copy.deepcopy(plan["candidates"][0])
+    row.update(
+        {
+            "three_rank_contract_version": THREE_RANK_CONTRACT_VERSION,
+            "top10_selected": 1,
+            "promotion_pool_size": 1,
+            "feature_snapshot_sha256": "f" * 64,
+            "promotion_rank": 1,
+            "predicted_promotion_probability": 0.81,
+            "big_loss_safety_rank": 1,
+            "predicted_big_loss_probability": 0.08,
+            "profit_rank": 1,
+            "predicted_profit_probability": 0.72,
+        }
+    )
+    for index, head in enumerate(("promotion", "big_loss", "profit"), 1):
+        row.update(
+            {
+                f"{head}_model_status": "READY",
+                f"{head}_model_version": f"{head}_v1",
+                f"{head}_model_as_of_date": "20260820",
+                f"{head}_model_artifact_sha256": str(index) * 64,
+            }
+        )
+    plan["candidates"] = [row]
+    plan["stage_watchlist"] = [{**row, "watch_label": "正式建议"}]
+    plan["model"] = {
+        **plan["model"],
+        # A valid independent D-close contract remains research truth even
+        # when the legacy report/eval date match is unavailable.
+        "prediction_matches_report": False,
+    }
+    plan["three_rank"] = build_three_rank_contract(plan)
+    return plan
+
+
 def _legacy_artifacts(plan: dict[str, object]) -> tuple[bytes, bytes, bytes]:
     action_raw = (
         json.dumps(plan, ensure_ascii=False, separators=(",", ":")) + "\n"
@@ -120,6 +162,41 @@ def test_research_projection_keeps_full_fields_but_removes_every_action() -> Non
     assert context["model"]["promoted"] is True
     assert context["model"]["action_authorized"] is False
     validate_research_context(context, expected_report_date="20260824")
+
+
+def test_independent_cutover_accepts_only_complete_a_contract() -> None:
+    context = project_research_context(
+        _independent_plan(),
+        source_files=_sources(),
+    )
+
+    assert context["independent_dc20_context"] is True
+    assert context["independence_cutover_signal_date"] == "20260821"
+    assert context["active_evidence_scope"] == (
+        "dc20_owned_dated_three_rank_bundle_only"
+    )
+    assert context["historical_parity"] is False
+    assert context["three_rank"]["models"]["promotion"]["status"] == "READY"
+    assert context["model"]["prediction_matches_report"] is False
+    assert all(row["action"] == "WATCH" for row in context["candidates"])
+    with pytest.raises(ResearchContextError, match="cutover-bound"):
+        validate_research_context(context, expected_report_date="20260824")
+    validate_research_context(
+        context,
+        expected_report_date="20260824",
+        require_independent_downloads=False,
+    )
+
+    invalid = copy.deepcopy(context)
+    invalid["three_rank"]["models"]["promotion"]["status"] = (
+        "NOT_READY_INVALID_MEMBERSHIP"
+    )
+    with pytest.raises(ResearchContextError, match="cutover-bound"):
+        validate_research_context(
+            invalid,
+            expected_report_date="20260824",
+            require_independent_downloads=False,
+        )
 
 
 @pytest.mark.parametrize(
@@ -424,6 +501,187 @@ def test_daily_publisher_preserves_existing_valid_historical_bytes(
     assert preserved["schema_version"] == (
         "decision_research_context_v1_historical_parity"
     )
+
+
+def test_cutover_publisher_keeps_history_archive_and_writes_dc20_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action_raw = json.dumps(_plan(), ensure_ascii=False).encode("utf-8")
+    legacy_source = tmp_path / "legacy-action.json"
+    legacy_source.write_bytes(action_raw)
+    historical_path, _historical = publish_vendored_research_context(
+        legacy_source,
+        tmp_path,
+        repository="njedu2023-prog/top10-decision",
+        commit_sha="1" * 40,
+        source_path="outputs/decision/action_plan_20260824.json",
+        blob_sha=git_blob_sha(action_raw),
+        raw_sha256=hashlib.sha256(action_raw).hexdigest(),
+    )
+    historical_bytes = historical_path.read_bytes()
+    independent = project_research_context(
+        _independent_plan(),
+        source_files=_sources(),
+    )
+    monkeypatch.setattr(
+        research_context_module,
+        "build_research_context",
+        lambda _root, _date="": copy.deepcopy(independent),
+    )
+
+    path, context = publish_research_context(
+        tmp_path / "isolated-dc20",
+        tmp_path,
+        "20260824",
+    )
+
+    assert path.name == "research_context_dc20_20260824.json"
+    assert historical_path.read_bytes() == historical_bytes
+    assert context["independent_dc20_context"] is True
+    assert context["three_rank"]["downloads"]["json_url"] == (
+        "outputs/decision/three_rank_top10_20260821.json"
+    )
+    assert (tmp_path / "outputs/decision/three_rank_index.json").is_file()
+    validate_research_context(context, expected_report_date="20260824")
+
+    changed_plan = _independent_plan()
+    changed_plan["candidates"][0]["predicted_promotion_probability"] = 0.79
+    changed_plan["stage_watchlist"] = [
+        {**changed_plan["candidates"][0], "watch_label": "正式建议"}
+    ]
+    changed_plan["three_rank"] = build_three_rank_contract(changed_plan)
+    changed = project_research_context(changed_plan, source_files=_sources())
+    monkeypatch.setattr(
+        research_context_module,
+        "build_research_context",
+        lambda _root, _date="": copy.deepcopy(changed),
+    )
+    with pytest.raises(ValueError, match="cannot be overwritten"):
+        publish_research_context(
+            tmp_path / "isolated-dc20",
+            tmp_path,
+            "20260824",
+        )
+
+
+def test_vendored_history_dated_file_is_write_once(tmp_path: Path) -> None:
+    first_raw = json.dumps(_plan(), ensure_ascii=False).encode("utf-8")
+    first = tmp_path / "legacy-first.json"
+    first.write_bytes(first_raw)
+    target, _ = publish_vendored_research_context(
+        first,
+        tmp_path,
+        repository="njedu2023-prog/top10-decision",
+        commit_sha="1" * 40,
+        source_path="outputs/decision/action_plan_20260824.json",
+        blob_sha=git_blob_sha(first_raw),
+        raw_sha256=hashlib.sha256(first_raw).hexdigest(),
+    )
+    original = target.read_bytes()
+
+    changed_plan = _plan()
+    changed_plan["status_label"] = "不同历史内容"
+    changed_raw = json.dumps(changed_plan, ensure_ascii=False).encode("utf-8")
+    changed = tmp_path / "legacy-changed.json"
+    changed.write_bytes(changed_raw)
+    with pytest.raises(ResearchContextError, match="cannot be overwritten"):
+        publish_vendored_research_context(
+            changed,
+            tmp_path,
+            repository="njedu2023-prog/top10-decision",
+            commit_sha="2" * 40,
+            source_path="outputs/decision/action_plan_20260824.json",
+            blob_sha=git_blob_sha(changed_raw),
+            raw_sha256=hashlib.sha256(changed_raw).hexdigest(),
+        )
+    assert target.read_bytes() == original
+
+
+def test_pages_prefers_independent_dc20_context_and_archives_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_index = tmp_path / "source" / "report_index.json"
+    source_index.parent.mkdir(parents=True)
+    source_index.write_text(
+        json.dumps(
+            {
+                "schema_version": "decision_report_index_v2_action_truth",
+                "generated_at_utc": "2026-08-21T14:00:00+00:00",
+                "latest_report_date": "20260824",
+                "latest_report_file": "decision_report_20260824.md",
+                "latest_action_report_date": "",
+                "latest_action_url": "",
+                "reports": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    site_root = tmp_path / "_site"
+    output = site_root / "outputs" / "decision"
+    output.mkdir(parents=True)
+    action_raw, report_raw, evaluation_raw = _legacy_artifacts(_plan())
+    (output / "decision_report_20260824.md").write_bytes(report_raw)
+    (output / "eval_20260824.json").write_bytes(evaluation_raw)
+    action_source = tmp_path / "legacy-action.json"
+    report_source = tmp_path / "legacy-report.md"
+    evaluation_source = tmp_path / "legacy-eval.json"
+    action_source.write_bytes(action_raw)
+    report_source.write_bytes(report_raw)
+    evaluation_source.write_bytes(evaluation_raw)
+    historical_path, _ = publish_vendored_research_context(
+        action_source,
+        site_root,
+        repository="njedu2023-prog/top10-decision",
+        commit_sha="1" * 40,
+        source_path="outputs/decision/action_plan_20260824.json",
+        blob_sha=git_blob_sha(action_raw),
+        raw_sha256=hashlib.sha256(action_raw).hexdigest(),
+        report_input_path=report_source,
+        report_source_path="outputs/decision/decision_report_20260824.md",
+        report_blob_sha=git_blob_sha(report_raw),
+        report_raw_sha256=hashlib.sha256(report_raw).hexdigest(),
+        evaluation_input_path=evaluation_source,
+        evaluation_source_path="outputs/decision/eval_20260824.json",
+        evaluation_blob_sha=git_blob_sha(evaluation_raw),
+        evaluation_raw_sha256=hashlib.sha256(evaluation_raw).hexdigest(),
+    )
+    independent = project_research_context(
+        _independent_plan(),
+        source_files=_sources(),
+    )
+    monkeypatch.setattr(
+        research_context_module,
+        "build_research_context",
+        lambda _root, _date="": copy.deepcopy(independent),
+    )
+    dc20_path, _ = publish_research_context(
+        tmp_path / "isolated-dc20",
+        site_root,
+        "20260824",
+    )
+
+    truth = project_report_index_action_truth(
+        source_report_index_path=source_index,
+        site_root=site_root,
+    )
+    public_index = json.loads(
+        (output / "report_index.json").read_text(encoding="utf-8")
+    )
+    row = public_index["reports"][0]
+
+    assert truth.research_dates == ("20260824",)
+    assert row["research_kind"] == "dc20_independent"
+    assert row["research_url"] == (
+        "outputs/decision/research_context_dc20_20260824.json"
+    )
+    assert row["research_archive_available"] is True
+    assert row["research_archive_url"] == (
+        "outputs/decision/research_context_20260824.json"
+    )
+    assert dc20_path.name == "research_context_dc20_20260824.json"
+    assert historical_path.name == "research_context_20260824.json"
 
 
 def test_vendored_history_rejects_wrong_blob_identity(tmp_path: Path) -> None:

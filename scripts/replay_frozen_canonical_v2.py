@@ -443,6 +443,24 @@ class DiagnosticFrozenEngine(AuctionV3Engine):
     def build_history(self) -> pd.DataFrame:
         return self._diagnostic_history.copy()
 
+    def _apply_three_engine_runtime(
+        self,
+        scored: pd.DataFrame,
+        inference_pool: pd.DataFrame,
+        signal_date: str,
+    ) -> pd.DataFrame:
+        """Keep canonical-V2 diagnostic replay on its reviewed legacy surface.
+
+        The independent three-rank overlay was introduced after the reviewed
+        c6 canonical baseline.  Diagnostic replay must therefore be invariant
+        to missing, replaced, or newly trained overlay assets.  Those assets
+        are enforced by the active production freeze, never interpreted by
+        this historical equivalence engine.
+        """
+
+        del inference_pool, signal_date
+        return scored.copy()
+
 
 def _read_csv(path: Path) -> pd.DataFrame:
     _require(path.is_file(), f"required CSV missing: {path}")
