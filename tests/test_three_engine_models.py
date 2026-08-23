@@ -27,6 +27,7 @@ from top10decision.decision.three_engine_models import (
     RUNTIME_FEATURE_CONTRACT_VERSION,
     RUNTIME_PROMOTION_PRIOR_FEATURES,
     THREE_ENGINE_FEATURE_CONTRACT,
+    THREE_ENGINE_VALIDATION_GATE_NAMES,
     ThreeEngineArtifactError,
     ThreeEngineConfig,
     attach_runtime_promotion_priors,
@@ -682,6 +683,10 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
     validation = json.loads(validation_bytes)
     for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
         checks = validation["heads"][head]["gate_checks"]
+        assert set(checks) == set(THREE_ENGINE_VALIDATION_GATE_NAMES)
+        assert set(validation["heads"][head]["gate_failures"]) == {
+            name for name, passed in checks.items() if passed is False
+        }
         assert validation["model_metadata"][head][
             "production_bundle_present"
         ] is True
@@ -756,6 +761,15 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
     invalid_bundle_validation["heads"]["profit"]["production"][
         "bundle_present"
     ] = False
+    invalid_bundle_gate = next(
+        iter(invalid_bundle_validation["heads"]["profit"]["gate_checks"])
+    )
+    invalid_bundle_validation["heads"]["profit"]["gate_checks"][
+        invalid_bundle_gate
+    ] = False
+    invalid_bundle_validation["heads"]["profit"]["gate_failures"] = [
+        invalid_bundle_gate
+    ]
     validation_path.write_text(
         json.dumps(invalid_bundle_validation), encoding="utf-8"
     )
@@ -797,6 +811,15 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
     nonready_validation["heads"]["profit"]["production"][
         "calibration_monotonicity"
     ] = copy.deepcopy(nonready_reverse["calibration_monotonicity"])
+    nonready_gate = next(
+        iter(nonready_validation["heads"]["profit"]["gate_checks"])
+    )
+    nonready_validation["heads"]["profit"]["gate_checks"][
+        nonready_gate
+    ] = False
+    nonready_validation["heads"]["profit"]["gate_failures"] = [
+        nonready_gate
+    ]
     validation_path.write_text(json.dumps(nonready_validation), encoding="utf-8")
     with pytest.raises(
         ThreeEngineArtifactError,
@@ -857,6 +880,37 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
     validation["heads"]["promotion"]["gate_checks"][first_gate] = 1
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
     with pytest.raises(ThreeEngineArtifactError, match="nonempty booleans"):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    validation_path.write_bytes(validation_bytes)
+
+    missing_gate = json.loads(validation_bytes)
+    first_gate = next(iter(missing_gate["heads"]["promotion"]["gate_checks"]))
+    missing_gate["heads"]["promotion"]["gate_checks"].pop(first_gate)
+    missing_gate["heads"]["promotion"]["gate_failures"] = [
+        name
+        for name, passed in missing_gate["heads"]["promotion"][
+            "gate_checks"
+        ].items()
+        if passed is False
+    ]
+    validation_path.write_text(json.dumps(missing_gate), encoding="utf-8")
+    with pytest.raises(ThreeEngineArtifactError, match="gate inventory drifted"):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    validation_path.write_bytes(validation_bytes)
+
+    false_gate = json.loads(validation_bytes)
+    profit_checks = false_gate["heads"]["profit"]["gate_checks"]
+    assert false_gate["heads"]["profit"]["status"] == "READY"
+    assert all(profit_checks.values())
+    first_gate = next(iter(profit_checks))
+    profit_checks[first_gate] = False
+    validation_path.write_text(json.dumps(false_gate), encoding="utf-8")
+    with pytest.raises(ThreeEngineArtifactError, match="gate_failures disagree"):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+
+    false_gate["heads"]["profit"]["gate_failures"] = [first_gate]
+    validation_path.write_text(json.dumps(false_gate), encoding="utf-8")
+    with pytest.raises(ThreeEngineArtifactError, match="release state disagrees"):
         load_three_engine_artifacts(validation_path, root=tmp_path)
     validation_path.write_bytes(validation_bytes)
 

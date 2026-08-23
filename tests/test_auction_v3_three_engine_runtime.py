@@ -15,6 +15,7 @@ from top10decision.auction_v3.engine import (
     AuctionV3Engine,
 )
 from top10decision.decision.three_engine_models import (
+    THREE_ENGINE_VALIDATION_GATE_NAMES,
     ThreeEngineArtifactError,
     load_three_engine_artifacts,
 )
@@ -453,18 +454,78 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
     assert result["predicted_big_loss_probability"].isna().all()
     assert result["profit_rank"].isna().all()
     assert result["predicted_profit_probability"].isna().all()
-    for head, expected in {
-        "promotion": (26, 26, 100.0),
-        "big_loss": (17, 26, 65.4),
-        "profit": (20, 26, 76.9),
-    }.items():
-        pass_count, total_count, score = expected
+    # Gate pass counts are evidence produced by each immutable training run;
+    # they may legitimately change as the five-year ledger advances.  The
+    # strict artifact loader independently recomputes them from gate_checks,
+    # so this runtime test verifies exact propagation from that validated
+    # metadata instead of pinning one historical run's scores.
+    for head in ("promotion", "big_loss", "profit"):
+        metadata = copied_artifacts.metadata[head]
+        gate_checks = copied_artifacts.validation["heads"][head]["gate_checks"]
+        pass_count = metadata["validation_gate_pass_count"]
+        total_count = metadata["validation_gate_total_count"]
+        score = metadata["validation_gate_score_pct"]
+        assert set(gate_checks) == set(THREE_ENGINE_VALIDATION_GATE_NAMES)
+        assert total_count == len(THREE_ENGINE_VALIDATION_GATE_NAMES)
+        assert pass_count == sum(
+            value is True
+            for value in gate_checks.values()
+        )
+        assert set(copied_artifacts.validation["heads"][head]["gate_failures"]) == {
+            name for name, passed in gate_checks.items() if passed is False
+        }
+        assert score == round(100.0 * pass_count / total_count, 1)
+        if metadata["status"] == "READY":
+            assert pass_count == total_count
+            assert score == 100.0
+        else:
+            assert metadata["status"].startswith("NOT_READY_")
+            assert pass_count < total_count
+            assert score < 100.0
         assert set(result[f"{head}_validation_gate_pass_count"]) == {pass_count}
         assert set(result[f"{head}_validation_gate_total_count"]) == {total_count}
         assert set(result[f"{head}_validation_gate_score_pct"]) == {score}
-    assert set(result["p_fill_shadow_validation_gate_pass_count"]) == {26}
-    assert set(result["p_fill_shadow_validation_gate_total_count"]) == {26}
-    assert set(result["p_fill_shadow_validation_gate_score_pct"]) == {100.0}
+    shadow_metadata = copied_artifacts.metadata["p_fill_shadow"]
+    shadow_gate_checks = copied_artifacts.validation["heads"]["p_fill_shadow"][
+        "gate_checks"
+    ]
+    shadow_pass_count = shadow_metadata["validation_gate_pass_count"]
+    shadow_total_count = shadow_metadata["validation_gate_total_count"]
+    shadow_score = shadow_metadata["validation_gate_score_pct"]
+    assert set(shadow_gate_checks) == set(THREE_ENGINE_VALIDATION_GATE_NAMES)
+    assert shadow_total_count == len(THREE_ENGINE_VALIDATION_GATE_NAMES)
+    assert shadow_pass_count == sum(
+        value is True
+        for value in shadow_gate_checks.values()
+    )
+    assert set(
+        copied_artifacts.validation["heads"]["p_fill_shadow"]["gate_failures"]
+    ) == {
+        name for name, passed in shadow_gate_checks.items() if passed is False
+    }
+    assert shadow_score == round(
+        100.0 * shadow_pass_count / shadow_total_count,
+        1,
+    )
+    if shadow_metadata["status"] == "SHADOW_READY":
+        assert shadow_pass_count == shadow_total_count
+        assert shadow_score == 100.0
+    else:
+        assert shadow_metadata["status"].startswith((
+            "SHADOW_NOT_READY",
+            "NOT_READY_",
+        ))
+        assert shadow_pass_count < shadow_total_count
+        assert shadow_score < 100.0
+    assert set(result["p_fill_shadow_validation_gate_pass_count"]) == {
+        shadow_pass_count
+    }
+    assert set(result["p_fill_shadow_validation_gate_total_count"]) == {
+        shadow_total_count
+    }
+    assert set(result["p_fill_shadow_validation_gate_score_pct"]) == {
+        shadow_score
+    }
 
 
 def test_force_cannot_rewrite_historical_dated_prediction(tmp_path: Path) -> None:

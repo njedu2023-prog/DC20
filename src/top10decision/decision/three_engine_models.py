@@ -38,6 +38,34 @@ THREE_ENGINE_FEATURE_CONTRACT = (
 RUNTIME_FEATURE_CONTRACT_VERSION = D_CLOSE_FEATURE_CONTRACT_VERSION
 THREE_ENGINE_TOP_N = 10
 CORE_HEADS = ("promotion", "big_loss", "profit")
+THREE_ENGINE_VALIDATION_GATE_NAMES = (
+    "nonconstant_production_model",
+    "nonconstant_oof_rank_scores",
+    "pre_holdout_selection_candidate_eligible",
+    "pre_holdout_selection_ranking_positive",
+    "history_dates",
+    "history_rows",
+    "oos_dates",
+    "oos_rows",
+    "final_holdout_calendar_dates",
+    "ranking_baseline_available",
+    "brier_improvement_positive",
+    "brier_bootstrap_lower_positive",
+    "ece_at_most_8pct",
+    "auc_above_floor",
+    "ranking_lift_positive",
+    "ranking_bootstrap_lower_positive",
+    "stage_support",
+    "stage_probability_skill_and_calibration",
+    "stage_ranking_nonnegative",
+    "chronological_ranking_nonnegative",
+    "holdout_brier_improvement_positive",
+    "holdout_brier_bootstrap_lower_positive",
+    "holdout_ece_at_most_8pct",
+    "holdout_auc_above_floor",
+    "holdout_ranking_lift_positive",
+    "holdout_ranking_bootstrap_lower_positive",
+)
 CALIBRATION_EPS = 1e-6
 FEATURE_SNAPSHOT_SCHEMA = (
     "dc20_three_engine_d_feature_snapshot_v2_quantized12"
@@ -2208,6 +2236,8 @@ def _validate_head(
             holdout_ranking_ci_low is not None and holdout_ranking_ci_low > 0.0
         ),
     }
+    if tuple(checks) != THREE_ENGINE_VALIDATION_GATE_NAMES:
+        raise RuntimeError("three-engine validation gate inventory drifted")
     promoted = bool(core_head and all(checks.values()))
     status = "READY" if promoted else "NOT_READY_VALIDATION_GATE"
     return {
@@ -2981,6 +3011,23 @@ def _load_three_engine_artifacts(
             raise ThreeEngineArtifactError(
                 f"{head} validation gate_checks must be nonempty booleans"
             )
+        if set(gate_checks) != set(THREE_ENGINE_VALIDATION_GATE_NAMES):
+            raise ThreeEngineArtifactError(
+                f"{head} validation gate inventory drifted"
+            )
+        expected_gate_failures = {
+            name for name, passed in gate_checks.items() if passed is False
+        }
+        gate_failures = head_validation.get("gate_failures")
+        if (
+            not isinstance(gate_failures, list)
+            or any(type(name) is not str for name in gate_failures)
+            or len(gate_failures) != len(set(gate_failures))
+            or set(gate_failures) != expected_gate_failures
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} validation gate_failures disagree with gate_checks"
+            )
         validation_gate_pass_count = sum(
             passed is True for passed in gate_checks.values()
         )
@@ -3044,6 +3091,37 @@ def _load_three_engine_artifacts(
         ):
             raise ThreeEngineArtifactError(
                 f"{head} promotion state disagrees with validation"
+            )
+        all_validation_gates_passed = not expected_gate_failures
+        validation_status = head_validation.get("status")
+        if head in CORE_HEADS:
+            if (
+                validation_promoted is not all_validation_gates_passed
+                or validation_status
+                != (
+                    "READY"
+                    if all_validation_gates_passed
+                    else "NOT_READY_VALIDATION_GATE"
+                )
+            ):
+                raise ThreeEngineArtifactError(
+                    f"{head} release state disagrees with validation gates"
+                )
+        elif (
+            validation_promoted is not False
+            or (
+                all_validation_gates_passed
+                and validation_status != "SHADOW_READY"
+            )
+            or (
+                not all_validation_gates_passed
+                and not str(validation_status or "").startswith(
+                    "SHADOW_NOT_READY"
+                )
+            )
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} shadow state disagrees with validation gates"
             )
         if str(claimed.get("artifact_sha256") or "").lower() != actual_sha256:
             raise ThreeEngineArtifactError(f"{head} provenance hash disagrees")
@@ -3720,6 +3798,7 @@ __all__ = [
     "THREE_ENGINE_CONTRACT_VERSION",
     "THREE_ENGINE_FEATURE_CONTRACT",
     "THREE_ENGINE_SCHEMA_VERSION",
+    "THREE_ENGINE_VALIDATION_GATE_NAMES",
     "THREE_ENGINE_VALIDATION_SCHEMA",
     "ThreeEngineConfig",
     "ThreeEngineArtifactError",

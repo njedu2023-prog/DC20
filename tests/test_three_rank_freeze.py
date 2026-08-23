@@ -185,7 +185,16 @@ def _strict_v2_manifest_from_current_freeze() -> dict:
         "event_seed_sha256"
     ]
     for item in manifest["production"]["three_rank"]["heads"].values():
-        item["production_bundle_present"] = True
+        # The exact legacy/bootstrap freeze predates this explicit marker and
+        # therefore implies a present bundle.  A generated V2 freeze may carry
+        # an honest bundle-free NOT_READY tombstone; never overwrite that
+        # explicit false value in this strict-manifest helper.
+        if "production_bundle_present" not in item:
+            assert isinstance(item["model_version"], str) and item["model_version"]
+            assert isinstance(item["model_as_of_date"], str) and item[
+                "model_as_of_date"
+            ]
+            item["production_bundle_present"] = True
     return manifest
 
 
@@ -440,7 +449,11 @@ def test_current_evidence_builds_honest_hash_bound_release_state() -> None:
     assert contract["heads"]["p_fill_shadow"]["status"] == "SHADOW_READY"
     assert contract["heads"]["p_fill_shadow"]["promoted"] is False
     assert contract["fail_closed"]["unready_secondary_head"] == "NULL_HEAD_FIELDS"
-    assert set(_manifest_for(contract)["pinned_files"]) == set(
+    manifest_pins = set(_manifest_for(contract)["pinned_files"])
+    assert manifest_pins == set(
+        THREE_RANK_DYNAMIC_ASSET_PATHS | THREE_RANK_TRAINING_SOURCE_PIN_PATHS
+    )
+    assert THREE_RANK_TRAINING_SOURCE_PIN_PATHS.isdisjoint(
         THREE_RANK_DYNAMIC_ASSET_PATHS
     )
     assert {
