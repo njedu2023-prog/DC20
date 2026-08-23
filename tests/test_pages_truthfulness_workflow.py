@@ -125,6 +125,31 @@ def test_pages_projects_site_inventory_before_validating_or_selecting_latest() -
     )
 
 
+def test_pages_projects_and_publicly_verifies_full_research_context() -> None:
+    text = _workflow()
+    assert 'research_available = latest_row.get("research_available", False)' in text
+    assert 'expected_research_url = f"outputs/decision/research_context_{report_date}.json"' in text
+    assert '"latest_research_available": research_available' in text
+    assert '"latest_research_url": research_url' in text
+    assert "EXPECTED_RESEARCH_AVAILABLE" in text
+    assert "EXPECTED_RESEARCH_URL" in text
+    assert 'json.loads(fetch_text(expected_research_url))' in text
+    assert 'research_schema == "decision_research_context_v1_daily"' in text
+    assert 'research_schema == "decision_research_context_v1_historical_parity"' in text
+    assert 'public_research.get("action_authorized") is not False' in text
+    assert 'public_research.get("formal_buy_count") != 0' in text
+    assert 'row.get("action") != "WATCH"' in text
+    assert 'base64.b64decode(' in text
+    assert 'artifact_keys = {"action_plan", "decision_report", "evaluation"}' in text
+    assert 'hashlib.sha256(raw).hexdigest() != artifact_binding.get("raw_sha256")' in text
+    assert 'hashlib.sha1(git_header + raw).hexdigest() != artifact_binding.get("blob_sha")' in text
+    assert 'decoded["action_plan"]' in text
+    assert 'decoded["decision_report"]' in text
+    assert 'decoded["evaluation"]' in text
+    assert "public historical parity report heading is wrong" in text
+    assert "public historical parity evaluation {field} binding is wrong" in text
+
+
 def test_dashboard_never_falls_back_to_an_unrelated_latest_action() -> None:
     text = DASHBOARD.read_text(encoding="utf-8")
     assert "info.action_available === true && info.action_url" in text

@@ -3360,6 +3360,34 @@ def build_report_index(root: Path, latest_report_date: str = "") -> dict[str, An
         payload = _read_json(path)
         return bool(payload) and _date(payload.get("report_date")) == date
 
+    def valid_dated_research(date: str) -> bool:
+        path = output / f"research_context_{date}.json"
+        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+            return False
+        payload = _read_json(path)
+        daily = bool(
+            payload.get("schema_version") == "decision_research_context_v1_daily"
+            and payload.get("artifact_kind") == "daily_research_context"
+            and payload.get("research_only") is True
+            and payload.get("action_authorized") is False
+            and payload.get("formal_buy_count") == 0
+            and _date(payload.get("report_date")) == date
+            and _date(payload.get("exec_date")) == date
+        )
+        historical = bool(
+            payload.get("schema_version")
+            == "decision_research_context_v1_historical_parity"
+            and payload.get("artifact_kind")
+            == "historical_parity_research_context"
+            and payload.get("historical_parity") is True
+            and payload.get("research_only") is True
+            and payload.get("action_authorized") is False
+            and payload.get("runtime_network_dependency") is False
+            and _date(payload.get("report_date")) == date
+            and _date(payload.get("exec_date")) == date
+        )
+        return daily or historical
+
     action_dates = {date for date in dates if valid_dated_action(date)}
     latest_action_date = next((date for date in dates if date in action_dates), "")
     reports = []
@@ -3374,6 +3402,11 @@ def build_report_index(root: Path, latest_report_date: str = "") -> dict[str, An
         }
         if action_available:
             report["action_url"] = f"outputs/decision/action_plan_{date}.json"
+        if valid_dated_research(date):
+            report["research_available"] = True
+            report["research_url"] = (
+                f"outputs/decision/research_context_{date}.json"
+            )
         reports.append(report)
     return {
         "schema_version": "decision_report_index_v2_action_truth",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -107,8 +107,21 @@ def _write_dated_action(site_root: Path, report_date: str, payload_date: str = "
         / f"action_plan_{report_date}.json"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
+    bound_date = payload_date or report_date
+    bound_day = datetime.strptime(bound_date, "%Y%m%d").date()
     path.write_text(
-        json.dumps({"report_date": payload_date or report_date}, separators=(",", ":")),
+        json.dumps(
+            {
+                "schema_version": "decision_action_plan_v99_test",
+                "report_date": bound_date,
+                "signal_date": (bound_day - timedelta(days=1)).strftime("%Y%m%d"),
+                "exec_date": bound_date,
+                "exit_date": (bound_day + timedelta(days=1)).strftime("%Y%m%d"),
+                "broker_connected": False,
+                "execution_or_fill_claimed": False,
+            },
+            separators=(",", ":"),
+        ),
         encoding="utf-8",
     )
     return path
@@ -400,6 +413,69 @@ def test_action_index_truth_rejects_wrong_date_or_corrupt_advertised_plan(
             report_index_path=index_path,
             site_root=site_root,
         )
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        ("schema", "schema_version"),
+        ("exec", "exec_date must equal report_date"),
+        ("order", "D < T < T\\+1"),
+        ("broker", "cannot connect a broker"),
+        ("fill", "cannot claim execution or fill"),
+    ],
+)
+def test_action_index_truth_enforces_minimum_read_only_action_contract(
+    tmp_path: Path,
+    case: str,
+    message: str,
+) -> None:
+    site_root = tmp_path / "_site"
+    index_path = _write_action_index(
+        site_root,
+        [_report_entry("20260821", True)],
+        "20260821",
+    )
+    action_path = _write_dated_action(site_root, "20260821")
+    payload = json.loads(action_path.read_text(encoding="utf-8"))
+    if case == "schema":
+        payload["schema_version"] = "legacy_action"
+    elif case == "exec":
+        payload["exec_date"] = "20260820"
+    elif case == "order":
+        payload["signal_date"] = "20260821"
+    elif case == "broker":
+        payload["broker_connected"] = True
+    else:
+        payload["execution_or_fill_claimed"] = True
+    action_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DecisionPagesTruthError, match=message):
+        validate_report_index_action_truth(
+            report_index_path=index_path,
+            site_root=site_root,
+        )
+
+
+def test_action_index_truth_accepts_reviewed_v12_before_explicit_fill_marker(
+    tmp_path: Path,
+) -> None:
+    site_root = tmp_path / "_site"
+    index_path = _write_action_index(
+        site_root,
+        [_report_entry("20260821", True)],
+        "20260821",
+    )
+    action_path = _write_dated_action(site_root, "20260821")
+    payload = json.loads(action_path.read_text(encoding="utf-8"))
+    payload.pop("execution_or_fill_claimed")
+    action_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    truth = validate_report_index_action_truth(
+        report_index_path=index_path,
+        site_root=site_root,
+    )
+    assert truth.action_dates == ("20260821",)
 
 
 def test_action_index_truth_requires_latest_fields_to_name_newest_valid_plan(

@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import base64
 import csv
+import hashlib
 import json
 import os
 import re
@@ -17,6 +19,10 @@ DATE_RE = re.compile(r"\d{8}")
 DATED_REPORT_RE = re.compile(r"decision_report_(\d{8})\.md")
 DATED_EVALUATION_RE = re.compile(r"eval_(\d{8})\.json")
 DATED_ACTION_RE = re.compile(r"action_plan_(\d{8})\.json")
+DATED_RESEARCH_RE = re.compile(r"research_context_(\d{8})\.json")
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+GIT_OBJECT_RE = re.compile(r"[0-9a-f]{40}")
+REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 UTC_TIMESTAMP_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)"
 )
@@ -45,6 +51,7 @@ class DecisionPagesTruth:
 class DecisionActionIndexTruth:
     report_dates: tuple[str, ...]
     action_dates: tuple[str, ...]
+    research_dates: tuple[str, ...]
     latest_action_report_date: str
     latest_action_url: str
 
@@ -159,6 +166,284 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
 
 def _load_evaluation(path: Path) -> dict[str, Any]:
     return _load_json_object(path, "evaluation")
+
+
+def _validate_action_payload(
+    payload: dict[str, Any],
+    *,
+    report_date: str,
+    label: str,
+) -> None:
+    schema = payload.get("schema_version")
+    if type(schema) is not str or not schema.startswith("decision_action_plan_v"):
+        raise DecisionPagesTruthError(f"{label}.schema_version is invalid")
+    bound_report_date, report_day = _strict_date(
+        payload.get("report_date"), f"{label}.report_date"
+    )
+    signal_date, signal_day = _strict_date(
+        payload.get("signal_date"), f"{label}.signal_date"
+    )
+    exec_date, exec_day = _strict_date(
+        payload.get("exec_date"), f"{label}.exec_date"
+    )
+    _exit_date, exit_day = _strict_date(
+        payload.get("exit_date"), f"{label}.exit_date"
+    )
+    if bound_report_date != report_date:
+        raise DecisionPagesTruthError(
+            f"{label} contains a different report_date"
+        )
+    if exec_date != bound_report_date or report_day != exec_day:
+        raise DecisionPagesTruthError(f"{label} exec_date must equal report_date")
+    if not signal_day < exec_day < exit_day:
+        raise DecisionPagesTruthError(f"{label} date order must be D < T < T+1")
+    if payload.get("broker_connected") is not False:
+        raise DecisionPagesTruthError(f"{label} cannot connect a broker")
+    # Older reviewed V12 plans predate this explicit marker.  Absence means
+    # no execution claim; an affirmative claim is always rejected.
+    if payload.get("execution_or_fill_claimed", False) is not False:
+        raise DecisionPagesTruthError(f"{label} cannot claim execution or fill")
+
+
+def _validate_research_context_payload(
+    payload: dict[str, Any],
+    *,
+    report_date: str,
+    label: str,
+) -> None:
+    """Validate a public research artifact without importing model code."""
+
+    if payload.get("schema_version") == "decision_research_context_v1_historical_parity":
+        if payload.get("artifact_kind") != "historical_parity_research_context":
+            raise DecisionPagesTruthError(f"{label}.artifact_kind is invalid")
+        if payload.get("historical_parity") is not True or payload.get("research_only") is not True:
+            raise DecisionPagesTruthError(f"{label} must be historical research-only")
+        if payload.get("action_authorized") is not False:
+            raise DecisionPagesTruthError(f"{label} cannot authorize action")
+        if payload.get("runtime_network_dependency") is not False:
+            raise DecisionPagesTruthError(f"{label} cannot have a runtime dependency")
+        binding = payload.get("source_binding")
+        if not isinstance(binding, dict) or binding.get("scope") != "vendored_immutable_legacy_snapshot":
+            raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
+        repository = binding.get("repository")
+        if type(repository) is not str or REPOSITORY_RE.fullmatch(repository) is None:
+            raise DecisionPagesTruthError(f"{label} vendored repository is invalid")
+        commit_sha = binding.get("commit_sha")
+        if type(commit_sha) is not str or GIT_OBJECT_RE.fullmatch(commit_sha) is None:
+            raise DecisionPagesTruthError(f"{label} vendored Git identity is invalid")
+        if binding.get("import_mode") != "one_time_vendored_snapshot":
+            raise DecisionPagesTruthError(f"{label} vendored import mode is invalid")
+        if binding.get("runtime_network_dependency") is not False:
+            raise DecisionPagesTruthError(f"{label} vendored snapshot has a runtime dependency")
+
+        payloads = payload.get("payloads_base64")
+        artifact_bindings = binding.get("artifacts")
+        artifact_keys = {"action_plan", "decision_report", "evaluation"}
+        if payloads is None and artifact_bindings is None:
+            payloads = {"action_plan": payload.get("payload_base64")}
+            artifact_bindings = {
+                "action_plan": {
+                    "path": binding.get("path"),
+                    "blob_sha": binding.get("blob_sha"),
+                    "raw_sha256": binding.get("raw_sha256"),
+                }
+            }
+        elif (
+            not isinstance(payloads, dict)
+            or set(payloads) != artifact_keys
+            or not isinstance(artifact_bindings, dict)
+            or set(artifact_bindings) != artifact_keys
+        ):
+            raise DecisionPagesTruthError(f"{label} vendored artifact set is invalid")
+
+        decoded: dict[str, bytes] = {}
+        for artifact, encoded in payloads.items():
+            artifact_binding = artifact_bindings.get(artifact)
+            if not isinstance(artifact_binding, dict):
+                raise DecisionPagesTruthError(f"{label} {artifact} binding is invalid")
+            source_path = artifact_binding.get("path")
+            if (
+                type(source_path) is not str
+                or source_path.startswith("/")
+                or ".." in Path(source_path).parts
+                or "://" in source_path
+            ):
+                raise DecisionPagesTruthError(f"{label} {artifact} source path is invalid")
+            blob_sha = artifact_binding.get("blob_sha")
+            raw_sha256 = artifact_binding.get("raw_sha256")
+            if type(blob_sha) is not str or GIT_OBJECT_RE.fullmatch(blob_sha) is None:
+                raise DecisionPagesTruthError(f"{label} {artifact} blob SHA is invalid")
+            if type(raw_sha256) is not str or SHA256_RE.fullmatch(raw_sha256) is None:
+                raise DecisionPagesTruthError(f"{label} {artifact} raw digest is invalid")
+            if type(encoded) is not str or not encoded:
+                raise DecisionPagesTruthError(f"{label} {artifact} payload is missing")
+            try:
+                raw = base64.b64decode(encoded.encode("ascii"), validate=True)
+            except (UnicodeError, ValueError) as exc:
+                raise DecisionPagesTruthError(f"{label} {artifact} payload is invalid") from exc
+            if hashlib.sha256(raw).hexdigest() != raw_sha256:
+                raise DecisionPagesTruthError(f"{label} {artifact} raw SHA256 does not match payload")
+            git_header = f"blob {len(raw)}\0".encode("ascii")
+            if hashlib.sha1(git_header + raw).hexdigest() != blob_sha:
+                raise DecisionPagesTruthError(f"{label} {artifact} Git blob SHA does not match payload")
+            decoded[artifact] = raw
+
+        raw = decoded["action_plan"]
+        try:
+            legacy = json.loads(
+                raw.decode("utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+            )
+        except DecisionPagesTruthError:
+            raise
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise DecisionPagesTruthError(f"{label} payload is not strict UTF-8 JSON") from exc
+        if not isinstance(legacy, dict):
+            raise DecisionPagesTruthError(f"{label} payload must be one JSON object")
+        bound_report_date, report_day = _strict_date(
+            legacy.get("report_date"), f"{label}.payload.report_date"
+        )
+        signal_date, signal_day = _strict_date(
+            legacy.get("signal_date"), f"{label}.payload.signal_date"
+        )
+        exec_date, exec_day = _strict_date(
+            legacy.get("exec_date"), f"{label}.payload.exec_date"
+        )
+        _exit_date, exit_day = _strict_date(
+            legacy.get("exit_date"), f"{label}.payload.exit_date"
+        )
+        if bound_report_date != report_date or exec_date != report_date:
+            raise DecisionPagesTruthError(f"{label} payload date does not match its filename")
+        if not signal_day < report_day == exec_day < exit_day:
+            raise DecisionPagesTruthError(f"{label} payload date order is invalid")
+        for field, value in (
+            ("report_date", bound_report_date),
+            ("signal_date", signal_date),
+            ("exec_date", exec_date),
+            ("exit_date", _exit_date),
+        ):
+            if payload.get(field) != value:
+                raise DecisionPagesTruthError(f"{label} wrapper {field} mismatch")
+
+        if set(decoded) == artifact_keys:
+            try:
+                legacy_report = decoded["decision_report"].decode("utf-8-sig")
+            except UnicodeError as exc:
+                raise DecisionPagesTruthError(
+                    f"{label} decision_report is not UTF-8 text"
+                ) from exc
+            report_lines = legacy_report.splitlines()
+            if report_lines[:1] != [f"# Decision Report ({report_date})"]:
+                raise DecisionPagesTruthError(
+                    f"{label} decision_report heading is date-inconsistent"
+                )
+            for field, value in (
+                ("signal_date", signal_date),
+                ("exec_date", exec_date),
+                ("exit_date", _exit_date),
+            ):
+                if report_lines.count(f"- {field}: **{value}**") != 1:
+                    raise DecisionPagesTruthError(
+                        f"{label} decision_report {field} binding is invalid"
+                    )
+            try:
+                legacy_evaluation = json.loads(
+                    decoded["evaluation"].decode("utf-8"),
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                )
+            except DecisionPagesTruthError:
+                raise
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise DecisionPagesTruthError(
+                    f"{label} evaluation is not strict UTF-8 JSON"
+                ) from exc
+            if not isinstance(legacy_evaluation, dict):
+                raise DecisionPagesTruthError(f"{label} evaluation must be one JSON object")
+            for field, value in (
+                ("signal_date", signal_date),
+                ("exec_date", exec_date),
+                ("exit_date", _exit_date),
+            ):
+                if legacy_evaluation.get(field) != value:
+                    raise DecisionPagesTruthError(
+                        f"{label} evaluation {field} binding is invalid"
+                    )
+        return
+
+    if payload.get("schema_version") != "decision_research_context_v1_daily":
+        raise DecisionPagesTruthError(f"{label}.schema_version is invalid")
+    if payload.get("artifact_kind") != "daily_research_context":
+        raise DecisionPagesTruthError(f"{label}.artifact_kind is invalid")
+    for field in ("research_only", "daily_research_only"):
+        if payload.get(field) is not True:
+            raise DecisionPagesTruthError(f"{label}.{field} must be true")
+    if payload.get("action_authorized") is not False:
+        raise DecisionPagesTruthError(f"{label} cannot authorize action")
+    if payload.get("formal_buy_count") != 0:
+        raise DecisionPagesTruthError(f"{label}.formal_buy_count must be zero")
+    if payload.get("broker_connected") is not False:
+        raise DecisionPagesTruthError(f"{label} cannot connect a broker")
+    if payload.get("execution_or_fill_claimed") is not False:
+        raise DecisionPagesTruthError(f"{label} cannot claim execution or fill")
+
+    bound_report_date, report_day = _strict_date(
+        payload.get("report_date"), f"{label}.report_date"
+    )
+    signal_date, signal_day = _strict_date(
+        payload.get("signal_date"), f"{label}.signal_date"
+    )
+    exec_date, exec_day = _strict_date(
+        payload.get("exec_date"), f"{label}.exec_date"
+    )
+    _exit_date, exit_day = _strict_date(
+        payload.get("exit_date"), f"{label}.exit_date"
+    )
+    if bound_report_date != report_date or exec_date != report_date:
+        raise DecisionPagesTruthError(f"{label} date does not match its filename")
+    if not signal_day < report_day == exec_day < exit_day:
+        raise DecisionPagesTruthError(f"{label} date order is invalid")
+
+    model = payload.get("model")
+    if not isinstance(model, dict) or model.get("prediction_matches_report") is not True:
+        raise DecisionPagesTruthError(f"{label}.model is not date-bound")
+    if model.get("action_authorized") is not False:
+        raise DecisionPagesTruthError(f"{label}.model cannot authorize action")
+
+    binding = payload.get("source_binding")
+    if not isinstance(binding, dict):
+        raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
+    scope = binding.get("scope")
+    if scope != "same_repository_local_artifacts_only":
+        raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
+    files = binding.get("files")
+    if not isinstance(files, dict) or not files:
+        raise DecisionPagesTruthError(f"{label}.source_binding is invalid")
+    for relative, digest in files.items():
+        if (
+            type(relative) is not str
+            or relative.startswith("/")
+            or ".." in Path(relative).parts
+            or "://" in relative
+        ):
+            raise DecisionPagesTruthError(f"{label} source path is not repository-local")
+        if type(digest) is not str or SHA256_RE.fullmatch(digest) is None:
+            raise DecisionPagesTruthError(f"{label} source digest is invalid")
+
+    for collection in ("candidates", "stage_watchlist"):
+        rows = payload.get(collection)
+        if not isinstance(rows, list):
+            raise DecisionPagesTruthError(f"{label}.{collection} must be a list")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise DecisionPagesTruthError(f"{label}.{collection} row must be an object")
+            if row.get("action") != "WATCH":
+                raise DecisionPagesTruthError(f"{label}.{collection} contains a non-WATCH action")
+            if row.get("target_weight") not in (0, 0.0):
+                raise DecisionPagesTruthError(f"{label}.{collection} contains nonzero weight")
+            if row.get("trade_selected") not in (0, False):
+                raise DecisionPagesTruthError(f"{label}.{collection} contains selected action")
+            if row.get("market_order_allowed") is not False:
+                raise DecisionPagesTruthError(f"{label}.{collection} permits a market order")
 
 
 def _load_sse_calendar(path: Path) -> dict[str, bool]:
@@ -276,11 +561,13 @@ def project_report_index_action_truth(
     report_paths: dict[str, Path] = {}
     evaluation_paths: dict[str, Path] = {}
     action_paths: dict[str, Path] = {}
+    research_paths: dict[str, Path] = {}
     for path in decision_root.iterdir():
         for pattern, inventory, label in (
             (DATED_REPORT_RE, report_paths, "dated report"),
             (DATED_EVALUATION_RE, evaluation_paths, "dated evaluation"),
             (DATED_ACTION_RE, action_paths, "dated action"),
+            (DATED_RESEARCH_RE, research_paths, "dated research context"),
         ):
             match = pattern.fullmatch(path.name)
             if match is None:
@@ -317,6 +604,11 @@ def project_report_index_action_truth(
     if orphan_actions:
         raise DecisionPagesTruthError(
             f"dated actions have no matching report: {orphan_actions!r}"
+        )
+    orphan_research = sorted(set(research_paths).difference(report_paths))
+    if orphan_research:
+        raise DecisionPagesTruthError(
+            f"dated research contexts have no matching report: {orphan_research!r}"
         )
 
     reports: list[dict[str, Any]] = []
@@ -363,16 +655,27 @@ def project_report_index_action_truth(
             action = _load_json_object(
                 action_paths[report_date], f"dated action for {report_date}"
             )
-            action_report_date, _ = _strict_date(
-                action.get("report_date"),
-                f"dated action for {report_date}.report_date",
+            _validate_action_payload(
+                action,
+                report_date=report_date,
+                label=f"dated action for {report_date}",
             )
-            if action_report_date != report_date:
-                raise DecisionPagesTruthError(
-                    f"dated action for {report_date} contains a different report_date"
-                )
             row["action_url"] = f"outputs/decision/action_plan_{report_date}.json"
             action_dates.append(report_date)
+        if report_date in research_paths:
+            research = _load_json_object(
+                research_paths[report_date],
+                f"dated research context for {report_date}",
+            )
+            _validate_research_context_payload(
+                research,
+                report_date=report_date,
+                label=f"dated research context for {report_date}",
+            )
+            row["research_url"] = (
+                f"outputs/decision/research_context_{report_date}.json"
+            )
+            row["research_available"] = True
         reports.append(row)
 
     latest_report_date = str(reports[0]["report_date"])
@@ -449,6 +752,7 @@ def validate_report_index_action_truth(
 
     report_dates: list[str] = []
     action_dates: list[str] = []
+    research_dates: list[str] = []
     for row_number, report in enumerate(reports, start=1):
         if not isinstance(report, dict):
             raise DecisionPagesTruthError(
@@ -497,14 +801,11 @@ def validate_report_index_action_truth(
             action_payload = _load_json_object(
                 action_path, f"dated action for {report_date}"
             )
-            action_report_date, _ = _strict_date(
-                action_payload.get("report_date"),
-                f"dated action for {report_date}.report_date",
+            _validate_action_payload(
+                action_payload,
+                report_date=report_date,
+                label=f"dated action for {report_date}",
             )
-            if action_report_date != report_date:
-                raise DecisionPagesTruthError(
-                    f"dated action for {report_date} contains a different report_date"
-                )
         except DecisionPagesTruthError as exc:
             action_error = exc
 
@@ -527,6 +828,55 @@ def validate_report_index_action_truth(
             if valid_dated_action:
                 raise DecisionPagesTruthError(
                     f"valid dated action for {report_date} is hidden by action_available=false"
+                )
+
+        research_available = report.get("research_available", False)
+        if type(research_available) is not bool:
+            raise DecisionPagesTruthError(
+                f"report_index.reports[{row_number}].research_available must be a bool"
+            )
+        expected_research_url = (
+            f"outputs/decision/research_context_{report_date}.json"
+        )
+        research_path = _site_child(
+            site_root,
+            ("outputs", "decision", f"research_context_{report_date}.json"),
+            f"dated research context for {report_date}",
+        )
+        research_payload: dict[str, Any] | None = None
+        research_error: DecisionPagesTruthError | None = None
+        try:
+            research_payload = _load_json_object(
+                research_path, f"dated research context for {report_date}"
+            )
+            _validate_research_context_payload(
+                research_payload,
+                report_date=report_date,
+                label=f"dated research context for {report_date}",
+            )
+        except DecisionPagesTruthError as exc:
+            research_error = exc
+        valid_dated_research = (
+            research_payload is not None and research_error is None
+        )
+        if research_available:
+            if report.get("research_url") != expected_research_url:
+                raise DecisionPagesTruthError(
+                    f"report_index.reports[{row_number}].research_url is not exact"
+                )
+            if not valid_dated_research:
+                raise DecisionPagesTruthError(
+                    f"advertised dated research context is invalid for {report_date}: {research_error}"
+                )
+            research_dates.append(report_date)
+        else:
+            if "research_url" in report:
+                raise DecisionPagesTruthError(
+                    f"unavailable research context for {report_date} must not have research_url"
+                )
+            if valid_dated_research:
+                raise DecisionPagesTruthError(
+                    f"valid dated research context for {report_date} is hidden by research_available=false"
                 )
         report_dates.append(report_date)
 
@@ -572,6 +922,7 @@ def validate_report_index_action_truth(
     return DecisionActionIndexTruth(
         report_dates=tuple(report_dates),
         action_dates=tuple(action_dates),
+        research_dates=tuple(research_dates),
         latest_action_report_date=expected_latest_action_date,
         latest_action_url=expected_latest_action_url,
     )

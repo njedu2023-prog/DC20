@@ -720,7 +720,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section id="researchPanel" class="panel">
       <div class="panel-head">
         <div>
           <h2>日线研究候选（非买入建议）</h2>
@@ -829,11 +829,11 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v3-cache";
-    const DASHBOARD_VERSION = "research-first-v3";
+    const DASHBOARD_VERSION = "independent-full-parity-v4";
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = { reports: [], reportIndex: null, index: 0, current: null };
@@ -1029,9 +1029,11 @@
       const status = String(plan?.status_code || "PENDING_AUCTION_MODEL");
       const tone = status === "ACTIONABLE_BUY" ? "good" : status.startsWith("NO_TRADE") ? "bad" : "warn";
       els.statusBand.className = `status-band ${tone}`;
-      els.statusKicker.textContent = plan?.daily_research_only === true
-        ? "日线研究结论（非竞价行动）"
-        : "执行结论";
+      els.statusKicker.textContent = plan?.historical_parity === true
+        ? "历史数值复现（只读，非当前行动）"
+        : plan?.research_only === true || plan?.daily_research_only === true
+          ? "日线研究结论（非竞价行动）"
+          : "执行结论";
       els.statusTitle.textContent = plan?.status_label || "行动计划尚未生成";
       els.brandDates.textContent = `D:${dateText(plan?.signal_date)} · T:${dateText(plan?.exec_date)} · T+1:${dateText(plan?.exit_date)}`;
       els.signalDate.textContent = dateText(plan?.signal_date);
@@ -1043,7 +1045,7 @@
     }
 
     function renderAuctionOnlyPanels(plan) {
-      const available = plan?.daily_research_only !== true;
+      const available = plan?.daily_research_only !== true || plan?.research_only === true;
       els.sentimentPanel.hidden = !available;
       els.stagePanel.hidden = !available;
       els.auditPanel.hidden = !available;
@@ -1342,7 +1344,7 @@
         <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
         <td title="${Number(row.promotion_probability_quality_ready) === 1 ? "独立晋级概率已通过样本外校准门" : "独立晋级排序可用；精确概率未通过校准门，显示原模型概率"}">${pct(Number(row.promotion_probability_quality_ready) === 1 ? row.predicted_promotion_probability : row.predicted_continuation_limit_up_probability)}</td>
         <td>${pct(row.predicted_big_loss_probability)}</td>
-        <td class="reason">${row.action === "BUY" ? "允许买入" : "禁止买入"}</td>
+        <td class="reason">${plan?.historical_parity === true ? "历史记录（只读）" : row.action === "BUY" ? "允许买入" : "禁止买入"}</td>
       </tr>`).join("");
       els.stageContent.innerHTML = `<div class="table-wrap"><table class="stage-table"><thead><tr>${headers.map((h, i) => `<th class="${[3,5,6,7,9,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
     }
@@ -1449,7 +1451,11 @@
         return;
       }
       const formal = rows.filter(row => row.action === "BUY");
-      const notice = formal.length
+      const notice = plan?.historical_parity === true
+        ? '<div class="empty"><strong>历史原始数值逐字节复现，仅供只读核对</strong>来源清单固定 commit、blob SHA 与原始 SHA256；本页不缓存该历史载荷，历史操作/标签不代表当前建议，不能据此下单。</div>'
+        : plan?.research_only === true
+        ? '<div class="empty"><strong>完整研究明细已生成，但不是竞价行动</strong>本表保留与原研究页一致的模型字段；所有行均强制为“观察”、仓位为0。只有同日 Auction action_plan 才能产生正式人工建议。</div>'
+        : formal.length
         ? `<div class="empty"><strong>本次正式人工建议 ${formal.length} 只</strong>请在 9:25 前仅用限价单按冻结上限自行挂单；禁止无上限市价单，超过上限或未成交均放弃。</div>`
         : '<div class="empty"><strong>本次没有正式买入建议</strong>影子验证只用于累计样本外证据；未晋级模型不得作为人工交易依据。</div>';
       const headers = ["操作", "排名", "代码", "股票", "行业板块", "晋级", "连板路径", "路径变化", "同梯队", "近20日晋级率", "竞价上限", "最高涨幅", "T+1卖出", "P_fill", "P_exit", "晋级涨停概率", "盈利概率", "预计净收益", "保守下界", "大跌概率", "目标仓位", "原因 / 退出规则"];
@@ -1698,7 +1704,10 @@
       return value || "待评估";
     }
 
-    function renderResearchOutput(md, evaluation, info) {
+    function renderResearchOutput(md, evaluation, info, plan) {
+      const fullContext = plan?.daily_research_only !== true || plan?.research_only === true;
+      els.researchPanel.hidden = fullContext;
+      if (fullContext) return;
       const full = parseMarkdownTable(md, "Full Candidate Pool");
       const dailyTargets = parseMarkdownTable(md, "TopN Targets");
       const reportStats = evaluation?.report_stats || {};
@@ -1748,6 +1757,117 @@
       };
     }
 
+    function canonicalYmd(value) {
+      const text = String(value || "");
+      if (!/^20\d{6}$/.test(text)) return "";
+      const parsed = new Date(`${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T00:00:00Z`);
+      if (!Number.isFinite(parsed.getTime())) return "";
+      return parsed.toISOString().slice(0, 10).replaceAll("-", "") === text ? text : "";
+    }
+
+    function validatedActionPlan(info, plan) {
+      if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+      if (typeof plan.schema_version !== "string" || !plan.schema_version.startsWith("decision_action_plan_v")) return null;
+      const reportDate = canonicalYmd(info?.report_date);
+      const signalDate = canonicalYmd(plan.signal_date);
+      const execDate = canonicalYmd(plan.exec_date);
+      const exitDate = canonicalYmd(plan.exit_date);
+      if (!reportDate || canonicalYmd(plan.report_date) !== reportDate || execDate !== reportDate) return null;
+      if (!signalDate || !execDate || !exitDate) return null;
+      if (!(signalDate < execDate && execDate < exitDate)) return null;
+      if (plan.broker_connected !== false || plan.execution_or_fill_claimed === true) return null;
+      return plan;
+    }
+
+    function decodeBase64Utf8(value) {
+      const binary = atob(String(value || ""));
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    }
+
+    function decodeHistoricalParityContext(info, wrapper) {
+      if (wrapper?.schema_version !== "decision_research_context_v1_historical_parity") return null;
+      if (wrapper?.artifact_kind !== "historical_parity_research_context") return null;
+      if (wrapper?.historical_parity !== true || wrapper?.research_only !== true) return null;
+      if (wrapper?.action_authorized !== false || wrapper?.runtime_network_dependency !== false) return null;
+      try {
+        const payloads = wrapper?.payloads_base64;
+        const hasThreeArtifacts = payloads && typeof payloads === "object" && !Array.isArray(payloads);
+        if (hasThreeArtifacts) {
+          const keys = Object.keys(payloads).sort().join(",");
+          const bindingKeys = Object.keys(wrapper?.source_binding?.artifacts || {}).sort().join(",");
+          if (keys !== "action_plan,decision_report,evaluation" || bindingKeys !== keys) return null;
+        }
+        const legacy = JSON.parse(decodeBase64Utf8(
+          hasThreeArtifacts ? payloads.action_plan : wrapper.payload_base64
+        ));
+        const historicalReportMd = hasThreeArtifacts
+          ? decodeBase64Utf8(payloads.decision_report)
+          : "";
+        const historicalEvaluation = hasThreeArtifacts
+          ? JSON.parse(decodeBase64Utf8(payloads.evaluation))
+          : null;
+        const reportDate = String(info?.report_date || "");
+        if (!legacy || typeof legacy !== "object" || Array.isArray(legacy)) return null;
+        if (String(legacy.report_date || "") !== reportDate || String(legacy.exec_date || "") !== reportDate) return null;
+        if (String(wrapper.report_date || "") !== reportDate || String(wrapper.exec_date || "") !== reportDate) return null;
+        if (String(wrapper.signal_date || "") !== String(legacy.signal_date || "")) return null;
+        if (String(wrapper.exit_date || "") !== String(legacy.exit_date || "")) return null;
+        const signalDate = canonicalYmd(legacy.signal_date);
+        const execDate = canonicalYmd(legacy.exec_date);
+        const exitDate = canonicalYmd(legacy.exit_date);
+        if (!signalDate || !execDate || !exitDate || !(signalDate < execDate && execDate < exitDate)) return null;
+        if (hasThreeArtifacts) {
+          if (!historicalReportMd.startsWith(`# Decision Report (${reportDate})\n`)) return null;
+          for (const field of ["signal_date", "exec_date", "exit_date"]) {
+            const line = `- ${field}: **${legacy[field]}**`;
+            if (historicalReportMd.split(/\r?\n/).filter(item => item === line).length !== 1) return null;
+            if (String(historicalEvaluation?.[field] || "") !== String(legacy[field] || "")) return null;
+          }
+        }
+        return {
+          ...legacy,
+          schema_version: "decision_research_context_v1_historical_parity",
+          historical_payload_schema: legacy.schema_version || "",
+          historical_parity: true,
+          research_only: true,
+          daily_research_only: true,
+          action_authorized: false,
+          broker_connected: false,
+          execution_or_fill_claimed: false,
+          runtime_network_dependency: false,
+          source_binding: wrapper.source_binding,
+          historical_report_md: historicalReportMd,
+          historical_evaluation: historicalEvaluation
+        };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function validatedResearchContext(info, context) {
+      if (!context || typeof context !== "object" || Array.isArray(context)) return null;
+      const reportDate = String(info?.report_date || "");
+      if (info?.research_available !== true || !reportDate) return null;
+      if (context.schema_version === "decision_research_context_v1_historical_parity") {
+        return decodeHistoricalParityContext(info, context);
+      }
+      if (context.schema_version !== "decision_research_context_v1_daily") return null;
+      if (context.artifact_kind !== "daily_research_context") return null;
+      if (context.research_only !== true || context.daily_research_only !== true) return null;
+      if (context.action_authorized !== false || context.formal_buy_count !== 0) return null;
+      if (context.broker_connected !== false || context.execution_or_fill_claimed !== false) return null;
+      if (String(context.report_date || "") !== reportDate || String(context.exec_date || "") !== reportDate) return null;
+      if (context?.model?.prediction_matches_report !== true || context?.model?.action_authorized !== false) return null;
+      const collections = [context.candidates, context.stage_watchlist];
+      if (collections.some(rows => !Array.isArray(rows))) return null;
+      if (collections.some(rows => rows.some(row =>
+        !row || row.action !== "WATCH" || Number(row.target_weight || 0) !== 0 ||
+        Number(row.trade_selected || 0) !== 0 || row.market_order_allowed !== false
+      ))) return null;
+      return context;
+    }
+
     function renderReport(md, reportName) {
       if (!md) {
         els.reportContent.innerHTML = '<div class="empty">报告正文暂不可用，行动计划仍按结构化 JSON 展示。</div>';
@@ -1773,6 +1893,10 @@
     }
 
     function cacheCurrent(info, plan, md, evaluation) {
+      if (plan?.historical_parity === true || plan?.schema_version === "decision_research_context_v1_historical_parity") {
+        try { localStorage.removeItem(CACHE_KEY); } catch (_) {}
+        return;
+      }
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ info, plan, md, evaluation, savedAt: Date.now() })); } catch (_) {}
     }
 
@@ -1785,11 +1909,18 @@
       const cachedPlan = cached?.plan;
       const reportDate = String(info?.report_date || "");
       if (!targetInfo) return null;
-      const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url"];
+      if (cachedPlan?.historical_parity === true || cachedPlan?.schema_version === "decision_research_context_v1_historical_parity") return null;
+      const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url"];
       if (identityFields.some(key => String(info?.[key] || "") !== String(targetInfo?.[key] || ""))) return null;
       if ((info?.action_available === true) !== (targetInfo?.action_available === true)) return null;
+      if ((info?.research_available === true) !== (targetInfo?.research_available === true)) return null;
       if (!cachedPlan || !reportDate || String(cached.plan.report_date || "") !== String(cached.info?.report_date || "")) return null;
       const evidence = bindResearchEvidence(info, cached?.md, cached?.evaluation);
+      if (cachedPlan.research_only === true) {
+        const context = validatedResearchContext(info, cachedPlan);
+        if (!context || !evidence.available) return null;
+        return { info, plan: context, md: evidence.md, evaluation: evidence.evaluation };
+      }
       if (cachedPlan.daily_research_only === true) {
         if (!evidence.available) return null;
         return {
@@ -1800,7 +1931,9 @@
         };
       }
       if (info?.action_available !== true) return null;
-      return { info, plan: cachedPlan, md: evidence.md, evaluation: evidence.evaluation };
+      const actionPlan = validatedActionPlan(info, cachedPlan);
+      if (!actionPlan) return null;
+      return { info, plan: actionPlan, md: evidence.md, evaluation: evidence.evaluation };
     }
 
     async function loadReport(index) {
@@ -1809,12 +1942,18 @@
       const info = state.reports[state.index];
       if (!info) throw new Error("报告索引为空");
       const actionExpected = info.action_available === true;
+      const researchExpected = info.research_available === true;
       const actionPath = info.action_available === true && info.action_url
         ? info.action_url
         : "";
+      const researchPath = researchExpected && info.research_url
+        ? info.research_url
+        : "";
       if (actionExpected && !actionPath) throw new Error("报告索引声明存在同日行动，但缺少 action_url");
-      const [planResult, reportResult, evaluationResult] = await Promise.allSettled([
+      if (researchExpected && !researchPath) throw new Error("报告索引声明存在同日研究上下文，但缺少 research_url");
+      const [planResult, researchResult, reportResult, evaluationResult] = await Promise.allSettled([
         actionPath ? fetchPath(actionPath) : Promise.resolve(null),
+        researchPath ? fetchPath(researchPath) : Promise.resolve(null),
         fetchPath(info.report_url || `outputs/decision/${info.report_file}`, "text"),
         fetchPath(info.eval_url || `outputs/decision/eval_${info.report_date}.json`)
       ]);
@@ -1825,16 +1964,31 @@
       if (actionExpected && (!plan || typeof plan !== "object" || Array.isArray(plan))) {
         throw new Error("同日行动计划内容无效，不能降级成研究状态");
       }
-      if (plan && String(plan.report_date || "") !== String(info.report_date || "")) {
-        if (actionExpected) throw new Error("同日行动计划日期与报告索引不一致");
-        plan = null;
+      if (actionExpected && plan && typeof plan === "object" && !Array.isArray(plan) && String(plan.report_date || "") !== String(info.report_date || "")) {
+        throw new Error("同日行动计划日期与报告索引不一致");
+      }
+      if (actionExpected) plan = validatedActionPlan(info, plan);
+      if (actionExpected && !plan) {
+        throw new Error("同日行动计划内容无效，不能降级成研究状态");
+      }
+      if (researchExpected) {
+        if (researchResult.status !== "fulfilled") {
+          throw new Error("同日完整研究上下文读取失败，不能伪装为无数据");
+        }
+        const researchPlan = validatedResearchContext(info, researchResult.value);
+        if (!researchPlan) throw new Error("同日完整研究上下文合同无效");
+        if (researchPlan.historical_parity === true) {
+          plan = researchPlan;
+        } else if (!plan) {
+          plan = researchPlan;
+        }
       }
       const latestActionPath = state.reportIndex?.latest_action_url || "";
       const latestActionDate = String(state.reportIndex?.latest_action_report_date || "");
       if (!plan && state.index === 0 && latestActionPath && latestActionDate === String(info.report_date || "")) {
         try {
           const latestPlan = await fetchPath(latestActionPath);
-          if (String(latestPlan?.report_date || "") === String(info.report_date || "")) plan = latestPlan;
+          plan = validatedActionPlan(info, latestPlan);
         } catch (_) {}
       }
       const evidence = bindResearchEvidence(
@@ -1842,8 +1996,12 @@
         reportResult.status === "fulfilled" ? reportResult.value : "",
         evaluationResult.status === "fulfilled" ? evaluationResult.value : null
       );
-      const md = evidence.md;
-      const evaluation = evidence.evaluation;
+      let md = evidence.md;
+      let evaluation = evidence.evaluation;
+      if (plan?.historical_parity === true && plan.historical_report_md && plan.historical_evaluation) {
+        md = plan.historical_report_md;
+        evaluation = plan.historical_evaluation;
+      }
       if (!plan) {
         if (!evidence.available) throw new Error("同日报告与评估均不可用或日期不匹配");
         plan = researchOnlyPlan(info, evaluation, md);
@@ -1855,7 +2013,7 @@
       renderAuctionOnlyPanels(plan);
       renderObservationStatistics(plan);
       renderPathDiagnostics(plan);
-      renderResearchOutput(md, evaluation, info);
+      renderResearchOutput(md, evaluation, info, plan);
       renderActions(plan);
       renderReport(md, info.report_file);
       els.reportDetails.open = info.action_available !== true;
@@ -1887,7 +2045,7 @@
         renderAuctionOnlyPanels(cached.plan);
         renderObservationStatistics(cached.plan);
         renderPathDiagnostics(cached.plan);
-        renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {});
+        renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {}, cached.plan);
         renderActions(cached.plan);
         renderReport(cached.md || "", cached.info?.report_file || "cached_report");
         els.reportDetails.open = cached.info?.action_available !== true;

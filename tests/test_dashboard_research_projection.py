@@ -14,7 +14,7 @@ def test_dashboard_exposes_daily_research_without_fabricating_action_truth() -> 
     assert 'String(markdownExecDate) === reportDate' in text
     assert 'String(evaluation?.exec_date || "") === reportDate' in text
     assert 'parseMarkdownTable(md, "Full Candidate Pool")' in text
-    assert "renderResearchOutput(md, evaluation, info)" in text
+    assert "renderResearchOutput(md, evaluation, info, plan)" in text
     assert "researchOnlyPlan(info, evaluation, md)" in text
     assert "daily_research_only: true" in text
     assert "candidates: []" in text
@@ -34,7 +34,7 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
-    assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url"]' in text
+    assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url"]' in text
     assert "targetInfo?.action_available === true" in text
     assert "if (!evidence.available) return null" in text
 
@@ -54,6 +54,11 @@ def test_dashboard_fails_closed_when_same_day_evidence_is_missing() -> None:
     assert "未展示任何正式行动" in text
     assert "markdownSignalDate !== evaluationSignalDate" in text
     assert "markdownExitDate !== evaluationExitDate" in text
+    assert "validatedActionPlan(info, plan)" in text
+    assert 'startsWith("decision_action_plan_v")' in text
+    assert "plan.broker_connected !== false" in text
+    assert "plan.execution_or_fill_claimed === true" in text
+    assert "signalDate < execDate && execDate < exitDate" in text
 
 
 def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() -> None:
@@ -64,6 +69,10 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     assert 'els.sentimentPanel.hidden = !available' in text
     assert 'els.stagePanel.hidden = !available' in text
     assert 'els.auditPanel.hidden = !available' in text
+    assert 'els.researchPanel.hidden = fullContext' in text
+    assert 'if (researchPlan.historical_parity === true)' in text
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
-    assert 'const DASHBOARD_VERSION = "research-first-v3"' in text
+    assert 'const DASHBOARD_VERSION = "independent-full-parity-v4"' in text
+    assert 'const researchExpected = info.research_available === true' in text
+    assert "validatedResearchContext(info, researchResult.value)" in text

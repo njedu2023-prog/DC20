@@ -43,6 +43,7 @@ from top10decision.ingest import (
     load_pred_snapshot,
 )
 from top10decision.decision.eligibility import filter_standard_limit_universe
+from top10decision.decision.run_receipt import write_decision_run_receipt
 from top10decision.regime.simple_regime import simple_regime
 from top10decision.risk.guardrails import guardrails
 from top10decision.strategies.score_router import score_router
@@ -1124,7 +1125,7 @@ def main() -> int:
 
         report_path = write_decision_report(exec_date, "".join(report_lines))
 
-        write_eval_json(
+        eval_path = write_eval_json(
             exec_date,
             {
                 "exec_date": exec_date,
@@ -1158,6 +1159,15 @@ def main() -> int:
                     "decision_report": report_path,
                 },
             },
+        )
+        write_decision_run_receipt(
+            requested_trade_date=requested_trade_date,
+            signal_date=norm_ymd(trade_date),
+            exec_date=norm_ymd(exec_date),
+            exit_date=norm_ymd(exit_date),
+            report_path=report_path,
+            eval_path=eval_path,
+            stop_trading=True,
         )
 
         return 0
@@ -1317,6 +1327,7 @@ def main() -> int:
         "exec_date": exec_date,
         "exit_date": exit_date,
         "requested_trade_date": requested_trade_date,
+        "stop_trading": False,
         "regime": regime_name,
         "risk_budget": risk_budget,
         "regime_reason": str(getattr(reg, "reason", "") or ""),
@@ -1373,7 +1384,16 @@ def main() -> int:
             "full_candidate_rows": int(len(full_candidate_report_df)),
         },
     }
-    write_eval_json(exec_date, eval_payload)
+    eval_path = write_eval_json(exec_date, eval_payload)
+    write_decision_run_receipt(
+        requested_trade_date=requested_trade_date,
+        signal_date=norm_ymd(trade_date),
+        exec_date=norm_ymd(exec_date),
+        exit_date=norm_ymd(exit_date),
+        report_path=report_path,
+        eval_path=eval_path,
+        stop_trading=False,
+    )
 
     return 0
 

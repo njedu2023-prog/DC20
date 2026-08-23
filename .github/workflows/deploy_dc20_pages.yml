@@ -101,6 +101,22 @@ jobs:
           report_index = json.loads(index_path.read_text(encoding="utf-8"))
           report_date = str(report_index.get("latest_report_date", "")).strip()
           report_file = str(report_index.get("latest_report_file", "")).strip()
+          latest_rows = [
+              row for row in report_index.get("reports", [])
+              if isinstance(row, dict) and row.get("report_date") == report_date
+          ]
+          if len(latest_rows) != 1:
+              raise SystemExit("projected report_index must contain one latest report row")
+          latest_row = latest_rows[0]
+          research_available = latest_row.get("research_available", False)
+          research_url = latest_row.get("research_url", "")
+          if type(research_available) is not bool:
+              raise SystemExit("latest research_available must be a bool when present")
+          expected_research_url = f"outputs/decision/research_context_{report_date}.json"
+          if research_available and research_url != expected_research_url:
+              raise SystemExit("latest research_url is not exact")
+          if not research_available and research_url:
+              raise SystemExit("unavailable latest research context must not have research_url")
           inventory_projected = report_index.get("inventory_projected")
           source_latest_report_date = report_index.get("source_latest_report_date")
           if not report_date or not report_file:
@@ -201,6 +217,8 @@ jobs:
               "report_file": report_file,
               "latest_action_report_date": action_truth.latest_action_report_date,
               "latest_action_url": action_truth.latest_action_url,
+              "latest_research_available": research_available,
+              "latest_research_url": research_url,
               # The index timestamp proves index reconstruction, not report
               # generation.  Preserve the legacy key as an explicit null so
               # consumers cannot mistake an Auction/migration time for report
@@ -262,6 +280,8 @@ jobs:
               output.write(f"signal_date={signal_date}\n")
               output.write(f"report_date={report_date}\n")
               output.write(f"report_file={report_file}\n")
+              output.write(f"research_available={str(research_available).lower()}\n")
+              output.write(f"research_url={research_url}\n")
               output.write(f"freeze_active={str(freeze_active).lower()}\n")
               output.write(f"report_age_days={report_age_days}\n")
               output.write(f"prospective={str(prospective).lower()}\n")
@@ -287,6 +307,8 @@ jobs:
           EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
           EXPECTED_REPORT_DATE: ${{ steps.site.outputs.report_date }}
           EXPECTED_REPORT_FILE: ${{ steps.site.outputs.report_file }}
+          EXPECTED_RESEARCH_AVAILABLE: ${{ steps.site.outputs.research_available }}
+          EXPECTED_RESEARCH_URL: ${{ steps.site.outputs.research_url }}
           EXPECTED_FREEZE_ACTIVE: ${{ steps.site.outputs.freeze_active }}
           EXPECTED_REPORT_AGE_DAYS: ${{ steps.site.outputs.report_age_days }}
           EXPECTED_PROSPECTIVE: ${{ steps.site.outputs.prospective }}
@@ -298,6 +320,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import base64
+          import hashlib
           import json
           import os
           import time
@@ -309,6 +333,8 @@ jobs:
           expected_signal_date = os.environ["EXPECTED_SIGNAL_DATE"]
           expected_report_date = os.environ["EXPECTED_REPORT_DATE"]
           expected_report_file = os.environ["EXPECTED_REPORT_FILE"]
+          expected_research_available = os.environ["EXPECTED_RESEARCH_AVAILABLE"] == "true"
+          expected_research_url = os.environ["EXPECTED_RESEARCH_URL"]
           expected_freeze_active = os.environ["EXPECTED_FREEZE_ACTIVE"] == "true"
           expected_report_age_days = int(os.environ["EXPECTED_REPORT_AGE_DAYS"])
           expected_prospective = os.environ["EXPECTED_PROSPECTIVE"] == "true"
@@ -343,6 +369,11 @@ jobs:
                       fetch_text(f"outputs/decision/eval_{expected_report_date}.json")
                   )
                   public_report = fetch_text(f"outputs/decision/{expected_report_file}")
+                  public_research = (
+                      json.loads(fetch_text(expected_research_url))
+                      if expected_research_available
+                      else None
+                  )
 
                   if "<title>DC2.0 Decision 竞价研究</title>" not in root_html:
                       raise RuntimeError("public root does not contain the DC2.0 title")
@@ -402,6 +433,127 @@ jobs:
                       raise RuntimeError(
                           "public latest_action_url does not match revision.json"
                       )
+                  public_latest_rows = [
+                      row for row in public_index.get("reports", [])
+                      if isinstance(row, dict)
+                      and str(row.get("report_date")) == expected_report_date
+                  ]
+                  if len(public_latest_rows) != 1:
+                      raise RuntimeError("public report_index has no unique latest row")
+                  public_latest_row = public_latest_rows[0]
+                  if (public_latest_row.get("research_available", False) is True) is not expected_research_available:
+                      raise RuntimeError("public latest research availability does not match build")
+                  if str(public_latest_row.get("research_url", "")) != expected_research_url:
+                      raise RuntimeError("public latest research URL does not match build")
+                  if revision.get("latest_research_available") is not expected_research_available:
+                      raise RuntimeError("revision latest research availability does not match build")
+                  if str(revision.get("latest_research_url", "")) != expected_research_url:
+                      raise RuntimeError("revision latest research URL does not match build")
+                  if expected_research_available:
+                      if not isinstance(public_research, dict):
+                          raise RuntimeError("public latest research context is not an object")
+                      research_schema = public_research.get("schema_version")
+                      if public_research.get("research_only") is not True:
+                          raise RuntimeError("public latest research context is not research-only")
+                      if public_research.get("action_authorized") is not False:
+                          raise RuntimeError("public latest research context authorizes action")
+                      if str(public_research.get("report_date")) != expected_report_date:
+                          raise RuntimeError("public latest research context report date is wrong")
+                      if str(public_research.get("signal_date")) != expected_signal_date:
+                          raise RuntimeError("public latest research context signal date is wrong")
+                      if research_schema == "decision_research_context_v1_daily":
+                          if public_research.get("formal_buy_count") != 0:
+                              raise RuntimeError("public latest Daily research context has formal buys")
+                          for collection in ("candidates", "stage_watchlist"):
+                              rows = public_research.get(collection)
+                              if not isinstance(rows, list) or any(
+                                  not isinstance(row, dict)
+                                  or row.get("action") != "WATCH"
+                                  or float(row.get("target_weight") or 0) != 0.0
+                                  or int(row.get("trade_selected") or 0) != 0
+                                  or row.get("market_order_allowed") is not False
+                                  for row in rows
+                              ):
+                                  raise RuntimeError(
+                                      f"public latest Daily research context {collection} contains action claims"
+                                  )
+                      elif research_schema == "decision_research_context_v1_historical_parity":
+                          if public_research.get("historical_parity") is not True:
+                              raise RuntimeError("public historical parity marker is missing")
+                          if public_research.get("runtime_network_dependency") is not False:
+                              raise RuntimeError("public historical parity has a runtime dependency")
+                          binding = public_research.get("source_binding")
+                          if not isinstance(binding, dict):
+                              raise RuntimeError("public historical parity source binding is missing")
+                          payloads = public_research.get("payloads_base64")
+                          artifact_bindings = binding.get("artifacts")
+                          artifact_keys = {"action_plan", "decision_report", "evaluation"}
+                          if (
+                              not isinstance(payloads, dict)
+                              or set(payloads) != artifact_keys
+                              or not isinstance(artifact_bindings, dict)
+                              or set(artifact_bindings) != artifact_keys
+                          ):
+                              raise RuntimeError("public historical parity artifact set is invalid")
+                          decoded = {}
+                          for artifact in sorted(artifact_keys):
+                              artifact_binding = artifact_bindings[artifact]
+                              if not isinstance(artifact_binding, dict):
+                                  raise RuntimeError(f"public historical parity {artifact} binding is invalid")
+                              try:
+                                  raw = base64.b64decode(
+                                      str(payloads.get(artifact) or "").encode("ascii"),
+                                      validate=True,
+                                  )
+                              except Exception as exc:
+                                  raise RuntimeError(
+                                      f"public historical parity {artifact} payload is invalid base64"
+                                  ) from exc
+                              if hashlib.sha256(raw).hexdigest() != artifact_binding.get("raw_sha256"):
+                                  raise RuntimeError(
+                                      f"public historical parity {artifact} raw SHA256 mismatch"
+                                  )
+                              git_header = f"blob {len(raw)}\0".encode("ascii")
+                              if hashlib.sha1(git_header + raw).hexdigest() != artifact_binding.get("blob_sha"):
+                                  raise RuntimeError(
+                                      f"public historical parity {artifact} Git blob SHA mismatch"
+                                  )
+                              decoded[artifact] = raw
+                          legacy = json.loads(decoded["action_plan"].decode("utf-8"))
+                          if str(legacy.get("report_date")) != expected_report_date:
+                              raise RuntimeError("public historical parity payload report date is wrong")
+                          if str(legacy.get("signal_date")) != expected_signal_date:
+                              raise RuntimeError("public historical parity payload signal date is wrong")
+                          if str(legacy.get("exec_date")) != expected_report_date:
+                              raise RuntimeError("public historical parity payload exec date is wrong")
+                          legacy_exit_date = str(legacy.get("exit_date") or "")
+                          if not expected_signal_date < expected_report_date < legacy_exit_date:
+                              raise RuntimeError("public historical parity payload date order is wrong")
+                          legacy_report = decoded["decision_report"].decode("utf-8-sig")
+                          legacy_report_lines = legacy_report.splitlines()
+                          if legacy_report_lines[:1] != [f"# Decision Report ({expected_report_date})"]:
+                              raise RuntimeError("public historical parity report heading is wrong")
+                          for field, value in (
+                              ("signal_date", expected_signal_date),
+                              ("exec_date", expected_report_date),
+                              ("exit_date", legacy_exit_date),
+                          ):
+                              if legacy_report_lines.count(f"- {field}: **{value}**") != 1:
+                                  raise RuntimeError(
+                                      f"public historical parity report {field} binding is wrong"
+                                  )
+                          legacy_evaluation = json.loads(decoded["evaluation"].decode("utf-8"))
+                          for field, value in (
+                              ("signal_date", expected_signal_date),
+                              ("exec_date", expected_report_date),
+                              ("exit_date", legacy_exit_date),
+                          ):
+                              if str(legacy_evaluation.get(field) or "") != value:
+                                  raise RuntimeError(
+                                      f"public historical parity evaluation {field} binding is wrong"
+                                  )
+                      else:
+                          raise RuntimeError("public latest research context schema is invalid")
                   if revision.get("report_generated_at_utc") is not None:
                       raise RuntimeError(
                           "legacy report_generated_at_utc must remain null without report provenance"

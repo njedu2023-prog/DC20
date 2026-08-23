@@ -46,7 +46,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     outputs:
       publish: ${{ steps.mode.outputs.publish }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
@@ -549,6 +549,7 @@ jobs:
           TRADE_DATE: ${{ inputs.trade_date }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
+          DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then python scripts/run_v2.py --trade-date "${TRADE_DATE}"; else python scripts/run_v2.py; fi
@@ -567,6 +568,71 @@ jobs:
           else
             python scripts/validate_decision_model_freeze.py --runtime --force-inactive
           fi
+      - name: Build isolated full Daily research context without creating action
+        if: ${{ steps.session.outputs.write_eligible == 'true' }}
+        env:
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
+          TRADE_DATE: ${{ inputs.trade_date }}
+          DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          research_root="${RUNNER_TEMP}/dc20-daily-research-root"
+          mkdir -p "${research_root}"
+          rsync -a --delete --exclude='.git' --exclude='__pycache__' ./ "${research_root}/"
+          read -r signal_date report_date < <(python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.run_receipt import validate_decision_run_receipt
+
+          receipt = validate_decision_run_receipt(
+              root=Path.cwd(),
+              receipt_path=Path(os.environ['DECISION_RUN_RECEIPT_PATH']),
+              requested_trade_date=os.environ.get('TRADE_DATE', ''),
+          )
+          print(receipt['signal_date'], receipt['exec_date'])
+          PY
+          )
+          auction_args=(--root "${research_root}" --signal-date "${signal_date}")
+          if [ "${PUBLISH}" != "true" ]; then auction_args+=(--force-inactive); fi
+          python "${research_root}/scripts/run_deterministic_numeric.py" \
+            "${research_root}/scripts/run_auction_v3.py" "${auction_args[@]}"
+          python "${research_root}/scripts/publish_decision_research_context.py" \
+            --source-root "${research_root}" \
+            --output-root "${GITHUB_WORKSPACE}" \
+            --report-date "${report_date}"
+          RESEARCH_PATH="outputs/decision/research_context_${report_date}.json" \
+            REPORT_DATE="${report_date}" \
+            PYTHONPATH="${GITHUB_WORKSPACE}/src" \
+            python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.research_context import (
+              HISTORICAL_PARITY_SCHEMA,
+              validate_historical_parity_context,
+              validate_research_context,
+          )
+
+          context = json.loads(Path(os.environ['RESEARCH_PATH']).read_text(encoding='utf-8'))
+          if context.get('schema_version') == HISTORICAL_PARITY_SCHEMA:
+              validate_historical_parity_context(
+                  context,
+                  expected_report_date=os.environ['REPORT_DATE'],
+              )
+              print('Daily preserved historical parity research context')
+          else:
+              validate_research_context(context, expected_report_date=os.environ['REPORT_DATE'])
+          action = Path('outputs/decision/action_plan_latest.json')
+          digest = hashlib.sha256(action.read_bytes()).hexdigest() if action.is_file() else ''
+          if not hmac.compare_digest(digest, os.environ['PRESERVED_ACTION_SHA256']):
+              raise SystemExit('Daily research generation modified the preserved Auction action plan')
+          PY
       - name: Build exact allowlisted Daily candidate patch
         id: candidate
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -584,7 +650,7 @@ jobs:
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
@@ -716,7 +782,7 @@ jobs:
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/**','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
