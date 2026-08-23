@@ -710,7 +710,7 @@
   <main>
     <section id="statusBand" class="status-band warn">
       <div>
-        <p class="status-kicker">执行结论</p>
+        <p id="statusKicker" class="status-kicker">执行结论</p>
         <h2 id="statusTitle" class="status-title">正在加载</h2>
       </div>
       <div class="date-contract">
@@ -785,6 +785,19 @@
     <section class="panel">
       <div class="panel-head">
         <div>
+          <h2>日线研究候选（非买入建议）</h2>
+          <p>展示 Daily 报告与评估中已经生成的研究候选；正式行动仍只认同日 Auction action_plan。</p>
+        </div>
+        <span id="researchCount" class="count">待读取</span>
+      </div>
+      <div id="researchMetrics" class="metrics panel-metrics"></div>
+      <div id="researchContent"></div>
+      <p id="researchNote" class="stats-note"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
           <h2>人工操作参考</h2>
         </div>
         <span id="candidateCount" class="count">0 条</span>
@@ -802,7 +815,7 @@
       <div id="auditContent" class="audit-grid"></div>
     </section>
 
-    <details class="panel">
+    <details id="reportDetails" class="panel">
       <summary>Decision 报告正文</summary>
       <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
     </details>
@@ -815,11 +828,11 @@
 
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "dc20-decision-dashboard-v1-cache";
+    const CACHE_KEY = "dc20-decision-dashboard-v2-cache";
     const els = Object.fromEntries([
-      "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusTitle", "brandDates",
+      "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "candidateCount", "actionContent", "auditContent", "reportContent", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = { reports: [], reportIndex: null, index: 0, current: null };
@@ -1015,6 +1028,9 @@
       const status = String(plan?.status_code || "PENDING_AUCTION_MODEL");
       const tone = status === "ACTIONABLE_BUY" ? "good" : status.startsWith("NO_TRADE") ? "bad" : "warn";
       els.statusBand.className = `status-band ${tone}`;
+      els.statusKicker.textContent = plan?.daily_research_only === true
+        ? "日线研究结论（非竞价行动）"
+        : "执行结论";
       els.statusTitle.textContent = plan?.status_label || "行动计划尚未生成";
       els.brandDates.textContent = `D:${dateText(plan?.signal_date)} · T:${dateText(plan?.exec_date)} · T+1:${dateText(plan?.exit_date)}`;
       els.signalDate.textContent = dateText(plan?.signal_date);
@@ -1406,7 +1422,10 @@
       const rows = Array.isArray(plan?.candidates) ? plan.candidates : [];
       els.candidateCount.textContent = `${rows.length} 条`;
       if (!rows.length) {
-        els.actionContent.innerHTML = '<div class="empty"><strong>当前没有可展示候选</strong>行动计划尚未生成，或资格过滤后候选池为空。</div>';
+        const detail = plan?.daily_research_only === true
+          ? "同日竞价行动计划尚未生成；上方日线研究候选仅用于观察，不是买入建议。"
+          : "行动计划尚未生成，或资格过滤后候选池为空。";
+        els.actionContent.innerHTML = `<div class="empty"><strong>当前没有正式行动候选</strong>${escapeHtml(detail)}</div>`;
         return;
       }
       const formal = rows.filter(row => row.action === "BUY");
@@ -1615,6 +1634,100 @@
       return `<div class="table-wrap"><table><thead><tr>${table.header.map((h, i) => `<th class="${i < 3 ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${table.rows.map(row => `<tr>${table.header.map((_, i) => `<td class="${i < 3 ? "left" : ""}">${escapeHtml(row[i] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     }
 
+    function rowCount(...values) {
+      for (const value of values) {
+        const parsed = finiteNumber(value);
+        if (parsed != null && parsed >= 0) return Math.trunc(parsed);
+      }
+      return 0;
+    }
+
+    function bindResearchEvidence(info, md, evaluation) {
+      const reportDate = String(info?.report_date || "");
+      const markdown = typeof md === "string" ? md : "";
+      const markdownExecDate = extractField(markdown, "exec_date");
+      let boundMarkdown = markdown && markdownExecDate && String(markdownExecDate) === reportDate
+        ? markdown
+        : "";
+      let boundEvaluation = evaluation && String(evaluation?.exec_date || "") === reportDate
+        ? evaluation
+        : null;
+      if (boundMarkdown && boundEvaluation) {
+        const markdownSignalDate = String(extractField(boundMarkdown, "signal_date") || "");
+        const markdownExitDate = String(extractField(boundMarkdown, "exit_date") || "");
+        const evaluationSignalDate = String(boundEvaluation?.signal_date || "");
+        const evaluationExitDate = String(boundEvaluation?.exit_date || "");
+        const signalMismatch = markdownSignalDate && evaluationSignalDate && markdownSignalDate !== evaluationSignalDate;
+        const exitMismatch = markdownExitDate && evaluationExitDate && markdownExitDate !== evaluationExitDate;
+        if (signalMismatch || exitMismatch) {
+          boundMarkdown = "";
+          boundEvaluation = null;
+        }
+      }
+      return {
+        md: boundMarkdown,
+        evaluation: boundEvaluation,
+        available: Boolean(boundMarkdown || boundEvaluation)
+      };
+    }
+
+    function researchGateLabel(gate) {
+      const value = String(gate || "");
+      if (value === "NO_TRADE_MISSING_LEARNING_ACCEPTANCE") return "不交易：学习验收缺失";
+      if (value.startsWith("NO_TRADE")) return `不交易：${value}`;
+      return value || "待评估";
+    }
+
+    function renderResearchOutput(md, evaluation, info) {
+      const full = parseMarkdownTable(md, "Full Candidate Pool");
+      const dailyTargets = parseMarkdownTable(md, "TopN Targets");
+      const reportStats = evaluation?.report_stats || {};
+      const diagnostics = evaluation?.decision_diagnostics || {};
+      const researchRows = rowCount(reportStats.full_candidate_rows, full?.rows?.length);
+      const dailyPickedRows = rowCount(evaluation?.picked, diagnostics.selected_rows, dailyTargets?.rows?.length);
+      const gate = String(evaluation?.execution_gate || extractField(md, "execution_gate") || "");
+      const signalDate = evaluation?.signal_date || extractField(md, "signal_date");
+      const execDate = evaluation?.exec_date || extractField(md, "exec_date") || info?.report_date;
+      const exitDate = evaluation?.exit_date || extractField(md, "exit_date");
+
+      els.researchCount.textContent = `${researchRows} 条研究候选 · ${dailyPickedRows} 条 Daily 入选（非行动）`;
+      els.researchMetrics.innerHTML = [
+        metric("D 信号日", dateText(signalDate)),
+        metric("T 执行日", dateText(execDate)),
+        metric("T+1 退出日", dateText(exitDate)),
+        metric("研究候选", integerText(researchRows)),
+        metric("Daily 入选（非行动）", integerText(dailyPickedRows), "warn"),
+        metric("Daily 执行门", researchGateLabel(gate), gate.startsWith("NO_TRADE") ? "bad" : "warn")
+      ].join("");
+      if (full?.rows?.length) {
+        els.researchContent.innerHTML = `<div class="empty"><strong>候选数据已生成，但不是竞价行动</strong>共 ${integerText(researchRows)} 条研究候选；Daily 入选 ${integerText(dailyPickedRows)} 条（仍非行动）。只有同日 action_plan 中明确标记的行动才可进入“人工操作参考”。</div>${markdownTableHtml(full)}`;
+      } else {
+        els.researchContent.innerHTML = '<div class="empty"><strong>本报告没有研究候选表</strong>请以结构化评估中的行数与执行门为准。</div>';
+      }
+      els.researchNote.textContent = `数据来源：${info?.eval_url || "同日报告评估"} 与 ${info?.report_file || "同日报告"}。Daily 候选、Auction 行动、实际成交和 T+1 结算是四个不同证据层。`;
+    }
+
+    function researchOnlyPlan(info, evaluation, md) {
+      const gate = String(evaluation?.execution_gate || extractField(md, "execution_gate") || "");
+      const gateLabel = researchGateLabel(gate);
+      return {
+        report_date: info.report_date,
+        signal_date: evaluation?.signal_date || extractField(md, "signal_date"),
+        exec_date: evaluation?.exec_date || extractField(md, "exec_date") || info.report_date,
+        exit_date: evaluation?.exit_date || extractField(md, "exit_date"),
+        risk_budget: evaluation?.risk_budget ?? finiteNumber(extractField(md, "risk_budget")),
+        status_code: gate.startsWith("NO_TRADE") ? gate : "PENDING_AUCTION_MODEL",
+        status_label: `日线研究完成 · ${gateLabel} · 同日竞价行动尚未生成`,
+        daily_research_only: true,
+        model: {
+          promoted: false,
+          prediction_matches_report: false,
+          promotion_failures: ["同日竞价行动尚未生成；日线研究候选不等于正式行动"]
+        },
+        candidates: []
+      };
+    }
+
     function renderReport(md, reportName) {
       if (!md) {
         els.reportContent.innerHTML = '<div class="empty">报告正文暂不可用，行动计划仍按结构化 JSON 展示。</div>';
@@ -1639,12 +1752,35 @@
       els.nextBtn.disabled = state.index <= 0;
     }
 
-    function cacheCurrent(info, plan, md) {
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ info, plan, md, savedAt: Date.now() })); } catch (_) {}
+    function cacheCurrent(info, plan, md, evaluation) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ info, plan, md, evaluation, savedAt: Date.now() })); } catch (_) {}
     }
 
     function loadCache() {
       try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch (_) { return null; }
+    }
+
+    function validatedCachedState(cached, targetInfo) {
+      const info = cached?.info;
+      const cachedPlan = cached?.plan;
+      const reportDate = String(info?.report_date || "");
+      if (!targetInfo) return null;
+      const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url"];
+      if (identityFields.some(key => String(info?.[key] || "") !== String(targetInfo?.[key] || ""))) return null;
+      if ((info?.action_available === true) !== (targetInfo?.action_available === true)) return null;
+      if (!cachedPlan || !reportDate || String(cachedPlan.report_date || "") !== reportDate) return null;
+      const evidence = bindResearchEvidence(info, cached?.md, cached?.evaluation);
+      if (cachedPlan.daily_research_only === true) {
+        if (!evidence.available) return null;
+        return {
+          info,
+          plan: researchOnlyPlan(info, evidence.evaluation, evidence.md),
+          md: evidence.md,
+          evaluation: evidence.evaluation
+        };
+      }
+      if (info?.action_available !== true) return null;
+      return { info, plan: cachedPlan, md: evidence.md, evaluation: evidence.evaluation };
     }
 
     async function loadReport(index) {
@@ -1652,15 +1788,25 @@
       setNavigation();
       const info = state.reports[state.index];
       if (!info) throw new Error("报告索引为空");
+      const actionExpected = info.action_available === true;
       const actionPath = info.action_available === true && info.action_url
         ? info.action_url
         : "";
-      const [planResult, reportResult] = await Promise.allSettled([
+      if (actionExpected && !actionPath) throw new Error("报告索引声明存在同日行动，但缺少 action_url");
+      const [planResult, reportResult, evaluationResult] = await Promise.allSettled([
         actionPath ? fetchPath(actionPath) : Promise.resolve(null),
-        fetchPath(info.report_url || `outputs/decision/${info.report_file}`, "text")
+        fetchPath(info.report_url || `outputs/decision/${info.report_file}`, "text"),
+        fetchPath(info.eval_url || `outputs/decision/eval_${info.report_date}.json`)
       ]);
+      if (actionExpected && planResult.status !== "fulfilled") {
+        throw new Error("同日行动计划读取失败，不能降级成尚未生成");
+      }
       let plan = planResult.status === "fulfilled" ? planResult.value : null;
+      if (actionExpected && (!plan || typeof plan !== "object" || Array.isArray(plan))) {
+        throw new Error("同日行动计划内容无效，不能降级成研究状态");
+      }
       if (plan && String(plan.report_date || "") !== String(info.report_date || "")) {
+        if (actionExpected) throw new Error("同日行动计划日期与报告索引不一致");
         plan = null;
       }
       const latestActionPath = state.reportIndex?.latest_action_url || "";
@@ -1671,17 +1817,18 @@
           if (String(latestPlan?.report_date || "") === String(info.report_date || "")) plan = latestPlan;
         } catch (_) {}
       }
-      const md = reportResult.status === "fulfilled" ? reportResult.value : "";
+      const evidence = bindResearchEvidence(
+        info,
+        reportResult.status === "fulfilled" ? reportResult.value : "",
+        evaluationResult.status === "fulfilled" ? evaluationResult.value : null
+      );
+      const md = evidence.md;
+      const evaluation = evidence.evaluation;
       if (!plan) {
-        plan = {
-          report_date: info.report_date,
-          status_code: "PENDING_AUCTION_MODEL",
-          status_label: "行动计划尚未生成",
-          model: { promoted: false, prediction_matches_report: false, promotion_failures: [] },
-          candidates: []
-        };
+        if (!evidence.available) throw new Error("同日报告与评估均不可用或日期不匹配");
+        plan = researchOnlyPlan(info, evaluation, md);
       }
-      state.current = { info, plan, md };
+      state.current = { info, plan, md, evaluation };
       renderStatus(plan);
       renderTop10Backtest(plan);
       renderMetrics(plan);
@@ -1689,15 +1836,18 @@
       renderStageWatchlist(plan);
       renderObservationStatistics(plan);
       renderPathDiagnostics(plan);
+      renderResearchOutput(md, evaluation, info);
       renderActions(plan);
       renderAudit(plan);
       renderReport(md, info.report_file);
-      cacheCurrent(info, plan, md);
+      els.reportDetails.open = info.action_available !== true;
+      cacheCurrent(info, plan, md, evaluation);
       els.footer.textContent = `DC2.0 · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
     }
 
     async function initialize(force = false) {
       els.refreshBtn.disabled = true;
+      let targetInfo = null;
       try {
         if (force) state.reports = [];
         const index = await fetchPath("outputs/decision/report_index.json");
@@ -1706,11 +1856,12 @@
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
         state.index = 0;
+        targetInfo = state.reports[0];
         await loadReport(0);
       } catch (error) {
-        const cached = loadCache();
-        if (!cached?.plan || String(cached.plan.report_date || "") !== String(cached.info?.report_date || "")) throw error;
-        state.reports = [cached.info || { report_file: "cached_report", report_date: cached.plan.report_date || "" }];
+        const cached = validatedCachedState(loadCache(), targetInfo);
+        if (!cached) throw error;
+        state.reports = [cached.info];
         state.index = 0;
         renderStatus(cached.plan);
         renderTop10Backtest(cached.plan);
@@ -1719,9 +1870,12 @@
         renderStageWatchlist(cached.plan);
         renderObservationStatistics(cached.plan);
         renderPathDiagnostics(cached.plan);
+        renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {});
         renderActions(cached.plan);
         renderAudit(cached.plan);
         renderReport(cached.md || "", cached.info?.report_file || "cached_report");
+        els.reportDetails.open = cached.info?.action_available !== true;
+        els.footer.textContent = `DC2.0 · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
         setNavigation();
       } finally {
         els.refreshBtn.disabled = false;
@@ -1734,7 +1888,14 @@
 
     function showError(error) {
       els.statusBand.className = "status-band bad";
+      els.statusKicker.textContent = "读取状态";
       els.statusTitle.textContent = `读取失败：${String(error?.message || error || "未知错误")}`;
+      els.researchCount.textContent = "读取失败";
+      els.researchMetrics.innerHTML = "";
+      els.researchContent.innerHTML = '<div class="empty"><strong>未展示任何研究候选</strong>同日报告或评估没有通过读取与日期绑定校验。</div>';
+      els.researchNote.textContent = "";
+      els.candidateCount.textContent = "0 条";
+      els.actionContent.innerHTML = '<div class="empty"><strong>未展示任何正式行动</strong>同日行动计划没有通过读取与日期绑定校验。</div>';
     }
 
     window.addEventListener("error", event => showError(event.error || event.message));
