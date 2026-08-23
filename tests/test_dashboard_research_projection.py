@@ -8,7 +8,7 @@ DASHBOARD = ROOT / "decision.html"
 def test_dashboard_exposes_daily_research_without_fabricating_action_truth() -> None:
     text = DASHBOARD.read_text(encoding="utf-8")
     assert "日线研究候选（非买入建议）" in text
-    assert "正式行动仍只认同日 Auction action_plan" in text
+    assert "正式行动仍只认同同日 Auction action_plan" in text
     assert 'id="researchCount" class="count" aria-live="polite"' in text
     assert "fetchPath(info.eval_url ||" in text
     assert 'String(markdownExecDate) === reportDate' in text
@@ -30,7 +30,7 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert 'exec_date: evaluation?.exec_date || extractField(md, "exec_date")' in text
     assert 'exit_date: evaluation?.exit_date || extractField(md, "exit_date")' in text
     assert 'evaluation?.execution_gate || extractField(md, "execution_gate")' in text
-    assert 'const CACHE_KEY = "dc20-decision-dashboard-v2-cache"' in text
+    assert 'const CACHE_KEY = "dc20-decision-dashboard-v3-cache"' in text
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
@@ -54,3 +54,16 @@ def test_dashboard_fails_closed_when_same_day_evidence_is_missing() -> None:
     assert "未展示任何正式行动" in text
     assert "markdownSignalDate !== evaluationSignalDate" in text
     assert "markdownExitDate !== evaluationExitDate" in text
+
+
+def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    assert text.index('id="researchContent"') < text.index('id="sentimentPanel"')
+    assert text.index('id="researchContent"') < text.index('id="stagePanel"')
+    assert 'const available = plan?.daily_research_only !== true' in text
+    assert 'els.sentimentPanel.hidden = !available' in text
+    assert 'els.stagePanel.hidden = !available' in text
+    assert 'els.auditPanel.hidden = !available' in text
+    assert 'window.location.replace(latestUrl.toString())' in text
+    assert 'title="重新加载最新版页面"' in text
+    assert 'const DASHBOARD_VERSION = "research-first-v3"' in text

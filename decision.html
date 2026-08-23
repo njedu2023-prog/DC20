@@ -701,7 +701,7 @@
       </div>
       <nav class="controls" aria-label="报告导航">
         <button id="prevBtn" class="icon-btn" type="button" title="上一份历史报告" aria-label="上一份历史报告">←</button>
-        <button id="refreshBtn" class="icon-btn" type="button" title="手动刷新" aria-label="手动刷新">↻</button>
+        <button id="refreshBtn" class="icon-btn" type="button" title="重新加载最新版页面" aria-label="重新加载最新版页面">↻</button>
         <button id="nextBtn" class="icon-btn" type="button" title="下一份报告" aria-label="下一份报告">→</button>
       </nav>
     </div>
@@ -718,6 +718,19 @@
         <div class="date-box"><span><b>T</b>竞价买入日</span><strong id="execDate">-</strong></div>
         <div class="date-box"><span><b>T+1</b>退出日</span><strong id="exitDate">-</strong></div>
       </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>日线研究候选（非买入建议）</h2>
+          <p>展示 Daily 报告与评估中已经生成的研究候选；正式行动仍只认同同日 Auction action_plan。</p>
+        </div>
+        <span id="researchCount" class="count" aria-live="polite">待读取</span>
+      </div>
+      <div id="researchMetrics" class="metrics panel-metrics"></div>
+      <div id="researchContent"></div>
+      <p id="researchNote" class="stats-note"></p>
     </section>
 
     <details class="panel top10-backtest-panel">
@@ -739,7 +752,7 @@
       <section id="metrics" class="metrics" aria-label="核心指标"></section>
     </details>
 
-    <section class="panel">
+    <section id="sentimentPanel" class="panel">
       <div class="panel-head">
         <div>
           <h2>市场情绪量化</h2>
@@ -750,7 +763,7 @@
       <div id="sentimentIndustries" class="sentiment-industries"></div>
     </section>
 
-    <section class="panel">
+    <section id="stagePanel" class="panel">
       <div class="panel-head">
         <div>
           <h2>2→3→4 · <span id="stageSignalDate">D：-</span><span id="stageGeneratedTime" class="stage-generated-time"></span></h2>
@@ -785,19 +798,6 @@
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2>日线研究候选（非买入建议）</h2>
-          <p>展示 Daily 报告与评估中已经生成的研究候选；正式行动仍只认同日 Auction action_plan。</p>
-        </div>
-        <span id="researchCount" class="count" aria-live="polite">待读取</span>
-      </div>
-      <div id="researchMetrics" class="metrics panel-metrics"></div>
-      <div id="researchContent"></div>
-      <p id="researchNote" class="stats-note"></p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <div>
           <h2>人工操作参考</h2>
         </div>
         <span id="candidateCount" class="count">0 条</span>
@@ -805,7 +805,7 @@
       <div id="actionContent"></div>
     </section>
 
-    <section class="panel">
+    <section id="auditPanel" class="panel">
       <div class="panel-head">
         <div>
           <h2>模型与资格审计</h2>
@@ -820,7 +820,7 @@
       <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
     </details>
 
-    <footer id="footer">本页面不自动刷新，不连接券商，不执行订单。研究结果不构成收益保证；没有通过晋级门槛时，系统会明确输出不交易。</footer>
+    <footer id="footer">页面版 research-first-v3 · 本页面不自动刷新，不连接券商，不执行订单。研究结果不构成收益保证；没有通过晋级门槛时，系统会明确输出不交易。</footer>
   </main>
 
   <script>
@@ -828,11 +828,12 @@
 
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "dc20-decision-dashboard-v2-cache";
+    const CACHE_KEY = "dc20-decision-dashboard-v3-cache";
+    const DASHBOARD_VERSION = "research-first-v3";
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
-      "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditContent", "reportDetails", "reportContent", "footer"
+      "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = { reports: [], reportIndex: null, index: 0, current: null };
@@ -1039,6 +1040,25 @@
       const generatedTime = beijingDateTimeText(plan?.generated_at_utc);
       els.stageSignalDate.textContent = `D：${dateText(plan?.signal_date)}`;
       els.stageGeneratedTime.textContent = generatedTime ? `数据生成时间 ${generatedTime}` : "";
+    }
+
+    function renderAuctionOnlyPanels(plan) {
+      const available = plan?.daily_research_only !== true;
+      els.sentimentPanel.hidden = !available;
+      els.stagePanel.hidden = !available;
+      els.auditPanel.hidden = !available;
+      if (!available) {
+        els.sentimentState.textContent = "同日竞价明细尚未生成";
+        els.sentimentMetrics.innerHTML = "";
+        els.sentimentIndustries.innerHTML = "";
+        els.stageCount.textContent = "同日竞价明细尚未生成";
+        els.stageContent.innerHTML = "";
+        els.auditContent.innerHTML = "";
+        return;
+      }
+      renderSentiment(plan);
+      renderStageWatchlist(plan);
+      renderAudit(plan);
     }
 
     function renderMetrics(plan) {
@@ -1832,17 +1852,15 @@
       renderStatus(plan);
       renderTop10Backtest(plan);
       renderMetrics(plan);
-      renderSentiment(plan);
-      renderStageWatchlist(plan);
+      renderAuctionOnlyPanels(plan);
       renderObservationStatistics(plan);
       renderPathDiagnostics(plan);
       renderResearchOutput(md, evaluation, info);
       renderActions(plan);
-      renderAudit(plan);
       renderReport(md, info.report_file);
       els.reportDetails.open = info.action_available !== true;
       cacheCurrent(info, plan, md, evaluation);
-      els.footer.textContent = `DC2.0 · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+      els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
     }
 
     async function initialize(force = false) {
@@ -1866,23 +1884,26 @@
         renderStatus(cached.plan);
         renderTop10Backtest(cached.plan);
         renderMetrics(cached.plan);
-        renderSentiment(cached.plan);
-        renderStageWatchlist(cached.plan);
+        renderAuctionOnlyPanels(cached.plan);
         renderObservationStatistics(cached.plan);
         renderPathDiagnostics(cached.plan);
         renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {});
         renderActions(cached.plan);
-        renderAudit(cached.plan);
         renderReport(cached.md || "", cached.info?.report_file || "cached_report");
         els.reportDetails.open = cached.info?.action_available !== true;
-        els.footer.textContent = `DC2.0 · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
+        els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
         setNavigation();
       } finally {
         els.refreshBtn.disabled = false;
       }
     }
 
-    els.refreshBtn.addEventListener("click", () => initialize(true));
+    els.refreshBtn.addEventListener("click", () => {
+      els.refreshBtn.disabled = true;
+      const latestUrl = new URL(window.location.href);
+      latestUrl.searchParams.set("page", String(Date.now()));
+      window.location.replace(latestUrl.toString());
+    });
     els.prevBtn.addEventListener("click", () => loadReport(state.index + 1).catch(showError));
     els.nextBtn.addEventListener("click", () => loadReport(state.index - 1).catch(showError));
 
