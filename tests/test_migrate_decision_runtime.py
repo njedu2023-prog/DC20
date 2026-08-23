@@ -54,6 +54,7 @@ def _action_payload() -> dict[str, object]:
         "formal_buy_count": 0,
         "guidance_only": True,
         "broker_connected": False,
+        "execution_or_fill_claimed": False,
         "order_execution": "manual_only",
         "candidates": [
             {
@@ -533,7 +534,7 @@ def _write_binding_root(root: Path) -> dict[str, object]:
             encoding="utf-8",
         )
     (decision / f"action_plan_{REPORT_DATE}.json").write_text(
-        json.dumps({"report_date": REPORT_DATE}) + "\n",
+        json.dumps(_action_payload()) + "\n",
         encoding="utf-8",
     )
     for relative in (
@@ -1150,7 +1151,7 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
         source_root / "outputs" / "decision" / f"action_plan_{REPORT_DATE}.json"
     )
     source_action_path.write_text(
-        json.dumps({"report_date": REPORT_DATE}) + "\n",
+        json.dumps(_action_payload()) + "\n",
         encoding="utf-8",
     )
     pinned_sha = hashlib.sha256((source_root / pinned_path).read_bytes()).hexdigest()

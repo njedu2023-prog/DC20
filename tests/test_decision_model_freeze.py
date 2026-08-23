@@ -62,6 +62,26 @@ SELECTOR_THRESHOLDS = {
     "min_fill_probability": 0.2,
     "max_big_loss_probability": 0.35,
 }
+REVIEWED_ACTIVATION_SOURCE_FILES = {
+    "src/top10decision/auction_v3/engine.py": (
+        "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8"
+    ),
+    "src/top10decision/decision/trade_selector.py": (
+        "7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858"
+    ),
+    "src/top10decision/decision/canonical_fingerprint.py": (
+        "61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b"
+    ),
+    "src/top10decision/decision/action_plan.py": (
+        "f692ca531a704300baf9c75126900211fc1956ec09ad342a4f9d4a9d8133b751"
+    ),
+    "scripts/publish_decision_action.py": (
+        "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275"
+    ),
+    "scripts/replay_frozen_canonical_v2.py": (
+        "36b44f1b00e1c611c8036a257b872a1a7a5ae14b80fce9d3105fd12ff63cb3b5"
+    ),
+}
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -72,10 +92,15 @@ def _write_json(path: Path, payload: dict) -> None:
 def _public_evidence_shape_fixture() -> dict:
     model = _layer("model", "model-canonical-v2", "a")
     selector = _layer("trade_selector", "selector-canonical-v2", "c")
-    reviewed_source_files = {
-        path: diagnose._sha256(diagnose.ROOT / path)
-        for path in diagnose.ACTIVATION_SOURCE_PATHS
-    }
+    # This fixture represents the already reviewed activation run, not the
+    # current worktree.  Keeping its exact source hashes here ensures a later
+    # source-only repair cannot silently rewrite historical CI evidence.
+    reviewed_source_files = dict(REVIEWED_ACTIVATION_SOURCE_FILES)
+    assert tuple(reviewed_source_files) == diagnose.ACTIVATION_SOURCE_PATHS
+    assert (
+        diagnose._activation_source6_sha256(reviewed_source_files)
+        == diagnose.EXPECTED_ACTIVATION_SOURCE6_SHA256
+    )
 
     def prediction_projection(layer: dict) -> dict:
         contract = layer["canonical_contract"]
@@ -2906,6 +2931,17 @@ class DiagnoseActivationEvidenceAdapterTest(unittest.TestCase):
             diagnose.compute_action_watchlist_fingerprint(
                 included_change, contract
             )["sha256"],
+        )
+
+    def test_current_source_six_matches_reviewed_activation(self):
+        actual = {
+            path: diagnose._sha256(diagnose.ROOT / path)
+            for path in diagnose.ACTIVATION_SOURCE_PATHS
+        }
+        self.assertEqual(actual, REVIEWED_ACTIVATION_SOURCE_FILES)
+        self.assertEqual(
+            diagnose._activation_source6_sha256(actual),
+            diagnose.EXPECTED_ACTIVATION_SOURCE6_SHA256,
         )
 
     def test_source_six_drift_and_candidate_alias_fail_closed(self):
