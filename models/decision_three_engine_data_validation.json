@@ -3,14 +3,61 @@
     "codes": 2555,
     "d_price": 1.0,
     "end_signal_date": "20260814",
+    "rebuilt_bar_context": {
+      "five_year_days_since_prior_limit_up": 1.0,
+      "five_year_pre_streak_1d_return": 0.9589352377860737,
+      "five_year_pre_streak_3d_return": 0.9597467943515663,
+      "five_year_pre_streak_limit_up_count": 1.0,
+      "five_year_pre_streak_volatility": 0.9653465346534653,
+      "five_year_price_log": 1.0,
+      "five_year_recent_limit_up_count": 1.0,
+      "five_year_streak_runup": 0.9609641291998052
+    },
     "rows": 12322,
     "signal_dates": 1210,
     "start_signal_date": "20210813",
     "t_price": 1.0,
     "tplus1_price": 0.9989449764648596
   },
+  "date_binding": {
+    "rows": 12322,
+    "rule": "D/T/T+1 are adjacent strict SSE open sessions",
+    "violations": 0
+  },
+  "event_seed_audit": {
+    "columns_exact": true,
+    "duplicate_identity_rows": 0,
+    "identity_rows": 12309,
+    "invalid_identity_rows": 0,
+    "orphan_policy_valid": true,
+    "orphan_rows_quarantined": 2842,
+    "orphan_rows_with_bar_context": 2842,
+    "orphan_rows_with_stock_prior": 0,
+    "partial_identity_rows": 0,
+    "path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+    "raw_columns": [
+      "signal_date",
+      "ts_code",
+      "stage",
+      "board",
+      "five_year_pre_streak_1d_return",
+      "five_year_pre_streak_3d_return",
+      "five_year_pre_streak_volatility",
+      "five_year_pre_streak_limit_up_count",
+      "five_year_recent_limit_up_count",
+      "five_year_days_since_prior_limit_up",
+      "five_year_streak_runup",
+      "five_year_price_log",
+      "five_year_stock_prior_rate",
+      "five_year_stock_prior_samples_log"
+    ],
+    "raw_rows": 15151,
+    "seed_end_signal_date": "20260811",
+    "sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
+    "valid": true
+  },
   "failed_gates": [],
-  "generated_at_utc": "2026-08-23T13:51:39.374743+00:00",
+  "generated_at_utc": "2026-08-23T23:28:28.422794+00:00",
   "hard_gates": {
     "big_loss_hit_dual_class": {
       "actual": {
@@ -51,8 +98,8 @@
     },
     "ledger_sha256_matches_manifest": {
       "actual": {
-        "computed": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
-        "manifest": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026"
+        "computed": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+        "manifest": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
       },
       "passed": true,
       "requirement": "manifest ledger_sha256 equals ledger bytes SHA-256"
@@ -63,6 +110,11 @@
       },
       "passed": true,
       "requirement": "legacy (signal_date, ts_code) identities are unique"
+    },
+    "manifest_schema_v2": {
+      "actual": "dc20_three_engine_five_year_ledger_v2",
+      "passed": true,
+      "requirement": "schema_version == dc20_three_engine_five_year_ledger_v2"
     },
     "minimum_legacy_overlap": {
       "actual": 7715,
@@ -93,7 +145,40 @@
           "20260814"
         ],
         "new_eligible_rows_discovered": 36,
-        "seed_end_signal_date": "20260811"
+        "seed_audit": {
+          "columns_exact": true,
+          "duplicate_identity_rows": 0,
+          "identity_rows": 12309,
+          "invalid_identity_rows": 0,
+          "orphan_policy_valid": true,
+          "orphan_rows_quarantined": 2842,
+          "orphan_rows_with_bar_context": 2842,
+          "orphan_rows_with_stock_prior": 0,
+          "partial_identity_rows": 0,
+          "path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+          "raw_columns": [
+            "signal_date",
+            "ts_code",
+            "stage",
+            "board",
+            "five_year_pre_streak_1d_return",
+            "five_year_pre_streak_3d_return",
+            "five_year_pre_streak_volatility",
+            "five_year_pre_streak_limit_up_count",
+            "five_year_recent_limit_up_count",
+            "five_year_days_since_prior_limit_up",
+            "five_year_streak_runup",
+            "five_year_price_log",
+            "five_year_stock_prior_rate",
+            "five_year_stock_prior_samples_log"
+          ],
+          "raw_rows": 15151,
+          "seed_end_signal_date": "20260811",
+          "sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
+          "valid": true
+        },
+        "seed_end_signal_date": "20260811",
+        "seed_manifest_exact": true
       },
       "passed": true,
       "requirement": "hashed canonical pred_YYYYMMDD DC20 event files, unique and newer than seed"
@@ -149,6 +234,35 @@
       "actual": "strictly_before_signal_date",
       "passed": true,
       "requirement": "prior_grid_truth_cutoff_rule == strictly_before_signal_date"
+    },
+    "rebuilt_promotion_context_contract": {
+      "actual": {
+        "columns": [
+          "five_year_pre_streak_1d_return",
+          "five_year_pre_streak_3d_return",
+          "five_year_pre_streak_volatility",
+          "five_year_pre_streak_limit_up_count",
+          "five_year_recent_limit_up_count",
+          "five_year_days_since_prior_limit_up",
+          "five_year_streak_runup",
+          "five_year_price_log"
+        ],
+        "context_source_used": false,
+        "coverage": {
+          "five_year_days_since_prior_limit_up": 1.0,
+          "five_year_pre_streak_1d_return": 0.9589352377860737,
+          "five_year_pre_streak_3d_return": 0.9597467943515663,
+          "five_year_pre_streak_limit_up_count": 1.0,
+          "five_year_pre_streak_volatility": 0.9653465346534653,
+          "five_year_price_log": 1.0,
+          "five_year_recent_limit_up_count": 1.0,
+          "five_year_streak_runup": 0.9609641291998052
+        },
+        "manifest_exact": true,
+        "missingness_policy": "preserve_nan_and_model_with_median_plus_missing_indicator"
+      },
+      "passed": true,
+      "requirement": "all eight context features are rebuilt inside DC20 with exact manifest evidence and coverage >= 0.95"
     },
     "runtime_feature_coverage": {
       "actual": {
@@ -218,6 +332,78 @@
       "passed": true,
       "requirement": "SH_MAIN/SZ_MAIN rows with mechanism_limit_pct == 10"
     },
+    "stock_prior_is_strictly_lagged": {
+      "actual": {
+        "rate_mismatch_rows": 0,
+        "rows_checked": 12322,
+        "rule": "strictly earlier D promotion truth; Beta(2,3); log1p(samples)",
+        "samples_log_mismatch_rows": 0,
+        "valid": true
+      },
+      "passed": true,
+      "requirement": "Beta(2,3) stock prior equals a recomputation from strictly earlier D truth"
+    },
+    "strict_sse_calendar_contract": {
+      "actual": {
+        "audit": {
+          "columns": [
+            "exchange",
+            "cal_date",
+            "is_open",
+            "pretrade_date"
+          ],
+          "end_cal_date": "20261231",
+          "end_open_session": "20261231",
+          "exchange_exact": true,
+          "expected_columns": [
+            "exchange",
+            "cal_date",
+            "is_open",
+            "pretrade_date"
+          ],
+          "is_open_exact": true,
+          "natural_day_contiguous": true,
+          "natural_day_rows": 2557,
+          "open_sessions": 1697,
+          "path": "data/market/trade_cal_sse.csv",
+          "pretrade_chain_validated": true,
+          "pretrade_format": true,
+          "schema_exact": true,
+          "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+          "start_cal_date": "20200101",
+          "start_open_session": "20200102",
+          "valid": true
+        },
+        "manifest": {
+          "end_cal_date": "20261231",
+          "end_open_session": "20261231",
+          "exchange": "SSE",
+          "natural_day_rows": 2557,
+          "open_sessions": 1697,
+          "path": "data/market/trade_cal_sse.csv",
+          "pretrade_chain_validated": true,
+          "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+          "source": "tushare:trade_cal:SSE",
+          "start_cal_date": "20200101",
+          "start_open_session": "20200102",
+          "strict": true
+        }
+      },
+      "passed": true,
+      "requirement": "owned natural-day SSE calendar is valid and its exact SHA/inventory is recorded in the manifest"
+    },
+    "strict_sse_d_t_tplus1_adjacency": {
+      "actual": {
+        "calendar_open_session_cutoff": "20260823",
+        "calendar_open_sessions_used": 1609,
+        "expected_calendar_open_sessions_used": 1609,
+        "manifest_rule": "D/T/T+1 are adjacent strict SSE open sessions",
+        "rows": 12322,
+        "violations": 0
+      },
+      "passed": true,
+      "requirement": "every D, T and T+1 is an adjacent owned SSE open session"
+    },
     "t_price_coverage": {
       "actual": 1.0,
       "passed": true,
@@ -234,9 +420,13 @@
     "runtime_dependency_on_top10_decision": false
   },
   "inputs": {
+    "event_seed": {
+      "path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+      "sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e"
+    },
     "ledger": {
       "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
-      "sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026"
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
     },
     "legacy_history": {
       "path": "models/decision_v12_frozen_history_20260805.csv.gz",
@@ -244,7 +434,11 @@
     },
     "manifest": {
       "path": "data/decision_three_engines/five_year_ledger_manifest.json",
-      "sha256": "587092feca1b612d9cdec327ffc83f4cd82b0cc38b778922b8225a8d3dbdcbfc"
+      "sha256": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034"
+    },
+    "sse_trade_calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
     }
   },
   "labels": {
@@ -348,10 +542,47 @@
     "future_columns_used": [],
     "version": "dc20_daily_candidate_d_close_v1"
   },
-  "schema_version": "dc20_three_engine_five_year_data_validation_v1",
+  "schema_version": "dc20_three_engine_five_year_data_validation_v2",
   "status": "PASS",
+  "stock_prior_audit": {
+    "rate_mismatch_rows": 0,
+    "rows_checked": 12322,
+    "rule": "strictly earlier D promotion truth; Beta(2,3); log1p(samples)",
+    "samples_log_mismatch_rows": 0,
+    "valid": true
+  },
+  "strict_sse_calendar": {
+    "columns": [
+      "exchange",
+      "cal_date",
+      "is_open",
+      "pretrade_date"
+    ],
+    "end_cal_date": "20261231",
+    "end_open_session": "20261231",
+    "exchange_exact": true,
+    "expected_columns": [
+      "exchange",
+      "cal_date",
+      "is_open",
+      "pretrade_date"
+    ],
+    "is_open_exact": true,
+    "natural_day_contiguous": true,
+    "natural_day_rows": 2557,
+    "open_sessions": 1697,
+    "path": "data/market/trade_cal_sse.csv",
+    "pretrade_chain_validated": true,
+    "pretrade_format": true,
+    "schema_exact": true,
+    "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+    "start_cal_date": "20200101",
+    "start_open_session": "20200102",
+    "valid": true
+  },
   "thresholds": {
     "min_class_rows": 200,
+    "min_context_coverage": 0.95,
     "min_legacy_overlap_rows": 7000,
     "min_price_coverage": 0.98,
     "min_promotion_agreement": 0.99,

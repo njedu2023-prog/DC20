@@ -5,15 +5,34 @@
     "end_signal_date": "20260814",
     "executable_return_truth": 0.8788346047719526,
     "promotion_truth": 1.0,
+    "rebuilt_bar_context": {
+      "five_year_days_since_prior_limit_up": 1.0,
+      "five_year_pre_streak_1d_return": 0.9589352377860737,
+      "five_year_pre_streak_3d_return": 0.9597467943515663,
+      "five_year_pre_streak_limit_up_count": 1.0,
+      "five_year_pre_streak_volatility": 0.9653465346534653,
+      "five_year_price_log": 1.0,
+      "five_year_recent_limit_up_count": 1.0,
+      "five_year_streak_runup": 0.9609641291998052
+    },
+    "rebuilt_bar_context_gate": 0.95,
+    "rebuilt_bar_context_minimum": 0.9589352377860737,
+    "rebuilt_stock_prior": {
+      "five_year_stock_prior_rate": 1.0,
+      "five_year_stock_prior_samples_log": 1.0
+    },
+    "rebuilt_stock_prior_minimum_gate": 1.0,
     "rows": 12322,
     "signal_dates": 1210,
     "start_signal_date": "20210813",
+    "strict_sse_date_binding_rows": 12322,
+    "strict_sse_date_binding_violations": 0,
     "t_price": 1.0,
     "tplus1_price": 0.9989449764648596
   },
-  "generated_at_utc": "2026-08-23T13:50:33.552827+00:00",
+  "generated_at_utc": "2026-08-23T23:28:23.474136+00:00",
   "ledger_path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
-  "ledger_sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+  "ledger_sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
   "owner": "njedu2023-prog/DC20",
   "runtime_dependency_on_top10_decision": false,
   "runtime_feature_contract": {
@@ -38,17 +57,52 @@
     "future_columns_used": [],
     "version": "dc20_daily_candidate_d_close_v1"
   },
-  "schema_version": "dc20_three_engine_five_year_ledger_v1",
+  "schema_version": "dc20_three_engine_five_year_ledger_v2",
   "source": {
     "adjustment": "none (exchange transaction prices)",
+    "bar_context_rebuild_columns": [
+      "five_year_pre_streak_1d_return",
+      "five_year_pre_streak_3d_return",
+      "five_year_pre_streak_volatility",
+      "five_year_pre_streak_limit_up_count",
+      "five_year_recent_limit_up_count",
+      "five_year_days_since_prior_limit_up",
+      "five_year_streak_runup",
+      "five_year_price_log"
+    ],
     "cache_hits": 2557,
+    "calendar": {
+      "end_cal_date": "20261231",
+      "end_open_session": "20261231",
+      "exchange": "SSE",
+      "natural_day_rows": 2557,
+      "open_sessions": 1697,
+      "path": "data/market/trade_cal_sse.csv",
+      "pretrade_chain_validated": true,
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+      "source": "tushare:trade_cal:SSE",
+      "start_cal_date": "20200101",
+      "start_open_session": "20200102",
+      "strict": true
+    },
+    "calendar_open_session_cutoff": "20260823",
+    "calendar_open_sessions_used": 1609,
     "codes": 2557,
+    "context_missingness_policy": "preserve_nan_and_model_with_median_plus_missing_indicator",
+    "context_source_used": false,
+    "date_binding_rule": "D/T/T+1 are adjacent strict SSE open sessions",
     "event_artifact": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
     "event_sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
     "event_source_inventory": {
       "canonical_prediction_file_count": 3,
       "canonical_prediction_files": [
         {
+          "columns_used": [
+            "signal_date",
+            "ts_code",
+            "stage|limit_times|stage_transition",
+            "mechanism_limit_pct|decision_limit_pct"
+          ],
           "eligible_rows": 13,
           "path": "outputs/auction_v3/predictions/pred_20260812.csv",
           "sha256": "cbcd0f6b21c7ebdf0410ade39e4c053c8bab8c7efa416a89f2752aa74b912527",
@@ -56,6 +110,12 @@
           "source_rows": 86
         },
         {
+          "columns_used": [
+            "signal_date",
+            "ts_code",
+            "stage|limit_times|stage_transition",
+            "mechanism_limit_pct|decision_limit_pct"
+          ],
           "eligible_rows": 14,
           "path": "outputs/auction_v3/predictions/pred_20260813.csv",
           "sha256": "e7d8a04fa98ff948b3e3502ca755faf696f722b2ce28a1afadd062d611159122",
@@ -63,6 +123,12 @@
           "source_rows": 50
         },
         {
+          "columns_used": [
+            "signal_date",
+            "ts_code",
+            "stage|limit_times|stage_transition",
+            "mechanism_limit_pct|decision_limit_pct"
+          ],
           "eligible_rows": 9,
           "path": "outputs/auction_v3/predictions/pred_20260814.csv",
           "sha256": "0b5ddb7f025c099ce4a89aeeee658e46a0e6aa8510d32cbba540d9cc643deca4",
@@ -71,8 +137,47 @@
         }
       ],
       "new_eligible_rows_discovered": 36,
+      "seed_columns_used": [
+        "signal_date",
+        "ts_code",
+        "stage",
+        "board"
+      ],
+      "seed_context_source_used": false,
+      "seed_duplicate_identity_rows": 0,
       "seed_end_signal_date": "20260811",
+      "seed_identity_columns": [
+        "signal_date",
+        "ts_code",
+        "stage",
+        "board"
+      ],
+      "seed_identity_rows": 12309,
+      "seed_invalid_identity_rows": 0,
+      "seed_orphan_policy": "quarantine_only_when_all_identity_columns_are_empty",
+      "seed_orphan_rows_quarantined": 2842,
+      "seed_orphan_rows_with_bar_context": 2842,
+      "seed_orphan_rows_with_stock_prior": 0,
+      "seed_partial_identity_rows": 0,
       "seed_path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+      "seed_raw_columns": [
+        "signal_date",
+        "ts_code",
+        "stage",
+        "board",
+        "five_year_pre_streak_1d_return",
+        "five_year_pre_streak_3d_return",
+        "five_year_pre_streak_volatility",
+        "five_year_pre_streak_limit_up_count",
+        "five_year_recent_limit_up_count",
+        "five_year_days_since_prior_limit_up",
+        "five_year_streak_runup",
+        "five_year_price_log",
+        "five_year_stock_prior_rate",
+        "five_year_stock_prior_samples_log"
+      ],
+      "seed_raw_rows": 15151,
+      "seed_raw_sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
       "seed_sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e"
     },
     "fetch_failures": {},
@@ -81,6 +186,7 @@
     "prior_grid_truth_cutoff_rule": "strictly_before_signal_date",
     "requested_begin": "20210709",
     "requested_end": "20260823",
+    "stock_prior_rule": "strictly earlier D promotion truth; Beta(2,3); log1p(samples)",
     "successful_codes": 2557
   },
   "target_contract": {
