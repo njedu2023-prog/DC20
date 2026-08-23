@@ -17,6 +17,54 @@ def _section(text: str, start: str, end: str | None = None) -> str:
     return value if end is None else value.split(end, 1)[0]
 
 
+def _embedded_python_blocks(text: str) -> list[tuple[int, str]]:
+    lines = text.splitlines()
+    blocks: list[tuple[int, str]] = []
+    marker = re.compile(r"(?:^|\s)python3?\s+-\s+<<'PY'\s*$")
+    run_marker = re.compile(r"^(?P<indent> *)run:\s+\|[+-]?\s*$")
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if marker.search(line) is None:
+            index += 1
+            continue
+        run_lines = [
+            (run_index, match)
+            for run_index in range(index - 1, -1, -1)
+            if (match := run_marker.match(lines[run_index])) is not None
+        ]
+        assert run_lines, f"embedded Python at line {index + 1} has no run block"
+        _, run_match = run_lines[0]
+        indent = len(run_match.group("indent")) + 2
+        assert line.startswith(" " * indent), (
+            f"embedded Python at line {index + 1} escaped its YAML run block"
+        )
+        start_line = index + 2
+        body: list[str] = []
+        index += 1
+        while index < len(lines):
+            candidate = lines[index]
+            candidate_indent = len(candidate) - len(candidate.lstrip(" "))
+            if candidate.strip() == "PY" and candidate_indent == indent:
+                break
+            assert not candidate or candidate.startswith(" " * indent), (
+                f"embedded Python at line {start_line} escaped its YAML block"
+            )
+            body.append(candidate[indent:])
+            index += 1
+        assert index < len(lines), f"unterminated Python heredoc at line {start_line}"
+        blocks.append((start_line, "\n".join(body) + "\n"))
+        index += 1
+    return blocks
+
+
+def test_every_embedded_python_heredoc_compiles() -> None:
+    blocks = _embedded_python_blocks(_text())
+    assert blocks
+    for start_line, source in blocks:
+        compile(source, f"{WORKFLOW}:heredoc:{start_line}", "exec")
+
+
 def test_retraining_is_default_read_only_and_sunday_is_explicitly_guarded() -> None:
     text = _text()
     header = text.split("\npermissions:", 1)[0]

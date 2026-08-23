@@ -790,7 +790,7 @@ jobs:
               raise SystemExit("candidate does not atomically carry its freeze manifest")
           for item in entries:
               if item.get("status") not in {"A", "M"} or item.get("mode") != "100644" or re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or "")) is None:
-              raise SystemExit(f"invalid candidate path metadata: {item}")
+                  raise SystemExit(f"invalid candidate path metadata: {item}")
           PY
 
       - name: Setup publisher Python
