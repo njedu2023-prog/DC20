@@ -215,6 +215,14 @@ def test_three_heads_use_chronological_oof_top10_without_cross_head_features() -
 
     assert result.big_loss.production_bundle is not None
     assert result.profit.production_bundle is not None
+    for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
+        training = getattr(result, head)
+        assert training.validation["production"]["bundle_present"] is (
+            training.production_bundle is not None
+        )
+        assert model_artifact_payload(result, head)[
+            "production_bundle_present"
+        ] is (training.production_bundle is not None)
     assert result.big_loss.production_bundle.model is not result.profit.production_bundle.model
     assert (
         result.big_loss.production_bundle.calibrator
@@ -371,8 +379,59 @@ def test_single_class_promotion_fails_closed_without_constant_artifact() -> None
     ]["gate_failures"]
     payload = model_artifact_payload(result, "promotion")
     assert payload["bundle"] is None
+    assert payload["production_bundle_present"] is False
+    assert result.validation["heads"]["promotion"]["production"][
+        "bundle_present"
+    ] is False
     assert payload["status"].startswith("NOT_READY")
-    assert payload["model_version"] == ""
+    assert payload["model_version"] is None
+    assert payload["model_as_of_date"] is None
+    _validate_production_calibration_contract(payload)
+    forged_positive_evidence = copy.deepcopy(payload)
+    forged_positive_evidence["calibration_monotonicity"] = {
+        "nondecreasing": True
+    }
+    forged_positive_evidence["validation"]["production"][
+        "calibration_monotonicity"
+    ] = {"nondecreasing": True}
+    with pytest.raises(
+        RuntimeError,
+        match="positive calibration evidence without a production model",
+    ):
+        _validate_production_calibration_contract(forged_positive_evidence)
+
+
+def test_bundle_free_tombstones_round_trip_through_the_strict_loader(
+    tmp_path: Path,
+) -> None:
+    ledger = _synthetic_ledger()
+    ledger["promotion_hit"] = 0
+    result = train_three_engine_models(ledger, config=_test_config())
+    ledger_path = tmp_path / "ledger.csv.gz"
+    ledger.to_csv(ledger_path, index=False, compression="gzip")
+    manifest_path = tmp_path / "manifest.json"
+    runtime_contract = _write_runtime_manifest(ledger_path, manifest_path)
+    model_dir = tmp_path / "models"
+    validation_path = model_dir / "validation.json"
+    write_training_artifacts(
+        result,
+        ledger_path=ledger_path,
+        model_dir=model_dir,
+        validation_path=validation_path,
+        oof_path=tmp_path / "oof.csv.gz",
+        ledger_manifest_path=manifest_path,
+        runtime_feature_contract=runtime_contract,
+    )
+
+    loaded = load_three_engine_artifacts(validation_path, root=tmp_path)
+    assert loaded.payloads["promotion"]["bundle"] is None
+    for head, payload in loaded.payloads.items():
+        if payload["production_bundle_present"] is False:
+            assert payload["bundle"] is None
+            assert payload["model_version"] is None
+            assert payload["model_as_of_date"] is None
+            assert loaded.metadata[head]["version"] == ""
+            assert loaded.metadata[head]["as_of_date"] == ""
 
 
 def test_date_balancing_gives_each_date_equal_total_weight() -> None:
@@ -623,6 +682,12 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
     validation = json.loads(validation_bytes)
     for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
         checks = validation["heads"][head]["gate_checks"]
+        assert validation["model_metadata"][head][
+            "production_bundle_present"
+        ] is True
+        assert validation["heads"][head]["production"][
+            "bundle_present"
+        ] is True
         assert checks and all(type(value) is bool for value in checks.values())
         expected_pass = sum(value is True for value in checks.values())
         assert loaded.metadata[head]["validation_gate_pass_count"] == expected_pass
@@ -631,8 +696,116 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
             100.0 * expected_pass / len(checks), 1
         )
 
+    presence_drift = json.loads(validation_bytes)
+    presence_drift["model_metadata"]["profit"][
+        "production_bundle_present"
+    ] = False
+    validation_path.write_text(json.dumps(presence_drift), encoding="utf-8")
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="production bundle presence disagrees",
+    ):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    validation_path.write_bytes(validation_bytes)
+
+    missing_identity_key = json.loads(validation_bytes)
+    missing_identity_key["model_metadata"]["profit"].pop("model_version")
+    validation_path.write_text(json.dumps(missing_identity_key), encoding="utf-8")
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="model provenance key is missing",
+    ):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    validation_path.write_bytes(validation_bytes)
+
     profit_path = model_dir / "profit.joblib"
     original_profit = profit_path.read_bytes()
+    invalid_bundle = joblib.load(profit_path)
+    invalid_bundle.update(
+        {
+            "status": "NOT_READY_VALIDATION_GATE",
+            "promoted": False,
+            "production_bundle_present": False,
+            "model_version": None,
+            "model_as_of_date": None,
+            "bundle": {},
+        }
+    )
+    joblib.dump(invalid_bundle, profit_path)
+    invalid_bundle_validation = json.loads(validation_bytes)
+    invalid_bundle_sha = hashlib.sha256(profit_path.read_bytes()).hexdigest()
+    invalid_bundle_validation["artifacts"]["profit"][
+        "sha256"
+    ] = invalid_bundle_sha
+    invalid_bundle_validation["model_metadata"]["profit"].update(
+        {
+            "artifact_sha256": invalid_bundle_sha,
+            "status": "NOT_READY_VALIDATION_GATE",
+            "promoted": False,
+            "production_bundle_present": False,
+            "model_version": None,
+            "model_as_of_date": None,
+        }
+    )
+    invalid_bundle_validation["heads"]["profit"].update(
+        {
+            "status": "NOT_READY_VALIDATION_GATE",
+            "promoted": False,
+        }
+    )
+    invalid_bundle_validation["heads"]["profit"]["production"][
+        "bundle_present"
+    ] = False
+    validation_path.write_text(
+        json.dumps(invalid_bundle_validation), encoding="utf-8"
+    )
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="artifact bundle has an invalid type",
+    ):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    profit_path.write_bytes(original_profit)
+    validation_path.write_bytes(validation_bytes)
+
+    nonready_reverse = joblib.load(profit_path)
+    nonready_reverse["status"] = "NOT_READY_VALIDATION_GATE"
+    nonready_reverse["promoted"] = False
+    nonready_reverse["calibration_monotonicity"] = copy.deepcopy(
+        nonready_reverse["calibration_monotonicity"]
+    )
+    nonready_reverse["calibration_monotonicity"]["nondecreasing"] = False
+    nonready_reverse["bundle"].selection_metrics[
+        "calibration_monotonicity"
+    ] = copy.deepcopy(nonready_reverse["calibration_monotonicity"])
+    joblib.dump(nonready_reverse, profit_path)
+    nonready_validation = json.loads(validation_bytes)
+    nonready_sha = hashlib.sha256(profit_path.read_bytes()).hexdigest()
+    nonready_validation["artifacts"]["profit"]["sha256"] = nonready_sha
+    nonready_validation["model_metadata"]["profit"].update(
+        {
+            "artifact_sha256": nonready_sha,
+            "status": "NOT_READY_VALIDATION_GATE",
+            "promoted": False,
+        }
+    )
+    nonready_validation["heads"]["profit"].update(
+        {
+            "status": "NOT_READY_VALIDATION_GATE",
+            "promoted": False,
+        }
+    )
+    nonready_validation["heads"]["profit"]["production"][
+        "calibration_monotonicity"
+    ] = copy.deepcopy(nonready_reverse["calibration_monotonicity"])
+    validation_path.write_text(json.dumps(nonready_validation), encoding="utf-8")
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="production artifact calibration is not monotonic",
+    ):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    profit_path.write_bytes(original_profit)
+    validation_path.write_bytes(validation_bytes)
+
     tampered_profit = joblib.load(profit_path)
     assert tampered_profit["status"] == "READY"
     tampered_profit["calibration_monotonicity"] = {}

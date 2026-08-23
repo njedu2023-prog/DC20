@@ -49,9 +49,12 @@ _RESEARCH_ONLY_LEGACY_VALIDATION_PATH = (
 _RESEARCH_ONLY_LEGACY_VALIDATION_SHA256 = (
     "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4"
 )
-_RESEARCH_ONLY_LEGACY_PROMOTION_SHA256 = (
-    "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b"
-)
+_RESEARCH_ONLY_LEGACY_ARTIFACT_SHA256 = {
+    "promotion": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b",
+    "big_loss": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6",
+    "profit": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "p_fill_shadow": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
+}
 
 PROMOTION_SOURCE_FEATURES = (
     "five_year_stage_board_prior_rate",
@@ -2243,6 +2246,7 @@ def _validate_head(
             "ranking": holdout_ranking,
         },
         "production": {
+            "bundle_present": production_bundle is not None,
             "model_kind": production_bundle.model_kind if production_bundle else "",
             "calibration_method": (
                 production_bundle.calibration_method if production_bundle else ""
@@ -2603,12 +2607,12 @@ def model_artifact_payload(
         "p_fill_shadow": result.p_fill_shadow,
     }[head]
     bundle = training.production_bundle
-    model_as_of_date = bundle.trained_signal_end if bundle else ""
+    model_as_of_date = bundle.trained_signal_end if bundle else None
     model_version = (
         f"{THREE_ENGINE_SCHEMA_VERSION}:{head}:{model_as_of_date}:"
         f"{bundle.model_kind}:{bundle.calibration_method}"
         if bundle
-        else ""
+        else None
     )
     return {
         "schema_version": THREE_ENGINE_SCHEMA_VERSION,
@@ -2620,6 +2624,7 @@ def model_artifact_payload(
         "label_description": training.spec.label_description,
         "promoted": training.validation.get("promoted") is True,
         "status": training.validation.get("status"),
+        "production_bundle_present": bundle is not None,
         "model_version": model_version,
         "model_as_of_date": model_as_of_date,
         "feature_names": list(result.feature_builder.feature_names),
@@ -3024,22 +3029,123 @@ def _load_three_engine_artifacts(
             raise ThreeEngineArtifactError(f"{head} feature inventory drifted")
         if payload.get("status") != head_validation.get("status"):
             raise ThreeEngineArtifactError(f"{head} status disagrees with validation")
+        if claimed.get("status") != head_validation.get("status"):
+            raise ThreeEngineArtifactError(
+                f"{head} metadata status disagrees with validation"
+            )
+        payload_promoted = payload.get("promoted")
+        claimed_promoted = claimed.get("promoted")
+        validation_promoted = head_validation.get("promoted")
+        if (
+            type(payload_promoted) is not bool
+            or type(claimed_promoted) is not bool
+            or type(validation_promoted) is not bool
+            or not (payload_promoted == claimed_promoted == validation_promoted)
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} promotion state disagrees with validation"
+            )
         if str(claimed.get("artifact_sha256") or "").lower() != actual_sha256:
             raise ThreeEngineArtifactError(f"{head} provenance hash disagrees")
-        if payload.get("model_version", "") != claimed.get("model_version", ""):
+        for identity_key in ("model_version", "model_as_of_date"):
+            if identity_key not in payload or identity_key not in claimed:
+                raise ThreeEngineArtifactError(
+                    f"{head} model provenance key is missing: {identity_key}"
+                )
+        if payload.get("model_version") != claimed.get("model_version"):
             raise ThreeEngineArtifactError(f"{head} model version disagrees")
-        if payload.get("model_as_of_date", "") != claimed.get(
-            "model_as_of_date", ""
-        ):
+        if payload.get("model_as_of_date") != claimed.get("model_as_of_date"):
             raise ThreeEngineArtifactError(f"{head} model as-of date disagrees")
-        if head in CORE_HEADS and payload.get("status") == "READY" and (
-            payload.get("promoted") is not True
-            or not isinstance(payload.get("bundle"), ProbabilityHeadBundle)
-        ):
-            raise ThreeEngineArtifactError(f"{head} READY artifact has no promoted model")
         monotonicity = payload.get("calibration_monotonicity")
         bundle = payload.get("bundle")
         validation_production = head_validation.get("production", {})
+        actual_bundle_present = isinstance(bundle, ProbabilityHeadBundle)
+        if bundle is not None and not actual_bundle_present:
+            raise ThreeEngineArtifactError(
+                f"{head} artifact bundle has an invalid type"
+            )
+        legacy_presence_contract = bool(legacy_ready_allowlist)
+        if not legacy_presence_contract:
+            payload_bundle_present = payload.get("production_bundle_present")
+            claimed_bundle_present = claimed.get("production_bundle_present")
+            validation_bundle_present = (
+                validation_production.get("bundle_present")
+                if isinstance(validation_production, Mapping)
+                else None
+            )
+            if (
+                type(payload_bundle_present) is not bool
+                or type(claimed_bundle_present) is not bool
+                or type(validation_bundle_present) is not bool
+                or not (
+                    payload_bundle_present
+                    == claimed_bundle_present
+                    == validation_bundle_present
+                    == actual_bundle_present
+                )
+            ):
+                raise ThreeEngineArtifactError(
+                    f"{head} production bundle presence disagrees"
+                )
+        model_version = payload.get("model_version")
+        model_as_of_date = payload.get("model_as_of_date")
+        status = str(payload.get("status") or "")
+        if actual_bundle_present:
+            if (
+                not isinstance(model_version, str)
+                or not model_version
+                or not isinstance(model_as_of_date, str)
+                or not _normal_date(model_as_of_date)
+                or model_as_of_date != bundle.trained_signal_end
+            ):
+                raise ThreeEngineArtifactError(
+                    f"{head} production bundle provenance is missing"
+                )
+            expected_version = (
+                f"{THREE_ENGINE_SCHEMA_VERSION}:{head}:{model_as_of_date}:"
+                f"{bundle.model_kind}:{bundle.calibration_method}"
+            )
+            if model_version != expected_version:
+                raise ThreeEngineArtifactError(
+                    f"{head} model version is not bound to its production bundle"
+                )
+        elif model_version is not None or model_as_of_date is not None:
+            raise ThreeEngineArtifactError(
+                f"{head} bundle-free artifact must have null model provenance"
+            )
+        if (
+            not actual_bundle_present
+            and isinstance(monotonicity, Mapping)
+            and monotonicity.get("nondecreasing") is True
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} has positive calibration evidence without a production bundle"
+            )
+        if head in CORE_HEADS:
+            if status == "READY":
+                if not payload_promoted or not actual_bundle_present:
+                    raise ThreeEngineArtifactError(
+                        f"{head} READY artifact has no promoted model"
+                    )
+            elif not status.startswith("NOT_READY_") or payload_promoted:
+                raise ThreeEngineArtifactError(
+                    f"{head} core status/promotion state is invalid"
+                )
+        elif (
+            payload_promoted
+            or (
+                status != "SHADOW_READY"
+                and not status.startswith("SHADOW_NOT_READY")
+                and not status.startswith("NOT_READY_")
+            )
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} shadow status/promotion state is invalid"
+            )
+        if status in {"READY", "SHADOW_READY"} and not actual_bundle_present:
+            raise ThreeEngineArtifactError(
+                f"{head} ready artifact has no production bundle"
+            )
         validation_monotonicity = validation_production.get(
             "calibration_monotonicity"
         )
@@ -3049,11 +3155,14 @@ def _load_three_engine_artifacts(
             and "calibration_monotonicity" in validation_production
         )
         legacy_missing_evidence_allowed = bool(
-            head in CORE_HEADS
-            and payload.get("status") == "READY"
-            and not payload_evidence_present
+            not payload_evidence_present
             and not validation_evidence_present
             and legacy_ready_allowlist.get(head) == actual_sha256
+        )
+        reported_legacy_ready_exception = bool(
+            legacy_missing_evidence_allowed
+            and head in CORE_HEADS
+            and payload.get("status") == "READY"
         )
         if payload_evidence_present != validation_evidence_present or (
             payload_evidence_present
@@ -3115,10 +3224,14 @@ def _load_three_engine_artifacts(
                     ).get("valid")
                     is True
                 )
-            if payload.get("status") == "READY" and not monotonicity_valid:
+            if actual_bundle_present and not monotonicity_valid:
                 raise ThreeEngineArtifactError(
-                    f"{head} READY artifact calibration is not monotonic"
+                    f"{head} production artifact calibration is not monotonic"
                 )
+        elif actual_bundle_present and not legacy_missing_evidence_allowed:
+            raise ThreeEngineArtifactError(
+                f"{head} production artifact calibration evidence is missing"
+            )
         payloads[head] = payload
         metadata[head] = {
             "status": str(claimed.get("status") or "NOT_READY_MISSING_STATUS"),
@@ -3133,7 +3246,7 @@ def _load_three_engine_artifacts(
             "validation_gate_total_count": validation_gate_total_count,
             "validation_gate_score_pct": validation_gate_score_pct,
             "research_only_legacy_calibration_evidence_missing": (
-                legacy_missing_evidence_allowed
+                reported_legacy_ready_exception
             ),
         }
     return LoadedThreeEngineArtifacts(
@@ -3194,9 +3307,7 @@ def load_research_only_legacy_three_engine_snapshot(
     loaded = _load_three_engine_artifacts(
         validation_file,
         root=repository_root,
-        legacy_ready_allowlist={
-            "promotion": _RESEARCH_ONLY_LEGACY_PROMOTION_SHA256
-        },
+        legacy_ready_allowlist=_RESEARCH_ONLY_LEGACY_ARTIFACT_SHA256,
     )
     if (
         loaded.metadata["promotion"].get(

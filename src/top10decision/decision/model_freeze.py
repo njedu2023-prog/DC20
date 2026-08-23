@@ -1215,19 +1215,22 @@ def validate_production_three_rank_contract(
     for head in THREE_RANK_ALL_HEADS:
         head_context = f"{context}.heads.{head}"
         item = _require_mapping(heads[head], head_context)
+        head_keys = frozenset(
+            {
+                "role",
+                "status",
+                "promoted",
+                "model_version",
+                "model_as_of_date",
+                "artifact_path",
+                "artifact_sha256",
+            }
+        )
+        if not legacy_v1_bootstrap:
+            head_keys |= frozenset({"production_bundle_present"})
         _require_exact_keys(
             item,
-            frozenset(
-                {
-                    "role",
-                    "status",
-                    "promoted",
-                    "model_version",
-                    "model_as_of_date",
-                    "artifact_path",
-                    "artifact_sha256",
-                }
-            ),
+            head_keys,
             head_context,
         )
         role = "core" if head in THREE_RANK_CORE_HEADS else "shadow_only"
@@ -1238,19 +1241,52 @@ def validate_production_three_rank_contract(
         if head == "p_fill_shadow":
             if is_promoted:
                 _fail(f"{head_context}.promoted must remain false")
-            if status != "SHADOW_READY" and not status.startswith("NOT_READY_"):
-                _fail(f"{head_context}.status must be SHADOW_READY or NOT_READY_*")
+            if (
+                status != "SHADOW_READY"
+                and not status.startswith("SHADOW_NOT_READY")
+                and not status.startswith("NOT_READY_")
+            ):
+                _fail(
+                    f"{head_context}.status must be SHADOW_READY, "
+                    "SHADOW_NOT_READY*, or NOT_READY_*"
+                )
         elif is_promoted != (status == "READY"):
             _fail(f"{head_context} READY and promoted must agree")
         elif status != "READY" and not status.startswith("NOT_READY_"):
             _fail(f"{head_context}.status must be READY or NOT_READY_*")
-        _require_text(item["model_version"], f"{head_context}.model_version")
-        as_of = _require_text(item["model_as_of_date"], f"{head_context}.model_as_of_date")
-        if not _valid_date(as_of) or as_of > source["end_signal_date"]:
-            _fail(f"{head_context}.model_as_of_date exceeds source truth")
-        expected_prefix = f"decision_three_engine_models_v2:{head}:{as_of}:"
-        if not item["model_version"].startswith(expected_prefix):
-            _fail(f"{head_context}.model_version is not bound to head/as-of")
+        bundle_present = (
+            True
+            if legacy_v1_bootstrap
+            else _require_bool(
+                item["production_bundle_present"],
+                f"{head_context}.production_bundle_present",
+            )
+        )
+        if bundle_present:
+            _require_text(item["model_version"], f"{head_context}.model_version")
+            as_of = _require_text(
+                item["model_as_of_date"],
+                f"{head_context}.model_as_of_date",
+            )
+            if not _valid_date(as_of) or as_of > source["end_signal_date"]:
+                _fail(f"{head_context}.model_as_of_date exceeds source truth")
+            expected_prefix = f"decision_three_engine_models_v2:{head}:{as_of}:"
+            if not item["model_version"].startswith(expected_prefix):
+                _fail(f"{head_context}.model_version is not bound to head/as-of")
+        else:
+            bundle_free_status = (
+                status.startswith("NOT_READY_")
+                if head in THREE_RANK_CORE_HEADS
+                else status.startswith("SHADOW_NOT_READY")
+                or status.startswith("NOT_READY_")
+            )
+            if (
+                is_promoted
+                or not bundle_free_status
+                or item["model_version"] is not None
+                or item["model_as_of_date"] is not None
+            ):
+                _fail(f"{head_context} bundle-free tombstone contract is invalid")
         _require_text(
             item["artifact_path"],
             f"{head_context}.artifact_path",

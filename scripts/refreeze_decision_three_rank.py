@@ -54,6 +54,10 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     validate_pinned_files,
     validate_production_three_rank_contract,
 )
+from top10decision.decision.three_engine_models import (  # noqa: E402
+    ThreeEngineArtifactError,
+    load_three_engine_artifacts,
+)
 
 
 class ThreeRankRefreezeError(RuntimeError):
@@ -188,6 +192,15 @@ def build_three_rank_contract(
     validation = _load_json(validation_path, "three-engine validation")
     ledger_manifest = _load_json(ledger_manifest_path, "five-year ledger manifest")
     data_validation = _load_json(data_validation_path, "five-year data validation")
+    try:
+        loaded_artifacts = load_three_engine_artifacts(
+            validation_path,
+            root=root_path,
+        )
+    except ThreeEngineArtifactError as exc:
+        raise ThreeRankRefreezeError(
+            f"strict three-engine artifact replay failed: {exc}"
+        ) from exc
 
     if validation.get("schema_version") != THREE_RANK_VALIDATION_SCHEMA_VERSION:
         _fail("three-engine validation schema is invalid")
@@ -444,16 +457,64 @@ def build_three_rank_contract(
                 _fail("p_fill_shadow must never be promoted")
             if head_validation.get("cannot_change_core_members_or_ranks") is not True:
                 _fail("p_fill_shadow may not change core membership or ranks")
-            if status != "SHADOW_READY" and not status.startswith("NOT_READY_"):
+            if (
+                status != "SHADOW_READY"
+                and not status.startswith("SHADOW_NOT_READY")
+                and not status.startswith("NOT_READY_")
+            ):
                 _fail("p_fill_shadow has an unsupported status")
+        production = _mapping(
+            head_validation.get("production"),
+            f"validation.heads.{head}.production",
+        )
+        bundle_present = identity.get("production_bundle_present")
+        if (
+            type(bundle_present) is not bool
+            or type(production.get("bundle_present")) is not bool
+            or type(
+                loaded_artifacts.payloads[head].get(
+                    "production_bundle_present"
+                )
+            )
+            is not bool
+            or bundle_present != production.get("bundle_present")
+            or bundle_present
+            != loaded_artifacts.payloads[head].get(
+                "production_bundle_present"
+            )
+        ):
+            _fail(f"{head} production bundle presence is inconsistent")
         version = identity.get("model_version")
         as_of = identity.get("model_as_of_date")
-        if not isinstance(version, str) or not version or not isinstance(as_of, str) or not as_of:
-            _fail(f"{head} version/as-of provenance is missing")
+        if bundle_present:
+            if (
+                not isinstance(version, str)
+                or not version
+                or not isinstance(as_of, str)
+                or len(as_of) != 8
+                or not as_of.isdigit()
+                or as_of > source["end"]
+            ):
+                _fail(f"{head} version/as-of provenance is missing or invalid")
+        else:
+            bundle_free_status = (
+                status.startswith("NOT_READY_")
+                if head in THREE_RANK_CORE_HEADS
+                else status.startswith("SHADOW_NOT_READY")
+                or status.startswith("NOT_READY_")
+            )
+            if (
+                promoted is not False
+                or not bundle_free_status
+                or version is not None
+                or as_of is not None
+            ):
+                _fail(f"{head} bundle-free tombstone contract is invalid")
         heads[head] = {
             "role": "core" if head in THREE_RANK_CORE_HEADS else "shadow_only",
             "status": status,
             "promoted": promoted,
+            "production_bundle_present": bundle_present,
             "model_version": version,
             "model_as_of_date": as_of,
             "artifact_path": artifact_path,

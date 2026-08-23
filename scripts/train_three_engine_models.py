@@ -24,6 +24,8 @@ if str(SRC) not in sys.path:
 
 from top10decision.decision.three_engine_models import (  # noqa: E402
     CORE_HEADS,
+    THREE_ENGINE_SCHEMA_VERSION,
+    ProbabilityHeadBundle,
     RUNTIME_ALIGNED_MARKET_FEATURES,
     RUNTIME_FEATURE_CONTRACT_VERSION,
     model_artifact_payload,
@@ -139,28 +141,75 @@ def _validate_production_calibration_contract(
     status = str(payload.get("status") or "")
     promoted = payload.get("promoted") is True
     bundle = payload.get("bundle")
+    bundle_present = payload.get("production_bundle_present")
     evidence = payload.get("calibration_monotonicity")
-    validation_evidence = (
-        payload.get("validation", {}).get("production", {}).get(
-            "calibration_monotonicity"
-        )
-        if isinstance(payload.get("validation"), Mapping)
-        else None
+    validation = payload.get("validation")
+    validation_production = (
+        validation.get("production", {})
+        if isinstance(validation, Mapping)
+        else {}
     )
+    validation_evidence = validation_production.get("calibration_monotonicity")
     if evidence != validation_evidence:
         raise RuntimeError(
             f"{head} production calibration evidence drifted between payload and validation"
         )
-    if bundle is None:
-        if status == "READY" or promoted:
+    actual_bundle_present = isinstance(bundle, ProbabilityHeadBundle)
+    if "model_version" not in payload or "model_as_of_date" not in payload:
+        raise RuntimeError(f"{head} production model provenance key is missing")
+    if (
+        type(bundle_present) is not bool
+        or type(validation_production.get("bundle_present")) is not bool
+        or bundle_present
+        != validation_production.get("bundle_present")
+        or bundle_present != actual_bundle_present
+    ):
+        raise RuntimeError(
+            f"{head} production bundle presence drifted across the artifact contract"
+        )
+    if not actual_bundle_present:
+        if bundle is not None:
+            raise RuntimeError(f"{head} production bundle has an invalid type")
+        if status in {"READY", "SHADOW_READY"} or promoted:
             raise RuntimeError(
-                f"{head} READY production artifact has no calibrated model"
+                f"{head} ready production artifact has no calibrated model"
+            )
+        if not status.startswith("NOT_READY_") and not status.startswith(
+            "SHADOW_NOT_READY"
+        ):
+            raise RuntimeError(f"{head} bundle-free artifact status is invalid")
+        if payload.get("model_version") is not None or payload.get(
+            "model_as_of_date"
+        ) is not None:
+            raise RuntimeError(
+                f"{head} bundle-free artifact must have null model provenance"
             )
         if isinstance(evidence, Mapping) and evidence.get("nondecreasing") is True:
             raise RuntimeError(
                 f"{head} has positive calibration evidence without a production model"
             )
         return
+
+    model_as_of_date = payload.get("model_as_of_date")
+    model_version = payload.get("model_version")
+    if (
+        not isinstance(model_as_of_date, str)
+        or not model_as_of_date
+        or model_as_of_date != bundle.trained_signal_end
+        or not isinstance(model_version, str)
+        or model_version
+        != (
+            f"{THREE_ENGINE_SCHEMA_VERSION}:{head}:{model_as_of_date}:"
+            f"{bundle.model_kind}:{bundle.calibration_method}"
+        )
+    ):
+        raise RuntimeError(
+            f"{head} production model provenance is not bound to its bundle"
+        )
+    if status == "READY" and not promoted:
+        raise RuntimeError(f"{head} READY artifact must be promoted")
+    if status != "READY" and promoted:
+        raise RuntimeError(f"{head} non-READY artifact may not be promoted")
 
     method = str(getattr(bundle, "calibration_method", "") or "")
     if not monotonicity_evidence_is_valid(
@@ -334,8 +383,11 @@ def write_training_artifacts(
         model_metadata[head] = {
             "status": payload.get("status"),
             "promoted": payload.get("promoted") is True,
-            "model_version": payload.get("model_version", ""),
-            "model_as_of_date": payload.get("model_as_of_date", ""),
+            "production_bundle_present": (
+                payload.get("production_bundle_present") is True
+            ),
+            "model_version": payload.get("model_version"),
+            "model_as_of_date": payload.get("model_as_of_date"),
             "artifact_sha256": artifact_sha256,
         }
 

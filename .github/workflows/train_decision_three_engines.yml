@@ -212,6 +212,66 @@ jobs:
           def sha256(path):
               return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+          def require_production_bundle_identity(validation, heads):
+              metadata = validation.get("model_metadata")
+              if not isinstance(metadata, dict):
+                  raise SystemExit("model metadata is missing")
+              for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
+                  item = heads.get(head)
+                  identity = metadata.get(head)
+                  production = item.get("production") if isinstance(item, dict) else None
+                  if not isinstance(item, dict) or not isinstance(identity, dict) or not isinstance(production, dict):
+                      raise SystemExit(f"{head} production bundle identity is missing")
+                  validation_present = production.get("bundle_present")
+                  identity_present = identity.get("production_bundle_present")
+                  status = item.get("status")
+                  promoted = item.get("promoted")
+                  if (
+                      type(validation_present) is not bool
+                      or type(identity_present) is not bool
+                      or identity_present != validation_present
+                  ):
+                      raise SystemExit(f"{head} production bundle presence disagrees")
+                  if (
+                      identity.get("status") != status
+                      or type(promoted) is not bool
+                      or type(identity.get("promoted")) is not bool
+                      or identity.get("promoted") != promoted
+                  ):
+                      raise SystemExit(f"{head} model metadata status/promotion disagrees")
+                  if "model_version" not in identity or "model_as_of_date" not in identity:
+                      raise SystemExit(f"{head} model provenance key is missing")
+                  version = identity.get("model_version")
+                  as_of = identity.get("model_as_of_date")
+                  bundle_free_status = isinstance(status, str) and (
+                      status.startswith("NOT_READY_")
+                      or (
+                          head == "p_fill_shadow"
+                          and status.startswith("SHADOW_NOT_READY")
+                      )
+                  )
+                  if validation_present:
+                      if (
+                          not isinstance(version, str)
+                          or not version
+                          or not isinstance(as_of, str)
+                          or len(as_of) != 8
+                          or not as_of.isdigit()
+                          or not version.startswith(
+                              f"decision_three_engine_models_v2:{head}:{as_of}:"
+                          )
+                      ):
+                          raise SystemExit(f"{head} present production bundle identity is invalid")
+                  elif (
+                      version is not None
+                      or as_of is not None
+                      or not bundle_free_status
+                      or promoted is not False
+                  ):
+                      raise SystemExit(f"{head} bundle-free identity must be a null NOT_READY tombstone")
+                  if status in {"READY", "SHADOW_READY"} and not validation_present:
+                      raise SystemExit(f"{head} ready status lacks a production bundle")
+
           def require_strict_training_source_evidence(manifest, data_validation):
               calendar_path = "data/market/trade_cal_sse.csv"
               event_seed_path = "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
@@ -313,6 +373,7 @@ jobs:
               item = heads.get(head)
               if not isinstance(item, dict) or not isinstance(item.get("status"), str):
                   raise SystemExit(f"missing model validation head: {head}")
+          require_production_bundle_identity(validation, heads)
           artifacts = validation.get("artifacts")
           if not isinstance(artifacts, dict):
               raise SystemExit("model artifact inventory is missing")
@@ -367,7 +428,10 @@ jobs:
                   p_fill.get("status") == "SHADOW_READY"
                   or (
                       isinstance(p_fill.get("status"), str)
-                      and p_fill["status"].startswith("NOT_READY_")
+                      and (
+                          p_fill["status"].startswith("NOT_READY_")
+                          or p_fill["status"].startswith("SHADOW_NOT_READY")
+                      )
                   )
               )
               and p_fill.get("cannot_change_core_members_or_ranks") is True
@@ -776,6 +840,66 @@ jobs:
           def sha256(path):
               return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+          def require_production_bundle_identity(validation, heads):
+              metadata = validation.get("model_metadata")
+              if not isinstance(metadata, dict):
+                  raise SystemExit("model metadata is missing")
+              for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
+                  item = heads.get(head)
+                  identity = metadata.get(head)
+                  production = item.get("production") if isinstance(item, dict) else None
+                  if not isinstance(item, dict) or not isinstance(identity, dict) or not isinstance(production, dict):
+                      raise SystemExit(f"{head} production bundle identity is missing")
+                  validation_present = production.get("bundle_present")
+                  identity_present = identity.get("production_bundle_present")
+                  status = item.get("status")
+                  promoted = item.get("promoted")
+                  if (
+                      type(validation_present) is not bool
+                      or type(identity_present) is not bool
+                      or identity_present != validation_present
+                  ):
+                      raise SystemExit(f"{head} production bundle presence disagrees")
+                  if (
+                      identity.get("status") != status
+                      or type(promoted) is not bool
+                      or type(identity.get("promoted")) is not bool
+                      or identity.get("promoted") != promoted
+                  ):
+                      raise SystemExit(f"{head} model metadata status/promotion disagrees")
+                  if "model_version" not in identity or "model_as_of_date" not in identity:
+                      raise SystemExit(f"{head} model provenance key is missing")
+                  version = identity.get("model_version")
+                  as_of = identity.get("model_as_of_date")
+                  bundle_free_status = isinstance(status, str) and (
+                      status.startswith("NOT_READY_")
+                      or (
+                          head == "p_fill_shadow"
+                          and status.startswith("SHADOW_NOT_READY")
+                      )
+                  )
+                  if validation_present:
+                      if (
+                          not isinstance(version, str)
+                          or not version
+                          or not isinstance(as_of, str)
+                          or len(as_of) != 8
+                          or not as_of.isdigit()
+                          or not version.startswith(
+                              f"decision_three_engine_models_v2:{head}:{as_of}:"
+                          )
+                      ):
+                          raise SystemExit(f"{head} present production bundle identity is invalid")
+                  elif (
+                      version is not None
+                      or as_of is not None
+                      or not bundle_free_status
+                      or promoted is not False
+                  ):
+                      raise SystemExit(f"{head} bundle-free identity must be a null NOT_READY tombstone")
+                  if status in {"READY", "SHADOW_READY"} and not validation_present:
+                      raise SystemExit(f"{head} ready status lacks a production bundle")
+
           def require_strict_training_source_evidence(manifest, data_validation):
               calendar_path = "data/market/trade_cal_sse.csv"
               event_seed_path = "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
@@ -918,6 +1042,7 @@ jobs:
           release_mode = manifest.get("release_mode")
           if not isinstance(heads, dict):
               raise SystemExit("published three-engine head validation is missing")
+          require_production_bundle_identity(validation, heads)
           promotion = heads.get("promotion")
           secondary = [heads.get(head) for head in ("big_loss", "profit")]
           promotion_ready = (
@@ -970,7 +1095,10 @@ jobs:
                   p_fill.get("status") == "SHADOW_READY"
                   or (
                       isinstance(p_fill.get("status"), str)
-                      and p_fill["status"].startswith("NOT_READY_")
+                      and (
+                          p_fill["status"].startswith("NOT_READY_")
+                          or p_fill["status"].startswith("SHADOW_NOT_READY")
+                      )
                   )
               )
           ):

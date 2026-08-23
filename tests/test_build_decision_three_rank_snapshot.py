@@ -169,7 +169,7 @@ def test_sealed_legacy_ready_artifact_is_research_only_and_exact_hash_bound(
     )
     with pytest.raises(
         ThreeEngineArtifactError,
-        match="READY artifact calibration evidence is missing",
+        match="production bundle presence disagrees",
     ):
         load_three_engine_artifacts(validation_path, root=ROOT)
     loaded = load_research_only_legacy_three_engine_snapshot(

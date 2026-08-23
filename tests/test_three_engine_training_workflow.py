@@ -168,6 +168,8 @@ def test_release_gate_distinguishes_all_core_partial_and_ineligible_states() -> 
     assert 'item["status"].startswith("NOT_READY_")' in release
     assert 'item.get("promoted") is False' in release
     assert 'p_fill.get("cannot_change_core_members_or_ranks") is True' in release
+    assert 'p_fill["status"].startswith("SHADOW_NOT_READY")' in release
+    assert 'p_fill["status"].startswith("SHADOW_NOT_READY")' in publish_job
     assert 'release_contract.get("failed_or_constant_head_must_not_emit_official_rank") is True' in release
     assert "publish = promotion_release_eligible and requested" in release
     assert "promotion_release_eligible" in release
@@ -179,6 +181,46 @@ def test_release_gate_distinguishes_all_core_partial_and_ineligible_states() -> 
     assert "candidate lacks a consistent promotion-safe authorization" in publish_job
     assert "published validation differs from authorized release mode" in publish_job
     assert "published model artifact hash mismatch" in publish_job
+
+
+def test_compute_and_publish_enforce_bundle_presence_null_identity_truth_table() -> None:
+    text = _text()
+    compute = _section(
+        text,
+        "- name: Resolve fail-closed model release eligibility",
+        "- name: Atomically re-freeze",
+    )
+    publish = _section(
+        text,
+        "- name: Apply candidate to exact base and revalidate paths modes hashes and models",
+        "- name: Publish exact CAS commit",
+    )
+    required = (
+        "def require_production_bundle_identity(validation, heads):",
+        'production.get("bundle_present")',
+        'identity.get("production_bundle_present")',
+        "type(validation_present) is not bool",
+        "type(identity_present) is not bool",
+        "identity_present != validation_present",
+        'identity.get("status") != status',
+        'type(identity.get("promoted")) is not bool',
+        '"model_version" not in identity',
+        '"model_as_of_date" not in identity',
+        "version is not None",
+        "as_of is not None",
+        'status.startswith("NOT_READY_")',
+        'status.startswith("SHADOW_NOT_READY")',
+        'status in {"READY", "SHADOW_READY"} and not validation_present',
+        'f"decision_three_engine_models_v2:{head}:{as_of}:"',
+        "bundle-free identity must be a null NOT_READY tombstone",
+        "require_production_bundle_identity(validation, heads)",
+    )
+    for section in (compute, publish):
+        for fragment in required:
+            assert fragment in section
+    assert text.count(
+        "require_production_bundle_identity(validation, heads)"
+    ) == 4
 
 
 def test_both_authorized_release_modes_atomically_refreeze_production() -> None:

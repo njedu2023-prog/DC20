@@ -184,11 +184,17 @@ def _strict_v2_manifest_from_current_freeze() -> dict:
     manifest["pinned_files"][source["event_seed_path"]] = source[
         "event_seed_sha256"
     ]
+    for item in manifest["production"]["three_rank"]["heads"].values():
+        item["production_bundle_present"] = True
     return manifest
 
 
 def test_exact_active_v1_ledger_freeze_remains_bootstrap_loadable() -> None:
     legacy = json.loads(LEGACY_BOOTSTRAP_FIXTURE.read_text(encoding="utf-8"))
+    assert all(
+        "production_bundle_present" not in item
+        for item in legacy["production"]["three_rank"]["heads"].values()
+    )
     assert legacy["production"]["three_rank"]["source_ledger"][
         "schema_version"
     ] == "dc20_three_engine_five_year_ledger_v1"
@@ -226,8 +232,74 @@ def test_complete_v2_ledger_freeze_enforces_and_passes_strict_source_contract() 
     assert validated["source_ledger"]["strict_calendar"] is True
 
 
+def test_strict_v2_freeze_accepts_an_explicit_bundle_free_not_ready_tombstone() -> None:
+    manifest = _strict_v2_manifest_from_current_freeze()
+    profit = manifest["production"]["three_rank"]["heads"]["profit"]
+    assert profit["status"].startswith("NOT_READY_")
+    profit["production_bundle_present"] = False
+    profit["model_version"] = None
+    profit["model_as_of_date"] = None
+    validated = validate_production_three_rank_contract(
+        ROOT,
+        manifest,
+        require_complete=True,
+    )
+    assert validated is not None
+    assert validated["heads"]["profit"]["production_bundle_present"] is False
+
+
+@pytest.mark.parametrize(
+    ("head", "present", "version", "as_of", "match"),
+    (
+        (
+            "profit",
+            False,
+            "decision_three_engine_models_v2:profit:20260814:fake:identity",
+            "20260814",
+            "bundle-free tombstone contract is invalid",
+        ),
+        (
+            "profit",
+            True,
+            None,
+            None,
+            "model_version must be a nonempty string",
+        ),
+        (
+            "promotion",
+            False,
+            None,
+            None,
+            "bundle-free tombstone contract is invalid",
+        ),
+    ),
+)
+def test_strict_v2_freeze_rejects_bundle_presence_provenance_drift(
+    head: str,
+    present: bool,
+    version: object,
+    as_of: object,
+    match: str,
+) -> None:
+    manifest = _strict_v2_manifest_from_current_freeze()
+    item = manifest["production"]["three_rank"]["heads"][head]
+    item["production_bundle_present"] = present
+    item["model_version"] = version
+    item["model_as_of_date"] = as_of
+    with pytest.raises(DecisionModelFreezeError, match=match):
+        validate_production_three_rank_contract(
+            ROOT,
+            manifest,
+            require_complete=True,
+        )
+
+
 def test_v1_to_v2_bootstrap_freeze_requires_the_complete_current_pin_inventory() -> None:
     manifest = json.loads(V1_TO_V2_BOOTSTRAP_FIXTURE.read_text(encoding="utf-8"))
+    assert all(
+        "production_bundle_present" not in item
+        for item in manifest["production"]["three_rank"]["heads"].values()
+    )
     assert manifest["freeze_id"] == THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID
     assert manifest["production"]["three_rank"]["source_ledger"][
         "schema_version"
