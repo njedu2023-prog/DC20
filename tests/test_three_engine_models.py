@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import top10decision.decision.three_engine_models as three_engine_models
+
 from scripts.train_three_engine_models import (
     _load_runtime_ledger_contract,
     write_training_artifacts,
@@ -119,6 +121,61 @@ def _test_config() -> ThreeEngineConfig:
         model_kinds=("lr",),
         calibration_methods=("identity",),
         release_mode=False,
+    )
+
+
+class _SnapshotBuilder:
+    feature_names = ("volatility_5d", "zero_value", "missing_value")
+
+    def __init__(self, volatility: float, zero_value: float = -0.0) -> None:
+        self.volatility = volatility
+        self.zero_value = zero_value
+
+    def transform(self, frame: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "volatility_5d": [self.volatility] * len(frame),
+                "zero_value": [self.zero_value] * len(frame),
+                "missing_value": [np.nan] * len(frame),
+            },
+            index=frame.index,
+        )
+
+
+def test_feature_snapshot_hash_is_cross_platform_ulp_stable_but_drift_sensitive() -> None:
+    frame = pd.DataFrame(
+        {
+            "signal_date": ["20260821"],
+            "ts_code": ["002412.SZ"],
+            "stage": [3],
+            "board": ["SZ_MAIN"],
+        }
+    )
+    # Exact ARM/x86 values observed on the sealed 2026-08-21 recovery input.
+    # This pair straddles a 14-significant-digit decimal boundary, so a looser
+    # 12-digit fingerprint contract is intentional rather than incidental.
+    arm_value = 0.0618781820891655
+    x86_value = 0.06187818208916551
+    base_hash = three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(arm_value)
+    )
+    assert base_hash == three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(x86_value)
+    )
+    assert base_hash == three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(np.nextafter(arm_value, -np.inf))
+    )
+    assert base_hash == three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(np.nextafter(arm_value, np.inf))
+    )
+    assert base_hash == three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(arm_value, zero_value=0.0)
+    )
+    assert base_hash != three_engine_models._feature_snapshot_sha256(
+        frame, _SnapshotBuilder(arm_value * (1.0 + 1e-10))
+    )
+    assert three_engine_models.FEATURE_SNAPSHOT_SCHEMA.endswith(
+        "v2_quantized12"
     )
 
 

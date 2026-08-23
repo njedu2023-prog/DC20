@@ -34,13 +34,13 @@ from top10decision.decision.three_rank import validate_three_rank_contract
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_OUTPUT_SHA256 = {
     "outputs/decision/three_rank_top10_20260821.json": (
-        "32b90ad4cf3478a3b9f89b527628f2f50f6aaf4945da27655654a4850c34038b"
+        "dda4906907704997cfa37e8ab86160c967a3b44162bc460dfa5c7db52c705c79"
     ),
     "outputs/decision/three_rank_top10_20260821.csv": (
-        "4187be9f56ac4f66d8066edffee51c21c296fe4339f70ab92275ff63cc5fd7bf"
+        "62c4fbf1ff98dd041076ec0767d053b9c6685b8e3206ff5ed178ebe9f3d95615"
     ),
     EVIDENCE_PATH: (
-        "b71c833e8c161a8467b2c5aa7ca16a19125b82b54990b3ae4f0fd9f3330f6c68"
+        "c3e3ce3ca70d71d13445c7983ae5b708747cb52b75a988aa18eeb243c18590a7"
     ),
     RECOVERY_MANIFEST_PATH: (
         "14ecaad8e8b393e98a80c0f08d10b9e6e17e51213586cb88973d102dff66d1c8"
@@ -274,7 +274,7 @@ def test_clean_root_rebuild_needs_no_data_pred_cache_network_or_prior_tables(
 
     result = build_decision_three_rank_snapshot(tmp_path)
     assert result["contract"]["bundle_sha256"] == (
-        "303e727ac7b157efcace4363c292d4317ab6ac00bda46a37e19989e8097a17db"
+        "1508feabb2d684c89d833db71ad97220d9350939d34a7062ec5c6433c0890818"
     )
     for relative, expected in EXPECTED_OUTPUT_SHA256.items():
         assert _sha256(tmp_path / relative) == expected

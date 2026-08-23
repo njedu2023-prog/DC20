@@ -33,6 +33,10 @@ RUNTIME_FEATURE_CONTRACT_VERSION = D_CLOSE_FEATURE_CONTRACT_VERSION
 THREE_ENGINE_TOP_N = 10
 CORE_HEADS = ("promotion", "big_loss", "profit")
 CALIBRATION_EPS = 1e-6
+FEATURE_SNAPSHOT_SCHEMA = (
+    "dc20_three_engine_d_feature_snapshot_v2_quantized12"
+)
+FEATURE_SNAPSHOT_SIGNIFICANT_DIGITS = 12
 
 PROMOTION_SOURCE_FEATURES = (
     "five_year_stage_board_prior_rate",
@@ -595,6 +599,24 @@ def _safe_float(value: Any) -> Optional[float]:
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _feature_snapshot_decimal(value: Any) -> Optional[str]:
+    """Return the cross-platform canonical decimal used only by the hash.
+
+    NumPy rolling standard deviation may differ by one or two IEEE-754 ULPs
+    between ARM and x86 even when every market input and package version is
+    identical.  The model still receives the original float.  Only the
+    feature-snapshot fingerprint uses this explicit 12-significant-digit
+    projection so equivalent inputs have one stable identity on GitHub.
+    """
+
+    number = _safe_float(value)
+    if number is None:
+        return None
+    if number == 0.0:
+        return "0"
+    return format(number, f".{FEATURE_SNAPSHOT_SIGNIFICANT_DIGITS}g")
 
 
 def _json_safe(value: Any) -> Any:
@@ -2883,14 +2905,16 @@ def _feature_snapshot_sha256(
                 {
                     "ts_code": str(row["ts_code"]),
                     "values": {
-                        name: _safe_float(features.at[index, name])
+                        name: _feature_snapshot_decimal(
+                            features.at[index, name]
+                        )
                         for name in builder.feature_names
                     },
                 }
             )
     return _canonical_sha256(
         {
-            "schema": "dc20_three_engine_d_feature_snapshot_v1",
+            "schema": FEATURE_SNAPSHOT_SCHEMA,
             "signal_date": str(frame["signal_date"].iloc[0]) if not frame.empty else "",
             "features": records,
         }
