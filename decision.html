@@ -788,7 +788,7 @@
           <h2>日线研究候选（非买入建议）</h2>
           <p>展示 Daily 报告与评估中已经生成的研究候选；正式行动仍只认同日 Auction action_plan。</p>
         </div>
-        <span id="researchCount" class="count">待读取</span>
+        <span id="researchCount" class="count" aria-live="polite">待读取</span>
       </div>
       <div id="researchMetrics" class="metrics panel-metrics"></div>
       <div id="researchContent"></div>
@@ -1768,7 +1768,7 @@
       const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url"];
       if (identityFields.some(key => String(info?.[key] || "") !== String(targetInfo?.[key] || ""))) return null;
       if ((info?.action_available === true) !== (targetInfo?.action_available === true)) return null;
-      if (!cachedPlan || !reportDate || String(cachedPlan.report_date || "") !== reportDate) return null;
+      if (!cachedPlan || !reportDate || String(cached.plan.report_date || "") !== String(cached.info?.report_date || "")) return null;
       const evidence = bindResearchEvidence(info, cached?.md, cached?.evaluation);
       if (cachedPlan.daily_research_only === true) {
         if (!evidence.available) return null;
