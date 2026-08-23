@@ -38,7 +38,8 @@ def test_retraining_is_default_read_only_and_sunday_is_explicitly_guarded() -> N
     assert "RETRAIN_ENABLED: ${{ vars.DC20_THREE_ENGINE_RETRAIN_ENABLED }}" in mode
     assert 'requested_publish=false' in mode
     assert 'test "${RETRAIN_ENABLED:-false}" = "true"' in mode
-    assert "Real three-engine publication requires vars.DC20_THREE_ENGINE_RETRAIN_ENABLED=true" in mode
+    assert 'elif [ "${INPUT_DRY_RUN:-true}" = "false" ]; then' in mode
+    assert "unattended Sunday schedules only" in mode
 
 
 def test_retraining_shares_the_non_cancelling_main_writer_lock() -> None:
@@ -83,11 +84,38 @@ def test_compute_builds_validates_and_trains_real_five_year_models_in_order() ->
     )
     assert "python scripts/validate_decision_model_freeze.py" in freeze_step
     assert "--minimum-price-coverage 0.98" in text
+    assert "--minimum-context-coverage 0.95" in text
     assert 'int(source.get("rows") or 0) < 10_000' in text
     assert 'int(source.get("dates") or 0) < 1_100' in text
     assert 'data_validation.get("valid") is not True' in text
     assert 'independence.get("owner") != "njedu2023-prog/DC20"' in text
     assert 'independence.get("runtime_dependency_on_top10_decision") is not False' in text
+
+
+def test_compute_and_publish_require_v2_strict_sse_seed_and_context_evidence() -> None:
+    text = _text()
+    compute = _section(text, "  compute:", "\n  publish:")
+    publish = _section(text, "\n  publish:", "\n  verify-writer-states:")
+    required_fragments = (
+        '"dc20_three_engine_five_year_ledger_v2"',
+        '"dc20_three_engine_five_year_data_validation_v2"',
+        '"data/market/trade_cal_sse.csv"',
+        '"tushare:trade_cal:SSE"',
+        '"data/auction_v3/promotion_prior/five_year_event_features.csv.gz"',
+        '"D/T/T+1 are adjacent strict SSE open sessions"',
+        'source.get("context_source_used") is not False',
+        'source.get("context_missingness_policy") != "preserve_nan_and_model_with_median_plus_missing_indicator"',
+        'inventory.get("seed_context_source_used") is not False',
+        'inventory.get("seed_partial_identity_rows") != 0',
+        '"rebuilt_promotion_context_contract"',
+        '"stock_prior_is_strictly_lagged"',
+        '"strict_sse_d_t_tplus1_adjacency"',
+        "require_strict_training_source_evidence",
+    )
+    for section in (compute, publish):
+        for fragment in required_fragments:
+            assert fragment in section
+    assert text.count("require_strict_training_source_evidence(") == 4
 
 
 def test_clean_runner_cache_is_fixed_sha_best_effort_and_never_release_truth() -> None:
@@ -144,6 +172,7 @@ def test_release_gate_distinguishes_all_core_partial_and_ineligible_states() -> 
     assert "publish = promotion_release_eligible and requested" in release
     assert "promotion_release_eligible" in release
     assert "vars.DC20_THREE_ENGINE_RETRAIN_ENABLED == 'true'" in publish_job
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == false" in publish_job
     assert "needs.compute.outputs.publish == 'true'" in publish_job
     assert "needs.compute.outputs.promotion_release_eligible == 'true'" in publish_job
     assert "needs.compute.outputs.has_changes == 'true'" in publish_job

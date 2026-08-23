@@ -42,9 +42,111 @@ PROMOTION_CONTEXT_FEATURES = [
     "five_year_stock_prior_samples_log",
 ]
 
+PROMOTION_D_CONTEXT_FEATURES = tuple(PROMOTION_CONTEXT_FEATURES[:8])
+
 PROMOTION_SOURCE_FEATURES = PROMOTION_PRIOR_FEATURES + PROMOTION_CONTEXT_FEATURES
 CALIBRATION_METHODS = ("identity", "platt", "beta", "isotonic")
 MODEL_KINDS = ("lr", "hgb", "extra_trees", "pairwise_lr")
+
+
+def build_promotion_context_features(
+    stage: Any,
+    closes: Sequence[Any],
+    limit_up_flags: Sequence[Any],
+) -> dict[str, float]:
+    """Compute the eight promotion context features from a six-session D window."""
+
+    defaults = {
+        feature: float("nan") for feature in PROMOTION_D_CONTEXT_FEATURES
+    }
+    close_items = list(closes)
+    flag_items = list(limit_up_flags)
+    try:
+        stage_value = float(stage)
+    except (TypeError, ValueError):
+        return defaults
+    if (
+        not math.isfinite(stage_value)
+        or stage_value not in (2.0, 3.0)
+        or len(close_items) != 6
+        or len(flag_items) != 6
+    ):
+        return defaults
+
+    def numeric(value: Any) -> float:
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return float("nan")
+        return result if math.isfinite(result) else float("nan")
+
+    def limit_up(value: Any) -> bool:
+        try:
+            if pd.isna(value):
+                return False
+        except (TypeError, ValueError):
+            return False
+        try:
+            return bool(value)
+        except (TypeError, ValueError):
+            return False
+
+    close_values = np.asarray([numeric(value) for value in close_items], dtype=float)
+    states = [limit_up(value) for value in flag_items]
+    stage_count = int(stage_value)
+    pre_end = 5 - stage_count
+    pre_closes = close_values[: pre_end + 1]
+    valid_returns = np.asarray([], dtype=float)
+    if len(pre_closes) >= 2:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            returns = pre_closes[1:] / pre_closes[:-1] - 1.0
+        valid_returns = returns[np.isfinite(returns)]
+    pre_1d = (
+        pre_closes[-1] / pre_closes[-2] - 1.0
+        if len(pre_closes) >= 2
+        and np.isfinite(pre_closes[-2:]).all()
+        and pre_closes[-2] > 0
+        else float("nan")
+    )
+    anchor_index = max(0, pre_end - 3)
+    pre_3d = (
+        close_values[pre_end] / close_values[anchor_index] - 1.0
+        if np.isfinite(close_values[[pre_end, anchor_index]]).all()
+        and close_values[anchor_index] > 0
+        else float("nan")
+    )
+    prior_positions = [
+        index
+        for index, is_limit_up in enumerate(states[: pre_end + 1])
+        if is_limit_up
+    ]
+    return {
+        "five_year_pre_streak_1d_return": pre_1d,
+        "five_year_pre_streak_3d_return": pre_3d,
+        "five_year_pre_streak_volatility": (
+            float(np.std(valid_returns, ddof=0))
+            if len(valid_returns)
+            else float("nan")
+        ),
+        "five_year_pre_streak_limit_up_count": float(len(prior_positions)),
+        "five_year_recent_limit_up_count": float(sum(states)),
+        "five_year_days_since_prior_limit_up": (
+            float(pre_end - prior_positions[-1] + 1)
+            if prior_positions
+            else 6.0
+        ),
+        "five_year_streak_runup": (
+            close_values[-1] / close_values[pre_end] - 1.0
+            if np.isfinite(close_values[[-1, pre_end]]).all()
+            and close_values[pre_end] > 0
+            else float("nan")
+        ),
+        "five_year_price_log": (
+            float(np.log1p(close_values[-1]))
+            if math.isfinite(close_values[-1]) and close_values[-1] > 0
+            else float("nan")
+        ),
+    }
 
 
 def load_promotion_validation(root: Path) -> dict[str, Any]:
@@ -683,11 +785,13 @@ def fit_promotion_blend(
 
 __all__ = [
     "PROMOTION_CONTEXT_FEATURES",
+    "PROMOTION_D_CONTEXT_FEATURES",
     "PROMOTION_PRIOR_FEATURES",
     "PROMOTION_SOURCE_FEATURES",
     "PromotionBlendModel",
     "PromotionBlendResult",
     "attach_promotion_source_features",
+    "build_promotion_context_features",
     "fit_promotion_blend",
     "load_promotion_validation",
 ]

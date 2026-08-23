@@ -14,9 +14,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from top10decision.auction_v3.calibration import (  # noqa: E402
+    MONOTONICITY_GRID_POINTS,
     ProbabilityCalibrator,
+    calibrator_monotonicity_evidence,
     chronological_calibration_split,
     fit_probability_calibrator,
+    monotonicity_evidence_is_valid,
     probability_metrics,
 )
 from top10decision.data.tushare_minute import write_calendar  # noqa: E402
@@ -65,6 +68,51 @@ class DecisionV8CalibrationTest(unittest.TestCase):
         calibrated = calibrator.transform([0.0, 0.2, 0.8, 1.0])
         self.assertTrue(np.isfinite(calibrated).all())
         self.assertTrue(((calibrated >= 0.0) & (calibrated <= 1.0)).all())
+        evidence = calibrator_monotonicity_evidence(calibrator, raw)
+        self.assertTrue(
+            monotonicity_evidence_is_valid(
+                evidence,
+                expected_method="beta",
+                require_nonconstant=True,
+            )
+        )
+        self.assertGreaterEqual(evidence["grid_points"], MONOTONICITY_GRID_POINTS)
+
+    def test_negative_platt_slope_is_rejected_instead_of_reversing_rank(self) -> None:
+        raw = np.linspace(0.05, 0.95, 160)
+        truth = (raw < 0.50).astype(int)
+        self.assertIsNone(
+            fit_probability_calibrator(
+                "platt",
+                raw,
+                truth,
+                constant=float(truth.mean()),
+            )
+        )
+
+    def test_negative_beta_derivative_is_rejected(self) -> None:
+        raw = np.linspace(0.05, 0.95, 160)
+        truth = (raw < 0.45).astype(int)
+        self.assertIsNone(
+            fit_probability_calibrator(
+                "beta",
+                raw,
+                truth,
+                constant=float(truth.mean()),
+            )
+        )
+
+    def test_flat_isotonic_mapping_is_not_a_rank_calibrator(self) -> None:
+        raw = np.linspace(0.05, 0.95, 160)
+        truth = (raw < 0.50).astype(int)
+        self.assertIsNone(
+            fit_probability_calibrator(
+                "isotonic",
+                raw,
+                truth,
+                constant=float(truth.mean()),
+            )
+        )
 
     def test_probability_metrics_include_reliability_and_ece(self) -> None:
         metrics = probability_metrics(

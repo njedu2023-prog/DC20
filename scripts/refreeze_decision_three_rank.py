@@ -31,13 +31,23 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     REQUIRED_ACTIVE_PIN_PATHS,
     THREE_RANK_ALL_HEADS,
     THREE_RANK_CONTRACT_VERSION,
+    THREE_RANK_CONTEXT_MISSINGNESS_POLICY,
     THREE_RANK_CORE_HEADS,
+    THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION,
+    THREE_RANK_DATE_BINDING_RULE,
     THREE_RANK_DYNAMIC_ASSET_PATHS,
     THREE_RANK_FEATURE_CONTRACT,
     THREE_RANK_FREEZE_SCHEMA_VERSION,
+    THREE_RANK_LEDGER_SCHEMA_VERSION,
+    THREE_RANK_PROMOTION_BAR_CONTEXT_COLUMNS,
     THREE_RANK_RUNTIME_FEATURE_COLUMNS,
     THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION,
+    THREE_RANK_REQUIRED_DATA_GATES,
     THREE_RANK_RELEASE_MODES,
+    THREE_RANK_STOCK_PRIOR_RULE,
+    THREE_RANK_TRAINING_CALENDAR_PATH,
+    THREE_RANK_TRAINING_CALENDAR_SOURCE,
+    THREE_RANK_TRAINING_EVENT_SEED_PATH,
     THREE_RANK_TOP_N,
     THREE_RANK_VALIDATION_SCHEMA_VERSION,
     frame_columns_sha256,
@@ -232,7 +242,7 @@ def build_three_rank_contract(
     if int(source.get("rows") or 0) < 10_000 or int(source.get("dates") or 0) < 1_100:
         _fail("validation source is below the five-year coverage gate")
 
-    if ledger_manifest.get("schema_version") != "dc20_three_engine_five_year_ledger_v1":
+    if ledger_manifest.get("schema_version") != THREE_RANK_LEDGER_SCHEMA_VERSION:
         _fail("five-year ledger manifest schema is invalid")
     if ledger_manifest.get("owner") != "njedu2023-prog/DC20":
         _fail("five-year ledger is not DC20-owned")
@@ -243,10 +253,51 @@ def build_three_rank_contract(
     ledger_source = _mapping(ledger_manifest.get("source"), "ledger_manifest.source")
     if ledger_source.get("prior_grid_truth_cutoff_rule") != "strictly_before_signal_date":
         _fail("promotion prior truth is not strictly lagged")
+    calendar_path = root_path / THREE_RANK_TRAINING_CALENDAR_PATH
+    event_seed_path = root_path / THREE_RANK_TRAINING_EVENT_SEED_PATH
+    calendar = _mapping(ledger_source.get("calendar"), "ledger_manifest.source.calendar")
+    if (
+        calendar.get("path") != THREE_RANK_TRAINING_CALENDAR_PATH
+        or calendar.get("sha256") != _sha256(calendar_path)
+        or calendar.get("source") != THREE_RANK_TRAINING_CALENDAR_SOURCE
+        or calendar.get("exchange") != "SSE"
+        or calendar.get("strict") is not True
+        or calendar.get("pretrade_chain_validated") is not True
+        or int(calendar.get("natural_day_rows") or 0) < 1
+        or int(calendar.get("open_sessions") or 0) < 3
+    ):
+        _fail("five-year ledger is not bound to the exact strict SSE calendar")
+    if ledger_source.get("date_binding_rule") != THREE_RANK_DATE_BINDING_RULE:
+        _fail("five-year ledger D/T/T+1 binding is not strict SSE adjacency")
+    if ledger_source.get("context_source_used") is not False:
+        _fail("five-year ledger consumed untrusted seed context")
+    if ledger_source.get("bar_context_rebuild_columns") != list(
+        THREE_RANK_PROMOTION_BAR_CONTEXT_COLUMNS
+    ):
+        _fail("five-year rebuilt promotion context inventory drifted")
+    if (
+        ledger_source.get("context_missingness_policy")
+        != THREE_RANK_CONTEXT_MISSINGNESS_POLICY
+    ):
+        _fail("five-year context missingness policy drifted")
+    if ledger_source.get("stock_prior_rule") != THREE_RANK_STOCK_PRIOR_RULE:
+        _fail("five-year stock prior is not strictly point-in-time")
     inventory = _mapping(
         ledger_source.get("event_source_inventory"),
         "ledger_manifest.source.event_source_inventory",
     )
+    if (
+        ledger_source.get("event_artifact") != THREE_RANK_TRAINING_EVENT_SEED_PATH
+        or ledger_source.get("event_sha256") != _sha256(event_seed_path)
+        or inventory.get("seed_path") != THREE_RANK_TRAINING_EVENT_SEED_PATH
+        or inventory.get("seed_sha256") != _sha256(event_seed_path)
+        or inventory.get("seed_raw_sha256") != _sha256(event_seed_path)
+        or inventory.get("seed_context_source_used") is not False
+        or inventory.get("seed_partial_identity_rows") != 0
+        or inventory.get("seed_invalid_identity_rows") != 0
+        or inventory.get("seed_duplicate_identity_rows") != 0
+    ):
+        _fail("five-year event seed evidence is invalid or not hash-bound")
     files = inventory.get("canonical_prediction_files")
     if not isinstance(files, list) or inventory.get("canonical_prediction_file_count") != len(files):
         _fail("canonical prediction source inventory is inconsistent")
@@ -261,7 +312,7 @@ def build_three_rank_contract(
         if coverage.get(key) != expected:
             _fail(f"ledger coverage {key} differs from model validation")
 
-    if data_validation.get("schema_version") != "dc20_three_engine_five_year_data_validation_v1":
+    if data_validation.get("schema_version") != THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION:
         _fail("five-year data validation schema is invalid")
     if (
         data_validation.get("valid") is not True
@@ -286,6 +337,69 @@ def build_three_rank_contract(
         "sha256": _sha256(ledger_manifest_path),
     }:
         _fail("data validation ledger manifest binding is invalid")
+    if _mapping(
+        inputs.get("sse_trade_calendar"),
+        "data_validation.inputs.sse_trade_calendar",
+    ) != {
+        "path": THREE_RANK_TRAINING_CALENDAR_PATH,
+        "sha256": _sha256(calendar_path),
+    }:
+        _fail("data validation strict SSE calendar binding is invalid")
+    if _mapping(inputs.get("event_seed"), "data_validation.inputs.event_seed") != {
+        "path": THREE_RANK_TRAINING_EVENT_SEED_PATH,
+        "sha256": _sha256(event_seed_path),
+    }:
+        _fail("data validation event seed binding is invalid")
+    hard_gates = _mapping(data_validation.get("hard_gates"), "data_validation.hard_gates")
+    missing_gates = sorted(THREE_RANK_REQUIRED_DATA_GATES.difference(hard_gates))
+    if missing_gates:
+        _fail(f"five-year data validation omits required gates: {missing_gates}")
+    for gate_name in sorted(THREE_RANK_REQUIRED_DATA_GATES):
+        gate = _mapping(
+            hard_gates[gate_name], f"data_validation.hard_gates.{gate_name}"
+        )
+        if gate.get("passed") is not True:
+            _fail(f"five-year data validation gate is not PASS: {gate_name}")
+    calendar_report = _mapping(
+        data_validation.get("strict_sse_calendar"),
+        "data_validation.strict_sse_calendar",
+    )
+    if (
+        calendar_report.get("valid") is not True
+        or calendar_report.get("path") != THREE_RANK_TRAINING_CALENDAR_PATH
+        or calendar_report.get("sha256") != _sha256(calendar_path)
+        or calendar_report.get("pretrade_chain_validated") is not True
+    ):
+        _fail("data validation strict SSE calendar audit is invalid")
+    date_binding = _mapping(
+        data_validation.get("date_binding"), "data_validation.date_binding"
+    )
+    if (
+        date_binding.get("rule") != THREE_RANK_DATE_BINDING_RULE
+        or date_binding.get("rows") != source.get("rows")
+        or date_binding.get("violations") != 0
+    ):
+        _fail("data validation D/T/T+1 adjacency audit is invalid")
+    seed_audit = _mapping(
+        data_validation.get("event_seed_audit"),
+        "data_validation.event_seed_audit",
+    )
+    if (
+        seed_audit.get("valid") is not True
+        or seed_audit.get("path") != THREE_RANK_TRAINING_EVENT_SEED_PATH
+        or seed_audit.get("sha256") != _sha256(event_seed_path)
+    ):
+        _fail("data validation event seed audit is invalid")
+    stock_prior_audit = _mapping(
+        data_validation.get("stock_prior_audit"),
+        "data_validation.stock_prior_audit",
+    )
+    if (
+        stock_prior_audit.get("valid") is not True
+        or stock_prior_audit.get("rule") != THREE_RANK_STOCK_PRIOR_RULE
+        or stock_prior_audit.get("rows_checked") != source.get("rows")
+    ):
+        _fail("data validation stock prior audit is invalid")
 
     head_validations = _mapping(validation.get("heads"), "validation.heads")
     metadata = _mapping(validation.get("model_metadata"), "validation.model_metadata")
@@ -438,6 +552,22 @@ def build_three_rank_contract(
             "canonical_prediction_file_count": inventory[
                 "canonical_prediction_file_count"
             ],
+            "calendar_path": THREE_RANK_TRAINING_CALENDAR_PATH,
+            "calendar_sha256": calendar["sha256"],
+            "calendar_source": calendar["source"],
+            "calendar_exchange": calendar["exchange"],
+            "strict_calendar": calendar["strict"],
+            "event_seed_path": THREE_RANK_TRAINING_EVENT_SEED_PATH,
+            "event_seed_sha256": inventory["seed_sha256"],
+            "date_binding_rule": ledger_source["date_binding_rule"],
+            "context_source_used": ledger_source["context_source_used"],
+            "bar_context_rebuild_columns": ledger_source[
+                "bar_context_rebuild_columns"
+            ],
+            "context_missingness_policy": ledger_source[
+                "context_missingness_policy"
+            ],
+            "stock_prior_rule": ledger_source["stock_prior_rule"],
         },
         "validation": {
             "path": "models/decision_three_engines/validation_latest.json",
@@ -465,6 +595,8 @@ def build_three_rank_contract(
         "models/decision_three_engine_data_validation.json": _sha256(data_validation_path),
         "models/decision_three_engines/validation_latest.json": _sha256(validation_path),
         oof_path: oof_sha,
+        THREE_RANK_TRAINING_CALENDAR_PATH: calendar["sha256"],
+        THREE_RANK_TRAINING_EVENT_SEED_PATH: inventory["seed_sha256"],
         **{item["artifact_path"]: item["artifact_sha256"] for item in heads.values()},
     }
     validate_production_three_rank_contract(

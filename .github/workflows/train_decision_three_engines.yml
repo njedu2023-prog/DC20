@@ -79,10 +79,9 @@ jobs:
             test "${RETRAIN_ENABLED:-false}" = "true"
             requested_publish=true
           elif [ "${INPUT_DRY_RUN:-true}" = "false" ]; then
-            if [ "${RETRAIN_ENABLED:-false}" != "true" ]; then
-              echo 'Real three-engine publication requires vars.DC20_THREE_ENGINE_RETRAIN_ENABLED=true' >&2
-              exit 2
-            fi
+            # A manual non-dry dispatch is already an explicit repository-
+            # authorized publication request.  The variable remains the
+            # independent kill switch for unattended Sunday schedules only.
             requested_publish=true
           fi
           git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
@@ -166,7 +165,8 @@ jobs:
             --max-workers 12 \
             --timeout 20 \
             --attempts 4 \
-            --minimum-price-coverage 0.98
+            --minimum-price-coverage 0.98 \
+            --minimum-context-coverage 0.95
 
       - name: Validate five-year ledger and independent ownership
         env:
@@ -212,6 +212,77 @@ jobs:
           def sha256(path):
               return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+          def require_strict_training_source_evidence(manifest, data_validation):
+              calendar_path = "data/market/trade_cal_sse.csv"
+              event_seed_path = "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+              context_columns = [
+                  "five_year_pre_streak_1d_return",
+                  "five_year_pre_streak_3d_return",
+                  "five_year_pre_streak_volatility",
+                  "five_year_pre_streak_limit_up_count",
+                  "five_year_recent_limit_up_count",
+                  "five_year_days_since_prior_limit_up",
+                  "five_year_streak_runup",
+                  "five_year_price_log",
+              ]
+              required_gates = {
+                  "manifest_schema_v2",
+                  "owned_event_source_inventory",
+                  "strict_sse_calendar_contract",
+                  "strict_sse_d_t_tplus1_adjacency",
+                  "rebuilt_promotion_context_contract",
+                  "stock_prior_is_strictly_lagged",
+                  "promotion_prior_truth_is_strictly_lagged",
+              }
+              if manifest.get("schema_version") != "dc20_three_engine_five_year_ledger_v2":
+                  raise SystemExit("five-year ledger is not the strict SSE v2 schema")
+              if data_validation.get("schema_version") != "dc20_three_engine_five_year_data_validation_v2":
+                  raise SystemExit("five-year data validation is not the strict SSE v2 schema")
+              source = manifest.get("source")
+              calendar = source.get("calendar") if isinstance(source, dict) else None
+              inventory = source.get("event_source_inventory") if isinstance(source, dict) else None
+              if (
+                  not isinstance(calendar, dict)
+                  or calendar.get("path") != calendar_path
+                  or calendar.get("sha256") != sha256(calendar_path)
+                  or calendar.get("source") != "tushare:trade_cal:SSE"
+                  or calendar.get("exchange") != "SSE"
+                  or calendar.get("strict") is not True
+                  or calendar.get("pretrade_chain_validated") is not True
+              ):
+                  raise SystemExit("five-year ledger lacks exact strict SSE calendar evidence")
+              if (
+                  not isinstance(inventory, dict)
+                  or source.get("event_artifact") != event_seed_path
+                  or source.get("event_sha256") != sha256(event_seed_path)
+                  or inventory.get("seed_path") != event_seed_path
+                  or inventory.get("seed_sha256") != sha256(event_seed_path)
+                  or inventory.get("seed_context_source_used") is not False
+                  or inventory.get("seed_partial_identity_rows") != 0
+                  or inventory.get("seed_invalid_identity_rows") != 0
+                  or inventory.get("seed_duplicate_identity_rows") != 0
+              ):
+                  raise SystemExit("five-year ledger lacks exact event seed quarantine evidence")
+              if (
+                  source.get("date_binding_rule") != "D/T/T+1 are adjacent strict SSE open sessions"
+                  or source.get("context_source_used") is not False
+                  or source.get("bar_context_rebuild_columns") != context_columns
+                  or source.get("context_missingness_policy") != "preserve_nan_and_model_with_median_plus_missing_indicator"
+                  or source.get("stock_prior_rule") != "strictly earlier D promotion truth; Beta(2,3); log1p(samples)"
+                  or source.get("prior_grid_truth_cutoff_rule") != "strictly_before_signal_date"
+              ):
+                  raise SystemExit("five-year ledger context or point-in-time source contract drifted")
+              inputs = data_validation.get("inputs")
+              hard_gates = data_validation.get("hard_gates")
+              if (
+                  not isinstance(inputs, dict)
+                  or inputs.get("sse_trade_calendar") != {"path": calendar_path, "sha256": sha256(calendar_path)}
+                  or inputs.get("event_seed") != {"path": event_seed_path, "sha256": sha256(event_seed_path)}
+                  or not isinstance(hard_gates, dict)
+                  or any(not isinstance(hard_gates.get(name), dict) or hard_gates[name].get("passed") is not True for name in required_gates)
+              ):
+                  raise SystemExit("five-year validation lacks required strict source PASS gates")
+
           validation_path = Path("models/decision_three_engines/validation_latest.json")
           data_validation_path = Path("models/decision_three_engine_data_validation.json")
           ledger_path = Path("data/decision_three_engines/five_year_supervised_ledger.csv.gz")
@@ -219,6 +290,7 @@ jobs:
           validation = load(validation_path)
           data_validation = load(data_validation_path)
           manifest = load(manifest_path)
+          require_strict_training_source_evidence(manifest, data_validation)
           if data_validation.get("valid") is not True or data_validation.get("status") != "PASS" or data_validation.get("failed_gates") != []:
               raise SystemExit("five-year data validation is not PASS")
           independence = data_validation.get("independence")
@@ -558,7 +630,10 @@ jobs:
     needs: compute
     if: >-
       ${{
-        vars.DC20_THREE_ENGINE_RETRAIN_ENABLED == 'true' &&
+        (
+          vars.DC20_THREE_ENGINE_RETRAIN_ENABLED == 'true' ||
+          (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
+        ) &&
         needs.compute.outputs.publish == 'true' &&
         needs.compute.outputs.promotion_release_eligible == 'true' &&
         needs.compute.outputs.has_changes == 'true'
@@ -698,6 +773,80 @@ jobs:
                   result[key] = value
               return result
 
+          def sha256(path):
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+          def require_strict_training_source_evidence(manifest, data_validation):
+              calendar_path = "data/market/trade_cal_sse.csv"
+              event_seed_path = "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+              context_columns = [
+                  "five_year_pre_streak_1d_return",
+                  "five_year_pre_streak_3d_return",
+                  "five_year_pre_streak_volatility",
+                  "five_year_pre_streak_limit_up_count",
+                  "five_year_recent_limit_up_count",
+                  "five_year_days_since_prior_limit_up",
+                  "five_year_streak_runup",
+                  "five_year_price_log",
+              ]
+              required_gates = {
+                  "manifest_schema_v2",
+                  "owned_event_source_inventory",
+                  "strict_sse_calendar_contract",
+                  "strict_sse_d_t_tplus1_adjacency",
+                  "rebuilt_promotion_context_contract",
+                  "stock_prior_is_strictly_lagged",
+                  "promotion_prior_truth_is_strictly_lagged",
+              }
+              if manifest.get("schema_version") != "dc20_three_engine_five_year_ledger_v2":
+                  raise SystemExit("published five-year ledger is not the strict SSE v2 schema")
+              if data_validation.get("schema_version") != "dc20_three_engine_five_year_data_validation_v2":
+                  raise SystemExit("published data validation is not the strict SSE v2 schema")
+              source = manifest.get("source")
+              calendar = source.get("calendar") if isinstance(source, dict) else None
+              inventory = source.get("event_source_inventory") if isinstance(source, dict) else None
+              if (
+                  not isinstance(calendar, dict)
+                  or calendar.get("path") != calendar_path
+                  or calendar.get("sha256") != sha256(calendar_path)
+                  or calendar.get("source") != "tushare:trade_cal:SSE"
+                  or calendar.get("exchange") != "SSE"
+                  or calendar.get("strict") is not True
+                  or calendar.get("pretrade_chain_validated") is not True
+              ):
+                  raise SystemExit("published ledger lacks exact strict SSE calendar evidence")
+              if (
+                  not isinstance(inventory, dict)
+                  or source.get("event_artifact") != event_seed_path
+                  or source.get("event_sha256") != sha256(event_seed_path)
+                  or inventory.get("seed_path") != event_seed_path
+                  or inventory.get("seed_sha256") != sha256(event_seed_path)
+                  or inventory.get("seed_context_source_used") is not False
+                  or inventory.get("seed_partial_identity_rows") != 0
+                  or inventory.get("seed_invalid_identity_rows") != 0
+                  or inventory.get("seed_duplicate_identity_rows") != 0
+              ):
+                  raise SystemExit("published ledger lacks exact event seed quarantine evidence")
+              if (
+                  source.get("date_binding_rule") != "D/T/T+1 are adjacent strict SSE open sessions"
+                  or source.get("context_source_used") is not False
+                  or source.get("bar_context_rebuild_columns") != context_columns
+                  or source.get("context_missingness_policy") != "preserve_nan_and_model_with_median_plus_missing_indicator"
+                  or source.get("stock_prior_rule") != "strictly earlier D promotion truth; Beta(2,3); log1p(samples)"
+                  or source.get("prior_grid_truth_cutoff_rule") != "strictly_before_signal_date"
+              ):
+                  raise SystemExit("published ledger context or point-in-time source contract drifted")
+              inputs = data_validation.get("inputs")
+              hard_gates = data_validation.get("hard_gates")
+              if (
+                  not isinstance(inputs, dict)
+                  or inputs.get("sse_trade_calendar") != {"path": calendar_path, "sha256": sha256(calendar_path)}
+                  or inputs.get("event_seed") != {"path": event_seed_path, "sha256": sha256(event_seed_path)}
+                  or not isinstance(hard_gates, dict)
+                  or any(not isinstance(hard_gates.get(name), dict) or hard_gates[name].get("passed") is not True for name in required_gates)
+              ):
+                  raise SystemExit("published validation lacks required strict source PASS gates")
+
           manifest = json.loads(
               Path(os.environ["CANDIDATE_MANIFEST"]).read_text(encoding="utf-8"),
               object_pairs_hook=reject_duplicates,
@@ -749,6 +898,7 @@ jobs:
               Path("data/decision_three_engines/five_year_ledger_manifest.json").read_text(encoding="utf-8"),
               object_pairs_hook=reject_duplicates,
           )
+          require_strict_training_source_evidence(ledger_manifest, data_validation)
           ledger_path = Path("data/decision_three_engines/five_year_supervised_ledger.csv.gz")
           ledger_sha = hashlib.sha256(ledger_path.read_bytes()).hexdigest()
           if hashlib.sha256(validation_path.read_bytes()).hexdigest() != manifest["release_validation_sha256"]:

@@ -29,6 +29,10 @@ from top10decision.decision.three_engine_models import (  # noqa: E402
     model_artifact_payload,
     train_three_engine_models,
 )
+from top10decision.probability_calibration import (  # noqa: E402
+    calibrator_monotonicity_evidence,
+    monotonicity_evidence_is_valid,
+)
 
 
 DEFAULT_LEDGER = ROOT / "data/decision_three_engines/five_year_supervised_ledger.csv.gz"
@@ -126,6 +130,83 @@ def _relative(path: Path) -> str:
         return path.resolve().relative_to(ROOT.resolve()).as_posix()
     except ValueError:
         return str(path.resolve())
+
+
+def _validate_production_calibration_contract(
+    payload: Mapping[str, Any],
+) -> None:
+    head = str(payload.get("head") or "unknown")
+    status = str(payload.get("status") or "")
+    promoted = payload.get("promoted") is True
+    bundle = payload.get("bundle")
+    evidence = payload.get("calibration_monotonicity")
+    validation_evidence = (
+        payload.get("validation", {}).get("production", {}).get(
+            "calibration_monotonicity"
+        )
+        if isinstance(payload.get("validation"), Mapping)
+        else None
+    )
+    if evidence != validation_evidence:
+        raise RuntimeError(
+            f"{head} production calibration evidence drifted between payload and validation"
+        )
+    if bundle is None:
+        if status == "READY" or promoted:
+            raise RuntimeError(
+                f"{head} READY production artifact has no calibrated model"
+            )
+        if isinstance(evidence, Mapping) and evidence.get("nondecreasing") is True:
+            raise RuntimeError(
+                f"{head} has positive calibration evidence without a production model"
+            )
+        return
+
+    method = str(getattr(bundle, "calibration_method", "") or "")
+    if not monotonicity_evidence_is_valid(
+        evidence,
+        expected_method=method,
+        require_nonconstant=True,
+    ):
+        raise RuntimeError(
+            f"{head} production calibration evidence is missing or invalid"
+        )
+    if evidence.get("independent_production_rank_audit", {}).get("valid") is not True:
+        raise RuntimeError(
+            f"{head} production rank is constant on its independent audit window"
+        )
+    support = evidence.get("raw_support", {})
+    recomputed = calibrator_monotonicity_evidence(
+        bundle.calibrator,
+        [support.get("minimum"), support.get("maximum")],
+    )
+    if not monotonicity_evidence_is_valid(
+        recomputed,
+        expected_method=method,
+        require_nonconstant=True,
+    ):
+        raise RuntimeError(
+            f"{head} production calibrator fails independent monotonicity replay"
+        )
+    bundle_evidence = bundle.selection_metrics.get("calibration_monotonicity")
+    if bundle_evidence != evidence:
+        raise RuntimeError(
+            f"{head} production calibration evidence drifted inside the model bundle"
+        )
+    if not monotonicity_evidence_is_valid(
+        bundle_evidence,
+        expected_method=method,
+        require_nonconstant=True,
+    ):
+        raise RuntimeError(
+            f"{head} production bundle omitted monotonicity evidence"
+        )
+    if bundle_evidence.get("independent_production_rank_audit", {}).get(
+        "valid"
+    ) is not True:
+        raise RuntimeError(
+            f"{head} production bundle omitted its independent rank audit"
+        )
 
 
 def _load_runtime_ledger_contract(
@@ -241,6 +322,7 @@ def write_training_artifacts(
     model_metadata: dict[str, dict[str, Any]] = {}
     for head in HEADS:
         payload = model_artifact_payload(result, head)
+        _validate_production_calibration_contract(payload)
         path = model_dir / f"{head}.joblib"
         _atomic_joblib(path, payload)
         artifact_sha256 = _sha256(path)

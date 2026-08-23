@@ -164,10 +164,13 @@ def test_target_resolution_is_repo_local_allowlisted_and_not_a_symlink(tmp_path:
     launcher.write_text("# launcher\n", encoding="utf-8")
     allowed = scripts / "replay_frozen_canonical_v2.py"
     allowed.write_text("# replay\n", encoding="utf-8")
+    training = scripts / "train_three_engine_models.py"
+    training.write_text("# reviewed training entrypoint\n", encoding="utf-8")
     forbidden = scripts / "not_reviewed.py"
     forbidden.write_text("# no\n", encoding="utf-8")
 
     assert runtime.resolve_target(str(allowed), launcher=launcher) == allowed.resolve()
+    assert runtime.resolve_target(str(training), launcher=launcher) == training.resolve()
     with pytest.raises(runtime.DeterministicNumericRuntimeError, match="not allowlisted"):
         runtime.resolve_target(str(forbidden), launcher=launcher)
 

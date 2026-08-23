@@ -50,6 +50,64 @@ THREE_RANK_VALIDATION_SCHEMA_VERSION = "decision_three_engine_validation_v2"
 THREE_RANK_CONTRACT_VERSION = "decision_three_rank_v1"
 THREE_RANK_FEATURE_CONTRACT = "D_CLOSE_RUNTIME_ALIGNED_NO_CROSS_HEAD_OUTPUTS_V2"
 THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION = "dc20_daily_candidate_d_close_v1"
+THREE_RANK_LEDGER_SCHEMA_VERSION = "dc20_three_engine_five_year_ledger_v2"
+THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION = (
+    "dc20_three_engine_five_year_data_validation_v2"
+)
+# One already-signed production overlay was activated before the five-year
+# ledger acquired the independently audited SSE/context contract.  It is
+# accepted only as an exact, immutable bootstrap input while a V2 ledger is
+# being generated and signed.  A different freeze id or any change anywhere in
+# its three-rank contract must fail closed; this is deliberately not a general
+# V1 compatibility mode.
+LEGACY_THREE_RANK_LEDGER_SCHEMA_VERSION = (
+    "dc20_three_engine_five_year_ledger_v1"
+)
+LEGACY_THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION = (
+    "dc20_three_engine_five_year_data_validation_v1"
+)
+LEGACY_THREE_RANK_BOOTSTRAP_FREEZE_ID = (
+    "dc20_decision_three_rank_v2_partial_d20260814_ea29b6da156162c9"
+)
+THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID = (
+    "dc20_decision_three_rank_v2_bootstrap_v1ledger_f3d4e94fd7a5acd0"
+)
+LEGACY_THREE_RANK_BOOTSTRAP_CONTRACT_SHA256 = (
+    "f3d4e94fd7a5acd0be5a56dbcc532eec27c66f2a8184d0c91dc07efcd0005d3d"
+)
+THREE_RANK_TRAINING_CALENDAR_PATH = "data/market/trade_cal_sse.csv"
+THREE_RANK_TRAINING_CALENDAR_SOURCE = "tushare:trade_cal:SSE"
+THREE_RANK_TRAINING_EVENT_SEED_PATH = (
+    "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+)
+THREE_RANK_DATE_BINDING_RULE = "D/T/T+1 are adjacent strict SSE open sessions"
+THREE_RANK_PROMOTION_BAR_CONTEXT_COLUMNS = (
+    "five_year_pre_streak_1d_return",
+    "five_year_pre_streak_3d_return",
+    "five_year_pre_streak_volatility",
+    "five_year_pre_streak_limit_up_count",
+    "five_year_recent_limit_up_count",
+    "five_year_days_since_prior_limit_up",
+    "five_year_streak_runup",
+    "five_year_price_log",
+)
+THREE_RANK_STOCK_PRIOR_RULE = (
+    "strictly earlier D promotion truth; Beta(2,3); log1p(samples)"
+)
+THREE_RANK_CONTEXT_MISSINGNESS_POLICY = (
+    "preserve_nan_and_model_with_median_plus_missing_indicator"
+)
+THREE_RANK_REQUIRED_DATA_GATES = frozenset(
+    {
+        "manifest_schema_v2",
+        "owned_event_source_inventory",
+        "strict_sse_calendar_contract",
+        "strict_sse_d_t_tplus1_adjacency",
+        "rebuilt_promotion_context_contract",
+        "stock_prior_is_strictly_lagged",
+        "promotion_prior_truth_is_strictly_lagged",
+    }
+)
 THREE_RANK_TOP_N = 10
 THREE_RANK_RUNTIME_FEATURE_COLUMNS = (
     "returns_1d",
@@ -90,6 +148,12 @@ THREE_RANK_HISTORY_SOURCE_PIN_PATHS = frozenset(
         "models/decision_three_rank_history_sources.json",
     }
 )
+THREE_RANK_TRAINING_SOURCE_PIN_PATHS = frozenset(
+    {
+        THREE_RANK_TRAINING_CALENDAR_PATH,
+        THREE_RANK_TRAINING_EVENT_SEED_PATH,
+    }
+)
 THREE_RANK_BEHAVIOR_PIN_PATHS = frozenset(
     {
         ".github/workflows/train_decision_three_engines.yml",
@@ -99,6 +163,7 @@ THREE_RANK_BEHAVIOR_PIN_PATHS = frozenset(
         "scripts/refreeze_decision_three_rank.py",
         "scripts/train_three_engine_models.py",
         "scripts/validate_three_engine_five_year_ledger.py",
+        "src/top10decision/probability_calibration.py",
         "src/top10decision/decision/d_close_features.py",
         "src/top10decision/decision/three_engine_models.py",
         "src/top10decision/decision/three_rank.py",
@@ -302,6 +367,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
     }
     | THREE_RANK_DYNAMIC_ASSET_PATHS
     | THREE_RANK_HISTORY_SOURCE_PIN_PATHS
+    | THREE_RANK_TRAINING_SOURCE_PIN_PATHS
     | THREE_RANK_BEHAVIOR_PIN_PATHS
     | THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS
 )
@@ -730,6 +796,63 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _exact_legacy_three_rank_bootstrap(
+    manifest: Mapping[str, Any],
+    contract: Mapping[str, Any],
+    source: Mapping[str, Any],
+) -> bool:
+    """Authorize only the exact already-signed V1-ledger production overlay."""
+
+    if source.get("schema_version") != LEGACY_THREE_RANK_LEDGER_SCHEMA_VERSION:
+        return False
+    if manifest.get("schema_version") != FREEZE_SCHEMA_VERSION:
+        _fail("legacy three-rank bootstrap requires the outer V2 freeze schema")
+    if manifest.get("active") is not True:
+        _fail("legacy three-rank bootstrap requires the exact active freeze")
+    freeze_id = manifest.get("freeze_id")
+    if freeze_id not in {
+        LEGACY_THREE_RANK_BOOTSTRAP_FREEZE_ID,
+        THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID,
+    }:
+        _fail(
+            "V1 three-rank source ledger is allowed only for an exact signed "
+            "legacy/bootstrap freeze"
+        )
+    digest = hashlib.sha256(canonical_json_bytes(contract)).hexdigest()
+    if digest != LEGACY_THREE_RANK_BOOTSTRAP_CONTRACT_SHA256:
+        _fail("signed legacy three-rank bootstrap contract drifted")
+    return True
+
+
+def _required_active_pins_for_manifest(
+    manifest: Mapping[str, Any],
+) -> frozenset[str]:
+    """Return the active pin inventory, with one exact bootstrap exception."""
+
+    production = manifest.get("production")
+    if not isinstance(production, dict):
+        return REQUIRED_ACTIVE_PIN_PATHS
+    contract = production.get("three_rank")
+    if not isinstance(contract, dict):
+        return REQUIRED_ACTIVE_PIN_PATHS
+    source = contract.get("source_ledger")
+    if not isinstance(source, dict):
+        return REQUIRED_ACTIVE_PIN_PATHS
+    if not _exact_legacy_three_rank_bootstrap(manifest, contract, source):
+        return REQUIRED_ACTIVE_PIN_PATHS
+    if manifest.get("freeze_id") == THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID:
+        # The migration freeze is new and therefore must carry the complete
+        # current pin inventory, including the independently owned event seed.
+        return REQUIRED_ACTIVE_PIN_PATHS
+    # The original signed V1-ledger overlay predates this independently owned
+    # seed pin.  All other active pins remain mandatory and byte-enforced.
+    return frozenset(
+        REQUIRED_ACTIVE_PIN_PATHS.difference(
+            {THREE_RANK_TRAINING_EVENT_SEED_PATH}
+        )
+    )
+
+
 def validate_production_three_rank_contract(
     root: Path | str,
     manifest: Mapping[str, Any],
@@ -871,31 +994,53 @@ def validate_production_three_rank_contract(
             _fail(f"{context}.fail_closed.{key} must remain false")
 
     source = _require_mapping(contract["source_ledger"], f"{context}.source_ledger")
+    legacy_v1_bootstrap = _exact_legacy_three_rank_bootstrap(
+        manifest,
+        contract,
+        source,
+    )
+    legacy_source_keys = frozenset(
+        {
+            "owner",
+            "runtime_dependency_on_top10_decision",
+            "schema_version",
+            "ledger_path",
+            "ledger_sha256",
+            "ledger_manifest_path",
+            "ledger_manifest_sha256",
+            "data_validation_path",
+            "data_validation_sha256",
+            "data_validation_schema_version",
+            "data_validation_status",
+            "data_validation_valid",
+            "rows",
+            "signal_dates",
+            "start_signal_date",
+            "end_signal_date",
+            "prior_truth_cutoff_rule",
+            "event_source_inventory_sha256",
+            "canonical_prediction_file_count",
+        }
+    )
+    strict_source_keys = legacy_source_keys | frozenset(
+        {
+            "calendar_path",
+            "calendar_sha256",
+            "calendar_source",
+            "calendar_exchange",
+            "strict_calendar",
+            "event_seed_path",
+            "event_seed_sha256",
+            "date_binding_rule",
+            "context_source_used",
+            "bar_context_rebuild_columns",
+            "context_missingness_policy",
+            "stock_prior_rule",
+        }
+    )
     _require_exact_keys(
         source,
-        frozenset(
-            {
-                "owner",
-                "runtime_dependency_on_top10_decision",
-                "schema_version",
-                "ledger_path",
-                "ledger_sha256",
-                "ledger_manifest_path",
-                "ledger_manifest_sha256",
-                "data_validation_path",
-                "data_validation_sha256",
-                "data_validation_schema_version",
-                "data_validation_status",
-                "data_validation_valid",
-                "rows",
-                "signal_dates",
-                "start_signal_date",
-                "end_signal_date",
-                "prior_truth_cutoff_rule",
-                "event_source_inventory_sha256",
-                "canonical_prediction_file_count",
-            }
-        ),
+        legacy_source_keys if legacy_v1_bootstrap else strict_source_keys,
         f"{context}.source_ledger",
     )
     _require_text(source["owner"], f"{context}.source_ledger.owner", exact="njedu2023-prog/DC20")
@@ -907,7 +1052,11 @@ def validate_production_three_rank_contract(
     _require_text(
         source["schema_version"],
         f"{context}.source_ledger.schema_version",
-        exact="dc20_three_engine_five_year_ledger_v1",
+        exact=(
+            LEGACY_THREE_RANK_LEDGER_SCHEMA_VERSION
+            if legacy_v1_bootstrap
+            else THREE_RANK_LEDGER_SCHEMA_VERSION
+        ),
     )
     exact_source_paths = {
         "ledger_path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
@@ -916,12 +1065,21 @@ def validate_production_three_rank_contract(
     }
     for key, exact in exact_source_paths.items():
         _require_text(source[key], f"{context}.source_ledger.{key}", exact=exact)
-    for key in ("ledger_sha256", "ledger_manifest_sha256", "data_validation_sha256", "event_source_inventory_sha256"):
+    for key in (
+        "ledger_sha256",
+        "ledger_manifest_sha256",
+        "data_validation_sha256",
+        "event_source_inventory_sha256",
+    ):
         _require_sha256(source[key], f"{context}.source_ledger.{key}")
     _require_text(
         source["data_validation_schema_version"],
         f"{context}.source_ledger.data_validation_schema_version",
-        exact="dc20_three_engine_five_year_data_validation_v1",
+        exact=(
+            LEGACY_THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION
+            if legacy_v1_bootstrap
+            else THREE_RANK_DATA_VALIDATION_SCHEMA_VERSION
+        ),
     )
     _require_text(
         source["data_validation_status"],
@@ -953,6 +1111,62 @@ def validate_production_three_rank_contract(
         f"{context}.source_ledger.canonical_prediction_file_count",
         minimum=0,
     )
+    if not legacy_v1_bootstrap:
+        _require_text(
+            source["calendar_path"],
+            f"{context}.source_ledger.calendar_path",
+            exact=THREE_RANK_TRAINING_CALENDAR_PATH,
+        )
+        _require_sha256(
+            source["calendar_sha256"], f"{context}.source_ledger.calendar_sha256"
+        )
+        _require_text(
+            source["calendar_source"],
+            f"{context}.source_ledger.calendar_source",
+            exact=THREE_RANK_TRAINING_CALENDAR_SOURCE,
+        )
+        _require_text(
+            source["calendar_exchange"],
+            f"{context}.source_ledger.calendar_exchange",
+            exact="SSE",
+        )
+        if not _require_bool(
+            source["strict_calendar"], f"{context}.source_ledger.strict_calendar"
+        ):
+            _fail(f"{context}.source_ledger.strict_calendar must be true")
+        _require_text(
+            source["event_seed_path"],
+            f"{context}.source_ledger.event_seed_path",
+            exact=THREE_RANK_TRAINING_EVENT_SEED_PATH,
+        )
+        _require_sha256(
+            source["event_seed_sha256"],
+            f"{context}.source_ledger.event_seed_sha256",
+        )
+        _require_text(
+            source["date_binding_rule"],
+            f"{context}.source_ledger.date_binding_rule",
+            exact=THREE_RANK_DATE_BINDING_RULE,
+        )
+        if _require_bool(
+            source["context_source_used"],
+            f"{context}.source_ledger.context_source_used",
+        ):
+            _fail(f"{context}.source_ledger.context_source_used must remain false")
+        if source["bar_context_rebuild_columns"] != list(
+            THREE_RANK_PROMOTION_BAR_CONTEXT_COLUMNS
+        ):
+            _fail(f"{context}.source_ledger.bar_context_rebuild_columns drifted")
+        _require_text(
+            source["context_missingness_policy"],
+            f"{context}.source_ledger.context_missingness_policy",
+            exact=THREE_RANK_CONTEXT_MISSINGNESS_POLICY,
+        )
+        _require_text(
+            source["stock_prior_rule"],
+            f"{context}.source_ledger.stock_prior_rule",
+            exact=THREE_RANK_STOCK_PRIOR_RULE,
+        )
 
     validation = _require_mapping(contract["validation"], f"{context}.validation")
     _require_exact_keys(
@@ -1111,6 +1325,23 @@ def validate_production_three_rank_contract(
         _safe_repository_path(root_path, path, f"{context}.asset[{path!r}]")
         if pinned.get(path) != digest:
             _fail(f"{context} asset hash differs from pinned_files: {path}")
+    if not legacy_v1_bootstrap:
+        training_source_hashes = {
+            source["calendar_path"]: source["calendar_sha256"],
+            source["event_seed_path"]: source["event_seed_sha256"],
+        }
+        if set(training_source_hashes) != set(THREE_RANK_TRAINING_SOURCE_PIN_PATHS):
+            _fail(f"{context} training source inventory is not exact")
+        for path, digest in training_source_hashes.items():
+            _safe_repository_path(
+                root_path,
+                path,
+                f"{context}.training_source[{path!r}]",
+            )
+            if pinned.get(path) != digest:
+                _fail(
+                    f"{context} training source hash differs from pinned_files: {path}"
+                )
     return dict(contract)
 
 
@@ -1852,12 +2083,20 @@ def _validate_v2_manifest(
     if complete and not pinned:
         _fail("complete V2 freeze requires nonempty pinned_files")
     if complete:
-        missing_pins = sorted(REQUIRED_ACTIVE_PIN_PATHS.difference(pinned))
+        required_active_pins = _required_active_pins_for_manifest(payload)
+        missing_pins = sorted(required_active_pins.difference(pinned))
         if missing_pins:
             _fail(
                 "complete V2 freeze is missing execution-critical pins: "
                 f"{missing_pins!r}"
             )
+        if payload.get("freeze_id") == THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID:
+            unexpected_pins = sorted(set(pinned).difference(required_active_pins))
+            if unexpected_pins:
+                _fail(
+                    "V1-to-V2 bootstrap freeze pin inventory must be exact: "
+                    f"unexpected={unexpected_pins!r}"
+                )
     for relative, expected_sha in pinned.items():
         _safe_repository_path(root, relative, f"pinned_files[{relative!r}]")
         _require_sha256(expected_sha, f"pinned_files[{relative!r}]")
@@ -2089,7 +2328,9 @@ def validate_pinned_files(
         manifest,
         require_complete=force_enforcement,
     )
-    missing_pins = sorted(REQUIRED_ACTIVE_PIN_PATHS.difference(pinned))
+    missing_pins = sorted(
+        _required_active_pins_for_manifest(manifest).difference(pinned)
+    )
     if missing_pins:
         _fail(f"enforced V2 freeze is missing execution-critical pins: {missing_pins!r}")
     mismatches: list[dict[str, str]] = []

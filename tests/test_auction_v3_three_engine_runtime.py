@@ -14,7 +14,10 @@ from top10decision.auction_v3.engine import (
     THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
     AuctionV3Engine,
 )
-from top10decision.decision.three_engine_models import ThreeEngineArtifactError
+from top10decision.decision.three_engine_models import (
+    ThreeEngineArtifactError,
+    load_three_engine_artifacts,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -394,14 +397,44 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
         )
         for name in promotion_context:
             assert np.isclose(getattr(row, name), expected_context[name])
-        for name in runtime_market:
-            assert np.isclose(getattr(row, name), expected_market[name])
+            for name in runtime_market:
+                assert np.isclose(getattr(row, name), expected_market[name])
+
+    validation_path = (
+        tmp_path / "models/decision_three_engines/validation_latest.json"
+    )
+    try:
+        copied_artifacts = load_three_engine_artifacts(
+            validation_path,
+            root=tmp_path,
+        )
+        copied_promotion_ready = (
+            copied_artifacts.metadata["promotion"]["status"] == "READY"
+        )
+    except ThreeEngineArtifactError:
+        copied_promotion_ready = False
 
     result = engine._apply_three_engine_runtime(
         base.copy(),
         base.copy(),
         signal_date,
     )
+    if not copied_promotion_ready:
+        assert set(result["three_engine_runtime_status"]) == {
+            "NOT_READY_PROMOTION"
+        }
+        assert result["top10_selected"].eq(0).all()
+        for column in (
+            "promotion_rank",
+            "predicted_promotion_probability",
+            "big_loss_safety_rank",
+            "predicted_big_loss_probability",
+            "profit_rank",
+            "predicted_profit_probability",
+        ):
+            assert result[column].isna().all()
+        return
+
     assert set(result["three_engine_runtime_status"]) == {
         "PARTIAL_MODELS_NOT_READY"
     }

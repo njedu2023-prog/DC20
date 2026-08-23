@@ -15,12 +15,80 @@ from sklearn.pipeline import Pipeline
 from top10decision.auction_v3 import AuctionV3Config, AuctionV3Engine
 from top10decision.auction_v3.calibration import ProbabilityCalibrator
 from top10decision.auction_v3.promotion_model import (
+    PROMOTION_D_CONTEXT_FEATURES,
     PROMOTION_PRIOR_FEATURES,
     PROMOTION_SOURCE_FEATURES,
     attach_promotion_source_features,
+    build_promotion_context_features,
     fit_promotion_blend,
     load_promotion_validation,
 )
+
+
+class PromotionDContextFeatureTests(unittest.TestCase):
+    def test_pure_function_preserves_eight_feature_formulas(self) -> None:
+        closes = [10.0, 11.0, 12.0, 13.0, 14.3, 15.73]
+        features = build_promotion_context_features(
+            2,
+            closes,
+            [False, True, False, False, True, True],
+        )
+
+        self.assertEqual(set(features), set(PROMOTION_D_CONTEXT_FEATURES))
+        expected_returns = np.asarray(
+            [
+                11.0 / 10.0 - 1.0,
+                12.0 / 11.0 - 1.0,
+                13.0 / 12.0 - 1.0,
+            ]
+        )
+        self.assertAlmostEqual(
+            features["five_year_pre_streak_1d_return"],
+            13.0 / 12.0 - 1.0,
+        )
+        self.assertAlmostEqual(
+            features["five_year_pre_streak_3d_return"],
+            13.0 / 10.0 - 1.0,
+        )
+        self.assertAlmostEqual(
+            features["five_year_pre_streak_volatility"],
+            float(np.std(expected_returns, ddof=0)),
+        )
+        self.assertEqual(
+            features["five_year_pre_streak_limit_up_count"], 1.0
+        )
+        self.assertEqual(features["five_year_recent_limit_up_count"], 3.0)
+        self.assertEqual(features["five_year_days_since_prior_limit_up"], 3.0)
+        self.assertAlmostEqual(
+            features["five_year_streak_runup"], 15.73 / 13.0 - 1.0
+        )
+        self.assertAlmostEqual(
+            features["five_year_price_log"], float(np.log1p(15.73))
+        )
+
+    def test_pure_function_handles_missing_prices_without_fabrication(self) -> None:
+        features = build_promotion_context_features(
+            2,
+            [10.0, np.nan, 12.0, 13.0, 14.3, np.nan],
+            [False, None, False, False, True, None],
+        )
+
+        self.assertAlmostEqual(
+            features["five_year_pre_streak_1d_return"],
+            13.0 / 12.0 - 1.0,
+        )
+        self.assertAlmostEqual(
+            features["five_year_pre_streak_3d_return"],
+            13.0 / 10.0 - 1.0,
+        )
+        self.assertEqual(features["five_year_pre_streak_volatility"], 0.0)
+        self.assertEqual(
+            features["five_year_pre_streak_limit_up_count"], 0.0
+        )
+        self.assertEqual(features["five_year_recent_limit_up_count"], 1.0)
+        self.assertEqual(features["five_year_days_since_prior_limit_up"], 6.0)
+        self.assertTrue(np.isnan(features["five_year_streak_runup"]))
+        self.assertTrue(np.isnan(features["five_year_price_log"]))
 
 
 class PromotionSourceFeatureTests(unittest.TestCase):

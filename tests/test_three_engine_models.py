@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
 
 import top10decision.decision.three_engine_models as three_engine_models
+from top10decision.auction_v3.calibration import (
+    monotonicity_evidence_is_valid,
+)
 
 from scripts.train_three_engine_models import (
     _load_runtime_ledger_contract,
+    _validate_production_calibration_contract,
     write_training_artifacts,
 )
 from top10decision.decision.three_engine_models import (
@@ -238,6 +244,18 @@ def test_final_holdout_proxy_contract_and_stage_audit_are_explicit() -> None:
         assert audit["final_independent_holdout"]["calendar_dates"] == 20
         assert audit["final_independent_holdout"]["model_refit_within_holdout"] is False
         assert audit["production"]["constant_rank_forbidden"] is True
+        assert audit["production"]["calibration_monotonicity_valid"] is True
+        assert audit["production"]["independent_rank_audit_valid"] is True
+        evidence = audit["production"]["calibration_monotonicity"]
+        assert monotonicity_evidence_is_valid(
+            evidence,
+            expected_method=audit["production"]["calibration_method"],
+            require_nonconstant=True,
+        )
+        assert evidence["independent_production_rank_audit"]["valid"] is True
+        assert evidence["independent_production_rank_audit"][
+            "truth_or_performance_used"
+        ] is False
         assert audit["rank_variation"]["nonconstant_date_fraction"] == 1.0
     assert validation["heads"]["big_loss"]["training_scope"] == (
         "historical_promotion_oof_top10_market_fill_proxy_eq_1"
@@ -245,6 +263,97 @@ def test_final_holdout_proxy_contract_and_stage_audit_are_explicit() -> None:
     assert validation["heads"]["profit"]["training_scope"] == (
         "historical_promotion_oof_top10_market_fill_proxy_eq_1"
     )
+
+
+def test_outcome_selection_uses_directional_full_top10_ndcg_lift() -> None:
+    frame = pd.DataFrame(
+        {
+            "signal_date": ["20260105"] * 4,
+            "ts_code": [f"00000{index}.SZ" for index in range(1, 5)],
+            "promotion_rank": [1, 2, 3, 4],
+            "market_fill": [1, 1, 1, 1],
+            "big_loss_hit": [1, 1, 0, 0],
+            "profit_hit": [0, 0, 1, 1],
+        }
+    )
+    config = ThreeEngineConfig(top_n=4, release_mode=False)
+
+    big_loss = three_engine_models._selection_ranking_metrics(
+        frame,
+        three_engine_models.HEAD_SPECS["big_loss"],
+        probability=np.asarray([0.90, 0.80, 0.10, 0.20]),
+        raw_score=np.asarray([0.90, 0.80, 0.10, 0.20]),
+        config=config,
+    )
+    profit = three_engine_models._selection_ranking_metrics(
+        frame,
+        three_engine_models.HEAD_SPECS["profit"],
+        probability=np.asarray([0.10, 0.20, 0.90, 0.80]),
+        raw_score=np.asarray([0.10, 0.20, 0.90, 0.80]),
+        config=config,
+    )
+
+    for metrics in (big_loss, profit):
+        assert metrics["candidate_ndcg_at_10"] == pytest.approx(1.0)
+        assert metrics["baseline_ndcg_at_10"] < 1.0
+        assert metrics["ndcg_lift"] > 0.0
+        assert metrics["composite_lift"] > 0.0
+
+
+def test_negative_selection_composite_is_never_candidate_eligible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = three_engine_models.normalize_supervised_ledger(
+        _synthetic_ledger()
+    )
+    builder = three_engine_models.resolve_d_close_feature_builder(ledger)
+    monkeypatch.setattr(
+        three_engine_models,
+        "_selection_ranking_metrics",
+        lambda *args, **kwargs: {
+            "dates": 20,
+            "rank1_lift": -0.02,
+            "top3_lift": -0.01,
+            "candidate_ndcg_at_10": 0.60,
+            "baseline_ndcg_at_10": 0.61,
+            "ndcg_lift": -0.01,
+            "composite_lift": -0.016,
+        },
+    )
+    bundle = three_engine_models._fit_head_inner(
+        ledger,
+        three_engine_models.HEAD_SPECS["profit"],
+        builder,
+        _test_config(),
+    )
+    assert bundle is not None
+    assert bundle.selection_metrics["eligible_candidate_count"] == 0
+    assert bundle.selection_metrics["chosen_candidate_eligible"] is False
+
+
+def test_training_writer_rejects_tampered_production_monotonicity() -> None:
+    result = train_three_engine_models(_synthetic_ledger(), config=_test_config())
+    payload = model_artifact_payload(result, "promotion")
+    _validate_production_calibration_contract(payload)
+
+    tampered = dict(payload)
+    tampered["calibration_monotonicity"] = dict(
+        payload["calibration_monotonicity"]
+    )
+    tampered["calibration_monotonicity"]["nondecreasing"] = False
+    with pytest.raises(RuntimeError, match="drifted between payload and validation"):
+        _validate_production_calibration_contract(tampered)
+
+    bundle_drift = dict(payload)
+    bundle_drift["bundle"] = copy.deepcopy(payload["bundle"])
+    bundle_drift["bundle"].selection_metrics["calibration_monotonicity"] = dict(
+        payload["calibration_monotonicity"]
+    )
+    bundle_drift["bundle"].selection_metrics["calibration_monotonicity"][
+        "nondecreasing"
+    ] = False
+    with pytest.raises(RuntimeError, match="drifted inside the model bundle"):
+        _validate_production_calibration_contract(bundle_drift)
 
 
 def test_single_class_promotion_fails_closed_without_constant_artifact() -> None:
@@ -521,6 +630,34 @@ def test_hash_bound_loader_rejects_tampered_ledger_and_joblib(
         assert loaded.metadata[head]["validation_gate_score_pct"] == round(
             100.0 * expected_pass / len(checks), 1
         )
+
+    profit_path = model_dir / "profit.joblib"
+    original_profit = profit_path.read_bytes()
+    tampered_profit = joblib.load(profit_path)
+    assert tampered_profit["status"] == "READY"
+    tampered_profit["calibration_monotonicity"] = {}
+    joblib.dump(tampered_profit, profit_path)
+    missing_evidence_validation = json.loads(validation_bytes)
+    tampered_profit_sha = hashlib.sha256(profit_path.read_bytes()).hexdigest()
+    missing_evidence_validation["artifacts"]["profit"][
+        "sha256"
+    ] = tampered_profit_sha
+    missing_evidence_validation["model_metadata"]["profit"][
+        "artifact_sha256"
+    ] = tampered_profit_sha
+    missing_evidence_validation["heads"]["profit"]["production"][
+        "calibration_monotonicity"
+    ] = {}
+    validation_path.write_text(
+        json.dumps(missing_evidence_validation), encoding="utf-8"
+    )
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="READY artifact calibration evidence is missing",
+    ):
+        load_three_engine_artifacts(validation_path, root=tmp_path)
+    profit_path.write_bytes(original_profit)
+    validation_path.write_bytes(validation_bytes)
 
     # A claimed summary is deliberately ignored; only the checked boolean map
     # can produce the runtime/UI score.

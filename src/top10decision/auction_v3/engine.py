@@ -87,6 +87,7 @@ from .promotion_model import (
     PROMOTION_PRIOR_FEATURES,
     PROMOTION_SOURCE_FEATURES,
     attach_promotion_source_features,
+    build_promotion_context_features,
     fit_promotion_blend,
     load_promotion_validation,
 )
@@ -2287,76 +2288,24 @@ class AuctionV3Engine:
 
         window_dates = trading_dates[signal_index - 5 : signal_index + 1]
         closes: list[float] = []
-        states: list[str] = []
+        limit_up_flags: list[bool] = []
         for trade_date in window_dates:
             daily = self._row(self.market_table(trade_date, "daily"), code)
             limit = self._row(self.market_table(trade_date, "stk_limit"), code)
             close = _numeric_from(daily, ("close",)) if daily is not None else float("nan")
             up_limit = _numeric_from(limit, ("up_limit",)) if limit is not None else float("nan")
             closes.append(close)
-            states.append(
-                "limit_up"
-                if math.isfinite(close)
+            limit_up_flags.append(
+                math.isfinite(close)
                 and math.isfinite(up_limit)
                 and _is_close(close, up_limit)
-                else "other"
             )
-
-        close_values = np.asarray(closes, dtype=float)
-        pre_end = 5 - stage
-        pre_closes = close_values[: pre_end + 1]
-        valid_returns = np.asarray([], dtype=float)
-        if len(pre_closes) >= 2:
-            with np.errstate(divide="ignore", invalid="ignore"):
-                returns = pre_closes[1:] / pre_closes[:-1] - 1.0
-            valid_returns = returns[np.isfinite(returns)]
-        pre_1d = (
-            pre_closes[-1] / pre_closes[-2] - 1.0
-            if len(pre_closes) >= 2
-            and np.isfinite(pre_closes[-2:]).all()
-            and pre_closes[-2] > 0
-            else float("nan")
-        )
-        anchor_index = max(0, pre_end - 3)
-        pre_3d = (
-            close_values[pre_end] / close_values[anchor_index] - 1.0
-            if np.isfinite(close_values[[pre_end, anchor_index]]).all()
-            and close_values[anchor_index] > 0
-            else float("nan")
-        )
-        prior_positions = [
-            index
-            for index, state in enumerate(states[: pre_end + 1])
-            if state == "limit_up"
-        ]
         result = {
             **defaults,
-            "five_year_pre_streak_1d_return": pre_1d,
-            "five_year_pre_streak_3d_return": pre_3d,
-            "five_year_pre_streak_volatility": (
-                float(np.std(valid_returns, ddof=0))
-                if len(valid_returns)
-                else float("nan")
-            ),
-            "five_year_pre_streak_limit_up_count": float(len(prior_positions)),
-            "five_year_recent_limit_up_count": float(
-                sum(state == "limit_up" for state in states)
-            ),
-            "five_year_days_since_prior_limit_up": (
-                float(pre_end - prior_positions[-1] + 1)
-                if prior_positions
-                else 6.0
-            ),
-            "five_year_streak_runup": (
-                close_values[-1] / close_values[pre_end] - 1.0
-                if np.isfinite(close_values[[-1, pre_end]]).all()
-                and close_values[pre_end] > 0
-                else float("nan")
-            ),
-            "five_year_price_log": (
-                float(np.log1p(close_values[-1]))
-                if math.isfinite(close_values[-1]) and close_values[-1] > 0
-                else float("nan")
+            **build_promotion_context_features(
+                stage,
+                closes,
+                limit_up_flags,
             ),
         }
         self._promotion_context_cache[cache_key] = result

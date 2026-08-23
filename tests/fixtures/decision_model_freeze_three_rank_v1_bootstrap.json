@@ -1,0 +1,134 @@
+{
+  "active": true,
+  "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_ea29b6da156162c9",
+  "pinned_files": {
+    "data/decision_three_engines/five_year_ledger_manifest.json": "587092feca1b612d9cdec327ffc83f4cd82b0cc38b778922b8225a8d3dbdcbfc",
+    "data/decision_three_engines/five_year_supervised_ledger.csv.gz": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+    "models/decision_three_engine_data_validation.json": "352bdcd2ed2280348532117ea2d3c363f051d52707e5f68c35347e1c1a8d632f",
+    "models/decision_three_engines/big_loss.joblib": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6",
+    "models/decision_three_engines/p_fill_shadow.joblib": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
+    "models/decision_three_engines/profit.joblib": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "models/decision_three_engines/promotion.joblib": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b",
+    "models/decision_three_engines/validation_latest.json": "ea29b6da156162c910d774ee255756690feb9591f4deed6154eca83b1aeb4ed8",
+    "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz": "df5b57877fd29c6a4c64a45061a42357144151994cc83bb5ee8a2b2d71f5244b"
+  },
+  "production": {
+    "three_rank": {
+      "all_core_heads_promoted": false,
+      "contract_version": "decision_three_rank_v1",
+      "downstream_scope": "exact_frozen_promotion_top10",
+      "eligible_pool": "hard_stage_2_to_3_and_3_to_4_pool",
+      "fail_closed": {
+        "artifact_or_ledger_drift": "ZERO_OFFICIAL_CORE_RANKS",
+        "formal_trade_status": "NO_TRADE_MODEL_NOT_PROMOTED",
+        "missing_or_invalid_runtime_feature": "ZERO_OFFICIAL_CORE_RANKS",
+        "promotion_not_ready": "EMPTY_OFFICIAL_TOP10",
+        "shadow_may_change_membership": false,
+        "shadow_may_override_core_ranks": false,
+        "unready_secondary_head": "NULL_HEAD_FIELDS"
+      },
+      "feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+      "feature_contract": "D_CLOSE_RUNTIME_ALIGNED_NO_CROSS_HEAD_OUTPUTS_V2",
+      "heads": {
+        "big_loss": {
+          "artifact_path": "models/decision_three_engines/big_loss.joblib",
+          "artifact_sha256": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6",
+          "model_as_of_date": "20260814",
+          "model_version": "decision_three_engine_models_v2:big_loss:20260814:lr:platt",
+          "promoted": false,
+          "role": "core",
+          "status": "NOT_READY_VALIDATION_GATE"
+        },
+        "p_fill_shadow": {
+          "artifact_path": "models/decision_three_engines/p_fill_shadow.joblib",
+          "artifact_sha256": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
+          "model_as_of_date": "20260814",
+          "model_version": "decision_three_engine_models_v2:p_fill_shadow:20260814:extra_trees:identity",
+          "promoted": false,
+          "role": "shadow_only",
+          "status": "SHADOW_READY"
+        },
+        "profit": {
+          "artifact_path": "models/decision_three_engines/profit.joblib",
+          "artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+          "model_as_of_date": "20260814",
+          "model_version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta",
+          "promoted": false,
+          "role": "core",
+          "status": "NOT_READY_VALIDATION_GATE"
+        },
+        "promotion": {
+          "artifact_path": "models/decision_three_engines/promotion.joblib",
+          "artifact_sha256": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b",
+          "model_as_of_date": "20260814",
+          "model_version": "decision_three_engine_models_v2:promotion:20260814:hgb:platt",
+          "promoted": true,
+          "role": "core",
+          "status": "READY"
+        }
+      },
+      "membership_authority": "promotion_probability_engine_only",
+      "oof_top10": {
+        "dataset_sha256": "b9d633378f1af0836f9f97813713c9379af9db66189c7bfccc61756312f859c8",
+        "dates": 910,
+        "path": "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+        "rows": 6753,
+        "sha256": "df5b57877fd29c6a4c64a45061a42357144151994cc83bb5ee8a2b2d71f5244b",
+        "valid": true
+      },
+      "release_mode": "PROMOTION_READY_PARTIAL",
+      "runtime_feature_columns": [
+        "returns_1d",
+        "high_low_range",
+        "candle_body",
+        "gap_open",
+        "vol",
+        "volume_ratio",
+        "volatility_5d",
+        "volatility_10d",
+        "volatility_20d",
+        "atr",
+        "ret_2d",
+        "ret_5d",
+        "ret_10d",
+        "bid_ask_proxy",
+        "spread_proxy"
+      ],
+      "runtime_feature_columns_sha256": "ed2372de9a0224a28f9f6738773ea75288b14553f19fa538cce30d062f914131",
+      "runtime_feature_contract_version": "dc20_daily_candidate_d_close_v1",
+      "schema_version": "decision_three_rank_production_freeze_v2",
+      "source_ledger": {
+        "canonical_prediction_file_count": 3,
+        "data_validation_path": "models/decision_three_engine_data_validation.json",
+        "data_validation_schema_version": "dc20_three_engine_five_year_data_validation_v1",
+        "data_validation_sha256": "352bdcd2ed2280348532117ea2d3c363f051d52707e5f68c35347e1c1a8d632f",
+        "data_validation_status": "PASS",
+        "data_validation_valid": true,
+        "end_signal_date": "20260814",
+        "event_source_inventory_sha256": "12d9ce397346f45f4b3c1ceb4f8ed482a786acc75682f5951f745bafca86dc89",
+        "ledger_manifest_path": "data/decision_three_engines/five_year_ledger_manifest.json",
+        "ledger_manifest_sha256": "587092feca1b612d9cdec327ffc83f4cd82b0cc38b778922b8225a8d3dbdcbfc",
+        "ledger_path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+        "ledger_sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+        "owner": "njedu2023-prog/DC20",
+        "prior_truth_cutoff_rule": "strictly_before_signal_date",
+        "rows": 12322,
+        "runtime_dependency_on_top10_decision": false,
+        "schema_version": "dc20_three_engine_five_year_ledger_v1",
+        "signal_dates": 1210,
+        "start_signal_date": "20210813"
+      },
+      "top_n": 10,
+      "validation": {
+        "generated_at_utc": "2026-08-23T14:04:36.770678+00:00",
+        "path": "models/decision_three_engines/validation_latest.json",
+        "ready": false,
+        "schema_version": "decision_three_engine_validation_v2",
+        "sha256": "ea29b6da156162c910d774ee255756690feb9591f4deed6154eca83b1aeb4ed8",
+        "status": "NOT_READY_VALIDATION_GATE"
+      },
+      "validation_schema_version": "decision_three_engine_validation_v2"
+    }
+  },
+  "schema_version": "decision_model_freeze_v2"
+}

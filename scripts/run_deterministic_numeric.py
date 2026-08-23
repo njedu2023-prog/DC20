@@ -60,6 +60,7 @@ ALLOWED_TARGETS = frozenset(
     {
         "replay_frozen_canonical_v2.py",
         "run_auction_v3.py",
+        "train_three_engine_models.py",
     }
 )
 

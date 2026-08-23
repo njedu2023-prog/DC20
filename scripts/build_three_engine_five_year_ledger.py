@@ -45,6 +45,7 @@ from top10decision.decision.d_close_features import (
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENT_PATH = ROOT / "data" / "auction_v3" / "promotion_prior" / "five_year_event_features.csv.gz"
+CALENDAR_PATH = ROOT / "data" / "market" / "trade_cal_sse.csv"
 PREDICTION_ROOT = ROOT / "outputs" / "auction_v3" / "predictions"
 OUTPUT_ROOT = ROOT / "data" / "decision_three_engines"
 LEDGER_PATH = OUTPUT_ROOT / "five_year_supervised_ledger.csv.gz"
@@ -56,6 +57,29 @@ ROUND_TRIP_COST = 0.0045
 BIG_LOSS_THRESHOLD = -0.03
 RUNTIME_ALIGNED_FEATURE_VERSION = D_CLOSE_FEATURE_CONTRACT_VERSION
 RUNTIME_ALIGNED_FEATURE_COLUMNS = D_CLOSE_FEATURE_COLUMNS
+EVENT_IDENTITY_COLUMNS = ("signal_date", "ts_code", "stage", "board")
+PROMOTION_BAR_CONTEXT_FEATURES = (
+    "five_year_pre_streak_1d_return",
+    "five_year_pre_streak_3d_return",
+    "five_year_pre_streak_volatility",
+    "five_year_pre_streak_limit_up_count",
+    "five_year_recent_limit_up_count",
+    "five_year_days_since_prior_limit_up",
+    "five_year_streak_runup",
+    "five_year_price_log",
+)
+PROMOTION_STOCK_PRIOR_FEATURES = (
+    "five_year_stock_prior_rate",
+    "five_year_stock_prior_samples_log",
+)
+CONTEXT_MISSINGNESS_POLICY = (
+    "preserve_nan_and_model_with_median_plus_missing_indicator"
+)
+EXPECTED_EVENT_SEED_COLUMNS = (
+    *EVENT_IDENTITY_COLUMNS,
+    *PROMOTION_BAR_CONTEXT_FEATURES,
+    *PROMOTION_STOCK_PRIOR_FEATURES,
+)
 
 
 def _normal_date(value: Any) -> str:
@@ -97,21 +121,136 @@ def _event_stage(frame: pd.DataFrame) -> pd.Series:
     return pd.to_numeric(text.str.split("->").str[0], errors="coerce").round()
 
 
+def _load_strict_sse_calendar(path: Path) -> tuple[list[str], dict[str, Any]]:
+    """Load and hard-validate DC20's owned, natural-day SSE calendar."""
+
+    frame = pd.read_csv(path, dtype=str, encoding="utf-8-sig", keep_default_na=False)
+    expected_columns = ["exchange", "cal_date", "is_open", "pretrade_date"]
+    if list(frame.columns) != expected_columns:
+        raise ValueError(
+            f"SSE trade calendar columns must be exactly {expected_columns}: {path}"
+        )
+    if frame.empty:
+        raise ValueError(f"SSE trade calendar is empty: {path}")
+    for column in expected_columns:
+        frame[column] = frame[column].astype(str).str.strip()
+    if set(frame["exchange"]) != {"SSE"}:
+        raise ValueError(f"SSE trade calendar contains another exchange: {path}")
+    if not frame["cal_date"].str.fullmatch(r"\d{8}").all():
+        raise ValueError(f"SSE trade calendar contains an invalid cal_date: {path}")
+    if frame["cal_date"].duplicated().any():
+        raise ValueError(f"SSE trade calendar contains duplicate cal_date rows: {path}")
+    parsed = pd.to_datetime(frame["cal_date"], format="%Y%m%d", errors="coerce")
+    if parsed.isna().any() or not parsed.is_monotonic_increasing:
+        raise ValueError(f"SSE trade calendar dates are invalid or unsorted: {path}")
+    if len(parsed) > 1 and not parsed.diff().iloc[1:].eq(pd.Timedelta(days=1)).all():
+        raise ValueError(f"SSE trade calendar does not cover consecutive natural days: {path}")
+    if not set(frame["is_open"]).issubset({"0", "1"}):
+        raise ValueError(f"SSE trade calendar is_open must contain only 0/1: {path}")
+    if not frame["pretrade_date"].str.fullmatch(r"\d{8}").all():
+        raise ValueError(f"SSE trade calendar contains an invalid pretrade_date: {path}")
+    first_pretrade = frame.iloc[0]["pretrade_date"]
+    if first_pretrade >= frame.iloc[0]["cal_date"]:
+        raise ValueError(f"SSE trade calendar initial pretrade_date is not earlier: {path}")
+    latest_open = first_pretrade
+    for row in frame.itertuples(index=False):
+        if row.pretrade_date != latest_open:
+            raise ValueError(
+                "SSE trade calendar pretrade chain failed at "
+                f"{row.cal_date}: expected {latest_open}, got {row.pretrade_date}"
+            )
+        if row.is_open == "1":
+            latest_open = row.cal_date
+    open_sessions = frame.loc[frame["is_open"].eq("1"), "cal_date"].tolist()
+    if len(open_sessions) < 3:
+        raise ValueError(f"SSE trade calendar has fewer than three open sessions: {path}")
+    return open_sessions, {
+        "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+        "sha256": _sha256(path),
+        "source": "tushare:trade_cal:SSE",
+        "exchange": "SSE",
+        "strict": True,
+        "natural_day_rows": int(len(frame)),
+        "open_sessions": int(len(open_sessions)),
+        "start_cal_date": frame.iloc[0]["cal_date"],
+        "end_cal_date": frame.iloc[-1]["cal_date"],
+        "start_open_session": open_sessions[0],
+        "end_open_session": open_sessions[-1],
+        "pretrade_chain_validated": True,
+    }
+
+
 def _load_owned_events(
     event_path: Path,
     prediction_root: Path,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Union the frozen five-year seed with newer canonical DC20 D snapshots."""
+    """Load only valid event identities; quarantine fully identityless seed rows."""
 
     seed = pd.read_csv(event_path, low_memory=False)
-    required = {"signal_date", "ts_code", "stage", "board"}
-    missing = sorted(required - set(seed.columns))
-    if missing:
-        raise ValueError(f"event table missing columns: {missing}")
+    if list(seed.columns) != list(EXPECTED_EVENT_SEED_COLUMNS):
+        raise ValueError(
+            "event table columns must exactly match the audited 14-column seed contract: "
+            f"{list(seed.columns)}"
+        )
+    raw_columns = list(seed.columns)
+    raw_rows = int(len(seed))
+    present = pd.DataFrame(
+        {
+            column: seed[column].notna()
+            & ~seed[column].astype(str).str.strip().str.lower().isin(
+                {"", "nan", "none", "null", "<na>"}
+            )
+            for column in EVENT_IDENTITY_COLUMNS
+        },
+        index=seed.index,
+    )
+    orphan_mask = ~present.any(axis=1)
+    partial_mask = present.any(axis=1) & ~present.all(axis=1)
+    if partial_mask.any():
+        sample = seed.loc[partial_mask, list(EVENT_IDENTITY_COLUMNS)].head(5).to_dict("records")
+        raise ValueError(
+            f"event table contains {int(partial_mask.sum())} partial identity rows: {sample}"
+        )
+    orphan_context_any = seed.loc[
+        orphan_mask, list(PROMOTION_BAR_CONTEXT_FEATURES)
+    ].notna().any(axis=1)
+    orphan_stock_prior_any = seed.loc[
+        orphan_mask, list(PROMOTION_STOCK_PRIOR_FEATURES)
+    ].notna().any(axis=1)
+    if (~orphan_context_any).any() or orphan_stock_prior_any.any():
+        raise ValueError(
+            "identityless orphan rows must carry only quarantined bar context and "
+            "must not carry stock priors"
+        )
+    seed = seed.loc[present.all(axis=1), list(EVENT_IDENTITY_COLUMNS)].copy()
     seed["signal_date"] = seed["signal_date"].map(_normal_date)
     seed["ts_code"] = seed["ts_code"].map(_normal_code)
     seed["stage"] = _event_stage(seed)
-    seed = seed.drop_duplicates(["signal_date", "ts_code"], keep="last")
+    valid_dates = pd.to_datetime(
+        seed["signal_date"], format="%Y%m%d", errors="coerce"
+    ).notna()
+    expected_boards = seed["ts_code"].map(
+        lambda code: "SH_MAIN" if str(code).endswith(".SH") else "SZ_MAIN"
+    )
+    valid_identity = (
+        valid_dates
+        & seed["signal_date"].str.fullmatch(r"\d{8}")
+        & seed["ts_code"].str.fullmatch(r"\d{6}\.(SH|SZ)")
+        & seed["stage"].isin(FOCUS_STAGES)
+        & seed["board"].astype(str).isin(FOCUS_BOARDS)
+        & seed["board"].astype(str).eq(expected_boards)
+    )
+    if not valid_identity.all():
+        sample = seed.loc[~valid_identity, list(EVENT_IDENTITY_COLUMNS)].head(5).to_dict("records")
+        raise ValueError(
+            f"event table contains {int((~valid_identity).sum())} invalid identity rows: {sample}"
+        )
+    duplicate_mask = seed.duplicated(["signal_date", "ts_code"], keep=False)
+    if duplicate_mask.any():
+        sample = seed.loc[duplicate_mask, list(EVENT_IDENTITY_COLUMNS)].head(5).to_dict("records")
+        raise ValueError(
+            f"event table contains {int(duplicate_mask.sum())} duplicate identity rows: {sample}"
+        )
     seed_end = max(seed["signal_date"].dropna().astype(str), default="")
 
     additions: list[pd.DataFrame] = []
@@ -169,23 +308,43 @@ def _load_owned_events(
                     "signal_date": signal_date,
                     "source_rows": int(len(frame)),
                     "eligible_rows": int(len(selected)),
+                    "columns_used": [
+                        "signal_date",
+                        "ts_code",
+                        "stage|limit_times|stage_transition",
+                        "mechanism_limit_pct|decision_limit_pct",
+                    ],
                 }
             )
     if additions:
         live = pd.concat(additions, ignore_index=True)
-        for column in seed.columns:
-            if column not in live.columns:
-                live[column] = pd.NA
-        events = pd.concat([seed, live[seed.columns]], ignore_index=True)
+        events = pd.concat([seed, live[list(EVENT_IDENTITY_COLUMNS)]], ignore_index=True)
     else:
         events = seed
     events = events.sort_values(["signal_date", "stage", "ts_code"], kind="stable")
-    events = events.drop_duplicates(["signal_date", "ts_code"], keep="first")
+    duplicate_mask = events.duplicated(["signal_date", "ts_code"], keep=False)
+    if duplicate_mask.any():
+        sample = events.loc[duplicate_mask, list(EVENT_IDENTITY_COLUMNS)].head(5).to_dict("records")
+        raise ValueError(f"owned event identity collision across sources: {sample}")
     return events.reset_index(drop=True), {
         "seed_path": event_path.relative_to(ROOT).as_posix()
         if event_path.is_relative_to(ROOT)
         else str(event_path),
         "seed_sha256": _sha256(event_path),
+        "seed_raw_sha256": _sha256(event_path),
+        "seed_raw_rows": raw_rows,
+        "seed_identity_rows": int(len(seed)),
+        "seed_orphan_rows_quarantined": int(orphan_mask.sum()),
+        "seed_partial_identity_rows": int(partial_mask.sum()),
+        "seed_invalid_identity_rows": 0,
+        "seed_duplicate_identity_rows": 0,
+        "seed_raw_columns": raw_columns,
+        "seed_identity_columns": list(EVENT_IDENTITY_COLUMNS),
+        "seed_columns_used": list(EVENT_IDENTITY_COLUMNS),
+        "seed_context_source_used": False,
+        "seed_orphan_rows_with_bar_context": int(orphan_context_any.sum()),
+        "seed_orphan_rows_with_stock_prior": int(orphan_stock_prior_any.sum()),
+        "seed_orphan_policy": "quarantine_only_when_all_identity_columns_are_empty",
         "seed_end_signal_date": seed_end,
         "canonical_prediction_files": inventory,
         "canonical_prediction_file_count": len(inventory),
@@ -434,6 +593,18 @@ def _next_session(calendar: list[str]) -> dict[str, str]:
     return {current: following for current, following in zip(calendar, calendar[1:])}
 
 
+def _validated_open_sessions(values: list[str]) -> list[str]:
+    sessions = [_normal_date(value) for value in values]
+    if (
+        len(sessions) < 3
+        or any(not re.fullmatch(r"\d{8}", value) for value in sessions)
+        or sessions != sorted(sessions)
+        or len(sessions) != len(set(sessions))
+    ):
+        raise ValueError("open_sessions must be unique, sorted YYYYMMDD sessions")
+    return sessions
+
+
 def _limit_price(pre_close: Any, ratio: Decimal = Decimal("1.10")) -> float:
     value = Decimal(str(float(pre_close))) * ratio
     return float(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
@@ -446,15 +617,116 @@ def _finite(value: Any) -> bool:
         return False
 
 
-def _build_ledger(events: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
+def _rebuild_promotion_bar_context(
+    events: pd.DataFrame,
+    prices: pd.DataFrame,
+    open_sessions: list[str],
+) -> pd.DataFrame:
+    """Rebuild the eight runtime bar-context fields from owned price bars."""
+
+    from top10decision.auction_v3.promotion_model import (
+        build_promotion_context_features,
+    )
+
+    sessions = _validated_open_sessions(open_sessions)
+    session_position = {value: index for index, value in enumerate(sessions)}
+    required_price_columns = {"ts_code", "trade_date", "close", "pre_close"}
+    missing = sorted(required_price_columns - set(prices.columns))
+    if missing:
+        raise ValueError(f"price table missing context columns: {missing}")
+    source = prices[["ts_code", "trade_date", "close", "pre_close"]].copy()
+    source["ts_code"] = source["ts_code"].map(_normal_code)
+    source["trade_date"] = source["trade_date"].map(_normal_date)
+    duplicate = source.duplicated(["ts_code", "trade_date"], keep=False)
+    if duplicate.any():
+        raise ValueError("price table contains duplicate stock/session context bars")
+    price_lookup = {
+        (str(row.ts_code), str(row.trade_date)): (row.close, row.pre_close)
+        for row in source.itertuples(index=False)
+    }
+    rows: list[dict[str, Any]] = []
+    for event in events.itertuples(index=False):
+        signal_date = _normal_date(getattr(event, "signal_date"))
+        code = _normal_code(getattr(event, "ts_code"))
+        stage_value = pd.to_numeric(getattr(event, "stage"), errors="coerce")
+        position = session_position.get(signal_date)
+        if position is None:
+            raise ValueError(f"event signal_date is not an SSE open session: {signal_date}")
+        if position < 5:
+            features = {feature: math.nan for feature in PROMOTION_BAR_CONTEXT_FEATURES}
+        else:
+            window = sessions[position - 5 : position + 1]
+            closes: list[float] = []
+            limit_up_flags: list[bool] = []
+            for trade_date in window:
+                close, pre_close = price_lookup.get(
+                    (code, trade_date), (math.nan, math.nan)
+                )
+                close_number = float(close) if _finite(close) else math.nan
+                pre_close_number = float(pre_close) if _finite(pre_close) else math.nan
+                closes.append(close_number)
+                limit_up_flags.append(
+                    math.isfinite(close_number)
+                    and math.isfinite(pre_close_number)
+                    and pre_close_number > 0.0
+                    and abs(close_number - _limit_price(pre_close_number)) <= 0.011
+                )
+            features = build_promotion_context_features(
+                int(stage_value) if _finite(stage_value) else -1,
+                closes,
+                limit_up_flags,
+            )
+        if set(features) != set(PROMOTION_BAR_CONTEXT_FEATURES):
+            raise RuntimeError("shared promotion context helper returned an invalid contract")
+        rows.append(
+            {
+                "signal_date": signal_date,
+                "ts_code": code,
+                **{
+                    feature: pd.to_numeric(features[feature], errors="coerce")
+                    for feature in PROMOTION_BAR_CONTEXT_FEATURES
+                },
+            }
+        )
+    context = pd.DataFrame(rows)
+    if context.duplicated(["signal_date", "ts_code"]).any():
+        raise ValueError("event identities are not unique while rebuilding bar context")
+    return context
+
+
+def _build_ledger(
+    events: pd.DataFrame,
+    prices: pd.DataFrame,
+    open_sessions: list[str],
+) -> pd.DataFrame:
+    sessions = _validated_open_sessions(open_sessions)
+    events = events.copy()
+    events["signal_date"] = events["signal_date"].map(_normal_date)
+    events["ts_code"] = events["ts_code"].map(_normal_code)
+    event_dates = set(events["signal_date"])
+    non_sessions = sorted(event_dates - set(sessions))
+    if non_sessions:
+        raise ValueError(f"event dates are not strict SSE open sessions: {non_sessions[:10]}")
+    prices = prices.copy()
+    prices["trade_date"] = prices["trade_date"].map(_normal_date)
+    # A provider anomaly on a weekend or exchange holiday cannot enter either
+    # D-close features or target bars.  Missing stock bars remain missing.
+    prices = prices.loc[prices["trade_date"].isin(set(sessions))].copy()
     d_history = _attach_d_close_history_features(
         prices,
         events[["ts_code", "signal_date"]].drop_duplicates(),
     )
-    calendar = sorted(prices["trade_date"].dropna().astype(str).unique())
-    next_one = _next_session(calendar)
-    next_two = {date: next_one.get(next_one.get(date, ""), "") for date in calendar}
+    context = _rebuild_promotion_bar_context(events, prices, sessions)
+    next_one = _next_session(sessions)
+    next_two = {date: next_one.get(next_one.get(date, ""), "") for date in sessions}
     output = events.copy()
+    output = output.drop(columns=list(PROMOTION_BAR_CONTEXT_FEATURES), errors="ignore")
+    output = output.merge(
+        context,
+        on=["signal_date", "ts_code"],
+        how="left",
+        validate="one_to_one",
+    )
     output["buy_date"] = output["signal_date"].map(next_one)
     output["target_exit_date"] = output["signal_date"].map(next_two)
     # A canonical D snapshot enters the supervised ledger only once the market
@@ -547,10 +819,19 @@ def _build_ledger(events: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
         "net_return", "big_loss_hit", "profit_hit", "d_open", "d_close", "d_high", "d_low", "d_volume",
         "d_amount", "d_pct_change", "d_turnover_pct", "t_open", "t_close", "t_high", "t_low",
         "t_amount", "t_pct_change", "t_turnover_pct", "tplus1_open", "focus_pool_size",
-        "stage2_pool_size", "stage3_pool_size", "stage_pool_share", *history_columns,
+        "stage2_pool_size", "stage3_pool_size", "stage_pool_share",
+        *PROMOTION_BAR_CONTEXT_FEATURES, *history_columns,
         *runtime_columns,
     ]
-    feature_columns = [column for column in events.columns if column not in {"signal_date", "ts_code", "stage", "board"}]
+    rebuilt_features = {
+        *PROMOTION_BAR_CONTEXT_FEATURES,
+        *PROMOTION_STOCK_PRIOR_FEATURES,
+    }
+    feature_columns = [
+        column
+        for column in events.columns
+        if column not in {*EVENT_IDENTITY_COLUMNS, *rebuilt_features}
+    ]
     output = output[[*ordered_columns, *feature_columns]]
     # Candidate-pool percentile ranks are point-in-time cross-sectional
     # features.  They improve comparability across price/volume regimes while
@@ -575,7 +856,7 @@ def _build_ledger(events: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
 
 
 def _recompute_point_in_time_promotion_priors(ledger: pd.DataFrame) -> pd.DataFrame:
-    """Overwrite promotion priors from this ledger using only earlier D truth."""
+    """Rebuild stage/board and Beta(2,3) stock priors from earlier D truth."""
 
     if ledger.empty:
         return ledger.copy()
@@ -605,13 +886,62 @@ def _recompute_point_in_time_promotion_priors(ledger: pd.DataFrame) -> pd.DataFr
     )
     for feature, source in source_columns.items():
         output[feature] = pd.to_numeric(output[source], errors="coerce")
-    return output.drop(columns=list(source_columns.values()))
+    output = output.drop(columns=list(source_columns.values()))
+
+    # A stock posterior is equally point-in-time: the current D outcome and all
+    # later outcomes are excluded.  Beta(2,3) is the frozen cold-start prior.
+    stock_daily = output[["signal_date", "ts_code", "promotion_hit"]].copy()
+    stock_daily["truth"] = pd.to_numeric(
+        stock_daily["promotion_hit"], errors="coerce"
+    )
+    stock_daily["samples"] = stock_daily["truth"].isin((0, 1)).astype(float)
+    stock_daily["hits"] = stock_daily["truth"].where(
+        stock_daily["truth"].isin((0, 1)), 0.0
+    ).astype(float)
+    stock_daily = stock_daily.groupby(
+        ["signal_date", "ts_code"], as_index=False
+    ).agg(samples=("samples", "sum"), hits=("hits", "sum"))
+    stock_daily = stock_daily.sort_values(["ts_code", "signal_date"], kind="stable")
+    grouped = stock_daily.groupby("ts_code", sort=False)
+    stock_daily["prior_samples"] = grouped["samples"].transform(
+        lambda values: values.cumsum().shift(1).fillna(0.0)
+    )
+    stock_daily["prior_hits"] = grouped["hits"].transform(
+        lambda values: values.cumsum().shift(1).fillna(0.0)
+    )
+    stock_daily["five_year_stock_prior_rate_strict"] = (
+        stock_daily["prior_hits"] + 2.0
+    ) / (stock_daily["prior_samples"] + 5.0)
+    stock_daily["five_year_stock_prior_samples_log_strict"] = stock_daily[
+        "prior_samples"
+    ].map(math.log1p)
+    output = output.merge(
+        stock_daily[
+            [
+                "signal_date",
+                "ts_code",
+                "five_year_stock_prior_rate_strict",
+                "five_year_stock_prior_samples_log_strict",
+            ]
+        ],
+        on=["signal_date", "ts_code"],
+        how="left",
+        validate="one_to_one",
+    )
+    output["five_year_stock_prior_rate"] = pd.to_numeric(
+        output.pop("five_year_stock_prior_rate_strict"), errors="coerce"
+    )
+    output["five_year_stock_prior_samples_log"] = pd.to_numeric(
+        output.pop("five_year_stock_prior_samples_log_strict"), errors="coerce"
+    )
+    return output
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--event-path", default=str(EVENT_PATH))
+    parser.add_argument("--calendar-path", default=str(CALENDAR_PATH))
     parser.add_argument("--prediction-root", default=str(PREDICTION_ROOT))
     parser.add_argument("--output", default=str(LEDGER_PATH))
     parser.add_argument("--manifest", default=str(MANIFEST_PATH))
@@ -620,22 +950,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--minimum-price-coverage", type=float, default=0.98)
+    parser.add_argument("--minimum-context-coverage", type=float, default=0.95)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     event_path = Path(args.event_path).resolve()
+    calendar_path = Path(args.calendar_path).resolve()
     prediction_root = Path(args.prediction_root).resolve()
     output_path = Path(args.output).resolve()
     manifest_path = Path(args.manifest).resolve()
     cache_root = Path(args.cache_root).resolve()
     if not event_path.is_file():
         raise FileNotFoundError(event_path)
+    if not calendar_path.is_file():
+        raise FileNotFoundError(calendar_path)
     if not 1 <= args.max_workers <= 32:
         raise ValueError("max-workers must be between 1 and 32")
     if not 0.90 <= args.minimum_price_coverage <= 1.0:
         raise ValueError("minimum-price-coverage must be between 0.90 and 1.0")
+    if not 0.90 <= args.minimum_context_coverage <= 1.0:
+        raise ValueError("minimum-context-coverage must be between 0.90 and 1.0")
+    all_open_sessions, calendar_inventory = _load_strict_sse_calendar(calendar_path)
     events, event_source_inventory = _load_owned_events(
         event_path,
         prediction_root,
@@ -650,7 +987,8 @@ def main() -> int:
         & events["ts_code"].str.fullmatch(r"\d{6}\.(SH|SZ)")
     ].copy()
     events["stage"] = events["stage"].astype(int)
-    events = events.drop_duplicates(["signal_date", "ts_code"], keep="last")
+    if events.duplicated(["signal_date", "ts_code"]).any():
+        raise ValueError("eligible owned events contain duplicate identities")
     if events.empty:
         raise ValueError("no eligible 2->3 / 3->4 events")
     begin = (pd.Timestamp(min(events["signal_date"])) - pd.Timedelta(days=35)).strftime("%Y%m%d")
@@ -658,6 +996,9 @@ def main() -> int:
         (pd.Timestamp(max(events["signal_date"])) + pd.Timedelta(days=14)).strftime("%Y%m%d"),
         datetime.now(timezone.utc).strftime("%Y%m%d"),
     )
+    open_sessions = [date for date in all_open_sessions if date <= requested_end]
+    if len(open_sessions) < 3:
+        raise ValueError("strict SSE calendar has insufficient sessions through requested_end")
     codes = sorted(events["ts_code"].unique())
     payloads: dict[str, dict[str, Any]] = {}
     failures: dict[str, str] = {}
@@ -680,19 +1021,9 @@ def main() -> int:
     price_frames = [_bars(code, payload) for code, payload in payloads.items()]
     prices = pd.concat([frame for frame in price_frames if not frame.empty], ignore_index=True)
     prices = prices.drop_duplicates(["ts_code", "trade_date"], keep="last")
-    ledger = _build_ledger(events, prices)
-    # Rebuild every stage/board prior from strictly earlier dates.  The event
-    # artifact stores stock context only; the official promotion feature
-    # contract also requires the point-in-time five-year prior grid.
-    import sys
-
-    source_root = Path(args.root).resolve()
-    source_path = source_root / "src"
-    if str(source_path) not in sys.path:
-        sys.path.insert(0, str(source_path))
-    from top10decision.auction_v3.promotion_model import attach_promotion_source_features
-
-    ledger = attach_promotion_source_features(ledger, source_root)
+    ledger = _build_ledger(events, prices, open_sessions)
+    # Rebuild every stage/board and stock prior from this ledger's strictly
+    # earlier truth.  No feature value is consumed from the corrupted seed.
     ledger = _recompute_point_in_time_promotion_priors(ledger)
     d_coverage = float(ledger["d_close"].notna().mean())
     t_coverage = float(ledger["t_open"].notna().mean())
@@ -700,11 +1031,43 @@ def main() -> int:
     promotion_coverage = float(ledger["promotion_hit"].notna().mean())
     return_coverage = float(ledger["net_return"].notna().mean())
     hard_price_coverage = min(d_coverage, t_coverage, exit_coverage)
+    context_coverage = {
+        feature: float(pd.to_numeric(ledger[feature], errors="coerce").notna().mean())
+        for feature in PROMOTION_BAR_CONTEXT_FEATURES
+    }
+    hard_context_coverage = min(context_coverage.values())
+    stock_prior_coverage = {
+        feature: float(pd.to_numeric(ledger[feature], errors="coerce").notna().mean())
+        for feature in PROMOTION_STOCK_PRIOR_FEATURES
+    }
+    if min(stock_prior_coverage.values()) < 1.0:
+        raise RuntimeError(
+            f"five-year rebuilt stock prior coverage gate failed: {stock_prior_coverage}"
+        )
+    session_successor = _next_session(open_sessions)
+    expected_buy = ledger["signal_date"].map(session_successor)
+    expected_exit = expected_buy.map(session_successor)
+    date_binding_violations = int(
+        (
+            ~ledger["buy_date"].astype(str).eq(expected_buy.astype(str))
+            | ~ledger["target_exit_date"].astype(str).eq(expected_exit.astype(str))
+        ).sum()
+    )
+    if date_binding_violations:
+        raise RuntimeError(
+            f"strict SSE D/T/T+1 adjacency gate failed: {date_binding_violations} rows"
+        )
     if hard_price_coverage < args.minimum_price_coverage:
         sample = dict(sorted(failures.items())[:20])
         raise RuntimeError(
             f"five-year price coverage gate failed: {hard_price_coverage:.4%} < "
             f"{args.minimum_price_coverage:.4%}; fetch_failures={sample}"
+        )
+    if hard_context_coverage < args.minimum_context_coverage:
+        raise RuntimeError(
+            "five-year rebuilt promotion context coverage gate failed: "
+            f"{hard_context_coverage:.4%} < {args.minimum_context_coverage:.4%}; "
+            f"coverage={context_coverage}"
         )
     if ledger["signal_date"].nunique() < 1_100 or len(ledger) < 10_000:
         raise RuntimeError("five-year event coverage gate failed")
@@ -715,7 +1078,7 @@ def main() -> int:
             raise RuntimeError(f"target class support gate failed for {target}: {counts.to_dict()}")
     _atomic_gzip_csv(ledger, output_path)
     manifest = {
-        "schema_version": "dc20_three_engine_five_year_ledger_v1",
+        "schema_version": "dc20_three_engine_five_year_ledger_v2",
         "owner": "njedu2023-prog/DC20",
         "runtime_dependency_on_top10_decision": False,
         "source": {
@@ -731,6 +1094,14 @@ def main() -> int:
             "cache_hits": cache_hits,
             "fetch_failures": failures,
             "event_source_inventory": event_source_inventory,
+            "calendar": calendar_inventory,
+            "calendar_open_session_cutoff": requested_end,
+            "calendar_open_sessions_used": len(open_sessions),
+            "date_binding_rule": "D/T/T+1 are adjacent strict SSE open sessions",
+            "context_source_used": False,
+            "bar_context_rebuild_columns": list(PROMOTION_BAR_CONTEXT_FEATURES),
+            "context_missingness_policy": CONTEXT_MISSINGNESS_POLICY,
+            "stock_prior_rule": "strictly earlier D promotion truth; Beta(2,3); log1p(samples)",
             "prior_grid_truth_cutoff_rule": "strictly_before_signal_date",
         },
         "target_contract": {
@@ -758,6 +1129,13 @@ def main() -> int:
             "tplus1_price": exit_coverage,
             "promotion_truth": promotion_coverage,
             "executable_return_truth": return_coverage,
+            "rebuilt_bar_context": context_coverage,
+            "rebuilt_bar_context_minimum": hard_context_coverage,
+            "rebuilt_bar_context_gate": args.minimum_context_coverage,
+            "rebuilt_stock_prior": stock_prior_coverage,
+            "rebuilt_stock_prior_minimum_gate": 1.0,
+            "strict_sse_date_binding_rows": int(len(ledger)),
+            "strict_sse_date_binding_violations": date_binding_violations,
         },
         "targets": {
             target: {

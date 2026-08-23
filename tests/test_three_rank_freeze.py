@@ -24,15 +24,81 @@ from top10decision.decision.model_freeze import (
     THREE_RANK_BEHAVIOR_PIN_PATHS,
     THREE_RANK_DYNAMIC_ASSET_PATHS,
     THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS,
+    THREE_RANK_TRAINING_SOURCE_PIN_PATHS,
+    THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID,
+    _required_active_pins_for_manifest,
+    _validate_v2_manifest,
+    load_model_freeze,
     validate_production_three_rank_contract,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_BOOTSTRAP_FIXTURE = (
+    ROOT / "tests/fixtures/decision_model_freeze_three_rank_v1_bootstrap.json"
+)
+V1_TO_V2_BOOTSTRAP_FIXTURE = (
+    ROOT / "tests/fixtures/decision_model_freeze_v1_to_v2_bootstrap.json"
+)
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _is_exact_v1_bootstrap_prebuild() -> bool:
+    """Identify only the byte-valid pre-generation side of the migration."""
+
+    try:
+        manifest = json.loads(
+            (ROOT / "models/decision_model_freeze.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        ledger_manifest = json.loads(
+            (
+                ROOT
+                / "data/decision_three_engines/five_year_ledger_manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        data_validation = json.loads(
+            (ROOT / "models/decision_three_engine_data_validation.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        source = manifest["production"]["three_rank"]["source_ledger"]
+        pins = manifest["pinned_files"]
+    except (KeyError, OSError, json.JSONDecodeError, TypeError):
+        return False
+    if manifest.get("freeze_id") != THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID:
+        return False
+    if source.get("schema_version") != "dc20_three_engine_five_year_ledger_v1":
+        return False
+    if ledger_manifest.get("schema_version") != (
+        "dc20_three_engine_five_year_ledger_v1"
+    ):
+        return False
+    if data_validation.get("schema_version") != (
+        "dc20_three_engine_five_year_data_validation_v1"
+    ):
+        return False
+    for relative in (
+        "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+        "data/decision_three_engines/five_year_ledger_manifest.json",
+        "models/decision_three_engine_data_validation.json",
+    ):
+        if pins.get(relative) != _sha256(ROOT / relative):
+            return False
+    return True
+
+
+requires_generated_v2_evidence = pytest.mark.skipif(
+    _is_exact_v1_bootstrap_prebuild(),
+    reason=(
+        "exact V1 bootstrap prebuild; the training workflow reruns this test "
+        "after generating strict V2 evidence"
+    ),
+)
 
 
 def _manifest_for(contract: dict) -> dict:
@@ -54,12 +120,183 @@ def _manifest_for(contract: dict) -> dict:
             ]
             for head in THREE_RANK_ALL_HEADS
         },
+        contract["source_ledger"]["calendar_path"]: contract["source_ledger"][
+            "calendar_sha256"
+        ],
+        contract["source_ledger"]["event_seed_path"]: contract["source_ledger"][
+            "event_seed_sha256"
+        ],
     }
     return {
         "freeze_id": "dc20_decision_three_rank_v2_test",
         "production": {"three_rank": contract},
         "pinned_files": pins,
     }
+
+
+def _strict_v2_manifest_from_current_freeze() -> dict:
+    manifest = json.loads(
+        (ROOT / "models/decision_model_freeze.json").read_text(encoding="utf-8")
+    )
+    manifest["freeze_id"] = "dc20_decision_three_rank_v2_strict_test"
+    source = manifest["production"]["three_rank"]["source_ledger"]
+    source.update(
+        {
+            "schema_version": "dc20_three_engine_five_year_ledger_v2",
+            "data_validation_schema_version": (
+                "dc20_three_engine_five_year_data_validation_v2"
+            ),
+            "calendar_path": "data/market/trade_cal_sse.csv",
+            "calendar_sha256": _sha256(ROOT / "data/market/trade_cal_sse.csv"),
+            "calendar_source": "tushare:trade_cal:SSE",
+            "calendar_exchange": "SSE",
+            "strict_calendar": True,
+            "event_seed_path": (
+                "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+            ),
+            "event_seed_sha256": _sha256(
+                ROOT
+                / "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+            ),
+            "date_binding_rule": "D/T/T+1 are adjacent strict SSE open sessions",
+            "context_source_used": False,
+            "bar_context_rebuild_columns": [
+                "five_year_pre_streak_1d_return",
+                "five_year_pre_streak_3d_return",
+                "five_year_pre_streak_volatility",
+                "five_year_pre_streak_limit_up_count",
+                "five_year_recent_limit_up_count",
+                "five_year_days_since_prior_limit_up",
+                "five_year_streak_runup",
+                "five_year_price_log",
+            ],
+            "context_missingness_policy": (
+                "preserve_nan_and_model_with_median_plus_missing_indicator"
+            ),
+            "stock_prior_rule": (
+                "strictly earlier D promotion truth; Beta(2,3); log1p(samples)"
+            ),
+        }
+    )
+    manifest["pinned_files"][source["calendar_path"]] = source[
+        "calendar_sha256"
+    ]
+    manifest["pinned_files"][source["event_seed_path"]] = source[
+        "event_seed_sha256"
+    ]
+    return manifest
+
+
+def test_exact_active_v1_ledger_freeze_remains_bootstrap_loadable() -> None:
+    legacy = json.loads(LEGACY_BOOTSTRAP_FIXTURE.read_text(encoding="utf-8"))
+    assert legacy["production"]["three_rank"]["source_ledger"][
+        "schema_version"
+    ] == "dc20_three_engine_five_year_ledger_v1"
+    validate_production_three_rank_contract(
+        ROOT,
+        legacy,
+        require_complete=True,
+    )
+    assert REQUIRED_ACTIVE_PIN_PATHS.difference(
+        _required_active_pins_for_manifest(legacy)
+    ) == {"data/auction_v3/promotion_prior/five_year_event_features.csv.gz"}
+    current = load_model_freeze(ROOT, required=True)
+    current_source = current["production"]["three_rank"]["source_ledger"]
+    if current_source["schema_version"].endswith("_v1"):
+        assert current["freeze_id"] in {
+            legacy["freeze_id"],
+            THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID,
+        }
+        assert current["production"]["three_rank"] == legacy["production"][
+            "three_rank"
+        ]
+
+
+def test_complete_v2_ledger_freeze_enforces_and_passes_strict_source_contract() -> None:
+    manifest = _strict_v2_manifest_from_current_freeze()
+    assert _required_active_pins_for_manifest(manifest) == REQUIRED_ACTIVE_PIN_PATHS
+    _validate_v2_manifest(ROOT, manifest, require_complete=True)
+    validated = validate_production_three_rank_contract(
+        ROOT,
+        manifest,
+        require_complete=True,
+    )
+    assert validated is not None
+    assert validated["source_ledger"]["schema_version"].endswith("_v2")
+    assert validated["source_ledger"]["strict_calendar"] is True
+
+
+def test_v1_to_v2_bootstrap_freeze_requires_the_complete_current_pin_inventory() -> None:
+    manifest = json.loads(V1_TO_V2_BOOTSTRAP_FIXTURE.read_text(encoding="utf-8"))
+    assert manifest["freeze_id"] == THREE_RANK_V1_TO_V2_BOOTSTRAP_FREEZE_ID
+    assert manifest["production"]["three_rank"]["source_ledger"][
+        "schema_version"
+    ] == "dc20_three_engine_five_year_ledger_v1"
+    assert _required_active_pins_for_manifest(manifest) == REQUIRED_ACTIVE_PIN_PATHS
+    _validate_v2_manifest(ROOT, manifest, require_complete=True)
+    validate_production_three_rank_contract(
+        ROOT,
+        manifest,
+        require_complete=True,
+    )
+
+    missing_seed = copy.deepcopy(manifest)
+    missing_seed["pinned_files"].pop(
+        "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+    )
+    with pytest.raises(DecisionModelFreezeError, match="missing execution-critical pins"):
+        _validate_v2_manifest(ROOT, missing_seed, require_complete=True)
+
+    extra_pin = copy.deepcopy(manifest)
+    extra_pin["pinned_files"]["unreviewed/bootstrap-extra.txt"] = "0" * 64
+    with pytest.raises(DecisionModelFreezeError, match="pin inventory must be exact"):
+        _validate_v2_manifest(ROOT, extra_pin, require_complete=True)
+
+
+@pytest.mark.parametrize("mutation", ("new_freeze_id", "signed_contract_drift"))
+def test_v1_ledger_bootstrap_rejects_new_or_tampered_freeze(mutation: str) -> None:
+    manifest = json.loads(
+        LEGACY_BOOTSTRAP_FIXTURE.read_text(encoding="utf-8")
+    )
+    if mutation == "new_freeze_id":
+        manifest["freeze_id"] = "dc20_decision_three_rank_v2_new_v1_forbidden"
+        match = "only for an exact signed legacy/bootstrap freeze"
+    else:
+        manifest["production"]["three_rank"]["source_ledger"]["rows"] += 1
+        match = "bootstrap contract drifted"
+    with pytest.raises(DecisionModelFreezeError, match=match):
+        validate_production_three_rank_contract(
+            ROOT,
+            manifest,
+            require_complete=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    (
+        ("strict_calendar", False, "strict_calendar must be true"),
+        ("calendar_source", "price-date-union", "calendar_source"),
+        (
+            "context_missingness_policy",
+            "drop_missing_rows",
+            "context_missingness_policy",
+        ),
+    ),
+)
+def test_new_v2_freeze_cannot_tamper_strict_source_policy(
+    field: str,
+    value: object,
+    match: str,
+) -> None:
+    manifest = _strict_v2_manifest_from_current_freeze()
+    manifest["production"]["three_rank"]["source_ledger"][field] = value
+    with pytest.raises(DecisionModelFreezeError, match=match):
+        validate_production_three_rank_contract(
+            ROOT,
+            manifest,
+            require_complete=True,
+        )
 
 
 def test_only_reviewed_canonical_v2_baseline_may_omit_three_rank_overlay() -> None:
@@ -84,8 +321,32 @@ def test_only_reviewed_canonical_v2_baseline_may_omit_three_rank_overlay() -> No
             new,
             require_complete=True,
         )
+@requires_generated_v2_evidence
 def test_current_evidence_builds_honest_hash_bound_release_state() -> None:
     contract = build_three_rank_contract(ROOT)
+    source = contract["source_ledger"]
+    assert source["schema_version"] == "dc20_three_engine_five_year_ledger_v2"
+    assert source["data_validation_schema_version"] == (
+        "dc20_three_engine_five_year_data_validation_v2"
+    )
+    assert source["calendar_path"] == "data/market/trade_cal_sse.csv"
+    assert source["calendar_source"] == "tushare:trade_cal:SSE"
+    assert source["calendar_exchange"] == "SSE"
+    assert source["strict_calendar"] is True
+    assert source["event_seed_path"] == (
+        "data/auction_v3/promotion_prior/five_year_event_features.csv.gz"
+    )
+    assert source["date_binding_rule"] == (
+        "D/T/T+1 are adjacent strict SSE open sessions"
+    )
+    assert source["context_source_used"] is False
+    assert len(source["bar_context_rebuild_columns"]) == 8
+    assert source["context_missingness_policy"] == (
+        "preserve_nan_and_model_with_median_plus_missing_indicator"
+    )
+    assert source["stock_prior_rule"] == (
+        "strictly earlier D promotion truth; Beta(2,3); log1p(samples)"
+    )
     assert contract["heads"]["promotion"]["status"] == "READY"
     assert contract["heads"]["promotion"]["promoted"] is True
     core_promoted = [
@@ -173,8 +434,39 @@ def test_recovery_snapshot_and_first_dated_artifacts_are_non_dynamic_pins() -> N
         if relative.startswith("data/decision_three_engines/recovery/20260821/")
     }
     assert not any(path.is_symlink() for path in recovery_root.rglob("*"))
+    recovery_manifest = json.loads(
+        (
+            recovery_root
+            / "model_snapshot"
+            / "five_year_ledger_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    recovery_validation = json.loads(
+        (recovery_root / "model_snapshot" / "data_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert recovery_manifest["schema_version"] == (
+        "dc20_three_engine_five_year_ledger_v1"
+    )
+    assert recovery_validation["schema_version"] == (
+        "dc20_three_engine_five_year_data_validation_v1"
+    )
 
 
+def test_production_training_sources_are_non_dynamic_hash_pins() -> None:
+    expected = {
+        "data/market/trade_cal_sse.csv",
+        "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+    }
+    assert THREE_RANK_TRAINING_SOURCE_PIN_PATHS == expected
+    assert THREE_RANK_TRAINING_SOURCE_PIN_PATHS <= REQUIRED_ACTIVE_PIN_PATHS
+    assert THREE_RANK_TRAINING_SOURCE_PIN_PATHS.isdisjoint(
+        THREE_RANK_DYNAMIC_ASSET_PATHS
+    )
+
+
+@requires_generated_v2_evidence
 def test_optional_strict_refreeze_mode_requires_all_core_heads_ready() -> None:
     current = build_three_rank_contract(ROOT)
     if current["all_core_heads_promoted"]:
@@ -189,6 +481,7 @@ def test_optional_strict_refreeze_mode_requires_all_core_heads_ready() -> None:
             build_three_rank_contract(ROOT, require_all_core_ready=True)
 
 
+@requires_generated_v2_evidence
 def test_publisher_authorization_is_bound_to_the_exact_release_mode() -> None:
     current = build_three_rank_contract(ROOT)
     assert build_three_rank_contract(
@@ -204,6 +497,7 @@ def test_publisher_authorization_is_bound_to_the_exact_release_mode() -> None:
         build_three_rank_contract(ROOT, expected_release_mode=opposite)
 
 
+@requires_generated_v2_evidence
 @pytest.mark.parametrize(
     ("mutation", "match"),
     (
@@ -213,6 +507,10 @@ def test_publisher_authorization_is_bound_to_the_exact_release_mode() -> None:
         ("secondary_promoted", "READY and promoted must agree"),
         ("shadow_override", "must remain false"),
         ("asset_hash", "differs from pinned_files"),
+        ("calendar_hash", "differs from pinned_files"),
+        ("context_source", "must remain false"),
+        ("context_columns", "bar_context_rebuild_columns drifted"),
+        ("context_policy", "context_missingness_policy"),
         ("release_mode", "release_mode is inconsistent"),
     ),
 )
@@ -236,6 +534,18 @@ def test_three_rank_exact_key_and_fail_closed_contract_rejects_drift(
         contract["fail_closed"]["shadow_may_override_core_ranks"] = True
     elif mutation == "asset_hash":
         contract["heads"]["promotion"]["artifact_sha256"] = "0" * 64
+    elif mutation == "calendar_hash":
+        contract["source_ledger"]["calendar_sha256"] = "0" * 64
+    elif mutation == "context_source":
+        contract["source_ledger"]["context_source_used"] = True
+    elif mutation == "context_columns":
+        contract["source_ledger"]["bar_context_rebuild_columns"] = contract[
+            "source_ledger"
+        ]["bar_context_rebuild_columns"][:-1]
+    elif mutation == "context_policy":
+        contract["source_ledger"]["context_missingness_policy"] = (
+            "drop_rows_with_missing_context"
+        )
     elif mutation == "release_mode":
         contract["release_mode"] = (
             "PROMOTION_READY_PARTIAL"
@@ -250,6 +560,7 @@ def test_three_rank_exact_key_and_fail_closed_contract_rejects_drift(
         )
 
 
+@requires_generated_v2_evidence
 def test_refrozen_manifest_preserves_legacy_contract_and_repins_every_surface() -> None:
     current = json.loads(
         (ROOT / "models/decision_model_freeze.json").read_text(encoding="utf-8")
@@ -284,6 +595,7 @@ def test_refrozen_manifest_preserves_legacy_contract_and_repins_every_surface() 
         assert candidate["pinned_files"][relative] == _sha256(ROOT / relative)
 
 
+@requires_generated_v2_evidence
 def test_refrozen_candidate_authorizes_current_activation_source_six() -> None:
     current = json.loads(
         (ROOT / "models/decision_model_freeze.json").read_text(encoding="utf-8")
@@ -348,6 +660,7 @@ def test_diagnostic_frozen_engine_bypasses_three_rank_assets_exactly(
     assert actual is not canonical
 
 
+@requires_generated_v2_evidence
 def test_build_refreeze_does_not_mutate_input_mapping() -> None:
     current = json.loads(
         (ROOT / "models/decision_model_freeze.json").read_text(encoding="utf-8")
@@ -357,6 +670,7 @@ def test_build_refreeze_does_not_mutate_input_mapping() -> None:
     assert current == before
 
 
+@requires_generated_v2_evidence
 @pytest.mark.parametrize(
     "relative",
     (
@@ -380,6 +694,7 @@ def test_active_refreeze_cannot_rebless_non_dynamic_pin_drift(
         build_refrozen_manifest(ROOT, active_three_rank)
 
 
+@requires_generated_v2_evidence
 def test_active_refreeze_only_allows_the_exact_dynamic_asset_set_to_change() -> None:
     current = json.loads(
         (ROOT / "models/decision_model_freeze.json").read_text(encoding="utf-8")

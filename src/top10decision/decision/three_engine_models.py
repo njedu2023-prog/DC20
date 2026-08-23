@@ -18,6 +18,12 @@ from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from top10decision.probability_calibration import (
+    MONOTONICITY_SCHEMA_VERSION,
+    calibrator_monotonicity_evidence,
+    monotonicity_evidence_is_valid,
+)
+
 from .d_close_features import (
     D_CLOSE_FEATURE_COLUMNS,
     D_CLOSE_FEATURE_CONTRACT_VERSION,
@@ -194,14 +200,23 @@ class ProbabilityCalibrator:
         return np.clip(calibrated, 0.0, 1.0)
 
 
-def fit_probability_calibrator(
+def _calibration_rejection_evidence(method: str, reason: str) -> dict[str, Any]:
+    return {
+        "schema_version": MONOTONICITY_SCHEMA_VERSION,
+        "method": str(method),
+        "nondecreasing": False,
+        "rejection_reason": str(reason),
+    }
+
+
+def _fit_probability_calibrator_audited(
     method: str,
     raw_probability: Sequence[float] | np.ndarray,
     truth: Sequence[int] | np.ndarray,
     *,
     sample_weight: Optional[Sequence[float] | np.ndarray] = None,
     constant: float,
-) -> Optional[ProbabilityCalibrator]:
+) -> tuple[Optional[ProbabilityCalibrator], dict[str, Any]]:
     raw = _clip_probability(raw_probability)
     y = np.asarray(truth, dtype=int)
     weights = (
@@ -210,23 +225,49 @@ def fit_probability_calibrator(
         else np.ones(len(y), dtype=float)
     )
     if len(raw) != len(y) or len(y) == 0:
-        return None
+        return None, _calibration_rejection_evidence(
+            method, "empty_or_length_mismatch"
+        )
+
+    def _audited(
+        candidate: ProbabilityCalibrator,
+    ) -> tuple[Optional[ProbabilityCalibrator], dict[str, Any]]:
+        evidence = calibrator_monotonicity_evidence(candidate, raw)
+        valid = (
+            evidence.get("nondecreasing") is True
+            if candidate.method == "constant"
+            else monotonicity_evidence_is_valid(
+                evidence,
+                expected_method=candidate.method,
+                require_nonconstant=True,
+            )
+        )
+        if not valid:
+            evidence = dict(evidence)
+            evidence["rejection_reason"] = (
+                "calibration_mapping_not_order_preserving"
+            )
+            return None, evidence
+        return candidate, evidence
+
     if method == "constant":
-        return ProbabilityCalibrator("constant", constant)
+        return _audited(ProbabilityCalibrator("constant", constant))
     if method == "identity":
-        return ProbabilityCalibrator("identity", constant)
+        return _audited(ProbabilityCalibrator("identity", constant))
     if np.unique(y).size < 2:
-        return None
+        return None, _calibration_rejection_evidence(method, "single_class_truth")
     if method == "isotonic":
         if len(y) < 40 or np.unique(raw).size < 8:
-            return None
+            return None, _calibration_rejection_evidence(
+                method, "insufficient_isotonic_support"
+            )
         estimator = IsotonicRegression(
             y_min=CALIBRATION_EPS,
             y_max=1.0 - CALIBRATION_EPS,
             out_of_bounds="clip",
         )
         estimator.fit(raw, y, sample_weight=weights)
-        return ProbabilityCalibrator(method, constant, estimator)
+        return _audited(ProbabilityCalibrator(method, constant, estimator))
     if method not in {"platt", "beta"}:
         raise ValueError(f"unsupported probability calibration method: {method}")
     estimator = LogisticRegression(
@@ -239,7 +280,25 @@ def fit_probability_calibrator(
         y,
         sample_weight=weights,
     )
-    return ProbabilityCalibrator(method, constant, estimator)
+    return _audited(ProbabilityCalibrator(method, constant, estimator))
+
+
+def fit_probability_calibrator(
+    method: str,
+    raw_probability: Sequence[float] | np.ndarray,
+    truth: Sequence[int] | np.ndarray,
+    *,
+    sample_weight: Optional[Sequence[float] | np.ndarray] = None,
+    constant: float,
+) -> Optional[ProbabilityCalibrator]:
+    candidate, _ = _fit_probability_calibrator_audited(
+        method,
+        raw_probability,
+        truth,
+        sample_weight=sample_weight,
+        constant=constant,
+    )
+    return candidate
 
 
 def probability_metrics(
@@ -958,20 +1017,61 @@ def _selection_ranking_metrics(
             )
             ndcg_lift = candidate_ndcg - baseline_ndcg
         else:
+            if "promotion_rank" not in group.columns:
+                continue
+            promotion_rank = pd.to_numeric(
+                group["promotion_rank"], errors="coerce"
+            )
+            if promotion_rank.notna().sum() != len(group):
+                # B/C are defined only inside A's frozen Top10.  Without that
+                # deterministic upstream order there is no honest relative
+                # full-list baseline, so this date cannot support selection.
+                continue
+            baseline = group.assign(_promotion_rank=promotion_rank).sort_values(
+                ["_promotion_rank", "ts_code"], kind="stable"
+            )
             rank1 = float(candidate.head(1)["_truth"].mean())
             rank3 = float(candidate.head(3)["_truth"].mean())
             pool = float(group["_truth"].mean())
             if spec.name == "big_loss":
                 rank1_lift = pool - rank1
                 top3_lift = pool - rank3
+                candidate_relevance = (
+                    1.0
+                    - candidate.head(config.top_n)["_truth"].to_numpy(dtype=float)
+                )
+                baseline_relevance = (
+                    1.0
+                    - baseline.head(config.top_n)["_truth"].to_numpy(dtype=float)
+                )
+                group_relevance = 1.0 - group["_truth"].to_numpy(dtype=float)
             else:
                 rank1_lift = rank1 - pool
                 top3_lift = rank3 - pool
-            ndcg_lift = 0.0
+                candidate_relevance = candidate.head(config.top_n)[
+                    "_truth"
+                ].to_numpy(dtype=float)
+                baseline_relevance = baseline.head(config.top_n)[
+                    "_truth"
+                ].to_numpy(dtype=float)
+                group_relevance = group["_truth"].to_numpy(dtype=float)
+            candidate_ndcg = _ndcg_against_group_ideal(
+                candidate_relevance,
+                group_relevance,
+                config.top_n,
+            )
+            baseline_ndcg = _ndcg_against_group_ideal(
+                baseline_relevance,
+                group_relevance,
+                config.top_n,
+            )
+            ndcg_lift = candidate_ndcg - baseline_ndcg
         daily.append(
             {
                 "rank1_lift": rank1_lift,
                 "top3_lift": top3_lift,
+                "candidate_ndcg_at_10": candidate_ndcg,
+                "baseline_ndcg_at_10": baseline_ndcg,
                 "ndcg_lift": ndcg_lift,
             }
         )
@@ -980,12 +1080,16 @@ def _selection_ranking_metrics(
             "dates": 0,
             "rank1_lift": None,
             "top3_lift": None,
+            "candidate_ndcg_at_10": None,
+            "baseline_ndcg_at_10": None,
             "ndcg_lift": None,
             "composite_lift": None,
         }
     metrics = pd.DataFrame(daily).mean(numeric_only=True)
     rank1_lift = float(metrics["rank1_lift"])
     top3_lift = float(metrics["top3_lift"])
+    candidate_ndcg = float(metrics["candidate_ndcg_at_10"])
+    baseline_ndcg = float(metrics["baseline_ndcg_at_10"])
     ndcg_lift = float(metrics["ndcg_lift"])
     composite = (
         config.selection_rank1_weight * rank1_lift
@@ -996,6 +1100,8 @@ def _selection_ranking_metrics(
         "dates": int(len(daily)),
         "rank1_lift": rank1_lift,
         "top3_lift": top3_lift,
+        "candidate_ndcg_at_10": candidate_ndcg,
+        "baseline_ndcg_at_10": baseline_ndcg,
         "ndcg_lift": ndcg_lift,
         "composite_lift": float(composite),
     }
@@ -1081,6 +1187,19 @@ def _fit_head_inner(
             )
             if calibrator is None or calibrator.method == "constant":
                 continue
+            monotonicity = calibrator_monotonicity_evidence(
+                calibrator,
+                raw_calibration,
+            )
+            if not monotonicity_evidence_is_valid(
+                monotonicity,
+                expected_method=calibrator.method,
+                require_nonconstant=True,
+            ):
+                # Defensive duplicate of the fitter's fail-closed rule.  The
+                # evidence is recomputed at the exact candidate boundary so a
+                # future calibrator implementation cannot bypass selection.
+                continue
             probability = calibrator.transform(raw_selection)
             metrics = probability_metrics(
                 probability,
@@ -1095,6 +1214,7 @@ def _fit_head_inner(
                 "ece": _safe_float(ece),
                 "baseline_brier": _safe_float(baseline_brier),
                 "brier_improvement": _safe_float(baseline_brier - brier),
+                "calibration_monotonicity": monotonicity,
             }
             ranking_metrics = _selection_ranking_metrics(
                 selection,
@@ -1111,6 +1231,7 @@ def _fit_head_inner(
                 and baseline_brier - brier > config.minimum_brier_improvement
                 and ece <= config.maximum_ece
                 and composite is not None
+                and composite > 0.0
                 and int(ranking_metrics.get("dates") or 0)
                 >= config.minimum_inner_selection_dates
             )
@@ -1386,25 +1507,40 @@ def _locked_production_bundle(
     feature_builder: DCloseFeatureBuilder,
     config: ThreeEngineConfig,
     development_bundle: Optional[ProbabilityHeadBundle],
-) -> Optional[ProbabilityHeadBundle]:
+) -> tuple[Optional[ProbabilityHeadBundle], dict[str, Any]]:
     if development_bundle is None:
-        return None
+        return None, _calibration_rejection_evidence(
+            "", "missing_development_bundle"
+        )
     sample = _training_sample(frame, spec)
     dates = sorted(sample["signal_date"].astype(str).unique())
+    audit_count = config.minimum_inner_selection_dates
+    audit_start = len(dates) - audit_count
     calibration_count = max(
         config.minimum_inner_calibration_dates,
         int(math.floor(len(dates) * config.inner_calibration_fraction)),
     )
-    calibration_start = len(dates) - calibration_count
+    calibration_end = audit_start - config.embargo_dates
+    calibration_start = calibration_end - calibration_count
     fit_end = calibration_start - config.embargo_dates
-    if fit_end < config.minimum_inner_fit_dates or calibration_start >= len(dates):
-        return None
+    if (
+        audit_count < config.minimum_inner_selection_dates
+        or audit_start <= 0
+        or calibration_end <= calibration_start
+        or fit_end < config.minimum_inner_fit_dates
+    ):
+        return None, _calibration_rejection_evidence(
+            development_bundle.calibration_method,
+            "insufficient_production_partition",
+        )
     fit_dates = dates[:fit_end]
-    calibration_dates = dates[calibration_start:]
+    calibration_dates = dates[calibration_start:calibration_end]
+    audit_dates = dates[audit_start:]
     fit = sample[sample["signal_date"].astype(str).isin(fit_dates)].copy()
     calibration = sample[
         sample["signal_date"].astype(str).isin(calibration_dates)
     ].copy()
+    audit = sample[sample["signal_date"].astype(str).isin(audit_dates)].copy()
     fit_values = fit[spec.target].astype(int)
     if (
         len(fit) < config.minimum_fit_rows
@@ -1412,7 +1548,10 @@ def _locked_production_bundle(
         or int(fit_values.value_counts().min()) < config.minimum_class_rows
         or calibration[spec.target].nunique() < 2
     ):
-        return None
+        return None, _calibration_rejection_evidence(
+            development_bundle.calibration_method,
+            "insufficient_production_class_support",
+        )
     fit_weights = date_balanced_weights(fit)
     calibration_weights = date_balanced_weights(calibration)
     constant = float(np.average(fit_values.to_numpy(dtype=float), weights=fit_weights))
@@ -1428,8 +1567,11 @@ def _locked_production_bundle(
             dtype=float,
         )
     except (TypeError, ValueError):
-        return None
-    calibrator = fit_probability_calibrator(
+        return None, _calibration_rejection_evidence(
+            development_bundle.calibration_method,
+            "production_model_fit_or_score_failed",
+        )
+    calibrator, monotonicity = _fit_probability_calibrator_audited(
         development_bundle.calibration_method,
         raw_calibration,
         calibration[spec.target].astype(int).to_numpy(),
@@ -1437,14 +1579,20 @@ def _locked_production_bundle(
         constant=constant,
     )
     if calibrator is None or calibrator.method == "constant":
-        return None
+        if calibrator is not None and calibrator.method == "constant":
+            monotonicity = dict(monotonicity)
+            monotonicity["nondecreasing"] = False
+            monotonicity["rejection_reason"] = (
+                "constant_production_calibrator_forbidden"
+            )
+        return None, monotonicity
     calibrated = calibrator.transform(raw_calibration)
     metrics = probability_metrics(
         calibrated,
         calibration[spec.target].astype(int).to_numpy(),
         sample_weight=calibration_weights,
     )
-    return ProbabilityHeadBundle(
+    bundle = ProbabilityHeadBundle(
         head=spec.name,
         target=spec.target,
         model_kind=development_bundle.model_kind,
@@ -1466,10 +1614,42 @@ def _locked_production_bundle(
             "model_fit_dates": int(len(fit_dates)),
             "embargo_dates": int(config.embargo_dates),
             "calibration_dates": int(len(calibration_dates)),
+            "independent_rank_audit_dates": int(len(audit_dates)),
             "calibration_metrics": _json_safe(metrics),
             "constant_rank_forbidden": True,
         },
     )
+    audit_scored = _score_bundle(audit, bundle, spec)
+    audit_variation = _rank_variation(audit_scored, spec)
+    audit_valid = bool(
+        int(audit_variation.get("eligible_dates") or 0)
+        >= config.minimum_inner_selection_dates
+        and float(audit_variation.get("nonconstant_date_fraction") or 0.0)
+        >= 0.90
+    )
+    monotonicity = dict(monotonicity)
+    monotonicity["independent_production_rank_audit"] = {
+        "truth_or_performance_used": False,
+        "fit_or_calibration_rows_used": False,
+        "embargo_dates": int(config.embargo_dates),
+        "start": audit_dates[0] if audit_dates else "",
+        "end": audit_dates[-1] if audit_dates else "",
+        "calendar_dates": int(len(audit_dates)),
+        "rows": int(len(audit_scored)),
+        **audit_variation,
+        "minimum_eligible_dates": int(config.minimum_inner_selection_dates),
+        "minimum_nonconstant_date_fraction": 0.90,
+        "valid": audit_valid,
+    }
+    if not audit_valid:
+        monotonicity["rejection_reason"] = (
+            "production_rank_is_constant_on_independent_audit"
+        )
+        return None, monotonicity
+    bundle.selection_metrics["calibration_monotonicity"] = _json_safe(
+        monotonicity
+    )
+    return bundle, monotonicity
 
 
 def _rank_variation(
@@ -1822,6 +2002,7 @@ def _validate_head(
     history: pd.DataFrame,
     development_bundle: Optional[ProbabilityHeadBundle],
     production_bundle: Optional[ProbabilityHeadBundle],
+    production_calibration_monotonicity: Mapping[str, Any],
     core_head: bool,
 ) -> dict[str, Any]:
     probability = _probability_validation(oof, spec, config) if not oof.empty else {}
@@ -1947,7 +2128,17 @@ def _validate_head(
         else []
     )
     checks = {
-        "nonconstant_production_model": production_bundle is not None,
+        "nonconstant_production_model": bool(
+            production_bundle is not None
+            and monotonicity_evidence_is_valid(
+                production_calibration_monotonicity,
+                expected_method=production_bundle.calibration_method,
+                require_nonconstant=True,
+            )
+            and production_calibration_monotonicity.get(
+                "independent_production_rank_audit", {}
+            ).get("valid") is True
+        ),
         "nonconstant_oof_rank_scores": float(
             rank_variation.get("nonconstant_date_fraction") or 0.0
         )
@@ -2063,6 +2254,27 @@ def _validate_head(
                 production_bundle.trained_signal_end if production_bundle else ""
             ),
             "constant_rank_forbidden": True,
+            "calibration_monotonicity": _json_safe(
+                production_calibration_monotonicity
+            ),
+            "calibration_monotonicity_valid": bool(
+                production_bundle is not None
+                and monotonicity_evidence_is_valid(
+                    production_calibration_monotonicity,
+                    expected_method=production_bundle.calibration_method,
+                    require_nonconstant=True,
+                )
+            ),
+            "independent_rank_audit": _json_safe(
+                production_calibration_monotonicity.get(
+                    "independent_production_rank_audit", {}
+                )
+            ),
+            "independent_rank_audit_valid": bool(
+                production_calibration_monotonicity.get(
+                    "independent_production_rank_audit", {}
+                ).get("valid") is True
+            ),
             "post_gate_locked_family_refit": bool(
                 production_bundle
                 and production_bundle.selection_metrics.get("release_refit") is True
@@ -2203,12 +2415,14 @@ def train_three_engine_models(
         warmup_dates=config.promotion_warmup_dates,
         freeze_top10=True,
     )
-    promotion_production = _locked_production_bundle(
-        history,
-        promotion_spec,
-        feature_builder,
-        config,
-        promotion_development,
+    promotion_production, promotion_production_monotonicity = (
+        _locked_production_bundle(
+            history,
+            promotion_spec,
+            feature_builder,
+            config,
+            promotion_development,
+        )
     )
     promotion_validation = _validate_head(
         promotion_oof,
@@ -2217,6 +2431,9 @@ def train_three_engine_models(
         history=history,
         development_bundle=promotion_development,
         production_bundle=promotion_production,
+        production_calibration_monotonicity=(
+            promotion_production_monotonicity
+        ),
         core_head=True,
     )
     oof_top10 = (
@@ -2240,7 +2457,7 @@ def train_three_engine_models(
             warmup_dates=config.outcome_warmup_dates,
             freeze_top10=False,
         )
-        production = _locked_production_bundle(
+        production, production_monotonicity = _locked_production_bundle(
             oof_top10,
             spec,
             feature_builder,
@@ -2254,6 +2471,7 @@ def train_three_engine_models(
             history=oof_top10,
             development_bundle=development,
             production_bundle=production,
+            production_calibration_monotonicity=production_monotonicity,
             core_head=name in {"big_loss", "profit"},
         )
         if name == "p_fill_shadow":
@@ -2396,6 +2614,9 @@ def model_artifact_payload(
         "model_version": model_version,
         "model_as_of_date": model_as_of_date,
         "feature_names": list(result.feature_builder.feature_names),
+        "calibration_monotonicity": training.validation.get(
+            "production", {}
+        ).get("calibration_monotonicity", {}),
         "bundle": bundle,
         "validation": training.validation,
     }
@@ -2806,6 +3027,80 @@ def load_three_engine_artifacts(
             or not isinstance(payload.get("bundle"), ProbabilityHeadBundle)
         ):
             raise ThreeEngineArtifactError(f"{head} READY artifact has no promoted model")
+        monotonicity = payload.get("calibration_monotonicity")
+        bundle = payload.get("bundle")
+        validation_production = head_validation.get("production", {})
+        validation_monotonicity = validation_production.get(
+            "calibration_monotonicity"
+        )
+        payload_evidence_present = "calibration_monotonicity" in payload
+        validation_evidence_present = bool(
+            isinstance(validation_production, Mapping)
+            and "calibration_monotonicity" in validation_production
+        )
+        if payload_evidence_present != validation_evidence_present or (
+            payload_evidence_present
+            and monotonicity != validation_monotonicity
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} calibration evidence disagrees with validation"
+            )
+        if (
+            head in CORE_HEADS
+            and payload.get("status") == "READY"
+            and not monotonicity
+        ):
+            raise ThreeEngineArtifactError(
+                f"{head} READY artifact calibration evidence is missing"
+            )
+        if monotonicity:
+            expected_method = (
+                bundle.calibration_method
+                if isinstance(bundle, ProbabilityHeadBundle)
+                else None
+            )
+            monotonicity_valid = bool(
+                expected_method
+                and monotonicity_evidence_is_valid(
+                    monotonicity,
+                    expected_method=expected_method,
+                    require_nonconstant=True,
+                )
+                and monotonicity.get(
+                    "independent_production_rank_audit", {}
+                ).get("valid") is True
+            )
+            if monotonicity_valid and isinstance(bundle, ProbabilityHeadBundle):
+                support = monotonicity.get("raw_support", {})
+                recomputed = calibrator_monotonicity_evidence(
+                    bundle.calibrator,
+                    [support.get("minimum"), support.get("maximum")],
+                )
+                monotonicity_valid = monotonicity_evidence_is_valid(
+                    recomputed,
+                    expected_method=expected_method,
+                    require_nonconstant=True,
+                )
+                bundle_claim = bundle.selection_metrics.get(
+                    "calibration_monotonicity"
+                )
+                monotonicity_valid = bool(
+                    monotonicity_valid
+                    and bundle_claim == monotonicity
+                    and monotonicity_evidence_is_valid(
+                        bundle_claim,
+                        expected_method=expected_method,
+                        require_nonconstant=True,
+                    )
+                    and bundle_claim.get(
+                        "independent_production_rank_audit", {}
+                    ).get("valid")
+                    is True
+                )
+            if payload.get("status") == "READY" and not monotonicity_valid:
+                raise ThreeEngineArtifactError(
+                    f"{head} READY artifact calibration is not monotonic"
+                )
         payloads[head] = payload
         metadata[head] = {
             "status": str(claimed.get("status") or "NOT_READY_MISSING_STATUS"),
