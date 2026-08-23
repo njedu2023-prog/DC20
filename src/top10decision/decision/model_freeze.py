@@ -84,9 +84,16 @@ THREE_RANK_DYNAMIC_ASSET_PATHS = frozenset(
         "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
     }
 )
+THREE_RANK_HISTORY_SOURCE_PIN_PATHS = frozenset(
+    {
+        "data/market/trade_cal_sse.csv",
+        "models/decision_three_rank_history_sources.json",
+    }
+)
 THREE_RANK_BEHAVIOR_PIN_PATHS = frozenset(
     {
         ".github/workflows/train_decision_three_engines.yml",
+        "scripts/build_decision_three_rank_history.py",
         "scripts/build_decision_three_rank_snapshot.py",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/refreeze_decision_three_rank.py",
@@ -100,6 +107,7 @@ THREE_RANK_BEHAVIOR_PIN_PATHS = frozenset(
         "tests/test_d_close_features.py",
         "tests/test_decision_three_rank_contract.py",
         "tests/test_decision_three_rank_frontend.py",
+        "tests/test_decision_three_rank_history_projection.py",
         "tests/test_three_engine_five_year_ledger.py",
         "tests/test_three_engine_models.py",
         "tests/test_three_engine_training_workflow.py",
@@ -293,6 +301,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "src/top10decision/writers/reports.py",
     }
     | THREE_RANK_DYNAMIC_ASSET_PATHS
+    | THREE_RANK_HISTORY_SOURCE_PIN_PATHS
     | THREE_RANK_BEHAVIOR_PIN_PATHS
     | THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS
 )
@@ -4993,6 +5002,7 @@ __all__ = [
     "THREE_RANK_DYNAMIC_ASSET_PATHS",
     "THREE_RANK_FEATURE_CONTRACT",
     "THREE_RANK_FREEZE_SCHEMA_VERSION",
+    "THREE_RANK_HISTORY_SOURCE_PIN_PATHS",
     "THREE_RANK_RECOVERY_EVIDENCE_PIN_PATHS",
     "THREE_RANK_RUNTIME_FEATURE_COLUMNS",
     "THREE_RANK_RUNTIME_FEATURE_CONTRACT_VERSION",

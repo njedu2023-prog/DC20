@@ -822,6 +822,26 @@
       <div id="stageContent"></div>
     </section>
 
+    <details id="threeRankHistoryPanel" class="panel observation-disclosure">
+      <summary class="panel-head">
+        <div>
+          <h2>历史三排名研究归档</h2>
+          <p id="threeRankHistoryCoverage">历史覆盖未验证；不会展示未经SHA校验的统计。</p>
+        </div>
+        <span id="threeRankHistoryState" class="count">未验证</span>
+      </summary>
+      <div class="three-rank-toolbar">
+        <div>
+          <strong>A＝TIME_HONEST_OOF_RESEARCH</strong>
+          <p class="stats-note">B/C仅研究诊断，未发布为正式排名；正式B/C字段保持空值，actual_execution_claimed=false。</p>
+          <p class="stats-note">交易日历：tushare:trade_cal:SSE · exchange=SSE · strict_calendar=true。</p>
+        </div>
+        <div id="threeRankHistoryDownloads" class="three-rank-downloads">
+          <span class="count">年度下载等待索引与统计SHA验证</span>
+        </div>
+      </div>
+    </details>
+
     <details class="panel observation-disclosure">
       <summary class="panel-head">
         <div>
@@ -883,7 +903,7 @@
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "threeRankHistoryCoverage", "threeRankHistoryState", "threeRankHistoryDownloads", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = { reports: [], reportIndex: null, index: 0, current: null, currentThreeRank: null };
@@ -1378,6 +1398,93 @@
       return [...new Uint8Array(digest)]
         .map(value => value.toString(16).padStart(2, "0"))
         .join("");
+    }
+
+    async function loadThreeRankHistorySummary() {
+      const failClosed = () => {
+        els.threeRankHistoryCoverage.textContent = "历史覆盖未验证；不会展示未经SHA校验的统计。";
+        els.threeRankHistoryState.textContent = "未验证";
+        els.threeRankHistoryDownloads.innerHTML = '<span class="count">年度下载已隐藏</span>';
+      };
+      failClosed();
+      try {
+        const prefix = "outputs/decision/three_rank_history/";
+        const index = await fetchPath(`${prefix}index.json`);
+        if (
+          index?.schema_version !== "dc20_three_rank_history_index_v1" ||
+          index?.index_kind !== "dated_annual_shards_pointer_only" ||
+          index?.data_alias !== false ||
+          index?.latest_fallback_allowed !== false ||
+          index?.research_only !== true ||
+          index?.actual_execution_claimed !== false ||
+          index?.statistics_url !== `${prefix}statistics.json` ||
+          index?.report_map_url !== `${prefix}report_map.json` ||
+          !isSha256(index?.statistics_sha256) ||
+          !isSha256(index?.report_map_sha256)
+        ) throw new Error("历史三排名索引合同无效");
+        const statisticsBytes = await fetchPath(index.statistics_url, "bytes");
+        if (await sha256Hex(statisticsBytes) !== index.statistics_sha256) {
+          throw new Error("历史三排名统计SHA256不一致");
+        }
+        let statistics;
+        try {
+          statistics = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(statisticsBytes));
+        } catch (_) {
+          throw new Error("历史三排名统计不是严格UTF-8 JSON");
+        }
+        const coverage = statistics?.coverage || {};
+        const statuses = statistics?.official_model_status || {};
+        if (
+          statistics?.schema_version !== "dc20_three_rank_history_statistics_v1" ||
+          statistics?.research_only !== true ||
+          statistics?.actual_execution_claimed !== false ||
+          statistics?.final_model_historical_scoring_used !== false ||
+          statistics?.calendar_source !== "tushare:trade_cal:SSE" ||
+          statistics?.strict_calendar !== true ||
+          statistics?.exchange !== "SSE" ||
+          statuses.promotion !== "TIME_HONEST_OOF_RESEARCH" ||
+          statuses.big_loss !== "RESEARCH_NOT_RELEASED" ||
+          statuses.profit !== "RESEARCH_NOT_RELEASED" ||
+          !Number.isInteger(coverage.archive_unique_signal_dates) ||
+          coverage.archive_unique_signal_dates <= 0 ||
+          !Number.isInteger(coverage.archive_rows) ||
+          coverage.archive_rows <= 0 ||
+          !Array.isArray(index.shards) ||
+          !index.shards.length ||
+          JSON.stringify(index.shards) !== JSON.stringify(statistics.shards)
+        ) throw new Error("历史三排名统计合同无效");
+        const years = new Set();
+        const annualDownloads = [];
+        for (const shard of index.shards) {
+          const year = String(shard?.year || "");
+          const expected = `${prefix}three_rank_history_${year}`;
+          if (
+            !/^20\d{2}$/.test(year) ||
+            years.has(year) ||
+            shard?.json_url !== `${expected}.json` ||
+            shard?.csv_url !== `${expected}.csv.gz` ||
+            shard?.evidence_url !== `${expected}.evidence.json` ||
+            shard?.csv_content_encoding !== "gzip_mtime_0" ||
+            ![shard?.json_sha256, shard?.csv_sha256, shard?.evidence_sha256].every(isSha256)
+          ) throw new Error("历史三排名年度分片合同无效");
+          years.add(year);
+          annualDownloads.push(
+            `<a class="three-rank-btn" href="${escapeHtml(localUrl(shard.json_url))}" download>${year} JSON</a>`,
+            `<a class="three-rank-btn" href="${escapeHtml(localUrl(shard.csv_url))}" download>${year} CSV.gz</a>`
+          );
+        }
+        const orderedYears = [...years].sort();
+        els.threeRankHistoryCoverage.textContent = `历史覆盖 ${coverage.archive_unique_signal_dates} 个D日 · ${coverage.archive_rows} 行；统计SHA256已验证，全部来自冻结OOF，不用最终模型倒灌历史。`;
+        els.threeRankHistoryState.textContent = `${orderedYears[0]}–${orderedYears.at(-1)} · SHA已验证`;
+        els.threeRankHistoryDownloads.innerHTML = [
+          `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${prefix}index.json`))}" download>历史总索引</a>`,
+          `<a class="three-rank-btn" href="${escapeHtml(localUrl(index.statistics_url))}" download>覆盖统计</a>`,
+          `<a class="three-rank-btn" href="${escapeHtml(localUrl(index.report_map_url))}" download>报告映射</a>`,
+          ...annualDownloads
+        ].join("");
+      } catch (_) {
+        failClosed();
+      }
     }
 
     function validatedThreeRankContract(plan) {
@@ -2400,6 +2507,7 @@
 
     async function initialize(force = false) {
       els.refreshBtn.disabled = true;
+      void loadThreeRankHistorySummary();
       let targetInfo = null;
       try {
         if (force) state.reports = [];

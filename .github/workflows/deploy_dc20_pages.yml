@@ -6,8 +6,14 @@ on:
     paths:
       - decision.html
       - outputs/decision/**
+      - outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
       - data/market/trade_cal_sse.csv
       - models/decision_model_freeze.json
+      - models/decision_three_engines/validation_latest.json
+      - models/decision_three_rank_history_sources.json
+      - requirements.lock
+      - scripts/build_decision_three_rank_history.py
+      - scripts/validate_decision_model_freeze.py
       - scripts/decision_pages_truth.py
       - .github/workflows/deploy_dc20_pages.yml
   schedule:
@@ -54,6 +60,24 @@ jobs:
           echo "${EXPECTED_HEAD}" | grep -Eq '^[0-9a-f]{40}$'
           test "${actual}" = "${EXPECTED_HEAD}"
 
+      - name: Set up pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install exact hash-locked Decision runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            --only-binary=:all: --require-hashes -r requirements.lock
+
+      - name: Validate frozen Decision trust root before projection
+        env:
+          PYTHONPATH: src
+        run: python scripts/validate_decision_model_freeze.py --root .
+
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Build isolated DC2.0 Decision site
@@ -67,6 +91,9 @@ jobs:
           cp decision.html _site/index.html
           cp decision.html _site/decision.html
           cp -R outputs/decision _site/outputs/decision
+          python3 scripts/build_decision_three_rank_history.py \
+            --source-root . \
+            --output-root _site/outputs/decision/three_rank_history
           touch _site/.nojekyll
 
           HEAD_SHA="$(git rev-parse HEAD)"
@@ -325,6 +352,7 @@ jobs:
           import json
           import os
           import time
+          from pathlib import Path
           from urllib.parse import urljoin
           from urllib.request import Request, urlopen
 
@@ -345,7 +373,7 @@ jobs:
           expected_repository = os.environ["EXPECTED_REPOSITORY"]
           cache_buster = f"?run_id={expected_run_id}"
 
-          def fetch_text(path):
+          def fetch_bytes(path):
               request = Request(
                   urljoin(base_url, path) + cache_buster,
                   headers={
@@ -356,7 +384,10 @@ jobs:
               with urlopen(request, timeout=20) as response:
                   if response.status != 200:
                       raise RuntimeError(f"GET {path!r} returned HTTP {response.status}")
-                  return response.read().decode("utf-8")
+                  return response.read()
+
+          def fetch_text(path):
+              return fetch_bytes(path).decode("utf-8")
 
           last_error = None
           for attempt in range(1, 13):
@@ -374,6 +405,85 @@ jobs:
                       if expected_research_available
                       else None
                   )
+                  history_prefix = "outputs/decision/three_rank_history/"
+                  local_history_root = Path("_site") / history_prefix
+                  local_history_index_bytes = (local_history_root / "index.json").read_bytes()
+                  public_history_index_bytes = fetch_bytes(history_prefix + "index.json")
+                  if public_history_index_bytes != local_history_index_bytes:
+                      raise RuntimeError("history public SHA256 mismatch: index.json")
+                  history_index = json.loads(public_history_index_bytes.decode("utf-8"))
+                  if (
+                      history_index.get("schema_version")
+                      != "dc20_three_rank_history_index_v1"
+                      or history_index.get("index_kind")
+                      != "dated_annual_shards_pointer_only"
+                      or history_index.get("data_alias") is not False
+                      or history_index.get("latest_fallback_allowed") is not False
+                      or history_index.get("actual_execution_claimed") is not False
+                  ):
+                      raise RuntimeError("public history index contract is invalid")
+
+                  history_bindings = [
+                      (
+                          history_index.get("statistics_url"),
+                          history_index.get("statistics_sha256"),
+                      ),
+                      (
+                          history_index.get("report_map_url"),
+                          history_index.get("report_map_sha256"),
+                      ),
+                  ]
+                  for shard in history_index.get("shards", []):
+                      if not isinstance(shard, dict):
+                          raise RuntimeError("public history shard binding is invalid")
+                      history_bindings.extend(
+                          [
+                              (shard.get("json_url"), shard.get("json_sha256")),
+                              (shard.get("csv_url"), shard.get("csv_sha256")),
+                              (
+                                  shard.get("evidence_url"),
+                                  shard.get("evidence_sha256"),
+                              ),
+                          ]
+                      )
+                  for history_url, expected_history_sha256 in history_bindings:
+                      if (
+                          not isinstance(history_url, str)
+                          or not history_url.startswith(history_prefix)
+                          or "latest" in history_url.lower()
+                          or not isinstance(expected_history_sha256, str)
+                          or len(expected_history_sha256) != 64
+                      ):
+                          raise RuntimeError("public history artifact binding is invalid")
+                      public_history_bytes = fetch_bytes(history_url)
+                      if hashlib.sha256(public_history_bytes).hexdigest() != expected_history_sha256:
+                          raise RuntimeError(
+                              f"history public SHA256 mismatch: {history_url}"
+                          )
+                      local_history_path = Path("_site") / history_url
+                      if public_history_bytes != local_history_path.read_bytes():
+                          raise RuntimeError(
+                              f"history public bytes differ from build: {history_url}"
+                          )
+                  history_statistics = json.loads(
+                      fetch_text(history_index["statistics_url"])
+                  )
+                  if (
+                      history_statistics.get("actual_execution_claimed") is not False
+                      or history_statistics.get("final_model_historical_scoring_used")
+                      is not False
+                      or history_statistics.get("calendar_source")
+                      != "tushare:trade_cal:SSE"
+                      or history_statistics.get("strict_calendar") is not True
+                      or history_statistics.get("exchange") != "SSE"
+                      or history_statistics["official_model_status"]["promotion"]
+                      != "TIME_HONEST_OOF_RESEARCH"
+                      or history_statistics["official_model_status"]["big_loss"]
+                      != "RESEARCH_NOT_RELEASED"
+                      or history_statistics["official_model_status"]["profit"]
+                      != "RESEARCH_NOT_RELEASED"
+                  ):
+                      raise RuntimeError("public history release status is unsafe")
 
                   if "<title>DC2.0 Decision 竞价研究</title>" not in root_html:
                       raise RuntimeError("public root does not contain the DC2.0 title")
