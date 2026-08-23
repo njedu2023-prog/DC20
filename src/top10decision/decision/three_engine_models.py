@@ -43,6 +43,15 @@ FEATURE_SNAPSHOT_SCHEMA = (
     "dc20_three_engine_d_feature_snapshot_v2_quantized12"
 )
 FEATURE_SNAPSHOT_SIGNIFICANT_DIGITS = 12
+_RESEARCH_ONLY_LEGACY_VALIDATION_PATH = (
+    "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json"
+)
+_RESEARCH_ONLY_LEGACY_VALIDATION_SHA256 = (
+    "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4"
+)
+_RESEARCH_ONLY_LEGACY_PROMOTION_SHA256 = (
+    "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b"
+)
 
 PROMOTION_SOURCE_FEATURES = (
     "five_year_stage_board_prior_rate",
@@ -2903,12 +2912,13 @@ def attach_runtime_promotion_priors(
     return output
 
 
-def load_three_engine_artifacts(
+def _load_three_engine_artifacts(
     validation_path: str | Path,
     *,
     root: str | Path | None = None,
+    legacy_ready_allowlist: Mapping[str, str],
 ) -> LoadedThreeEngineArtifacts:
-    """Load only hash-bound, internally consistent repository-owned artifacts."""
+    """Internal loader; callers choose either the strict or sealed wrapper."""
 
     validation_file = Path(validation_path).resolve()
     repository_root = (
@@ -3038,6 +3048,13 @@ def load_three_engine_artifacts(
             isinstance(validation_production, Mapping)
             and "calibration_monotonicity" in validation_production
         )
+        legacy_missing_evidence_allowed = bool(
+            head in CORE_HEADS
+            and payload.get("status") == "READY"
+            and not payload_evidence_present
+            and not validation_evidence_present
+            and legacy_ready_allowlist.get(head) == actual_sha256
+        )
         if payload_evidence_present != validation_evidence_present or (
             payload_evidence_present
             and monotonicity != validation_monotonicity
@@ -3049,6 +3066,7 @@ def load_three_engine_artifacts(
             head in CORE_HEADS
             and payload.get("status") == "READY"
             and not monotonicity
+            and not legacy_missing_evidence_allowed
         ):
             raise ThreeEngineArtifactError(
                 f"{head} READY artifact calibration evidence is missing"
@@ -3114,6 +3132,9 @@ def load_three_engine_artifacts(
             "validation_gate_pass_count": validation_gate_pass_count,
             "validation_gate_total_count": validation_gate_total_count,
             "validation_gate_score_pct": validation_gate_score_pct,
+            "research_only_legacy_calibration_evidence_missing": (
+                legacy_missing_evidence_allowed
+            ),
         }
     return LoadedThreeEngineArtifacts(
         root=repository_root,
@@ -3125,6 +3146,75 @@ def load_three_engine_artifacts(
         runtime_ledger_sha256=runtime_ledger_sha,
         runtime_prior_ledger=runtime_prior_ledger,
     )
+
+
+def load_three_engine_artifacts(
+    validation_path: str | Path,
+    *,
+    root: str | Path | None = None,
+) -> LoadedThreeEngineArtifacts:
+    """Load current artifacts; every READY head must carry full audit evidence."""
+
+    return _load_three_engine_artifacts(
+        validation_path,
+        root=root,
+        legacy_ready_allowlist={},
+    )
+
+
+def load_research_only_legacy_three_engine_snapshot(
+    validation_path: str | Path,
+    *,
+    root: str | Path,
+) -> LoadedThreeEngineArtifacts:
+    """Replay the one immutable pre-audit snapshot for research only.
+
+    This is deliberately bound to one repository-relative path, one sealed
+    validation SHA-256 and one promotion artifact SHA-256. It cannot authorize
+    a current model, another historical snapshot, or an execution path.
+    """
+
+    repository_root = Path(root).resolve()
+    validation_file = Path(validation_path).resolve()
+    expected_file = (
+        repository_root / _RESEARCH_ONLY_LEGACY_VALIDATION_PATH
+    ).resolve()
+    if validation_file != expected_file:
+        raise ThreeEngineArtifactError(
+            "research-only legacy validation path drifted"
+        )
+    if (
+        not validation_file.is_file()
+        or _file_sha256(validation_file)
+        != _RESEARCH_ONLY_LEGACY_VALIDATION_SHA256
+    ):
+        raise ThreeEngineArtifactError(
+            "research-only legacy validation SHA-256 drifted"
+        )
+    loaded = _load_three_engine_artifacts(
+        validation_file,
+        root=repository_root,
+        legacy_ready_allowlist={
+            "promotion": _RESEARCH_ONLY_LEGACY_PROMOTION_SHA256
+        },
+    )
+    if (
+        loaded.metadata["promotion"].get(
+            "research_only_legacy_calibration_evidence_missing"
+        )
+        is not True
+        or any(
+            loaded.metadata[head].get(
+                "research_only_legacy_calibration_evidence_missing"
+            )
+            is True
+            for head in ("big_loss", "profit", "p_fill_shadow")
+        )
+    ):
+        raise ThreeEngineArtifactError(
+            "research-only legacy compatibility scope drifted"
+        )
+    return loaded
 
 
 def _normalize_inference_pool(

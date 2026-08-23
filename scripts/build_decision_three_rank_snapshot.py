@@ -50,7 +50,7 @@ from top10decision.decision.d_close_features import (  # noqa: E402
     compute_d_close_features,
 )
 from top10decision.decision.three_engine_models import (  # noqa: E402
-    load_three_engine_artifacts,
+    load_research_only_legacy_three_engine_snapshot,
     score_three_engine_snapshot,
 )
 from top10decision.decision.three_rank import (  # noqa: E402
@@ -1246,10 +1246,24 @@ def build_decision_three_rank_snapshot(
     validate_static_bindings(root_path)
     pool, bars_by_code, recovery = load_recovery_inputs(root_path)
     runtime = build_runtime_candidate_frame(root_path, pool, bars_by_code)
-    loaded = load_three_engine_artifacts(
+    loaded = load_research_only_legacy_three_engine_snapshot(
         root_path / RECOVERY_VALIDATION_PATH,
         root=root_path,
     )
+    if (
+        loaded.metadata["promotion"].get(
+            "research_only_legacy_calibration_evidence_missing"
+        )
+        is not True
+        or any(
+            loaded.metadata[head].get(
+                "research_only_legacy_calibration_evidence_missing"
+            )
+            is True
+            for head in ("big_loss", "profit", "p_fill_shadow")
+        )
+    ):
+        _fail("sealed historical model compatibility scope drifted")
     score = score_three_engine_snapshot(
         runtime,
         loaded,

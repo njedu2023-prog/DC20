@@ -28,6 +28,11 @@ from scripts.build_decision_three_rank_snapshot import (
     validate_static_bindings,
 )
 from top10decision.decision.d_close_features import compute_d_close_features
+from top10decision.decision.three_engine_models import (
+    ThreeEngineArtifactError,
+    load_research_only_legacy_three_engine_snapshot,
+    load_three_engine_artifacts,
+)
 from top10decision.decision.three_rank import validate_three_rank_contract
 
 
@@ -154,6 +159,40 @@ def test_snapshot_rerun_is_byte_idempotent() -> None:
     assert first["contract"]["bundle_sha256"] == second["contract"][
         "bundle_sha256"
     ]
+
+
+def test_sealed_legacy_ready_artifact_is_research_only_and_exact_hash_bound(
+    tmp_path: Path,
+) -> None:
+    validation_path = ROOT / (
+        "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json"
+    )
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="READY artifact calibration evidence is missing",
+    ):
+        load_three_engine_artifacts(validation_path, root=ROOT)
+    loaded = load_research_only_legacy_three_engine_snapshot(
+        validation_path,
+        root=ROOT,
+    )
+    assert loaded.metadata["promotion"][
+        "research_only_legacy_calibration_evidence_missing"
+    ] is True
+
+    _copy_clean_runtime_root(tmp_path)
+    copied_validation = tmp_path / (
+        "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json"
+    )
+    copied_validation.write_bytes(copied_validation.read_bytes() + b"\n")
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="research-only legacy validation SHA-256 drifted",
+    ):
+        load_research_only_legacy_three_engine_snapshot(
+            copied_validation,
+            root=tmp_path,
+        )
 
 
 @pytest.mark.parametrize(
