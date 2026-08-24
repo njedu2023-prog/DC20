@@ -145,6 +145,18 @@ jobs:
           set -euo pipefail
           python scripts/validate_decision_model_freeze.py
 
+      - name: Validate frozen promotion identity before research retraining
+        run: |
+          set -euo pipefail
+          python scripts/validate_decision_executable_profit_shadow_contract.py
+
+      - name: Reject publish-capable shared retraining while promotion is frozen
+        if: ${{ steps.mode.outputs.requested_publish == 'true' }}
+        run: |
+          set -euo pipefail
+          echo "::error::The shared three-engine trainer is research-only while the current promotion engine is frozen. Dispatch with dry_run=true; a separate fusion-only publisher is required for future releases."
+          exit 1
+
       - name: Restore best-effort Tencent market-data download cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
@@ -1141,6 +1153,10 @@ jobs:
               --expected-release-mode "${release_mode}"
           PYTHONPATH="${GITHUB_WORKSPACE}/src" \
             python scripts/validate_decision_model_freeze.py
+          if ! python scripts/validate_decision_executable_profit_shadow_contract.py; then
+            echo "::error::Publisher defense-in-depth rejected a candidate that changes the frozen promotion identity."
+            exit 1
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git commit -m 'model: retrain independent Decision three engines'

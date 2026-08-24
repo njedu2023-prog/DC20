@@ -141,3 +141,33 @@ def test_shadow_top2_cannot_authorize_a_trade() -> None:
             validation=validation,
             ledger_manifest=manifest,
         )
+
+
+def test_shared_three_engine_publisher_is_research_only_and_guarded() -> None:
+    workflow = (
+        ROOT / ".github/workflows/train_decision_three_engines.yml"
+    ).read_text(encoding="utf-8")
+    command = "python scripts/validate_decision_executable_profit_shadow_contract.py"
+    assert workflow.count(command) == 2
+
+    preflight = workflow.index(
+        "Validate frozen promotion identity before research retraining"
+    )
+    publish_block = workflow.index(
+        "Reject publish-capable shared retraining while promotion is frozen"
+    )
+    training = workflow.index("Train nested chronological three-engine models")
+    publisher = workflow.index(
+        "Publisher defense-in-depth rejected a candidate that changes the frozen promotion identity"
+    )
+    commit = workflow.index("git commit -m 'model: retrain independent Decision three engines'")
+
+    assert preflight < publish_block < training
+    assert publisher < commit
+    assert "if: ${{ steps.mode.outputs.requested_publish == 'true' }}" in workflow[
+        publish_block:training
+    ]
+    assert "a separate fusion-only publisher is required" in workflow[
+        publish_block:training
+    ]
+    assert "exit 1" in workflow[publish_block:training]
