@@ -1,0 +1,77 @@
+{
+  "schema_version": "dc20_executable_profit_lagged_prior_research_artifact_index_v1",
+  "status": "INTERNAL_FORWARD_RESEARCH_CHALLENGER_ONLY_NOT_READY",
+  "reviewed_base_commit_sha": "cdbc43f67401c876d98f61585bea6d9375117e5b",
+  "scope": "research_only",
+  "runtime_dependency_on_codex": false,
+  "runtime_dependency_on_top10_decision": false,
+  "runtime_dependency_on_recovery": false,
+  "information_state": {
+    "retrospective_confirmation_window_has_been_viewed": true,
+    "independent_untouched_confirmation_available": false,
+    "forward_release_evidence_available": false,
+    "challenger_selection_used_viewed_retrospective_results": true
+  },
+  "publication_boundary": {
+    "front_end_rank_allowed": false,
+    "official_trade_action_allowed": false,
+    "production_model_publish_allowed": false,
+    "research_challenger_artifact_created": true
+  },
+  "inputs": {
+    "five_year_hard_pool_ledger_sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+    "historical_oof_top10_ledger_sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd",
+    "strict_sse_calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+  },
+  "code": {
+    "lagged_priors.py": "b89d7bed14b0307d2aaa7c0762a98b4fda846dcdac35488938d8eae7db0bc39d",
+    "benchmark.py": "d2c04a6f8839a02740b557eed18c85f39266af9e2978e24223ce6f96f2e4620a",
+    "fit_internal_challenger.py": "63f1f26c330e42c1a9185a77cf1f5cfc83cb59e56faa2e3a40b7e9efc2935808",
+    "validate_artifact_index.py": "cdbfea4d84bc1323dc23657413c2ba1b57082eb555412d06b9127a814cecac0b",
+    "tests/test_lagged_priors.py": "8316bb996a4407399fac079bb882c15dbc6914bf2448c0a5b1c74f2ed23ff037",
+    "tests/test_benchmark.py": "7beac132eacc36e21a3e7577833c923873b83f12c8f9b71d54ef202d5f4c5bc5",
+    "tests/test_validate_artifact_index.py": "408f3f673962f338a80f95fb96e18088d872adef954ea6a4b5a56fc61d3f3f00"
+  },
+  "artifacts": {
+    "full_lagged_priors.csv.gz": {
+      "sha256": "c2b8a241a93831ce1a4d83bff5f103a45cbb2928d0c7c6f8b857ba7d292ee195",
+      "bytes": 2287456
+    },
+    "top10_lagged_priors.csv.gz": {
+      "sha256": "daacd4d1f5e212170f5e6bdbe2123b414e73857861d773574eb2930e53077596",
+      "bytes": 2084420
+    },
+    "lagged_priors_manifest.json": {
+      "sha256": "5b37660b299a1c6eb5c2a0aabd13f4395a269b738dc0032772d30b29b76ecfc0",
+      "bytes": 14735
+    },
+    "benchmark_predictions.csv.gz": {
+      "sha256": "9ff2b3558ef4138b5de4015e9fe70cae9b8c2d7aa1eeeb71c1650be705c810f1",
+      "bytes": 1220230
+    },
+    "benchmark_report.json": {
+      "sha256": "f80c27545c6453473d893185aadc2026901bec1dda3e7ab08cedf4d4075fa3b9",
+      "bytes": 48295
+    },
+    "internal_forward_challenger.pkl": {
+      "sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "bytes": 981025,
+      "trusted_repository_artifact_only": true
+    },
+    "internal_forward_challenger_audit.json": {
+      "sha256": "0b75a1f635e17b7663d0d68d3e505c0c21997c12331ce8a953882fa53d2ec980",
+      "bytes": 2445
+    }
+  },
+  "tests": {
+    "passed": 20,
+    "failed": 0,
+    "command": ".venv/bin/python -m pytest -q work/executable-profit-lagged-features-20260824/tests"
+  },
+  "research_decision": {
+    "enhanced_variants_evaluated": 6,
+    "enhanced_variants_rejected": 6,
+    "formal_ranking_allowed": false,
+    "reason": "All absolute Top2 returns were negative and paired lift confidence intervals crossed zero."
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "schema_version": "dc20_executable_profit_rejected_research_evidence_v1",
+  "status": "RESEARCH_NOT_READY",
+  "evidence_role": "REJECTED_RETROSPECTIVE_RESEARCH_ONLY",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "reviewed_base_commit_sha": "cdbc43f67401c876d98f61585bea6d9375117e5b",
+    "reviewed_base_role": "exact research input and promotion-isolation baseline"
+  },
+  "publication_boundary": {
+    "front_end_allowed": false,
+    "official_trade_action_allowed": false,
+    "model_publish_allowed": false,
+    "production_model_selected": false,
+    "formal_model_artifact_created": false,
+    "release_validator_or_publish_mode_exists": false
+  },
+  "information_state": {
+    "last_180_dates_have_been_viewed": true,
+    "independent_untouched_confirmation_set": false,
+    "forward_release_evidence": false,
+    "role": "RETROSPECTIVE_EXPLORATION_ONLY",
+    "retrospective_start": "20251119",
+    "retrospective_end": "20260814",
+    "retrospective_signal_dates": 180
+  },
+  "interpretation": {
+    "prototype_check_count_is_completion_percentage": false,
+    "candidate_family_was_locked_before_viewing": false,
+    "formal_release_protocol_implemented": false,
+    "gate_count_or_check_count_can_authorize_release": false
+  },
+  "inputs": {
+    "design_contract": {
+      "path": "models/decision_executable_profit_shadow_contract.json",
+      "sha256": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2"
+    },
+    "historical_top10_ledger": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+      "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+    },
+    "historical_top10_manifest": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json",
+      "sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5"
+    },
+    "frozen_three_engine_oof": {
+      "path": "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+      "sha256": "c768cb0eb019fba6be7ca41284841006195dd54bf4d641f426d2fbbf513a4ebd"
+    },
+    "strict_sse_calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "v2_runner": {
+      "path": "work/executable-profit-model-v2-20260824/prototype_v2.py",
+      "sha256": "d9c14a1e94d46ce7771562bf3feedcf6579286aafbbdea26e2fb6ba673a59682"
+    },
+    "v2_tests": {
+      "path": "work/executable-profit-model-v2-20260824/tests/test_prototype_v2.py",
+      "sha256": "9423aa23d5d3d702e5001f55cacd61deb065b3559bc33d24cfe2509507bdd41c"
+    }
+  },
+  "promotion_isolation": {
+    "promotion_model_touched": false,
+    "promotion_rank_changed": false,
+    "frozen_source_code": {
+      "path": "src/top10decision/decision/three_engine_models.py",
+      "sha256": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34"
+    }
+  },
+  "candidate_evidence": {
+    "lr_distribution": {
+      "validation_report": {
+        "path": "work/executable-profit-model-v2-20260824/outputs-lr/validation_report.json",
+        "sha256": "168f9c8629d1c88f2645bd9130bdb1d9bdc130279dbc67772d4d6491e86764d9"
+      },
+      "oof": {
+        "path": "work/executable-profit-model-v2-20260824/outputs-lr/oof_lr_distribution.csv.gz",
+        "sha256": "62cb3aa79acdd28bd83f7a731f05610d1a3dbc2f960aa699d84aaf93cab84ae7",
+        "rows": 4996,
+        "dates": 610
+      },
+      "observed_rejection_metrics": {
+        "retrospective_start": "20251119",
+        "retrospective_end": "20260814",
+        "retrospective_signal_dates": 180,
+        "common_mature_dates": 178,
+        "top2_mean_return": -0.009705143748623591,
+        "top2_double_cost_mean_return": -0.01406609880546856,
+        "joint_brier_improvement": -0.00465928356808274,
+        "joint_brier_ci95_low": -0.0070426083514873354,
+        "joint_brier_ci95_high": -0.0021448870006914,
+        "return_lift_vs_pfill_ci95_low": -0.00633822636548058,
+        "return_lift_vs_pfill_ci95_high": 0.006735488972836347,
+        "profit_lift_vs_pfill_ci95_low": -0.03932584269662921,
+        "profit_lift_vs_pfill_ci95_high": 0.05898876404494382
+      }
+    },
+    "hgb_distribution": {
+      "validation_report": {
+        "path": "work/executable-profit-model-v2-20260824/outputs-hgb/validation_report.json",
+        "sha256": "8abd8b7605fbdc4d60e5f9cf843f48d276e20f67d49c5bcce1c455d5d988ac04"
+      },
+      "oof": {
+        "path": "work/executable-profit-model-v2-20260824/outputs-hgb/oof_hgb_distribution.csv.gz",
+        "sha256": "593f24d245a2ee87ddf43bbe330512474c263bb3bffbcea0a1e9eb6b7e50ebc8",
+        "rows": 4996,
+        "dates": 610
+      },
+      "observed_rejection_metrics": {
+        "retrospective_start": "20251119",
+        "retrospective_end": "20260814",
+        "retrospective_signal_dates": 180,
+        "common_mature_dates": 178,
+        "top2_mean_return": -0.008466006633302523,
+        "top2_double_cost_mean_return": -0.012763759442177952,
+        "joint_brier_improvement": -0.004211071270002345,
+        "joint_brier_ci95_low": -0.007631236443745249,
+        "joint_brier_ci95_high": -0.0008822129356631602,
+        "return_lift_vs_pfill_ci95_low": -0.007263595613323393,
+        "return_lift_vs_pfill_ci95_high": 0.00964488224575009,
+        "profit_lift_vs_pfill_ci95_low": -0.0309691011235955,
+        "profit_lift_vs_pfill_ci95_high": 0.07584269662921349
+      }
+    }
+  }
+}

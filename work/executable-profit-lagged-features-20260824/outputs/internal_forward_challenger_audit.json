@@ -1,0 +1,52 @@
+{
+  "artifact": {
+    "bytes": 981025,
+    "format": "trusted-local-python-pickle-protocol-5",
+    "path": "outputs/internal_forward_challenger.pkl",
+    "sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209"
+  },
+  "challenger_selection_used_viewed_retrospective_results": true,
+  "deterministic_refit": {
+    "exact_pickle_bytes_equal": true,
+    "exact_prediction_arrays_equal": true,
+    "training_prediction_snapshot_sha256": "5bfaa66b44f1f488ff56530dd7aaace36468a9838ff49a25bf2bb2a7541a3b35"
+  },
+  "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+  "feature_count": 156,
+  "forward_release_evidence_available": false,
+  "front_end_rank_allowed": false,
+  "historical_effect_claim_allowed": false,
+  "independent_untouched_confirmation_available": false,
+  "model_kind": "hgb",
+  "objective": "P(fill proxy) * P(net profit after cost > 0 | fill proxy)",
+  "official_trade_action_allowed": false,
+  "provenance": {
+    "base_feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+    "ledger_sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd",
+    "prior_manifest_sha256": "5b37660b299a1c6eb5c2a0aabd13f4395a269b738dc0032772d30b29b76ecfc0",
+    "variant_feature_columns_sha256": {
+      "base": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+      "both_priors": "971b9cc38010eac1a2ee4b626d702f181a7fb20393f6f1f683a126aa9da99ea5",
+      "full_priors": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "top10_priors": "59edf37b1c3ee07e08a2b1c4147b2bbbc4d97dac9f6e973f5648e560c3e55145"
+    },
+    "variant_feature_counts": {
+      "base": 48,
+      "both_priors": 264,
+      "full_priors": 156,
+      "top10_priors": 156
+    }
+  },
+  "release_block": "Historical development/retrospective gates rejected all lagged-prior variants; no untouched forward evidence exists.",
+  "retrospective_confirmation_window_has_been_viewed": true,
+  "schema_version": "dc20_executable_profit_internal_forward_challenger_v1",
+  "status": "INTERNAL_FORWARD_RESEARCH_CHALLENGER_ONLY_NOT_READY",
+  "training": {
+    "conditional_profit_rows": 5790,
+    "cutoff_exclusive": "20260824",
+    "fill_rows": 6752,
+    "maximum_used_scheduled_exit_date": "20260818"
+  },
+  "use_scope": "new forward dates only; collect evidence without changing official ranking",
+  "variant": "full_priors"
+}

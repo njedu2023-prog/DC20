@@ -1,0 +1,1206 @@
+{
+  "comparisons_to_same_kind_base": {
+    "confirmation": {
+      "hgb:both_priors": {
+        "joint_brier_improvement": 7.544734521922059e-05,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.08146067415730338,
+          "ci95_low": -0.014044943820224719,
+          "estimate": 0.03651685393258427,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.011890830124890124,
+          "ci95_low": -0.0047855189112568095,
+          "estimate": 0.004004086636299716,
+          "samples": 2000
+        }
+      },
+      "hgb:full_priors": {
+        "joint_brier_improvement": 0.003086476339980354,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.0702247191011236,
+          "ci95_low": -0.02247191011235955,
+          "estimate": 0.02247191011235955,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.011420966770851384,
+          "ci95_low": -0.004418918043080571,
+          "estimate": 0.003160698897487915,
+          "samples": 2000
+        }
+      },
+      "hgb:top10_priors": {
+        "joint_brier_improvement": -0.001402075818118409,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.08146067415730338,
+          "ci95_low": -0.03089887640449438,
+          "estimate": 0.019662921348314606,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.011743447300129717,
+          "ci95_low": -0.0059689215581838475,
+          "estimate": 0.0026515124355410086,
+          "samples": 2000
+        }
+      },
+      "lr:both_priors": {
+        "joint_brier_improvement": -0.0040583880293785235,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.047752808988764044,
+          "ci95_low": -0.016853932584269662,
+          "estimate": 0.014044943820224719,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.01041460791556151,
+          "ci95_low": -0.001389862623190098,
+          "estimate": 0.0036450862862668536,
+          "samples": 2000
+        }
+      },
+      "lr:full_priors": {
+        "joint_brier_improvement": -0.008805426780929076,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.047752808988764044,
+          "ci95_low": -0.025280898876404494,
+          "estimate": 0.011235955056179775,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.009432543640683218,
+          "ci95_low": -0.0030458317647805463,
+          "estimate": 0.0028990698971292136,
+          "samples": 2000
+        }
+      },
+      "lr:top10_priors": {
+        "joint_brier_improvement": -0.0029437572612876217,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.042134831460674156,
+          "ci95_low": -0.016853932584269662,
+          "estimate": 0.008426966292134831,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.006858144249011366,
+          "ci95_low": -0.0033516390110530188,
+          "estimate": 0.0015285361982022478,
+          "samples": 2000
+        }
+      }
+    },
+    "development": {
+      "hgb:both_priors": {
+        "joint_brier_improvement": 0.002465480383732177,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.0674859550561794,
+          "ci95_low": -0.019662921348314606,
+          "estimate": 0.02247191011235955,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.010728224585486931,
+          "ci95_low": -0.0051548371559575635,
+          "estimate": 0.0029489362748564554,
+          "samples": 2000
+        }
+      },
+      "hgb:full_priors": {
+        "joint_brier_improvement": 0.0018082826840955524,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.05056179775280899,
+          "ci95_low": -0.033707865168539325,
+          "estimate": 0.0056179775280898875,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.004190985527955943,
+          "ci95_low": -0.009621439868127695,
+          "estimate": -0.0032689595836337113,
+          "samples": 2000
+        }
+      },
+      "hgb:top10_priors": {
+        "joint_brier_improvement": 1.865210209134327e-05,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.028089887640449437,
+          "ci95_low": -0.0449438202247191,
+          "estimate": -0.008426966292134831,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.0035041437780903824,
+          "ci95_low": -0.010669890690481089,
+          "estimate": -0.0037835959772910144,
+          "samples": 2000
+        }
+      },
+      "lr:both_priors": {
+        "joint_brier_improvement": -0.018350785223318566,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": -0.014044943820224719,
+          "ci95_low": -0.10393258426966293,
+          "estimate": -0.06179775280898876,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.00028014827933590036,
+          "ci95_low": -0.01601957205422203,
+          "estimate": -0.007729583537657016,
+          "samples": 2000
+        }
+      },
+      "lr:full_priors": {
+        "joint_brier_improvement": -0.013050605474347415,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.014044943820224719,
+          "ci95_low": -0.07865168539325842,
+          "estimate": -0.03089887640449438,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.00830051616515389,
+          "ci95_low": -0.010027390752001425,
+          "estimate": -0.00164182106099354,
+          "samples": 2000
+        }
+      },
+      "lr:top10_priors": {
+        "joint_brier_improvement": -0.004642934206960603,
+        "top2_profit_rate_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.016853932584269662,
+          "ci95_low": -0.06741573033707865,
+          "estimate": -0.02247191011235955,
+          "samples": 2000
+        },
+        "top2_return_lift": {
+          "block_dates": 5,
+          "ci95_high": 0.002479509934785565,
+          "ci95_low": -0.010568199214840653,
+          "estimate": -0.0037550193404733154,
+          "samples": 2000
+        }
+      }
+    }
+  },
+  "decisions": {
+    "hgb:both_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": true
+    },
+    "hgb:full_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": false
+    },
+    "hgb:top10_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": false
+    },
+    "lr:both_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": false
+    },
+    "lr:full_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": false
+    },
+    "lr:top10_priors": {
+      "confirmation_strictly_improved": false,
+      "decision": "REJECT_NOT_CONFIRMED",
+      "development_all_directions_positive": false
+    }
+  },
+  "evaluations": {
+    "confirmation": {
+      "hgb:base": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.9448641797345595,
+          "dates": 178,
+          "maximum_drawdown": -0.9584115196967725,
+          "mean_daily_top2_net_return": -0.013992930159592125,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.3792134831460674
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2512953692772667,
+          "dates": 178,
+          "fill_brier": 0.07304887681704611,
+          "joint_brier": 0.23555324323520516,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6637770478168977,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.013992930159592125,
+          "mean_daily_top2_net_return_double_cost": -0.018328604317251435,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.012695176486195206,
+              "mean_selected_candidate_net_return_double_cost": -0.017044458783747454,
+              "selected_candidate_big_loss_rate": 0.42105263157894735,
+              "selected_candidate_fill_rate": 0.9665071770334929,
+              "selected_candidate_profit_rate": 0.3875598086124402,
+              "selected_candidates": 209
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.015838035722448966,
+              "mean_selected_candidate_net_return_double_cost": -0.020154362252641448,
+              "selected_candidate_big_loss_rate": 0.4897959183673469,
+              "selected_candidate_fill_rate": 0.9591836734693877,
+              "selected_candidate_profit_rate": 0.3673469387755102,
+              "selected_candidates": 147
+            }
+          },
+          "top2_slot_big_loss_rate": 0.449438202247191,
+          "top2_slot_fill_rate": 0.9634831460674157,
+          "top2_slot_profit_rate": 0.3792134831460674
+        }
+      },
+      "hgb:both_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8885991690442201,
+          "dates": 178,
+          "maximum_drawdown": -0.9190919916875271,
+          "mean_daily_top2_net_return": -0.009988843523292412,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.4157303370786517
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2506571971267842,
+          "dates": 178,
+          "fill_brier": 0.07198239151349604,
+          "joint_brier": 0.23547779588998594,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6639767679460181,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.00998884352329241,
+          "mean_daily_top2_net_return_double_cost": -0.014324517680199158,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.010649632520814087,
+              "mean_selected_candidate_net_return_double_cost": -0.015088268884875022,
+              "selected_candidate_big_loss_rate": 0.4318181818181818,
+              "selected_candidate_fill_rate": 0.9863636363636363,
+              "selected_candidate_profit_rate": 0.43636363636363634,
+              "selected_candidates": 220
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.008919920144948525,
+              "mean_selected_candidate_net_return_double_cost": -0.013089037790282324,
+              "selected_candidate_big_loss_rate": 0.4338235294117647,
+              "selected_candidate_fill_rate": 0.9264705882352942,
+              "selected_candidate_profit_rate": 0.38235294117647056,
+              "selected_candidates": 136
+            }
+          },
+          "top2_slot_big_loss_rate": 0.43258426966292135,
+          "top2_slot_fill_rate": 0.9634831460674157,
+          "top2_slot_profit_rate": 0.4157303370786517
+        }
+      },
+      "hgb:full_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.9024707357472577,
+          "dates": 178,
+          "maximum_drawdown": -0.9113446563810078,
+          "mean_daily_top2_net_return": -0.010832231262104211,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.40168539325842695
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24697235949290203,
+          "dates": 178,
+          "fill_brier": 0.07160768166431374,
+          "joint_brier": 0.2324667668952248,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6568796133373578,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.01083223126210421,
+          "mean_daily_top2_net_return_double_cost": -0.015180545868478215,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.010846926834925878,
+              "mean_selected_candidate_net_return_double_cost": -0.015223397423163873,
+              "selected_candidate_big_loss_rate": 0.4666666666666667,
+              "selected_candidate_fill_rate": 0.9725490196078431,
+              "selected_candidate_profit_rate": 0.40784313725490196,
+              "selected_candidates": 255
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.010795128578247519,
+              "mean_selected_candidate_net_return_double_cost": -0.01507235629971739,
+              "selected_candidate_big_loss_rate": 0.4752475247524752,
+              "selected_candidate_fill_rate": 0.9504950495049505,
+              "selected_candidate_profit_rate": 0.38613861386138615,
+              "selected_candidates": 101
+            }
+          },
+          "top2_slot_big_loss_rate": 0.4691011235955056,
+          "top2_slot_fill_rate": 0.9662921348314607,
+          "top2_slot_profit_rate": 0.40168539325842695
+        }
+      },
+      "hgb:top10_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.9102068986423346,
+          "dates": 178,
+          "maximum_drawdown": -0.9217113995862432,
+          "mean_daily_top2_net_return": -0.011341417724051117,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.398876404494382
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2525746150114742,
+          "dates": 178,
+          "fill_brier": 0.07207829098769422,
+          "joint_brier": 0.23695531905332357,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6673756104651783,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.011341417724051117,
+          "mean_daily_top2_net_return_double_cost": -0.01567709188157326,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.007749029606520972,
+              "mean_selected_candidate_net_return_double_cost": -0.012117322290434728,
+              "selected_candidate_big_loss_rate": 0.424390243902439,
+              "selected_candidate_fill_rate": 0.9707317073170731,
+              "selected_candidate_profit_rate": 0.4292682926829268,
+              "selected_candidates": 205
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.01621850092996953,
+              "mean_selected_candidate_net_return_double_cost": -0.020509891657622265,
+              "selected_candidate_big_loss_rate": 0.47019867549668876,
+              "selected_candidate_fill_rate": 0.9536423841059603,
+              "selected_candidate_profit_rate": 0.3576158940397351,
+              "selected_candidates": 151
+            }
+          },
+          "top2_slot_big_loss_rate": 0.4438202247191011,
+          "top2_slot_fill_rate": 0.9634831460674157,
+          "top2_slot_profit_rate": 0.398876404494382
+        }
+      },
+      "lr:base": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8776676524836413,
+          "dates": 178,
+          "maximum_drawdown": -0.9164898242821571,
+          "mean_daily_top2_net_return": -0.00947367658441348,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.40168539325842695
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24486530921389774,
+          "dates": 178,
+          "fill_brier": 0.07638106118319461,
+          "joint_brier": 0.231696843929183,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6551526967311226,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.009473676584413478,
+          "mean_daily_top2_net_return_double_cost": -0.013821991191228379,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.007171779673020189,
+              "mean_selected_candidate_net_return_double_cost": -0.011563606596202279,
+              "selected_candidate_big_loss_rate": 0.4519230769230769,
+              "selected_candidate_fill_rate": 0.9759615384615384,
+              "selected_candidate_profit_rate": 0.4182692307692308,
+              "selected_candidates": 208
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.012708774946371619,
+              "mean_selected_candidate_net_return_double_cost": -0.016995937108562356,
+              "selected_candidate_big_loss_rate": 0.4527027027027027,
+              "selected_candidate_fill_rate": 0.9527027027027027,
+              "selected_candidate_profit_rate": 0.3783783783783784,
+              "selected_candidates": 148
+            }
+          },
+          "top2_slot_big_loss_rate": 0.45224719101123595,
+          "top2_slot_fill_rate": 0.9662921348314607,
+          "top2_slot_profit_rate": 0.40168539325842695
+        }
+      },
+      "lr:both_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.7553407052754135,
+          "dates": 178,
+          "maximum_drawdown": -0.8425773577534648,
+          "mean_daily_top2_net_return": -0.005828590298146627,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.4157303370786517
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2520739832585453,
+          "dates": 178,
+          "fill_brier": 0.07882645348532105,
+          "joint_brier": 0.23575523195856152,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6655353665688306,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.005828590298146624,
+          "mean_daily_top2_net_return_double_cost": -0.010189545354488414,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.0024096919786675145,
+              "mean_selected_candidate_net_return_double_cost": -0.00677507659488409,
+              "selected_candidate_big_loss_rate": 0.44017094017094016,
+              "selected_candidate_fill_rate": 0.9700854700854701,
+              "selected_candidate_profit_rate": 0.44017094017094016,
+              "selected_candidates": 234
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.012386149369934424,
+              "mean_selected_candidate_net_return_double_cost": -0.016738608385204898,
+              "selected_candidate_big_loss_rate": 0.47540983606557374,
+              "selected_candidate_fill_rate": 0.9672131147540983,
+              "selected_candidate_profit_rate": 0.36885245901639346,
+              "selected_candidates": 122
+            }
+          },
+          "top2_slot_big_loss_rate": 0.45224719101123595,
+          "top2_slot_fill_rate": 0.9691011235955056,
+          "top2_slot_profit_rate": 0.4157303370786517
+        }
+      },
+      "lr:full_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.7919160425290371,
+          "dates": 178,
+          "maximum_drawdown": -0.8476379187510954,
+          "mean_daily_top2_net_return": -0.006574606687284264,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.41292134831460675
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2529030080528112,
+          "dates": 178,
+          "fill_brier": 0.08097056015593034,
+          "joint_brier": 0.24050227071011207,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6799819289533043,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.006574606687284265,
+          "mean_daily_top2_net_return_double_cost": -0.010935561743762399,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.0020981165149253373,
+              "mean_selected_candidate_net_return_double_cost": -0.006444006925816863,
+              "selected_candidate_big_loss_rate": 0.410958904109589,
+              "selected_candidate_fill_rate": 0.9657534246575342,
+              "selected_candidate_profit_rate": 0.4280821917808219,
+              "selected_candidates": 292
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.026998593098671867,
+              "mean_selected_candidate_net_return_double_cost": -0.031428280600638896,
+              "selected_candidate_big_loss_rate": 0.53125,
+              "selected_candidate_fill_rate": 0.984375,
+              "selected_candidate_profit_rate": 0.34375,
+              "selected_candidates": 64
+            }
+          },
+          "top2_slot_big_loss_rate": 0.43258426966292135,
+          "top2_slot_fill_rate": 0.9691011235955056,
+          "top2_slot_profit_rate": 0.41292134831460675
+        }
+      },
+      "lr:top10_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.841941416482298,
+          "dates": 178,
+          "maximum_drawdown": -0.9085067342128795,
+          "mean_daily_top2_net_return": -0.007945140386211233,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.4101123595505618
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24734391172182754,
+          "dates": 178,
+          "fill_brier": 0.07692243370739991,
+          "joint_brier": 0.23464060119047062,
+          "joint_event_rate": 0.36906377204884666,
+          "joint_log_loss": 0.6628514114118813,
+          "rows": 1474
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.00794514038621123,
+          "mean_daily_top2_net_return_double_cost": -0.0123313763414188,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.00748789310881785,
+              "mean_selected_candidate_net_return_double_cost": -0.011927625252091846,
+              "selected_candidate_big_loss_rate": 0.4732142857142857,
+              "selected_candidate_fill_rate": 0.9866071428571429,
+              "selected_candidate_profit_rate": 0.41517857142857145,
+              "selected_candidates": 224
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.008721075159969695,
+              "mean_selected_candidate_net_return_double_cost": -0.01301652970512515,
+              "selected_candidate_big_loss_rate": 0.44696969696969696,
+              "selected_candidate_fill_rate": 0.9545454545454546,
+              "selected_candidate_profit_rate": 0.4015151515151515,
+              "selected_candidates": 132
+            }
+          },
+          "top2_slot_big_loss_rate": 0.46348314606741575,
+          "top2_slot_fill_rate": 0.9747191011235955,
+          "top2_slot_profit_rate": 0.4101123595505618
+        }
+      }
+    },
+    "development": {
+      "hgb:base": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8968473087828497,
+          "dates": 178,
+          "maximum_drawdown": -0.9137480153127558,
+          "mean_daily_top2_net_return": -0.010663961254151115,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.3792134831460674
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2465598249989957,
+          "dates": 178,
+          "fill_brier": 0.105406983690237,
+          "joint_brier": 0.2237193908639772,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6403187580264197,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.010663961254151115,
+          "mean_daily_top2_net_return_double_cost": -0.014835309568356549,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.008889064878195754,
+              "mean_selected_candidate_net_return_double_cost": -0.013174779164029293,
+              "selected_candidate_big_loss_rate": 0.43915343915343913,
+              "selected_candidate_fill_rate": 0.9523809523809523,
+              "selected_candidate_profit_rate": 0.37037037037037035,
+              "selected_candidates": 189
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.012672676314364065,
+              "mean_selected_candidate_net_return_double_cost": -0.01671459248103829,
+              "selected_candidate_big_loss_rate": 0.39520958083832336,
+              "selected_candidate_fill_rate": 0.8982035928143712,
+              "selected_candidate_profit_rate": 0.38922155688622756,
+              "selected_candidates": 167
+            }
+          },
+          "top2_slot_big_loss_rate": 0.41853932584269665,
+          "top2_slot_fill_rate": 0.9269662921348315,
+          "top2_slot_profit_rate": 0.3792134831460674
+        }
+      },
+      "hgb:both_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8307619997366396,
+          "dates": 178,
+          "maximum_drawdown": -0.8859996407660471,
+          "mean_daily_top2_net_return": -0.007715024979294659,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.40168539325842695
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24373317633097055,
+          "dates": 178,
+          "fill_brier": 0.10468521125080728,
+          "joint_brier": 0.22125391048024504,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6340644376693558,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.007715024979294659,
+          "mean_daily_top2_net_return_double_cost": -0.011949575541010183,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.006163076298686744,
+              "mean_selected_candidate_net_return_double_cost": -0.010489999375399609,
+              "selected_candidate_big_loss_rate": 0.4358974358974359,
+              "selected_candidate_fill_rate": 0.9615384615384616,
+              "selected_candidate_profit_rate": 0.39316239316239315,
+              "selected_candidates": 234
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.01069171343226394,
+              "mean_selected_candidate_net_return_double_cost": -0.014749090481607514,
+              "selected_candidate_big_loss_rate": 0.3770491803278688,
+              "selected_candidate_fill_rate": 0.9016393442622951,
+              "selected_candidate_profit_rate": 0.4180327868852459,
+              "selected_candidates": 122
+            }
+          },
+          "top2_slot_big_loss_rate": 0.4157303370786517,
+          "top2_slot_fill_rate": 0.9410112359550562,
+          "top2_slot_profit_rate": 0.40168539325842695
+        }
+      },
+      "hgb:full_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.940068871592386,
+          "dates": 178,
+          "maximum_drawdown": -0.9430794798738011,
+          "mean_daily_top2_net_return": -0.013932920837784826,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.3848314606741573
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24442832926500918,
+          "dates": 178,
+          "fill_brier": 0.10417825765641044,
+          "joint_brier": 0.22191110817988166,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6353071227444286,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.013932920837784826,
+          "mean_daily_top2_net_return_double_cost": -0.018154830950038375,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.010359346299342407,
+              "mean_selected_candidate_net_return_double_cost": -0.01461827487088269,
+              "selected_candidate_big_loss_rate": 0.4330357142857143,
+              "selected_candidate_fill_rate": 0.9464285714285714,
+              "selected_candidate_profit_rate": 0.39285714285714285,
+              "selected_candidates": 224
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.019997168539384085,
+              "mean_selected_candidate_net_return_double_cost": -0.02415625944799953,
+              "selected_candidate_big_loss_rate": 0.4393939393939394,
+              "selected_candidate_fill_rate": 0.9242424242424242,
+              "selected_candidate_profit_rate": 0.3712121212121212,
+              "selected_candidates": 132
+            }
+          },
+          "top2_slot_big_loss_rate": 0.4353932584269663,
+          "top2_slot_fill_rate": 0.9382022471910112,
+          "top2_slot_profit_rate": 0.3848314606741573
+        }
+      },
+      "hgb:top10_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.9474104604248389,
+          "dates": 178,
+          "maximum_drawdown": -0.9514473034426876,
+          "mean_daily_top2_net_return": -0.014447557231442129,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.3707865168539326
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24606360456798812,
+          "dates": 178,
+          "fill_brier": 0.10523549018008614,
+          "joint_brier": 0.22370073876188587,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6398542968478692,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.014447557231442129,
+          "mean_daily_top2_net_return_double_cost": -0.01858098419817202,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.012467736104794867,
+              "mean_selected_candidate_net_return_double_cost": -0.01667927456702744,
+              "selected_candidate_big_loss_rate": 0.452991452991453,
+              "selected_candidate_fill_rate": 0.9358974358974359,
+              "selected_candidate_profit_rate": 0.3717948717948718,
+              "selected_candidates": 234
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.018244919064519666,
+              "mean_selected_candidate_net_return_double_cost": -0.022228525621842764,
+              "selected_candidate_big_loss_rate": 0.4344262295081967,
+              "selected_candidate_fill_rate": 0.8852459016393442,
+              "selected_candidate_profit_rate": 0.36885245901639346,
+              "selected_candidates": 122
+            }
+          },
+          "top2_slot_big_loss_rate": 0.44662921348314605,
+          "top2_slot_fill_rate": 0.9185393258426966,
+          "top2_slot_profit_rate": 0.3707865168539326
+        }
+      },
+      "lr:base": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.732545836179565,
+          "dates": 178,
+          "maximum_drawdown": -0.8009398987886015,
+          "mean_daily_top2_net_return": -0.005520940579939043,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.4410112359550562
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24287599491699954,
+          "dates": 178,
+          "fill_brier": 0.109104944937774,
+          "joint_brier": 0.2232519956273504,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6409670662509436,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.005520940579939044,
+          "mean_daily_top2_net_return_double_cost": -0.009806052938633725,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.00658639015377861,
+              "mean_selected_candidate_net_return_double_cost": -0.01095206179489939,
+              "selected_candidate_big_loss_rate": 0.40298507462686567,
+              "selected_candidate_fill_rate": 0.9701492537313433,
+              "selected_candidate_profit_rate": 0.4427860696517413,
+              "selected_candidates": 201
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.004139293068056769,
+              "mean_selected_candidate_net_return_double_cost": -0.008319938228250511,
+              "selected_candidate_big_loss_rate": 0.36774193548387096,
+              "selected_candidate_fill_rate": 0.9290322580645162,
+              "selected_candidate_profit_rate": 0.43870967741935485,
+              "selected_candidates": 155
+            }
+          },
+          "top2_slot_big_loss_rate": 0.38764044943820225,
+          "top2_slot_fill_rate": 0.952247191011236,
+          "top2_slot_profit_rate": 0.4410112359550562
+        }
+      },
+      "lr:both_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.9346192905522087,
+          "dates": 178,
+          "maximum_drawdown": -0.934824454827571,
+          "mean_daily_top2_net_return": -0.01325052411759606,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.3792134831460674
+        },
+        "probability": {
+          "conditional_profit_brier": 0.2668700828585011,
+          "dates": 178,
+          "fill_brier": 0.11457712867060532,
+          "joint_brier": 0.24160278085066897,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.7143017941929218,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.01325052411759606,
+          "mean_daily_top2_net_return_double_cost": -0.01752299602682741,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.015732274630174993,
+              "mean_selected_candidate_net_return_double_cost": -0.020039840418395273,
+              "selected_candidate_big_loss_rate": 0.47039473684210525,
+              "selected_candidate_fill_rate": 0.9572368421052632,
+              "selected_candidate_profit_rate": 0.375,
+              "selected_candidates": 304
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": 0.0012581711867115464,
+              "mean_selected_candidate_net_return_double_cost": -0.0028091365068922125,
+              "selected_candidate_big_loss_rate": 0.34615384615384615,
+              "selected_candidate_fill_rate": 0.9038461538461539,
+              "selected_candidate_profit_rate": 0.40384615384615385,
+              "selected_candidates": 52
+            }
+          },
+          "top2_slot_big_loss_rate": 0.45224719101123595,
+          "top2_slot_fill_rate": 0.949438202247191,
+          "top2_slot_profit_rate": 0.3792134831460674
+        }
+      },
+      "lr:full_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8059168496350197,
+          "dates": 178,
+          "maximum_drawdown": -0.8110822429943512,
+          "mean_daily_top2_net_return": -0.007162761640932583,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.4101123595505618
+        },
+        "probability": {
+          "conditional_profit_brier": 0.25882899586621144,
+          "dates": 178,
+          "fill_brier": 0.11458453150261867,
+          "joint_brier": 0.23630260110169782,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6886209229713404,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.007162761640932583,
+          "mean_daily_top2_net_return_double_cost": -0.011384671752731808,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.009435135144492122,
+              "mean_selected_candidate_net_return_double_cost": -0.0137039707598615,
+              "selected_candidate_big_loss_rate": 0.4041095890410959,
+              "selected_candidate_fill_rate": 0.9486301369863014,
+              "selected_candidate_profit_rate": 0.4075342465753425,
+              "selected_candidates": 292
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": 0.003204942469057813,
+              "mean_selected_candidate_net_return_double_cost": -0.0008028700327025961,
+              "selected_candidate_big_loss_rate": 0.328125,
+              "selected_candidate_fill_rate": 0.890625,
+              "selected_candidate_profit_rate": 0.421875,
+              "selected_candidates": 64
+            }
+          },
+          "top2_slot_big_loss_rate": 0.3904494382022472,
+          "top2_slot_fill_rate": 0.9382022471910112,
+          "top2_slot_profit_rate": 0.4101123595505618
+        }
+      },
+      "lr:top10_priors": {
+        "policy": {
+          "cash_slots": 0,
+          "compounded_top2_net_return": -0.8661142937127336,
+          "dates": 178,
+          "maximum_drawdown": -0.8841420166707133,
+          "mean_daily_top2_net_return": -0.009275959920412358,
+          "selected_candidates": 356,
+          "top2_slot_profit_rate": 0.41853932584269665
+        },
+        "probability": {
+          "conditional_profit_brier": 0.24982062943509104,
+          "dates": 178,
+          "fill_brier": 0.11146097815076006,
+          "joint_brier": 0.227894929834311,
+          "joint_event_rate": 0.334841628959276,
+          "joint_log_loss": 0.6569085586717005,
+          "rows": 1547
+        },
+        "risk_cost_diagnostics": {
+          "cash_slots": 0,
+          "dates": 178,
+          "fixed_slots": 356,
+          "mean_daily_top2_net_return_base_cost": -0.00927595992041236,
+          "mean_daily_top2_net_return_double_cost": -0.01351051048194208,
+          "selected_candidates": 356,
+          "stage_breakdown_selected_candidates": {
+            "2_to_3": {
+              "mean_selected_candidate_net_return_base_cost": -0.009308793833559275,
+              "mean_selected_candidate_net_return_double_cost": -0.013591051896947941,
+              "selected_candidate_big_loss_rate": 0.40725806451612906,
+              "selected_candidate_fill_rate": 0.9516129032258065,
+              "selected_candidate_profit_rate": 0.4314516129032258,
+              "selected_candidates": 248
+            },
+            "3_to_4": {
+              "mean_selected_candidate_net_return_base_cost": -0.009200563527260178,
+              "mean_selected_candidate_net_return_double_cost": -0.013325563528965655,
+              "selected_candidate_big_loss_rate": 0.42592592592592593,
+              "selected_candidate_fill_rate": 0.9166666666666666,
+              "selected_candidate_profit_rate": 0.3888888888888889,
+              "selected_candidates": 108
+            }
+          },
+          "top2_slot_big_loss_rate": 0.41292134831460675,
+          "top2_slot_fill_rate": 0.9410112359550562,
+          "top2_slot_profit_rate": 0.41853932584269665
+        }
+      }
+    }
+  },
+  "forward_release_evidence_available": false,
+  "independent_untouched_confirmation_available": false,
+  "joint_probability_identity_enforced": true,
+  "model_contract": {
+    "bootstrap": {
+      "block_dates": 5,
+      "samples": 2000,
+      "unit": "signal_date"
+    },
+    "fixed_top2_slots": 2,
+    "kinds": [
+      "lr",
+      "hgb"
+    ],
+    "missing_candidate_slot_return": 0.0,
+    "no_post_outcome_replacement": true,
+    "same_common_mature_date_panel_for_all_variants": true,
+    "two_independent_components": [
+      "fill",
+      "profit_given_fill"
+    ]
+  },
+  "objective": "P(fill proxy) * P(net profit after cost > 0 | fill proxy)",
+  "official_trade_action_allowed": false,
+  "predictions": {
+    "path": "outputs/benchmark_predictions.csv.gz",
+    "rows": 24432,
+    "sha256": "9ff2b3558ef4138b5de4015e9fe70cae9b8c2d7aa1eeeb71c1650be705c810f1"
+  },
+  "provenance": {
+    "base_feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+    "ledger_sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd",
+    "prior_manifest_sha256": "5b37660b299a1c6eb5c2a0aabd13f4395a269b738dc0032772d30b29b76ecfc0",
+    "variant_feature_columns_sha256": {
+      "base": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+      "both_priors": "971b9cc38010eac1a2ee4b626d702f181a7fb20393f6f1f683a126aa9da99ea5",
+      "full_priors": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "top10_priors": "59edf37b1c3ee07e08a2b1c4147b2bbbc4d97dac9f6e973f5648e560c3e55145"
+    },
+    "variant_feature_counts": {
+      "base": 48,
+      "both_priors": 264,
+      "full_priors": 156,
+      "top10_priors": 156
+    }
+  },
+  "retrospective_confirmation_window_has_been_viewed": true,
+  "retrospective_declared_primary": "lr:full_priors",
+  "runtime_dependency_on_recovery": false,
+  "runtime_dependency_on_top10_decision": false,
+  "schema_version": "dc20_executable_profit_lagged_prior_benchmark_v1",
+  "secondary_sensitivity": "hgb:full_priors",
+  "splits": {
+    "confirmation": {
+      "calendar_dates": 180,
+      "complete_common_panel_dates": 178,
+      "end": "20260814",
+      "evidence_role": "retrospective_exploration_only_not_forward_confirmation",
+      "start": "20251119",
+      "training_label_rule": "scheduled_exit_date < 20251119"
+    },
+    "development": {
+      "calendar_dates": 180,
+      "complete_common_panel_dates": 178,
+      "end": "20251118",
+      "start": "20250225",
+      "training_label_rule": "scheduled_exit_date < 20250225"
+    }
+  },
+  "status": "RESEARCH_ONLY_NO_RELEASE",
+  "training_audits": {
+    "confirmation": {
+      "hgb:base": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "hgb:both_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "hgb:full_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "hgb:top10_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "lr:base": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "lr:both_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "lr:full_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      },
+      "lr:top10_priors": {
+        "conditional_profit_rows": 4433,
+        "cutoff_exclusive": "20251119",
+        "fill_rows": 5244,
+        "maximum_used_scheduled_exit_date": "20251118"
+      }
+    },
+    "development": {
+      "hgb:base": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "hgb:both_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "hgb:full_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "hgb:top10_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "lr:base": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "lr:both_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "lr:full_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      },
+      "lr:top10_priors": {
+        "conditional_profit_rows": 3097,
+        "cutoff_exclusive": "20250225",
+        "fill_rows": 3678,
+        "maximum_used_scheduled_exit_date": "20250224"
+      }
+    }
+  }
+}

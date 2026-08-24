@@ -1,0 +1,77 @@
+{
+  "schema_version": "dc20_executable_profit_shadow_v2_research_artifact_index_v1",
+  "status": "NOT_READY",
+  "scope": "research_only",
+  "front_end_allowed": false,
+  "official_trade_action_allowed": false,
+  "promotion_model_touched": false,
+  "last_180_dates": {
+    "have_been_viewed": true,
+    "independent_untouched_confirmation_set": false,
+    "role": "retrospective evaluation/exploration only",
+    "forward_release_evidence": false
+  },
+  "inputs": {
+    "ledger_sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd",
+    "frozen_oof_sha256": "c768cb0eb019fba6be7ca41284841006195dd54bf4d641f426d2fbbf513a4ebd",
+    "sse_calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+    "feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425"
+  },
+  "artifacts": {
+    "research_runner": {
+      "path": "prototype_v2.py",
+      "sha256": "d9c14a1e94d46ce7771562bf3feedcf6579286aafbbdea26e2fb6ba673a59682"
+    },
+    "contract_tests": {
+      "path": "tests/test_prototype_v2.py",
+      "sha256": "9423aa23d5d3d702e5001f55cacd61deb065b3559bc33d24cfe2509507bdd41c"
+    },
+    "lr_validation_report": {
+      "path": "outputs-lr/validation_report.json",
+      "sha256": "168f9c8629d1c88f2645bd9130bdb1d9bdc130279dbc67772d4d6491e86764d9"
+    },
+    "lr_oof": {
+      "path": "outputs-lr/oof_lr_distribution.csv.gz",
+      "sha256": "62cb3aa79acdd28bd83f7a731f05610d1a3dbc2f960aa699d84aaf93cab84ae7",
+      "rows": 4996,
+      "dates": 610
+    },
+    "hgb_validation_report": {
+      "path": "outputs-hgb/validation_report.json",
+      "sha256": "8abd8b7605fbdc4d60e5f9cf843f48d276e20f67d49c5bcce1c455d5d988ac04"
+    },
+    "hgb_oof": {
+      "path": "outputs-hgb/oof_hgb_distribution.csv.gz",
+      "sha256": "593f24d245a2ee87ddf43bbe330512474c263bb3bffbcea0a1e9eb6b7e50ebc8",
+      "rows": 4996,
+      "dates": 610
+    }
+  },
+  "tests": {
+    "command": ".venv/bin/python -m pytest -q work/executable-profit-model-v2-20260824/tests/test_prototype_v2.py",
+    "passed": 8,
+    "failed": 0
+  },
+  "candidates": {
+    "lr_distribution": {
+      "prototype_checks_satisfied": 10,
+      "prototype_checks_total": 23,
+      "prototype_check_count_is_completion_percentage": false,
+      "retrospective_top2_mean_return": -0.009705143748623591,
+      "retrospective_return_lift_vs_pfill": -0.00009371106028342828
+    },
+    "hgb_distribution": {
+      "prototype_checks_satisfied": 10,
+      "prototype_checks_total": 23,
+      "prototype_check_count_is_completion_percentage": false,
+      "retrospective_top2_mean_return": -0.008466006633302523,
+      "retrospective_return_lift_vs_pfill": 0.001145426055037638
+    }
+  },
+  "release_blockers": [
+    "historical probability and return gates failed",
+    "no append-only forward shadow evidence",
+    "no actual order fill observations",
+    "no blocked-limit-down exit truth"
+  ]
+}
