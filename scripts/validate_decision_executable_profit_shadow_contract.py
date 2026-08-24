@@ -1,0 +1,388 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+from pathlib import Path
+from typing import Any, Mapping
+
+
+DEFAULT_CONTRACT_PATH = Path(
+    "models/decision_executable_profit_shadow_contract.json"
+)
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+class ExecutableProfitShadowContractError(ValueError):
+    """Raised when the frozen shadow design is inconsistent with DC20 truth."""
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ExecutableProfitShadowContractError(
+            f"cannot load contract dependency {path}: {exc}"
+        ) from exc
+    if not isinstance(value, dict):
+        raise ExecutableProfitShadowContractError(f"{path} must contain an object")
+    return value
+
+
+def _expect(condition: bool, message: str) -> None:
+    if not condition:
+        raise ExecutableProfitShadowContractError(message)
+
+
+def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+    _expect(isinstance(value, Mapping), f"{label} must be an object")
+    return value
+
+
+def validate_payloads(
+    *,
+    contract: Mapping[str, Any],
+    freeze: Mapping[str, Any],
+    validation: Mapping[str, Any],
+    ledger_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    _expect(
+        contract.get("schema_version")
+        == "dc20_executable_profit_shadow_contract_v1",
+        "unexpected executable-profit shadow schema",
+    )
+    _expect(
+        contract.get("status") == "FROZEN_DESIGN_IMPLEMENTATION_PENDING",
+        "the first-step contract must not claim implementation or release",
+    )
+
+    authority = _mapping(contract.get("authority"), "authority")
+    _expect(authority.get("repository") == "njedu2023-prog/DC20", "wrong owner")
+    _expect(authority.get("branch") == "main", "wrong branch")
+    _expect(
+        GIT_SHA_RE.fullmatch(str(authority.get("reviewed_base_commit_sha", "")))
+        is not None,
+        "reviewed base commit must be a full Git SHA",
+    )
+    _expect(
+        authority.get("runtime_dependency_on_top10_decision") is False,
+        "DC20 must remain runtime-independent from top10-decision",
+    )
+
+    current = _mapping(contract.get("current_state"), "current_state")
+    _expect(
+        current.get("promotion_engine") == "READY_FROZEN_UNCHANGED",
+        "promotion state must remain frozen",
+    )
+    _expect(
+        current.get("executable_profit_engine") == "NOT_IMPLEMENTED",
+        "the contract cannot imply a model already exists",
+    )
+    _expect(
+        current.get("executable_profit_forward_ledger") == "NOT_STARTED",
+        "the contract cannot imply a forward ledger already exists",
+    )
+    _expect(
+        current.get("official_trade_action_allowed") is False,
+        "shadow design must not authorize a trade",
+    )
+
+    promotion = _mapping(contract.get("promotion_freeze"), "promotion_freeze")
+    _expect(promotion.get("immutable") is True, "promotion must be immutable")
+    _expect(promotion.get("top_n") == 10, "promotion Top10 scope drifted")
+    _expect(
+        promotion.get("membership_authority")
+        == "promotion_probability_engine_only",
+        "promotion must remain the sole membership authority",
+    )
+    feature_policy = _mapping(
+        promotion.get("downstream_model_feature_policy"),
+        "promotion downstream feature policy",
+    )
+    _expect(
+        feature_policy.get("promotion_rank_allowed_as_model_feature") is False
+        and feature_policy.get("promotion_probability_allowed_as_model_feature")
+        is False
+        and feature_policy.get("promotion_membership_allowed_as_scope_filter") is True,
+        "the downstream engine must only consume frozen membership from promotion",
+    )
+    identity = _mapping(contract.get("promotion_identity"), "promotion_identity")
+    identity_bytes = json.dumps(
+        identity,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    identity_sha256 = hashlib.sha256(identity_bytes).hexdigest()
+    _expect(
+        contract.get("promotion_contract_sha256") == identity_sha256,
+        "promotion_contract_sha256 does not bind the canonical identity",
+    )
+    _expect(
+        identity.get("freeze_id") == promotion.get("freeze_id"),
+        "promotion identity freeze_id drifted",
+    )
+
+    frozen_three_rank = _mapping(
+        _mapping(freeze.get("production"), "freeze.production").get("three_rank"),
+        "freeze.production.three_rank",
+    )
+    _expect(
+        freeze.get("freeze_id") == promotion.get("freeze_id"),
+        "promotion freeze_id no longer matches",
+    )
+    _expect(
+        freeze.get("training_cutoff_signal_date")
+        == promotion.get("training_cutoff_signal_date"),
+        "promotion training cutoff no longer matches",
+    )
+    _expect(
+        frozen_three_rank.get("membership_authority")
+        == promotion.get("membership_authority"),
+        "membership authority no longer matches the production freeze",
+    )
+    _expect(
+        frozen_three_rank.get("top_n") == promotion.get("top_n"),
+        "Top10 size no longer matches the production freeze",
+    )
+    identity_features = _mapping(identity.get("features"), "promotion identity features")
+    _expect(
+        identity_features.get("feature_columns_sha256")
+        == frozen_three_rank.get("feature_columns_sha256")
+        and identity_features.get("runtime_feature_columns_sha256")
+        == frozen_three_rank.get("runtime_feature_columns_sha256")
+        and identity_features.get("runtime_feature_contract_version")
+        == frozen_three_rank.get("runtime_feature_contract_version"),
+        "promotion feature identity drifted",
+    )
+    identity_ledger = _mapping(
+        identity.get("source_ledger"), "promotion identity source ledger"
+    )
+    frozen_ledger = _mapping(
+        frozen_three_rank.get("source_ledger"), "frozen source ledger"
+    )
+    _expect(
+        identity_ledger.get("path") == frozen_ledger.get("ledger_path")
+        and identity_ledger.get("sha256") == frozen_ledger.get("ledger_sha256")
+        and identity_ledger.get("manifest_path")
+        == frozen_ledger.get("ledger_manifest_path")
+        and identity_ledger.get("manifest_sha256")
+        == frozen_ledger.get("ledger_manifest_sha256")
+        and identity_ledger.get("data_validation_path")
+        == frozen_ledger.get("data_validation_path")
+        and identity_ledger.get("data_validation_sha256")
+        == frozen_ledger.get("data_validation_sha256"),
+        "promotion source-ledger identity drifted",
+    )
+
+    contract_model = _mapping(promotion.get("model"), "promotion model")
+    frozen_model = _mapping(
+        _mapping(frozen_three_rank.get("heads"), "frozen heads").get("promotion"),
+        "frozen promotion head",
+    )
+    validation_model = _mapping(
+        _mapping(validation.get("heads"), "validation heads").get("promotion"),
+        "validated promotion head",
+    )
+    for field in (
+        "status",
+        "model_version",
+        "model_as_of_date",
+        "artifact_path",
+        "artifact_sha256",
+    ):
+        _expect(
+            frozen_model.get(field) == contract_model.get(field),
+            f"frozen promotion {field} drifted",
+        )
+    _expect(validation_model.get("status") == "READY", "promotion is no longer READY")
+    artifact = _mapping(
+        _mapping(validation.get("artifacts"), "validation artifacts").get(
+            "promotion"
+        ),
+        "validation promotion artifact",
+    )
+    _expect(
+        artifact.get("path") == contract_model.get("artifact_path")
+        and artifact.get("sha256") == contract_model.get("artifact_sha256")
+        and SHA256_RE.fullmatch(str(artifact.get("sha256", ""))) is not None,
+        "promotion artifact no longer matches the frozen contract",
+    )
+    identity_validation = _mapping(
+        identity.get("validation"), "promotion identity validation"
+    )
+    frozen_validation = _mapping(
+        frozen_three_rank.get("validation"), "frozen validation"
+    )
+    _expect(
+        identity_validation.get("path") == frozen_validation.get("path")
+        and identity_validation.get("sha256") == frozen_validation.get("sha256")
+        and identity_validation.get("schema_version")
+        == frozen_validation.get("schema_version")
+        and identity_validation.get("promotion_status") == "READY",
+        "promotion validation identity drifted",
+    )
+    identity_oof = _mapping(identity.get("oof_top10"), "promotion identity OOF")
+    frozen_oof = _mapping(frozen_three_rank.get("oof_top10"), "frozen OOF")
+    _expect(
+        all(identity_oof.get(field) == frozen_oof.get(field) for field in (
+            "path", "sha256", "rows", "dates"
+        )),
+        "promotion OOF identity drifted",
+    )
+    code_pins = _mapping(
+        identity.get("code_and_runtime_pins"), "promotion code pins"
+    )
+    freeze_pins = _mapping(freeze.get("pinned_files"), "freeze pinned_files")
+    _expect(
+        all(freeze_pins.get(path) == sha for path, sha in code_pins.items()),
+        "promotion code or runtime pin drifted",
+    )
+
+    timing = _mapping(contract.get("information_timing"), "information_timing")
+    calendar = _mapping(timing.get("calendar"), "contract calendar")
+    source = _mapping(ledger_manifest.get("source"), "ledger source")
+    ledger_calendar = _mapping(source.get("calendar"), "ledger calendar")
+    _expect(
+        source.get("date_binding_rule") == calendar.get("date_binding_rule"),
+        "strict D/T/T+1 binding drifted",
+    )
+    _expect(
+        ledger_calendar.get("strict") is True
+        and ledger_calendar.get("exchange") == calendar.get("exchange")
+        and ledger_calendar.get("path") == calendar.get("path")
+        and ledger_calendar.get("sha256") == calendar.get("sha256")
+        and ledger_calendar.get("source") == calendar.get("source"),
+        "strict SSE calendar no longer matches",
+    )
+    t_timing = _mapping(timing.get("T"), "T timing")
+    _expect(
+        t_timing.get("decision_deadline") == "T 09:24:50 Asia/Shanghai"
+        and t_timing.get("post_092450_data_role")
+        == "outcome truth only; never a ranking feature"
+        and t_timing.get("actual_order_fill_observed") is False
+        and t_timing.get("actual_execution_claimed") is False,
+        "T shadow order timing or truth boundary drifted",
+    )
+
+    outcome = _mapping(
+        contract.get("outcome_and_cost_contract"), "outcome_and_cost_contract"
+    )
+    target = _mapping(ledger_manifest.get("target_contract"), "ledger target")
+    _expect(
+        target.get("return_window") == "T open proxy to T+1 open",
+        "training proxy window drifted",
+    )
+    _expect(
+        outcome.get("cost_contract_version") == "dc20_shadow_cost_v1_45bp",
+        "shadow cost version drifted",
+    )
+    _expect(
+        target.get("round_trip_cost_rate") == outcome.get("round_trip_cost_rate")
+        and outcome.get("round_trip_cost_bps")
+        == outcome.get("round_trip_cost_rate") * 10000,
+        "round-trip cost contract drifted",
+    )
+    _expect(
+        target.get("big_loss_threshold") == outcome.get("big_loss_threshold"),
+        "big-loss threshold drifted",
+    )
+    _expect(
+        target.get("nonfill_return_targets") == "null"
+        and outcome.get("nonfill_conditional_return") is None
+        and outcome.get("nonfill_strategy_slot_return") == 0.0,
+        "nonfill must be null conditionally and zero only in strategy accounting",
+    )
+
+    ranking = _mapping(contract.get("ranking_contract"), "ranking_contract")
+    _expect(ranking.get("shadow_slots") == 2, "shadow selection must be Top2")
+    _expect(
+        ranking.get("candidate_scope") == "exact frozen promotion Top10 only",
+        "executable-profit ranking escaped the frozen Top10",
+    )
+    _expect(
+        ranking.get("always_record_top2_when_two_valid_scores_exist") is True
+        and ranking.get("eligibility_is_separate_from_rank") is True
+        and ranking.get("outcome_known_replacement_allowed") is False
+        and ranking.get("may_create_formal_buy_action") is False,
+        "shadow Top2 selection or eligibility contract drifted",
+    )
+
+    separation = _mapping(contract.get("ledger_separation"), "ledger_separation")
+    _expect(
+        separation.get("existing_p_fill_shadow_top2_ledger")
+        == "SEPARATE_DIAGNOSTIC_NOT_EXECUTABLE_PROFIT_LEDGER",
+        "P_fill and executable-profit ledgers must remain separate",
+    )
+    for field in (
+        "historical_and_forward_statistics_may_be_merged",
+        "p_fill_and_executable_profit_statistics_may_be_merged",
+        "final_model_historical_rescoring_allowed",
+        "post_outcome_reranking_allowed",
+        "filter_to_filled_before_rank_evaluation_allowed",
+    ):
+        _expect(separation.get(field) is False, f"unsafe ledger rule: {field}")
+
+    statistics = _mapping(
+        contract.get("cumulative_statistics"), "cumulative_statistics"
+    )
+    _expect(
+        statistics.get("confidence_resampling_unit") == "signal_date_not_stock_row",
+        "Top2 rows from the same D date cannot be treated as independent samples",
+    )
+    _expect(
+        statistics.get("required_same_date_baselines")
+        == [
+            "frozen_promotion_rank_top2",
+            "frozen_promotion_top10_equal_weight",
+        ],
+        "same-date value baselines drifted",
+    )
+
+    return {
+        "valid": True,
+        "contract_id": contract.get("contract_id"),
+        "status": contract.get("status"),
+        "promotion_freeze_id": promotion.get("freeze_id"),
+        "promotion_artifact_sha256": contract_model.get("artifact_sha256"),
+        "promotion_contract_sha256": identity_sha256,
+        "shadow_slots": ranking.get("shadow_slots"),
+        "official_trade_action_allowed": False,
+    }
+
+
+def validate_contract(repo_root: Path, contract_path: Path = DEFAULT_CONTRACT_PATH) -> dict[str, Any]:
+    root = repo_root.resolve()
+    contract = _load_json(root / contract_path)
+    return validate_payloads(
+        contract=contract,
+        freeze=_load_json(root / "models/decision_model_freeze.json"),
+        validation=_load_json(
+            root / "models/decision_three_engines/validation_latest.json"
+        ),
+        ledger_manifest=_load_json(
+            root / "data/decision_three_engines/five_year_ledger_manifest.json"
+        ),
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate the frozen DC20 executable-profit Shadow Top2 design."
+    )
+    parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--contract", type=Path, default=DEFAULT_CONTRACT_PATH)
+    args = parser.parse_args()
+    try:
+        result = validate_contract(args.repo_root, args.contract)
+    except ExecutableProfitShadowContractError as exc:
+        print(json.dumps({"valid": False, "error": str(exc)}, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

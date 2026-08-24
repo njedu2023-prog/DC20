@@ -1,0 +1,279 @@
+{
+  "schema_version": "dc20_executable_profit_shadow_contract_v1",
+  "contract_id": "dc20_executable_profit_shadow_top2_v1",
+  "status": "FROZEN_DESIGN_IMPLEMENTATION_PENDING",
+  "created_at_utc": "2026-08-24T06:42:52Z",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "reviewed_base_commit_sha": "af3014fec12407bffe887e1691f936e5fbe2fe17",
+    "runtime_dependency_on_top10_decision": false
+  },
+  "current_state": {
+    "promotion_engine": "READY_FROZEN_UNCHANGED",
+    "executable_profit_engine": "NOT_IMPLEMENTED",
+    "executable_profit_forward_ledger": "NOT_STARTED",
+    "official_trade_action_allowed": false,
+    "notes": "This contract freezes the next implementation boundary. It does not claim that an executable-profit model, ranking, forward record, order fill, or trading result already exists."
+  },
+  "promotion_freeze": {
+    "immutable": true,
+    "authority_path": "models/decision_model_freeze.json",
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "membership_authority": "promotion_probability_engine_only",
+    "eligible_pool": "hard_stage_2_to_3_and_3_to_4_pool",
+    "top_n": 10,
+    "model": {
+      "status": "READY",
+      "model_version": "decision_three_engine_models_v2:promotion:20260709:hgb:platt",
+      "model_as_of_date": "20260709",
+      "artifact_path": "models/decision_three_engines/promotion.joblib",
+      "artifact_sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c"
+    },
+    "forbidden_downstream_effects": [
+      "change_promotion_membership",
+      "change_promotion_rank",
+      "change_promotion_probability",
+      "overwrite_promotion_model_artifact",
+      "feed_shadow_outcome_back_into_same_day_promotion"
+    ],
+    "downstream_model_feature_policy": {
+      "promotion_rank_allowed_as_model_feature": false,
+      "promotion_probability_allowed_as_model_feature": false,
+      "promotion_membership_allowed_as_scope_filter": true,
+      "promotion_rank_allowed_as_reporting_baseline_only": true
+    },
+    "maintenance_policy": {
+      "runtime_data_and_drift_monitoring_required": true,
+      "missing_or_invalid_input": "FAIL_CLOSED_EMPTY_TOP10",
+      "future_upgrade": "SEPARATE_CHALLENGER_ARTIFACT_ONLY"
+    }
+  },
+  "promotion_identity": {
+    "schema_version": "dc20_promotion_frozen_identity_v1",
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "model": {
+      "model_version": "decision_three_engine_models_v2:promotion:20260709:hgb:platt",
+      "model_as_of_date": "20260709",
+      "artifact_path": "models/decision_three_engines/promotion.joblib",
+      "artifact_sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c"
+    },
+    "validation": {
+      "path": "models/decision_three_engines/validation_latest.json",
+      "sha256": "de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73",
+      "schema_version": "decision_three_engine_validation_v2",
+      "promotion_status": "READY"
+    },
+    "source_ledger": {
+      "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+      "manifest_path": "data/decision_three_engines/five_year_ledger_manifest.json",
+      "manifest_sha256": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034",
+      "data_validation_path": "models/decision_three_engine_data_validation.json",
+      "data_validation_sha256": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02"
+    },
+    "features": {
+      "feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425",
+      "runtime_feature_columns_sha256": "ed2372de9a0224a28f9f6738773ea75288b14553f19fa538cce30d062f914131",
+      "runtime_feature_contract_version": "dc20_daily_candidate_d_close_v1",
+      "known_at_rule": "D_CLOSE_RUNTIME_ALIGNED_NO_CROSS_HEAD_OUTPUTS_V2"
+    },
+    "oof_top10": {
+      "path": "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+      "sha256": "c768cb0eb019fba6be7ca41284841006195dd54bf4d641f426d2fbbf513a4ebd",
+      "rows": 6753,
+      "dates": 910
+    },
+    "calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+      "source": "tushare:trade_cal:SSE",
+      "strict": true
+    },
+    "code_and_runtime_pins": {
+      "src/top10decision/decision/three_engine_models.py": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34",
+      "src/top10decision/decision/eligibility.py": "31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7",
+      "scripts/train_three_engine_models.py": "b97a02ff4e0dae7cba814358cb9128937419d7058d2eba1c2927d4c0f079f6d8",
+      "requirements.lock": "612ef31ce0996b739b319683b06878200604e04e8f915f32a946285044ff132c"
+    },
+    "candidate_and_sort_contract": {
+      "eligible_pool": "hard_stage_2_to_3_and_3_to_4_pool",
+      "authoritative_pool_hash_rule": "canonical ordered full-D hard-pool identities (signal_date, ts_code, stage_transition) before Top10 selection",
+      "missing_or_extra_candidate_policy": "FAIL_CLOSED_EMPTY_TOP10",
+      "top_n": 10,
+      "membership_authority": "promotion_probability_engine_only",
+      "sort": [
+        "descending calibrated promotion probability",
+        "descending raw promotion score",
+        "ascending ts_code"
+      ],
+      "active_golden_vector_status": "REQUIRED_BEFORE_FUSION_ENGINE_IMPLEMENTATION"
+    }
+  },
+  "promotion_contract_sha256": "8bd0223cd4a80585c9f3eb63977e33d6d8b9fe0dc14ca95429bf6db8decd7f71",
+  "information_timing": {
+    "timezone": "Asia/Shanghai",
+    "calendar": {
+      "exchange": "SSE",
+      "strict": true,
+      "date_binding_rule": "D/T/T+1 are adjacent strict SSE open sessions",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+      "source": "tushare:trade_cal:SSE"
+    },
+    "D": {
+      "feature_cutoff": "D exchange close",
+      "allowed_information": "information known no later than D close",
+      "ranking_freeze_rule": "freeze after the upstream promotion Top10 is materialized and before T opens",
+      "operational_schedule_target": "D 21:15 Asia/Shanghai",
+      "late_run_rule": "a late workflow may only reproduce the same D-close snapshot and must never consume T information"
+    },
+    "T": {
+      "order_type": "SHADOW_LIMIT_BUY_NO_REAL_ORDER",
+      "hypothetical_submission_window": "T 09:20:00 through 09:24:50 Asia/Shanghai",
+      "decision_deadline": "T 09:24:50 Asia/Shanghai",
+      "post_092450_data_role": "outcome truth only; never a ranking feature",
+      "limit_price_rule": "D-frozen formal safe cap when present, otherwise D-frozen observation cap; cap below the exchange-rounded up-limit by one tick",
+      "shadow_entry_truth": "T opening-auction clearing/open price when it is at or below the frozen limit and all proxy gates pass",
+      "historical_market_fill_proxy": "T bar exists and is not a one-price 10% limit-up",
+      "forward_public_market_buyable_proxy": "valid opening truth; opening price at or below the D-frozen limit; not a one-price limit-up; no auction/open conflict; 100000 CNY notional is no more than 1% of auction amount",
+      "unknown_proxy_input_policy": "PENDING_NOT_FILLED_NOT_DROPPED",
+      "actual_order_fill_observed": false,
+      "actual_execution_claimed": false,
+      "shadow_notional_cny": 100000.0,
+      "maximum_auction_participation": 0.01,
+      "capacity_fields_are_release_gates_not_current_truth": true
+    },
+    "T_plus_1": {
+      "research_proxy_exit": "T+1 public-market/exchange 09:30 open price proxy",
+      "exit_policy_version": "tplus1_open_0930_v1",
+      "latest_exit_time": "09:30",
+      "one_price_limit_down_rule": "do not delete; mark blocked and keep settlement pending until a predefined executable exit is observed",
+      "actual_execution_claimed": false
+    }
+  },
+  "ranking_contract": {
+    "candidate_scope": "exact frozen promotion Top10 only",
+    "hard_stage_scope": [
+      "2→3",
+      "3→4"
+    ],
+    "output_field": "executable_profit_shadow_rank",
+    "probability_field": "predicted_executable_net_profit_probability",
+    "event_definition": "public_market_buyable_proxy == 1 and net_return_after_cost > 0",
+    "probability_identity": "P(public_market_buyable_proxy) * P(net_return_after_cost > 0 | public_market_buyable_proxy)",
+    "primary_sort": "descending calibrated predicted_executable_net_profit_probability",
+    "deterministic_tie_breakers": [
+      "descending expected_net_return_lcb",
+      "ascending predicted_big_loss_probability",
+      "ascending ts_code"
+    ],
+    "shadow_slots": 2,
+    "always_record_top2_when_two_valid_scores_exist": true,
+    "eligibility_is_separate_from_rank": true,
+    "outcome_known_replacement_allowed": false,
+    "may_create_formal_buy_action": false,
+    "no_eligible_candidate_policy": "record ranked research Top2 and publish NO_TRADE eligibility"
+  },
+  "outcome_and_cost_contract": {
+    "cost_contract_version": "dc20_shadow_cost_v1_45bp",
+    "current_research_entry_exit_window": "T open proxy to T+1 open proxy",
+    "round_trip_cost_rate": 0.0045,
+    "round_trip_cost_bps": 45.0,
+    "cost_assumption": "35 bps round-trip base plus 5 bps slippage on each side",
+    "profit_event": "net_return_after_cost > 0",
+    "big_loss_threshold": -0.03,
+    "nonfill_conditional_return": null,
+    "nonfill_strategy_slot_return": 0.0,
+    "partial_fill_policy": "not observed by the current proxy; required before any actual-fill claim",
+    "missing_outcome_policy": "PENDING_NOT_DROPPED",
+    "blocked_exit_policy": "PENDING_NOT_DROPPED",
+    "cost_stress_multipliers": [
+      1.0,
+      2.0
+    ]
+  },
+  "ledger_separation": {
+    "historical_oof_ledger": "time-honest OOF promotion Top10 only",
+    "forward_shadow_ledger": "append-only D-frozen snapshots generated after this contract is implemented",
+    "existing_p_fill_shadow_top2_ledger": "SEPARATE_DIAGNOSTIC_NOT_EXECUTABLE_PROFIT_LEDGER",
+    "historical_and_forward_statistics_may_be_merged": false,
+    "p_fill_and_executable_profit_statistics_may_be_merged": false,
+    "final_model_historical_rescoring_allowed": false,
+    "post_outcome_reranking_allowed": false,
+    "filter_to_filled_before_rank_evaluation_allowed": false,
+    "selection_unit": "signal_date",
+    "record_identity": [
+      "signal_date",
+      "shadow_slot"
+    ],
+    "required_snapshot_binding": [
+      "signal_date",
+      "exec_date",
+      "exit_date",
+      "ts_code",
+      "shadow_slot",
+      "feature_snapshot_sha256",
+      "model_artifact_sha256",
+      "contract_id"
+    ]
+  },
+  "cumulative_statistics": {
+    "cohorts": [
+      "top1",
+      "top2_slot",
+      "equal_weight_top2",
+      "2→3",
+      "3→4"
+    ],
+    "required_counts": [
+      "selection_dates",
+      "selected_slots",
+      "matured_slots",
+      "pending_slots",
+      "proxy_fill_slots",
+      "no_trade_dates"
+    ],
+    "required_performance_metrics": [
+      "proxy_fill_rate",
+      "cost_after_profit_rate",
+      "mean_net_return",
+      "median_net_return",
+      "equal_weight_cumulative_net_return",
+      "maximum_drawdown",
+      "big_loss_rate",
+      "worst_10pct_expected_shortfall"
+    ],
+    "required_probability_metrics": [
+      "brier_score",
+      "log_loss",
+      "expected_calibration_error",
+      "rank1_profit_lift",
+      "top2_profit_lift",
+      "date_block_bootstrap_95pct_confidence_interval"
+    ],
+    "required_same_date_baselines": [
+      "frozen_promotion_rank_top2",
+      "frozen_promotion_top10_equal_weight"
+    ],
+    "confidence_resampling_unit": "signal_date_not_stock_row",
+    "publication_rule": "publish immature and missing counts explicitly; never silently exclude them"
+  },
+  "review_gates": {
+    "diagnostic_checkpoint_signal_dates": 60,
+    "interim_checkpoint_signal_dates": 120,
+    "minimum_release_decision_signal_dates": 180,
+    "preferred_full_year_signal_dates": 252,
+    "minimum_frozen_shadow_slots": 360,
+    "required_release_conditions": [
+      "exact displayed Top2 evaluated before fill outcome is known",
+      "cost-after net return lift 95pct lower confidence bound above zero versus both same-date baselines",
+      "profit probability lift 95pct lower confidence bound above zero",
+      "two-times-cost stress result nonnegative",
+      "2→3 and 3→4 stage diagnostics do not materially fail",
+      "calibration, drawdown, expected shortfall, capacity, and missingness gates pass",
+      "actual order fill claims remain false until actual order truth exists"
+    ]
+  }
+}
