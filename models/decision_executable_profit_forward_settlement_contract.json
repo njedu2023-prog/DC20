@@ -1,0 +1,133 @@
+{
+  "schema_version": "dc20_executable_profit_forward_settlement_contract_v1",
+  "contract_id": "dc20_executable_profit_forward_settlement_20260824_v1",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "runtime_dependency_on_codex": false,
+    "runtime_dependency_on_top10_decision": false
+  },
+  "selection_input": {
+    "path_pattern": "data/decision_executable_profit/forward/selections/shadow_<D>.json",
+    "selection_is_immutable": true,
+    "selected_slots_rule": "actual_slots = min(2, N); never add a candidate outside the frozen promotion TopN",
+    "selection_snapshot_and_file_sha256_required": true,
+    "required_frozen_entry_fields": {
+      "ranking_contract": [
+        "entry_policy_id"
+      ],
+      "selected_row": [
+        "shadow_max_price",
+        "shadow_price_basis",
+        "shadow_price_source_sha256"
+      ],
+      "source_d_feature": [
+        "file_name",
+        "file_sha256"
+      ]
+    },
+    "post_outcome_reranking_allowed": false,
+    "historical_backfill_allowed": false,
+    "minimum_signal_date": "20260824"
+  },
+  "calendar": {
+    "exchange": "SSE",
+    "strict": true,
+    "path": "data/market/trade_cal_sse.csv",
+    "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+    "date_rule": "D, T and T+1 are adjacent pinned SSE open sessions"
+  },
+  "as_of_contract": {
+    "required": true,
+    "must_be_pinned_sse_open_session": true,
+    "minimum_date": "signal D",
+    "T_truth_allowed_only_when": "exec_date <= as_of_date",
+    "exit_scan_upper_bound": "as_of_date inclusive",
+    "future_market_source_allowed": false,
+    "statistics_future_truth_allowed": false
+  },
+  "truth": {
+    "market_source_pattern": "data/market/raw/<YYYY>/<YYYYMMDD>/{daily,stk_limit,stk_auction_o}.csv",
+    "T_entry_proxy": "official stk_auction_o clearing price when it agrees with daily open, is at or below the D-frozen shadow_max_price, is not limit-up, and 100000 CNY is at most 1% of auction amount",
+    "T_plus_1_exit_proxy": "official public daily open",
+    "delayed_exit_rule": "from scheduled T+1 scan adjacent strict SSE sessions; carry T-close wealth through each complete one-price limit-down close/pre_close and exit at the first non-one-price-limit-down open/pre_close; suspension sessions remain in delayed trading-day counts",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "shadow_notional_cny": 100000.0,
+    "maximum_auction_participation": 0.01,
+    "one_price_limit_down": "PENDING_NOT_DROPPED",
+    "missing_input": "PENDING_NOT_DROPPED",
+    "actual_order_fill_claimed": false,
+    "actual_human_trade_included": false
+  },
+  "costs": {
+    "version": "dc20_shadow_cost_v1_45bp",
+    "round_trip_cost_rate": 0.0045,
+    "round_trip_cost_bps": 45.0,
+    "stress_round_trip_cost_rate": 0.009,
+    "stress_round_trip_cost_bps": 90.0,
+    "profit_event": "net_return_after_cost > 0",
+    "nonfill_conditional_return": null,
+    "nonfill_strategy_slot_return": 0.0
+  },
+  "append_only_artifacts": {
+    "T_verification": "data/decision_executable_profit/forward/verifications/t_verification_<D>.json",
+    "T_plus_1_settlement": "data/decision_executable_profit/forward/settlements/settlement_<D>.json",
+    "write_rule": "write an immutable artifact only when every frozen selected slot has the required real source data; otherwise keep the selection pending",
+    "same_date_rewrite": "REJECT_UNLESS_BYTE_IDENTICAL",
+    "selection_deletion": "FORBIDDEN"
+  },
+  "statistics": {
+    "path": "data/decision_executable_profit/forward/statistics/summary.json",
+    "rebuild_rule": "deterministically recompute only from immutable selection and truth observable on or before as_of_date",
+    "as_of_date_required": true,
+    "summary_pointer_rule": "as_of_date may only move forward; same-date deterministic refresh is allowed",
+    "cohorts": [
+      "all_selected_slots",
+      "shadow_slot_1",
+      "shadow_slot_2",
+      "stage_2_to_3",
+      "stage_3_to_4"
+    ],
+    "required_metrics": [
+      "selection_dates",
+      "effective_dates",
+      "selected_slots",
+      "t_validated_slots",
+      "t1_settled_slots",
+      "pending_validation_slots",
+      "pending_settlement_slots",
+      "win_rate",
+      "proxy_buyable_rate",
+      "mean_net_return_after_cost",
+      "median_net_return_after_cost",
+      "realized_big_loss_rate_at_minus_3pct",
+      "worst_10pct_mean_net_return",
+      "mean_stress_net_return_90bp",
+      "equal_weight_cumulative_return",
+      "maximum_drawdown",
+      "worst_trade_net_return",
+      "pending_exit_slots",
+      "pending_slots",
+      "blocked_exit_slots",
+      "blocked_exit_sessions",
+      "historically_blocked_exit_slots",
+      "forward_signal_date_progress_180"
+    ],
+    "probability_diagnostics": "Brier score, ECE and log loss are null with status UNCALIBRATED until a calibrated probability is frozen",
+    "excluded_ledgers": [
+      "historical_oof_top10_ledger",
+      "p_fill_shadow_top2_ledger",
+      "legacy_observation_statistics",
+      "manual_actual_trade_ledger",
+      "official_trade_action_ledger"
+    ]
+  },
+  "boundaries": {
+    "research_only": true,
+    "official_trade_action_allowed": false,
+    "actual_human_trade_ledger_is_separate": true,
+    "may_change_promotion_membership_or_rank": false,
+    "workflow_or_frontend_modified_by_this_step": false
+  }
+}

@@ -123,6 +123,23 @@ def _case(
         _source_row(row, rank, signal_date, candidate_count)
         for rank, (_, row) in enumerate(selected_source.iterrows(), start=1)
     ]
+    model: dict[str, object] = {}
+    if candidate_count == 0:
+        model = {
+            "three_rank_models": {
+                "promotion": {
+                    "status": "READY",
+                    "version": "promotion_v1",
+                    "as_of_date": "20260819",
+                    "artifact_sha256": "1" * 64,
+                    "validation_gate_pass_count": 26,
+                    "validation_gate_total_count": 26,
+                    "validation_gate_score_pct": 100.0,
+                },
+                "big_loss": {"status": "NOT_READY_VALIDATION_GATE"},
+                "profit": {"status": "NOT_READY_VALIDATION_GATE"},
+            }
+        }
     frozen = build_three_rank_contract(
         {
             "generated_at_utc": generated_at,
@@ -131,7 +148,7 @@ def _case(
             "exit_date": exit_date,
             "stage_watchlist": rows,
             "candidates": [],
-            "model": {},
+            "model": model,
         }
     )
     feature_columns = [
@@ -520,6 +537,7 @@ def test_recommended_price_is_frozen_before_outcome_truth(
     [
         (2, 2, "FROZEN_INTERNAL_RESEARCH_ONLY"),
         (1, 1, "FROZEN_INTERNAL_RESEARCH_ONLY"),
+        (0, 0, "NO_HARD_SCOPE_CANDIDATES"),
     ],
 )
 def test_complete_frozen_topn_never_backfills_shadow_slots(
@@ -548,6 +566,134 @@ def test_complete_frozen_topn_never_backfills_shadow_slots(
     assert payload["shadow_top2"]["actual_slots"] == expected_slots
     assert len(payload["shadow_top2"]["rows"]) == expected_slots
     assert sum(row["internal_shadow_selected"] for row in payload["rows"]) == expected_slots
+
+
+def test_zero_candidate_event_skips_model_and_freezes_immutable_empty_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+) -> None:
+    frozen, features, _ = _case(
+        loaded,
+        source_sample,
+        candidate_count=0,
+    )
+    assert frozen["models"]["promotion"]["status"] == "READY"
+    assert frozen["promotion_pool_size"] == 0
+    assert frozen["rows"] == []
+    features["top10_selected"] = pd.Series(dtype=int)
+
+    calendar_target = tmp_path / shadow.DEFAULT_CALENDAR_PATH
+    calendar_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(PINNED_REPO / shadow.DEFAULT_CALENDAR_PATH, calendar_target)
+    materialize_three_rank_artifacts(tmp_path, frozen)
+    source_path = (
+        tmp_path
+        / "outputs"
+        / "auction_v3"
+        / "predictions"
+        / "pred_20260824.csv"
+    )
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_bytes = features.to_csv(index=False, lineterminator="\n").encode(
+        "utf-8"
+    )
+    source_path.write_bytes(source_bytes)
+
+    def forbidden_model_load(*args: object, **kwargs: object) -> object:
+        raise AssertionError("zero-candidate event must not load the challenger")
+
+    monkeypatch.setattr(shadow, "load_internal_challenger", forbidden_model_load)
+    payload = shadow.score_internal_forward_shadow(
+        repo_root=tmp_path,
+        d_feature_path=source_path,
+    )
+
+    assert payload["top10_count"] == 0
+    assert payload["rows"] == []
+    assert payload["shadow_top2"] == {
+        "status": "NO_HARD_SCOPE_CANDIDATES",
+        "requested_slots": 2,
+        "actual_slots": 0,
+        "rows": [],
+    }
+    assert payload["source_d_feature"]["file_sha256"] == hashlib.sha256(
+        source_bytes
+    ).hexdigest()
+    assert payload["source_d_feature"]["generated_at_source"] == (
+        "frozen_promotion_contract_empty_event"
+    )
+    assert payload["model"]["model_loaded"] is False
+    assert payload["model"]["inference_performed"] is False
+    assert payload["feature_contract"]["feature_snapshot_sha256"] is None
+    assert (
+        payload["feature_contract"]["lagged_prior_max_history_exit_date"]
+        is None
+    )
+    assert payload["feature_contract"]["feature_rows_scored"] == 0
+    assert payload["feature_contract"]["lagged_prior_rows_built"] == 0
+    assert payload["feature_contract"]["empty_event_reason"] == (
+        "NO_HARD_SCOPE_CANDIDATES"
+    )
+
+    json_path, csv_path, _, _ = (
+        shadow._materialize_internal_forward_shadow_for_test(
+            tmp_path,
+            payload,
+            now=datetime(
+                2026,
+                8,
+                24,
+                16,
+                30,
+                tzinfo=ZoneInfo("Asia/Shanghai"),
+            ),
+        )
+    )
+    frozen_payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert frozen_payload["rows"] == []
+    assert frozen_payload["downloads"]["row_count"] == 0
+    assert len(csv_path.read_text(encoding="utf-8-sig").splitlines()) == 1
+    shadow.validate_internal_forward_shadow_payload(
+        frozen_payload,
+        require_downloads=True,
+    )
+
+
+def test_zero_candidate_event_still_requires_ready_promotion_authority(
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+) -> None:
+    _, features, source_sha = _case(
+        loaded,
+        source_sample,
+        candidate_count=0,
+    )
+    not_ready = build_three_rank_contract(
+        {
+            "generated_at_utc": "2026-08-24T08:00:00Z",
+            "signal_date": "20260824",
+            "exec_date": "20260825",
+            "exit_date": "20260826",
+            "stage_watchlist": [],
+            "candidates": [],
+            "model": {},
+        }
+    )
+    assert not_ready["models"]["promotion"]["status"] != "READY"
+    with pytest.raises(
+        shadow.ExecutableProfitShadowError,
+        match="promotion model is not READY",
+    ):
+        shadow._score_internal_forward_shadow_frame(
+            repo_root=PINNED_REPO,
+            frozen_top10=not_ready,
+            base_features=features,
+            loaded=None,
+            d_feature_source_name="pred_20260824.csv",
+            d_feature_source_sha256=source_sha,
+        )
 
 
 class _FixedModel:

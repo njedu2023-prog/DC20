@@ -1,0 +1,56 @@
+{
+  "schema_version": "dc20_executable_profit_research_projection_contract_v1",
+  "contract_id": "dc20_executable_profit_research_projection_20260824_v1",
+  "status": "PUBLIC_RESEARCH_PROJECTION_ALLOWED",
+  "display_name": "可实现盈利研究排序（未校准代理分）",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "runtime_dependency_on_codex": false,
+    "runtime_dependency_on_top10_decision": false
+  },
+  "inputs": {
+    "selection_pattern": "data/decision_executable_profit/forward/selections/shadow_<D>.json",
+    "three_rank_pattern": "outputs/decision/three_rank_top10_<D>.json",
+    "optional_t_verification_pattern": "data/decision_executable_profit/forward/verifications/t_verification_<D>.json",
+    "optional_t1_settlement_pattern": "data/decision_executable_profit/forward/settlements/settlement_<D>.json",
+    "optional_statistics_path": "data/decision_executable_profit/forward/statistics/summary.json",
+    "model_artifact_or_pickle_allowed": false,
+    "network_input_allowed": false,
+    "legacy_p_fill_ledger_allowed": false,
+    "exact_file_sha256_required": true
+  },
+  "ranking": {
+    "source_order": "immutable selection internal_shadow_order",
+    "recompute_or_rerank_allowed": false,
+    "candidate_scope": "exact frozen promotion TopN in hard 2-to-3/3-to-4 scope",
+    "candidate_count_rule": "N may be 0 through 10; show exactly N and never pad",
+    "shadow_slot_rule": "actual_slots = min(2, N); never pad Top2",
+    "promotion_rank_is_independent": true,
+    "shadow_price_use": "D-frozen research price cap only; not a buy instruction",
+    "score_kind": "uncalibrated research proxy score",
+    "probability_claim_allowed": false
+  },
+  "outputs": {
+    "projection_json": "outputs/decision/executable_profit_research/projection_<D>.json",
+    "projection_csv": "outputs/decision/executable_profit_research/projection_<D>.csv",
+    "statistics_json": "outputs/decision/executable_profit_research/shadow_statistics_<D>_asof_<A>.json",
+    "index_json": "outputs/decision/executable_profit_research/index.json",
+    "dated_projection_is_immutable": true,
+    "statistics_asof_is_immutable": true,
+    "same_date_different_payload": "REJECT",
+    "out_of_order_pointer": "REJECT"
+  },
+  "boundaries": {
+    "public_research_projection_allowed": true,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "official_trade_action_allowed": false,
+    "may_create_trade_action": false,
+    "broker_or_order_integration_allowed": false,
+    "actual_execution_claimed": false,
+    "human_decision_support_only": true,
+    "proxy_scores_uncalibrated": true,
+    "may_change_promotion_membership_or_rank": false
+  }
+}

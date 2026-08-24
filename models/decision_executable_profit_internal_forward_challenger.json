@@ -58,9 +58,10 @@
     "minimum_signal_date": "20260824",
     "require_complete_frozen_promotion_topn": true,
     "candidate_count_rule": "N = min(10, complete eligible 2-to-3/3-to-4 promotion pool)",
-    "minimum_candidate_rows": 1,
+    "minimum_candidate_rows": 0,
     "maximum_candidate_rows": 10,
     "minimum_candidate_rows_for_shadow_top2": 2,
+    "zero_candidate_policy": "FREEZE_EMPTY_EVENT_NO_MODEL_LOAD_NO_INFERENCE_NO_BACKFILL",
     "single_candidate_policy": "FREEZE_TOP1_ONLY_NO_TOP2_NO_BACKFILL",
     "hard_stage_scope": [
       "2→3",
@@ -99,7 +100,7 @@
   },
   "selection_contract": {
     "slots": 2,
-    "scope": "complete frozen promotion TopN only, where N is at most 10 and no candidate may be added outside the hard pool",
+    "scope": "complete frozen promotion TopN only, where N may be zero and is at most 10 and no candidate may be added outside the hard pool",
     "selected_slots_rule": "min(2, N); no padding",
     "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
     "shadow_price_cap_rule": "freeze recommended_max_price when positive; otherwise freeze observation_price_contract from D-only fields; missing cap fails closed",

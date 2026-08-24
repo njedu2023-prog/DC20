@@ -301,6 +301,55 @@ def _selection_window(signal_date: str, exec_date: str) -> tuple[datetime, datet
     return start, end
 
 
+def _read_pinned_sse_open_dates(repo_root: Path) -> list[str]:
+    """Read the hash-pinned SSE calendar without loading model code or pickle."""
+
+    calendar_path = _safe_file(
+        repo_root,
+        DEFAULT_CALENDAR_PATH,
+        label="strict SSE calendar",
+    )
+    _expect(
+        _sha256(calendar_path) == EXPECTED_CALENDAR_SHA256,
+        "strict SSE calendar SHA drifted",
+    )
+    try:
+        calendar = pd.read_csv(calendar_path, dtype={"cal_date": str})
+    except (OSError, UnicodeError, pd.errors.ParserError) as exc:
+        raise ExecutableProfitShadowError(
+            "strict SSE calendar is unreadable"
+        ) from exc
+    _expect(
+        {"cal_date", "is_open"}.issubset(calendar.columns)
+        and not calendar.empty,
+        "strict SSE calendar schema is invalid",
+    )
+    dates = calendar["cal_date"].map(_normal_date)
+    flags = pd.to_numeric(calendar["is_open"], errors="coerce")
+    _expect(
+        dates.str.fullmatch(r"20\d{6}").all()
+        and flags.notna().all()
+        and flags.isin((0, 1)).all(),
+        "strict SSE calendar contains invalid sessions",
+    )
+    normalized = pd.DataFrame(
+        {"cal_date": dates, "is_open": flags.astype(int)}
+    )
+    conflicts = normalized.groupby("cal_date")["is_open"].nunique()
+    _expect(
+        not conflicts.gt(1).any(),
+        "strict SSE calendar contains conflicting sessions",
+    )
+    open_dates = (
+        normalized.loc[normalized["is_open"].eq(1), "cal_date"]
+        .drop_duplicates()
+        .sort_values(kind="stable")
+        .tolist()
+    )
+    _expect(bool(open_dates), "strict SSE calendar contains no open sessions")
+    return open_dates
+
+
 def _validate_internal_contract(
     contract: Mapping[str, Any],
     *,
@@ -411,9 +460,12 @@ def _validate_internal_contract(
         "candidate_count_rule": (
             "N = min(10, complete eligible 2-to-3/3-to-4 promotion pool)"
         ),
-        "minimum_candidate_rows": 1,
+        "minimum_candidate_rows": 0,
         "maximum_candidate_rows": 10,
         "minimum_candidate_rows_for_shadow_top2": 2,
+        "zero_candidate_policy": (
+            "FREEZE_EMPTY_EVENT_NO_MODEL_LOAD_NO_INFERENCE_NO_BACKFILL"
+        ),
         "single_candidate_policy": (
             "FREEZE_TOP1_ONLY_NO_TOP2_NO_BACKFILL"
         ),
@@ -434,8 +486,8 @@ def _validate_internal_contract(
     expected_selection = {
         "slots": 2,
         "scope": (
-            "complete frozen promotion TopN only, where N is at most 10 and no "
-            "candidate may be added outside the hard pool"
+            "complete frozen promotion TopN only, where N may be zero and is at "
+            "most 10 and no candidate may be added outside the hard pool"
         ),
         "selected_slots_rule": "min(2, N); no padding",
         "entry_policy_id": ENTRY_POLICY_ID,
@@ -802,8 +854,8 @@ def _strict_top10_targets(
     )
     rows = frozen_top10.get("rows")
     _expect(
-        isinstance(rows, list) and 1 <= len(rows) <= 10,
-        "internal Shadow requires the complete frozen promotion TopN (1..10)",
+        isinstance(rows, list) and 0 <= len(rows) <= 10,
+        "internal Shadow requires the complete frozen promotion TopN (0..10)",
     )
     candidate_count = len(rows)
     _expect(
@@ -855,7 +907,24 @@ def _strict_top10_targets(
                 "predicted_promotion_probability": float(row["predicted_promotion_probability"]),
             }
         )
-    return pd.DataFrame(records).sort_values("promotion_rank", kind="stable").reset_index(drop=True)
+    columns = [
+        "signal_date",
+        "exec_date",
+        "exit_date",
+        "ts_code",
+        "name",
+        "industry",
+        "stage",
+        "stage_transition",
+        "board",
+        "promotion_rank",
+        "predicted_promotion_probability",
+    ]
+    return (
+        pd.DataFrame.from_records(records, columns=columns)
+        .sort_values("promotion_rank", kind="stable")
+        .reset_index(drop=True)
+    )
 
 
 def _prepare_base_features(
@@ -1068,6 +1137,177 @@ def _promotion_feature_snapshot_sha256(
     )
 
 
+def _empty_internal_forward_shadow_payload(
+    *,
+    frozen_top10: Mapping[str, Any],
+    base_features: pd.DataFrame,
+    d_feature_source_name: str,
+    d_feature_source_sha256: str,
+) -> dict[str, Any]:
+    """Freeze an honest zero-candidate event without loading or running a model."""
+
+    signal_date = _normal_date(frozen_top10.get("signal_date"))
+    exec_date = _normal_date(frozen_top10.get("exec_date"))
+    exit_date = _normal_date(frozen_top10.get("exit_date"))
+    _expect(base_features.empty, "zero-candidate event contains D feature rows")
+    required_headers = {
+        "signal_date",
+        "ts_code",
+        "stage",
+        "board",
+        "generated_at_utc",
+        "feature_snapshot_sha256",
+        *PROMOTION_SOURCE_FEATURES,
+    }
+    _expect(
+        required_headers.issubset(base_features.columns),
+        "zero-candidate D source lacks its frozen feature headers",
+    )
+    _expect(
+        Path(d_feature_source_name).name == f"pred_{signal_date}.csv",
+        "D feature input is not the exact dated pred_<D>.csv surface",
+    )
+    _expect(
+        SHA256_RE.fullmatch(d_feature_source_sha256) is not None,
+        "D feature source file SHA is invalid",
+    )
+    generated_at_utc = str(frozen_top10.get("generated_at_utc") or "")
+    generated = _parse_aware_datetime(
+        generated_at_utc,
+        label="empty-event frozen promotion generated_at_utc",
+    ).astimezone(ZoneInfo("Asia/Shanghai"))
+    start, end = _selection_window(signal_date, exec_date)
+    _expect(
+        start < generated < end,
+        "empty-event source timing escaped D-close/T-09:20",
+    )
+    source_feature_snapshot = str(
+        frozen_top10.get("feature_snapshot_sha256") or ""
+    )
+    _expect(
+        not source_feature_snapshot
+        or SHA256_RE.fullmatch(source_feature_snapshot) is not None,
+        "empty-event frozen promotion feature snapshot is invalid",
+    )
+    payload: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_kind": ARTIFACT_KIND,
+        "contract_id": CONTRACT_ID,
+        "status": INTERNAL_STATUS,
+        "research_only": True,
+        "proxy_scores_uncalibrated": True,
+        "score_semantics": {
+            "research_fill_proxy_score": "historical public daily-bar buyability proxy; not actual order fill probability",
+            "research_conditional_profit_score": "uncalibrated conditional research score among proxy-buyable rows",
+            "research_joint_proxy_score": "exact product of the two uncalibrated research proxy scores",
+        },
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "feature_as_of_date": signal_date,
+        "top10_count": 0,
+        "top10_members_sha256": str(frozen_top10["top10_members_sha256"]),
+        "source_promotion": {
+            "authority": "complete_frozen_promotion_topn_only",
+            "source_bundle_sha256": str(frozen_top10["bundle_sha256"]),
+            "source_feature_snapshot_sha256": source_feature_snapshot or None,
+            "source_top10_members_sha256": str(
+                frozen_top10["top10_members_sha256"]
+            ),
+            "membership_and_promotion_ranks_may_change": False,
+        },
+        "source_d_feature": {
+            "file_name": Path(d_feature_source_name).name,
+            "file_sha256": d_feature_source_sha256,
+            "generated_at_utc": generated_at_utc,
+            "generated_at_source": "frozen_promotion_contract_empty_event",
+            "selected_row_count": 0,
+            "required_promotion_source_features_present": True,
+            "old_feature_incomplete_prediction_allowed": False,
+        },
+        "model": {
+            "status": INTERNAL_STATUS,
+            "artifact_status": ARTIFACT_STATUS,
+            "model_kind": "hgb",
+            "variant": "full_priors",
+            "artifact_sha256": EXPECTED_MODEL_SHA256,
+            "model_loaded": False,
+            "inference_performed": False,
+            "calibrated_probability_output": False,
+            "return_lcb_component_available": False,
+            "big_loss_tie_break_available": False,
+            "retrospective_window_was_viewed": True,
+            "independent_untouched_confirmation_available": False,
+            "forward_release_evidence_available": False,
+        },
+        "feature_contract": {
+            "feature_count": 156,
+            "base_feature_count": 48,
+            "lagged_prior_feature_count": 108,
+            "required_promotion_source_feature_count": len(
+                PROMOTION_SOURCE_FEATURES
+            ),
+            "required_promotion_source_features": list(
+                PROMOTION_SOURCE_FEATURES
+            ),
+            "feature_columns_sha256": EXPECTED_ALL_FEATURES_SHA256,
+            "feature_snapshot_sha256": None,
+            "lagged_prior_max_history_exit_date": None,
+            "feature_rows_scored": 0,
+            "lagged_prior_rows_built": 0,
+            "empty_event_reason": "NO_HARD_SCOPE_CANDIDATES",
+            "strict_history_availability_rule": "outcome availability date strictly before signal D",
+        },
+        "ranking_contract": {
+            "candidate_scope": "complete frozen promotion TopN, 0<=N<=10",
+            "primary_sort": "research_joint_proxy_score descending",
+            "tie_breakers": [
+                "research_conditional_profit_score descending",
+                "research_fill_proxy_score descending",
+                "ts_code ascending",
+            ],
+            "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3",
+            "shadow_slots": 2,
+            "shadow_slot_rule": "min(2, N); no padding",
+            "top2_frozen_before_outcome_truth": True,
+            "entry_policy_id": ENTRY_POLICY_ID,
+            "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+            "actual_order_fill_claimed": False,
+        },
+        "boundaries": {
+            "front_end_rank_allowed": False,
+            "official_trade_action_allowed": False,
+            "production_model_publish_allowed": False,
+            "workflow_connected": False,
+            "may_change_promotion_membership": False,
+            "may_override_promotion_rank": False,
+            "may_create_trade_action": False,
+            "actual_order_fill_observed": False,
+            "actual_execution_claimed": False,
+        },
+        "source_hashes": {
+            "formal_contract_sha256": EXPECTED_FORMAL_CONTRACT_SHA256,
+            "artifact_index_sha256": EXPECTED_ARTIFACT_INDEX_SHA256,
+            "audit_sha256": EXPECTED_AUDIT_SHA256,
+            "model_pickle_sha256": EXPECTED_MODEL_SHA256,
+            "lagged_priors_sha256": EXPECTED_LAGGED_PRIORS_SHA256,
+            "strict_sse_calendar_sha256": EXPECTED_CALENDAR_SHA256,
+            "full_history_ledger_sha256": EXPECTED_FULL_HISTORY_LEDGER_SHA256,
+            "historical_feature_manifest_sha256": EXPECTED_HISTORICAL_MANIFEST_SHA256,
+        },
+        "rows": [],
+        "shadow_top2": {
+            "status": "NO_HARD_SCOPE_CANDIDATES",
+            "requested_slots": 2,
+            "actual_slots": 0,
+            "rows": [],
+        },
+    }
+    payload["snapshot_sha256"] = _canonical_sha256(payload)
+    validate_internal_forward_shadow_payload(payload)
+    return payload
+
+
 def _score_internal_forward_shadow_frame(
     *,
     repo_root: Path,
@@ -1080,15 +1320,9 @@ def _score_internal_forward_shadow_frame(
     d_feature_source_sha256: str,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
-    loaded = loaded or load_internal_challenger(
-        repo_root,
-        work_root=work_root,
-        contract_path=contract_path,
-    )
-    calendar_path = _safe_file(repo_root, DEFAULT_CALENDAR_PATH, label="strict SSE calendar")
-    open_dates = list(loaded.lagged_priors.read_sse_open_dates(calendar_path))
+    open_dates = _read_pinned_sse_open_dates(repo_root)
     targets = _strict_top10_targets(frozen_top10, open_dates)
-    signal_date = str(targets["signal_date"].iloc[0])
+    signal_date = _normal_date(frozen_top10.get("signal_date"))
     _expect(
         Path(d_feature_source_name).name == f"pred_{signal_date}.csv",
         "D feature input is not the exact dated pred_<D>.csv surface",
@@ -1096,6 +1330,18 @@ def _score_internal_forward_shadow_frame(
     _expect(
         SHA256_RE.fullmatch(d_feature_source_sha256) is not None,
         "D feature source file SHA is invalid",
+    )
+    if targets.empty:
+        return _empty_internal_forward_shadow_payload(
+            frozen_top10=frozen_top10,
+            base_features=base_features,
+            d_feature_source_name=d_feature_source_name,
+            d_feature_source_sha256=d_feature_source_sha256,
+        )
+    loaded = loaded or load_internal_challenger(
+        repo_root,
+        work_root=work_root,
+        contract_path=contract_path,
     )
     training = loaded.bundle["training_audit"]
     _expect(
@@ -1261,6 +1507,8 @@ def _score_internal_forward_shadow_frame(
             "file_name": Path(d_feature_source_name).name,
             "file_sha256": d_feature_source_sha256,
             "generated_at_utc": generated_at_utc,
+            "generated_at_source": "dated_pred_row_uniform",
+            "selected_row_count": candidate_count,
             "required_promotion_source_features_present": True,
             "old_feature_incomplete_prediction_allowed": False,
         },
@@ -1270,6 +1518,8 @@ def _score_internal_forward_shadow_frame(
             "model_kind": str(loaded.bundle.get("model_kind") or ""),
             "variant": str(loaded.bundle.get("variant") or ""),
             "artifact_sha256": EXPECTED_MODEL_SHA256,
+            "model_loaded": True,
+            "inference_performed": True,
             "calibrated_probability_output": False,
             "return_lcb_component_available": False,
             "big_loss_tie_break_available": False,
@@ -1288,10 +1538,13 @@ def _score_internal_forward_shadow_frame(
             "lagged_prior_max_history_exit_date": max(
                 str(value) for value in frame["lagged_prior_max_history_exit_date"]
             ),
+            "feature_rows_scored": candidate_count,
+            "lagged_prior_rows_built": candidate_count,
+            "empty_event_reason": None,
             "strict_history_availability_rule": "outcome availability date strictly before signal D",
         },
         "ranking_contract": {
-            "candidate_scope": "complete frozen promotion TopN, N<=10",
+            "candidate_scope": "complete frozen promotion TopN, 0<=N<=10",
             "primary_sort": "research_joint_proxy_score descending",
             "tie_breakers": [
                 "research_conditional_profit_score descending",
@@ -1380,7 +1633,7 @@ def score_internal_forward_shadow(
         "top10_selected",
     }
     _expect(
-        required_file_identity.issubset(features.columns) and not features.empty,
+        required_file_identity.issubset(features.columns),
         "dated D feature file lacks its immutable full-surface identity",
     )
     _expect(
@@ -1395,10 +1648,31 @@ def score_internal_forward_shadow(
     )
     frozen_rows = frozen_top10.get("rows")
     _expect(
-        isinstance(frozen_rows, list) and 1 <= len(frozen_rows) <= 10,
+        isinstance(frozen_rows, list) and 0 <= len(frozen_rows) <= 10,
         "frozen promotion TopN row count is invalid",
     )
     candidate_count = len(frozen_rows)
+    if candidate_count == 0:
+        _expect(
+            features.empty,
+            "zero-candidate promotion event has unexpected D feature rows",
+        )
+        _expect(
+            set(PROMOTION_SOURCE_FEATURES).issubset(features.columns),
+            "zero-candidate D source lacks promotion feature headers",
+        )
+        _expect(
+            generated_values == [] and snapshot_values == [],
+            "zero-candidate D source contains unexpected row identity",
+        )
+        return _score_internal_forward_shadow_frame(
+            repo_root=repo_root,
+            frozen_top10=frozen_top10,
+            base_features=features,
+            loaded=None,
+            d_feature_source_name=source_path.name,
+            d_feature_source_sha256=_sha256_bytes(source_bytes),
+        )
     _expect(
         len(generated_values) == 1 and bool(generated_values[0]),
         "dated D feature file generated_at_utc is not globally uniform",
@@ -1516,7 +1790,7 @@ def validate_internal_forward_shadow_payload(
     _expect(signal_date >= MINIMUM_SIGNAL_DATE and signal_date < exec_date < exit_date, "internal Shadow dates invalid")
     rows = payload.get("rows")
     _expect(
-        isinstance(rows, list) and 1 <= len(rows) <= 10,
+        isinstance(rows, list) and 0 <= len(rows) <= 10,
         "internal Shadow rows are not the complete frozen promotion TopN",
     )
     candidate_count = len(rows)
@@ -1553,10 +1827,36 @@ def validate_internal_forward_shadow_payload(
             str(source_promotion.get("source_bundle_sha256") or "")
         )
         is not None
-        and SHA256_RE.fullmatch(
-            str(source_promotion.get("source_feature_snapshot_sha256") or "")
+        and (
+            (
+                candidate_count == 0
+                and (
+                    source_promotion.get("source_feature_snapshot_sha256")
+                    is None
+                    or SHA256_RE.fullmatch(
+                        str(
+                            source_promotion.get(
+                                "source_feature_snapshot_sha256"
+                            )
+                            or ""
+                        )
+                    )
+                    is not None
+                )
+            )
+            or (
+                candidate_count > 0
+                and SHA256_RE.fullmatch(
+                    str(
+                        source_promotion.get(
+                            "source_feature_snapshot_sha256"
+                        )
+                        or ""
+                    )
+                )
+                is not None
+            )
         )
-        is not None
         and source_promotion.get("source_top10_members_sha256")
         == payload.get("top10_members_sha256")
         and source_promotion.get("membership_and_promotion_ranks_may_change")
@@ -1571,11 +1871,20 @@ def validate_internal_forward_shadow_payload(
             "file_name",
             "file_sha256",
             "generated_at_utc",
+            "generated_at_source",
+            "selected_row_count",
             "required_promotion_source_features_present",
             "old_feature_incomplete_prediction_allowed",
         }
         and source_d.get("file_name") == f"pred_{signal_date}.csv"
         and SHA256_RE.fullmatch(str(source_d.get("file_sha256") or "")) is not None
+        and source_d.get("generated_at_source")
+        == (
+            "frozen_promotion_contract_empty_event"
+            if candidate_count == 0
+            else "dated_pred_row_uniform"
+        )
+        and source_d.get("selected_row_count") == candidate_count
         and source_d.get("required_promotion_source_features_present") is True
         and source_d.get("old_feature_incomplete_prediction_allowed") is False,
         "internal Shadow D feature source binding invalid",
@@ -1593,6 +1902,8 @@ def validate_internal_forward_shadow_payload(
         "model_kind": "hgb",
         "variant": "full_priors",
         "artifact_sha256": EXPECTED_MODEL_SHA256,
+        "model_loaded": candidate_count > 0,
+        "inference_performed": candidate_count > 0,
         "calibrated_probability_output": False,
         "return_lcb_component_available": False,
         "big_loss_tie_break_available": False,
@@ -1612,6 +1923,9 @@ def validate_internal_forward_shadow_payload(
         "feature_columns_sha256",
         "feature_snapshot_sha256",
         "lagged_prior_max_history_exit_date",
+        "feature_rows_scored",
+        "lagged_prior_rows_built",
+        "empty_event_reason",
         "strict_history_availability_rule",
     }
     _expect(
@@ -1625,23 +1939,55 @@ def validate_internal_forward_shadow_payload(
         == list(PROMOTION_SOURCE_FEATURES)
         and feature_contract.get("feature_columns_sha256")
         == EXPECTED_ALL_FEATURES_SHA256
-        and SHA256_RE.fullmatch(
-            str(feature_contract.get("feature_snapshot_sha256") or "")
+        and feature_contract.get("feature_rows_scored") == candidate_count
+        and feature_contract.get("lagged_prior_rows_built")
+        == candidate_count
+        and (
+            (
+                candidate_count == 0
+                and feature_contract.get("feature_snapshot_sha256") is None
+                and feature_contract.get(
+                    "lagged_prior_max_history_exit_date"
+                )
+                is None
+                and feature_contract.get("empty_event_reason")
+                == "NO_HARD_SCOPE_CANDIDATES"
+            )
+            or (
+                candidate_count > 0
+                and SHA256_RE.fullmatch(
+                    str(
+                        feature_contract.get("feature_snapshot_sha256")
+                        or ""
+                    )
+                )
+                is not None
+                and re.fullmatch(
+                    r"20\d{6}",
+                    str(
+                        feature_contract.get(
+                            "lagged_prior_max_history_exit_date"
+                        )
+                        or ""
+                    ),
+                )
+                is not None
+                and str(
+                    feature_contract.get(
+                        "lagged_prior_max_history_exit_date"
+                    )
+                    or ""
+                )
+                < signal_date
+                and feature_contract.get("empty_event_reason") is None
+            )
         )
-        is not None
-        and re.fullmatch(
-            r"20\d{6}",
-            str(feature_contract.get("lagged_prior_max_history_exit_date") or ""),
-        )
-        is not None
-        and str(feature_contract.get("lagged_prior_max_history_exit_date") or "")
-        < signal_date
         and feature_contract.get("strict_history_availability_rule")
         == "outcome availability date strictly before signal D",
         "internal Shadow feature contract invalid",
     )
     expected_ranking = {
-        "candidate_scope": "complete frozen promotion TopN, N<=10",
+        "candidate_scope": "complete frozen promotion TopN, 0<=N<=10",
         "primary_sort": "research_joint_proxy_score descending",
         "tie_breakers": [
             "research_conditional_profit_score descending",
@@ -1776,11 +2122,15 @@ def validate_internal_forward_shadow_payload(
         sorted(promotion_ranks) == list(range(1, candidate_count + 1)),
         "internal Shadow promotion ranks are not 1..N",
     )
-    _expect(
-        feature_contract.get("lagged_prior_max_history_exit_date")
-        == max(str(row["lagged_prior_max_history_exit_date"]) for row in rows),
-        "internal Shadow lagged-prior availability summary drifted",
-    )
+    if candidate_count > 0:
+        _expect(
+            feature_contract.get("lagged_prior_max_history_exit_date")
+            == max(
+                str(row["lagged_prior_max_history_exit_date"])
+                for row in rows
+            ),
+            "internal Shadow lagged-prior availability summary drifted",
+        )
     expected_order = sorted(
         rows,
         key=lambda row: (
@@ -1820,7 +2170,11 @@ def validate_internal_forward_shadow_payload(
         isinstance(shadow_top2, Mapping)
         and set(shadow_top2) == {"status", "requested_slots", "actual_slots", "rows"}
         and shadow_top2.get("status")
-        == "FROZEN_INTERNAL_RESEARCH_ONLY"
+        == (
+            "NO_HARD_SCOPE_CANDIDATES"
+            if candidate_count == 0
+            else "FROZEN_INTERNAL_RESEARCH_ONLY"
+        )
         and shadow_top2.get("requested_slots") == 2
         and shadow_top2.get("actual_slots") == min(2, candidate_count)
         and shadow_top2.get("rows") == expected_top2,
