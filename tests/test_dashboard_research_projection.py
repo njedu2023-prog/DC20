@@ -30,7 +30,7 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert 'exec_date: evaluation?.exec_date || extractField(md, "exec_date")' in text
     assert 'exit_date: evaluation?.exit_date || extractField(md, "exit_date")' in text
     assert 'evaluation?.execution_gate || extractField(md, "execution_gate")' in text
-    assert 'const CACHE_KEY = "dc20-decision-dashboard-v3-cache"' in text
+    assert 'const CACHE_KEY = "dc20-decision-dashboard-v4-cache"' in text
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
@@ -73,7 +73,10 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     assert 'if (researchPlan.historical_parity === true)' in text
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
-    assert 'const DASHBOARD_VERSION = "independent-three-rank-v5"' in text
+    assert (
+        'const DASHBOARD_VERSION = "independent-three-rank-v6-pfill-shadow"'
+        in text
+    )
     assert 'const researchExpected = info.research_available === true' in text
     assert "validatedResearchContext(info, researchResult.value)" in text
 

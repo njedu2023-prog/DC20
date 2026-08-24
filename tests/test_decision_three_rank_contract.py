@@ -48,7 +48,8 @@ def _ready_row(code: str, rank: int, count: int = 3) -> dict[str, object]:
         "profit_rank": rank,
         "predicted_profit_probability": 0.75 - rank * 0.04,
         "feature_snapshot_sha256": "f" * 64,
-        "p_fill_shadow_probability": 0.5,
+        "p_fill_shadow_rank": rank,
+        "p_fill_shadow_probability": 0.95 - rank * 0.05,
         "p_fill_shadow_status": "SHADOW_READY",
         "p_fill_shadow_model_version": "p_fill_shadow_v1",
         "p_fill_shadow_model_as_of_date": "20260819",
@@ -133,6 +134,23 @@ def test_three_independent_heads_share_exact_top10_without_overwriting() -> None
     assert shadow["validation_gate_pass_count"] == 26
     assert shadow["validation_gate_total_count"] == 26
     assert shadow["validation_gate_score_pct"] == 100.0
+    assert len(shadow["shadow_snapshot_sha256"]) == 64
+    assert [row["p_fill_shadow_rank"] for row in contract["rows"]] == [
+        1,
+        2,
+        3,
+    ]
+    top2 = contract["shadow_top2"]
+    assert top2["requested_slots"] == 2
+    assert top2["actual_slots"] == 2
+    assert top2["may_change_core_bundle"] is False
+    assert top2["may_override_core_ranks"] is False
+    assert top2["may_create_trade_action"] is False
+    assert [row["ts_code"] for row in top2["rows"]] == [
+        "600001.SH",
+        "600002.SH",
+    ]
+    assert all("action" not in row for row in top2["rows"])
     assert set(contract["models"]) == {"promotion", "big_loss", "profit"}
 
 
@@ -200,6 +218,57 @@ def test_not_ready_downstream_head_cannot_emit_fake_rank_or_probability() -> Non
         validate_three_rank_contract(contract, require_all_models_ready=True)
 
 
+def test_not_ready_shadow_nulls_outputs_and_has_no_top2() -> None:
+    plan = _plan()
+    for row in plan["stage_watchlist"]:
+        row["p_fill_shadow_status"] = "SHADOW_NOT_READY_VALIDATION_GATE"
+        # Populated source values must not escape an unready shadow model.
+    contract = build_three_rank_contract(plan)
+
+    assert contract["shadow_contract"]["model_status"] == (
+        "SHADOW_NOT_READY_VALIDATION_GATE"
+    )
+    assert all(
+        row["p_fill_shadow_rank"] is None
+        and row["p_fill_shadow_probability"] is None
+        and row["p_fill_shadow_status"]
+        == "SHADOW_NOT_READY_VALIDATION_GATE"
+        for row in contract["rows"]
+    )
+    assert contract["shadow_top2"]["requested_slots"] == 2
+    assert contract["shadow_top2"]["actual_slots"] == 0
+    assert contract["shadow_top2"]["rows"] == []
+    validate_three_rank_contract(contract)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    (
+        ("p_fill_shadow_rank", 2),
+        ("p_fill_shadow_probability", 1.1),
+        ("p_fill_shadow_status", "SHADOW_NOT_READY_INCONSISTENT"),
+    ),
+)
+def test_invalid_ready_shadow_source_fails_closed(
+    field: str,
+    value: object,
+) -> None:
+    plan = _plan()
+    plan["stage_watchlist"][0][field] = value
+    contract = build_three_rank_contract(plan)
+
+    assert contract["shadow_contract"]["model_status"].startswith(
+        "SHADOW_NOT_READY_"
+    )
+    assert all(
+        row["p_fill_shadow_rank"] is None
+        and row["p_fill_shadow_probability"] is None
+        for row in contract["rows"]
+    )
+    assert contract["shadow_top2"]["rows"] == []
+    validate_three_rank_contract(contract)
+
+
 def test_new_contract_never_uses_legacy_shadow_as_official_big_loss() -> None:
     plan = _plan()
     for row in plan["stage_watchlist"]:
@@ -240,6 +309,12 @@ def test_unready_promotion_head_means_no_official_top10() -> None:
     assert contract["models"]["profit"]["status"] == (
         "NOT_READY_NO_FROZEN_TOP10"
     )
+    assert contract["shadow_contract"]["model_status"] == (
+        "SHADOW_NOT_READY_NO_FROZEN_TOP10"
+    )
+    assert contract["shadow_top2"]["requested_slots"] == 2
+    assert contract["shadow_top2"]["actual_slots"] == 0
+    assert contract["shadow_top2"]["rows"] == []
     assert contract["rows"] == []
     assert contract["top10_count"] == 0
     validate_three_rank_contract(contract)
@@ -327,6 +402,18 @@ def test_validator_rejects_downstream_ready_without_engine_a_membership() -> Non
             ),
             "promotion ranks",
         ),
+        (
+            lambda payload: payload["shadow_top2"].__setitem__(
+                "actual_slots", 1
+            ),
+            "shadow Top2",
+        ),
+        (
+            lambda payload: payload["shadow_contract"].__setitem__(
+                "shadow_snapshot_sha256", "0" * 64
+            ),
+            "shadow snapshot hash",
+        ),
     ],
 )
 def test_contract_mutations_fail_closed(mutation, match: str) -> None:
@@ -362,6 +449,10 @@ def test_materialized_json_and_csv_are_exact_and_d_artifact_is_immutable(
     ]
     assert {row["top10_members_sha256"] for row in csv_rows} == {
         contract["top10_members_sha256"]
+    }
+    assert [int(row["p_fill_shadow_rank"]) for row in csv_rows] == [1, 2, 3]
+    assert {row["p_fill_shadow_snapshot_sha256"] for row in csv_rows} == {
+        contract["shadow_contract"]["shadow_snapshot_sha256"]
     }
     index_path = tmp_path / "outputs" / "decision" / "three_rank_index.json"
     index = json.loads(index_path.read_text(encoding="utf-8"))
@@ -458,6 +549,9 @@ def test_pending_projection_preserves_every_official_three_rank_field() -> None:
         "profit_validation_gate_pass_count",
         "profit_validation_gate_total_count",
         "profit_validation_gate_score_pct",
+        "p_fill_shadow_rank",
+        "p_fill_shadow_probability",
+        "p_fill_shadow_status",
         "p_fill_shadow_model_version",
         "p_fill_shadow_model_as_of_date",
         "p_fill_shadow_model_artifact_sha256",
@@ -551,14 +645,21 @@ def test_ready_promotion_requires_frozen_feature_snapshot() -> None:
 def test_bundle_hash_does_not_include_shadow_annotations() -> None:
     first_plan = _plan()
     second_plan = copy.deepcopy(first_plan)
-    for row in second_plan["stage_watchlist"]:
-        row["p_fill_shadow_probability"] = 0.99
-        row["p_fill_shadow_status"] = "CHANGED_SHADOW_ONLY"
+    rotated_ranks = (3, 1, 2)
+    for row, shadow_rank in zip(
+        second_plan["stage_watchlist"], rotated_ranks
+    ):
+        row["p_fill_shadow_rank"] = shadow_rank
+        row["p_fill_shadow_probability"] = 0.70 + shadow_rank * 0.05
     first = build_three_rank_contract(first_plan)
     second = build_three_rank_contract(second_plan)
 
     assert first["top10_members_sha256"] == second["top10_members_sha256"]
     assert first["bundle_sha256"] == second["bundle_sha256"]
+    assert first["shadow_contract"]["shadow_snapshot_sha256"] != second[
+        "shadow_contract"
+    ]["shadow_snapshot_sha256"]
+    assert first["shadow_top2"]["rows"] != second["shadow_top2"]["rows"]
     # Shadow values remain available for display, but cannot change core model
     # provenance, membership, or the six official rank/probability fields.
     for left, right in zip(first["rows"], second["rows"]):
@@ -571,3 +672,13 @@ def test_bundle_hash_does_not_include_shadow_annotations() -> None:
             "predicted_profit_probability",
         ):
             assert left[field] == right[field]
+
+
+def test_shadow_snapshot_hash_rejects_valid_looking_row_tamper() -> None:
+    contract = build_three_rank_contract(_plan())
+    # Rank 3 is outside Top2, so the ordinary Top2 equality remains intact;
+    # the independent shadow snapshot hash must still detect the mutation.
+    contract["rows"][2]["p_fill_shadow_probability"] = 0.123
+
+    with pytest.raises(ThreeRankContractError, match="shadow snapshot hash"):
+        validate_three_rank_contract(contract)

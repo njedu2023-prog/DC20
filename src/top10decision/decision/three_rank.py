@@ -17,6 +17,7 @@ THREE_RANK_ARTIFACT_KIND = "d_close_independent_three_rank_top10"
 THREE_RANK_INDEX_SCHEMA = "decision_three_rank_index_v1"
 THREE_RANK_INDEX_KIND = "dated_three_rank_pointer_only"
 THREE_RANK_TOP_N = 10
+SHADOW_TOP2_SLOTS = 2
 
 HEADS = ("promotion", "big_loss", "profit")
 HEAD_FIELDS = {
@@ -394,6 +395,130 @@ def _head_output_is_valid(
     )
 
 
+def _shadow_output_is_valid(rows: list[dict[str, Any]]) -> bool:
+    ranks = [_integer(row.get("p_fill_shadow_rank")) for row in rows]
+    probabilities = [
+        _number(row.get("p_fill_shadow_probability")) for row in rows
+    ]
+    statuses = [
+        _text(row.get("p_fill_shadow_status")).upper() for row in rows
+    ]
+    return (
+        sorted(rank for rank in ranks if rank is not None)
+        == list(range(1, len(rows) + 1))
+        and len([rank for rank in ranks if rank is not None]) == len(rows)
+        and all(
+            probability is not None and 0.0 <= probability <= 1.0
+            for probability in probabilities
+        )
+        and all(status == "SHADOW_READY" for status in statuses)
+    )
+
+
+def _shadow_top2_projection(
+    rows: list[dict[str, Any]],
+    *,
+    model_status: str,
+) -> dict[str, Any]:
+    selected = (
+        sorted(
+            (
+                {
+                    "ts_code": _text(row.get("ts_code")),
+                    "name": _text(row.get("name")),
+                    "p_fill_shadow_rank": _integer(
+                        row.get("p_fill_shadow_rank")
+                    ),
+                    "p_fill_shadow_probability": _number(
+                        row.get("p_fill_shadow_probability")
+                    ),
+                }
+                for row in rows
+                if (_integer(row.get("p_fill_shadow_rank")) or 0)
+                <= SHADOW_TOP2_SLOTS
+                and _integer(row.get("p_fill_shadow_rank")) is not None
+            ),
+            key=lambda row: (row["p_fill_shadow_rank"], row["ts_code"]),
+        )
+        if model_status == "SHADOW_READY"
+        else []
+    )
+    return {
+        "status": "ANNOTATION_ONLY",
+        "model_status": model_status,
+        "selection_rule": "p_fill_shadow_rank_lte_requested_slots",
+        "rank_field": "p_fill_shadow_rank",
+        "probability_field": "p_fill_shadow_probability",
+        "requested_slots": SHADOW_TOP2_SLOTS,
+        "actual_slots": len(selected),
+        "may_change_core_bundle": False,
+        "may_override_core_ranks": False,
+        "may_create_trade_action": False,
+        "rows": selected,
+    }
+
+
+def _shadow_snapshot_sha256(
+    *,
+    signal_date: str,
+    exec_date: str,
+    exit_date: str,
+    members_sha256: str,
+    shadow: Mapping[str, Any],
+    rows: list[dict[str, Any]],
+    shadow_top2: Mapping[str, Any],
+) -> str:
+    top2_rows = shadow_top2.get("rows")
+    payload = {
+        "schema": "dc20_p_fill_shadow_snapshot_v1",
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "top10_members_sha256": members_sha256,
+        "model": {
+            "status": shadow.get("model_status"),
+            "version": shadow.get("model_version"),
+            "as_of_date": shadow.get("model_as_of_date"),
+            "artifact_sha256": shadow.get("model_artifact_sha256"),
+        },
+        "rows": sorted(
+            (
+                {
+                    "ts_code": _text(row.get("ts_code")),
+                    "p_fill_shadow_rank": _integer(
+                        row.get("p_fill_shadow_rank")
+                    ),
+                    "p_fill_shadow_probability": _number(
+                        row.get("p_fill_shadow_probability")
+                    ),
+                    "p_fill_shadow_status": _text(
+                        row.get("p_fill_shadow_status")
+                    ).upper(),
+                }
+                for row in rows
+            ),
+            key=lambda row: row["ts_code"],
+        ),
+        "shadow_top2": {
+            "requested_slots": shadow_top2.get("requested_slots"),
+            "actual_slots": shadow_top2.get("actual_slots"),
+            "members": [
+                {
+                    "ts_code": _text(row.get("ts_code")),
+                    "p_fill_shadow_rank": _integer(
+                        row.get("p_fill_shadow_rank")
+                    ),
+                }
+                for row in top2_rows
+                if isinstance(row, Mapping)
+            ]
+            if isinstance(top2_rows, list)
+            else top2_rows,
+        },
+    }
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
 def _core_projection(contract: Mapping[str, Any]) -> dict[str, Any]:
     core_row_fields = (
         "ts_code",
@@ -556,6 +681,18 @@ def build_three_rank_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
             models[head]["ranking_ready"] = False
             models[head]["probability_ready"] = False
 
+    shadow_meta = _shadow_meta(all_source_rows, signal_date)
+    if models["promotion"]["status"] != "READY":
+        shadow_meta["model_status"] = (
+            "SHADOW_NOT_READY_NO_FROZEN_TOP10"
+        )
+    elif (
+        shadow_meta["model_status"] == "SHADOW_READY"
+        and not _shadow_output_is_valid(official_rows)
+    ):
+        shadow_meta["model_status"] = "SHADOW_NOT_READY_INVALID_OUTPUT"
+    shadow_ready = shadow_meta["model_status"] == "SHADOW_READY"
+
     rows: list[dict[str, Any]] = []
     for source in official_rows:
         row = {
@@ -591,19 +728,22 @@ def build_three_rank_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
                 else None
             ),
             # Shadow output is namespaced and cannot replace a core field.
-            "p_fill_shadow_probability": _number(
-                source.get("p_fill_shadow_probability")
+            "p_fill_shadow_rank": (
+                _integer(source.get("p_fill_shadow_rank"))
+                if shadow_ready
+                else None
             ),
-            "p_fill_shadow_status": _text(
-                source.get("p_fill_shadow_status")
+            "p_fill_shadow_probability": (
+                _number(source.get("p_fill_shadow_probability"))
+                if shadow_ready
+                else None
             ),
+            "p_fill_shadow_status": shadow_meta["model_status"],
         }
         rows.append(row)
 
     for head in HEADS:
         models[head]["input_members_sha256"] = members_sha256
-
-    shadow_meta = _shadow_meta(all_source_rows, signal_date)
 
     ready_heads = sum(models[head]["status"] == "READY" for head in HEADS)
     status = (
@@ -612,6 +752,26 @@ def build_three_rank_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
         else "PARTIAL_MODELS_NOT_READY"
         if models["promotion"]["status"] == "READY"
         else "NOT_READY_PROMOTION"
+    )
+    shadow_contract = {
+        "status": "ANNOTATION_ONLY",
+        "input_members_sha256": members_sha256,
+        "may_change_membership": False,
+        "may_override_core_ranks": False,
+        **shadow_meta,
+    }
+    shadow_top2 = _shadow_top2_projection(
+        rows,
+        model_status=shadow_meta["model_status"],
+    )
+    shadow_contract["shadow_snapshot_sha256"] = _shadow_snapshot_sha256(
+        signal_date=signal_date,
+        exec_date=exec_date,
+        exit_date=exit_date,
+        members_sha256=members_sha256,
+        shadow=shadow_contract,
+        rows=rows,
+        shadow_top2=shadow_top2,
     )
     contract: dict[str, Any] = {
         "schema_version": THREE_RANK_ARTIFACT_SCHEMA,
@@ -631,13 +791,8 @@ def build_three_rank_contract(plan: Mapping[str, Any]) -> dict[str, Any]:
         "top10_members_sha256": members_sha256,
         "models": models,
         "rows": rows,
-        "shadow_contract": {
-            "status": "ANNOTATION_ONLY",
-            "input_members_sha256": members_sha256,
-            "may_change_membership": False,
-            "may_override_core_ranks": False,
-            **shadow_meta,
-        },
+        "shadow_contract": shadow_contract,
+        "shadow_top2": shadow_top2,
     }
     contract["bundle_sha256"] = hashlib.sha256(
         _canonical_json_bytes(_core_projection(contract))
@@ -799,6 +954,7 @@ def validate_three_rank_contract(
     shadow = contract.get("shadow_contract")
     if (
         not isinstance(shadow, Mapping)
+        or shadow.get("status") != "ANNOTATION_ONLY"
         or shadow.get("input_members_sha256") != expected_members
         or shadow.get("may_change_membership") is not False
         or shadow.get("may_override_core_ranks") is not False
@@ -826,7 +982,71 @@ def validate_three_rank_contract(
             raise ThreeRankContractError(
                 "three-rank SHADOW_READY provenance is invalid"
             )
+    shadow_ranks = [
+        _integer(row.get("p_fill_shadow_rank")) for row in rows
+    ]
+    shadow_probabilities = [
+        _number(row.get("p_fill_shadow_probability")) for row in rows
+    ]
+    shadow_statuses = [
+        _text(row.get("p_fill_shadow_status")).upper() for row in rows
+    ]
+    if any(status != shadow_model_status for status in shadow_statuses):
+        raise ThreeRankContractError(
+            "three-rank shadow row statuses disagree with the model"
+        )
+    if shadow_model_status == "SHADOW_READY":
+        if sorted(rank for rank in shadow_ranks if rank is not None) != list(
+            range(1, len(rows) + 1)
+        ) or len([rank for rank in shadow_ranks if rank is not None]) != len(
+            rows
+        ):
+            raise ThreeRankContractError(
+                "three-rank shadow ranks are not a 1..N permutation"
+            )
+        if any(
+            probability is None or not 0.0 <= probability <= 1.0
+            for probability in shadow_probabilities
+        ):
+            raise ThreeRankContractError(
+                "three-rank shadow probabilities are invalid"
+            )
+    elif any(
+        rank is not None or probability is not None
+        for rank, probability in zip(shadow_ranks, shadow_probabilities)
+    ):
+        raise ThreeRankContractError(
+            "three-rank shadow emitted output while not ready"
+        )
     _validate_gate_summary_meta(shadow, context="p_fill_shadow")
+    expected_shadow_top2 = _shadow_top2_projection(
+        rows,
+        model_status=shadow_model_status,
+    )
+    if contract.get("shadow_top2") != expected_shadow_top2:
+        raise ThreeRankContractError(
+            "three-rank shadow Top2 contract is invalid"
+        )
+    expected_shadow_snapshot_sha256 = _shadow_snapshot_sha256(
+        signal_date=signal_date,
+        exec_date=exec_date,
+        exit_date=exit_date,
+        members_sha256=expected_members,
+        shadow=shadow,
+        rows=rows,
+        shadow_top2=expected_shadow_top2,
+    )
+    if (
+        SHA256_RE.fullmatch(
+            _text(shadow.get("shadow_snapshot_sha256"))
+        )
+        is None
+        or shadow.get("shadow_snapshot_sha256")
+        != expected_shadow_snapshot_sha256
+    ):
+        raise ThreeRankContractError(
+            "three-rank shadow snapshot hash is invalid"
+        )
     bundle_sha256 = contract.get("bundle_sha256")
     expected_bundle = hashlib.sha256(
         _canonical_json_bytes(_core_projection(contract))
@@ -1033,11 +1253,13 @@ def _csv_bytes(contract: Mapping[str, Any]) -> bytes:
         "profit_validation_gate_pass_count",
         "profit_validation_gate_total_count",
         "profit_validation_gate_score_pct",
+        "p_fill_shadow_rank",
         "p_fill_shadow_probability",
         "p_fill_shadow_status",
         "p_fill_shadow_model_version",
         "p_fill_shadow_model_as_of_date",
         "p_fill_shadow_model_artifact_sha256",
+        "p_fill_shadow_snapshot_sha256",
         "p_fill_shadow_validation_gate_pass_count",
         "p_fill_shadow_validation_gate_total_count",
         "p_fill_shadow_validation_gate_score_pct",
@@ -1076,6 +1298,9 @@ def _csv_bytes(contract: Mapping[str, Any]) -> bytes:
     common["p_fill_shadow_model_as_of_date"] = shadow["model_as_of_date"]
     common["p_fill_shadow_model_artifact_sha256"] = shadow[
         "model_artifact_sha256"
+    ]
+    common["p_fill_shadow_snapshot_sha256"] = shadow[
+        "shadow_snapshot_sha256"
     ]
     for field in VALIDATION_GATE_FIELDS:
         common[f"p_fill_shadow_{field}"] = shadow[field]

@@ -74,6 +74,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 9,
       "p_fill_shadow_probability": 0.7562323396442082,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -89,6 +90,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 4,
       "p_fill_shadow_probability": 0.9384679136255051,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -104,6 +106,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 7,
       "p_fill_shadow_probability": 0.8875775958317855,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -119,6 +122,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 6,
       "p_fill_shadow_probability": 0.8964833035351476,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -134,6 +138,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 8,
       "p_fill_shadow_probability": 0.8771428100263301,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -149,6 +154,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 5,
       "p_fill_shadow_probability": 0.9024472453582966,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -164,6 +170,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 1,
       "p_fill_shadow_probability": 0.9773867093974581,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -179,6 +186,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 3,
       "p_fill_shadow_probability": 0.956014437277572,
       "p_fill_shadow_status": "SHADOW_READY"
     },
@@ -194,6 +202,7 @@
       "predicted_big_loss_probability": null,
       "profit_rank": null,
       "predicted_profit_probability": null,
+      "p_fill_shadow_rank": 2,
       "p_fill_shadow_probability": 0.9732055662527815,
       "p_fill_shadow_status": "SHADOW_READY"
     }
@@ -209,7 +218,34 @@
     "model_artifact_sha256": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
     "validation_gate_pass_count": 26,
     "validation_gate_total_count": 26,
-    "validation_gate_score_pct": 100.0
+    "validation_gate_score_pct": 100.0,
+    "shadow_snapshot_sha256": "7abf8c7da11b4ecd8817bc9b86d0d685af0b83fd8ba54798193318ca528f6f9f"
+  },
+  "shadow_top2": {
+    "status": "ANNOTATION_ONLY",
+    "model_status": "SHADOW_READY",
+    "selection_rule": "p_fill_shadow_rank_lte_requested_slots",
+    "rank_field": "p_fill_shadow_rank",
+    "probability_field": "p_fill_shadow_probability",
+    "requested_slots": 2,
+    "actual_slots": 2,
+    "may_change_core_bundle": false,
+    "may_override_core_ranks": false,
+    "may_create_trade_action": false,
+    "rows": [
+      {
+        "ts_code": "002903.SZ",
+        "name": "宇环数控",
+        "p_fill_shadow_rank": 1,
+        "p_fill_shadow_probability": 0.9773867093974581
+      },
+      {
+        "ts_code": "002491.SZ",
+        "name": "通鼎互联",
+        "p_fill_shadow_rank": 2,
+        "p_fill_shadow_probability": 0.9732055662527815
+      }
+    ]
   },
   "bundle_sha256": "1508feabb2d684c89d833db71ad97220d9350939d34a7062ec5c6433c0890818",
   "execution_summary": {
@@ -221,7 +257,7 @@
   "downloads": {
     "json_url": "outputs/decision/three_rank_top10_20260821.json",
     "csv_url": "outputs/decision/three_rank_top10_20260821.csv",
-    "csv_sha256": "62c4fbf1ff98dd041076ec0767d053b9c6685b8e3206ff5ed178ebe9f3d95615",
+    "csv_sha256": "dbe41e6f269f186a7bf46d00350844e62720b8d896966dc9a02990c52608896c",
     "row_count": 9
   }
 }

@@ -39,13 +39,13 @@ from top10decision.decision.three_rank import validate_three_rank_contract
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_OUTPUT_SHA256 = {
     "outputs/decision/three_rank_top10_20260821.json": (
-        "dda4906907704997cfa37e8ab86160c967a3b44162bc460dfa5c7db52c705c79"
+        "a43285654a32206d3a9deeaac1b8c373cafe71bf39610af779b66df4bb458e34"
     ),
     "outputs/decision/three_rank_top10_20260821.csv": (
-        "62c4fbf1ff98dd041076ec0767d053b9c6685b8e3206ff5ed178ebe9f3d95615"
+        "dbe41e6f269f186a7bf46d00350844e62720b8d896966dc9a02990c52608896c"
     ),
     EVIDENCE_PATH: (
-        "c3e3ce3ca70d71d13445c7983ae5b708747cb52b75a988aa18eeb243c18590a7"
+        "108df999852f6920f97023264b5df8dd8b42349307e0f110a0bccc8f682d0333"
     ),
     RECOVERY_MANIFEST_PATH: (
         "14ecaad8e8b393e98a80c0f08d10b9e6e17e51213586cb88973d102dff66d1c8"

@@ -292,6 +292,36 @@
     .three-rank-proof { color: var(--muted); font-size: 11px; padding: 0 16px 10px; overflow-wrap: anywhere; }
     .three-rank-shadow { margin: 10px 16px 14px; color: var(--muted); }
     .three-rank-shadow summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+    .pfill-shadow-panel {
+      margin: 12px 16px 14px;
+      border: 1px dashed #9ac9b3;
+      border-radius: 7px;
+      background: var(--good-soft);
+      overflow: hidden;
+    }
+    .pfill-shadow-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 12px 9px;
+      border-bottom: 1px solid var(--line);
+    }
+    .pfill-shadow-head strong { display: block; margin-bottom: 3px; }
+    .pfill-shadow-head span,
+    .pfill-shadow-note,
+    .pfill-history-summary { color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .pfill-shadow-state { white-space: nowrap; text-align: right; }
+    table.pfill-shadow-table { min-width: 980px; }
+    .pfill-shadow-note { margin: 0; padding: 9px 12px 11px; }
+    .pfill-history-summary {
+      margin: 0 16px 12px;
+      padding: 10px 12px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface-soft);
+    }
+    .pfill-history-summary strong { color: var(--ink); }
     table { border-collapse: collapse; width: 100%; min-width: 1380px; font-size: 12px; }
     table.three-rank-table { min-width: 1120px; }
     table.top10-backtest-table { min-width: 1040px; table-layout: fixed; font-size: 11px; }
@@ -716,6 +746,10 @@
       .sentiment-industries { margin: -2px 12px 12px; }
       .market-breadth-grid { grid-template-columns: 1fr; }
       .three-rank-models { grid-template-columns: 1fr; padding: 0 12px 12px; }
+      .pfill-shadow-panel { margin-right: 12px; margin-left: 12px; }
+      .pfill-shadow-head { flex-direction: column; }
+      .pfill-shadow-state { white-space: normal; text-align: left; }
+      .pfill-history-summary { margin-right: 12px; margin-left: 12px; }
       table.industry-table {
         min-width: 100%;
         table-layout: fixed;
@@ -840,6 +874,9 @@
           <span class="count">年度下载等待索引与统计SHA验证</span>
         </div>
       </div>
+      <div id="pFillHistorySummary" class="pfill-history-summary">
+        <strong>P_fill 影子 Top2 验证</strong>：历史 OOF 未验证；前向 T+1 收益成熟 0 / 待验证；真实订单 0。
+      </div>
     </details>
 
     <details class="panel observation-disclosure">
@@ -897,16 +934,23 @@
 
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "dc20-decision-dashboard-v3-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v5";
+    const CACHE_KEY = "dc20-decision-dashboard-v4-cache";
+    const DASHBOARD_VERSION = "independent-three-rank-v6-pfill-shadow";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "threeRankHistoryCoverage", "threeRankHistoryState", "threeRankHistoryDownloads", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "threeRankHistoryCoverage", "threeRankHistoryState", "threeRankHistoryDownloads", "pFillHistorySummary", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
-    const state = { reports: [], reportIndex: null, index: 0, current: null, currentThreeRank: null };
+    const state = {
+      reports: [],
+      reportIndex: null,
+      index: 0,
+      current: null,
+      currentThreeRank: null,
+      pFillForwardStatistics: null
+    };
 
     function escapeHtml(value) {
       return String(value == null ? "" : value)
@@ -1400,18 +1444,141 @@
         .join("");
     }
 
+    function firstNonnegativeInteger(source, fields) {
+      if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+      for (const field of fields) {
+        const value = source[field];
+        if (Number.isInteger(value) && value >= 0) return value;
+      }
+      return null;
+    }
+
+    function validatedPFillHistoryOof(value) {
+      if (value == null) return null;
+      if (typeof value !== "object" || Array.isArray(value)) return false;
+      const proxy = value.market_fill_proxy;
+      const guards = value.separation_guards;
+      if (
+        value.schema_version !== "dc20_p_fill_shadow_oof_cumulative_v1" ||
+        value.status !== "TIME_HONEST_OOF_COUNTERFACTUAL_DIAGNOSTIC" ||
+        value.selection_scope !== "strict_rank_lte_2_within_historical_promotion_oof_top10" ||
+        value.selection_rule !== "p_fill_shadow_rank<=2" ||
+        value.requested_slots_per_signal_date !== 2 ||
+        !proxy || typeof proxy !== "object" || Array.isArray(proxy) ||
+        proxy.actual_order_fill_observed !== false ||
+        !guards || typeof guards !== "object" || Array.isArray(guards) ||
+        guards.historical_oof_rows_only !== true ||
+        guards.forward_snapshot_rows_used !== 0 ||
+        guards.actual_order_rows_used !== 0 ||
+        guards.actual_execution_claimed !== false ||
+        guards.final_model_historical_scoring_used !== false ||
+        guards.may_change_core_members_or_ranks !== false ||
+        guards.may_create_trade_action !== false
+      ) return false;
+      if (Object.prototype.hasOwnProperty.call(value, "research_only") && value.research_only !== true) return false;
+      if (Object.prototype.hasOwnProperty.call(value, "actual_execution_claimed") && value.actual_execution_claimed !== false) return false;
+      const signalDates = firstNonnegativeInteger(value, ["selection_dates"]);
+      const requestedSlots = firstNonnegativeInteger(value, ["requested_slots"]);
+      const top2Rows = firstNonnegativeInteger(value, ["selected_slots"]);
+      if (signalDates == null || signalDates <= 0 || requestedSlots !== signalDates * 2 || top2Rows == null || top2Rows > requestedSlots) return false;
+      const slotCoverage = finiteNumber(value.selection_slot_coverage);
+      if (slotCoverage == null || Math.abs(slotCoverage - top2Rows / requestedSlots) > 1e-12) return false;
+      const proxyTruthSlots = firstNonnegativeInteger(proxy, ["truth_covered_slots"]);
+      const proxyRate = finiteNumber(proxy.hit_rate);
+      if (proxyTruthSlots !== top2Rows) return false;
+      if (proxyRate != null && (proxyRate < 0 || proxyRate > 1)) return false;
+      return { signalDates, top2Rows, proxyRate };
+    }
+
+    function validatedPFillForwardStatistics(value) {
+      if (value == null) return null;
+      if (typeof value !== "object" || Array.isArray(value)) return false;
+      if (value.schema_version !== "dc20_p_fill_shadow_forward_top2_v1") return false;
+      const status = String(value.status || "");
+      const fillTruth = value.fill_truth;
+      const returns = value.returns;
+      const guards = value.separation_guards;
+      if (
+        !["FROZEN_FORWARD_RECORDS_PRESENT", "NO_AUDIT_GRADE_FROZEN_SNAPSHOTS"].includes(status) ||
+        value.selection_scope !== "forward_dated_snapshots_only_never_oof" ||
+        value.selection_rule !== "frozen_p_fill_shadow_rank<=2" ||
+        !fillTruth || typeof fillTruth !== "object" || Array.isArray(fillTruth) ||
+        fillTruth.actual_order_fill_observed !== false ||
+        !returns || typeof returns !== "object" || Array.isArray(returns) ||
+        returns.actual_trading_result !== false ||
+        !guards || typeof guards !== "object" || Array.isArray(guards) ||
+        guards.forward_snapshot_rows_only !== true ||
+        guards.historical_oof_rows_used !== 0 ||
+        guards.actual_order_rows_used !== 0 ||
+        guards.actual_execution_claimed !== false ||
+        guards.may_change_core_members_or_ranks !== false ||
+        guards.may_create_trade_action !== false
+      ) return false;
+      const selectionDates = firstNonnegativeInteger(value, ["selection_dates"]);
+      const selectedRows = firstNonnegativeInteger(value, ["selected_entries"]);
+      const fillTruthRows = firstNonnegativeInteger(fillTruth, ["covered_entries"]);
+      const settledRows = firstNonnegativeInteger(returns, ["resolved_selected_entries"]);
+      const filledRows = firstNonnegativeInteger(returns, ["filled_entries"]);
+      const maturedReturnRows = firstNonnegativeInteger(returns, ["matured_filled_return_entries"]);
+      if (
+        selectionDates == null || selectedRows == null || fillTruthRows == null ||
+        settledRows == null || filledRows == null || maturedReturnRows == null ||
+        selectedRows > selectionDates * 2 || fillTruthRows > selectedRows ||
+        settledRows > selectedRows || filledRows > fillTruthRows ||
+        maturedReturnRows > filledRows || maturedReturnRows > settledRows ||
+        !Array.isArray(value.accepted_snapshot_dates) || value.accepted_snapshot_dates.length !== selectionDates ||
+        !Array.isArray(value.records) || value.records.length !== selectionDates ||
+        (selectionDates > 0) !== (status === "FROZEN_FORWARD_RECORDS_PRESENT")
+      ) return false;
+      const proxyRate = finiteNumber(fillTruth.hit_rate);
+      if (proxyRate != null && (proxyRate < 0 || proxyRate > 1 || fillTruthRows === 0)) return false;
+      return {
+        selectionDates,
+        selectedRows,
+        fillTruthRows,
+        settledRows,
+        pendingSettlementRows: selectedRows - settledRows,
+        filledRows,
+        maturedReturnRows,
+        pendingReturnRows: filledRows - maturedReturnRows,
+        proxyRate
+      };
+    }
+
+    function pFillHistorySummaryHtml(oof, forward) {
+      const oofText = oof == null
+        ? "尚未随SHA绑定统计发布"
+        : `${integerText(oof.signalDates)}个D日 · ${integerText(oof.top2Rows)}行${oof.proxyRate == null ? "" : ` · OOF可买代理率 ${pct(oof.proxyRate)}`}`;
+      const returnMaturitySuffix = forward == null || forward.maturedReturnRows === 0
+        ? " / 待验证"
+        : forward.pendingReturnRows > 0
+          ? ` · 收益待验证 ${integerText(forward.pendingReturnRows)}`
+          : "";
+      const forwardText = forward == null
+        ? "审计级冻结D日 0 · 结果已结算 0 · T+1收益成熟 0 / 待验证"
+        : `审计级冻结D日 ${integerText(forward.selectionDates)} · 影子入选 ${integerText(forward.selectedRows)} · T可买真值 ${integerText(forward.fillTruthRows)}${forward.proxyRate == null ? "" : `（${pct(forward.proxyRate)}）`} · 结果已结算 ${integerText(forward.settledRows)} · 结算待验证 ${integerText(forward.pendingSettlementRows)} · T+1收益成熟 ${integerText(forward.maturedReturnRows)}${returnMaturitySuffix}`;
+      return `<strong>P_fill 影子 Top2 历史 OOF</strong>：${oofText}；仅为冻结、时间诚实的样本外研究，不是前向验证。<br><strong>P_fill 前向验证</strong>：${forwardText}；不从OOF回填。<br><strong>真实订单</strong>：0；OOF、前向代理与订单三种口径互不冒充。`;
+    }
+
     async function loadThreeRankHistorySummary() {
       const failClosed = () => {
+        state.pFillForwardStatistics = null;
         els.threeRankHistoryCoverage.textContent = "历史覆盖未验证；不会展示未经SHA校验的统计。";
         els.threeRankHistoryState.textContent = "未验证";
         els.threeRankHistoryDownloads.innerHTML = '<span class="count">年度下载已隐藏</span>';
+        els.pFillHistorySummary.innerHTML = '<strong>P_fill 影子 Top2 验证</strong>：历史 OOF 未验证；前向 T+1 收益成熟 0 / 待验证；真实订单 0。';
+        if (state.current?.plan) renderStageWatchlist(state.current.plan);
       };
       failClosed();
       try {
         const prefix = "outputs/decision/three_rank_history/";
         const index = await fetchPath(`${prefix}index.json`);
+        const historySchemaPair = {
+          dc20_three_rank_history_index_v1: "dc20_three_rank_history_statistics_v1",
+          dc20_three_rank_history_index_v2: "dc20_three_rank_history_statistics_v2"
+        };
         if (
-          index?.schema_version !== "dc20_three_rank_history_index_v1" ||
+          !Object.prototype.hasOwnProperty.call(historySchemaPair, index?.schema_version) ||
           index?.index_kind !== "dated_annual_shards_pointer_only" ||
           index?.data_alias !== false ||
           index?.latest_fallback_allowed !== false ||
@@ -1435,7 +1602,7 @@
         const coverage = statistics?.coverage || {};
         const statuses = statistics?.official_model_status || {};
         if (
-          statistics?.schema_version !== "dc20_three_rank_history_statistics_v1" ||
+          statistics?.schema_version !== historySchemaPair[index.schema_version] ||
           statistics?.research_only !== true ||
           statistics?.actual_execution_claimed !== false ||
           statistics?.final_model_historical_scoring_used !== false ||
@@ -1453,6 +1620,31 @@
           !index.shards.length ||
           JSON.stringify(index.shards) !== JSON.stringify(statistics.shards)
         ) throw new Error("历史三排名统计合同无效");
+        if (statistics.p_fill_shadow_top2_oof != null && statistics.p_fill_shadow_oof_top2 != null && (
+          JSON.stringify(statistics.p_fill_shadow_top2_oof) !== JSON.stringify(statistics.p_fill_shadow_oof_top2)
+        )) throw new Error("P_fill历史OOF统计别名冲突");
+        const pFillHistoryOofRaw = statistics.p_fill_shadow_top2_oof
+          ?? statistics.p_fill_shadow_oof_top2;
+        const pFillHistoryOof = validatedPFillHistoryOof(pFillHistoryOofRaw);
+        if (pFillHistoryOof === false) throw new Error("P_fill历史OOF统计合同无效");
+        const forwardAliases = [
+          statistics.p_fill_shadow_forward_top2,
+          statistics.forward_p_fill_shadow_top2
+        ].filter(value => value != null);
+        const forwardReference = statistics.p_fill_shadow_top2_forward
+          ?? forwardAliases[0];
+        if (forwardAliases.some(value => (
+          JSON.stringify(value) !== JSON.stringify(forwardReference)
+        ))) throw new Error("P_fill前向统计别名冲突");
+        const pFillForwardRaw = forwardReference;
+        const pFillForward = validatedPFillForwardStatistics(pFillForwardRaw);
+        if (pFillForward === false) throw new Error("P_fill前向统计合同无效");
+        if (index.schema_version === "dc20_three_rank_history_index_v2" && (
+          statistics.p_fill_shadow_top2_oof == null ||
+          statistics.p_fill_shadow_top2_forward == null ||
+          pFillHistoryOof == null ||
+          pFillForward == null
+        )) throw new Error("P_fill历史v2统计缺少canonical OOF/forward合同");
         const years = new Set();
         const annualDownloads = [];
         for (const shard of index.shards) {
@@ -1482,9 +1674,150 @@
           `<a class="three-rank-btn" href="${escapeHtml(localUrl(index.report_map_url))}" download>报告映射</a>`,
           ...annualDownloads
         ].join("");
+        state.pFillForwardStatistics = pFillForward;
+        els.pFillHistorySummary.innerHTML = pFillHistorySummaryHtml(pFillHistoryOof, pFillForward);
+        if (state.current?.plan) renderStageWatchlist(state.current.plan);
       } catch (_) {
         failClosed();
       }
+    }
+
+    function validatedPFillShadowTop2(contract) {
+      const shadow = contract?.shadow_contract || {};
+      const rows = Array.isArray(contract?.rows) ? contract.rows : [];
+      const byCode = new Map(rows.map(row => [String(row?.ts_code || "").trim(), row]));
+      const rowRanks = rows.map(row => row?.p_fill_shadow_rank);
+      const hasAnyRowRank = rowRanks.some(value => value != null);
+      if (shadow.model_status === "SHADOW_READY" && rows.length && !hasAnyRowRank) return false;
+      if (shadow.model_status !== "SHADOW_READY" && rows.some(row => (
+        row?.p_fill_shadow_rank != null || row?.p_fill_shadow_probability != null
+      ))) return false;
+      if (hasAnyRowRank) {
+        if (rowRanks.some(value => !Number.isInteger(value))) return false;
+        const expectedRanks = Array.from({ length: rows.length }, (_, index) => index + 1);
+        const actualRanks = [...rowRanks].sort((left, right) => left - right);
+        if (actualRanks.some((value, index) => value !== expectedRanks[index])) return false;
+        if (rows.some(row => (
+          row?.p_fill_shadow_status !== "SHADOW_READY" ||
+          typeof row?.p_fill_shadow_probability !== "number" ||
+          !Number.isFinite(row.p_fill_shadow_probability) ||
+          row.p_fill_shadow_probability < 0 ||
+          row.p_fill_shadow_probability > 1
+        ))) return false;
+      }
+      const declaredPayload = shadow.shadow_top2 ?? contract?.shadow_top2;
+      if (declaredPayload == null) {
+        if (!hasAnyRowRank) return null;
+        return [...rows]
+          .sort((left, right) => left.p_fill_shadow_rank - right.p_fill_shadow_rank)
+          .slice(0, Math.min(2, rows.length))
+          .map(row => ({
+            ts_code: String(row.ts_code),
+            name: String(row.name || "-"),
+            p_fill_shadow_rank: row.p_fill_shadow_rank,
+            p_fill_shadow_probability: row.p_fill_shadow_probability
+          }));
+      }
+      let declared = declaredPayload;
+      if (!Array.isArray(declaredPayload)) {
+        if (!declaredPayload || typeof declaredPayload !== "object") return false;
+        if (
+          declaredPayload.status !== "ANNOTATION_ONLY" ||
+          declaredPayload.model_status !== shadow.model_status ||
+          declaredPayload.selection_rule !== "p_fill_shadow_rank_lte_requested_slots" ||
+          declaredPayload.rank_field !== "p_fill_shadow_rank" ||
+          declaredPayload.probability_field !== "p_fill_shadow_probability" ||
+          declaredPayload.requested_slots !== 2 ||
+          declaredPayload.may_change_core_bundle !== false ||
+          declaredPayload.may_override_core_ranks !== false ||
+          declaredPayload.may_create_trade_action !== false ||
+          !Array.isArray(declaredPayload.rows) ||
+          declaredPayload.actual_slots !== declaredPayload.rows.length
+        ) return false;
+        declared = declaredPayload.rows;
+        if (!isSha256(shadow.shadow_snapshot_sha256)) return false;
+      }
+      const expectedSlots = shadow.model_status === "SHADOW_READY" ? Math.min(2, rows.length) : 0;
+      if (!Array.isArray(declared) || declared.length !== expectedSlots) return false;
+      const normalized = [];
+      const seen = new Set();
+      for (const item of declared) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+        const code = String(item.ts_code || "").trim();
+        const row = byCode.get(code);
+        const rank = item.p_fill_shadow_rank ?? item.rank;
+        const probability = item.p_fill_shadow_probability ?? item.probability;
+        if (!row || seen.has(code) || !Number.isInteger(rank) || rank < 1 || rank > declared.length) return false;
+        if (typeof probability !== "number" || !Number.isFinite(probability) || probability < 0 || probability > 1) return false;
+        if (hasAnyRowRank && row.p_fill_shadow_rank !== rank) return false;
+        const rowProbability = finiteNumber(row.p_fill_shadow_probability);
+        if (rowProbability != null && Math.abs(rowProbability - probability) > 1e-12) return false;
+        seen.add(code);
+        normalized.push({
+          ts_code: code,
+          name: String(row.name || item.name || "-"),
+          p_fill_shadow_rank: rank,
+          p_fill_shadow_probability: probability
+        });
+      }
+      normalized.sort((left, right) => left.p_fill_shadow_rank - right.p_fill_shadow_rank);
+      if (normalized.some((row, index) => row.p_fill_shadow_rank !== index + 1)) return false;
+      if (hasAnyRowRank) {
+        const expectedCodes = [...rows]
+          .sort((left, right) => left.p_fill_shadow_rank - right.p_fill_shadow_rank)
+          .slice(0, normalized.length)
+          .map(row => String(row.ts_code));
+        if (normalized.some((row, index) => row.ts_code !== expectedCodes[index])) return false;
+      }
+      return normalized;
+    }
+
+    function pFillForwardSummary() {
+      const pending = {
+        selectionDates: 0,
+        selectedRows: 0,
+        fillTruthRows: 0,
+        settledRows: 0,
+        pendingSettlementRows: 0,
+        filledRows: 0,
+        maturedReturnRows: 0,
+        pendingReturnRows: 0,
+        proxyRate: null
+      };
+      const forward = state.pFillForwardStatistics;
+      return forward && forward !== false ? forward : pending;
+    }
+
+    function pFillShadowTop2Html(plan, contract, top2) {
+      const shadowReady = contract?.shadow_contract?.model_status === "SHADOW_READY";
+      const forward = pFillForwardSummary();
+      const returnMaturitySuffix = forward.maturedReturnRows === 0
+        ? " / 待验证"
+        : forward.pendingReturnRows > 0
+          ? ` · 收益待验证 ${integerText(forward.pendingReturnRows)}`
+          : "";
+      const forwardText = `前向冻结D日 ${integerText(forward.selectionDates)} · 入选 ${integerText(forward.selectedRows)} · T真值 ${integerText(forward.fillTruthRows)}${forward.proxyRate == null ? "" : `（${pct(forward.proxyRate)}）`} · 结果已结算 ${integerText(forward.settledRows)} · T+1收益成熟 ${integerText(forward.maturedReturnRows)}${returnMaturitySuffix}`;
+      if (!shadowReady || top2 == null) {
+        return `<section class="pfill-shadow-panel" aria-label="P_fill可买性影子Top2">
+          <div class="pfill-shadow-head"><div><strong>P_fill 可买性影子 Top2（独立影子模块）</strong><span>只接受dated合同内的 shadow_top2 或 p_fill_shadow_rank；页面不会按概率临时造排名。</span></div><span class="pfill-shadow-state">${escapeHtml(forwardText)}</span></div>
+          <div class="empty"><strong>${shadowReady ? "P_fill Top2排名尚未随合同发布" : "P_fill影子模型未就绪"}</strong>当前不展示候选；不会把概率、历史OOF或旧二筛顺序冒充当前Top2。</div>
+          <p class="pfill-shadow-note">影子研究，不是订单、成交或买入建议；真实订单 0；不改变官方Top10成员与三核心排名。</p>
+        </section>`;
+      }
+      const body = top2.map(row => `<tr>
+        <td><span class="truth-badge">${escapeHtml(row.p_fill_shadow_rank)}</span></td>
+        <td class="left">${escapeHtml(row.ts_code)}</td>
+        <td class="left name">${escapeHtml(row.name)}</td>
+        <td>${pct(row.p_fill_shadow_probability)}</td>
+        <td>D ${dateText(contract.signal_date)} · 名单已冻结（非成交）</td>
+        <td>T ${dateText(contract.exec_date)} · 待公开市场可买性验证</td>
+        <td>T+1 ${dateText(contract.exit_date)} · 待验证</td>
+      </tr>`).join("");
+      return `<section class="pfill-shadow-panel" aria-label="P_fill可买性影子Top2">
+        <div class="pfill-shadow-head"><div><strong>P_fill 可买性影子 Top2（独立影子模块） · ${top2.length}只</strong><span>只在冻结官方Top10内按P_fill可买性代理排序；与 Trade Selector 二筛影子完全分开。</span></div><span class="pfill-shadow-state">${escapeHtml(forwardText)}</span></div>
+        <div class="table-wrap"><table class="pfill-shadow-table"><thead><tr><th>影子排名</th><th class="left">代码</th><th class="left">股票</th><th>P_fill概率</th><th>D状态</th><th>T状态</th><th>T+1状态</th></tr></thead><tbody>${body}</tbody></table></div>
+        <p class="pfill-shadow-note">SHADOW_ONLY：仅为公开市场可买性代理的研究排序，不是订单、成交或买入建议；前向统计与历史OOF严格分开，真实订单 0；不改变官方Top10成员与三核心排名。</p>
+      </section>`;
     }
 
     function validatedThreeRankContract(plan) {
@@ -1568,6 +1901,9 @@
         shadow.model_as_of_date >= signalDate ||
         !isSha256(shadow.model_artifact_sha256)
       )) return false;
+      const pFillShadowTop2 = validatedPFillShadowTop2(contract);
+      if (pFillShadowTop2 === false) return false;
+      if (Array.isArray(pFillShadowTop2) && pFillShadowTop2.length && shadowModelStatus !== "SHADOW_READY") return false;
       const downloads = contract.downloads;
       const expectedPrefix = `outputs/decision/three_rank_top10_${signalDate}`;
       if (!downloads || downloads.json_url !== `${expectedPrefix}.json` || downloads.csv_url !== `${expectedPrefix}.csv`) return false;
@@ -1666,6 +2002,7 @@
       const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
       const fixedRows = contract.rows.map(row => ({ ...(truthByCode.get(String(row.ts_code)) || {}), ...row }));
+      const pFillShadowTop2 = validatedPFillShadowTop2(contract);
       const poolSize = Number(contract.promotion_pool_size || fixedRows.length);
       els.stageCount.textContent = `晋级池 ${poolSize} 只 · 官方Top10 ${fixedRows.length} 只`;
       els.stageGeneratedTime.textContent = beijingDateTimeText(contract.generated_at_utc)
@@ -1721,8 +2058,10 @@
           <th>晋级排序</th><th>晋级概率</th><th>大跌排序（安全优先）</th><th>大跌概率</th><th>盈利排序</th><th>盈利概率</th>
           <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
-        <details class="three-rank-shadow"><summary>二筛影子（仅注释，不影响三排名） · ${shadowRows.length}只</summary>
+        ${pFillShadowTop2Html(plan, contract, pFillShadowTop2)}
+        <details class="three-rank-shadow"><summary>Trade Selector 二筛影子（旧策略链路，仅注释） · ${shadowRows.length}只</summary>
           <p>${shadowRows.length ? shadowRows.map(row => `${escapeHtml(row.ts_code || "-")} · 影子交易排名 ${escapeHtml(row.trade_rank || "-")}`).join("；") : "当日无影子入选。"}</p>
+          <p>该模块读取 trade_shadow_selected / trade_rank，与 P_fill 可买性影子 Top2 不是同一排名。</p>
         </details>`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));

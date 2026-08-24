@@ -46,6 +46,19 @@ def test_dashboard_exposes_exact_three_rank_fields_and_downloads() -> None:
         "P_fill 可买性影子",
         "仅影子，不得改变成员或三核心排名",
         "SHADOW_ONLY · 不进入三核心模型READY聚合",
+        "P_fill 可买性影子 Top2（独立影子模块）",
+        "p_fill_shadow_rank",
+        "p_fill_shadow_probability",
+        "p_fill_shadow_top2_oof",
+        "p_fill_shadow_top2_forward",
+        "p_fill_shadow_oof_top2",
+        "forward_p_fill_shadow_top2",
+        "T+1收益成熟 0 / 待验证",
+        "前向冻结D日",
+        "结果已结算",
+        "不是订单、成交或买入建议",
+        "真实订单 0",
+        "Trade Selector 二筛影子（旧策略链路，仅注释）",
     ):
         assert token in text
 
@@ -58,7 +71,8 @@ def test_dashboard_fails_closed_and_shadow_cannot_override_core_rank() -> None:
     assert "model.status === \"READY\"" in text
     assert "shadow.may_change_membership !== false" in text
     assert "shadow.may_override_core_ranks !== false" in text
-    assert "二筛影子（仅注释，不影响三排名）" in text
+    assert "Trade Selector 二筛影子（旧策略链路，仅注释）" in text
+    assert "与 P_fill 可买性影子 Top2 不是同一排名" in text
     # The new renderer may join truth fields, but the frozen artifact row is
     # spread last so truth/shadow records cannot replace any core rank field.
     assert "...(truthByCode.get(String(row.ts_code)) || {}), ...row" in text
@@ -125,7 +139,8 @@ def _ready_contract_plan() -> dict[str, object]:
             "predicted_big_loss_probability": rank * 0.05,
             "profit_rank": rank,
             "predicted_profit_probability": 0.8 - rank * 0.1,
-            "p_fill_shadow_probability": 0.5,
+            "p_fill_shadow_rank": rank,
+            "p_fill_shadow_probability": 1.0 - rank * 0.1,
             "p_fill_shadow_status": "SHADOW_READY",
             "p_fill_shadow_model_version": "p_fill_shadow_v1",
             "p_fill_shadow_model_as_of_date": "20260819",
@@ -161,6 +176,72 @@ def _ready_contract_plan() -> dict[str, object]:
         "candidates": rows,
         "model": {},
     }
+
+
+def test_dashboard_keeps_pfill_oof_forward_and_trade_selector_separate() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+
+    forward = text.split("function pFillForwardSummary", 1)[1].split(
+        "function pFillShadowTop2Html", 1
+    )[0]
+    history = text.split("function validatedPFillHistoryOof", 1)[1].split(
+        "async function loadThreeRankHistorySummary", 1
+    )[0]
+    pfill_renderer = text.split("function pFillShadowTop2Html", 1)[1].split(
+        "function validatedThreeRankContract", 1
+    )[0]
+
+    assert "state.pFillForwardStatistics" in forward
+    assert "observation_statistics" not in forward
+    assert "forward_shadow" not in forward
+    assert "TIME_HONEST_OOF_COUNTERFACTUAL_DIAGNOSTIC" in history
+    assert "guards.forward_snapshot_rows_used !== 0" in history
+    assert "guards.actual_order_rows_used !== 0" in history
+    assert "页面不会按概率临时造排名" in pfill_renderer
+    assert "历史OOF严格分开" in pfill_renderer
+    assert "trade_shadow_selected" not in pfill_renderer
+    assert 'shadow.model_status === "SHADOW_READY" && rows.length && !hasAnyRowRank' in text
+    assert "P_fill历史v2统计缺少canonical OOF/forward合同" in text
+
+
+def test_dashboard_does_not_mislabel_settlement_as_t1_return_maturity() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+    validator = text.split(
+        "function validatedPFillForwardStatistics", 1
+    )[1].split("function pFillHistorySummaryHtml", 1)[0]
+
+    assert (
+        'const settledRows = firstNonnegativeInteger(returns, '
+        '["resolved_selected_entries"])'
+    ) in validator
+    assert (
+        'const maturedReturnRows = firstNonnegativeInteger(returns, '
+        '["matured_filled_return_entries"])'
+    ) in validator
+    assert "settledRows: 0" in text
+    assert "maturedReturnRows: 0" in text
+    assert "结果已结算" in text
+    assert "T+1收益成熟" in text
+    assert "T+1成熟" not in text
+    assert "const maturedRows" not in validator
+
+
+def test_ready_fixture_builds_rank_bound_pfill_shadow_top2() -> None:
+    contract = build_three_rank_contract(_ready_contract_plan())
+
+    assert contract["shadow_contract"]["model_status"] == "SHADOW_READY"
+    assert contract["shadow_contract"]["may_change_membership"] is False
+    assert contract["shadow_contract"]["may_override_core_ranks"] is False
+    assert contract["shadow_top2"]["may_create_trade_action"] is False
+    assert contract["shadow_top2"]["actual_slots"] == 2
+    assert [row["p_fill_shadow_rank"] for row in contract["shadow_top2"]["rows"]] == [
+        1,
+        2,
+    ]
+    assert [row["ts_code"] for row in contract["shadow_top2"]["rows"]] == [
+        "600001.SH",
+        "600002.SH",
+    ]
 
 
 def _write_public_three_rank_action(site_root: Path) -> tuple[Path, Path]:

@@ -7,6 +7,8 @@ on:
       - decision.html
       - outputs/decision/**
       - outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
+      - data/decision_three_engines/five_year_supervised_ledger.csv.gz
+      - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
       - models/decision_model_freeze.json
       - models/decision_three_engines/validation_latest.json
@@ -414,7 +416,7 @@ jobs:
                   history_index = json.loads(public_history_index_bytes.decode("utf-8"))
                   if (
                       history_index.get("schema_version")
-                      != "dc20_three_rank_history_index_v1"
+                      != "dc20_three_rank_history_index_v2"
                       or history_index.get("index_kind")
                       != "dated_annual_shards_pointer_only"
                       or history_index.get("data_alias") is not False
@@ -468,8 +470,14 @@ jobs:
                   history_statistics = json.loads(
                       fetch_text(history_index["statistics_url"])
                   )
+                  p_fill_oof = history_statistics.get("p_fill_shadow_top2_oof")
+                  p_fill_forward = history_statistics.get(
+                      "p_fill_shadow_top2_forward"
+                  )
                   if (
-                      history_statistics.get("actual_execution_claimed") is not False
+                      history_statistics.get("schema_version")
+                      != "dc20_three_rank_history_statistics_v2"
+                      or history_statistics.get("actual_execution_claimed") is not False
                       or history_statistics.get("final_model_historical_scoring_used")
                       is not False
                       or history_statistics.get("calendar_source")
@@ -482,6 +490,26 @@ jobs:
                       != "RESEARCH_NOT_RELEASED"
                       or history_statistics["official_model_status"]["profit"]
                       != "RESEARCH_NOT_RELEASED"
+                      or not isinstance(p_fill_oof, dict)
+                      or p_fill_oof.get("schema_version")
+                      != "dc20_p_fill_shadow_oof_cumulative_v1"
+                      or p_fill_oof.get("selection_dates", 0) <= 0
+                      or p_fill_oof.get("selected_slots", 0) <= 0
+                      or p_fill_oof.get("separation_guards", {}).get(
+                          "actual_execution_claimed"
+                      ) is not False
+                      or not isinstance(p_fill_forward, dict)
+                      or p_fill_forward.get("schema_version")
+                      != "dc20_p_fill_shadow_forward_top2_v1"
+                      or p_fill_forward.get("separation_guards", {}).get(
+                          "actual_execution_claimed"
+                      ) is not False
+                      or p_fill_forward.get("fill_truth", {}).get(
+                          "actual_order_fill_observed"
+                      ) is not False
+                      or p_fill_forward.get("returns", {}).get(
+                          "actual_trading_result"
+                      ) is not False
                   ):
                       raise RuntimeError("public history release status is unsafe")
 

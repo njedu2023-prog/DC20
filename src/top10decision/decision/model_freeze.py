@@ -309,6 +309,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "tests/test_frozen_canonical_v2_replay.py",
         "tests/test_migrate_decision_runtime.py",
         "tests/test_pages_truthfulness_workflow.py",
+        "tests/test_pfill_shadow_pages_truth.py",
         "tests/test_promotion_model.py",
         "tests/test_recover_decision_action_gaps.py",
         "tests/test_sync_market_raw.py",

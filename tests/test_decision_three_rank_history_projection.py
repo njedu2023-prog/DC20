@@ -17,6 +17,10 @@ from scripts.build_decision_three_rank_history import (
     UNAVAILABLE_STATUS,
     UNRELEASED_STATUS,
     HistoryProjectionError,
+    _canonical_sha256,
+    _forward_shadow_snapshot_sha256,
+    _forward_shadow_top2_projection,
+    _three_rank_core_projection,
     _top10_members_sha256,
     build_history_archive,
 )
@@ -45,19 +49,29 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _copy_projection_sources(destination: Path) -> Path:
+def _copy_projection_sources(
+    destination: Path, *, include_forward_snapshots: bool = True
+) -> Path:
     source = destination / "source"
     for relative in (
         "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
         "models/decision_three_engines/validation_latest.json",
         "models/decision_three_rank_history_sources.json",
         "data/market/trade_cal_sse.csv",
+        "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+        "data/decision_three_engines/five_year_ledger_manifest.json",
     ):
         target = source / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / relative, target)
     reports = source / "outputs" / "decision"
     reports.mkdir(parents=True, exist_ok=True)
+    if include_forward_snapshots:
+        for path in (ROOT / "outputs" / "decision").iterdir():
+            if path.is_file() and path.name.startswith("three_rank_top10_20") and (
+                path.suffix in {".json", ".csv"}
+            ):
+                shutil.copy2(path, reports / path.name)
     manifest = _load(source / "models/decision_three_rank_history_sources.json")
     for entry in manifest["entries"]:
         for kind in ("report", "evaluation"):
@@ -116,6 +130,207 @@ def _rewrite_calendar(source: Path, mutate) -> None:
         writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _upgrade_forward_snapshot_to_frozen_shadow_v1(source: Path) -> Path:
+    path = source / "outputs/decision/three_rank_top10_20260821.json"
+    payload = _load(path)
+    ordered = sorted(
+        payload["rows"],
+        key=lambda row: (-row["p_fill_shadow_probability"], row["ts_code"]),
+    )
+    rank_by_code = {}
+    for rank, row in enumerate(ordered, start=1):
+        row["p_fill_shadow_rank"] = rank
+        rank_by_code[row["ts_code"]] = rank
+    payload["shadow_top2"] = _forward_shadow_top2_projection(
+        payload["rows"], model_status="SHADOW_READY"
+    )
+    payload["shadow_contract"][
+        "shadow_snapshot_sha256"
+    ] = _forward_shadow_snapshot_sha256(
+        signal_date=payload["signal_date"],
+        exec_date=payload["exec_date"],
+        exit_date=payload["exit_date"],
+        members_sha256=payload["top10_members_sha256"],
+        shadow=payload["shadow_contract"],
+        rows=payload["rows"],
+        shadow_top2=payload["shadow_top2"],
+    )
+
+    csv_path = source / payload["downloads"]["csv_url"]
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fields = list(reader.fieldnames or [])
+        csv_rows = list(reader)
+    if "p_fill_shadow_rank" not in fields:
+        fields.append("p_fill_shadow_rank")
+    for row in csv_rows:
+        row["p_fill_shadow_rank"] = str(rank_by_code[row["ts_code"]])
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(csv_rows)
+    payload["downloads"]["csv_sha256"] = hashlib.sha256(
+        csv_path.read_bytes()
+    ).hexdigest()
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _add_matured_forward_snapshot(source: Path, signal_date: str = "20260814") -> Path:
+    oof_path = source / "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz"
+    with gzip.open(oof_path, "rt", encoding="utf-8-sig", newline="") as handle:
+        source_rows = [
+            row
+            for row in csv.DictReader(handle)
+            if row["signal_date"] == signal_date
+        ]
+    source_rows.sort(key=lambda row: int(float(row["promotion_rank"])))
+    assert source_rows
+    exec_date = source_rows[0]["buy_date"]
+    exit_date = source_rows[0]["target_exit_date"]
+    rows = [
+        {
+            "ts_code": row["ts_code"],
+            "name": "",
+            "industry": "未分类",
+            "stage_transition": f"{int(float(row['stage']))}→{int(float(row['stage'])) + 1}",
+            "top10_selected": 1,
+            "promotion_rank": int(float(row["promotion_rank"])),
+            "predicted_promotion_probability": float(
+                row["predicted_promotion_probability"]
+            ),
+            "big_loss_safety_rank": None,
+            "predicted_big_loss_probability": None,
+            "profit_rank": None,
+            "predicted_profit_probability": None,
+            "p_fill_shadow_rank": int(float(row["p_fill_shadow_rank"])),
+            "p_fill_shadow_probability": float(row["p_fill_shadow_probability"]),
+            "p_fill_shadow_status": "SHADOW_READY",
+        }
+        for row in source_rows
+    ]
+    members_sha256 = _top10_members_sha256(
+        signal_date, [row["ts_code"] for row in rows]
+    )
+    models = {
+        "promotion": {
+            "label": "晋级",
+            "status": "READY",
+            "ranking_ready": True,
+            "probability_ready": True,
+            "version": "test:promotion",
+            "model_as_of_date": "20260813",
+            "artifact_sha256": "1" * 64,
+            "rank_field": "promotion_rank",
+            "probability_field": "predicted_promotion_probability",
+            "validation_gate_pass_count": 1,
+            "validation_gate_total_count": 1,
+            "validation_gate_score_pct": 100.0,
+            "input_members_sha256": members_sha256,
+        },
+        "big_loss": {
+            "label": "大跌安全",
+            "status": "NOT_READY_VALIDATION_GATE",
+            "ranking_ready": False,
+            "probability_ready": False,
+            "version": "test:big_loss",
+            "model_as_of_date": "20260813",
+            "artifact_sha256": "2" * 64,
+            "rank_field": "big_loss_safety_rank",
+            "probability_field": "predicted_big_loss_probability",
+            "validation_gate_pass_count": 0,
+            "validation_gate_total_count": 1,
+            "validation_gate_score_pct": 0.0,
+            "input_members_sha256": members_sha256,
+        },
+        "profit": {
+            "label": "盈利",
+            "status": "NOT_READY_VALIDATION_GATE",
+            "ranking_ready": False,
+            "probability_ready": False,
+            "version": "test:profit",
+            "model_as_of_date": "20260813",
+            "artifact_sha256": "3" * 64,
+            "rank_field": "profit_rank",
+            "probability_field": "predicted_profit_probability",
+            "validation_gate_pass_count": 0,
+            "validation_gate_total_count": 1,
+            "validation_gate_score_pct": 0.0,
+            "input_members_sha256": members_sha256,
+        },
+    }
+    shadow = {
+        "status": "ANNOTATION_ONLY",
+        "input_members_sha256": members_sha256,
+        "may_change_membership": False,
+        "may_override_core_ranks": False,
+        "model_status": "SHADOW_READY",
+        "model_version": "test:p_fill_shadow",
+        "model_as_of_date": "20260813",
+        "model_artifact_sha256": "4" * 64,
+        "validation_gate_pass_count": 1,
+        "validation_gate_total_count": 1,
+        "validation_gate_score_pct": 100.0,
+    }
+    shadow_top2 = _forward_shadow_top2_projection(
+        rows, model_status="SHADOW_READY"
+    )
+    shadow["shadow_snapshot_sha256"] = _forward_shadow_snapshot_sha256(
+        signal_date=signal_date,
+        exec_date=exec_date,
+        exit_date=exit_date,
+        members_sha256=members_sha256,
+        shadow=shadow,
+        rows=rows,
+        shadow_top2=shadow_top2,
+    )
+    prefix = f"outputs/decision/three_rank_top10_{signal_date}"
+    csv_path = source / f"{prefix}.csv"
+    csv_path.write_text("fixture\n", encoding="utf-8")
+    payload = {
+        "schema_version": "decision_three_rank_top10_v1",
+        "artifact_kind": "d_close_independent_three_rank_top10",
+        "contract_version": "decision_three_rank_v1",
+        "status": "PARTIAL_MODELS_NOT_READY",
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "feature_as_of_date": signal_date,
+        "feature_snapshot_sha256": "5" * 64,
+        "membership_authority": "promotion_probability_engine_only",
+        "downstream_scope": "exact_frozen_promotion_top10",
+        "promotion_pool_size": int(float(source_rows[0]["promotion_pool_size"])),
+        "top10_count": len(rows),
+        "top10_members_sha256": members_sha256,
+        "models": models,
+        "rows": rows,
+        "shadow_contract": shadow,
+        "shadow_top2": shadow_top2,
+        "execution_summary": {
+            "actual_execution_claimed": False,
+            "decision": "NO_TRADE",
+        },
+        "downloads": {
+            "json_url": f"{prefix}.json",
+            "csv_url": f"{prefix}.csv",
+            "csv_sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(),
+            "row_count": len(rows),
+        },
+    }
+    payload["bundle_sha256"] = _canonical_sha256(
+        _three_rank_core_projection(payload)
+    )
+    path = source / f"{prefix}.json"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def test_generator_is_pure_standard_library_and_has_no_model_runtime_import() -> None:
@@ -208,6 +423,7 @@ def test_complete_oof_archive_and_121_report_map_have_exact_coverage(
     }
     assert statistics["research_diagnostic_coverage"] == {
         "big_loss": {"rows": 5677, "signal_dates": 710},
+        "p_fill_shadow": {"rows": 5677, "signal_dates": 710},
         "profit": {"rows": 5677, "signal_dates": 710},
     }
     assert [
@@ -220,6 +436,229 @@ def test_complete_oof_archive_and_121_report_map_have_exact_coverage(
         ("2025", 243, 2142),
         ("2026", 149, 1209),
     ]
+
+
+def test_p_fill_shadow_oof_top2_has_exact_daily_cumulative_statistics(
+    archive: Path,
+) -> None:
+    statistics = _load(archive / "statistics.json")
+    assert statistics["schema_version"] == "dc20_three_rank_history_statistics_v2"
+    shadow = statistics["p_fill_shadow_top2_oof"]
+    assert shadow["schema_version"] == "dc20_p_fill_shadow_oof_cumulative_v1"
+    assert shadow["selection_rule"] == "p_fill_shadow_rank<=2"
+    assert shadow["selection_dates"] == 710
+    assert shadow["requested_slots"] == 1420
+    assert shadow["selected_slots"] == 1417
+    assert shadow["selection_slot_coverage"] == pytest.approx(1417 / 1420)
+    assert shadow["dates_with_two_slots"] == 707
+    assert shadow["dates_with_one_slot"] == 3
+
+    fill = shadow["market_fill_proxy"]
+    assert fill["truth_covered_slots"] == 1417
+    assert fill["truth_coverage"] == 1.0
+    assert fill["hits"] == 1344
+    assert fill["hit_rate"] == pytest.approx(0.9484827099505999)
+    assert fill["date_balanced_hit_rate"] == pytest.approx(0.9478873239436619)
+    assert fill["wilson_95"]["low"] == pytest.approx(0.9357125125478534)
+    assert fill["wilson_95"]["high"] == pytest.approx(0.9588278262841348)
+    assert fill["rank_breakdown"] == {
+        "1": {
+            "fill_hits": 683,
+            "hit_rate": pytest.approx(0.9619718309859155),
+            "selected_slots": 710,
+        },
+        "2": {
+            "fill_hits": 661,
+            "hit_rate": pytest.approx(0.9349363507779349),
+            "selected_slots": 707,
+        },
+    }
+    assert fill["same_period_full_top10_baseline"] == {
+        "rows": 5677,
+        "hits": 4847,
+        "hit_rate": pytest.approx(0.8537960190241325),
+        "date_balanced_hit_rate": pytest.approx(0.8552028839704896),
+    }
+    assert fill["micro_hit_rate_lift_vs_full_top10"] == pytest.approx(
+        0.09468669092646742
+    )
+    assert fill["date_balanced_hit_rate_lift_vs_full_top10"] == pytest.approx(
+        0.09268443997317233
+    )
+
+    returns = shadow["returns"]
+    assert returns["status"] == "INCOMPLETE_FILLED_RETURN_TRUTH"
+    assert returns["filled_slots"] == 1344
+    assert returns["observed_filled_return_slots"] == 1341
+    assert returns["conditional_filled_return_coverage"] == pytest.approx(
+        1341 / 1344
+    )
+    assert returns["conditional_filled_mean_net_return"] == pytest.approx(
+        -0.014494566745776871
+    )
+    assert returns["conditional_filled_win_count"] == 522
+    assert returns["conditional_filled_win_rate"] == pytest.approx(
+        0.38926174496644295
+    )
+    assert returns["resolved_selected_slots"] == 1414
+    assert returns["fully_resolved_signal_dates"] == 707
+    assert returns["return_incomplete_signal_dates"] == [
+        "20251113",
+        "20260703",
+        "20260721",
+    ]
+    counterfactual = returns["fixed_two_slot_complete_case_counterfactual"]
+    assert counterfactual["diagnostic_only"] is True
+    assert counterfactual["actual_trading_result"] is False
+    assert counterfactual["included_signal_dates"] == 707
+    assert counterfactual["mean_daily_net_return"] == pytest.approx(
+        -0.013764165615704952
+    )
+    assert counterfactual["compounded_net_return"] == pytest.approx(
+        -0.9999900354641381
+    )
+
+    daily = shadow["daily"]
+    assert len(daily) == 710
+    assert daily[0]["signal_date"] == "20230907"
+    assert daily[-1]["signal_date"] == "20260814"
+    assert daily[-1]["cumulative"]["selected_slots"] == 1417
+    assert daily[-1]["cumulative"]["market_fill_proxy_hits"] == 1344
+    assert daily[-1]["cumulative"]["filled_return_observations"] == 1341
+    assert daily[-1]["cumulative"]["resolved_selected_slots"] == 1414
+    assert daily[-1]["cumulative"]["complete_case_included_signal_dates"] == 707
+    assert shadow["separation_guards"] == {
+        "historical_oof_rows_only": True,
+        "forward_snapshot_rows_used": 0,
+        "actual_order_rows_used": 0,
+        "actual_execution_claimed": False,
+        "final_model_historical_scoring_used": False,
+        "may_change_core_members_or_ranks": False,
+        "may_create_trade_action": False,
+    }
+
+
+def test_forward_shadow_keeps_legacy_d21_pending_and_out_of_statistics(
+    archive: Path,
+) -> None:
+    forward = _load(archive / "statistics.json")["p_fill_shadow_top2_forward"]
+    assert forward["schema_version"] == "dc20_p_fill_shadow_forward_top2_v1"
+    assert forward["discovered_snapshot_dates"] == ["20260821"]
+    assert set(forward["accepted_snapshot_dates"]) | set(
+        forward["provisional_snapshot_dates"]
+    ) == {"20260821"}
+    assert forward["separation_guards"]["historical_oof_rows_used"] == 0
+    assert forward["separation_guards"]["actual_order_rows_used"] == 0
+    if forward["provisional_snapshot_dates"]:
+        assert forward["selection_dates"] == 0
+        assert forward["selected_entries"] == 0
+        provisional = forward["provisional_pre_freeze_records"]
+        assert len(provisional) == 1
+        assert provisional[0]["signal_date"] == "20260821"
+        assert provisional[0]["status"] == "PENDING_SNAPSHOT_CONTRACT_UPGRADE"
+        assert provisional[0]["excluded_from_forward_statistics"] is True
+        assert [
+            row["ts_code"]
+            for row in provisional[0]["probability_order_candidates_not_frozen"]
+        ] == ["002903.SZ", "002491.SZ"]
+    else:
+        assert forward["selection_dates"] == 1
+        assert forward["selected_entries"] == 2
+        assert all(
+            row["settlement_status"] == "PENDING"
+            for row in forward["records"][0]["rows"]
+        )
+
+
+def test_audit_grade_forward_shadow_freezes_rank_top2_and_stays_pending(
+    tmp_path: Path,
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    _upgrade_forward_snapshot_to_frozen_shadow_v1(source)
+    result = build_history_archive(source, tmp_path / "site")
+    forward = result["statistics"]["p_fill_shadow_top2_forward"]
+    assert forward["status"] == "FROZEN_FORWARD_RECORDS_PRESENT"
+    assert forward["accepted_snapshot_dates"] == ["20260821"]
+    assert forward["provisional_snapshot_dates"] == []
+    assert forward["selection_dates"] == 1
+    assert forward["selected_entries"] == 2
+    record = forward["records"][0]
+    assert record["requested_slots"] == 2
+    assert record["selected_slots"] == 2
+    assert [row["p_fill_shadow_rank"] for row in record["rows"]] == [1, 2]
+    assert [row["ts_code"] for row in record["rows"]] == [
+        "002903.SZ",
+        "002491.SZ",
+    ]
+    assert all(row["settlement_status"] == "PENDING" for row in record["rows"])
+    assert forward["fill_truth"]["covered_entries"] == 0
+    assert forward["returns"]["matured_filled_return_entries"] == 0
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("rank", "forward p_fill_shadow ranks are invalid"),
+        ("shadow_hash", "forward p_fill_shadow snapshot hash is invalid"),
+        ("core_hash", "forward snapshot core bundle hash is invalid"),
+    ),
+)
+def test_forward_shadow_rank_and_hash_drift_fails_closed(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    path = _upgrade_forward_snapshot_to_frozen_shadow_v1(source)
+    payload = _load(path)
+    if mutation == "rank":
+        payload["rows"][0]["p_fill_shadow_rank"] = payload["rows"][1][
+            "p_fill_shadow_rank"
+        ]
+    elif mutation == "shadow_hash":
+        payload["shadow_contract"]["shadow_snapshot_sha256"] = "0" * 64
+    else:
+        payload["bundle_sha256"] = "0" * 64
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
+def test_forward_shadow_settles_matured_rows_from_exact_ledger_identity(
+    tmp_path: Path,
+) -> None:
+    source = _copy_projection_sources(tmp_path, include_forward_snapshots=False)
+    _add_matured_forward_snapshot(source)
+    result = build_history_archive(source, tmp_path / "site")
+    forward = result["statistics"]["p_fill_shadow_top2_forward"]
+    assert forward["accepted_snapshot_dates"] == ["20260814"]
+    assert forward["selection_dates"] == 1
+    assert forward["selected_entries"] == 2
+    assert forward["fill_truth"] == {
+        "actual_order_fill_observed": False,
+        "covered_entries": 2,
+        "coverage": 1.0,
+        "hits": 2,
+        "hit_rate": 1.0,
+    }
+    assert forward["returns"]["filled_entries"] == 2
+    assert forward["returns"]["matured_filled_return_entries"] == 2
+    assert forward["returns"]["filled_return_coverage"] == 1.0
+    assert forward["returns"]["conditional_filled_mean_net_return"] == pytest.approx(
+        (0.06822727273 - 0.04689766082) / 2
+    )
+    assert forward["returns"]["conditional_filled_win_count"] == 1
+    assert forward["returns"]["conditional_filled_win_rate"] == 0.5
+    record = forward["records"][0]
+    assert [row["ts_code"] for row in record["rows"]] == [
+        "002081.SZ",
+        "000936.SZ",
+    ]
+    assert all(
+        row["settlement_status"] == "SETTLED_FILLED_RETURN"
+        for row in record["rows"]
+    )
 
 
 def test_secondary_oof_heads_legitimately_start_later_without_internal_gaps() -> None:
@@ -290,6 +729,13 @@ def test_unreleased_heads_are_null_officially_and_only_live_in_diagnostics(
             "official_historical_fields_populated": False,
             "status": UNRELEASED_STATUS,
         },
+        "p_fill_shadow": {
+            "diagnostics_only": True,
+            "may_change_core_members_or_ranks": False,
+            "may_create_trade_action": False,
+            "official_historical_fields_populated": False,
+            "status": "SHADOW_READY_TIME_HONEST_OOF_DIAGNOSTIC",
+        },
     }
     assert record["source_report_dates"] == ["20260501", "20260506"]
     for row in record["rows"]:
@@ -301,6 +747,12 @@ def test_unreleased_heads_are_null_officially_and_only_live_in_diagnostics(
         assert row["predicted_profit_probability"] is None
         assert row["research_diagnostics"]["big_loss"]["rank"] is not None
         assert row["research_diagnostics"]["profit"]["rank"] is not None
+        assert row["research_diagnostics"]["p_fill_shadow"]["rank"] is not None
+        assert row["research_diagnostics"]["p_fill_shadow"][
+            "shadow_selected"
+        ] is (
+            row["research_diagnostics"]["p_fill_shadow"]["rank"] <= 2
+        )
 
 
 def test_every_archive_date_is_time_honest_member_bound_and_contiguous(
@@ -324,7 +776,7 @@ def test_every_archive_date_is_time_honest_member_bound_and_contiguous(
             )
             for row in rows:
                 assert row["promotion_oof"]["train_end"] < signal_date
-                for head in ("big_loss", "profit"):
+                for head in ("big_loss", "profit", "p_fill_shadow"):
                     diagnostic = row["research_diagnostics"][head]
                     if diagnostic["rank"] is not None:
                         assert diagnostic["train_end"] < signal_date
@@ -422,6 +874,18 @@ def test_annual_csv_is_deterministic_gzip_and_keeps_bc_official_fields_empty(
         assert all(row["profit_rank"] == "" for row in rows)
         assert all(row["predicted_profit_probability"] == "" for row in rows)
         assert all(row["actual_execution_claimed"] == "false" for row in rows)
+        for row in rows:
+            if row["research_p_fill_shadow_rank"]:
+                assert row["p_fill_shadow_oof_train_end"] < row["signal_date"]
+                assert row["research_p_fill_shadow_selected"] == (
+                    "true"
+                    if int(row["research_p_fill_shadow_rank"]) <= 2
+                    else "false"
+                )
+            else:
+                assert row["research_p_fill_shadow_probability"] == ""
+                assert row["p_fill_shadow_oof_train_end"] == ""
+                assert row["research_p_fill_shadow_selected"] == "false"
 
 
 def test_projection_bytes_are_reproducible(archive: Path, tmp_path: Path) -> None:
@@ -639,6 +1103,96 @@ def test_secondary_oof_metadata_cannot_have_internal_or_partial_date_gaps(
         build_history_archive(source, tmp_path / "site")
 
 
+@pytest.mark.parametrize(
+    ("whole_date", "message"),
+    (
+        (True, "p_fill_shadow OOF dates are not a contiguous source tail"),
+        (False, "p_fill_shadow OOF date is only partially populated"),
+    ),
+)
+def test_p_fill_shadow_oof_metadata_cannot_have_internal_or_partial_date_gaps(
+    tmp_path: Path, whole_date: bool, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    metadata_fields = (
+        "p_fill_shadow_rank",
+        "p_fill_shadow_probability",
+        "p_fill_shadow_score",
+        "p_fill_shadow_oof_fold",
+        "p_fill_shadow_oof_fold_kind",
+        "p_fill_shadow_oof_train_end",
+        "p_fill_shadow_oof_model_kind",
+        "p_fill_shadow_oof_calibration",
+        "p_fill_shadow_oof_selection_eligible",
+        "p_fill_shadow_oof_selection_composite_lift",
+    )
+
+    def mutate(rows: list[dict[str, str]]) -> None:
+        candidates = [row for row in rows if row["signal_date"] == "20240108"]
+        targets = candidates if whole_date else candidates[:1]
+        for row in targets:
+            for field in metadata_fields:
+                row[field] = ""
+
+    _rewrite_oof(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("rank", "non-contiguous p_fill_shadow rank"),
+        ("truth", "p_fill_shadow OOF truth is missing"),
+        ("fold_audit", "p_fill_shadow OOF fold metadata is inconsistent"),
+    ),
+)
+def test_p_fill_shadow_rank_truth_and_fold_contracts_fail_closed(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+
+    def mutate(rows: list[dict[str, str]]) -> None:
+        group = [row for row in rows if row["signal_date"] == "20240108"]
+        if mutation == "rank":
+            group[0]["p_fill_shadow_rank"] = group[1]["p_fill_shadow_rank"]
+        elif mutation == "truth":
+            group[0]["market_fill"] = ""
+        else:
+            group[0]["p_fill_shadow_oof_model_kind"] = "contract_drift"
+
+    _rewrite_oof(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("status", "p_fill_shadow release contract is invalid"),
+        ("probability_rows", "p_fill_shadow probability/ranking contract drifted"),
+        ("actual_execution", "p_fill_shadow release contract is invalid"),
+    ),
+)
+def test_p_fill_shadow_validation_contract_drift_fails_closed(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+
+    def mutate(validation: dict) -> None:
+        shadow = validation["heads"]["p_fill_shadow"]
+        if mutation == "status":
+            shadow["status"] = "SHADOW_NOT_READY"
+        elif mutation == "probability_rows":
+            shadow["probability"]["rows"] -= 1
+        else:
+            shadow["execution_truth_claim"]["actual_execution_claimed"] = True
+
+    _rewrite_validation(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
 def test_source_manifest_prevents_live_report_inventory_resealing(tmp_path: Path) -> None:
     source = _copy_projection_sources(tmp_path)
     report = source / "outputs/decision/decision_report_20260302.md"
@@ -729,6 +1283,10 @@ def test_pages_workflow_builds_and_publicly_hash_verifies_history() -> None:
     assert "_site/outputs/decision/three_rank_history" in text
     assert "public_history_index_bytes" in text
     assert "history public SHA256 mismatch" in text
+    assert '!= "dc20_three_rank_history_index_v2"' in text
+    assert '!= "dc20_three_rank_history_statistics_v2"' in text
+    assert 'history_statistics.get("p_fill_shadow_top2_oof")' in text
+    assert '"p_fill_shadow_top2_forward"' in text
     assert 'history_statistics["official_model_status"]["big_loss"]' in text
     assert 'history_statistics["official_model_status"]["profit"]' in text
     assert 'history_statistics.get("calendar_source")' in text
@@ -739,6 +1297,8 @@ def test_pages_workflow_builds_and_publicly_hash_verifies_history() -> None:
     push_header = text.split("schedule:", 1)[0]
     assert "requirements.lock" in push_header
     assert "models/decision_three_rank_history_sources.json" in push_header
+    assert "data/decision_three_engines/five_year_supervised_ledger.csv.gz" in push_header
+    assert "data/decision_three_engines/five_year_ledger_manifest.json" in push_header
 
 
 def test_dashboard_only_exposes_history_coverage_and_downloads_as_research() -> None:

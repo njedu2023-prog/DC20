@@ -19,6 +19,7 @@ import gzip
 import hashlib
 import io
 import json
+import math
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -37,12 +38,20 @@ SOURCES_MANIFEST_RELATIVE_PATH = Path(
 )
 CALENDAR_RELATIVE_PATH = Path("data/market/trade_cal_sse.csv")
 REPORTS_RELATIVE_PATH = Path("outputs/decision")
+LEDGER_RELATIVE_PATH = Path(
+    "data/decision_three_engines/five_year_supervised_ledger.csv.gz"
+)
+LEDGER_MANIFEST_RELATIVE_PATH = Path(
+    "data/decision_three_engines/five_year_ledger_manifest.json"
+)
 
-ARCHIVE_SCHEMA = "dc20_three_rank_history_archive_v1"
-EVIDENCE_SCHEMA = "dc20_three_rank_history_evidence_v1"
+ARCHIVE_SCHEMA = "dc20_three_rank_history_archive_v2"
+EVIDENCE_SCHEMA = "dc20_three_rank_history_evidence_v2"
 REPORT_MAP_SCHEMA = "dc20_three_rank_history_report_map_v1"
-STATISTICS_SCHEMA = "dc20_three_rank_history_statistics_v1"
-INDEX_SCHEMA = "dc20_three_rank_history_index_v1"
+STATISTICS_SCHEMA = "dc20_three_rank_history_statistics_v2"
+INDEX_SCHEMA = "dc20_three_rank_history_index_v2"
+PFILL_SHADOW_SCHEMA = "dc20_p_fill_shadow_oof_cumulative_v1"
+FORWARD_PFILL_SHADOW_SCHEMA = "dc20_p_fill_shadow_forward_top2_v1"
 
 OFFICIAL_PROMOTION_STATUS = "TIME_HONEST_OOF_RESEARCH"
 UNRELEASED_STATUS = "RESEARCH_NOT_RELEASED"
@@ -52,6 +61,7 @@ UNAVAILABLE_STATUS = "UNAVAILABLE_SOURCE_AFTER_OOF_CUTOFF"
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DATE_RE = re.compile(r"^20\d{6}$")
+FORWARD_SNAPSHOT_RE = re.compile(r"^three_rank_top10_(20\d{6})\.json$")
 
 REQUIRED_OOF_COLUMNS = {
     "signal_date",
@@ -98,6 +108,16 @@ REQUIRED_OOF_COLUMNS = {
     "profit_oof_calibration",
     "profit_oof_selection_eligible",
     "profit_oof_selection_composite_lift",
+    "p_fill_shadow_rank",
+    "p_fill_shadow_probability",
+    "p_fill_shadow_score",
+    "p_fill_shadow_oof_fold",
+    "p_fill_shadow_oof_fold_kind",
+    "p_fill_shadow_oof_train_end",
+    "p_fill_shadow_oof_model_kind",
+    "p_fill_shadow_oof_calibration",
+    "p_fill_shadow_oof_selection_eligible",
+    "p_fill_shadow_oof_selection_composite_lift",
 }
 
 CSV_FIELDS = (
@@ -117,6 +137,9 @@ CSV_FIELDS = (
     "research_predicted_big_loss_probability",
     "research_profit_rank",
     "research_predicted_profit_probability",
+    "research_p_fill_shadow_rank",
+    "research_p_fill_shadow_probability",
+    "research_p_fill_shadow_selected",
     "promotion_hit",
     "market_fill_proxy",
     "big_loss_hit",
@@ -125,6 +148,7 @@ CSV_FIELDS = (
     "promotion_oof_train_end",
     "big_loss_oof_train_end",
     "profit_oof_train_end",
+    "p_fill_shadow_oof_train_end",
     "top10_members_sha256",
     "date_bundle_sha256",
     "source_report_dates",
@@ -356,6 +380,29 @@ def _validate_validation(
             _fail(f"validation head is missing: {head}")
         if value.get("status") != status or value.get("promoted") is not promoted:
             _fail(f"validation release state changed for {head}")
+    p_fill_shadow = heads.get("p_fill_shadow")
+    if not isinstance(p_fill_shadow, dict):
+        _fail("validation p_fill_shadow head is missing")
+    execution_truth = p_fill_shadow.get("execution_truth_claim")
+    if (
+        p_fill_shadow.get("schema_version")
+        != "decision_three_engine_head_validation_v1"
+        or p_fill_shadow.get("head") != "p_fill_shadow"
+        or p_fill_shadow.get("status") != "SHADOW_READY"
+        or p_fill_shadow.get("promoted") is not False
+        or p_fill_shadow.get("target") != "market_fill"
+        or p_fill_shadow.get("training_scope")
+        != "historical_promotion_oof_top10_shadow_only"
+        or p_fill_shadow.get("cannot_change_core_members_or_ranks") is not True
+        or not isinstance(execution_truth, dict)
+        or execution_truth.get("actual_execution_claimed") is not False
+        or execution_truth.get("actual_order_fill_observed") is not False
+        or not isinstance(p_fill_shadow.get("gate_checks"), dict)
+        or not p_fill_shadow["gate_checks"]
+        or not all(value is True for value in p_fill_shadow["gate_checks"].values())
+        or p_fill_shadow.get("gate_failures") != []
+    ):
+        _fail("validation p_fill_shadow release contract is invalid")
 
 
 def _parse_report_binding(
@@ -466,16 +513,19 @@ def _oof_metadata(row: Mapping[str, str], head: str) -> dict[str, Any]:
         "promotion": "promotion_rank",
         "big_loss": "big_loss_safety_rank",
         "profit": "profit_rank",
+        "p_fill_shadow": "p_fill_shadow_rank",
     }[head]
     probability_field = {
         "promotion": "predicted_promotion_probability",
         "big_loss": "predicted_big_loss_probability",
         "profit": "predicted_profit_probability",
+        "p_fill_shadow": "p_fill_shadow_probability",
     }[head]
     rank_score_field = {
         "promotion": "promotion_rank_score",
         "big_loss": "big_loss_rank_score",
         "profit": "profit_rank_score",
+        "p_fill_shadow": "p_fill_shadow_score",
     }[head]
     metadata = {
         "rank": _optional_int(row.get(rank_field), field=rank_field),
@@ -583,7 +633,8 @@ def _validate_oof_archive_contract(
         "final_independent_holdout",
     }
     fold_contracts: dict[str, dict[int, dict[str, Any]]] = {
-        head: {} for head in ("promotion", "big_loss", "profit")
+        head: {}
+        for head in ("promotion", "big_loss", "profit", "p_fill_shadow")
     }
     date_contracts: dict[str, dict[str, tuple[Any, ...]]] = {
         head: {} for head in fold_contracts
@@ -662,6 +713,92 @@ def _validate_oof_archive_contract(
         if final_fold_ids != [fold_ids[-1]]:
             _fail(f"{head} OOF final holdout fold is not unique and highest")
 
+    p_fill_head = validation.get("heads", {}).get("p_fill_shadow")
+    if not isinstance(p_fill_head, dict):
+        _fail("validation p_fill_shadow head is missing")
+    p_fill_dates = sorted(date_contracts["p_fill_shadow"])
+    p_fill_rows = [
+        row
+        for signal_date in p_fill_dates
+        for row in grouped[signal_date]
+    ]
+    p_fill_daily_rates: list[float] = []
+    p_fill_rank1_labels: list[int] = []
+    for signal_date in p_fill_dates:
+        labels: list[int] = []
+        for row in grouped[signal_date]:
+            label = _optional_binary(row.get("market_fill"), field="market_fill")
+            if label is None:
+                _fail(f"p_fill_shadow OOF truth is missing: {signal_date}")
+            labels.append(label)
+            if _required_int(
+                row.get("p_fill_shadow_rank"), field="p_fill_shadow_rank"
+            ) == 1:
+                p_fill_rank1_labels.append(label)
+        p_fill_daily_rates.append(sum(labels) / len(labels))
+    probability_contract = p_fill_head.get("probability")
+    ranking_contract = p_fill_head.get("ranking")
+    if not isinstance(probability_contract, dict) or not isinstance(
+        ranking_contract, dict
+    ):
+        _fail("validation p_fill_shadow probability/ranking contract is missing")
+    date_balanced_pool_rate = sum(p_fill_daily_rates) / len(p_fill_daily_rates)
+    rank1_rate = sum(p_fill_rank1_labels) / len(p_fill_rank1_labels)
+    probability_positive_rate = _optional_float(
+        probability_contract.get("positive_rate"),
+        field="p_fill_shadow positive_rate",
+    )
+    ranking_pool_target_rate = _optional_float(
+        ranking_contract.get("pool_target_rate"),
+        field="p_fill_shadow pool_target_rate",
+    )
+    ranking_rank1_target_rate = _optional_float(
+        ranking_contract.get("rank1_target_rate"),
+        field="p_fill_shadow rank1_target_rate",
+    )
+    if (
+        _required_int(
+            probability_contract.get("rows"),
+            field="p_fill_shadow probability rows",
+        )
+        != len(p_fill_rows)
+        or _required_int(
+            probability_contract.get("dates"),
+            field="p_fill_shadow probability dates",
+        )
+        != len(p_fill_dates)
+        or _required_int(
+            ranking_contract.get("dates"),
+            field="p_fill_shadow ranking dates",
+        )
+        != len(p_fill_dates)
+        or probability_positive_rate is None
+        or abs(probability_positive_rate - date_balanced_pool_rate) > 1e-12
+        or ranking_pool_target_rate is None
+        or abs(ranking_pool_target_rate - date_balanced_pool_rate) > 1e-12
+        or ranking_rank1_target_rate is None
+        or abs(ranking_rank1_target_rate - rank1_rate) > 1e-12
+    ):
+        _fail("validation p_fill_shadow probability/ranking contract drifted")
+
+    p_fill_selection_audit = p_fill_head.get("outer_fold_selection_audit")
+    if not isinstance(p_fill_selection_audit, list):
+        _fail("validation p_fill_shadow fold selection audit is missing")
+    expected_selection_audit = []
+    for fold in sorted(fold_contracts["p_fill_shadow"]):
+        signature = fold_contracts["p_fill_shadow"][fold]["signature"]
+        expected_selection_audit.append(
+            {
+                "p_fill_shadow_oof_fold": fold,
+                "p_fill_shadow_oof_model_kind": signature[2],
+                "p_fill_shadow_oof_calibration": signature[3],
+                "p_fill_shadow_oof_selection_eligible": signature[4],
+                "p_fill_shadow_oof_selection_composite_lift": signature[5],
+            }
+        )
+    if p_fill_selection_audit != expected_selection_audit:
+        _fail("validation p_fill_shadow fold selection audit drifted")
+
     configuration = validation.get("configuration")
     promotion = validation.get("heads", {}).get("promotion")
     if not isinstance(configuration, dict) or not isinstance(promotion, dict):
@@ -701,6 +838,31 @@ def _validate_oof_archive_contract(
         final_fold = max(folds)
         if sorted(folds[final_fold]["dates"]) != head_dates[-holdout_count:]:
             _fail(f"{head} final holdout is not the exact head OOF date tail")
+    p_fill_holdout = p_fill_head.get("final_independent_holdout")
+    if (
+        not isinstance(p_fill_holdout, dict)
+        or p_fill_holdout.get("model_refit_within_holdout") is not False
+        or p_fill_holdout.get(
+            "model_family_and_calibrator_locked_before_holdout"
+        )
+        is not True
+        or _required_int(
+            p_fill_holdout.get("minimum_dates"),
+            field="p_fill_shadow holdout minimum_dates",
+        )
+        != holdout_count
+        or _required_int(
+            p_fill_holdout.get("calendar_dates"),
+            field="p_fill_shadow holdout calendar_dates",
+        )
+        != holdout_count
+        or _required_int(
+            p_fill_holdout.get("labeled_dates"),
+            field="p_fill_shadow holdout labeled_dates",
+        )
+        != holdout_count
+    ):
+        _fail("validation p_fill_shadow final holdout contract drifted")
     promotion_final_dates = sorted(fold_contracts["promotion"][max(
         fold_contracts["promotion"]
     )]["dates"])
@@ -885,7 +1047,7 @@ def _project_date(
     for source in ordered:
         head_meta = {
             head: _oof_metadata(source, head)
-            for head in ("promotion", "big_loss", "profit")
+            for head in ("promotion", "big_loss", "profit", "p_fill_shadow")
         }
         for head, meta in head_meta.items():
             per_head_ranks[head].append(meta["rank"])
@@ -893,6 +1055,13 @@ def _project_date(
                 if not meta["train_end"] or not meta["train_end"] < signal_date:
                     _fail(f"{head} OOF train_end is not before D: {signal_date}")
         promotion = head_meta["promotion"]
+        p_fill_shadow = {
+            **head_meta["p_fill_shadow"],
+            "shadow_selected": (
+                head_meta["p_fill_shadow"]["rank"] is not None
+                and head_meta["p_fill_shadow"]["rank"] <= 2
+            ),
+        }
         if promotion["rank"] is None or promotion["predicted_probability"] is None:
             _fail(f"promotion OOF field is missing: {signal_date}")
         stage = _required_int(source.get("stage"), field="stage")
@@ -913,6 +1082,7 @@ def _project_date(
             "research_diagnostics": {
                 "big_loss": head_meta["big_loss"],
                 "profit": head_meta["profit"],
+                "p_fill_shadow": p_fill_shadow,
             },
             "actual_outcomes": {
                 "promotion_hit": _optional_binary(
@@ -939,7 +1109,7 @@ def _project_date(
             }
         )
 
-    for head in ("promotion", "big_loss", "profit"):
+    for head in ("promotion", "big_loss", "profit", "p_fill_shadow"):
         _validate_rank(per_head_ranks[head], expected_count, field=f"{head} rank")
         _validate_rank_probability_order(
             [
@@ -988,6 +1158,18 @@ def _project_date(
                 "official_historical_fields_populated": False,
                 "diagnostics_only": True,
             },
+            "p_fill_shadow": {
+                "status": (
+                    "SHADOW_READY_TIME_HONEST_OOF_DIAGNOSTIC"
+                    if per_head_ranks["p_fill_shadow"]
+                    and per_head_ranks["p_fill_shadow"][0] is not None
+                    else "SHADOW_OOF_NOT_YET_AVAILABLE"
+                ),
+                "official_historical_fields_populated": False,
+                "diagnostics_only": True,
+                "may_change_core_members_or_ranks": False,
+                "may_create_trade_action": False,
+            },
         },
         "source_report_dates": source_report_dates,
         "rows": projection_rows,
@@ -1012,6 +1194,8 @@ def _project_date(
             "member_hash_verified": True,
             "official_big_loss_fields_all_null": True,
             "official_profit_fields_all_null": True,
+            "p_fill_shadow_ranks_contiguous_or_unavailable": True,
+            "p_fill_shadow_may_change_core_members_or_ranks": False,
             "actual_execution_claimed": False,
         },
     }
@@ -1043,6 +1227,15 @@ def _project_date(
                 "research_predicted_profit_probability": diagnostics["profit"][
                     "predicted_probability"
                 ],
+                "research_p_fill_shadow_rank": diagnostics["p_fill_shadow"]["rank"],
+                "research_p_fill_shadow_probability": diagnostics[
+                    "p_fill_shadow"
+                ]["predicted_probability"],
+                "research_p_fill_shadow_selected": (
+                    "true"
+                    if diagnostics["p_fill_shadow"]["shadow_selected"]
+                    else "false"
+                ),
                 "promotion_hit": actual["promotion_hit"],
                 "market_fill_proxy": actual["market_fill_proxy"],
                 "big_loss_hit": actual["big_loss_hit"],
@@ -1051,6 +1244,9 @@ def _project_date(
                 "promotion_oof_train_end": row["promotion_oof"]["train_end"],
                 "big_loss_oof_train_end": diagnostics["big_loss"]["train_end"],
                 "profit_oof_train_end": diagnostics["profit"]["train_end"],
+                "p_fill_shadow_oof_train_end": diagnostics["p_fill_shadow"][
+                    "train_end"
+                ],
                 "top10_members_sha256": members_sha256,
                 "date_bundle_sha256": date_bundle_sha256,
                 "source_report_dates": ";".join(source_report_dates),
@@ -1082,6 +1278,1087 @@ def _deterministic_gzip(raw: bytes) -> bytes:
     ) as handle:
         handle.write(raw)
     return buffer.getvalue()
+
+
+def _ratio(numerator: int | float, denominator: int | float) -> float | None:
+    return numerator / denominator if denominator else None
+
+
+def _wilson_95(successes: int, trials: int) -> dict[str, float | int | None]:
+    if trials <= 0:
+        return {"successes": successes, "trials": trials, "low": None, "high": None}
+    z = 1.959963984540054
+    rate = successes / trials
+    denominator = 1.0 + z * z / trials
+    center = (rate + z * z / (2.0 * trials)) / denominator
+    half_width = (
+        z
+        * math.sqrt(
+            rate * (1.0 - rate) / trials + z * z / (4.0 * trials * trials)
+        )
+        / denominator
+    )
+    return {
+        "successes": successes,
+        "trials": trials,
+        "low": max(0.0, center - half_width),
+        "high": min(1.0, center + half_width),
+    }
+
+
+def _p_fill_shadow_oof_statistics(
+    projected_by_signal: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build a strict OOF-only Top2 diagnostic ledger.
+
+    This is a counterfactual analysis of the public-market ``market_fill``
+    proxy.  It does not consume forward snapshots or actual orders, and its
+    return section is not a profit-model evaluation.
+    """
+
+    daily: list[dict[str, Any]] = []
+    requested_slots = 0
+    selected_slots = 0
+    fill_hits = 0
+    baseline_rows = 0
+    baseline_hits = 0
+    filled_slots = 0
+    observed_filled_returns = 0
+    conditional_return_sum = 0.0
+    conditional_return_wins = 0
+    resolved_selected_slots = 0
+    dates_with_two_slots = 0
+    dates_with_one_slot = 0
+    fully_resolved_dates = 0
+    top2_daily_rates: list[float] = []
+    baseline_daily_rates: list[float] = []
+    counterfactual_daily_returns: list[float] = []
+    counterfactual_nav = 1.0
+    return_incomplete_dates: list[str] = []
+    per_rank = {
+        1: {"selected_slots": 0, "fill_hits": 0},
+        2: {"selected_slots": 0, "fill_hits": 0},
+    }
+
+    for signal_date in sorted(projected_by_signal):
+        record = projected_by_signal[signal_date]
+        rows = record.get("rows")
+        if not isinstance(rows, list) or not rows:
+            _fail(f"invalid projected rows for p_fill_shadow: {signal_date}")
+        populated = [
+            isinstance(row.get("research_diagnostics"), dict)
+            and isinstance(row["research_diagnostics"].get("p_fill_shadow"), dict)
+            and row["research_diagnostics"]["p_fill_shadow"].get("rank") is not None
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        if len(populated) != len(rows):
+            _fail(f"invalid p_fill_shadow projected row: {signal_date}")
+        if not any(populated):
+            continue
+        if not all(populated):
+            _fail(f"partially populated p_fill_shadow projected date: {signal_date}")
+
+        ordered = sorted(
+            rows,
+            key=lambda row: int(
+                row["research_diagnostics"]["p_fill_shadow"]["rank"]
+            ),
+        )
+        ranks = [
+            int(row["research_diagnostics"]["p_fill_shadow"]["rank"])
+            for row in ordered
+        ]
+        if ranks != list(range(1, len(ordered) + 1)):
+            _fail(f"p_fill_shadow OOF ranks are not strict 1..N: {signal_date}")
+        selected = [
+            row
+            for row in ordered
+            if int(row["research_diagnostics"]["p_fill_shadow"]["rank"]) <= 2
+        ]
+        expected_slots = min(2, len(ordered))
+        if len(selected) != expected_slots:
+            _fail(f"p_fill_shadow OOF strict Top2 selection drifted: {signal_date}")
+
+        full_labels: list[int] = []
+        for row in ordered:
+            outcomes = row.get("actual_outcomes")
+            if not isinstance(outcomes, dict):
+                _fail(f"p_fill_shadow OOF outcomes are missing: {signal_date}")
+            label = outcomes.get("market_fill_proxy")
+            if type(label) is not int or label not in (0, 1):
+                _fail(f"p_fill_shadow OOF market_fill proxy is missing: {signal_date}")
+            full_labels.append(label)
+        baseline_rows += len(full_labels)
+        baseline_hits += sum(full_labels)
+        baseline_daily_rate = sum(full_labels) / len(full_labels)
+        baseline_daily_rates.append(baseline_daily_rate)
+
+        requested_slots += 2
+        selected_slots += len(selected)
+        if len(selected) == 2:
+            dates_with_two_slots += 1
+        elif len(selected) == 1:
+            dates_with_one_slot += 1
+
+        selected_payload: list[dict[str, Any]] = []
+        selected_labels: list[int] = []
+        date_outcomes_resolved = True
+        date_counterfactual_sum = 0.0
+        for row in selected:
+            diagnostics = row["research_diagnostics"]["p_fill_shadow"]
+            outcomes = row["actual_outcomes"]
+            rank = int(diagnostics["rank"])
+            label = int(outcomes["market_fill_proxy"])
+            net_return = outcomes.get("net_return")
+            if net_return is not None and (
+                isinstance(net_return, bool) or not isinstance(net_return, (int, float))
+            ):
+                _fail(f"p_fill_shadow OOF net_return is invalid: {signal_date}")
+            if label == 0 and net_return is not None:
+                _fail(f"p_fill_shadow nonfill return must be null: {signal_date}")
+            return_observed = label == 1 and net_return is not None
+            outcome_resolved = label == 0 or return_observed
+            selected_labels.append(label)
+            fill_hits += label
+            per_rank[rank]["selected_slots"] += 1
+            per_rank[rank]["fill_hits"] += label
+            if label == 1:
+                filled_slots += 1
+            if return_observed:
+                observed_filled_returns += 1
+                conditional_return_sum += float(net_return)
+                conditional_return_wins += int(float(net_return) > 0.0)
+                date_counterfactual_sum += float(net_return)
+            if outcome_resolved:
+                resolved_selected_slots += 1
+            else:
+                date_outcomes_resolved = False
+            selected_payload.append(
+                {
+                    "p_fill_shadow_rank": rank,
+                    "ts_code": row["ts_code"],
+                    "p_fill_shadow_probability": diagnostics[
+                        "predicted_probability"
+                    ],
+                    "market_fill_proxy": label,
+                    "net_return": net_return,
+                    "return_observed": return_observed,
+                    "outcome_resolved": outcome_resolved,
+                }
+            )
+
+        top2_daily_rate = sum(selected_labels) / len(selected_labels)
+        top2_daily_rates.append(top2_daily_rate)
+        if date_outcomes_resolved:
+            fully_resolved_dates += 1
+            # Two requested slots are equally weighted.  A nonfill or a
+            # missing slot caused by a one-name official pool remains cash.
+            complete_case_return = date_counterfactual_sum / 2.0
+            counterfactual_daily_returns.append(complete_case_return)
+            counterfactual_nav *= 1.0 + complete_case_return
+        else:
+            complete_case_return = None
+            return_incomplete_dates.append(signal_date)
+
+        daily.append(
+            {
+                "signal_date": signal_date,
+                "exec_date": record["exec_date"],
+                "exit_date": record["exit_date"],
+                "requested_slots": 2,
+                "selected_slots": len(selected),
+                "missing_slots": 2 - len(selected),
+                "selected": selected_payload,
+                "top2_market_fill_proxy_hit_rate": top2_daily_rate,
+                "same_date_full_top10_rows": len(full_labels),
+                "same_date_full_top10_market_fill_proxy_hit_rate": baseline_daily_rate,
+                "all_selected_outcomes_resolved": date_outcomes_resolved,
+                "fixed_two_slot_counterfactual_net_return": complete_case_return,
+                "cumulative": {
+                    "selection_dates": len(daily) + 1,
+                    "requested_slots": requested_slots,
+                    "selected_slots": selected_slots,
+                    "selection_slot_coverage": _ratio(
+                        selected_slots, requested_slots
+                    ),
+                    "market_fill_proxy_hits": fill_hits,
+                    "market_fill_proxy_hit_rate": _ratio(fill_hits, selected_slots),
+                    "market_fill_proxy_truth_covered_slots": selected_slots,
+                    "market_fill_proxy_truth_coverage": 1.0,
+                    "filled_slots": filled_slots,
+                    "filled_return_observations": observed_filled_returns,
+                    "conditional_filled_return_coverage": _ratio(
+                        observed_filled_returns, filled_slots
+                    ),
+                    "conditional_filled_mean_net_return": _ratio(
+                        conditional_return_sum, observed_filled_returns
+                    ),
+                    "conditional_filled_win_rate": _ratio(
+                        conditional_return_wins, observed_filled_returns
+                    ),
+                    "resolved_selected_slots": resolved_selected_slots,
+                    "selected_slot_outcome_coverage": _ratio(
+                        resolved_selected_slots, selected_slots
+                    ),
+                    "complete_case_included_signal_dates": len(
+                        counterfactual_daily_returns
+                    ),
+                    "complete_case_counterfactual_nav": counterfactual_nav,
+                },
+            }
+        )
+
+    if not daily:
+        _fail("p_fill_shadow OOF diagnostic history is empty")
+    top2_date_balanced_rate = sum(top2_daily_rates) / len(top2_daily_rates)
+    baseline_date_balanced_rate = sum(baseline_daily_rates) / len(
+        baseline_daily_rates
+    )
+    return {
+        "schema_version": PFILL_SHADOW_SCHEMA,
+        "status": "TIME_HONEST_OOF_COUNTERFACTUAL_DIAGNOSTIC",
+        "selection_scope": (
+            "strict_rank_lte_2_within_historical_promotion_oof_top10"
+        ),
+        "selection_rule": "p_fill_shadow_rank<=2",
+        "requested_slots_per_signal_date": 2,
+        "selection_dates": len(daily),
+        "requested_slots": requested_slots,
+        "selected_slots": selected_slots,
+        "selection_slot_coverage": _ratio(selected_slots, requested_slots),
+        "dates_with_two_slots": dates_with_two_slots,
+        "dates_with_one_slot": dates_with_one_slot,
+        "market_fill_proxy": {
+            "definition": "T bar exists and is not a one-price 10% limit-up",
+            "actual_order_fill_observed": False,
+            "truth_covered_slots": selected_slots,
+            "truth_coverage": 1.0,
+            "hits": fill_hits,
+            "hit_rate": _ratio(fill_hits, selected_slots),
+            "date_balanced_hit_rate": top2_date_balanced_rate,
+            "wilson_95": _wilson_95(fill_hits, selected_slots),
+            "rank_breakdown": {
+                str(rank): {
+                    **values,
+                    "hit_rate": _ratio(
+                        values["fill_hits"], values["selected_slots"]
+                    ),
+                }
+                for rank, values in per_rank.items()
+            },
+            "same_period_full_top10_baseline": {
+                "rows": baseline_rows,
+                "hits": baseline_hits,
+                "hit_rate": _ratio(baseline_hits, baseline_rows),
+                "date_balanced_hit_rate": baseline_date_balanced_rate,
+            },
+            "micro_hit_rate_lift_vs_full_top10": (
+                fill_hits / selected_slots - baseline_hits / baseline_rows
+            ),
+            "date_balanced_hit_rate_lift_vs_full_top10": (
+                top2_date_balanced_rate - baseline_date_balanced_rate
+            ),
+        },
+        "returns": {
+            "status": (
+                "INCOMPLETE_FILLED_RETURN_TRUTH"
+                if observed_filled_returns != filled_slots
+                else "COMPLETE_FILLED_RETURN_TRUTH"
+            ),
+            "return_window": "T open proxy to T+1 open, net of 0.0045 round-trip cost",
+            "not_profit_model_evaluation": True,
+            "filled_slots": filled_slots,
+            "observed_filled_return_slots": observed_filled_returns,
+            "conditional_filled_return_coverage": _ratio(
+                observed_filled_returns, filled_slots
+            ),
+            "conditional_filled_mean_net_return": _ratio(
+                conditional_return_sum, observed_filled_returns
+            ),
+            "conditional_filled_win_count": conditional_return_wins,
+            "conditional_filled_win_rate": _ratio(
+                conditional_return_wins, observed_filled_returns
+            ),
+            "resolved_selected_slots": resolved_selected_slots,
+            "selected_slot_outcome_coverage": _ratio(
+                resolved_selected_slots, selected_slots
+            ),
+            "fully_resolved_signal_dates": fully_resolved_dates,
+            "return_incomplete_signal_dates": return_incomplete_dates,
+            "fixed_two_slot_complete_case_counterfactual": {
+                "diagnostic_only": True,
+                "actual_trading_result": False,
+                "weight_per_requested_slot": 0.5,
+                "nonfill_and_missing_pool_slot_return": 0.0,
+                "excluded_when_filled_return_missing": True,
+                "included_signal_dates": len(counterfactual_daily_returns),
+                "excluded_signal_dates": return_incomplete_dates,
+                "mean_daily_net_return": (
+                    sum(counterfactual_daily_returns)
+                    / len(counterfactual_daily_returns)
+                ),
+                "compounded_net_return": counterfactual_nav - 1.0,
+            },
+        },
+        "separation_guards": {
+            "historical_oof_rows_only": True,
+            "forward_snapshot_rows_used": 0,
+            "actual_order_rows_used": 0,
+            "actual_execution_claimed": False,
+            "final_model_historical_scoring_used": False,
+            "may_change_core_members_or_ranks": False,
+            "may_create_trade_action": False,
+        },
+        "daily": daily,
+    }
+
+
+def _three_rank_core_projection(contract: Mapping[str, Any]) -> dict[str, Any]:
+    row_fields = (
+        "ts_code",
+        "name",
+        "industry",
+        "stage_transition",
+        "top10_selected",
+        "promotion_rank",
+        "predicted_promotion_probability",
+        "big_loss_safety_rank",
+        "predicted_big_loss_probability",
+        "profit_rank",
+        "predicted_profit_probability",
+    )
+    rows = contract.get("rows")
+    return {
+        "schema_version": contract.get("schema_version"),
+        "artifact_kind": contract.get("artifact_kind"),
+        "contract_version": contract.get("contract_version"),
+        "signal_date": contract.get("signal_date"),
+        "exec_date": contract.get("exec_date"),
+        "exit_date": contract.get("exit_date"),
+        "feature_as_of_date": contract.get("feature_as_of_date"),
+        "feature_snapshot_sha256": contract.get("feature_snapshot_sha256"),
+        "promotion_pool_size": contract.get("promotion_pool_size"),
+        "top10_count": contract.get("top10_count"),
+        "top10_members_sha256": contract.get("top10_members_sha256"),
+        "models": contract.get("models"),
+        "rows": [
+            {field: row.get(field) for field in row_fields}
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        if isinstance(rows, list)
+        else rows,
+    }
+
+
+def _forward_shadow_top2_projection(
+    rows: Sequence[Mapping[str, Any]], *, model_status: str
+) -> dict[str, Any]:
+    selected = (
+        sorted(
+            (
+                {
+                    "ts_code": str(row.get("ts_code") or "").strip().upper(),
+                    "name": str(row.get("name") or "").strip(),
+                    "p_fill_shadow_rank": _optional_int(
+                        row.get("p_fill_shadow_rank"),
+                        field="forward p_fill_shadow_rank",
+                    ),
+                    "p_fill_shadow_probability": _optional_float(
+                        row.get("p_fill_shadow_probability"),
+                        field="forward p_fill_shadow_probability",
+                    ),
+                }
+                for row in rows
+                if (
+                    _optional_int(
+                        row.get("p_fill_shadow_rank"),
+                        field="forward p_fill_shadow_rank",
+                    )
+                    or 0
+                )
+                <= 2
+                and _optional_int(
+                    row.get("p_fill_shadow_rank"),
+                    field="forward p_fill_shadow_rank",
+                )
+                is not None
+            ),
+            key=lambda row: (int(row["p_fill_shadow_rank"]), row["ts_code"]),
+        )
+        if model_status == "SHADOW_READY"
+        else []
+    )
+    return {
+        "status": "ANNOTATION_ONLY",
+        "model_status": model_status,
+        "selection_rule": "p_fill_shadow_rank_lte_requested_slots",
+        "rank_field": "p_fill_shadow_rank",
+        "probability_field": "p_fill_shadow_probability",
+        "requested_slots": 2,
+        "actual_slots": len(selected),
+        "may_change_core_bundle": False,
+        "may_override_core_ranks": False,
+        "may_create_trade_action": False,
+        "rows": selected,
+    }
+
+
+def _forward_shadow_snapshot_sha256(
+    *,
+    signal_date: str,
+    exec_date: str,
+    exit_date: str,
+    members_sha256: str,
+    shadow: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    shadow_top2: Mapping[str, Any],
+) -> str:
+    top2_rows = shadow_top2.get("rows")
+    payload = {
+        "schema": "dc20_p_fill_shadow_snapshot_v1",
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
+        "top10_members_sha256": members_sha256,
+        "model": {
+            "status": shadow.get("model_status"),
+            "version": shadow.get("model_version"),
+            "as_of_date": shadow.get("model_as_of_date"),
+            "artifact_sha256": shadow.get("model_artifact_sha256"),
+        },
+        "rows": sorted(
+            (
+                {
+                    "ts_code": str(row.get("ts_code") or "").strip().upper(),
+                    "p_fill_shadow_rank": _optional_int(
+                        row.get("p_fill_shadow_rank"),
+                        field="forward p_fill_shadow_rank",
+                    ),
+                    "p_fill_shadow_probability": _optional_float(
+                        row.get("p_fill_shadow_probability"),
+                        field="forward p_fill_shadow_probability",
+                    ),
+                    "p_fill_shadow_status": str(
+                        row.get("p_fill_shadow_status") or ""
+                    )
+                    .strip()
+                    .upper(),
+                }
+                for row in rows
+            ),
+            key=lambda row: row["ts_code"],
+        ),
+        "shadow_top2": {
+            "requested_slots": shadow_top2.get("requested_slots"),
+            "actual_slots": shadow_top2.get("actual_slots"),
+            "members": [
+                {
+                    "ts_code": str(row.get("ts_code") or "").strip().upper(),
+                    "p_fill_shadow_rank": _optional_int(
+                        row.get("p_fill_shadow_rank"),
+                        field="forward p_fill_shadow_rank",
+                    ),
+                }
+                for row in top2_rows
+                if isinstance(row, dict)
+            ]
+            if isinstance(top2_rows, list)
+            else top2_rows,
+        },
+    }
+    return _canonical_sha256(payload)
+
+
+def _validate_forward_core_snapshot(
+    *,
+    path: Path,
+    payload: Mapping[str, Any],
+    source_root: Path,
+    open_date_index: Mapping[str, int],
+) -> tuple[str, str, str, list[Mapping[str, Any]], str]:
+    filename_match = FORWARD_SNAPSHOT_RE.fullmatch(path.name)
+    if filename_match is None:
+        _fail(f"invalid forward snapshot filename: {path.name}")
+    signal_date = _date(payload.get("signal_date"), field="forward signal_date")
+    exec_date = _date(payload.get("exec_date"), field="forward exec_date")
+    exit_date = _date(payload.get("exit_date"), field="forward exit_date")
+    if signal_date != filename_match.group(1):
+        _fail(f"forward snapshot filename/date mismatch: {path.name}")
+    if (
+        not signal_date < exec_date < exit_date
+        or any(date not in open_date_index for date in (signal_date, exec_date, exit_date))
+        or open_date_index[exec_date] != open_date_index[signal_date] + 1
+        or open_date_index[exit_date] != open_date_index[exec_date] + 1
+    ):
+        _fail(f"forward snapshot D/T/T+1 contract is invalid: {signal_date}")
+    rows = payload.get("rows")
+    if (
+        payload.get("schema_version") != "decision_three_rank_top10_v1"
+        or payload.get("artifact_kind") != "d_close_independent_three_rank_top10"
+        or payload.get("contract_version") != "decision_three_rank_v1"
+        or payload.get("feature_as_of_date") != signal_date
+        or not isinstance(rows, list)
+        or not rows
+        or len(rows) > 10
+    ):
+        _fail(f"forward snapshot core contract is invalid: {signal_date}")
+    pool_size = _required_int(
+        payload.get("promotion_pool_size"), field="forward promotion_pool_size"
+    )
+    if (
+        _required_int(payload.get("top10_count"), field="forward top10_count")
+        != len(rows)
+        or len(rows) != min(10, pool_size)
+    ):
+        _fail(f"forward snapshot Top10 count is invalid: {signal_date}")
+    codes = [str(row.get("ts_code") or "").strip().upper() for row in rows]
+    if not all(codes) or len(codes) != len(set(codes)):
+        _fail(f"forward snapshot codes are invalid: {signal_date}")
+    members_sha256 = _top10_members_sha256(signal_date, codes)
+    if payload.get("top10_members_sha256") != members_sha256:
+        _fail(f"forward snapshot member hash is invalid: {signal_date}")
+    promotion_ranks = [
+        _required_int(row.get("promotion_rank"), field="forward promotion_rank")
+        for row in rows
+    ]
+    if sorted(promotion_ranks) != list(range(1, len(rows) + 1)) or any(
+        _required_int(row.get("top10_selected"), field="forward top10_selected")
+        != 1
+        for row in rows
+    ):
+        _fail(f"forward snapshot promotion ranks are invalid: {signal_date}")
+    models = payload.get("models")
+    if not isinstance(models, dict) or set(models) != {
+        "promotion",
+        "big_loss",
+        "profit",
+    }:
+        _fail(f"forward snapshot model inventory is invalid: {signal_date}")
+    if models["promotion"].get("status") != "READY":
+        _fail(f"forward snapshot promotion is not READY: {signal_date}")
+    head_fields = {
+        "promotion": ("promotion_rank", "predicted_promotion_probability"),
+        "big_loss": ("big_loss_safety_rank", "predicted_big_loss_probability"),
+        "profit": ("profit_rank", "predicted_profit_probability"),
+    }
+    ready_heads = 0
+    for head in ("promotion", "big_loss", "profit"):
+        model = models[head]
+        if not isinstance(model, dict) or model.get("input_members_sha256") != members_sha256:
+            _fail(f"forward snapshot {head} set binding is invalid: {signal_date}")
+        status = model.get("status")
+        if not isinstance(status, str) or not (
+            status == "READY" or status.startswith("NOT_READY_")
+        ):
+            _fail(f"forward snapshot {head} status is invalid: {signal_date}")
+        ready = status == "READY"
+        ready_heads += int(ready)
+        rank_field, probability_field = head_fields[head]
+        if (
+            model.get("ranking_ready") is not ready
+            or model.get("probability_ready") is not ready
+            or model.get("rank_field") != rank_field
+            or model.get("probability_field") != probability_field
+        ):
+            _fail(f"forward snapshot {head} readiness contract is invalid: {signal_date}")
+        ranks = [
+            _optional_int(row.get(rank_field), field=f"forward {rank_field}")
+            for row in rows
+        ]
+        probabilities = [
+            _optional_float(
+                row.get(probability_field), field=f"forward {probability_field}"
+            )
+            for row in rows
+        ]
+        if ready:
+            model_as_of_date = _date(
+                model.get("model_as_of_date"),
+                field=f"forward {head} model_as_of_date",
+            )
+            if (
+                not str(model.get("version") or "").strip()
+                or model_as_of_date >= signal_date
+                or not SHA256_RE.fullmatch(str(model.get("artifact_sha256") or ""))
+                or sorted(int(rank) for rank in ranks if rank is not None)
+                != list(range(1, len(rows) + 1))
+                or any(rank is None for rank in ranks)
+                or any(
+                    probability is None or not 0.0 <= probability <= 1.0
+                    for probability in probabilities
+                )
+            ):
+                _fail(f"forward snapshot {head} READY output is invalid: {signal_date}")
+        elif any(
+            rank is not None or probability is not None
+            for rank, probability in zip(ranks, probabilities)
+        ):
+            _fail(f"forward snapshot {head} unready output is not null: {signal_date}")
+    expected_status = "READY" if ready_heads == 3 else "PARTIAL_MODELS_NOT_READY"
+    if (
+        payload.get("status") != expected_status
+        or payload.get("membership_authority")
+        != "promotion_probability_engine_only"
+        or payload.get("downstream_scope") != "exact_frozen_promotion_top10"
+    ):
+        _fail(f"forward snapshot aggregate contract is invalid: {signal_date}")
+    execution_summary = payload.get("execution_summary")
+    if (
+        execution_summary is not None
+        and (
+            not isinstance(execution_summary, dict)
+            or execution_summary.get("actual_execution_claimed") is not False
+        )
+    ):
+        _fail(f"forward snapshot execution claim is invalid: {signal_date}")
+    feature_snapshot_sha256 = str(
+        payload.get("feature_snapshot_sha256") or ""
+    ).strip()
+    if not SHA256_RE.fullmatch(feature_snapshot_sha256):
+        _fail(f"forward snapshot feature hash is invalid: {signal_date}")
+    if payload.get("bundle_sha256") != _canonical_sha256(
+        _three_rank_core_projection(payload)
+    ):
+        _fail(f"forward snapshot core bundle hash is invalid: {signal_date}")
+
+    downloads = payload.get("downloads")
+    expected_prefix = f"outputs/decision/three_rank_top10_{signal_date}"
+    if (
+        not isinstance(downloads, dict)
+        or downloads.get("json_url") != f"{expected_prefix}.json"
+        or downloads.get("csv_url") != f"{expected_prefix}.csv"
+        or downloads.get("row_count") != len(rows)
+        or not SHA256_RE.fullmatch(str(downloads.get("csv_sha256") or ""))
+    ):
+        _fail(f"forward snapshot download binding is invalid: {signal_date}")
+    csv_path = source_root / f"{expected_prefix}.csv"
+    if _sha256_file(csv_path) != downloads["csv_sha256"]:
+        _fail(f"forward snapshot CSV hash is invalid: {signal_date}")
+    return signal_date, exec_date, exit_date, rows, members_sha256
+
+
+def _validate_forward_shadow_snapshot(
+    *,
+    signal_date: str,
+    exec_date: str,
+    exit_date: str,
+    rows: Sequence[Mapping[str, Any]],
+    members_sha256: str,
+    payload: Mapping[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    shadow = payload.get("shadow_contract")
+    if (
+        not isinstance(shadow, dict)
+        or shadow.get("status") != "ANNOTATION_ONLY"
+        or shadow.get("input_members_sha256") != members_sha256
+        or shadow.get("may_change_membership") is not False
+        or shadow.get("may_override_core_ranks") is not False
+        or shadow.get("model_status") != "SHADOW_READY"
+        or not str(shadow.get("model_version") or "").strip()
+        or _date(
+            shadow.get("model_as_of_date"),
+            field="forward p_fill_shadow model_as_of_date",
+        )
+        >= signal_date
+        or not SHA256_RE.fullmatch(
+            str(shadow.get("model_artifact_sha256") or "")
+        )
+        or _required_int(
+            shadow.get("validation_gate_pass_count"),
+            field="forward p_fill_shadow gate pass count",
+        )
+        != _required_int(
+            shadow.get("validation_gate_total_count"),
+            field="forward p_fill_shadow gate total count",
+        )
+        or _required_int(
+            shadow.get("validation_gate_total_count"),
+            field="forward p_fill_shadow gate total count",
+        )
+        <= 0
+        or _optional_float(
+            shadow.get("validation_gate_score_pct"),
+            field="forward p_fill_shadow gate score",
+        )
+        != 100.0
+    ):
+        _fail(f"forward p_fill_shadow contract is invalid: {signal_date}")
+    probabilities = [
+        _optional_float(
+            row.get("p_fill_shadow_probability"),
+            field="forward p_fill_shadow_probability",
+        )
+        for row in rows
+    ]
+    if any(
+        probability is None or not 0.0 <= probability <= 1.0
+        for probability in probabilities
+    ) or any(
+        str(row.get("p_fill_shadow_status") or "").strip().upper()
+        != "SHADOW_READY"
+        for row in rows
+    ):
+        _fail(f"forward p_fill_shadow rows are invalid: {signal_date}")
+    ranks = [
+        _optional_int(
+            row.get("p_fill_shadow_rank"), field="forward p_fill_shadow_rank"
+        )
+        for row in rows
+    ]
+    shadow_top2 = payload.get("shadow_top2")
+    shadow_snapshot_sha256 = shadow.get("shadow_snapshot_sha256")
+    legacy_fields_absent = (
+        all(rank is None for rank in ranks)
+        and shadow_top2 is None
+        and shadow_snapshot_sha256 is None
+    )
+    if legacy_fields_absent:
+        provisional = sorted(
+            (
+                {
+                    "candidate_order": index,
+                    "ts_code": str(row.get("ts_code") or "").strip().upper(),
+                    "name": str(row.get("name") or "").strip(),
+                    "p_fill_shadow_probability": float(probability),
+                    "frozen_rank": None,
+                    "status": "NOT_FROZEN_EXCLUDED_FROM_FORWARD_STATISTICS",
+                }
+                for index, (row, probability) in enumerate(
+                    sorted(
+                        zip(rows, probabilities),
+                        key=lambda value: (
+                            -float(value[1]),
+                            str(value[0].get("ts_code") or "").strip().upper(),
+                        ),
+                    )[:2],
+                    start=1,
+                )
+            ),
+            key=lambda row: row["candidate_order"],
+        )
+        return "legacy_provisional", {
+            "reason": "missing_frozen_p_fill_rank_top2_and_shadow_snapshot_hash",
+            "probability_order_candidates_not_frozen": provisional,
+        }
+    if any(rank is None for rank in ranks):
+        _fail(f"forward p_fill_shadow ranks are partially populated: {signal_date}")
+    if sorted(int(rank) for rank in ranks if rank is not None) != list(
+        range(1, len(rows) + 1)
+    ):
+        _fail(f"forward p_fill_shadow ranks are invalid: {signal_date}")
+    ordered_probabilities = [
+        float(probability)
+        for _, probability in sorted(
+            zip((int(rank) for rank in ranks if rank is not None), probabilities),
+            key=lambda value: value[0],
+        )
+    ]
+    if any(
+        ordered_probabilities[index] < ordered_probabilities[index + 1]
+        for index in range(len(ordered_probabilities) - 1)
+    ):
+        _fail(f"forward p_fill_shadow probability/rank order drifted: {signal_date}")
+    expected_top2 = _forward_shadow_top2_projection(
+        rows, model_status="SHADOW_READY"
+    )
+    if shadow_top2 != expected_top2:
+        _fail(f"forward p_fill_shadow Top2 contract is invalid: {signal_date}")
+    expected_shadow_sha256 = _forward_shadow_snapshot_sha256(
+        signal_date=signal_date,
+        exec_date=exec_date,
+        exit_date=exit_date,
+        members_sha256=members_sha256,
+        shadow=shadow,
+        rows=rows,
+        shadow_top2=expected_top2,
+    )
+    if (
+        not SHA256_RE.fullmatch(str(shadow_snapshot_sha256 or ""))
+        or shadow_snapshot_sha256 != expected_shadow_sha256
+    ):
+        _fail(f"forward p_fill_shadow snapshot hash is invalid: {signal_date}")
+    return "accepted", expected_top2
+
+
+def _read_forward_settlement_ledger(
+    source_root: Path,
+) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[str, Any]]:
+    manifest_path = source_root / LEDGER_MANIFEST_RELATIVE_PATH
+    ledger_path = source_root / LEDGER_RELATIVE_PATH
+    manifest = _read_json(manifest_path)
+    ledger_binding = _binding(ledger_path, source_root)
+    manifest_binding = _binding(manifest_path, source_root)
+    target_contract = manifest.get("target_contract")
+    if (
+        manifest.get("schema_version") != "dc20_three_engine_five_year_ledger_v2"
+        or manifest.get("owner") != "njedu2023-prog/DC20"
+        or manifest.get("runtime_dependency_on_top10_decision") is not False
+        or manifest.get("ledger_path") != LEDGER_RELATIVE_PATH.as_posix()
+        or manifest.get("ledger_sha256") != ledger_binding["sha256"]
+        or not isinstance(target_contract, dict)
+        or target_contract.get("market_fill")
+        != "T bar exists and is not a one-price 10% limit-up"
+        or target_contract.get("nonfill_return_targets") != "null"
+        or target_contract.get("return_window") != "T open proxy to T+1 open"
+        or _optional_float(
+            target_contract.get("round_trip_cost_rate"),
+            field="ledger round_trip_cost_rate",
+        )
+        != 0.0045
+    ):
+        _fail("forward settlement ledger manifest contract is invalid")
+    try:
+        with gzip.open(ledger_path, "rt", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fields = set(reader.fieldnames or [])
+            rows = list(reader)
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise HistoryProjectionError("invalid forward settlement ledger") from exc
+    required = {
+        "signal_date",
+        "buy_date",
+        "target_exit_date",
+        "ts_code",
+        "market_fill",
+        "net_return",
+    }
+    if not required <= fields or not rows:
+        _fail("forward settlement ledger fields/rows are invalid")
+    coverage = manifest.get("coverage")
+    if (
+        not isinstance(coverage, dict)
+        or _required_int(coverage.get("rows"), field="ledger coverage rows")
+        != len(rows)
+        or _required_int(
+            coverage.get("signal_dates"), field="ledger coverage signal_dates"
+        )
+        != len({str(row.get("signal_date") or "") for row in rows})
+    ):
+        _fail("forward settlement ledger coverage contract drifted")
+    ledger: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        signal_date = _date(row.get("signal_date"), field="ledger signal_date")
+        code = str(row.get("ts_code") or "").strip().upper()
+        if not code:
+            _fail(f"forward settlement ledger code is empty: {signal_date}")
+        key = (signal_date, code)
+        if key in ledger:
+            _fail(f"forward settlement ledger identity is duplicated: {key}")
+        market_fill = _optional_binary(row.get("market_fill"), field="ledger market_fill")
+        net_return = _optional_float(row.get("net_return"), field="ledger net_return")
+        if market_fill == 0 and net_return is not None:
+            _fail(f"forward settlement ledger nonfill return is not null: {key}")
+        ledger[key] = {
+            "buy_date": _date(row.get("buy_date"), field="ledger buy_date"),
+            "target_exit_date": _date(
+                row.get("target_exit_date"), field="ledger target_exit_date"
+            ),
+            "market_fill_proxy": market_fill,
+            "net_return": net_return,
+        }
+    return ledger, {
+        "ledger": ledger_binding,
+        "manifest": manifest_binding,
+        "ledger_signal_date_start": min(key[0] for key in ledger),
+        "ledger_signal_date_end": max(key[0] for key in ledger),
+        "target_contract": target_contract,
+    }
+
+
+def _forward_p_fill_shadow_top2(
+    *, source_root: Path, open_date_index: Mapping[str, int]
+) -> dict[str, Any]:
+    ledger, ledger_sources = _read_forward_settlement_ledger(source_root)
+    reports_root = source_root / REPORTS_RELATIVE_PATH
+    if not reports_root.is_dir():
+        _fail("forward snapshot directory is missing")
+    snapshot_paths = sorted(
+        (
+            path
+            for path in reports_root.iterdir()
+            if path.is_file() and FORWARD_SNAPSHOT_RE.fullmatch(path.name)
+        ),
+        key=lambda path: path.name,
+    )
+    accepted_records: list[dict[str, Any]] = []
+    provisional_records: list[dict[str, Any]] = []
+    selected_entries = 0
+    fill_truth_entries = 0
+    fill_hits = 0
+    filled_entries = 0
+    filled_return_entries = 0
+    return_sum = 0.0
+    return_wins = 0
+    resolved_entries = 0
+
+    for path in snapshot_paths:
+        payload = _read_json(path)
+        signal_date, exec_date, exit_date, rows, members_sha256 = (
+            _validate_forward_core_snapshot(
+                path=path,
+                payload=payload,
+                source_root=source_root,
+                open_date_index=open_date_index,
+            )
+        )
+        mode, shadow_projection = _validate_forward_shadow_snapshot(
+            signal_date=signal_date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            rows=rows,
+            members_sha256=members_sha256,
+            payload=payload,
+        )
+        snapshot_binding = _binding(path, source_root)
+        if mode == "legacy_provisional":
+            provisional_records.append(
+                {
+                    "signal_date": signal_date,
+                    "exec_date": exec_date,
+                    "exit_date": exit_date,
+                    "status": "PENDING_SNAPSHOT_CONTRACT_UPGRADE",
+                    "settlement_status": "PENDING",
+                    "excluded_from_forward_statistics": True,
+                    "snapshot": snapshot_binding,
+                    **shadow_projection,
+                }
+            )
+            continue
+
+        selected_rows = shadow_projection["rows"]
+        settled_rows: list[dict[str, Any]] = []
+        for selected in selected_rows:
+            code = selected["ts_code"]
+            truth = ledger.get((signal_date, code))
+            selected_entries += 1
+            if truth is None:
+                settlement_status = "PENDING"
+                market_fill = None
+                net_return = None
+                return_matured = False
+                outcome_resolved = False
+            else:
+                if (
+                    truth["buy_date"] != exec_date
+                    or truth["target_exit_date"] != exit_date
+                ):
+                    _fail(f"forward settlement D/T/T+1 mismatch: {signal_date}/{code}")
+                market_fill = truth["market_fill_proxy"]
+                net_return = truth["net_return"]
+                if market_fill is None:
+                    settlement_status = "PENDING_FILL_TRUTH"
+                    return_matured = False
+                    outcome_resolved = False
+                elif market_fill == 0:
+                    settlement_status = "SETTLED_NONFILL"
+                    fill_truth_entries += 1
+                    return_matured = True
+                    outcome_resolved = True
+                else:
+                    fill_truth_entries += 1
+                    fill_hits += 1
+                    filled_entries += 1
+                    if net_return is None:
+                        settlement_status = "PENDING_RETURN_TRUTH"
+                        return_matured = False
+                        outcome_resolved = False
+                    else:
+                        settlement_status = "SETTLED_FILLED_RETURN"
+                        filled_return_entries += 1
+                        return_sum += net_return
+                        return_wins += int(net_return > 0.0)
+                        return_matured = True
+                        outcome_resolved = True
+                resolved_entries += int(outcome_resolved)
+            settled_rows.append(
+                {
+                    **selected,
+                    "settlement_status": settlement_status,
+                    "market_fill_proxy": market_fill,
+                    "net_return": net_return,
+                    "return_matured": return_matured,
+                    "outcome_resolved": outcome_resolved,
+                    "actual_order_fill_observed": False,
+                }
+            )
+        accepted_records.append(
+            {
+                "signal_date": signal_date,
+                "exec_date": exec_date,
+                "exit_date": exit_date,
+                "status": "FROZEN_FORWARD_SHADOW_TOP2",
+                "snapshot": snapshot_binding,
+                "top10_members_sha256": members_sha256,
+                "shadow_snapshot_sha256": payload["shadow_contract"][
+                    "shadow_snapshot_sha256"
+                ],
+                "requested_slots": 2,
+                "selected_slots": len(settled_rows),
+                "rows": settled_rows,
+            }
+        )
+
+    return {
+        "schema_version": FORWARD_PFILL_SHADOW_SCHEMA,
+        "status": (
+            "FROZEN_FORWARD_RECORDS_PRESENT"
+            if accepted_records
+            else "NO_AUDIT_GRADE_FROZEN_SNAPSHOTS"
+        ),
+        "selection_scope": "forward_dated_snapshots_only_never_oof",
+        "selection_rule": "frozen_p_fill_shadow_rank<=2",
+        "discovered_snapshot_dates": [
+            FORWARD_SNAPSHOT_RE.fullmatch(path.name).group(1)
+            for path in snapshot_paths
+        ],
+        "accepted_snapshot_dates": [
+            record["signal_date"] for record in accepted_records
+        ],
+        "provisional_snapshot_dates": [
+            record["signal_date"] for record in provisional_records
+        ],
+        "selection_dates": len(accepted_records),
+        "selected_entries": selected_entries,
+        "fill_truth": {
+            "covered_entries": fill_truth_entries,
+            "coverage": _ratio(fill_truth_entries, selected_entries),
+            "hits": fill_hits,
+            "hit_rate": _ratio(fill_hits, fill_truth_entries),
+            "actual_order_fill_observed": False,
+        },
+        "returns": {
+            "filled_entries": filled_entries,
+            "matured_filled_return_entries": filled_return_entries,
+            "filled_return_coverage": _ratio(
+                filled_return_entries, filled_entries
+            ),
+            "conditional_filled_mean_net_return": _ratio(
+                return_sum, filled_return_entries
+            ),
+            "conditional_filled_win_count": return_wins,
+            "conditional_filled_win_rate": _ratio(
+                return_wins, filled_return_entries
+            ),
+            "resolved_selected_entries": resolved_entries,
+            "selected_outcome_coverage": _ratio(
+                resolved_entries, selected_entries
+            ),
+            "actual_trading_result": False,
+        },
+        "separation_guards": {
+            "forward_snapshot_rows_only": True,
+            "historical_oof_rows_used": 0,
+            "actual_order_rows_used": 0,
+            "actual_execution_claimed": False,
+            "may_change_core_members_or_ranks": False,
+            "may_create_trade_action": False,
+        },
+        "source_bindings": ledger_sources,
+        "records": accepted_records,
+        "provisional_pre_freeze_records": provisional_records,
+    }
 
 
 def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, Any]:
@@ -1157,6 +2434,11 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
         for records in annual_records.values()
         for record in records
     }
+    p_fill_shadow_oof_top2 = _p_fill_shadow_oof_statistics(projected_by_signal)
+    forward_p_fill_shadow_top2 = _forward_p_fill_shadow_top2(
+        source_root=source_root,
+        open_date_index=open_date_index,
+    )
     for binding in report_pairs:
         signal_date = str(binding["signal_date"])
         projected = projected_by_signal.get(signal_date)
@@ -1237,6 +2519,7 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
                 "promotion": OFFICIAL_PROMOTION_STATUS,
                 "big_loss": UNRELEASED_STATUS,
                 "profit": UNRELEASED_STATUS,
+                "p_fill_shadow": "TIME_HONEST_OOF_DIAGNOSTIC_ONLY",
                 "actual_execution_claimed": False,
                 "final_model_historical_scoring_used": False,
             },
@@ -1292,7 +2575,7 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
         for signal_date in report_covered_signal_dates
     )
     diagnostic_coverage: dict[str, dict[str, int]] = {}
-    for head in ("big_loss", "profit"):
+    for head in ("big_loss", "profit", "p_fill_shadow"):
         diagnostic_dates = 0
         diagnostic_rows = 0
         for record in projected_by_signal.values():
@@ -1336,6 +2619,9 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
             "big_loss": UNRELEASED_STATUS,
             "profit": UNRELEASED_STATUS,
         },
+        "diagnostic_model_status": {
+            "p_fill_shadow": "TIME_HONEST_OOF_SHADOW_DIAGNOSTIC_ONLY",
+        },
         "calendar_source": "tushare:trade_cal:SSE",
         "strict_calendar": True,
         "exchange": "SSE",
@@ -1357,6 +2643,8 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
             "oof_cutoff_signal_date": oof_cutoff,
         },
         "research_diagnostic_coverage": diagnostic_coverage,
+        "p_fill_shadow_top2_oof": p_fill_shadow_oof_top2,
+        "p_fill_shadow_top2_forward": forward_p_fill_shadow_top2,
         "source_bindings": {
             "oof_top10": oof_binding,
             "validation": validation_binding,

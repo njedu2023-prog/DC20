@@ -443,6 +443,7 @@ THREE_RANK_PENDING_PASSTHROUGH_FIELDS = (
     "profit_validation_gate_pass_count",
     "profit_validation_gate_total_count",
     "profit_validation_gate_score_pct",
+    "p_fill_shadow_rank",
     "p_fill_shadow_probability",
     "p_fill_shadow_status",
     "p_fill_shadow_model_version",
@@ -2408,6 +2409,9 @@ def _merge_auction_candidates(
                 ),
                 "profit_validation_gate_score_pct": _json_safe(
                     row.get("profit_validation_gate_score_pct")
+                ),
+                "p_fill_shadow_rank": _integer(
+                    row.get("p_fill_shadow_rank")
                 ),
                 "p_fill_shadow_probability": _number(
                     row.get("p_fill_shadow_probability")
