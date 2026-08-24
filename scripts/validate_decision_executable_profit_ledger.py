@@ -97,11 +97,15 @@ def validate_ledger(
         "DC20 ownership or independence drifted",
     )
     contract_binding = _mapping(manifest.get("contract"), "manifest contract")
+    identity = _mapping(contract.get("promotion_identity"), "promotion_identity")
     expected_contract_binding = {
         "path": DEFAULT_CONTRACT.as_posix(),
         "id": contract.get("contract_id"),
-        "sha256": _sha256(contract_absolute),
-        "promotion_contract_sha256": contract.get("promotion_contract_sha256"),
+        "schema_version": contract.get("schema_version"),
+        "promotion_freeze_id": identity.get("freeze_id"),
+        "promotion_artifact_sha256": _mapping(
+            identity.get("model"), "promotion model"
+        ).get("artifact_sha256"),
     }
     _expect(
         contract_binding == expected_contract_binding,
@@ -113,7 +117,6 @@ def validate_ledger(
         oof_path=oof_path,
         calendar_path=calendar_path,
     )
-    identity = _mapping(contract.get("promotion_identity"), "promotion_identity")
     expected_inputs = {
         "five_year_source_ledger": {
             "path": _mapping(identity.get("source_ledger"), "source").get("path"),

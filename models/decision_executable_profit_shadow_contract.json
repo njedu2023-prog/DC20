@@ -6,7 +6,7 @@
   "authority": {
     "repository": "njedu2023-prog/DC20",
     "branch": "main",
-    "reviewed_base_commit_sha": "af3014fec12407bffe887e1691f936e5fbe2fe17",
+    "reviewed_base_commit_sha": "71efc2336660c4a5b3a84eece9e489cff6e5273a",
     "runtime_dependency_on_top10_decision": false
   },
   "current_state": {
@@ -108,10 +108,38 @@
         "descending raw promotion score",
         "ascending ts_code"
       ],
-      "active_golden_vector_status": "REQUIRED_BEFORE_FUSION_ENGINE_IMPLEMENTATION"
+      "active_golden_vector_status": "ACTIVE_VERIFIED"
+    },
+    "golden_vector": {
+      "schema_version": "dc20_promotion_active_golden_vector_binding_v1",
+      "status": "ACTIVE_VERIFIED",
+      "fixture_path": "tests/fixtures/decision_promotion_active_golden_vector_v1.json",
+      "fixture_sha256": "ced6754bb2b64cc8c8603a64c9208a2ff2bc4db531d14c330f5c11f2401fecdd",
+      "signal_date": "20260812",
+      "candidate_source_path": "outputs/auction_v3/predictions/pred_20260812.csv",
+      "candidate_source_sha256": "cbcd0f6b21c7ebdf0410ade39e4c053c8bab8c7efa416a89f2752aa74b912527",
+      "feature_generation_source_path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "feature_generation_source_sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+      "strict_prior_rule": "eight promotion priors recomputed from atomic promotion_hit truth with signal_date strictly before 20260812",
+      "model_artifact_path": "models/decision_three_engines/promotion.joblib",
+      "model_artifact_sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c",
+      "model_version": "decision_three_engine_models_v2:promotion:20260709:hgb:platt",
+      "authoritative_hard_pool_sha256": "b767ed82ec6e28ae6b75273a0297f09a93d56fbb56365f354a0cfacc65d5281c",
+      "feature_snapshot_sha256": "f71b1975a3cf8e145e405cc313f0c95efd2acfa1f0569a85ecc8383dd1ee48dc",
+      "golden_output_sha256": "567acbb9ef5a8b64e7e67f22b2ccc02a894cd492c2be65c2289d520e77d9201d",
+      "pool_size": 13,
+      "stage_counts": {
+        "2→3": 7,
+        "3→4": 6
+      },
+      "top_n": 10,
+      "contains_outcomes_or_future_labels": false,
+      "contains_cross_head_outputs": false,
+      "runtime_dependency_on_top10_decision": false,
+      "runtime_dependency_on_recovery_snapshot": false
     }
   },
-  "promotion_contract_sha256": "8bd0223cd4a80585c9f3eb63977e33d6d8b9fe0dc14ca95429bf6db8decd7f71",
+  "promotion_contract_sha256": "841bd93de60ab1c761786ba8cd2bdbb92bad8db6b8cb8a794e42ff7b070a8225",
   "information_timing": {
     "timezone": "Asia/Shanghai",
     "calendar": {

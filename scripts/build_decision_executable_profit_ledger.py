@@ -719,8 +719,11 @@ def build_ledger(
         "contract": {
             "path": DEFAULT_CONTRACT.as_posix(),
             "id": contract.get("contract_id"),
-            "sha256": _sha256(contract_absolute),
-            "promotion_contract_sha256": contract.get("promotion_contract_sha256"),
+            "schema_version": contract.get("schema_version"),
+            "promotion_freeze_id": identity.get("freeze_id"),
+            "promotion_artifact_sha256": _mapping(
+                identity.get("model"), "promotion model"
+            ).get("artifact_sha256"),
         },
         "inputs": {
             "five_year_source_ledger": {

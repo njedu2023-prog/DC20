@@ -59,7 +59,7 @@ def test_repository_executable_profit_historical_ledger_is_reproducible() -> Non
             "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
         ),
         "manifest_sha256": (
-            "c9fee4b31f22e5e7fec7134e6022a88040dbc229165a06d72cccf13b1d51970c"
+            "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5"
         ),
         "rows": 6753,
         "signal_dates": 910,

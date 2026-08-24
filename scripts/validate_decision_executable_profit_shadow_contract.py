@@ -240,6 +240,75 @@ def validate_payloads(
         all(freeze_pins.get(path) == sha for path, sha in code_pins.items()),
         "promotion code or runtime pin drifted",
     )
+    candidate_contract = _mapping(
+        identity.get("candidate_and_sort_contract"),
+        "promotion candidate and sort contract",
+    )
+    _expect(
+        candidate_contract.get("active_golden_vector_status")
+        == "ACTIVE_VERIFIED",
+        "active promotion golden vector is not verified",
+    )
+    golden = _mapping(identity.get("golden_vector"), "promotion golden vector")
+    _expect(
+        golden.get("schema_version")
+        == "dc20_promotion_active_golden_vector_binding_v1"
+        and golden.get("status") == "ACTIVE_VERIFIED",
+        "promotion golden-vector binding is not active",
+    )
+    _expect(
+        golden.get("fixture_path")
+        == "tests/fixtures/decision_promotion_active_golden_vector_v1.json"
+        and golden.get("signal_date") == "20260812",
+        "promotion golden-vector fixture identity drifted",
+    )
+    for field in (
+        "fixture_sha256",
+        "candidate_source_sha256",
+        "feature_generation_source_sha256",
+        "model_artifact_sha256",
+        "authoritative_hard_pool_sha256",
+        "feature_snapshot_sha256",
+        "golden_output_sha256",
+    ):
+        _expect(
+            SHA256_RE.fullmatch(str(golden.get(field, ""))) is not None,
+            f"promotion golden-vector {field} is not a SHA-256",
+        )
+    _expect(
+        golden.get("candidate_source_path")
+        == "outputs/auction_v3/predictions/pred_20260812.csv"
+        and golden.get("feature_generation_source_path")
+        == identity_ledger.get("path")
+        and golden.get("feature_generation_source_sha256")
+        == identity_ledger.get("sha256"),
+        "promotion golden-vector source identity drifted",
+    )
+    _expect(
+        golden.get("strict_prior_rule")
+        == "eight promotion priors recomputed from atomic promotion_hit truth with signal_date strictly before 20260812",
+        "promotion golden-vector strict prior rule drifted",
+    )
+    _expect(
+        golden.get("model_artifact_path") == contract_model.get("artifact_path")
+        and golden.get("model_artifact_sha256")
+        == contract_model.get("artifact_sha256")
+        and golden.get("model_version") == contract_model.get("model_version"),
+        "promotion golden-vector model identity drifted",
+    )
+    _expect(
+        golden.get("pool_size") == 13
+        and golden.get("stage_counts") == {"2→3": 7, "3→4": 6}
+        and golden.get("top_n") == promotion.get("top_n"),
+        "promotion golden-vector hard-pool counts drifted",
+    )
+    _expect(
+        golden.get("contains_outcomes_or_future_labels") is False
+        and golden.get("contains_cross_head_outputs") is False
+        and golden.get("runtime_dependency_on_top10_decision") is False
+        and golden.get("runtime_dependency_on_recovery_snapshot") is False,
+        "promotion golden vector crossed its information or independence boundary",
+    )
 
     timing = _mapping(contract.get("information_timing"), "information_timing")
     calendar = _mapping(timing.get("calendar"), "contract calendar")
@@ -348,6 +417,11 @@ def validate_payloads(
         "promotion_freeze_id": promotion.get("freeze_id"),
         "promotion_artifact_sha256": contract_model.get("artifact_sha256"),
         "promotion_contract_sha256": identity_sha256,
+        "promotion_golden_fixture_sha256": golden.get("fixture_sha256"),
+        "promotion_golden_hard_pool_sha256": golden.get(
+            "authoritative_hard_pool_sha256"
+        ),
+        "promotion_golden_output_sha256": golden.get("golden_output_sha256"),
         "shadow_slots": ranking.get("shadow_slots"),
         "official_trade_action_allowed": False,
     }
@@ -356,7 +430,7 @@ def validate_payloads(
 def validate_contract(repo_root: Path, contract_path: Path = DEFAULT_CONTRACT_PATH) -> dict[str, Any]:
     root = repo_root.resolve()
     contract = _load_json(root / contract_path)
-    return validate_payloads(
+    result = validate_payloads(
         contract=contract,
         freeze=_load_json(root / "models/decision_model_freeze.json"),
         validation=_load_json(
@@ -366,6 +440,30 @@ def validate_contract(repo_root: Path, contract_path: Path = DEFAULT_CONTRACT_PA
             root / "data/decision_three_engines/five_year_ledger_manifest.json"
         ),
     )
+    try:
+        try:
+            from scripts.validate_frozen_promotion_golden_vector import (
+                FrozenPromotionGoldenVectorError,
+                validate_frozen_promotion_golden_vector,
+            )
+        except ModuleNotFoundError:
+            from validate_frozen_promotion_golden_vector import (  # type: ignore
+                FrozenPromotionGoldenVectorError,
+                validate_frozen_promotion_golden_vector,
+            )
+        identity = _mapping(contract.get("promotion_identity"), "promotion_identity")
+        golden = _mapping(identity.get("golden_vector"), "promotion golden vector")
+        golden_result = validate_frozen_promotion_golden_vector(
+            root,
+            fixture_path=Path(str(golden.get("fixture_path") or "")),
+            binding=golden,
+        )
+    except FrozenPromotionGoldenVectorError as exc:
+        raise ExecutableProfitShadowContractError(
+            f"active promotion golden-vector validation failed: {exc}"
+        ) from exc
+    result["promotion_golden_vector"] = golden_result
+    return result
 
 
 def main() -> int:

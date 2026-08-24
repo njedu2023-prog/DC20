@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -41,8 +42,19 @@ def _payloads() -> tuple[dict, dict, dict, dict]:
     return contract, freeze, validation, manifest
 
 
+def _rehash_promotion_identity(contract: dict) -> None:
+    payload = json.dumps(
+        contract["promotion_identity"],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    contract["promotion_contract_sha256"] = hashlib.sha256(payload).hexdigest()
+
+
 def test_repository_executable_profit_shadow_contract_is_valid() -> None:
     result = validate_contract(ROOT)
+    golden = result.pop("promotion_golden_vector")
     assert result == {
         "valid": True,
         "contract_id": "dc20_executable_profit_shadow_top2_v1",
@@ -54,11 +66,24 @@ def test_repository_executable_profit_shadow_contract_is_valid() -> None:
             "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c"
         ),
         "promotion_contract_sha256": (
-            "8bd0223cd4a80585c9f3eb63977e33d6d8b9fe0dc14ca95429bf6db8decd7f71"
+            "841bd93de60ab1c761786ba8cd2bdbb92bad8db6b8cb8a794e42ff7b070a8225"
+        ),
+        "promotion_golden_fixture_sha256": (
+            "ced6754bb2b64cc8c8603a64c9208a2ff2bc4db531d14c330f5c11f2401fecdd"
+        ),
+        "promotion_golden_hard_pool_sha256": (
+            "b767ed82ec6e28ae6b75273a0297f09a93d56fbb56365f354a0cfacc65d5281c"
+        ),
+        "promotion_golden_output_sha256": (
+            "567acbb9ef5a8b64e7e67f22b2ccc02a894cd492c2be65c2289d520e77d9201d"
         ),
         "shadow_slots": 2,
         "official_trade_action_allowed": False,
     }
+    assert golden["valid"] is True
+    assert golden["fixture_id"] == "dc20_promotion_b7837d_d20260812_v1"
+    assert golden["pool_size"] == 13
+    assert golden["stage_counts"] == {"2→3": 7, "3→4": 6}
 
 
 def test_promotion_artifact_drift_fails_closed() -> None:
@@ -84,6 +109,42 @@ def test_promotion_identity_hash_tamper_fails_closed() -> None:
     with pytest.raises(
         ExecutableProfitShadowContractError,
         match="promotion_contract_sha256 does not bind",
+    ):
+        validate_payloads(
+            contract=changed,
+            freeze=freeze,
+            validation=validation,
+            ledger_manifest=manifest,
+        )
+
+
+def test_inactive_promotion_golden_binding_fails_closed() -> None:
+    contract, freeze, validation, manifest = _payloads()
+    changed = copy.deepcopy(contract)
+    changed["promotion_identity"]["golden_vector"]["status"] = "PENDING"
+    _rehash_promotion_identity(changed)
+    with pytest.raises(
+        ExecutableProfitShadowContractError,
+        match="golden-vector binding is not active",
+    ):
+        validate_payloads(
+            contract=changed,
+            freeze=freeze,
+            validation=validation,
+            ledger_manifest=manifest,
+        )
+
+
+def test_golden_model_identity_cannot_drift_from_frozen_promotion() -> None:
+    contract, freeze, validation, manifest = _payloads()
+    changed = copy.deepcopy(contract)
+    changed["promotion_identity"]["golden_vector"]["model_artifact_sha256"] = (
+        "0" * 64
+    )
+    _rehash_promotion_identity(changed)
+    with pytest.raises(
+        ExecutableProfitShadowContractError,
+        match="golden-vector model identity drifted",
     ):
         validate_payloads(
             contract=changed,
