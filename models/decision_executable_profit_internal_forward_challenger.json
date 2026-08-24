@@ -1,0 +1,132 @@
+{
+  "schema_version": "dc20_executable_profit_internal_forward_contract_v1",
+  "contract_id": "dc20_executable_profit_internal_forward_challenger_20260824_v1",
+  "status": "INTERNAL_CHALLENGER_NOT_READY",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "implementation_parent_commit_sha": "d176e3400e4e9bd38702e8eba1d11ff55adcf7f4",
+    "runtime_dependency_on_codex": false,
+    "runtime_dependency_on_top10_decision": false,
+    "runtime_dependency_on_recovery": false
+  },
+  "bindings": {
+    "parent_commit_sha": "d176e3400e4e9bd38702e8eba1d11ff55adcf7f4",
+    "formal_shadow_contract_path": "models/decision_executable_profit_shadow_contract.json",
+    "formal_shadow_contract_sha256": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
+    "artifact_index_path": "work/executable-profit-lagged-features-20260824/ARTIFACT_INDEX.json",
+    "artifact_index_sha256": "362ffcc4d83e7a14c68a2de71d0142ff119c62160752adbf93b2ef6c5789c66f",
+    "audit_path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger_audit.json",
+    "audit_sha256": "0b75a1f635e17b7663d0d68d3e505c0c21997c12331ce8a953882fa53d2ec980",
+    "model_pickle_path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl",
+    "model_pickle_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+    "lagged_priors_path": "work/executable-profit-lagged-features-20260824/lagged_priors.py",
+    "lagged_priors_sha256": "b89d7bed14b0307d2aaa7c0762a98b4fda846dcdac35488938d8eae7db0bc39d",
+    "historical_manifest_path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json",
+    "historical_manifest_sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5",
+    "strict_sse_calendar_path": "data/market/trade_cal_sse.csv",
+    "strict_sse_calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+  },
+  "boundaries": {
+    "research_only": true,
+    "proxy_scores_uncalibrated": true,
+    "formal_executable_profit_contract_implemented": false,
+    "front_end_rank_allowed": false,
+    "official_trade_action_allowed": false,
+    "production_publish_allowed": false,
+    "actual_execution_claimed": false,
+    "historical_backfill_allowed": false,
+    "post_outcome_reranking_allowed": false
+  },
+  "model_semantics": {
+    "model_kind": "hgb",
+    "variant": "full_priors",
+    "feature_count": 156,
+    "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+    "fill_output": "research_fill_proxy_score",
+    "fill_label_limit": "historical daily-bar non-one-price-limit-up market-buyable proxy; not actual fill and not the complete forward auction capacity truth",
+    "conditional_output": "research_conditional_profit_score",
+    "joint_output": "research_joint_proxy_score",
+    "joint_identity": "research_fill_proxy_score * research_conditional_profit_score",
+    "calibration_status": "NOT_CALIBRATED_BRIER_GATE_FAILED",
+    "expected_net_return_lcb_available": false,
+    "big_loss_tie_break_available": false,
+    "may_be_called_calibrated_probability": false,
+    "may_be_called_formal_rank": false
+  },
+  "input_contract": {
+    "minimum_signal_date": "20260824",
+    "require_complete_frozen_promotion_topn": true,
+    "candidate_count_rule": "N = min(10, complete eligible 2-to-3/3-to-4 promotion pool)",
+    "minimum_candidate_rows": 1,
+    "maximum_candidate_rows": 10,
+    "minimum_candidate_rows_for_shadow_top2": 2,
+    "single_candidate_policy": "FREEZE_NOT_ENOUGH_FOR_TOP2_EVENT_WITH_ZERO_SHADOW_SLOTS_NO_BACKFILL",
+    "hard_stage_scope": [
+      "2→3",
+      "3→4"
+    ],
+    "required_promotion_source_features": [
+      "five_year_stage_board_prior_rate",
+      "five_year_stage_prior_rate",
+      "five_year_recent_20d_rate",
+      "five_year_recent_60d_rate",
+      "five_year_prior_samples_log",
+      "five_year_recent_60d_samples_log",
+      "five_year_regime_delta",
+      "five_year_board_stage_delta",
+      "five_year_pre_streak_1d_return",
+      "five_year_pre_streak_3d_return",
+      "five_year_pre_streak_volatility",
+      "five_year_pre_streak_limit_up_count",
+      "five_year_recent_limit_up_count",
+      "five_year_days_since_prior_limit_up",
+      "five_year_streak_runup",
+      "five_year_price_log",
+      "five_year_stock_prior_rate",
+      "five_year_stock_prior_samples_log"
+    ],
+    "derived_one_hot_features": [
+      "stage_2",
+      "stage_3",
+      "board_sh_main",
+      "board_sz_main"
+    ],
+    "promotion_rank_or_probability_as_model_feature_allowed": false,
+    "full_history_lagged_prior_features": 108,
+    "lagged_outcome_availability_rule": "historical availability date must be strictly earlier than target D",
+    "old_feature_incomplete_dated_predictions_allowed": false
+  },
+  "selection_contract": {
+    "slots": 2,
+    "scope": "complete frozen promotion TopN only, where N is at most 10 and no candidate may be added outside the hard pool",
+    "selected_slots_rule": "2 when N is at least 2; otherwise 0",
+    "internal_order": [
+      "descending research_joint_proxy_score",
+      "descending research_conditional_profit_score",
+      "descending research_fill_proxy_score",
+      "ascending ts_code"
+    ],
+    "top2_top3_exact_joint_tie_policy": "for N at least 3, FAIL_CLOSED_NO_SELECTION_EVENT; not applicable for N below 3",
+    "immutable_dated_artifact": "data/decision_executable_profit/forward/selections/shadow_<D>.json",
+    "latest_pointer_is_data_alias": false,
+    "same_date_different_payload_policy": "REJECT",
+    "out_of_order_or_backfill_policy": "REJECT"
+  },
+  "timing_contract": {
+    "timezone": "Asia/Shanghai",
+    "calendar": "strict pinned SSE trade calendar",
+    "date_binding": "D, T and T+1 are three adjacent SSE open sessions",
+    "selection_window": "after D close and strictly before T 09:20 Asia/Shanghai",
+    "post_T_information_as_selection_input_allowed": false
+  },
+  "release_blockers": [
+    "both historical challenger families were rejected",
+    "last 180 historical dates were viewed and are not untouched confirmation",
+    "no forward selection dates have been accumulated yet",
+    "scores are not calibrated probabilities",
+    "formal return-LCB and big-loss tie-break outputs do not exist",
+    "full forward auction capacity and actual fill truth are not model labels",
+    "minimum 180 new forward signal dates and all formal release gates remain required"
+  ]
+}

@@ -7162,6 +7162,12 @@ class AuctionV3Engine:
             "focus_pool_size",
             "stage2_pool_size",
             "stage3_pool_size",
+            # Keep the immutable D-only promotion-source features on every
+            # future dated prediction.  The executable-profit research scorer
+            # consumes this same frozen input surface; it must never rebuild
+            # these fields after T outcomes exist.  Existing dated predictions
+            # remain immutable and are intentionally not backfilled.
+            *PROMOTION_SOURCE_FEATURES,
             "market_max_limit_times",
             "same_industry_stage_count",
             "stage_pool_share",

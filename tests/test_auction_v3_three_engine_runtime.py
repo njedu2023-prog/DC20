@@ -15,6 +15,7 @@ from top10decision.auction_v3.engine import (
     AuctionV3Engine,
 )
 from top10decision.decision.three_engine_models import (
+    PROMOTION_SOURCE_FEATURES,
     THREE_ENGINE_VALIDATION_GATE_NAMES,
     ThreeEngineArtifactError,
     load_three_engine_artifacts,
@@ -22,6 +23,19 @@ from top10decision.decision.three_engine_models import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_future_dated_prediction_keeps_all_d_only_promotion_source_features() -> None:
+    """The internal profit shadow must consume the already-frozen D surface."""
+
+    source = (ROOT / "src/top10decision/auction_v3/engine.py").read_text(
+        encoding="utf-8"
+    )
+    ordered = source.split("        ordered = [", 1)[1].split(
+        "        scored = scored[[name for name in ordered", 1
+    )[0]
+    assert "*PROMOTION_SOURCE_FEATURES" in ordered
+    assert len(PROMOTION_SOURCE_FEATURES) == 18
 
 
 def _engine(tmp_path: Path) -> AuctionV3Engine:
