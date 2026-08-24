@@ -188,7 +188,7 @@ def _date(value: Any, *, field: str) -> str:
 
 
 def _optional_float(value: Any, *, field: str) -> float | None:
-    text = str(value or "").strip()
+    text = "" if value is None else str(value).strip()
     if not text:
         return None
     try:
@@ -208,7 +208,7 @@ def _required_int(value: Any, *, field: str) -> int:
 
 
 def _optional_int(value: Any, *, field: str) -> int | None:
-    if not str(value or "").strip():
+    if value is None or not str(value).strip():
         return None
     return _required_int(value, field=field)
 
@@ -534,6 +534,290 @@ def _validate_rank_probability_order(
         _fail(f"{head} OOF probabilities are not monotonic by rank")
 
 
+def _validate_oof_archive_contract(
+    validation: Mapping[str, Any],
+    oof_rows: Sequence[Mapping[str, str]],
+    grouped: Mapping[str, Sequence[Mapping[str, str]]],
+) -> str:
+    actual_rows = len(oof_rows)
+    actual_dates = len(grouped)
+    if actual_rows <= 0 or actual_dates <= 0:
+        _fail("OOF archive is empty")
+
+    artifact = validation.get("artifacts", {}).get("oof_top10")
+    integrity = validation.get("oof_top10")
+    if not isinstance(artifact, dict):
+        _fail("validation OOF artifact contract is missing")
+    if not isinstance(integrity, dict):
+        _fail("validation OOF integrity contract is missing")
+    if (
+        _required_int(artifact.get("rows"), field="validation artifact OOF rows")
+        != actual_rows
+        or _required_int(
+            artifact.get("dates"), field="validation artifact OOF dates"
+        )
+        != actual_dates
+    ):
+        _fail("validation artifact OOF row/date counts do not match source")
+    if integrity.get("valid") is not True or integrity.get("failures") != []:
+        _fail("validation OOF integrity contract is not PASS")
+    if (
+        _required_int(integrity.get("rows"), field="validation OOF rows")
+        != actual_rows
+        or _required_int(integrity.get("dates"), field="validation OOF dates")
+        != actual_dates
+    ):
+        _fail("validation OOF integrity row/date counts do not match source")
+
+    ordered_dates = sorted(grouped)
+    oof_cutoff = ordered_dates[-1]
+    source = validation.get("source")
+    if not isinstance(source, dict):
+        _fail("validation source contract is missing")
+    source_cutoff = _date(source.get("end"), field="validation source end")
+    if source_cutoff != oof_cutoff:
+        _fail("validation source cutoff does not match OOF cutoff")
+
+    allowed_fold_kinds = {
+        "development_walkforward",
+        "final_independent_holdout",
+    }
+    fold_contracts: dict[str, dict[int, dict[str, Any]]] = {
+        head: {} for head in ("promotion", "big_loss", "profit")
+    }
+    date_contracts: dict[str, dict[str, tuple[Any, ...]]] = {
+        head: {} for head in fold_contracts
+    }
+    date_metadata_rows: dict[str, dict[str, int]] = {
+        head: defaultdict(int) for head in fold_contracts
+    }
+    for row in oof_rows:
+        signal_date = _date(row.get("signal_date"), field="OOF signal_date")
+        for head in fold_contracts:
+            metadata = _oof_metadata(row, head)
+            fold = metadata["fold"]
+            if fold is None:
+                continue
+            fold_kind = metadata["fold_kind"]
+            if fold_kind not in allowed_fold_kinds:
+                _fail(f"{head} OOF fold kind is invalid: {fold_kind}")
+            train_end = metadata["train_end"]
+            if not train_end or train_end >= signal_date:
+                _fail(f"{head} OOF train_end is not before D: {signal_date}")
+            signature = (
+                fold_kind,
+                train_end,
+                metadata["model_kind"],
+                metadata["calibration"],
+                metadata["selection_eligible"],
+                metadata["selection_composite_lift"],
+            )
+            existing = fold_contracts[head].setdefault(
+                int(fold), {"signature": signature, "dates": set()}
+            )
+            if existing["signature"] != signature:
+                _fail(f"{head} OOF fold metadata is inconsistent: {fold}")
+            existing["dates"].add(signal_date)
+            date_signature = (int(fold),) + signature
+            existing_date = date_contracts[head].setdefault(
+                signal_date, date_signature
+            )
+            if existing_date != date_signature:
+                _fail(f"{head} OOF date has mixed fold metadata: {signal_date}")
+            date_metadata_rows[head][signal_date] += 1
+
+    for head, folds in fold_contracts.items():
+        if not folds:
+            _fail(f"{head} OOF fold inventory is empty")
+        head_dates = sorted(date_contracts[head])
+        first_source_index = ordered_dates.index(head_dates[0])
+        if head_dates != ordered_dates[first_source_index:]:
+            _fail(f"{head} OOF dates are not a contiguous source tail")
+        for signal_date in head_dates:
+            if date_metadata_rows[head][signal_date] != len(grouped[signal_date]):
+                _fail(f"{head} OOF date is only partially populated: {signal_date}")
+
+        fold_ids = sorted(folds)
+        if fold_ids != list(range(1, len(fold_ids) + 1)):
+            _fail(f"{head} OOF fold IDs are not contiguous")
+        previous_end: str | None = None
+        previous_train_end: str | None = None
+        for fold in fold_ids:
+            contract = folds[fold]
+            fold_dates = sorted(contract["dates"])
+            train_end = contract["signature"][1]
+            if train_end >= fold_dates[0]:
+                _fail(f"{head} OOF fold train_end is not before its first D: {fold}")
+            if previous_end is not None and fold_dates[0] <= previous_end:
+                _fail(f"{head} OOF folds are not chronologically ordered")
+            if previous_train_end is not None and train_end <= previous_train_end:
+                _fail(f"{head} OOF fold train_end is not strictly increasing")
+            previous_train_end = train_end
+            previous_end = fold_dates[-1]
+        final_fold_ids = [
+            fold
+            for fold in fold_ids
+            if folds[fold]["signature"][0] == "final_independent_holdout"
+        ]
+        if final_fold_ids != [fold_ids[-1]]:
+            _fail(f"{head} OOF final holdout fold is not unique and highest")
+
+    configuration = validation.get("configuration")
+    promotion = validation.get("heads", {}).get("promotion")
+    if not isinstance(configuration, dict) or not isinstance(promotion, dict):
+        _fail("validation promotion holdout contract is missing")
+    if configuration.get("release_mode") is not True:
+        _fail("validation was not produced in release mode")
+    holdout_count = _required_int(
+        configuration.get("final_holdout_dates"),
+        field="validation final_holdout_dates",
+    )
+    if holdout_count <= 0 or holdout_count >= actual_dates:
+        _fail("validation final holdout size is invalid")
+    holdout = promotion.get("final_independent_holdout")
+    if not isinstance(holdout, dict):
+        _fail("validation promotion final holdout is missing")
+    if (
+        holdout.get("model_refit_within_holdout") is not False
+        or holdout.get("model_family_and_calibrator_locked_before_holdout") is not True
+        or _required_int(
+            holdout.get("minimum_dates"), field="promotion holdout minimum_dates"
+        )
+        != holdout_count
+        or _required_int(
+            holdout.get("calendar_dates"), field="promotion holdout calendar_dates"
+        )
+        != holdout_count
+        or _required_int(
+            holdout.get("labeled_dates"), field="promotion holdout labeled_dates"
+        )
+        != holdout_count
+    ):
+        _fail("validation promotion final holdout contract drifted")
+    for head, folds in fold_contracts.items():
+        head_dates = sorted(date_contracts[head])
+        if len(head_dates) <= holdout_count:
+            _fail(f"{head} OOF history is not longer than the final holdout")
+        final_fold = max(folds)
+        if sorted(folds[final_fold]["dates"]) != head_dates[-holdout_count:]:
+            _fail(f"{head} final holdout is not the exact head OOF date tail")
+    promotion_final_dates = sorted(fold_contracts["promotion"][max(
+        fold_contracts["promotion"]
+    )]["dates"])
+    if promotion_final_dates != ordered_dates[-holdout_count:]:
+        _fail("promotion final holdout is not the exact source OOF date tail")
+
+    production = promotion.get("production")
+    if not isinstance(production, dict) or production.get("bundle_present") is not True:
+        _fail("validation promotion production bundle is missing")
+    trained_start = _date(
+        production.get("trained_signal_start"),
+        field="promotion production trained_signal_start",
+    )
+    trained_end = _date(
+        production.get("trained_signal_end"),
+        field="promotion production trained_signal_end",
+    )
+    monotonicity = production.get("calibration_monotonicity")
+    if not isinstance(monotonicity, dict):
+        _fail("promotion production calibration contract is missing")
+    audit = monotonicity.get(
+        "independent_production_rank_audit"
+    )
+    if not isinstance(audit, dict):
+        _fail("promotion production rank audit is missing")
+    if production.get("independent_rank_audit") != audit:
+        _fail("promotion production rank audit copies disagree")
+    audit_start = _date(
+        audit.get("start"), field="promotion production audit start"
+    )
+    audit_end = _date(audit.get("end"), field="promotion production audit end")
+    minimum_audit_dates = _required_int(
+        configuration.get("minimum_inner_selection_dates"),
+        field="validation minimum_inner_selection_dates",
+    )
+    embargo_dates = _required_int(
+        configuration.get("embargo_dates"), field="validation embargo_dates"
+    )
+    if minimum_audit_dates <= 0 or embargo_dates < 0:
+        _fail("promotion production rank audit configuration is invalid")
+    audit_rows = _required_int(
+        audit.get("rows"), field="promotion production audit rows"
+    )
+    nonconstant_dates = _required_int(
+        audit.get("nonconstant_dates"),
+        field="promotion production audit nonconstant_dates",
+    )
+    nonconstant_fraction = _optional_float(
+        audit.get("nonconstant_date_fraction"),
+        field="promotion production audit nonconstant_date_fraction",
+    )
+    minimum_nonconstant_fraction = _optional_float(
+        audit.get("minimum_nonconstant_date_fraction"),
+        field="promotion production audit minimum_nonconstant_date_fraction",
+    )
+    if (
+        production.get("independent_rank_audit_valid") is not True
+        or production.get("calibration_monotonicity_valid") is not True
+        or production.get("constant_rank_forbidden") is not True
+        or audit_rows < 2 * minimum_audit_dates
+        or not 0 <= nonconstant_dates <= minimum_audit_dates
+        or nonconstant_fraction is None
+        or not 0.0 <= nonconstant_fraction <= 1.0
+        or minimum_nonconstant_fraction is None
+        or not 0.0 <= minimum_nonconstant_fraction <= 1.0
+        or minimum_nonconstant_fraction < 0.90
+        or abs(
+            nonconstant_fraction
+            - (nonconstant_dates / minimum_audit_dates)
+        )
+        > 1e-12
+        or nonconstant_fraction < minimum_nonconstant_fraction
+        or _required_int(
+            audit.get("calendar_dates"),
+            field="promotion production audit calendar_dates",
+        )
+        != minimum_audit_dates
+        or _required_int(
+            audit.get("eligible_dates"),
+            field="promotion production audit eligible_dates",
+        )
+        != minimum_audit_dates
+        or _required_int(
+            audit.get("minimum_eligible_dates"),
+            field="promotion production audit minimum_eligible_dates",
+        )
+        != minimum_audit_dates
+        or _required_int(
+            audit.get("embargo_dates"),
+            field="promotion production audit embargo_dates",
+        )
+        != embargo_dates
+    ):
+        _fail("promotion production rank audit contract is invalid")
+    date_index = {date: index for index, date in enumerate(ordered_dates)}
+    expected_audit_dates = ordered_dates[-minimum_audit_dates:]
+    if (
+        trained_end not in date_index
+        or audit_start not in date_index
+        or audit_end not in date_index
+        or audit_start != expected_audit_dates[0]
+        or audit_end != expected_audit_dates[-1]
+        or date_index[audit_start] - date_index[trained_end] != embargo_dates + 1
+    ):
+        _fail("promotion production rank audit window is invalid")
+    if (
+        production.get("post_gate_locked_family_refit") is not True
+        or not trained_start <= trained_end < audit_start <= audit_end
+        or audit_end != source_cutoff
+        or audit.get("valid") is not True
+        or audit.get("truth_or_performance_used") is not False
+        or audit.get("fit_or_calibration_rows_used") is not False
+    ):
+        _fail("promotion production refit/audit chronology is invalid")
+    return oof_cutoff
+
+
 def _project_date(
     signal_date: str,
     source_rows: Sequence[Mapping[str, str]],
@@ -837,15 +1121,11 @@ def build_history_archive(source_root: Path, output_root: Path) -> Mapping[str, 
     for row in oof_rows:
         signal_date = _date(row.get("signal_date"), field="OOF signal_date")
         grouped[signal_date].append(row)
-    oof_cutoff = max(grouped)
-    validation_cutoff = _date(
-        validation.get("heads", {}).get("promotion", {}).get("production", {}).get(
-            "trained_signal_end"
-        ),
-        field="validation promotion trained_signal_end",
+    oof_cutoff = _validate_oof_archive_contract(
+        validation,
+        oof_rows,
+        grouped,
     )
-    if validation_cutoff != oof_cutoff:
-        _fail("validation trained cutoff does not match OOF cutoff")
 
     reports_by_signal: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for binding in report_pairs:

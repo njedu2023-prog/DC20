@@ -95,6 +95,16 @@ def _rewrite_oof(source: Path, mutate) -> None:
     )
 
 
+def _rewrite_validation(source: Path, mutate) -> None:
+    validation_path = source / "models/decision_three_engines/validation_latest.json"
+    validation = _load(validation_path)
+    mutate(validation)
+    validation_path.write_text(
+        json.dumps(validation, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _rewrite_calendar(source: Path, mutate) -> None:
     calendar = source / "data/market/trade_cal_sse.csv"
     with calendar.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -210,6 +220,50 @@ def test_complete_oof_archive_and_121_report_map_have_exact_coverage(
         ("2025", 243, 2142),
         ("2026", 149, 1209),
     ]
+
+
+def test_secondary_oof_heads_legitimately_start_later_without_internal_gaps() -> None:
+    path = ROOT / "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz"
+    with gzip.open(path, "rt", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    all_dates = sorted({row["signal_date"] for row in rows})
+    validation = _load(ROOT / "models/decision_three_engines/validation_latest.json")
+    assert all_dates
+    assert all_dates[-1] == validation["source"]["end"]
+    for head in ("big_loss", "profit"):
+        head_dates = sorted(
+            {
+                row["signal_date"]
+                for row in rows
+                if row[f"{head}_oof_fold"].strip()
+            }
+        )
+        stability = validation["heads"][head]["chronological_stability"]
+        assert head_dates
+        assert len(head_dates) == sum(segment["dates"] for segment in stability)
+        assert head_dates[0] == stability[0]["start"]
+        assert head_dates[-1] == stability[-1]["end"] == all_dates[-1]
+        first_source_index = all_dates.index(head_dates[0])
+        assert first_source_index > 0
+        assert head_dates == all_dates[first_source_index:]
+
+
+def test_history_cutoff_is_oof_source_end_not_post_gate_production_refit(
+    archive: Path,
+) -> None:
+    validation = _load(ROOT / "models/decision_three_engines/validation_latest.json")
+    source_end = validation["source"]["end"]
+    production_end = validation["heads"]["promotion"]["production"][
+        "trained_signal_end"
+    ]
+    path = ROOT / "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz"
+    with gzip.open(path, "rt", encoding="utf-8-sig", newline="") as handle:
+        oof_dates = sorted({row["signal_date"] for row in csv.DictReader(handle)})
+    assert source_end == oof_dates[-1]
+    assert production_end in oof_dates
+    assert production_end < source_end
+    statistics = _load(archive / "statistics.json")
+    assert statistics["coverage"]["oof_cutoff_signal_date"] == source_end
 
 
 def test_unreleased_heads_are_null_officially_and_only_live_in_diagnostics(
@@ -385,6 +439,203 @@ def test_source_oof_sha_drift_fails_before_projection(tmp_path: Path) -> None:
     oof = source / "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz"
     oof.write_bytes(oof.read_bytes() + b"drift")
     with pytest.raises(HistoryProjectionError, match="OOF SHA256"):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("source_cutoff", "validation source cutoff does not match OOF cutoff"),
+        ("artifact_rows", "validation artifact OOF row/date counts"),
+        ("integrity_dates", "validation OOF integrity row/date counts"),
+        ("production_audit", "production rank audit window is invalid"),
+        ("audit_non_oof_start", "production rank audit window is invalid"),
+        ("audit_calendar_dates", "production rank audit contract is invalid"),
+        ("audit_embargo", "production rank audit contract is invalid"),
+        ("audit_top_level", "production rank audit contract is invalid"),
+        ("audit_copy", "production rank audit copies disagree"),
+        ("audit_zero_rows", "production rank audit contract is invalid"),
+        ("audit_fraction_mismatch", "production rank audit contract is invalid"),
+        ("audit_fraction_below_minimum", "production rank audit contract is invalid"),
+        ("audit_invalid_minimum", "production rank audit contract is invalid"),
+        ("audit_weakened_minimum", "production rank audit contract is invalid"),
+        ("audit_too_few_rows", "production rank audit contract is invalid"),
+        ("audit_constant_rank_allowed", "production rank audit contract is invalid"),
+    ),
+)
+def test_validation_oof_and_production_chronology_drift_fails_closed(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+
+    def mutate(validation: dict) -> None:
+        if mutation == "source_cutoff":
+            validation["source"]["end"] = "20260813"
+        elif mutation == "artifact_rows":
+            validation["artifacts"]["oof_top10"]["rows"] -= 1
+        elif mutation == "integrity_dates":
+            validation["oof_top10"]["dates"] -= 1
+        else:
+            production = validation["heads"]["promotion"]["production"]
+            direct = production["independent_rank_audit"]
+            nested = production["calibration_monotonicity"][
+                "independent_production_rank_audit"
+            ]
+            if mutation == "production_audit":
+                direct["start"] = production["trained_signal_end"]
+                nested["start"] = production["trained_signal_end"]
+            elif mutation == "audit_non_oof_start":
+                direct["start"] = "20260712"
+                nested["start"] = "20260712"
+            elif mutation == "audit_calendar_dates":
+                direct["calendar_dates"] = 1
+                nested["calendar_dates"] = 1
+            elif mutation == "audit_embargo":
+                direct["embargo_dates"] = 1
+                nested["embargo_dates"] = 1
+            elif mutation == "audit_top_level":
+                production["independent_rank_audit_valid"] = False
+            elif mutation == "audit_copy":
+                direct["calendar_dates"] = 1
+            elif mutation == "audit_zero_rows":
+                for audit in (direct, nested):
+                    audit["rows"] = 0
+                    audit["nonconstant_dates"] = 0
+                    audit["nonconstant_date_fraction"] = 0.0
+            elif mutation == "audit_fraction_mismatch":
+                for audit in (direct, nested):
+                    audit["nonconstant_dates"] = 12
+                    audit["nonconstant_date_fraction"] = 1.0
+            elif mutation == "audit_fraction_below_minimum":
+                for audit in (direct, nested):
+                    audit["nonconstant_dates"] = 12
+                    audit["nonconstant_date_fraction"] = 0.5
+            elif mutation == "audit_invalid_minimum":
+                for audit in (direct, nested):
+                    audit["minimum_nonconstant_date_fraction"] = 1.1
+            elif mutation == "audit_weakened_minimum":
+                for audit in (direct, nested):
+                    audit["minimum_nonconstant_date_fraction"] = 0.0
+                    audit["nonconstant_dates"] = 0
+                    audit["nonconstant_date_fraction"] = 0.0
+            elif mutation == "audit_too_few_rows":
+                for audit in (direct, nested):
+                    audit["rows"] = 1
+            else:
+                production["constant_rank_forbidden"] = False
+
+    _rewrite_validation(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("future_train_end", "promotion OOF train_end is not before D"),
+        ("fold_metadata", "promotion OOF fold metadata is inconsistent"),
+        ("mixed_fold_id", "promotion OOF date has mixed fold metadata"),
+        ("invalid_fold_kind", "promotion OOF fold kind is invalid"),
+        ("partial_holdout_tail", "promotion OOF date has mixed fold metadata"),
+        ("noncontiguous_fold_ids", "promotion OOF fold IDs are not contiguous"),
+        ("unordered_folds", "promotion OOF folds are not chronologically ordered"),
+        (
+            "nonincreasing_train_end",
+            "promotion OOF fold train_end is not strictly increasing",
+        ),
+        (
+            "holdout_tail",
+            "promotion OOF final holdout fold is not unique and highest",
+        ),
+    ),
+)
+def test_oof_fold_and_final_holdout_drift_fails_closed(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+
+    def mutate(rows: list[dict[str, str]]) -> None:
+        if mutation == "future_train_end":
+            rows[0]["promotion_oof_train_end"] = rows[0]["signal_date"]
+        elif mutation == "fold_metadata":
+            rows[0]["promotion_oof_model_kind"] = "contract_drift"
+        elif mutation == "mixed_fold_id":
+            rows[0]["promotion_oof_fold"] = "999"
+        elif mutation == "invalid_fold_kind":
+            for row in rows:
+                if row["promotion_oof_fold"] == "1":
+                    row["promotion_oof_fold_kind"] = "contract_drift"
+        elif mutation == "partial_holdout_tail":
+            for row in rows:
+                if (
+                    row["promotion_oof_fold_kind"]
+                    == "final_independent_holdout"
+                    and row["promotion_rank"] != "1"
+                ):
+                    row["promotion_oof_fold"] = "21"
+                    row["promotion_oof_fold_kind"] = "development_walkforward"
+        elif mutation == "noncontiguous_fold_ids":
+            for row in rows:
+                if row["promotion_oof_fold"] == "19":
+                    row["promotion_oof_fold"] = "999"
+        elif mutation == "unordered_folds":
+            for row in rows:
+                if row["promotion_oof_fold"] == "1":
+                    row["promotion_oof_fold"] = "2"
+                elif row["promotion_oof_fold"] == "2":
+                    row["promotion_oof_fold"] = "1"
+        elif mutation == "nonincreasing_train_end":
+            first_train_end = next(
+                row["promotion_oof_train_end"]
+                for row in rows
+                if row["promotion_oof_fold"] == "1"
+            )
+            for row in rows:
+                if row["promotion_oof_fold"] == "2":
+                    row["promotion_oof_train_end"] = first_train_end
+        else:
+            for row in rows:
+                if row["promotion_oof_fold_kind"] == "final_independent_holdout":
+                    row["promotion_oof_fold_kind"] = "development_walkforward"
+
+    _rewrite_oof(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    ("whole_date", "message"),
+    (
+        (True, "big_loss OOF dates are not a contiguous source tail"),
+        (False, "big_loss OOF date is only partially populated"),
+    ),
+)
+def test_secondary_oof_metadata_cannot_have_internal_or_partial_date_gaps(
+    tmp_path: Path, whole_date: bool, message: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    metadata_fields = (
+        "big_loss_safety_rank",
+        "predicted_big_loss_probability",
+        "big_loss_rank_score",
+        "big_loss_oof_fold",
+        "big_loss_oof_fold_kind",
+        "big_loss_oof_train_end",
+        "big_loss_oof_model_kind",
+        "big_loss_oof_calibration",
+        "big_loss_oof_selection_eligible",
+        "big_loss_oof_selection_composite_lift",
+    )
+
+    def mutate(rows: list[dict[str, str]]) -> None:
+        candidates = [row for row in rows if row["signal_date"] == "20240108"]
+        targets = candidates if whole_date else candidates[:1]
+        for row in targets:
+            for field in metadata_fields:
+                row[field] = ""
+
+    _rewrite_oof(source, mutate)
+    with pytest.raises(HistoryProjectionError, match=message):
         build_history_archive(source, tmp_path / "site")
 
 
