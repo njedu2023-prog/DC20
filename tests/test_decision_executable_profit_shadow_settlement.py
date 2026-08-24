@@ -489,6 +489,38 @@ def test_one_price_limit_down_remains_pending(tmp_path: Path) -> None:
     assert not (repo / settlement.SETTLEMENT_ROOT / "settlement_20260824.json").exists()
 
 
+def test_one_tick_above_down_limit_is_not_treated_as_limit_down(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    exit_market = repo / "data/market/raw/2026/20260826"
+    _write_csv(
+        exit_market / "daily.csv",
+        "ts_code,trade_date,open,high,low,close,pre_close",
+        ["600001.SH,20260826,9.46,9.46,9.46,9.46,10.50"],
+    )
+    _write_csv(
+        exit_market / "stk_limit.csv",
+        "ts_code,trade_date,up_limit,down_limit",
+        ["600001.SH,20260826,11.55,9.45"],
+    )
+    verification, verification_status = settlement.build_t_verification(
+        repo, "20260824", as_of_date=AS_OF_T
+    )
+    assert verification_status == "T_VERIFIED"
+    assert verification is not None
+    settlement.materialize_t_verification(repo, verification)
+
+    payload, status = settlement.build_t1_settlement(
+        repo, "20260824", as_of_date=AS_OF_T1
+    )
+    assert status == "FINAL_SETTLED"
+    assert payload is not None
+    assert payload["rows"][0]["actual_exit_date"] == AS_OF_T1
+    assert payload["rows"][0]["exit_open_price"] == 9.46
+    assert payload["rows"][0]["blocked_exit_sessions"] == 0
+
+
 def test_one_price_limit_down_walks_strict_sse_and_chains_adjusted_wealth(
     tmp_path: Path,
 ) -> None:
@@ -582,6 +614,76 @@ def test_immutable_truth_rejects_same_date_rewrite_and_stale_selection(tmp_path:
         settlement.build_statistics(repo, as_of_date=AS_OF_T1)
 
 
+@pytest.mark.parametrize(
+    ("field", "forged_value"),
+    (("entry_open_price", 1.0), ("t_close_price", 99.0)),
+)
+def test_supplied_verification_cannot_override_existing_immutable_prices(
+    tmp_path: Path,
+    field: str,
+    forged_value: float,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    verification, status = settlement.build_t_verification(
+        repo, "20260824", as_of_date=AS_OF_T
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    verification_path = settlement.materialize_t_verification(repo, verification)
+    immutable_bytes = verification_path.read_bytes()
+
+    forged = copy.deepcopy(verification)
+    forged["rows"][0][field] = forged_value
+    forged["snapshot_sha256"] = settlement._payload_snapshot(forged)
+    # This reproduces the P1: the forged object is internally well-formed, but
+    # it is not the immutable verification already written for this D.
+    settlement.validate_t_verification(forged)
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="supplied T verification differs from immutable file",
+    ):
+        settlement.build_t1_settlement(
+            repo,
+            "20260824",
+            verification=forged,
+            as_of_date=AS_OF_T1,
+        )
+    assert verification_path.read_bytes() == immutable_bytes
+    assert not (
+        repo / settlement.SETTLEMENT_ROOT / "settlement_20260824.json"
+    ).exists()
+
+
+def test_existing_verification_must_retain_canonical_immutable_bytes(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    verification, status = settlement.build_t_verification(
+        repo, "20260824", as_of_date=AS_OF_T
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    verification_path = settlement.materialize_t_verification(repo, verification)
+    verification_path.write_text(
+        json.dumps(verification, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="immutable T verification bytes are not canonical",
+    ):
+        settlement.build_t1_settlement(
+            repo,
+            "20260824",
+            verification=verification,
+            as_of_date=AS_OF_T1,
+        )
+    assert not (
+        repo / settlement.SETTLEMENT_ROOT / "settlement_20260824.json"
+    ).exists()
+
+
 def test_single_candidate_records_top1_without_forcing_top2(tmp_path: Path) -> None:
     repo = _prepare_repo(tmp_path, slot_count=1)
     result = settlement.settle_signal_date(
@@ -655,6 +757,91 @@ def test_missing_frozen_cap_or_auction_truth_is_pending_not_no_fill(tmp_path: Pa
     )
     assert verification is None
     assert status == "PENDING_T_SOURCE_FILES"
+
+
+@pytest.mark.parametrize("file_name", ("daily.csv", "stk_limit.csv", "stk_auction_o.csv"))
+@pytest.mark.parametrize("bad_date", ("", "2026-08-25"))
+def test_every_t_truth_row_requires_exact_nonempty_trade_date(
+    tmp_path: Path,
+    file_name: str,
+    bad_date: str,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    path = repo / "data/market/raw/2026/20260825" / file_name
+    source = path.read_text(encoding="utf-8")
+    changed = source.replace(",20260825,", f",{bad_date},", 1)
+    assert changed != source
+    path.write_text(changed, encoding="utf-8")
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="market row trade_date must exactly equal 20260825",
+    ):
+        settlement.build_t_verification(
+            repo, "20260824", as_of_date=AS_OF_T
+        )
+
+
+@pytest.mark.parametrize("file_name", ("daily.csv", "stk_limit.csv"))
+def test_every_t1_truth_row_requires_nonempty_trade_date(
+    tmp_path: Path,
+    file_name: str,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    verification, status = settlement.build_t_verification(
+        repo, "20260824", as_of_date=AS_OF_T
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    settlement.materialize_t_verification(repo, verification)
+    path = repo / "data/market/raw/2026/20260826" / file_name
+    source = path.read_text(encoding="utf-8")
+    changed = source.replace(",20260826,", ",,", 1)
+    assert changed != source
+    path.write_text(changed, encoding="utf-8")
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="market row trade_date must exactly equal 20260826",
+    ):
+        settlement.build_t1_settlement(
+            repo, "20260824", as_of_date=AS_OF_T1
+        )
+
+
+def test_price_equality_uses_half_up_one_cent_ticks() -> None:
+    assert settlement._same_rounded_price(9.45, 9.454)
+    assert not settlement._same_rounded_price(9.45, 9.455)
+    assert not settlement._same_rounded_price(9.45, 9.46)
+    assert not settlement._all_at_limit([9.46, 9.46, 9.46, 9.46], 9.45)
+
+
+def test_auction_and_daily_open_one_tick_apart_are_in_conflict(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    _write_csv(
+        repo / "data/market/raw/2026/20260825/stk_auction_o.csv",
+        "ts_code,trade_date,close,amount,vol,vwap",
+        [
+            "600001.SH,20260825,10.01,20000000,1000000,10.01",
+            "000002.SZ,20260825,11.00,20000000,1000000,11.00",
+        ],
+    )
+    verification, status = settlement.build_t_verification(
+        repo, "20260824", as_of_date=AS_OF_T
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    row = verification["rows"][0]
+    assert row["entry_open_price"] == 10.01
+    assert row["daily_open_price"] == 10.0
+    assert row["auction_daily_open_conflict"] is True
+    assert row["proxy_fill"] == 0
+    assert (
+        row["validation_status"]
+        == "T_VERIFIED_PROXY_NO_FILL_AUCTION_DAILY_CONFLICT"
+    )
 
 
 def test_frozen_cap_and_capacity_are_observed_no_fill_not_future_rerank(tmp_path: Path) -> None:

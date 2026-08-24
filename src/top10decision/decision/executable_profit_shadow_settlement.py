@@ -11,6 +11,7 @@ import re
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -46,6 +47,7 @@ MAX_AUCTION_PARTICIPATION = 0.01
 TARGET_FORWARD_DATES = 180
 DATE_RE = re.compile(r"20\d{6}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
+PRICE_TICK = Decimal("0.01")
 
 
 class ExecutableProfitSettlementError(RuntimeError):
@@ -432,12 +434,20 @@ def _market_rows(path: Path, trade_date: str) -> dict[str, dict[str, str]]:
             source = list(csv.DictReader(handle))
     except (OSError, UnicodeError, csv.Error) as exc:
         raise ExecutableProfitSettlementError(f"invalid market file: {path.name}") from exc
-    _expect(source and "ts_code" in source[0], f"market file has no rows or ts_code: {path.name}")
+    _expect(
+        source and "ts_code" in source[0] and "trade_date" in source[0],
+        f"market file has no rows, ts_code or trade_date: {path.name}",
+    )
     output: dict[str, dict[str, str]] = {}
     for row in source:
-        row_date = _normal_date(row.get("trade_date"))
-        if row_date and row_date != trade_date:
-            continue
+        row_date = str(row.get("trade_date") or "").strip()
+        _expect(
+            row_date == trade_date,
+            (
+                f"market row trade_date must exactly equal {trade_date}: "
+                f"{path.name}"
+            ),
+        )
         code = _normal_code(row.get("ts_code"))
         if not code:
             continue
@@ -458,11 +468,27 @@ def _ohlc(row: Mapping[str, Any]) -> tuple[float | None, float | None, float | N
     return tuple(_finite(row.get(column)) for column in ("open", "high", "low", "close"))  # type: ignore[return-value]
 
 
+def _rounded_price_tick(value: Any) -> int | None:
+    try:
+        price = Decimal(str(value))
+        if not price.is_finite() or price <= 0:
+            return None
+        rounded = price.quantize(PRICE_TICK, rounding=ROUND_HALF_UP)
+        return int(rounded / PRICE_TICK)
+    except (InvalidOperation, ValueError, OverflowError):
+        return None
+
+
+def _same_rounded_price(left: Any, right: Any) -> bool:
+    left_tick = _rounded_price_tick(left)
+    right_tick = _rounded_price_tick(right)
+    return left_tick is not None and left_tick == right_tick
+
+
 def _all_at_limit(values: Sequence[float | None], limit_value: float | None) -> bool:
     return bool(
-        limit_value is not None
-        and limit_value > 0
-        and all(value is not None and value > 0 and abs(value - limit_value) <= 0.011 for value in values)
+        _rounded_price_tick(limit_value) is not None
+        and all(_same_rounded_price(value, limit_value) for value in values)
     )
 
 
@@ -651,9 +677,19 @@ def build_t_verification(
         if auction_amount is None:
             return None, f"PENDING_T_AUCTION_AMOUNT:{code}"
         one_price = _all_at_limit(prices, up_limit)
-        open_conflict = abs(float(prices[0]) - auction_price) > 0.011
-        cap_accept = auction_price <= cap + 0.005
-        opening_limit_up = abs(auction_price - up_limit) <= 0.011
+        open_conflict = not _same_rounded_price(prices[0], auction_price)
+        auction_tick = _rounded_price_tick(auction_price)
+        cap_tick = _rounded_price_tick(cap)
+        _expect(
+            auction_tick is not None and cap_tick is not None,
+            f"invalid rounded entry price contract: {code}",
+        )
+        cap_accept = bool(
+            auction_tick is not None
+            and cap_tick is not None
+            and auction_tick <= cap_tick
+        )
+        opening_limit_up = _same_rounded_price(auction_price, up_limit)
         capacity_cny = auction_amount * MAX_AUCTION_PARTICIPATION
         capacity_accept = capacity_cny + 1e-9 >= SHADOW_NOTIONAL_CNY
         proxy_fill = int(
@@ -973,16 +1009,47 @@ def build_t1_settlement(
     if selected and exec_date > as_of_date:
         return None, "PENDING_T_NOT_REACHED"
     verification_path = repo_root / VERIFICATION_ROOT / f"t_verification_{signal_date}.json"
-    if verification is None:
-        if not verification_path.is_file() or verification_path.is_symlink():
-            return None, "PENDING_T_VERIFICATION"
-        verification = _read_json(verification_path, label="T verification")
+    verification_file_bytes: bytes | None = None
+    if verification_path.exists() or verification_path.is_symlink():
+        _expect(
+            verification_path.is_file() and not verification_path.is_symlink(),
+            "immutable T verification path is unsafe",
+        )
+        try:
+            verification_file_bytes = verification_path.read_bytes()
+            persisted_verification = json.loads(
+                verification_file_bytes.decode("utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ExecutableProfitSettlementError(
+                "invalid immutable T verification"
+            ) from exc
+        _expect(
+            isinstance(persisted_verification, dict),
+            "immutable T verification is not an object",
+        )
+        validate_t_verification(persisted_verification)
+        persisted_canonical = _canonical_bytes(persisted_verification)
+        _expect(
+            verification_file_bytes == persisted_canonical,
+            "immutable T verification bytes are not canonical",
+        )
+        if verification is not None:
+            validate_t_verification(verification)
+            _expect(
+                dict(verification) == persisted_verification
+                and _canonical_bytes(verification) == persisted_canonical,
+                "supplied T verification differs from immutable file",
+            )
+        verification = persisted_verification
+    elif verification is None:
+        return None, "PENDING_T_VERIFICATION"
     validate_t_verification(verification)
     selection_binding = _selection_binding(selection_path, selection, selected)
     _expect(verification.get("selection") == selection_binding, "T verification no longer binds the immutable selection")
     verification_file_sha = (
-        _sha256(verification_path)
-        if verification_path.is_file()
+        _sha256_bytes(verification_file_bytes)
+        if verification_file_bytes is not None
         else _sha256_bytes(_canonical_bytes(verification))
     )
 

@@ -1,0 +1,83 @@
+{
+  "schema_version": "decision_source_surface_rotation_v1",
+  "rotation_id": "dc20_executable_profit_public_surface_20260824",
+  "approved_base_commit": "fd0934af6c84e762252e52c3e5f494728e0ae8be",
+  "prior_manifest_sha256": "8271fa1a7038fa3614bb033c8f3e56b94a452eff68ff80ebd0d73b9be7432f77",
+  "prior_pinned_files_sha256": "1b474b2fbdac709add0db588f15621ffdbd46b9c0ca62842156a4585ffa9be1a",
+  "reason": "Atomically reconcile three previously reviewed executable-profit source pins and authorize the independent public research panel plus Daily, Verify, and Pages wiring without changing the frozen promotion model, training ledger, or action plan.",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "release_contract": {
+    "candidate_count": "ACTUAL_N_0_TO_10_NO_PADDING",
+    "shadow_slots": "min(2,N)",
+    "public_label": "UNCALIBRATED_RESEARCH_PROXY_NOT_FORMAL_PROBABILITY",
+    "codex_runtime_dependency": false,
+    "external_top10_decision_runtime_dependency": false,
+    "writer_dispatch_performed": false
+  },
+  "added_runtime_pins": {
+    "models/decision_executable_profit_forward_settlement_contract.json": "6b8027a2f3ecb16c4e2c725869909da288741f8974941d5e0c4be616170a14f7",
+    "models/decision_executable_profit_internal_forward_challenger.json": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
+    "models/decision_executable_profit_research_projection_contract.json": "085a856419ef5a34121c6815e63ed8a8a9370cf8aaf59f0f17f2612180dfb634",
+    "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
+    "scripts/project_decision_executable_profit_research.py": "d13746053a0807dbc55626400cbb2f7f327ea439dd0bec1356e99c6bb838d57f",
+    "scripts/run_decision_executable_profit_forward_shadow.py": "3e513f44c02b0b02eea494796c50ec1743f9a339b3671e6c0a38c7a4c4f231ba",
+    "scripts/settle_decision_executable_profit_forward_shadow.py": "d412ce6b156665547d9be94640d1f4c43151b334e3fb7d3b1d6fff43b264c745",
+    "scripts/validate_decision_executable_profit_shadow_contract.py": "70ca540b79203742f3afe494a3ffd99994fcfb3dd764acfbb3a6b2d8a71cd881",
+    "src/top10decision/decision/executable_profit_research_projection.py": "34ebb72e8f16110dc31821cb8addf069e51e0f9d63b7599608e7b8d717d67896",
+    "src/top10decision/decision/executable_profit_shadow.py": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
+    "src/top10decision/decision/executable_profit_shadow_settlement.py": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458"
+  },
+  "changed_surface_sha256": "71a9af47d2de6fe5a8f5acbb0cda8fd8543252bedd180dfb6f3f1b6981b6315a",
+  "pin_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "prior_sha256": "2f83db1b8e835229c8eac0f5281322dc6e11bd69c763317e325ce59db8cfb03a",
+      "current_sha256": "90a6e3b9619adc46d819824b896e2152921ef08bf193c21aae69aa285668cc35",
+      "classification": "executable_profit_public_surface_release"
+    },
+    {
+      "path": ".github/workflows/run_decision_daily.yml",
+      "prior_sha256": "8b9a053df83a918b3bcf376ecfb778eef932d62bd4faec447009dd682e09475b",
+      "current_sha256": "fe5ae6862ff00ce411a179cdda254791e2cd253a951ca85aebf07f40cc1ec17c",
+      "classification": "executable_profit_public_surface_release"
+    },
+    {
+      "path": ".github/workflows/train_decision_three_engines.yml",
+      "prior_sha256": "80b7d663cf0238ff167dd2c693d2ce11242c0335c5bb4e88881ac2998f0e2365",
+      "current_sha256": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
+      "classification": "prior_executable_profit_source_pin_reconciliation"
+    },
+    {
+      "path": ".github/workflows/verify_decision_observations.yml",
+      "prior_sha256": "c76faaca9c2f55c48d4fcd54f2aa418c5add9517ff9a75dd5098104f06cb92b0",
+      "current_sha256": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
+      "classification": "executable_profit_public_surface_release"
+    },
+    {
+      "path": "decision.html",
+      "prior_sha256": "e90b5bf401d46b243b1dc25f65c7549331d085e10ebee2b4873337c08d213e53",
+      "current_sha256": "b100387f7d2449c5ff65bf0f5a1ee1a55a533746e55409c82c31a6b68f262eb3",
+      "classification": "executable_profit_public_surface_release"
+    },
+    {
+      "path": "src/top10decision/auction_v3/engine.py",
+      "prior_sha256": "c39451dd9b364db358f52a1258e666037b50000273ac7de4cbbbf1f802eef49f",
+      "current_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
+      "classification": "prior_executable_profit_source_pin_reconciliation"
+    },
+    {
+      "path": "tests/test_auction_v3_three_engine_runtime.py",
+      "prior_sha256": "eede26a904b9ff9a22b9a47620d54297de27dbb7c1e2d7466e4ee5249ff0d8e3",
+      "current_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
+      "classification": "prior_executable_profit_source_pin_reconciliation"
+    }
+  ]
+}

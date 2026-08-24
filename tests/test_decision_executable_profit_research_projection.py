@@ -119,6 +119,9 @@ def _prepare_repo(
     contract_target = repo / public.CONTRACT_PATH
     contract_target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / public.CONTRACT_PATH, contract_target)
+    calendar_target = repo / truth.CALENDAR_PATH
+    calendar_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / truth.CALENDAR_PATH, calendar_target)
     exec_date, exit_date, model_as_of = _dates(signal_date)
     codes = [f"60000{index}.SH" for index in range(1, count + 1)]
     plan = {
@@ -229,6 +232,113 @@ def _prepare_repo(
     }
     _write_json(repo / json_relative, selection)
     return repo, three_rank, selection
+
+
+def _write_minimal_truth_artifacts(
+    repo: Path,
+    projection: dict,
+    *,
+    actual_exit_date: str,
+) -> tuple[dict, dict]:
+    selected_members = [
+        {"shadow_slot": row["shadow_slot"], "ts_code": row["ts_code"]}
+        for row in projection["rows"]
+        if row["shadow_selected"]
+    ]
+    selection_source = projection["source_bindings"]["selection"]
+    selection_binding = {
+        "path": selection_source["json_path"],
+        "file_sha256": selection_source["json_sha256"],
+        "snapshot_sha256": selection_source["snapshot_sha256"],
+        "top10_members_sha256": projection["top10_members_sha256"],
+        "selected_slots": len(selected_members),
+        "selected_members": selected_members,
+    }
+    verification: dict = {
+        "signal_date": projection["signal_date"],
+        "exec_date": projection["exec_date"],
+        "exit_date": projection["exit_date"],
+        "selection": selection_binding,
+        "rows": [
+            {
+                "shadow_slot": row["shadow_slot"],
+                "ts_code": row["ts_code"],
+                "validation_status": "T_VERIFIED_PROXY_FILLED",
+                "proxy_fill": 1,
+            }
+            for row in projection["rows"]
+            if row["shadow_selected"]
+        ],
+        "boundaries": {
+            "official_trade_action_allowed": False,
+            "selection_changed": False,
+        },
+    }
+    verification["snapshot_sha256"] = public._payload_snapshot(verification)
+    verification_path = (
+        repo
+        / public.VERIFICATION_ROOT
+        / f"t_verification_{projection['signal_date']}.json"
+    )
+    _write_json(verification_path, verification)
+
+    settlement: dict = {
+        "signal_date": projection["signal_date"],
+        "exec_date": projection["exec_date"],
+        "exit_date": projection["exit_date"],
+        "selection": selection_binding,
+        "t_verification": {
+            "path": verification_path.relative_to(repo).as_posix(),
+            "file_sha256": hashlib.sha256(verification_path.read_bytes()).hexdigest(),
+            "snapshot_sha256": verification["snapshot_sha256"],
+        },
+        "rows": [
+            {
+                "shadow_slot": row["shadow_slot"],
+                "ts_code": row["ts_code"],
+                "settlement_status": "FINAL_FIRST_TRADABLE_OPEN_PUBLIC_MARKET_PROXY",
+                "actual_exit_date": actual_exit_date,
+                "net_return_after_cost": 0.02 * int(row["shadow_slot"]),
+                "strategy_slot_return": 0.02 * int(row["shadow_slot"]),
+            }
+            for row in projection["rows"]
+            if row["shadow_selected"]
+        ],
+        "boundaries": {
+            "official_trade_action_allowed": False,
+            "selection_changed": False,
+        },
+    }
+    settlement["snapshot_sha256"] = public._payload_snapshot(settlement)
+    settlement_path = (
+        repo
+        / public.SETTLEMENT_ROOT
+        / f"settlement_{projection['signal_date']}.json"
+    )
+    _write_json(settlement_path, settlement)
+    return verification, settlement
+
+
+def _write_minimal_statistics_summary(repo: Path) -> dict:
+    summary = {
+        "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+        "as_of_date": "20260824",
+        "scope": {"selection_dates": 1},
+        "forward_signal_date_progress_180": {"observed_signal_dates": 1},
+        "cohorts": {"shadow_slot_1": {"win_rate": None}},
+        "probability_diagnostics": {"status": "UNCALIBRATED"},
+        "excluded_ledgers": [],
+        "pending_definitions": {},
+        "input_files": [],
+        "input_files_sha256": public._source_statistics_input_files_sha256([]),
+        "boundaries": {
+            "official_trade_action_allowed": False,
+            "actual_execution_claimed": False,
+        },
+        "snapshot_sha256": "8" * 64,
+    }
+    _write_json(repo / public.SOURCE_STATISTICS_PATH, summary)
+    return summary
 
 
 def test_visible_projection_preserves_independent_orders_and_never_pads(
@@ -386,6 +496,153 @@ def test_missing_statistics_is_explicit_null_and_d_projection_stays_immutable(
     assert result[0].read_bytes() == projection_bytes
 
 
+def test_delayed_actual_exit_after_asof_is_never_publicly_exposed(
+    tmp_path: Path,
+) -> None:
+    repo, _, _ = _prepare_repo(tmp_path)
+    projection = public.build_research_projection(repo, "20260824")
+    _write_minimal_truth_artifacts(
+        repo,
+        projection,
+        actual_exit_date="20260827",
+    )
+
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="actual exit is after public as-of date",
+    ):
+        public.build_shadow_statistics_projection(
+            repo,
+            projection,
+            "20260826",
+        )
+
+
+def test_public_asof_must_be_a_pinned_sse_open_session_even_at_materialize(
+    tmp_path: Path,
+) -> None:
+    repo, _, _ = _prepare_repo(tmp_path)
+    projection = public.build_research_projection(repo, "20260824")
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="pinned SSE open session",
+    ):
+        public.build_shadow_statistics_projection(
+            repo,
+            projection,
+            "20260830",
+        )
+
+    forged = public.build_shadow_statistics_projection(
+        repo,
+        projection,
+        "20260824",
+    )
+    forged["as_of_date"] = "20260830"
+    forged["snapshot_sha256"] = public._payload_snapshot(forged)
+    public.validate_shadow_statistics_projection(forged)
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="pinned SSE open session",
+    ):
+        public.materialize_research_projection(repo, projection, forged)
+
+
+@pytest.mark.parametrize("mutation", ["score", "rank", "row"])
+def test_materialize_rebuild_rejects_projection_semantic_tampering(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    repo, _, _ = _prepare_repo(tmp_path)
+    projection = public.build_research_projection(repo, "20260824")
+    tampered = copy.deepcopy(projection)
+    if mutation == "score":
+        row = tampered["rows"][0]
+        row["research_fill_proxy_score"] -= 0.01
+        row["research_joint_proxy_score"] = (
+            row["research_fill_proxy_score"]
+            * row["research_conditional_profit_score"]
+        )
+    elif mutation == "rank":
+        first = tampered["rows"][0]["promotion_rank"]
+        tampered["rows"][0]["promotion_rank"] = tampered["rows"][1][
+            "promotion_rank"
+        ]
+        tampered["rows"][1]["promotion_rank"] = first
+    else:
+        tampered["rows"][0], tampered["rows"][1] = (
+            tampered["rows"][1],
+            tampered["rows"][0],
+        )
+        for index, row in enumerate(tampered["rows"], start=1):
+            row["executable_profit_research_rank"] = index
+            row["shadow_selected"] = index <= 2
+            row["shadow_slot"] = index if index <= 2 else None
+    tampered["snapshot_sha256"] = public._payload_snapshot(tampered)
+    public.validate_research_projection(tampered)
+    statistics = public.build_shadow_statistics_projection(
+        repo,
+        tampered,
+        "20260824",
+    )
+
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="projection does not exactly reconstruct",
+    ):
+        public.materialize_research_projection(repo, tampered, statistics)
+
+
+def test_materialize_rebuild_rejects_settlement_projection_tampering(
+    tmp_path: Path,
+) -> None:
+    repo, _, _ = _prepare_repo(tmp_path)
+    projection = public.build_research_projection(repo, "20260824")
+    _write_minimal_truth_artifacts(
+        repo,
+        projection,
+        actual_exit_date="20260826",
+    )
+    statistics = public.build_shadow_statistics_projection(
+        repo,
+        projection,
+        "20260826",
+    )
+    tampered = copy.deepcopy(statistics)
+    tampered["latest_selected_rows"][0]["net_return_after_cost"] = 0.99
+    tampered["snapshot_sha256"] = public._payload_snapshot(tampered)
+    public.validate_shadow_statistics_projection(tampered)
+
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="Shadow statistics does not exactly reconstruct",
+    ):
+        public.materialize_research_projection(repo, projection, tampered)
+
+
+def test_materialize_rebuild_rejects_summary_projection_tampering(
+    tmp_path: Path,
+) -> None:
+    repo, _, _ = _prepare_repo(tmp_path)
+    _write_minimal_statistics_summary(repo)
+    projection = public.build_research_projection(repo, "20260824")
+    statistics = public.build_shadow_statistics_projection(
+        repo,
+        projection,
+        "20260824",
+    )
+    tampered = copy.deepcopy(statistics)
+    tampered["statistics"]["scope"] = {"selection_dates": 999}
+    tampered["snapshot_sha256"] = public._payload_snapshot(tampered)
+    public.validate_shadow_statistics_projection(tampered)
+
+    with pytest.raises(
+        public.ExecutableProfitResearchProjectionError,
+        match="Shadow statistics does not exactly reconstruct",
+    ):
+        public.materialize_research_projection(repo, projection, tampered)
+
+
 def test_same_d_different_projection_and_backward_pointer_are_rejected(
     tmp_path: Path,
 ) -> None:
@@ -411,7 +668,7 @@ def test_same_d_different_projection_and_backward_pointer_are_rejected(
     )
     with pytest.raises(
         public.ExecutableProfitResearchProjectionError,
-        match="same-D",
+        match="does not exactly reconstruct",
     ):
         public.materialize_research_projection(repo, changed, changed_stats)
 
@@ -454,7 +711,7 @@ def test_same_asof_new_signal_keeps_two_immutable_statistics_files(
     rewritten_stats["snapshot_sha256"] = public._payload_snapshot(rewritten_stats)
     with pytest.raises(
         public.ExecutableProfitResearchProjectionError,
-        match="same-as-of",
+        match="does not exactly reconstruct",
     ):
         public.materialize_research_projection(
             repo,
@@ -487,25 +744,8 @@ def test_statistics_summary_is_copied_with_exact_file_sha_binding(
     tmp_path: Path,
 ) -> None:
     repo, _, _ = _prepare_repo(tmp_path)
-    summary = {
-        "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
-        "as_of_date": "20260824",
-        "scope": {"selection_dates": 1},
-        "forward_signal_date_progress_180": {"observed_signal_dates": 1},
-        "cohorts": {"shadow_slot_1": {"win_rate": None}},
-        "probability_diagnostics": {"status": "UNCALIBRATED"},
-        "excluded_ledgers": [],
-        "pending_definitions": {},
-        "input_files": [],
-        "input_files_sha256": public._source_statistics_input_files_sha256([]),
-        "boundaries": {
-            "official_trade_action_allowed": False,
-            "actual_execution_claimed": False,
-        },
-    }
-    summary["snapshot_sha256"] = "8" * 64
+    summary = _write_minimal_statistics_summary(repo)
     summary_path = repo / public.SOURCE_STATISTICS_PATH
-    _write_json(summary_path, summary)
     projection = public.build_research_projection(repo, "20260824")
     statistics = public.build_shadow_statistics_projection(
         repo,

@@ -141,6 +141,7 @@ jobs:
               output.write(f'market_sha={sha}\n')
           PY
       - name: Sync all same-date truth without optional bypass
+        id: truth_sync
         if: ${{ steps.session.outputs.is_open == 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -185,6 +186,11 @@ jobs:
               allowed = {('success', 'post_close_truth_success'), ('partial_success', 'post_close_truth_partial')}
               if (status, reason) not in allowed or counts['candidate_codes'] == 0 or counts['minute_files_written'] == 0:
                   raise SystemExit('current post-close Verify minute sync produced no valid rows')
+          complete = as_of != today or (status, reason) == ('success', 'post_close_truth_success')
+          github_output = os.environ.get('GITHUB_OUTPUT', '')
+          if github_output:
+              with Path(github_output).open('a', encoding='utf-8') as output:
+                  output.write(f"complete={'true' if complete else 'false'}\n")
           PY
       - name: Validate frozen runtime in an isolated exact-base worktree
         if: ${{ steps.session.outputs.is_open == 'true' }}
@@ -220,25 +226,295 @@ jobs:
           test -f outputs/auction_v3/metrics/observation_cumulative_latest.json
           python -m json.tool outputs/auction_v3/metrics/observation_cumulative_latest.json >/dev/null
           test -z "$(git status --porcelain=v1 --untracked-files=all -- outputs/decision)"
+      - name: Settle immutable executable-profit Shadow truth and project exact as-of
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' }}
+        env:
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          audit_before="${RUNNER_TEMP}/executable-profit-verify-before.json"
+          eligible_dates="${RUNNER_TEMP}/executable-profit-eligible-dates.txt"
+          latest_date="${RUNNER_TEMP}/executable-profit-latest-date.txt"
+          AUDIT_BEFORE="${audit_before}" \
+            ELIGIBLE_DATES="${eligible_dates}" \
+            LATEST_DATE="${latest_date}" \
+            python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              load_selection,
+          )
+          from top10decision.decision.executable_profit_shadow import (
+              _validate_existing_pointer_chain,
+              validate_internal_forward_shadow_index,
+          )
+
+          root = Path('.').resolve()
+          as_of_date = os.environ['AS_OF_DATE']
+          if re.fullmatch(r'20\d{6}', as_of_date) is None:
+              raise SystemExit('Verify executable-profit as-of date is invalid')
+
+          def inventory(patterns):
+              result = {}
+              for pattern in patterns:
+                  for path in sorted(root.glob(pattern)):
+                      if not path.is_file() or path.is_symlink():
+                          raise SystemExit(f'Verify executable-profit input is unsafe: {path}')
+                      result[path.relative_to(root).as_posix()] = hashlib.sha256(
+                          path.read_bytes()
+                      ).hexdigest()
+              return result
+
+          before = {
+              'selections': inventory(
+                  ['data/decision_executable_profit/forward/selections/shadow_20??????.json',
+                   'data/decision_executable_profit/forward/selections/shadow_20??????.csv']
+              ),
+              'truth': inventory(
+                  ['data/decision_executable_profit/forward/verifications/t_verification_20??????.json',
+                   'data/decision_executable_profit/forward/settlements/settlement_20??????.json']
+              ),
+              'actions': inventory(
+                  ['outputs/decision/action_plan_*.json', 'outputs/decision/report_index.json']
+              ),
+          }
+          Path(os.environ['AUDIT_BEFORE']).write_text(
+              json.dumps(before, sort_keys=True, separators=(',', ':')) + '\n',
+              encoding='utf-8',
+          )
+
+          selection_root = root / 'data/decision_executable_profit/forward/selections'
+          targets = []
+          all_signal_dates = []
+          if selection_root.exists():
+              if not selection_root.is_dir() or selection_root.is_symlink():
+                  raise SystemExit('Verify executable-profit selection root is unsafe')
+              for path in sorted(selection_root.glob('shadow_20??????.json')):
+                  match = re.fullmatch(r'shadow_(20\d{6})\.json', path.name)
+                  if match is None:
+                      raise SystemExit(f'Verify executable-profit selection name is invalid: {path.name}')
+                  signal_date = match.group(1)
+                  _, payload, _ = load_selection(root, signal_date)
+                  if payload.get('signal_date') != signal_date:
+                      raise SystemExit('Verify executable-profit selection date binding drifted')
+                  selection_csv = selection_root / f'shadow_{signal_date}.csv'
+                  downloads = payload.get('downloads')
+                  if (
+                      not selection_csv.is_file()
+                      or selection_csv.is_symlink()
+                      or not isinstance(downloads, dict)
+                      or downloads.get('csv_url')
+                      != (
+                          'data/decision_executable_profit/forward/selections/'
+                          f'shadow_{signal_date}.csv'
+                      )
+                      or downloads.get('csv_sha256')
+                      != hashlib.sha256(selection_csv.read_bytes()).hexdigest()
+                  ):
+                      raise SystemExit('Verify executable-profit selection CSV binding drifted')
+                  all_signal_dates.append(signal_date)
+                  if signal_date <= as_of_date:
+                      settlement_path = (
+                          root
+                          / 'data/decision_executable_profit/forward/settlements'
+                          / f'settlement_{signal_date}.json'
+                      )
+                      if settlement_path.exists():
+                          if not settlement_path.is_file() or settlement_path.is_symlink():
+                              raise SystemExit('Verify executable-profit settlement is unsafe')
+                      else:
+                          targets.append(signal_date)
+          if len(targets) != len(set(targets)):
+              raise SystemExit('Verify executable-profit target selection is duplicated')
+          latest = ''
+          if all_signal_dates:
+              index_path = selection_root / 'index.json'
+              if not index_path.is_file() or index_path.is_symlink():
+                  raise SystemExit('Verify executable-profit selection index is unsafe')
+              index = json.loads(index_path.read_text(encoding='utf-8'))
+              validate_internal_forward_shadow_index(index)
+              _validate_existing_pointer_chain(root, index)
+              latest = str(index['latest_signal_date'])
+              if latest != max(all_signal_dates):
+                  raise SystemExit('Verify executable-profit selection index is not latest D')
+              if latest > as_of_date:
+                  raise SystemExit('Verify as-of date predates the current frozen selection index')
+          Path(os.environ['ELIGIBLE_DATES']).write_text(
+              ''.join(f'{value}\n' for value in targets),
+              encoding='ascii',
+          )
+          Path(os.environ['LATEST_DATE']).write_text(
+              (latest + '\n') if latest else '',
+              encoding='ascii',
+          )
+          PY
+          if [ -s "${latest_date}" ]; then
+            if [ -s "${eligible_dates}" ]; then
+              while IFS= read -r signal_date; do
+                test -n "${signal_date}"
+                python scripts/settle_decision_executable_profit_forward_shadow.py \
+                  --root "${GITHUB_WORKSPACE}" \
+                  --signal-date "${signal_date}" \
+                  --as-of-date "${AS_OF_DATE}"
+              done < "${eligible_dates}"
+            fi
+            python scripts/settle_decision_executable_profit_forward_shadow.py \
+              --root "${GITHUB_WORKSPACE}" \
+              --as-of-date "${AS_OF_DATE}" \
+              --statistics-only
+            signal_date="$(tr -d '\n' < "${latest_date}")"
+            test -n "${signal_date}"
+            python scripts/project_decision_executable_profit_research.py \
+              --root "${GITHUB_WORKSPACE}" \
+              --signal-date "${signal_date}" \
+              --as-of-date "${AS_OF_DATE}"
+          fi
+          AUDIT_BEFORE="${audit_before}" \
+            ELIGIBLE_DATES="${eligible_dates}" \
+            LATEST_DATE="${latest_date}" \
+            python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.executable_profit_research_projection import (
+              validate_research_projection,
+              validate_research_projection_index,
+              validate_shadow_statistics_projection,
+          )
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              validate_statistics,
+              validate_t1_settlement,
+              validate_t_verification,
+          )
+
+          root = Path('.').resolve()
+          as_of_date = os.environ['AS_OF_DATE']
+          before = json.loads(Path(os.environ['AUDIT_BEFORE']).read_text(encoding='utf-8'))
+          targets = [
+              value.strip()
+              for value in Path(os.environ['ELIGIBLE_DATES']).read_text(encoding='ascii').splitlines()
+              if value.strip()
+          ]
+          latest = Path(os.environ['LATEST_DATE']).read_text(encoding='ascii').strip()
+
+          def inventory(patterns):
+              result = {}
+              for pattern in patterns:
+                  for path in sorted(root.glob(pattern)):
+                      if not path.is_file() or path.is_symlink():
+                          raise SystemExit(f'Verify executable-profit output is unsafe: {path}')
+                      result[path.relative_to(root).as_posix()] = hashlib.sha256(
+                          path.read_bytes()
+                      ).hexdigest()
+              return result
+
+          after_selections = inventory(
+              ['data/decision_executable_profit/forward/selections/shadow_20??????.json',
+               'data/decision_executable_profit/forward/selections/shadow_20??????.csv']
+          )
+          if after_selections != before['selections']:
+              raise SystemExit('Verify rewrote or created an executable-profit selection')
+          after_actions = inventory(
+              ['outputs/decision/action_plan_*.json', 'outputs/decision/report_index.json']
+          )
+          if after_actions != before['actions']:
+              raise SystemExit('Verify executable-profit settlement modified formal action ownership')
+
+          after_truth = inventory(
+              ['data/decision_executable_profit/forward/verifications/t_verification_20??????.json',
+               'data/decision_executable_profit/forward/settlements/settlement_20??????.json']
+          )
+          for relative, digest in before['truth'].items():
+              if after_truth.get(relative) != digest:
+                  raise SystemExit(f'Verify rewrote immutable Shadow truth: {relative}')
+          additions = set(after_truth) - set(before['truth'])
+          allowed_additions = {
+              f'data/decision_executable_profit/forward/{kind}/{prefix}_{signal_date}.json'
+              for signal_date in targets
+              for kind, prefix in (
+                  ('verifications', 't_verification'),
+                  ('settlements', 'settlement'),
+              )
+          }
+          if not additions.issubset(allowed_additions):
+              raise SystemExit(f'Verify created foreign Shadow truth: {sorted(additions)}')
+          for relative in sorted(after_truth):
+              payload = json.loads((root / relative).read_text(encoding='utf-8'))
+              if '/verifications/' in relative:
+                  validate_t_verification(payload)
+              else:
+                  validate_t1_settlement(payload)
+
+          if latest:
+              summary = json.loads(
+                  (root / 'data/decision_executable_profit/forward/statistics/summary.json').read_text(
+                      encoding='utf-8'
+                  )
+              )
+              validate_statistics(summary)
+              if summary.get('as_of_date') != as_of_date:
+                  raise SystemExit('Verify Shadow summary is not bound to exact as-of date')
+
+              public_root = root / 'outputs/decision/executable_profit_research'
+              projection = json.loads(
+                  (public_root / f'projection_{latest}.json').read_text(encoding='utf-8')
+              )
+              validate_research_projection(projection, require_downloads=True)
+              index = json.loads((public_root / 'index.json').read_text(encoding='utf-8'))
+              validate_research_projection_index(index)
+              statistics_path = root / str(index['latest_statistics_url'])
+              statistics = json.loads(statistics_path.read_text(encoding='utf-8'))
+              validate_shadow_statistics_projection(statistics)
+              if (
+                  index.get('latest_signal_date') != latest
+                  or index.get('latest_statistics_as_of_date') != as_of_date
+                  or statistics.get('signal_date') != latest
+                  or statistics.get('as_of_date') != as_of_date
+                  or not 0 <= int(projection.get('candidate_count', -1)) <= 10
+              ):
+                  raise SystemExit('Verify public Shadow D/as-of/count binding drifted')
+          PY
       - name: Build exact allowlisted Verify candidate patch
         id: candidate
         if: ${{ steps.session.outputs.is_open == 'true' }}
+        env:
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
         run: |
           set -euo pipefail
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
+          mkdir -p data/decision_executable_profit/forward/verifications \
+            data/decision_executable_profit/forward/settlements \
+            data/decision_executable_profit/forward/statistics \
+            outputs/decision/executable_profit_research
           git add -A -- 'outputs/auction_v3/verification/observation_*.csv' outputs/auction_v3/verification/manual_actual_latest.csv
           git add -A -- outputs/auction_v3/metrics/observation_cumulative_latest.json outputs/auction_v3/metrics/manual_actual_cumulative_latest.json
           git add -A -- data/market/trade_cal_sse.csv
-          git add -A -- 'data/market/raw/**/stk_auction_o.csv' 'data/market/raw/**/stk_auction_o.meta.json'
+          raw_date_root="data/market/raw/${AS_OF_DATE:0:4}/${AS_OF_DATE}"
+          for raw_truth in daily.csv stk_limit.csv stk_auction_o.csv stk_auction_o.meta.json; do
+            raw_path="${raw_date_root}/${raw_truth}"
+            if [ -e "${raw_path}" ] || git ls-files --error-unmatch -- "${raw_path}" >/dev/null 2>&1; then
+              git add -A -- "${raw_path}"
+            fi
+          done
+          git add -A -- data/decision_executable_profit/forward/verifications data/decision_executable_profit/forward/settlements data/decision_executable_profit/forward/statistics
+          git add -A -- outputs/decision/executable_profit_research
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -269,7 +545,7 @@ jobs:
               if not path.startswith('data/market/raw/'):
                   return True
               parts=path.split('/')
-              if len(parts) != 6 or parts[5] not in {'stk_auction_o.csv','stk_auction_o.meta.json'}:
+              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json'}:
                   return False
               year, trade_date=parts[3], parts[4]
               try:
@@ -280,6 +556,7 @@ jobs:
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
           bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p)]
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
+          bad.extend(p for p in paths if any(matches(p,a) for a in forbidden_selection))
           if bad: raise SystemExit(f'non-allowlisted Verify paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
@@ -376,8 +653,9 @@ jobs:
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -408,7 +686,7 @@ jobs:
               if not path.startswith('data/market/raw/'):
                   return True
               parts=path.split('/')
-              if len(parts) != 6 or parts[5] not in {'stk_auction_o.csv','stk_auction_o.meta.json'}:
+              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json'}:
                   return False
               year, trade_date=parts[3], parts[4]
               try:
@@ -419,6 +697,7 @@ jobs:
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
           bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p)]
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
+          bad.extend(p for p in paths if any(matches(p,a) for a in forbidden_selection))
           if bad: raise SystemExit(f'non-allowlisted Verify publish paths staged: {bad}')
           path_set=set(paths)
           index_modes={}

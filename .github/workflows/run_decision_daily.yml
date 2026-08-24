@@ -637,6 +637,407 @@ jobs:
           if not hmac.compare_digest(digest, os.environ['PRESERVED_ACTION_SHA256']):
               raise SystemExit('Daily research generation modified the preserved Auction action plan')
           PY
+      - name: Freeze immutable executable-profit research order and public D projection
+        if: ${{ steps.session.outputs.write_eligible == 'true' }}
+        env:
+          DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
+          PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
+          TRADE_DATE: ${{ inputs.trade_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          research_root="${RUNNER_TEMP}/dc20-daily-research-root"
+          selection_inventory="${RUNNER_TEMP}/executable-profit-selection-before.json"
+          SELECTION_INVENTORY="${selection_inventory}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path('.').resolve()
+          selection_root = root / 'data/decision_executable_profit/forward/selections'
+          inventory = {}
+          if selection_root.exists():
+              if not selection_root.is_dir() or selection_root.is_symlink():
+                  raise SystemExit('Daily executable-profit selection root is unsafe')
+              for path in sorted(selection_root.glob('shadow_20??????.*')):
+                  if path.suffix not in {'.json', '.csv'}:
+                      continue
+                  if not path.is_file() or path.is_symlink():
+                      raise SystemExit(f'Daily executable-profit selection is unsafe: {path}')
+                  inventory[path.relative_to(root).as_posix()] = hashlib.sha256(
+                      path.read_bytes()
+                  ).hexdigest()
+          Path(os.environ['SELECTION_INVENTORY']).write_text(
+              json.dumps(inventory, sort_keys=True, separators=(',', ':')) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          read -r signal_date report_date < <(python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.run_receipt import validate_decision_run_receipt
+
+          receipt = validate_decision_run_receipt(
+              root=Path.cwd(),
+              receipt_path=Path(os.environ['DECISION_RUN_RECEIPT_PATH']),
+              requested_trade_date=os.environ.get('TRADE_DATE', ''),
+          )
+          print(receipt['signal_date'], receipt['exec_date'])
+          PY
+          )
+          feature_path="${research_root}/outputs/auction_v3/predictions/pred_${signal_date}.csv"
+          test -f "${feature_path}"
+          test ! -L "${feature_path}"
+          test -s "${feature_path}"
+          test -f "${research_root}/outputs/decision/three_rank_top10_${signal_date}.json"
+          test -f "${research_root}/outputs/decision/three_rank_top10_${signal_date}.csv"
+          root_contract_evidence="${RUNNER_TEMP}/executable-profit-root-contract.json"
+          RESEARCH_ROOT="${research_root}" \
+            FEATURE_PATH="${feature_path}" \
+            SIGNAL_DATE="${signal_date}" \
+            ROOT_CONTRACT_EVIDENCE="${root_contract_evidence}" \
+            python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          signal_date = os.environ['SIGNAL_DATE']
+          if re.fullmatch(r'20\d{6}', signal_date) is None:
+              raise SystemExit('Daily executable-profit signal date is invalid')
+          research_root = Path(os.environ['RESEARCH_ROOT']).resolve(strict=True)
+          feature_path = Path(os.environ['FEATURE_PATH']).resolve(strict=True)
+          expected = (
+              research_root
+              / 'outputs/auction_v3/predictions'
+              / f'pred_{signal_date}.csv'
+          )
+          if (
+              expected.is_symlink()
+              or not expected.is_file()
+              or expected.stat().st_size <= 0
+              or feature_path != expected.resolve(strict=True)
+          ):
+              raise SystemExit(
+                  'Daily scorer root and canonical pred_D feature root differ'
+              )
+          evidence = {
+              'schema_version': 'dc20_executable_profit_scorer_root_binding_v1',
+              'repo_root': research_root.as_posix(),
+              'd_feature_path': feature_path.as_posix(),
+              'canonical_relative_path': (
+                  f'outputs/auction_v3/predictions/pred_{signal_date}.csv'
+              ),
+              'same_repository_root': True,
+              'signal_date': signal_date,
+          }
+          Path(os.environ['ROOT_CONTRACT_EVIDENCE']).write_text(
+              json.dumps(evidence, sort_keys=True, separators=(',', ':')) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          PYTHONPATH="${research_root}/src" python "${research_root}/scripts/run_decision_executable_profit_forward_shadow.py" \
+            --root "${research_root}" \
+            --d-features-csv "${feature_path}"
+          PYTHONPATH="${research_root}/src" python "${research_root}/scripts/settle_decision_executable_profit_forward_shadow.py" \
+            --root "${research_root}" \
+            --as-of-date "${signal_date}" \
+            --statistics-only
+          PYTHONPATH="${research_root}/src" python "${research_root}/scripts/project_decision_executable_profit_research.py" \
+            --root "${research_root}" \
+            --signal-date "${signal_date}" \
+            --as-of-date "${signal_date}"
+          SOURCE_ROOT="${research_root}" \
+            TARGET_ROOT="${GITHUB_WORKSPACE}" \
+            SIGNAL_DATE="${signal_date}" \
+            python - <<'PY'
+          import json
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from top10decision.decision.executable_profit_research_projection import (
+              _validate_existing_index_chain as validate_public_index_chain,
+              validate_research_projection,
+              validate_research_projection_index,
+              validate_shadow_statistics_projection,
+          )
+          from top10decision.decision.executable_profit_shadow import (
+              _validate_existing_pointer_chain as validate_selection_index_chain,
+              validate_internal_forward_shadow_index,
+              validate_internal_forward_shadow_payload,
+          )
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              validate_statistics,
+          )
+
+          source_root = Path(os.environ['SOURCE_ROOT']).resolve(strict=True)
+          target_root = Path(os.environ['TARGET_ROOT']).resolve(strict=True)
+          signal_date = os.environ['SIGNAL_DATE']
+          if source_root == target_root:
+              raise SystemExit('Daily research projection source must be isolated')
+
+          selection_prefix = Path(
+              'data/decision_executable_profit/forward/selections'
+          )
+          statistics_relative = Path(
+              'data/decision_executable_profit/forward/statistics/summary.json'
+          )
+          public_prefix = Path('outputs/decision/executable_profit_research')
+          selection_json_relative = selection_prefix / f'shadow_{signal_date}.json'
+          selection_csv_relative = selection_prefix / f'shadow_{signal_date}.csv'
+          selection_index_relative = selection_prefix / 'index.json'
+          projection_json_relative = public_prefix / f'projection_{signal_date}.json'
+          projection_csv_relative = public_prefix / f'projection_{signal_date}.csv'
+          public_index_relative = public_prefix / 'index.json'
+
+          def safe_source(relative: Path) -> Path:
+              if relative.is_absolute() or '..' in relative.parts:
+                  raise SystemExit(f'Daily research artifact path is unsafe: {relative}')
+              current = source_root
+              for part in relative.parts:
+                  current = current / part
+                  if current.is_symlink():
+                      raise SystemExit(
+                          f'Daily research artifact has a symlink ancestor: {relative}'
+                      )
+              if not current.is_file():
+                  raise SystemExit(f'Daily research artifact is missing: {relative}')
+              if current.resolve(strict=True) != current:
+                  raise SystemExit(f'Daily research artifact escaped source root: {relative}')
+              return current
+
+          selection_json = safe_source(selection_json_relative)
+          selection_csv = safe_source(selection_csv_relative)
+          selection_index_path = safe_source(selection_index_relative)
+          summary_path = safe_source(statistics_relative)
+          projection_json = safe_source(projection_json_relative)
+          projection_csv = safe_source(projection_csv_relative)
+          public_index_path = safe_source(public_index_relative)
+
+          selection = json.loads(selection_json.read_text(encoding='utf-8'))
+          validate_internal_forward_shadow_payload(selection, require_downloads=True)
+          selection_index = json.loads(
+              selection_index_path.read_text(encoding='utf-8')
+          )
+          validate_internal_forward_shadow_index(selection_index)
+          validate_selection_index_chain(source_root, selection_index)
+          summary = json.loads(summary_path.read_text(encoding='utf-8'))
+          validate_statistics(summary)
+          projection = json.loads(projection_json.read_text(encoding='utf-8'))
+          validate_research_projection(projection, require_downloads=True)
+          public_index = json.loads(public_index_path.read_text(encoding='utf-8'))
+          validate_research_projection_index(public_index)
+          validate_public_index_chain(source_root, public_index)
+          public_statistics_relative = Path(str(public_index['latest_statistics_url']))
+          expected_public_statistics = (
+              public_prefix
+              / f'shadow_statistics_{signal_date}_asof_{signal_date}.json'
+          )
+          if public_statistics_relative != expected_public_statistics:
+              raise SystemExit('Daily public statistics D/as-of path drifted')
+          public_statistics_path = safe_source(public_statistics_relative)
+          public_statistics = json.loads(
+              public_statistics_path.read_text(encoding='utf-8')
+          )
+          validate_shadow_statistics_projection(public_statistics)
+          if (
+              selection.get('signal_date') != signal_date
+              or selection_index.get('latest_signal_date') != signal_date
+              or summary.get('as_of_date') != signal_date
+              or projection.get('signal_date') != signal_date
+              or public_index.get('latest_signal_date') != signal_date
+              or public_index.get('latest_statistics_as_of_date') != signal_date
+              or public_statistics.get('signal_date') != signal_date
+              or public_statistics.get('as_of_date') != signal_date
+          ):
+              raise SystemExit('Daily isolated research artifacts lost exact D binding')
+
+          immutable_relatives = (
+              selection_json_relative,
+              selection_csv_relative,
+              projection_json_relative,
+              projection_csv_relative,
+              public_statistics_relative,
+          )
+          mutable_relatives = (
+              statistics_relative,
+              selection_index_relative,
+              public_index_relative,
+          )
+          exact_relatives = immutable_relatives + mutable_relatives
+          if len(set(exact_relatives)) != 8:
+              raise SystemExit('Daily research projection copy inventory drifted')
+
+          def target_path(relative: Path) -> Path:
+              current = target_root
+              for part in relative.parent.parts:
+                  current = current / part
+                  if current.exists():
+                      if not current.is_dir() or current.is_symlink():
+                          raise SystemExit(
+                              f'Daily target artifact has an unsafe ancestor: {relative}'
+                          )
+                  else:
+                      current.mkdir()
+              path = target_root / relative
+              if path.exists() and (not path.is_file() or path.is_symlink()):
+                  raise SystemExit(f'Daily target artifact is unsafe: {relative}')
+              return path
+
+          def install_immutable(relative: Path) -> None:
+              source = safe_source(relative)
+              payload = source.read_bytes()
+              target = target_path(relative)
+              if target.exists():
+                  if target.read_bytes() != payload:
+                      raise SystemExit(
+                          f'Daily immutable research artifact conflict: {relative}'
+                      )
+                  return
+              with tempfile.NamedTemporaryFile(
+                  'wb', dir=target.parent, prefix=f'.{target.name}.', delete=False
+              ) as handle:
+                  temporary = Path(handle.name)
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              try:
+                  os.link(temporary, target)
+              except FileExistsError:
+                  if target.read_bytes() != payload:
+                      raise SystemExit(
+                          f'Daily immutable research artifact raced: {relative}'
+                      )
+              finally:
+                  temporary.unlink(missing_ok=True)
+
+          def replace_pointer(relative: Path) -> None:
+              payload = safe_source(relative).read_bytes()
+              target = target_path(relative)
+              with tempfile.NamedTemporaryFile(
+                  'wb', dir=target.parent, prefix=f'.{target.name}.', delete=False
+              ) as handle:
+                  temporary = Path(handle.name)
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              try:
+                  os.replace(temporary, target)
+              finally:
+                  temporary.unlink(missing_ok=True)
+
+          for relative in immutable_relatives:
+              install_immutable(relative)
+          for relative in mutable_relatives:
+              replace_pointer(relative)
+          print(json.dumps({
+              'status': 'EXACT_RESEARCH_PROJECTION_COPIED',
+              'signal_date': signal_date,
+              'source_root': source_root.as_posix(),
+              'target_root': target_root.as_posix(),
+              'copied_paths': [value.as_posix() for value in exact_relatives],
+              'outputs_auction_v3_copied': False,
+          }, ensure_ascii=False, sort_keys=True))
+          PY
+          SIGNAL_DATE="${signal_date}" \
+            SELECTION_INVENTORY="${selection_inventory}" \
+            python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.executable_profit_research_projection import (
+              _validate_existing_index_chain as validate_public_index_chain,
+              validate_research_projection,
+              validate_research_projection_index,
+              validate_shadow_statistics_projection,
+          )
+          from top10decision.decision.executable_profit_shadow import (
+              _validate_existing_pointer_chain as validate_selection_index_chain,
+              validate_internal_forward_shadow_index,
+              validate_internal_forward_shadow_payload,
+          )
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              validate_statistics,
+          )
+
+          root = Path('.').resolve()
+          signal_date = os.environ['SIGNAL_DATE']
+          selection_root = root / 'data/decision_executable_profit/forward/selections'
+          before = json.loads(
+              Path(os.environ['SELECTION_INVENTORY']).read_text(encoding='utf-8')
+          )
+          after = {}
+          for path in sorted(selection_root.glob('shadow_20??????.*')):
+              if path.suffix not in {'.json', '.csv'}:
+                  continue
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit(f'Daily executable-profit selection is unsafe: {path}')
+              after[path.relative_to(root).as_posix()] = hashlib.sha256(
+                  path.read_bytes()
+              ).hexdigest()
+          for relative, digest in before.items():
+              if after.get(relative) != digest:
+                  raise SystemExit(f'Daily rewrote an immutable selection: {relative}')
+          additions = set(after) - set(before)
+          exact_additions = {
+              f'data/decision_executable_profit/forward/selections/shadow_{signal_date}.json',
+              f'data/decision_executable_profit/forward/selections/shadow_{signal_date}.csv',
+          }
+          if not additions.issubset(exact_additions):
+              raise SystemExit(f'Daily created a foreign selection artifact: {sorted(additions)}')
+
+          selection_path = selection_root / f'shadow_{signal_date}.json'
+          selection = json.loads(selection_path.read_text(encoding='utf-8'))
+          validate_internal_forward_shadow_payload(selection, require_downloads=True)
+          selection_index = json.loads(
+              (selection_root / 'index.json').read_text(encoding='utf-8')
+          )
+          validate_internal_forward_shadow_index(selection_index)
+          validate_selection_index_chain(root, selection_index)
+          if selection_index.get('latest_signal_date') != signal_date:
+              raise SystemExit('Daily executable-profit selection pointer date drifted')
+          summary = json.loads(
+              (
+                  root
+                  / 'data/decision_executable_profit/forward/statistics/summary.json'
+              ).read_text(encoding='utf-8')
+          )
+          validate_statistics(summary)
+          if summary.get('as_of_date') != signal_date:
+              raise SystemExit('Daily executable-profit summary as-of date drifted')
+
+          public_root = root / 'outputs/decision/executable_profit_research'
+          projection = json.loads(
+              (public_root / f'projection_{signal_date}.json').read_text(encoding='utf-8')
+          )
+          validate_research_projection(projection, require_downloads=True)
+          public_index = json.loads((public_root / 'index.json').read_text(encoding='utf-8'))
+          validate_research_projection_index(public_index)
+          validate_public_index_chain(root, public_index)
+          statistics_path = root / str(public_index['latest_statistics_url'])
+          statistics = json.loads(statistics_path.read_text(encoding='utf-8'))
+          validate_shadow_statistics_projection(statistics)
+          if (
+              projection.get('signal_date') != signal_date
+              or public_index.get('latest_signal_date') != signal_date
+              or public_index.get('latest_statistics_as_of_date') != signal_date
+              or projection.get('candidate_count') != len(selection.get('rows') or [])
+              or projection.get('candidate_count') < 0
+              or projection.get('candidate_count') > 10
+          ):
+              raise SystemExit('Daily executable-profit projection/date/count binding drifted')
+
+          action = root / 'outputs/decision/action_plan_latest.json'
+          action_digest = hashlib.sha256(action.read_bytes()).hexdigest() if action.is_file() else ''
+          if not hmac.compare_digest(action_digest, os.environ['PRESERVED_ACTION_SHA256']):
+              raise SystemExit('Daily executable-profit projection modified the preserved action')
+          PY
       - name: Build exact allowlisted Daily candidate patch
         id: candidate
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -648,13 +1049,14 @@ jobs:
           git add -A -- data/market
           git add -A -- docs
           git add -A -- outputs/decision data/decision
+          git add -A -- data/decision_executable_profit/forward/selections data/decision_executable_profit/forward/statistics/summary.json
           git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json' 'outputs/decision/report_index.json'
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
@@ -786,7 +1188,7 @@ jobs:
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):

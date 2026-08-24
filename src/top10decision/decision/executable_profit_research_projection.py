@@ -1101,6 +1101,67 @@ def _validate_statistics_input_files_asof(
     )
 
 
+def _validate_public_asof_calendar(
+    repo_root: Path,
+    projection: Mapping[str, Any],
+    as_of_date: str,
+) -> None:
+    """Bind public D/T/T+1/A dates to the pinned SSE open-session calendar."""
+
+    from top10decision.decision.executable_profit_shadow_settlement import (
+        CALENDAR_PATH,
+        CALENDAR_SHA256,
+    )
+
+    calendar_path = _safe_existing_file(
+        repo_root,
+        CALENDAR_PATH,
+        label="public research strict SSE calendar",
+    )
+    _expect(
+        _sha256(calendar_path) == CALENDAR_SHA256,
+        "public research strict SSE calendar SHA drifted",
+    )
+    try:
+        with calendar_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise ExecutableProfitResearchProjectionError(
+            "public research strict SSE calendar is unreadable"
+        ) from exc
+    open_dates = sorted(
+        {
+            _normal_date(row.get("cal_date"))
+            for row in rows
+            if str(row.get("exchange") or "").strip().upper() == "SSE"
+            and str(row.get("is_open") or "").strip() == "1"
+        }
+    )
+    _expect(
+        open_dates and all(DATE_RE.fullmatch(value) for value in open_dates),
+        "public research strict SSE calendar is empty",
+    )
+    signal_date = str(projection["signal_date"])
+    exec_date = str(projection["exec_date"])
+    exit_date = str(projection["exit_date"])
+    try:
+        signal_index = open_dates.index(signal_date)
+    except ValueError as exc:
+        raise ExecutableProfitResearchProjectionError(
+            "public research D is not a pinned SSE open session"
+        ) from exc
+    _expect(
+        signal_index + 2 < len(open_dates)
+        and open_dates[signal_index + 1] == exec_date
+        and open_dates[signal_index + 2] == exit_date,
+        "public research D/T/T+1 are not adjacent pinned SSE sessions",
+    )
+    _expect(
+        as_of_date in open_dates and as_of_date >= signal_date,
+        "public research as-of date must be a pinned SSE open session on or after D",
+    )
+
+
 def build_shadow_statistics_projection(
     repo_root: Path,
     projection: Mapping[str, Any],
@@ -1110,12 +1171,15 @@ def build_shadow_statistics_projection(
 
     repo_root = repo_root.resolve(strict=True)
     validate_research_projection(projection)
-    as_of_date = _normal_date(as_of_date)
+    supplied_as_of_date = str(as_of_date)
+    as_of_date = _normal_date(supplied_as_of_date)
     _expect(
         DATE_RE.fullmatch(as_of_date) is not None
+        and supplied_as_of_date == as_of_date
         and as_of_date >= str(projection["signal_date"]),
         "public Shadow statistics as-of date is invalid",
     )
+    _validate_public_asof_calendar(repo_root, projection, as_of_date)
     signal_date = str(projection["signal_date"])
     verification_loaded = _optional_json(
         repo_root,
@@ -1175,6 +1239,26 @@ def build_shadow_statistics_projection(
         _expect(
             str(projection["exit_date"]) <= as_of_date,
             "as-of statistics exposed T+1 truth before T+1",
+        )
+        actual_exit_dates: list[str] = []
+        for row in settlement.get("rows", []):
+            _expect(
+                isinstance(row, Mapping),
+                "T+1 settlement row is invalid",
+            )
+            raw_actual_exit_date = row.get("actual_exit_date")
+            if raw_actual_exit_date is None:
+                continue
+            actual_exit_date = _normal_date(raw_actual_exit_date)
+            _expect(
+                DATE_RE.fullmatch(actual_exit_date) is not None
+                and str(raw_actual_exit_date) == actual_exit_date,
+                "T+1 settlement actual exit date is invalid",
+            )
+            actual_exit_dates.append(actual_exit_date)
+        _expect(
+            all(value <= as_of_date for value in actual_exit_dates),
+            "T+1 settlement actual exit is after public as-of date",
         )
         truth_binding = settlement.get("t_verification")
         _expect(
@@ -1779,6 +1863,51 @@ def _verify_projection_source_files(
             )
 
 
+def _verify_materialization_reconstruction(
+    repo_root: Path,
+    final_projection: Mapping[str, Any],
+    projection_csv: bytes,
+    projection_json: bytes,
+    statistics: Mapping[str, Any],
+) -> None:
+    """Rebuild every public byte from immutable sources before installation."""
+
+    rebuilt_projection = build_research_projection(
+        repo_root,
+        str(final_projection["signal_date"]),
+    )
+    (
+        rebuilt_final_projection,
+        rebuilt_projection_csv,
+        rebuilt_projection_json,
+    ) = _projection_output_payload(rebuilt_projection)
+    _expect(
+        _canonical_json_bytes(final_projection)
+        == _canonical_json_bytes(rebuilt_final_projection)
+        and projection_csv == rebuilt_projection_csv
+        and projection_json == rebuilt_projection_json,
+        (
+            "public research projection does not exactly reconstruct from "
+            "immutable selection/three-rank sources"
+        ),
+    )
+
+    rebuilt_statistics = build_shadow_statistics_projection(
+        repo_root,
+        rebuilt_projection,
+        str(statistics["as_of_date"]),
+    )
+    _expect(
+        _canonical_json_bytes(statistics)
+        == _canonical_json_bytes(rebuilt_statistics)
+        and _pretty_json_bytes(statistics) == _pretty_json_bytes(rebuilt_statistics),
+        (
+            "public Shadow statistics does not exactly reconstruct from "
+            "immutable verification/settlement/summary sources"
+        ),
+    )
+
+
 def materialize_research_projection(
     repo_root: Path,
     projection: Mapping[str, Any],
@@ -1792,6 +1921,13 @@ def materialize_research_projection(
     )
     _verify_projection_source_files(repo_root, final_projection)
     validate_shadow_statistics_projection(statistics)
+    _verify_materialization_reconstruction(
+        repo_root,
+        final_projection,
+        projection_csv,
+        projection_json,
+        statistics,
+    )
     statistics_json = _pretty_json_bytes(statistics)
     projection_json_sha = _sha256_bytes(projection_json)
     _expect(
