@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from top10decision.auction_v3.promotion_model import PROMOTION_SOURCE_FEATURES
+from top10decision.decision.observation import observation_price_contract
 from top10decision.decision.three_rank import (
     top10_members_sha256,
     validate_three_rank_contract,
@@ -40,6 +41,7 @@ INTERNAL_STATUS = "INTERNAL_CHALLENGER_NOT_READY"
 ARTIFACT_STATUS = "INTERNAL_FORWARD_RESEARCH_CHALLENGER_ONLY_NOT_READY"
 MINIMUM_SIGNAL_DATE = "20260824"
 CONTRACT_ID = "dc20_executable_profit_internal_forward_challenger_20260824_v1"
+ENTRY_POLICY_ID = "dc20_public_market_buyable_proxy_v1"
 
 DEFAULT_CONTRACT_PATH = Path(
     "models/decision_executable_profit_internal_forward_challenger.json"
@@ -104,6 +106,41 @@ class ExecutableProfitShadowError(ValueError):
 def _expect(condition: bool, message: str) -> None:
     if not condition:
         raise ExecutableProfitShadowError(message)
+
+
+def _frozen_shadow_price_cap(
+    row: Mapping[str, Any],
+    *,
+    source_sha256: str,
+) -> tuple[float, str, str]:
+    """Freeze a D-only research entry cap; never inspect T or later truth."""
+
+    _expect(
+        SHA256_RE.fullmatch(source_sha256) is not None,
+        "shadow price source SHA is invalid",
+    )
+    contract = observation_price_contract(row)
+    raw_price = contract.get("observation_max_price")
+    try:
+        price = float(raw_price)
+    except (TypeError, ValueError) as exc:
+        raise ExecutableProfitShadowError(
+            "D feature row cannot produce a frozen shadow price cap"
+        ) from exc
+    _expect(
+        math.isfinite(price) and price > 0.0,
+        "D feature row cannot produce a frozen shadow price cap",
+    )
+    basis_map = {
+        "formal_safe_cap": "D_FROZEN_RECOMMENDED_MAX_PRICE",
+        "frozen_observation_cap": "D_FROZEN_OBSERVATION_MAX_PRICE",
+        "model_diagnostic_cap": "D_ONLY_MODEL_DIAGNOSTIC_CAP",
+        "legacy_d_close_cap": "D_CLOSE_CONSERVATIVE_CAP",
+    }
+    raw_basis = str(contract.get("observation_price_basis") or "")
+    basis = basis_map.get(raw_basis)
+    _expect(basis is not None, "D feature row has an unsupported shadow price basis")
+    return round(price + 1e-9, 2), basis, source_sha256
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -378,7 +415,7 @@ def _validate_internal_contract(
         "maximum_candidate_rows": 10,
         "minimum_candidate_rows_for_shadow_top2": 2,
         "single_candidate_policy": (
-            "FREEZE_NOT_ENOUGH_FOR_TOP2_EVENT_WITH_ZERO_SHADOW_SLOTS_NO_BACKFILL"
+            "FREEZE_TOP1_ONLY_NO_TOP2_NO_BACKFILL"
         ),
         "hard_stage_scope": ["2→3", "3→4"],
         "required_promotion_source_features": list(PROMOTION_SOURCE_FEATURES),
@@ -400,7 +437,13 @@ def _validate_internal_contract(
             "complete frozen promotion TopN only, where N is at most 10 and no "
             "candidate may be added outside the hard pool"
         ),
-        "selected_slots_rule": "2 when N is at least 2; otherwise 0",
+        "selected_slots_rule": "min(2, N); no padding",
+        "entry_policy_id": ENTRY_POLICY_ID,
+        "shadow_price_cap_rule": (
+            "freeze recommended_max_price when positive; otherwise freeze "
+            "observation_price_contract from D-only fields; missing cap fails closed"
+        ),
+        "shadow_price_source_rule": "exact dated pred_<D>.csv bytes SHA256",
         "internal_order": [
             "descending research_joint_proxy_score",
             "descending research_conditional_profit_score",
@@ -1129,8 +1172,15 @@ def _score_internal_forward_shadow_frame(
             float(joint[order[1]]) != float(joint[order[2]]),
             "exact Top2/Top3 joint proxy tie is not selectable",
         )
-    shadow_selectable = candidate_count >= 2
+    shadow_slot_count = min(2, candidate_count)
     internal_order = {source_index: rank for rank, source_index in enumerate(order, start=1)}
+    frozen_price_caps = {
+        index: _frozen_shadow_price_cap(
+            row.to_dict(),
+            source_sha256=d_feature_source_sha256,
+        )
+        for index, row in frame.iterrows()
+    }
     generated_at_utc = str(
         base_features["generated_at_utc"].fillna("").astype(str).iloc[0]
     )
@@ -1143,6 +1193,9 @@ def _score_internal_forward_shadow_frame(
     rows: list[dict[str, Any]] = []
     for index, row in frame.iterrows():
         rank = internal_order[index]
+        shadow_max_price, shadow_price_basis, shadow_price_source_sha256 = (
+            frozen_price_caps[index]
+        )
         rows.append(
             {
                 "ts_code": str(row["ts_code"]),
@@ -1155,8 +1208,11 @@ def _score_internal_forward_shadow_frame(
                 "research_conditional_profit_score": float(conditional[index]),
                 "research_joint_proxy_score": float(joint[index]),
                 "internal_shadow_order": int(rank),
-                "internal_shadow_selected": int(shadow_selectable and rank <= 2),
-                "shadow_slot": int(rank) if shadow_selectable and rank <= 2 else None,
+                "internal_shadow_selected": int(rank <= shadow_slot_count),
+                "shadow_slot": int(rank) if rank <= shadow_slot_count else None,
+                "shadow_max_price": shadow_max_price,
+                "shadow_price_basis": shadow_price_basis,
+                "shadow_price_source_sha256": shadow_price_source_sha256,
                 "lagged_prior_max_history_exit_date": str(row["lagged_prior_max_history_exit_date"]),
                 "lagged_prior_snapshot_sha256": str(row["lagged_prior_snapshot_sha256"]),
             }
@@ -1170,8 +1226,11 @@ def _score_internal_forward_shadow_frame(
             "research_fill_proxy_score": row["research_fill_proxy_score"],
             "research_conditional_profit_score": row["research_conditional_profit_score"],
             "research_joint_proxy_score": row["research_joint_proxy_score"],
+            "shadow_max_price": row["shadow_max_price"],
+            "shadow_price_basis": row["shadow_price_basis"],
+            "shadow_price_source_sha256": row["shadow_price_source_sha256"],
         }
-        for row in (rows[:2] if shadow_selectable else [])
+        for row in rows[:shadow_slot_count]
     ]
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1243,7 +1302,11 @@ def _score_internal_forward_shadow_frame(
                 "FAIL_CLOSED_FOR_N_AT_LEAST_3"
             ),
             "shadow_slots": 2,
+            "shadow_slot_rule": "min(2, N); no padding",
             "top2_frozen_before_outcome_truth": True,
+            "entry_policy_id": ENTRY_POLICY_ID,
+            "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+            "actual_order_fill_claimed": False,
         },
         "boundaries": {
             "front_end_rank_allowed": False,
@@ -1259,13 +1322,9 @@ def _score_internal_forward_shadow_frame(
         "source_hashes": dict(loaded.source_hashes),
         "rows": rows,
         "shadow_top2": {
-            "status": (
-                "FROZEN_INTERNAL_RESEARCH_ONLY"
-                if shadow_selectable
-                else "NOT_ENOUGH_FOR_TOP2"
-            ),
+            "status": "FROZEN_INTERNAL_RESEARCH_ONLY",
             "requested_slots": 2,
-            "actual_slots": 2 if shadow_selectable else 0,
+            "actual_slots": shadow_slot_count,
             "rows": top2,
         },
     }
@@ -1591,7 +1650,13 @@ def validate_internal_forward_shadow_payload(
         ],
         "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3",
         "shadow_slots": 2,
+        "shadow_slot_rule": "min(2, N); no padding",
         "top2_frozen_before_outcome_truth": True,
+        "entry_policy_id": ENTRY_POLICY_ID,
+        "entry_price_rule": (
+            "T proxy open must not exceed D-frozen shadow_max_price"
+        ),
+        "actual_order_fill_claimed": False,
     }
     _expect(
         payload.get("ranking_contract") == expected_ranking,
@@ -1615,6 +1680,9 @@ def validate_internal_forward_shadow_payload(
         "internal_shadow_order",
         "internal_shadow_selected",
         "shadow_slot",
+        "shadow_max_price",
+        "shadow_price_basis",
+        "shadow_price_source_sha256",
         "lagged_prior_max_history_exit_date",
         "lagged_prior_snapshot_sha256",
     }
@@ -1654,16 +1722,40 @@ def validate_internal_forward_shadow_payload(
         _expect(math.isclose(joint, fill * conditional, rel_tol=0.0, abs_tol=1e-15), "internal Shadow lost exact two-stage proxy identity")
         _expect(joint <= fill + 1e-15 and joint <= conditional + 1e-15, "internal Shadow joint score exceeds a component")
         rank = int(row["internal_shadow_order"])
-        shadow_selectable = candidate_count >= 2
+        shadow_slot_count = min(2, candidate_count)
         _expect(
             row.get("internal_shadow_selected")
-            == int(shadow_selectable and rank <= 2),
+            == int(rank <= shadow_slot_count),
             "internal Shadow Top2 flag invalid",
         )
         _expect(
             row.get("shadow_slot")
-            == (rank if shadow_selectable and rank <= 2 else None),
+            == (rank if rank <= shadow_slot_count else None),
             "internal Shadow slot invalid",
+        )
+        shadow_max_price = float(row["shadow_max_price"])
+        _expect(
+            math.isfinite(shadow_max_price)
+            and shadow_max_price > 0.0
+            and math.isclose(
+                shadow_max_price * 100.0,
+                round(shadow_max_price * 100.0),
+                rel_tol=0.0,
+                abs_tol=1e-7,
+            ),
+            "internal Shadow price cap invalid",
+        )
+        _expect(
+            row.get("shadow_price_basis")
+            in {
+                "D_FROZEN_RECOMMENDED_MAX_PRICE",
+                "D_FROZEN_OBSERVATION_MAX_PRICE",
+                "D_ONLY_MODEL_DIAGNOSTIC_CAP",
+                "D_CLOSE_CONSERVATIVE_CAP",
+            }
+            and row.get("shadow_price_source_sha256")
+            == source_d.get("file_sha256"),
+            "internal Shadow price cap source binding invalid",
         )
         row_availability = str(
             row.get("lagged_prior_max_history_exit_date") or ""
@@ -1717,21 +1809,20 @@ def validate_internal_forward_shadow_payload(
             "research_fill_proxy_score": rows[index - 1]["research_fill_proxy_score"],
             "research_conditional_profit_score": rows[index - 1]["research_conditional_profit_score"],
             "research_joint_proxy_score": rows[index - 1]["research_joint_proxy_score"],
+            "shadow_max_price": rows[index - 1]["shadow_max_price"],
+            "shadow_price_basis": rows[index - 1]["shadow_price_basis"],
+            "shadow_price_source_sha256": rows[index - 1]["shadow_price_source_sha256"],
         }
-        for index in ((1, 2) if candidate_count >= 2 else ())
+        for index in range(1, min(2, candidate_count) + 1)
     ]
     shadow_top2 = payload.get("shadow_top2")
     _expect(
         isinstance(shadow_top2, Mapping)
         and set(shadow_top2) == {"status", "requested_slots", "actual_slots", "rows"}
         and shadow_top2.get("status")
-        == (
-            "FROZEN_INTERNAL_RESEARCH_ONLY"
-            if candidate_count >= 2
-            else "NOT_ENOUGH_FOR_TOP2"
-        )
+        == "FROZEN_INTERNAL_RESEARCH_ONLY"
         and shadow_top2.get("requested_slots") == 2
-        and shadow_top2.get("actual_slots") == (2 if candidate_count >= 2 else 0)
+        and shadow_top2.get("actual_slots") == min(2, candidate_count)
         and shadow_top2.get("rows") == expected_top2,
         "frozen internal Top2 projection invalid",
     )

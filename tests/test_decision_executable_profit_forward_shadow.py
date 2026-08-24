@@ -475,14 +475,51 @@ def test_proxy_identity_fixed_top2_and_not_ready_boundaries(scored: dict) -> Non
             abs=1e-15,
             rel=0,
         )
+        assert row["shadow_max_price"] > 0
+        assert row["shadow_price_source_sha256"] == scored["source_d_feature"][
+            "file_sha256"
+        ]
+        assert row["shadow_price_basis"] == "D_CLOSE_CONSERVATIVE_CAP"
     assert all(value is False for value in scored["boundaries"].values())
+
+
+def test_recommended_price_is_frozen_before_outcome_truth(
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+) -> None:
+    frozen, features, source_sha = _case(
+        loaded,
+        source_sample,
+        candidate_count=2,
+    )
+    features["recommended_max_price"] = [11.11, 22.22]
+    source_sha = hashlib.sha256(
+        features.to_csv(index=False, lineterminator="\n").encode("utf-8")
+    ).hexdigest()
+    payload = shadow._score_internal_forward_shadow_frame(
+        repo_root=PINNED_REPO,
+        frozen_top10=frozen,
+        base_features=features,
+        loaded=loaded,
+        d_feature_source_name="pred_20260824.csv",
+        d_feature_source_sha256=source_sha,
+    )
+    by_code = {row["ts_code"]: row for row in payload["rows"]}
+    for source_index, source_row in features.iterrows():
+        row = by_code[str(source_row["ts_code"])]
+        assert row["shadow_max_price"] == pytest.approx(
+            float(source_row["recommended_max_price"]),
+            abs=1e-12,
+        )
+        assert row["shadow_price_basis"] == "D_FROZEN_RECOMMENDED_MAX_PRICE"
+        assert row["shadow_price_source_sha256"] == source_sha
 
 
 @pytest.mark.parametrize(
     ("candidate_count", "expected_slots", "expected_status"),
     [
         (2, 2, "FROZEN_INTERNAL_RESEARCH_ONLY"),
-        (1, 0, "NOT_ENOUGH_FOR_TOP2"),
+        (1, 1, "FROZEN_INTERNAL_RESEARCH_ONLY"),
     ],
 )
 def test_complete_frozen_topn_never_backfills_shadow_slots(
