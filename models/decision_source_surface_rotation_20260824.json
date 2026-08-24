@@ -35,7 +35,7 @@
     "src/top10decision/decision/executable_profit_shadow.py": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
     "src/top10decision/decision/executable_profit_shadow_settlement.py": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458"
   },
-  "changed_surface_sha256": "71a9af47d2de6fe5a8f5acbb0cda8fd8543252bedd180dfb6f3f1b6981b6315a",
+  "changed_surface_sha256": "05b1d76edf9f24a4bd5af79b683a31ea596985b4460018facaf3c14718393283",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -74,10 +74,22 @@
       "classification": "prior_executable_profit_source_pin_reconciliation"
     },
     {
+      "path": "src/top10decision/decision/model_freeze.py",
+      "prior_sha256": "3489186554c570519d32278537b71286c2f8bba9d748ef74638b54dbb915e980",
+      "current_sha256": "1601ef11b4d826c5db1076ddcd022dabda39743c6d2176d2db644ea4031e3de8",
+      "classification": "freeze_required_pin_set_closure"
+    },
+    {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
       "prior_sha256": "eede26a904b9ff9a22b9a47620d54297de27dbb7c1e2d7466e4ee5249ff0d8e3",
       "current_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
       "classification": "prior_executable_profit_source_pin_reconciliation"
+    },
+    {
+      "path": "tests/test_frozen_canonical_v2_replay.py",
+      "prior_sha256": "0cf2a96014ee89279a6283724b1918975f0b44464f47a7cb80fbca3d9b1ebaa7",
+      "current_sha256": "3f91d17cdacb9cd5e3d373f5eeb9963239a08694ae882cd820cb681a6b0aab7b",
+      "classification": "freeze_required_pin_set_closure"
     }
   ]
 }

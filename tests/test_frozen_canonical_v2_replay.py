@@ -214,7 +214,9 @@ def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> No
         assert pinned_files["forced_enforcement"] is (not current["active"])
         assert pinned_files["validated"] is True
         assert pinned_files["enforced"] is True
-        assert pinned_files["pinned_files"] == len(REQUIRED_ACTIVE_PIN_PATHS)
+        assert set(current["pinned_files"]) == REQUIRED_ACTIVE_PIN_PATHS
+        assert set(manifest["pinned_files"]) == REQUIRED_ACTIVE_PIN_PATHS
+        assert pinned_files["pinned_files"] == len(current["pinned_files"])
 
 
 def test_exact_legacy_v1_fixture_bootstrap_is_independent_of_current_manifest(

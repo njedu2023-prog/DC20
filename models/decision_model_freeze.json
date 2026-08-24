@@ -624,7 +624,7 @@
     "approved_base_commit": "fd0934af6c84e762252e52c3e5f494728e0ae8be",
     "prior_manifest_sha256": "8271fa1a7038fa3614bb033c8f3e56b94a452eff68ff80ebd0d73b9be7432f77",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "35a89a9df10a58781ad455e5a71f536ec797f253c9a9f2e502bc53202a82cbd2"
+    "evidence_sha256": "b39ab27e7021ea04bf254e886ada72382719a2e0822a2136bfe52b01ab4898b6"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -669,7 +669,7 @@
     "models/decision_executable_profit_internal_forward_challenger.json": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
     "models/decision_executable_profit_research_projection_contract.json": "085a856419ef5a34121c6815e63ed8a8a9370cf8aaf59f0f17f2612180dfb634",
     "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
-    "models/decision_source_surface_rotation_20260824.json": "35a89a9df10a58781ad455e5a71f536ec797f253c9a9f2e502bc53202a82cbd2",
+    "models/decision_source_surface_rotation_20260824.json": "b39ab27e7021ea04bf254e886ada72382719a2e0822a2136bfe52b01ab4898b6",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -752,7 +752,7 @@
     "src/top10decision/decision/executable_profit_shadow.py": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
     "src/top10decision/decision/executable_profit_shadow_settlement.py": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458",
     "src/top10decision/decision/exit_policy.py": "4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f",
-    "src/top10decision/decision/model_freeze.py": "3489186554c570519d32278537b71286c2f8bba9d748ef74638b54dbb915e980",
+    "src/top10decision/decision/model_freeze.py": "1601ef11b4d826c5db1076ddcd022dabda39743c6d2176d2db644ea4031e3de8",
     "src/top10decision/decision/observation.py": "7f8f6d92971995f4eae3e6f7b5f4e1290461f0ecf8f4b05de741b8d2af78c15a",
     "src/top10decision/decision/research_context.py": "72da2fee9863ff807e01c067d43b0715a18de94515e4ccbc8d130e366cb9335d",
     "src/top10decision/decision/run_receipt.py": "198211cc88ad1ed932c801c9634b6479ea9ceb9c7de531ead6a5803fb3827777",
@@ -808,7 +808,7 @@
     "tests/test_decision_v8_calibration.py": "500f449936873b3f4de3f566d8574eeb3c529df2cf8d23b34ed61e3d502c192e",
     "tests/test_deterministic_numeric_runtime.py": "cea81e4e530b8727386a9db571945b1f77c1e042ded9a5f720195e1c44fb9efc",
     "tests/test_eret_safety.py": "7387a797d1e94077de03fba59c8894414a9d2b6e2b7f4d584fd47b185af5d160",
-    "tests/test_frozen_canonical_v2_replay.py": "0cf2a96014ee89279a6283724b1918975f0b44464f47a7cb80fbca3d9b1ebaa7",
+    "tests/test_frozen_canonical_v2_replay.py": "3f91d17cdacb9cd5e3d373f5eeb9963239a08694ae882cd820cb681a6b0aab7b",
     "tests/test_migrate_decision_runtime.py": "07ed32afff19f3d91bb044ef04f87c2ce18d06ac822ed69b0c55a67915fc3e4b",
     "tests/test_pages_truthfulness_workflow.py": "1ffa088c8728a0566f8bb6b5b91b60e598e3039386e4b987798e807de6151027",
     "tests/test_pfill_shadow_pages_truth.py": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",

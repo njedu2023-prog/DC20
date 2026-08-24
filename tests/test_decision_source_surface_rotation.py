@@ -79,7 +79,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 7
+    assert len(paths) == len(set(paths)) == 9
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/run_decision_daily.yml",
@@ -87,7 +87,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/verify_decision_observations.yml",
         "decision.html",
         "src/top10decision/auction_v3/engine.py",
+        "src/top10decision/decision/model_freeze.py",
         "tests/test_auction_v3_three_engine_runtime.py",
+        "tests/test_frozen_canonical_v2_replay.py",
     }
     current_surface: dict[str, str] = {}
     for item in changes:
@@ -95,6 +97,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         assert item["classification"] in {
             "prior_executable_profit_source_pin_reconciliation",
             "executable_profit_public_surface_release",
+            "freeze_required_pin_set_closure",
         }
         target = ROOT / item["path"]
         assert target.is_file() and not target.is_symlink()
