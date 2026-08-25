@@ -1734,7 +1734,11 @@ class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
                 "canonical_preimage_validated"
             ]
         )
-        parsed = freeze_module._read_csv(path, "round-trip prediction")
+        parsed = freeze_module._read_csv(
+            path,
+            "round-trip prediction",
+            float_precision="round_trip",
+        )
         exact = freeze_module._read_csv_exact_text(
             path,
             "round-trip prediction text",

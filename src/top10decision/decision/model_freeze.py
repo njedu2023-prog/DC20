@@ -2671,16 +2671,22 @@ def compute_behavior_fingerprints(
     }
 
 
-def _read_csv(path: Path, context: str) -> pd.DataFrame:
+def _read_csv(
+    path: Path,
+    context: str,
+    *,
+    float_precision: str | None = None,
+) -> pd.DataFrame:
     if not path.is_file():
         _fail(f"{context} missing: {path}")
     try:
-        return pd.read_csv(
-            path,
-            low_memory=False,
-            float_precision="round_trip",
-            dtype={"signal_date": "string", "ts_code": "string"},
-        )
+        read_options: dict[str, Any] = {
+            "low_memory": False,
+            "dtype": {"signal_date": "string", "ts_code": "string"},
+        }
+        if float_precision is not None:
+            read_options["float_precision"] = float_precision
+        return pd.read_csv(path, **read_options)
     except (OSError, ValueError, pd.errors.ParserError) as exc:
         raise DecisionModelFreezeError(f"{context} unreadable: {path}") from exc
 
@@ -4932,11 +4938,20 @@ def _validate_action_plan_contract(
     prediction_path = root_path / "outputs/auction_v3/predictions/pred_latest.csv"
     if prediction_path.is_symlink() or not prediction_path.is_file():
         _fail("same-run prediction must be a regular non-symlink file")
-    if prediction is None:
-        prediction = _read_csv(prediction_path, "action prediction binding")
     if prediction_text is None:
         prediction_text = _read_csv_exact_text(
             prediction_path, "action prediction exact-text binding"
+        )
+    if prediction is None:
+        prediction = _read_csv(
+            prediction_path,
+            "action prediction binding",
+            float_precision=(
+                "round_trip"
+                if THREE_RANK_RUNTIME_PREIMAGE_MARKERS
+                & set(prediction_text.columns)
+                else None
+            ),
         )
     action_preimage_audit: dict[str, Any] = dict(
         three_rank_preimage_audit
@@ -5277,10 +5292,19 @@ def validate_runtime_artifacts(
     )
     backtest = _read_json(root_path / "outputs/auction_v3/metrics/backtest_latest.json")
     prediction_path = root_path / "outputs/auction_v3/predictions/pred_latest.csv"
-    prediction_overlay = _read_csv(prediction_path, "prediction artifact")
     prediction_text_overlay = _read_csv_exact_text(
         prediction_path,
         "prediction exact-text artifact",
+    )
+    prediction_overlay = _read_csv(
+        prediction_path,
+        "prediction artifact",
+        float_precision=(
+            "round_trip"
+            if THREE_RANK_RUNTIME_PREIMAGE_MARKERS
+            & set(prediction_text_overlay.columns)
+            else None
+        ),
     )
     prediction, prediction_text, three_rank_preimage_audit = (
         _canonical_prediction_validation_view(
