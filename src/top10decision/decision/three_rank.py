@@ -21,6 +21,7 @@ from .d_close_features import (
     compute_d_close_features,
     empty_d_close_feature_values,
 )
+from .observation import observation_big_loss_probability
 from .three_engine_models import (
     CORE_HEADS,
     PROMOTION_SOURCE_FEATURES,
@@ -2050,6 +2051,29 @@ def _restore_projection_pair(
 
 class ThreeEngineRuntimeMixin:
     """Keep the independent three-engine projector outside canonical Auction."""
+
+    def _verify_prediction_file(
+        self,
+        path: Path,
+        dates: Sequence[str],
+        feedback: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Settle overlay risk evidence without rotating canonical model bytes."""
+
+        verified = super()._verify_prediction_file(path, dates, feedback)
+        if verified.empty or "three_rank_contract_version" not in verified:
+            return verified
+        for index, row in verified.iterrows():
+            if not _text(row.get("three_rank_contract_version")):
+                continue
+            predicted_loss = observation_big_loss_probability(row)
+            actual_net_return = _number(row.get("actual_net_return"))
+            if predicted_loss is None or actual_net_return is None:
+                continue
+            verified.at[index, "risk_prediction_success"] = int(
+                actual_net_return > self.config.big_loss_threshold
+            )
+        return verified
 
     def build_three_engine_inference_pool(
         self,
