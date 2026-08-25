@@ -29,7 +29,7 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     validate_pinned_files,
     validate_runtime_artifacts,
 )
-from top10decision.decision.three_engine_models import (  # noqa: E402
+from top10decision.decision.three_rank import (  # noqa: E402
     ThreeEngineRuntimeMixin,
 )
 

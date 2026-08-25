@@ -21,7 +21,7 @@ from top10decision.auction_v3.promotion_model import (
     fit_promotion_blend,
     load_promotion_validation,
 )
-from top10decision.decision.three_engine_models import (
+from top10decision.decision.three_rank import (
     PROMOTION_D_CONTEXT_FEATURES,
     build_promotion_context_features,
 )

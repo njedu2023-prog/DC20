@@ -37,21 +37,19 @@
     "external_top10_decision_runtime_dependency": false,
     "writer_dispatch_performed": false
   },
-  "added_runtime_pins": {
-    "tests/test_decision_source_surface_rotation.py": "1aa8b4872d23c4a0e285783b1f874f49f6c33419517ee444c197df978ec7a597"
-  },
-  "changed_surface_sha256": "62c15973c9b4492013ecccf5dbd5a4ff64fd91917583c646a08f6e156b1c729c",
+  "added_runtime_pins": {},
+  "changed_surface_sha256": "9fff75a141df83493328ae26aea54d69ca31741237c3a3939c71a9e56e10c843",
   "pin_changes": [
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
       "prior_sha256": "9e3539e4df723f363e741acbbaa162149d9cc4ecc006190d21ee5831170ff269",
-      "current_sha256": "d8c5ce2ba75a22043a1169ad68bde596ac490502f06fd72452580758faeb8a09",
+      "current_sha256": "5fda0491815ea5d75a76969a4d539ef414be67ce53779656401ed66e5a0a61ed",
       "classification": "three_engine_helper_externalization"
     },
     {
       "path": "scripts/run_auction_v3.py",
       "prior_sha256": "51cb5ba9fdb1d92e950bda84d855b4df388529543fb680a6584d9e981a9e65a9",
-      "current_sha256": "f5687bee60e80d9ad6d40ea99cff779abd3ce650ecb178311975dd6237b1f3c7",
+      "current_sha256": "75040355136ba140bc21b1478bca6b9d18fcdd34f02d1d3d900bb04905b632bf",
       "classification": "three_engine_runtime_adapter"
     },
     {
@@ -73,27 +71,21 @@
       "classification": "canonical_source_preimage_restore"
     },
     {
-      "path": "src/top10decision/decision/model_freeze.py",
-      "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
-      "current_sha256": "ec4c5471fa8cf74eb97859112ab50ffc71180a1c49065ed40c65ee72e72f50f4",
-      "classification": "rotation_trust_root_enforcement"
-    },
-    {
-      "path": "src/top10decision/decision/three_engine_models.py",
-      "prior_sha256": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34",
-      "current_sha256": "c5177f78c0a9fba3e69ae77211c1efc4ccbd67debfed58ddf364959ccb0a3990",
+      "path": "src/top10decision/decision/three_rank.py",
+      "prior_sha256": "443b9496fd8412b417ae5fbbbcd575c397657fa223f4794fe0c00cbcfb3c7d77",
+      "current_sha256": "f216efe77e19b3e26c5781d174a7203fc130a84b69a4183beb9b19e05a290ec3",
       "classification": "three_engine_runtime_adapter"
     },
     {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
       "prior_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
-      "current_sha256": "5cca33b2d85f3a31e89611cec7e10cbf17ff91fdfead83c0680107dbef48e7b9",
+      "current_sha256": "663002503e9f6d8af0b15a5a140670a8f7532ca33531a353bf635a3e155bcd79",
       "classification": "three_engine_runtime_adapter_test"
     },
     {
       "path": "tests/test_d_close_features.py",
       "prior_sha256": "5bd7bc7063980bd1b496e8ab3874febbb9f42f8a46aa15ec703b5fcfe82b02d4",
-      "current_sha256": "81e93c766656e9eaacd3325ce4d0c211ee914ce81faa5add00ada1e426acebb0",
+      "current_sha256": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
       "classification": "three_engine_runtime_adapter_test"
     },
     {
@@ -105,7 +97,7 @@
     {
       "path": "tests/test_promotion_model.py",
       "prior_sha256": "b0dcb3ed8b02d1b902a73aa82275d455d66b6b23a0227f38d75c449c17806408",
-      "current_sha256": "338118833bb4ea5971ce3e532abd380167b0cd5c653efa8d17d1211a204e64c7",
+      "current_sha256": "b78b313e58c521d97462bdf7120a0d9a07f52ed864f343950f6bf4694a900189",
       "classification": "three_engine_helper_externalization_test"
     },
     {
@@ -117,7 +109,7 @@
     {
       "path": "tests/test_three_rank_freeze.py",
       "prior_sha256": "de7b9c7edba4d02b665cf7f0f2be76176755f761c15b782d189c62a12fe6dc4e",
-      "current_sha256": "18d980784e6f5bf26898d91cba553826981b46e88674239625fae9403b2d33cd",
+      "current_sha256": "0ca9387ee893f84cbee22c97292ff61788e76d65499928873905c0d99273c7b7",
       "classification": "canonical_diagnostic_overlay_isolation_test"
     }
   ]

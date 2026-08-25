@@ -16,15 +16,17 @@ from top10decision.auction_v3.engine import AuctionV3Engine
 from top10decision.decision.three_engine_models import (
     PROMOTION_SOURCE_FEATURES,
     RUNTIME_ALIGNED_POOL_FEATURES,
-    THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
     THREE_ENGINE_VALIDATION_GATE_NAMES,
-    ThreeEngineRuntimeMixin,
     ThreeEngineArtifactError,
+    load_three_engine_artifacts,
+    top10_members_sha256,
+)
+from top10decision.decision.three_rank import (
+    THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
+    ThreeEngineRuntimeMixin,
     apply_three_engine_runtime,
     augment_three_engine_runtime_base,
-    load_three_engine_artifacts,
     three_engine_d_close_market_features,
-    top10_members_sha256,
 )
 
 
@@ -243,10 +245,10 @@ def test_prediction_projects_exact_hard_range_surface_without_changing_actions(
     partial_bytes = partial_path.read_bytes()
     snapshot = _official_snapshot(inference_pool)
     with mock.patch(
-        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
         return_value=object(),
     ), mock.patch(
-        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
         return_value=snapshot,
     ) as scorer:
         result = engine.build_prediction(
@@ -541,10 +543,10 @@ def test_official_a_scores_complete_pool_and_freezes_same_top10_set(tmp_path: Pa
     snapshot = _official_snapshot(pool)
 
     with mock.patch(
-        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
         return_value=object(),
     ) as loader, mock.patch(
-        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
         return_value=snapshot,
     ) as scorer:
         result = apply_three_engine_runtime(
@@ -570,10 +572,10 @@ def test_legacy_selector_is_namespaced_shadow_and_cannot_overwrite_official_rank
     legacy = _legacy_scored(pool)
     snapshot = _official_snapshot(pool)
     with mock.patch(
-        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
         return_value=object(),
     ), mock.patch(
-        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
         return_value=snapshot,
     ):
         result = apply_three_engine_runtime(
@@ -600,7 +602,7 @@ def test_artifact_hash_drift_fails_closed_without_legacy_rank_fallback(
     pool = _pool(12)
     legacy = _legacy_scored(pool)
     with mock.patch(
-        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
         side_effect=ThreeEngineArtifactError("promotion artifact hash mismatch"),
     ):
         result = apply_three_engine_runtime(
@@ -625,10 +627,10 @@ def test_missing_or_all_empty_runtime_features_never_receive_official_fallback(
     legacy = _legacy_scored(pool)
     snapshot = _official_snapshot(pool, ready=False)
     with mock.patch(
-        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
         return_value=object(),
     ), mock.patch(
-        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
         return_value=snapshot,
     ):
         result = apply_three_engine_runtime(

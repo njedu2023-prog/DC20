@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-import top10decision.decision.three_engine_models as three_engine_runtime_module
+import top10decision.decision.three_rank as three_engine_runtime_module
 
 from scripts.refreeze_decision_three_rank import (
     ThreeRankRefreezeError,

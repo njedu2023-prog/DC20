@@ -306,7 +306,6 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "tests/test_dashboard_research_projection.py",
         "tests/test_decision_intraday_costs.py",
         "tests/test_decision_model_freeze.py",
-        "tests/test_decision_source_surface_rotation.py",
         "tests/test_decision_pfill_calibration.py",
         "tests/test_decision_pages_truth.py",
         "tests/test_decision_research_context.py",
