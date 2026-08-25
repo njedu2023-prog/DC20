@@ -1,0 +1,23 @@
+{
+  "candidate_count": 9,
+  "data_alias": false,
+  "index_kind": "dated_legacy_profit_relative_research_pointer_only",
+  "latest_fallback_allowed": false,
+  "latest_projection_csv_sha256": "11a7489ca7516b748e5c323049497b2423e85f132ea303d7a1f0cce2d9ec5ed3",
+  "latest_projection_csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260821.csv",
+  "latest_projection_json_sha256": "111406765bea6f257fa8e5ff1d6855fcea9b1bffd567e073aa5c7b8508e75311",
+  "latest_projection_json_url": "outputs/decision/legacy_profit_relative_research/projection_20260821.json",
+  "latest_projection_snapshot_sha256": "3f44797b68c8b634a0f5756a6543cb3f988e54aae7a149e397e5d0c091593de6",
+  "latest_signal_date": "20260821",
+  "model": {
+    "model_as_of_date": "20260814",
+    "official_status": "NOT_READY_VALIDATION_GATE",
+    "score_semantics": "raw_model_relative_score_not_probability",
+    "sealed_artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta"
+  },
+  "research_only": true,
+  "schema_version": "dc20_legacy_profit_relative_research_index_v1",
+  "status": "PUBLIC_RESEARCH_ONLY_NOT_FORMAL",
+  "top10_members_sha256": "9826ac3097e46de7feca3c16c640eb3c39d21ee7b0b62f03773b2669405af2b8"
+}

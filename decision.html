@@ -290,8 +290,21 @@
     .three-rank-btn.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
     .three-rank-btn:disabled { opacity: .45; cursor: not-allowed; }
     .three-rank-proof { color: var(--muted); font-size: 11px; padding: 0 16px 10px; overflow-wrap: anywhere; }
-    .three-rank-shadow { margin: 10px 16px 14px; color: var(--muted); }
-    .three-rank-shadow summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+    .three-rank-audit-block { grid-column: 1 / -1; }
+    .three-rank-audit-block .three-rank-models { padding: 0; }
+    .three-rank-audit-block .three-rank-proof { padding: 10px 0 0; }
+    .legacy-profit-relative-banner {
+      margin: 0 16px 10px;
+      border: 1px dashed #d1ad49;
+      border-radius: 6px;
+      background: var(--warn-soft);
+      padding: 10px 12px;
+      color: var(--warn);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .legacy-profit-relative-banner strong { display: block; color: var(--ink); font-size: 12px; }
+    .legacy-profit-relative-score small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
     .executable-profit-banner {
       margin: 0 16px 12px;
       border: 1px solid #ddc47f;
@@ -359,38 +372,8 @@
       font-size: 11px;
       line-height: 1.55;
     }
-    .pfill-shadow-panel {
-      margin: 12px 16px 14px;
-      border: 1px dashed #9ac9b3;
-      border-radius: 7px;
-      background: var(--good-soft);
-      overflow: hidden;
-    }
-    .pfill-shadow-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 11px 12px 9px;
-      border-bottom: 1px solid var(--line);
-    }
-    .pfill-shadow-head strong { display: block; margin-bottom: 3px; }
-    .pfill-shadow-head span,
-    .pfill-shadow-note,
-    .pfill-history-summary { color: var(--muted); font-size: 11px; line-height: 1.55; }
-    .pfill-shadow-state { white-space: nowrap; text-align: right; }
-    table.pfill-shadow-table { min-width: 980px; }
-    .pfill-shadow-note { margin: 0; padding: 9px 12px 11px; }
-    .pfill-history-summary {
-      margin: 0 16px 12px;
-      padding: 10px 12px;
-      border: 1px dashed var(--line-strong);
-      border-radius: 6px;
-      background: var(--surface-soft);
-    }
-    .pfill-history-summary strong { color: var(--ink); }
     table { border-collapse: collapse; width: 100%; min-width: 1380px; font-size: 12px; }
-    table.three-rank-table { min-width: 1120px; }
+    table.three-rank-table { min-width: 1380px; }
     table.top10-backtest-table { min-width: 1040px; table-layout: fixed; font-size: 11px; }
     table.top10-backtest-table th,
     table.top10-backtest-table td { padding: 7px 6px; }
@@ -813,13 +796,11 @@
       .sentiment-industries { margin: -2px 12px 12px; }
       .market-breadth-grid { grid-template-columns: 1fr; }
       .three-rank-models { grid-template-columns: 1fr; padding: 0 12px 12px; }
+      .three-rank-audit-block .three-rank-models { padding: 0; }
+      .legacy-profit-relative-banner { margin-right: 12px; margin-left: 12px; }
       .executable-profit-banner { margin: 0 12px 12px; }
       .executable-profit-proof { padding: 0 12px 10px; }
       .executable-profit-shadow-panel { margin: 12px; }
-      .pfill-shadow-panel { margin-right: 12px; margin-left: 12px; }
-      .pfill-shadow-head { flex-direction: column; }
-      .pfill-shadow-state { white-space: normal; text-align: left; }
-      .pfill-history-summary { margin-right: 12px; margin-left: 12px; }
       table.industry-table {
         min-width: 100%;
         table-layout: fixed;
@@ -949,29 +930,6 @@
       </details>
     </section>
 
-    <details id="threeRankHistoryPanel" class="panel observation-disclosure">
-      <summary class="panel-head">
-        <div>
-          <h2>历史三排名研究归档</h2>
-          <p id="threeRankHistoryCoverage">历史覆盖未验证；不会展示未经SHA校验的统计。</p>
-        </div>
-        <span id="threeRankHistoryState" class="count">未验证</span>
-      </summary>
-      <div class="three-rank-toolbar">
-        <div>
-          <strong>A＝TIME_HONEST_OOF_RESEARCH</strong>
-          <p class="stats-note">B/C仅研究诊断，未发布为正式排名；正式B/C字段保持空值，actual_execution_claimed=false。</p>
-          <p class="stats-note">交易日历：tushare:trade_cal:SSE · exchange=SSE · strict_calendar=true。</p>
-        </div>
-        <div id="threeRankHistoryDownloads" class="three-rank-downloads">
-          <span class="count">年度下载等待索引与统计SHA验证</span>
-        </div>
-      </div>
-      <div id="pFillHistorySummary" class="pfill-history-summary">
-        <strong>P_fill 影子 Top2 验证</strong>：历史 OOF 未验证；前向 T+1 收益成熟 0 / 待验证；真实订单 0。
-      </div>
-    </details>
-
     <details class="panel observation-disclosure">
       <summary class="panel-head">
         <div>
@@ -1027,13 +985,27 @@
 
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "dc20-decision-dashboard-v4-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v6-pfill-shadow";
+    const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
+    const DASHBOARD_VERSION = "independent-three-rank-v7-legacy-profit-relative";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
+    const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
+      root: "outputs/decision/legacy_profit_relative_research",
+      projectionSchema: "dc20_legacy_profit_relative_research_projection_v1",
+      projectionKind: "immutable_d_frozen_legacy_profit_relative_research",
+      indexSchema: "dc20_legacy_profit_relative_research_index_v1",
+      indexKind: "dated_legacy_profit_relative_research_pointer_only",
+      publicStatus: "PUBLIC_RESEARCH_ONLY_NOT_FORMAL",
+      modelVersion: "decision_three_engine_models_v2:profit:20260814:extra_trees:beta",
+      modelAsOfDate: "20260814",
+      artifactPath: "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+      artifactSha256: "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+      validationPath: "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+      validationSha256: "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4"
+    });
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchBanner", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "threeRankHistoryCoverage", "threeRankHistoryState", "threeRankHistoryDownloads", "pFillHistorySummary", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchBanner", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = {
@@ -1042,8 +1014,8 @@
       index: 0,
       current: null,
       currentThreeRank: null,
-      currentExecutableProfitResearch: null,
-      pFillForwardStatistics: null
+      currentLegacyProfitRelativeResearch: null,
+      currentExecutableProfitResearch: null
     };
 
     function escapeHtml(value) {
@@ -1536,122 +1508,6 @@
       return [...new Uint8Array(digest)]
         .map(value => value.toString(16).padStart(2, "0"))
         .join("");
-    }
-
-    function firstNonnegativeInteger(source, fields) {
-      if (!source || typeof source !== "object" || Array.isArray(source)) return null;
-      for (const field of fields) {
-        const value = source[field];
-        if (Number.isInteger(value) && value >= 0) return value;
-      }
-      return null;
-    }
-
-    function validatedPFillHistoryOof(value) {
-      if (value == null) return null;
-      if (typeof value !== "object" || Array.isArray(value)) return false;
-      const proxy = value.market_fill_proxy;
-      const guards = value.separation_guards;
-      if (
-        value.schema_version !== "dc20_p_fill_shadow_oof_cumulative_v1" ||
-        value.status !== "TIME_HONEST_OOF_COUNTERFACTUAL_DIAGNOSTIC" ||
-        value.selection_scope !== "strict_rank_lte_2_within_historical_promotion_oof_top10" ||
-        value.selection_rule !== "p_fill_shadow_rank<=2" ||
-        value.requested_slots_per_signal_date !== 2 ||
-        !proxy || typeof proxy !== "object" || Array.isArray(proxy) ||
-        proxy.actual_order_fill_observed !== false ||
-        !guards || typeof guards !== "object" || Array.isArray(guards) ||
-        guards.historical_oof_rows_only !== true ||
-        guards.forward_snapshot_rows_used !== 0 ||
-        guards.actual_order_rows_used !== 0 ||
-        guards.actual_execution_claimed !== false ||
-        guards.final_model_historical_scoring_used !== false ||
-        guards.may_change_core_members_or_ranks !== false ||
-        guards.may_create_trade_action !== false
-      ) return false;
-      if (Object.prototype.hasOwnProperty.call(value, "research_only") && value.research_only !== true) return false;
-      if (Object.prototype.hasOwnProperty.call(value, "actual_execution_claimed") && value.actual_execution_claimed !== false) return false;
-      const signalDates = firstNonnegativeInteger(value, ["selection_dates"]);
-      const requestedSlots = firstNonnegativeInteger(value, ["requested_slots"]);
-      const top2Rows = firstNonnegativeInteger(value, ["selected_slots"]);
-      if (signalDates == null || signalDates <= 0 || requestedSlots !== signalDates * 2 || top2Rows == null || top2Rows > requestedSlots) return false;
-      const slotCoverage = finiteNumber(value.selection_slot_coverage);
-      if (slotCoverage == null || Math.abs(slotCoverage - top2Rows / requestedSlots) > 1e-12) return false;
-      const proxyTruthSlots = firstNonnegativeInteger(proxy, ["truth_covered_slots"]);
-      const proxyRate = finiteNumber(proxy.hit_rate);
-      if (proxyTruthSlots !== top2Rows) return false;
-      if (proxyRate != null && (proxyRate < 0 || proxyRate > 1)) return false;
-      return { signalDates, top2Rows, proxyRate };
-    }
-
-    function validatedPFillForwardStatistics(value) {
-      if (value == null) return null;
-      if (typeof value !== "object" || Array.isArray(value)) return false;
-      if (value.schema_version !== "dc20_p_fill_shadow_forward_top2_v1") return false;
-      const status = String(value.status || "");
-      const fillTruth = value.fill_truth;
-      const returns = value.returns;
-      const guards = value.separation_guards;
-      if (
-        !["FROZEN_FORWARD_RECORDS_PRESENT", "NO_AUDIT_GRADE_FROZEN_SNAPSHOTS"].includes(status) ||
-        value.selection_scope !== "forward_dated_snapshots_only_never_oof" ||
-        value.selection_rule !== "frozen_p_fill_shadow_rank<=2" ||
-        !fillTruth || typeof fillTruth !== "object" || Array.isArray(fillTruth) ||
-        fillTruth.actual_order_fill_observed !== false ||
-        !returns || typeof returns !== "object" || Array.isArray(returns) ||
-        returns.actual_trading_result !== false ||
-        !guards || typeof guards !== "object" || Array.isArray(guards) ||
-        guards.forward_snapshot_rows_only !== true ||
-        guards.historical_oof_rows_used !== 0 ||
-        guards.actual_order_rows_used !== 0 ||
-        guards.actual_execution_claimed !== false ||
-        guards.may_change_core_members_or_ranks !== false ||
-        guards.may_create_trade_action !== false
-      ) return false;
-      const selectionDates = firstNonnegativeInteger(value, ["selection_dates"]);
-      const selectedRows = firstNonnegativeInteger(value, ["selected_entries"]);
-      const fillTruthRows = firstNonnegativeInteger(fillTruth, ["covered_entries"]);
-      const settledRows = firstNonnegativeInteger(returns, ["resolved_selected_entries"]);
-      const filledRows = firstNonnegativeInteger(returns, ["filled_entries"]);
-      const maturedReturnRows = firstNonnegativeInteger(returns, ["matured_filled_return_entries"]);
-      if (
-        selectionDates == null || selectedRows == null || fillTruthRows == null ||
-        settledRows == null || filledRows == null || maturedReturnRows == null ||
-        selectedRows > selectionDates * 2 || fillTruthRows > selectedRows ||
-        settledRows > selectedRows || filledRows > fillTruthRows ||
-        maturedReturnRows > filledRows || maturedReturnRows > settledRows ||
-        !Array.isArray(value.accepted_snapshot_dates) || value.accepted_snapshot_dates.length !== selectionDates ||
-        !Array.isArray(value.records) || value.records.length !== selectionDates ||
-        (selectionDates > 0) !== (status === "FROZEN_FORWARD_RECORDS_PRESENT")
-      ) return false;
-      const proxyRate = finiteNumber(fillTruth.hit_rate);
-      if (proxyRate != null && (proxyRate < 0 || proxyRate > 1 || fillTruthRows === 0)) return false;
-      return {
-        selectionDates,
-        selectedRows,
-        fillTruthRows,
-        settledRows,
-        pendingSettlementRows: selectedRows - settledRows,
-        filledRows,
-        maturedReturnRows,
-        pendingReturnRows: filledRows - maturedReturnRows,
-        proxyRate
-      };
-    }
-
-    function pFillHistorySummaryHtml(oof, forward) {
-      const oofText = oof == null
-        ? "尚未随SHA绑定统计发布"
-        : `${integerText(oof.signalDates)}个D日 · ${integerText(oof.top2Rows)}行${oof.proxyRate == null ? "" : ` · OOF可买代理率 ${pct(oof.proxyRate)}`}`;
-      const returnMaturitySuffix = forward == null || forward.maturedReturnRows === 0
-        ? " / 待验证"
-        : forward.pendingReturnRows > 0
-          ? ` · 收益待验证 ${integerText(forward.pendingReturnRows)}`
-          : "";
-      const forwardText = forward == null
-        ? "审计级冻结D日 0 · 结果已结算 0 · T+1收益成熟 0 / 待验证"
-        : `审计级冻结D日 ${integerText(forward.selectionDates)} · 影子入选 ${integerText(forward.selectedRows)} · T可买真值 ${integerText(forward.fillTruthRows)}${forward.proxyRate == null ? "" : `（${pct(forward.proxyRate)}）`} · 结果已结算 ${integerText(forward.settledRows)} · 结算待验证 ${integerText(forward.pendingSettlementRows)} · T+1收益成熟 ${integerText(forward.maturedReturnRows)}${returnMaturitySuffix}`;
-      return `<strong>P_fill 影子 Top2 历史 OOF</strong>：${oofText}；仅为冻结、时间诚实的样本外研究，不是前向验证。<br><strong>P_fill 前向验证</strong>：${forwardText}；不从OOF回填。<br><strong>真实订单</strong>：0；OOF、前向代理与订单三种口径互不冒充。`;
     }
 
     const EXECUTABLE_PROFIT_RESEARCH_ROOT = "outputs/decision/executable_profit_research";
@@ -2192,128 +2048,6 @@
       els.executableProfitShadowNote.textContent = `统计截至 ${dateText(statistics.as_of_date)}；成本后收益只来自模型冻结Shadow并服从SHA绑定的结算来源合同，代理未成交的条件收益为空、策略槽位收益记0。页面显示的是未校准模型估计概率，正式校准状态仍为false；人工作业结果使用独立账本，不回填模型Shadow。`;
     }
 
-    async function loadThreeRankHistorySummary() {
-      const failClosed = () => {
-        state.pFillForwardStatistics = null;
-        els.threeRankHistoryCoverage.textContent = "历史覆盖未验证；不会展示未经SHA校验的统计。";
-        els.threeRankHistoryState.textContent = "未验证";
-        els.threeRankHistoryDownloads.innerHTML = '<span class="count">年度下载已隐藏</span>';
-        els.pFillHistorySummary.innerHTML = '<strong>P_fill 影子 Top2 验证</strong>：历史 OOF 未验证；前向 T+1 收益成熟 0 / 待验证；真实订单 0。';
-        if (state.current?.plan) renderStageWatchlist(state.current.plan);
-      };
-      failClosed();
-      try {
-        const prefix = "outputs/decision/three_rank_history/";
-        const index = await fetchPath(`${prefix}index.json`);
-        const historySchemaPair = {
-          dc20_three_rank_history_index_v1: "dc20_three_rank_history_statistics_v1",
-          dc20_three_rank_history_index_v2: "dc20_three_rank_history_statistics_v2"
-        };
-        if (
-          !Object.prototype.hasOwnProperty.call(historySchemaPair, index?.schema_version) ||
-          index?.index_kind !== "dated_annual_shards_pointer_only" ||
-          index?.data_alias !== false ||
-          index?.latest_fallback_allowed !== false ||
-          index?.research_only !== true ||
-          index?.actual_execution_claimed !== false ||
-          index?.statistics_url !== `${prefix}statistics.json` ||
-          index?.report_map_url !== `${prefix}report_map.json` ||
-          !isSha256(index?.statistics_sha256) ||
-          !isSha256(index?.report_map_sha256)
-        ) throw new Error("历史三排名索引合同无效");
-        const statisticsBytes = await fetchPath(index.statistics_url, "bytes");
-        if (await sha256Hex(statisticsBytes) !== index.statistics_sha256) {
-          throw new Error("历史三排名统计SHA256不一致");
-        }
-        let statistics;
-        try {
-          statistics = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(statisticsBytes));
-        } catch (_) {
-          throw new Error("历史三排名统计不是严格UTF-8 JSON");
-        }
-        const coverage = statistics?.coverage || {};
-        const statuses = statistics?.official_model_status || {};
-        if (
-          statistics?.schema_version !== historySchemaPair[index.schema_version] ||
-          statistics?.research_only !== true ||
-          statistics?.actual_execution_claimed !== false ||
-          statistics?.final_model_historical_scoring_used !== false ||
-          statistics?.calendar_source !== "tushare:trade_cal:SSE" ||
-          statistics?.strict_calendar !== true ||
-          statistics?.exchange !== "SSE" ||
-          statuses.promotion !== "TIME_HONEST_OOF_RESEARCH" ||
-          statuses.big_loss !== "RESEARCH_NOT_RELEASED" ||
-          statuses.profit !== "RESEARCH_NOT_RELEASED" ||
-          !Number.isInteger(coverage.archive_unique_signal_dates) ||
-          coverage.archive_unique_signal_dates <= 0 ||
-          !Number.isInteger(coverage.archive_rows) ||
-          coverage.archive_rows <= 0 ||
-          !Array.isArray(index.shards) ||
-          !index.shards.length ||
-          JSON.stringify(index.shards) !== JSON.stringify(statistics.shards)
-        ) throw new Error("历史三排名统计合同无效");
-        if (statistics.p_fill_shadow_top2_oof != null && statistics.p_fill_shadow_oof_top2 != null && (
-          JSON.stringify(statistics.p_fill_shadow_top2_oof) !== JSON.stringify(statistics.p_fill_shadow_oof_top2)
-        )) throw new Error("P_fill历史OOF统计别名冲突");
-        const pFillHistoryOofRaw = statistics.p_fill_shadow_top2_oof
-          ?? statistics.p_fill_shadow_oof_top2;
-        const pFillHistoryOof = validatedPFillHistoryOof(pFillHistoryOofRaw);
-        if (pFillHistoryOof === false) throw new Error("P_fill历史OOF统计合同无效");
-        const forwardAliases = [
-          statistics.p_fill_shadow_forward_top2,
-          statistics.forward_p_fill_shadow_top2
-        ].filter(value => value != null);
-        const forwardReference = statistics.p_fill_shadow_top2_forward
-          ?? forwardAliases[0];
-        if (forwardAliases.some(value => (
-          JSON.stringify(value) !== JSON.stringify(forwardReference)
-        ))) throw new Error("P_fill前向统计别名冲突");
-        const pFillForwardRaw = forwardReference;
-        const pFillForward = validatedPFillForwardStatistics(pFillForwardRaw);
-        if (pFillForward === false) throw new Error("P_fill前向统计合同无效");
-        if (index.schema_version === "dc20_three_rank_history_index_v2" && (
-          statistics.p_fill_shadow_top2_oof == null ||
-          statistics.p_fill_shadow_top2_forward == null ||
-          pFillHistoryOof == null ||
-          pFillForward == null
-        )) throw new Error("P_fill历史v2统计缺少canonical OOF/forward合同");
-        const years = new Set();
-        const annualDownloads = [];
-        for (const shard of index.shards) {
-          const year = String(shard?.year || "");
-          const expected = `${prefix}three_rank_history_${year}`;
-          if (
-            !/^20\d{2}$/.test(year) ||
-            years.has(year) ||
-            shard?.json_url !== `${expected}.json` ||
-            shard?.csv_url !== `${expected}.csv.gz` ||
-            shard?.evidence_url !== `${expected}.evidence.json` ||
-            shard?.csv_content_encoding !== "gzip_mtime_0" ||
-            ![shard?.json_sha256, shard?.csv_sha256, shard?.evidence_sha256].every(isSha256)
-          ) throw new Error("历史三排名年度分片合同无效");
-          years.add(year);
-          annualDownloads.push(
-            `<a class="three-rank-btn" href="${escapeHtml(localUrl(shard.json_url))}" download>${year} JSON</a>`,
-            `<a class="three-rank-btn" href="${escapeHtml(localUrl(shard.csv_url))}" download>${year} CSV.gz</a>`
-          );
-        }
-        const orderedYears = [...years].sort();
-        els.threeRankHistoryCoverage.textContent = `历史覆盖 ${coverage.archive_unique_signal_dates} 个D日 · ${coverage.archive_rows} 行；统计SHA256已验证，全部来自冻结OOF，不用最终模型倒灌历史。`;
-        els.threeRankHistoryState.textContent = `${orderedYears[0]}–${orderedYears.at(-1)} · SHA已验证`;
-        els.threeRankHistoryDownloads.innerHTML = [
-          `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${prefix}index.json`))}" download>历史总索引</a>`,
-          `<a class="three-rank-btn" href="${escapeHtml(localUrl(index.statistics_url))}" download>覆盖统计</a>`,
-          `<a class="three-rank-btn" href="${escapeHtml(localUrl(index.report_map_url))}" download>报告映射</a>`,
-          ...annualDownloads
-        ].join("");
-        state.pFillForwardStatistics = pFillForward;
-        els.pFillHistorySummary.innerHTML = pFillHistorySummaryHtml(pFillHistoryOof, pFillForward);
-        if (state.current?.plan) renderStageWatchlist(state.current.plan);
-      } catch (_) {
-        failClosed();
-      }
-    }
-
     function validatedPFillShadowTop2(contract) {
       const shadow = contract?.shadow_contract || {};
       const rows = Array.isArray(contract?.rows) ? contract.rows : [];
@@ -2402,54 +2136,6 @@
         if (normalized.some((row, index) => row.ts_code !== expectedCodes[index])) return false;
       }
       return normalized;
-    }
-
-    function pFillForwardSummary() {
-      const pending = {
-        selectionDates: 0,
-        selectedRows: 0,
-        fillTruthRows: 0,
-        settledRows: 0,
-        pendingSettlementRows: 0,
-        filledRows: 0,
-        maturedReturnRows: 0,
-        pendingReturnRows: 0,
-        proxyRate: null
-      };
-      const forward = state.pFillForwardStatistics;
-      return forward && forward !== false ? forward : pending;
-    }
-
-    function pFillShadowTop2Html(plan, contract, top2) {
-      const shadowReady = contract?.shadow_contract?.model_status === "SHADOW_READY";
-      const forward = pFillForwardSummary();
-      const returnMaturitySuffix = forward.maturedReturnRows === 0
-        ? " / 待验证"
-        : forward.pendingReturnRows > 0
-          ? ` · 收益待验证 ${integerText(forward.pendingReturnRows)}`
-          : "";
-      const forwardText = `前向冻结D日 ${integerText(forward.selectionDates)} · 入选 ${integerText(forward.selectedRows)} · T真值 ${integerText(forward.fillTruthRows)}${forward.proxyRate == null ? "" : `（${pct(forward.proxyRate)}）`} · 结果已结算 ${integerText(forward.settledRows)} · T+1收益成熟 ${integerText(forward.maturedReturnRows)}${returnMaturitySuffix}`;
-      if (!shadowReady || top2 == null) {
-        return `<section class="pfill-shadow-panel" aria-label="P_fill可买性影子Top2">
-          <div class="pfill-shadow-head"><div><strong>P_fill 可买性影子 Top2（独立影子模块）</strong><span>只接受dated合同内的 shadow_top2 或 p_fill_shadow_rank；页面不会按概率临时造排名。</span></div><span class="pfill-shadow-state">${escapeHtml(forwardText)}</span></div>
-          <div class="empty"><strong>${shadowReady ? "P_fill Top2排名尚未随合同发布" : "P_fill影子模型未就绪"}</strong>当前不展示候选；不会把概率、历史OOF或旧二筛顺序冒充当前Top2。</div>
-          <p class="pfill-shadow-note">影子研究，不是订单、成交或买入建议；真实订单 0；不改变官方Top10成员与三核心排名。</p>
-        </section>`;
-      }
-      const body = top2.map(row => `<tr>
-        <td><span class="truth-badge">${escapeHtml(row.p_fill_shadow_rank)}</span></td>
-        <td class="left">${escapeHtml(row.ts_code)}</td>
-        <td class="left name">${escapeHtml(row.name)}</td>
-        <td>${pct(row.p_fill_shadow_probability)}</td>
-        <td>D ${dateText(contract.signal_date)} · 名单已冻结（非成交）</td>
-        <td>T ${dateText(contract.exec_date)} · 待公开市场可买性验证</td>
-        <td>T+1 ${dateText(contract.exit_date)} · 待验证</td>
-      </tr>`).join("");
-      return `<section class="pfill-shadow-panel" aria-label="P_fill可买性影子Top2">
-        <div class="pfill-shadow-head"><div><strong>P_fill 可买性影子 Top2（独立影子模块） · ${top2.length}只</strong><span>只在冻结官方Top10内按P_fill可买性代理排序；与 Trade Selector 二筛影子完全分开。</span></div><span class="pfill-shadow-state">${escapeHtml(forwardText)}</span></div>
-        <div class="table-wrap"><table class="pfill-shadow-table"><thead><tr><th>影子排名</th><th class="left">代码</th><th class="left">股票</th><th>P_fill概率</th><th>D状态</th><th>T状态</th><th>T+1状态</th></tr></thead><tbody>${body}</tbody></table></div>
-        <p class="pfill-shadow-note">SHADOW_ONLY：仅为公开市场可买性代理的研究排序，不是订单、成交或买入建议；前向统计与历史OOF严格分开，真实订单 0；不改变官方Top10成员与三核心排名。</p>
-      </section>`;
     }
 
     function validatedThreeRankContract(plan) {
@@ -2543,6 +2229,66 @@
       return contract;
     }
 
+    function displayedThreeRank(plan) {
+      const sidecarPlan = state.index === 0 ? state.currentThreeRank : null;
+      const sidecarContract = sidecarPlan
+        ? validatedThreeRankContract(sidecarPlan)
+        : null;
+      const planSignalDate = canonicalYmd(plan?.signal_date);
+      const sidecarSignalDate = canonicalYmd(sidecarPlan?.signal_date);
+      const displayPlan = sidecarContract && sidecarSignalDate >= INDEPENDENCE_CUTOVER_SIGNAL_DATE && (
+        plan?.historical_parity === true || !planSignalDate || sidecarSignalDate >= planSignalDate
+      ) ? sidecarPlan : plan;
+      return {
+        displayPlan,
+        contract: displayPlan === sidecarPlan
+          ? sidecarContract
+          : validatedThreeRankContract(displayPlan)
+      };
+    }
+
+    function threeRankGateSummary(meta) {
+      if (!validValidationGateSummary(meta) || meta?.validation_gate_total_count == null) {
+        return "验证门通过率：暂无严格派生值";
+      }
+      const score = Number(meta.validation_gate_score_pct);
+      const scoreText = Number.isInteger(score) ? score.toFixed(0) : score.toFixed(1);
+      return `验证门通过率 ${meta.validation_gate_pass_count}/${meta.validation_gate_total_count} = ${scoreText}%`;
+    }
+
+    function threeRankModelCardsHtml(contract) {
+      const models = contract?.models || {};
+      const cards = [
+        ["promotion", "晋级引擎", "排名1＝T日涨停概率最高", "价值：在D日2→3/3→4全池中估计T日晋级涨停概率，并唯一冻结官方Top10。"],
+        ["big_loss", "大跌安全引擎", "排名1＝大跌概率最低", "价值：只在冻结Top10内估计T至T+1净收益≤-3%的概率，排名1最安全。"],
+        ["profit", "盈利引擎", "排名1＝T+1盈利概率最高", "价值：只在冻结Top10内估计T+1净收益>0的概率，排名1盈利概率最高。"]
+      ].map(([key, label, rule, value]) => {
+        const model = models[key] || {};
+        const ready = model.status === "READY";
+        return `<div class="three-rank-model ${ready ? "ready" : "not-ready"}">
+          <strong>${escapeHtml(label)} · ${escapeHtml(threeRankModelLabel(model.status))}</strong>
+          <span>${escapeHtml(value)}</span>
+          <span>${escapeHtml(rule)}</span>
+          <span>${escapeHtml(threeRankGateSummary(model))}</span>
+          <span>100%为全部门通过；不是收益率或准确率</span>
+          <span>版本：${escapeHtml(model.version || "-")}</span>
+          <span>训练真值截至：${dateText(model.model_as_of_date)}</span>
+        </div>`;
+      }).join("");
+      const shadow = contract?.shadow_contract || {};
+      const ready = shadow.model_status === "SHADOW_READY";
+      const status = ready ? "SHADOW_READY · 影子可用" : `影子未就绪 · ${shadow.model_status || "缺少状态"}`;
+      return cards + `<div class="three-rank-model shadow-only ${ready ? "ready" : "not-ready"}">
+        <strong>P_fill 可买性影子 · ${escapeHtml(status)}</strong>
+        <span>价值：观察T日公开市场可买性代理；仅影子，不得改变成员或三核心排名。</span>
+        <span>SHADOW_ONLY · 不进入三核心模型READY聚合</span>
+        <span>${escapeHtml(threeRankGateSummary(shadow))}</span>
+        <span>100%为全部门通过；不是收益率或准确率</span>
+        <span>版本：${escapeHtml(shadow.model_version || "-")}</span>
+        <span>训练真值截至：${dateText(shadow.model_as_of_date)}</span>
+      </div>`;
+    }
+
     async function loadCurrentThreeRank() {
       let index;
       try {
@@ -2575,7 +2321,19 @@
       } catch (_) {
         throw new Error("三排名dated JSON不是严格UTF-8 JSON");
       }
-      const wrapper = { signal_date: signalDate, exec_date: execDate, exit_date: exitDate, three_rank: artifact, independent_dc20_sidecar: true };
+      const wrapper = {
+        signal_date: signalDate,
+        exec_date: execDate,
+        exit_date: exitDate,
+        three_rank: artifact,
+        independent_dc20_sidecar: true,
+        three_rank_source_index: {
+          json_path: index.latest_contract_url,
+          json_sha256: index.latest_contract_sha256,
+          csv_path: index.latest_csv_url,
+          csv_sha256: index.latest_csv_sha256
+        }
+      };
       const contract = validatedThreeRankContract(wrapper);
       if (!contract) throw new Error("三排名dated工件未通过合同校验");
       if (contract.bundle_sha256 !== index.latest_bundle_sha256 || contract.top10_members_sha256 !== index.latest_top10_members_sha256) throw new Error("三排名索引与dated工件哈希不一致");
@@ -2583,46 +2341,246 @@
       return wrapper;
     }
 
+    function legacyProfitRelativeExpect(condition, message) {
+      if (!condition) throw new Error(message);
+    }
+
+    async function fetchLegacyProfitRelativePath(path, kind = "json") {
+      const url = location.protocol === "file:"
+        ? RAW_BASE + path
+        : new URL(path, location.href).href;
+      if (location.protocol !== "file:" && new URL(url).origin !== location.origin) {
+        throw new Error("原盈利实验排序拒绝跨源读取");
+      }
+      const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
+      return await response.json();
+    }
+
+    async function validateLegacyProfitRelativeProjection(projection, index, currentThreeRank) {
+      const spec = LEGACY_PROFIT_RELATIVE_RESEARCH;
+      const contract = validatedThreeRankContract(currentThreeRank);
+      legacyProfitRelativeExpect(Boolean(contract), "原盈利实验排序缺少有效当前三排名");
+      const signalDate = canonicalYmd(projection?.signal_date);
+      legacyProfitRelativeExpect(
+        exactObjectKeys(projection, [
+          "schema_version", "artifact_kind", "status", "research_only", "actual_execution_claimed",
+          "signal_date", "exec_date", "exit_date", "candidate_count", "top10_members_sha256",
+          "feature_snapshot_sha256", "source_three_rank", "source_runtime_features", "model",
+          "ranking_contract", "rows", "execution", "snapshot_sha256", "downloads"
+        ]) &&
+        projection.schema_version === spec.projectionSchema &&
+        projection.artifact_kind === spec.projectionKind &&
+        projection.status === spec.publicStatus &&
+        projection.research_only === true &&
+        projection.actual_execution_claimed === false,
+        "原盈利实验排序身份合同无效"
+      );
+      legacyProfitRelativeExpect(
+        signalDate && signalDate === canonicalYmd(currentThreeRank?.signal_date) &&
+        signalDate === canonicalYmd(index.latest_signal_date) &&
+        projection.exec_date === contract.exec_date && projection.exit_date === contract.exit_date &&
+        projection.top10_members_sha256 === contract.top10_members_sha256 &&
+        projection.top10_members_sha256 === index.top10_members_sha256 &&
+        projection.feature_snapshot_sha256 === contract.feature_snapshot_sha256,
+        "原盈利实验排序与当前D日/冻结TopN不一致"
+      );
+      const source = projection.source_three_rank;
+      const sourceIndex = currentThreeRank?.three_rank_source_index;
+      const prefix = `outputs/decision/three_rank_top10_${signalDate}`;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(source, ["json_path", "json_sha256", "csv_path", "csv_sha256", "bundle_sha256", "official_profit_fields_remain_null"]) &&
+        source.json_path === `${prefix}.json` && source.csv_path === `${prefix}.csv` &&
+        source.json_path === sourceIndex?.json_path && source.json_sha256 === sourceIndex?.json_sha256 &&
+        source.csv_path === sourceIndex?.csv_path && source.csv_sha256 === sourceIndex?.csv_sha256 &&
+        source.bundle_sha256 === contract.bundle_sha256 &&
+        source.official_profit_fields_remain_null === true,
+        "原盈利实验排序来源三排名绑定无效"
+      );
+      legacyProfitRelativeExpect(
+        contract.models?.profit?.status === "NOT_READY_VALIDATION_GATE" &&
+        contract.models?.profit?.ranking_ready === false &&
+        contract.models?.profit?.probability_ready === false &&
+        contract.rows.every(row => row.profit_rank == null && row.predicted_profit_probability == null),
+        "正式盈利模型或正式字段不再保持NOT_READY/null"
+      );
+      const runtimeSource = projection.source_runtime_features;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(runtimeSource, ["source_kind", "path", "sha256", "feature_snapshot_sha256"]) &&
+        ["sealed_20260821_recovery", "canonical_runtime_feature_csv"].includes(runtimeSource.source_kind) &&
+        typeof runtimeSource.path === "string" && !runtimeSource.path.startsWith("/") && !runtimeSource.path.split("/").includes("..") &&
+        isSha256(runtimeSource.sha256) && runtimeSource.feature_snapshot_sha256 === contract.feature_snapshot_sha256,
+        "原盈利实验排序运行特征绑定无效"
+      );
+      const model = projection.model;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(model, [
+          "head", "display_name", "official_status", "formal_ranking_ready", "formal_probability_ready",
+          "version", "model_as_of_date", "validation_gate_pass_count", "validation_gate_total_count", "validation_gate_score_pct",
+          "score_semantics", "target_semantics", "p_fill_integrated", "probability_claimed",
+          "sealed_validation_path", "sealed_validation_sha256", "sealed_artifact_path", "sealed_artifact_sha256"
+        ]) &&
+        model.head === "profit" && model.display_name === "原盈利模型·相对实验排序" &&
+        model.official_status === "NOT_READY_VALIDATION_GATE" &&
+        model.formal_ranking_ready === false && model.formal_probability_ready === false &&
+        model.version === spec.modelVersion && model.model_as_of_date === spec.modelAsOfDate &&
+        model.validation_gate_pass_count === 20 && model.validation_gate_total_count === 26 && model.validation_gate_score_pct === 76.9 &&
+        model.score_semantics === "raw_model_relative_score_not_probability" &&
+        model.target_semantics === "T_open_proxy_to_T1_open_proxy_net_return_gt_0_conditional_on_market_fill_proxy_eq_1" &&
+        model.p_fill_integrated === false && model.probability_claimed === false &&
+        model.sealed_validation_path === spec.validationPath && model.sealed_validation_sha256 === spec.validationSha256 &&
+        model.sealed_artifact_path === spec.artifactPath && model.sealed_artifact_sha256 === spec.artifactSha256,
+        "原盈利实验排序模型绑定无效"
+      );
+      const ranking = projection.ranking_contract;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(ranking, [
+          "candidate_scope", "membership_or_promotion_rank_may_change", "formal_profit_fields_may_change",
+          "trade_or_action_may_change", "score_direction", "tie_policy", "percentile_semantics",
+          "candidate_count_rule", "relative_comparison_sufficient"
+        ]) &&
+        ranking.candidate_scope === "exact_frozen_promotion_topn_only" &&
+        ranking.membership_or_promotion_rank_may_change === false &&
+        ranking.formal_profit_fields_may_change === false && ranking.trade_or_action_may_change === false &&
+        ranking.score_direction === "higher_raw_score_is_better_relative_order" &&
+        ranking.tie_policy === "equal_raw_score_equal_dense_rank_no_code_tiebreak" &&
+        ranking.percentile_semantics === "within_frozen_topn_empirical_rank_percentile" &&
+        ranking.candidate_count_rule === "show_exact_n_zero_to_ten_never_pad",
+        "原盈利实验排序安全边界无效"
+      );
+      const execution = projection.execution;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(execution, ["decision", "buy_count", "order_count", "broker_connected", "human_decision_support_only"]) &&
+        execution.decision === "NO_TRADE" && execution.buy_count === 0 && execution.order_count === 0 &&
+        execution.broker_connected === false && execution.human_decision_support_only === true,
+        "原盈利实验排序越权生成了交易语义"
+      );
+      const rows = projection.rows;
+      const officialByCode = new Map(contract.rows.map(row => [String(row.ts_code), row]));
+      legacyProfitRelativeExpect(
+        Array.isArray(rows) && projection.candidate_count === rows.length && rows.length === contract.rows.length &&
+        ranking.relative_comparison_sufficient === (rows.length >= 2),
+        "原盈利实验排序候选数量不一致"
+      );
+      const expectedFields = [
+        "ts_code", "name", "industry", "stage_transition", "promotion_rank", "legacy_profit_relative_rank",
+        "legacy_profit_raw_score", "legacy_profit_relative_percentile", "rank_tied", "rank_group_size"
+      ];
+      const seen = new Set();
+      const groups = new Map();
+      for (const row of rows) {
+        const official = officialByCode.get(String(row?.ts_code || ""));
+        const score = finiteNumber(row?.legacy_profit_raw_score);
+        const percentile = finiteNumber(row?.legacy_profit_relative_percentile);
+        legacyProfitRelativeExpect(
+          exactObjectKeys(row, expectedFields) && official && !seen.has(row.ts_code) &&
+          row.name === official.name && row.industry === official.industry && row.stage_transition === official.stage_transition &&
+          row.promotion_rank === official.promotion_rank && Number.isInteger(row.legacy_profit_relative_rank) && row.legacy_profit_relative_rank >= 1 &&
+          score != null && score >= 0 && score <= 1 &&
+          ((rows.length === 1 && row.legacy_profit_relative_percentile == null) || (rows.length >= 2 && percentile != null && percentile > 0 && percentile <= 1)) &&
+          typeof row.rank_tied === "boolean" && Number.isInteger(row.rank_group_size) && row.rank_group_size >= 1,
+          "原盈利实验排序行合同无效"
+        );
+        seen.add(row.ts_code);
+        const key = String(score);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+      }
+      legacyProfitRelativeExpect(seen.size === officialByCode.size, "原盈利实验排序不是官方TopN同一集合");
+      const orderedScores = [...groups.keys()].map(Number).sort((left, right) => right - left);
+      const ascendingScores = rows.map(row => Number(row.legacy_profit_raw_score)).sort((left, right) => left - right);
+      for (const [indexPosition, score] of orderedScores.entries()) {
+        const group = groups.get(String(score)) || [];
+        const firstAscending = ascendingScores.findIndex(value => value === score) + 1;
+        const lastAscending = ascendingScores.length - [...ascendingScores].reverse().findIndex(value => value === score);
+        const expectedPercentile = rows.length === 1 ? null : ((firstAscending + lastAscending) / 2) / rows.length;
+        for (const row of group) {
+          legacyProfitRelativeExpect(
+            row.legacy_profit_relative_rank === indexPosition + 1 &&
+            row.rank_group_size === group.length && row.rank_tied === (group.length > 1) &&
+            (expectedPercentile == null || Math.abs(row.legacy_profit_relative_percentile - expectedPercentile) < 1e-12),
+            "原盈利实验排序并列名次或分位计算漂移"
+          );
+        }
+      }
+      const memberHash = await executableProfitMembersSha256(signalDate, [...seen]);
+      legacyProfitRelativeExpect(memberHash === contract.top10_members_sha256, "原盈利实验排序成员指纹不一致");
+      legacyProfitRelativeExpect(
+        isSha256(projection.snapshot_sha256) &&
+        projection.snapshot_sha256 === index.latest_projection_snapshot_sha256,
+        "原盈利实验排序快照SHA256无效"
+      );
+      const downloads = projection.downloads;
+      const projectionPrefix = `${spec.root}/projection_${signalDate}`;
+      legacyProfitRelativeExpect(
+        exactObjectKeys(downloads, ["json_url", "csv_url", "csv_sha256", "row_count"]) &&
+        downloads.json_url === `${projectionPrefix}.json` && downloads.csv_url === `${projectionPrefix}.csv` &&
+        downloads.csv_sha256 === index.latest_projection_csv_sha256 && downloads.row_count === rows.length,
+        "原盈利实验排序下载合同无效"
+      );
+      return projection;
+    }
+
+    async function loadCurrentLegacyProfitRelativeResearch(currentThreeRank) {
+      const spec = LEGACY_PROFIT_RELATIVE_RESEARCH;
+      const contract = validatedThreeRankContract(currentThreeRank);
+      if (!contract) return null;
+      const index = await fetchLegacyProfitRelativePath(`${spec.root}/index.json`);
+      legacyProfitRelativeExpect(
+        exactObjectKeys(index, [
+          "schema_version", "index_kind", "status", "research_only", "data_alias", "latest_fallback_allowed",
+          "latest_signal_date", "latest_projection_json_url", "latest_projection_json_sha256",
+          "latest_projection_csv_url", "latest_projection_csv_sha256", "latest_projection_snapshot_sha256",
+          "candidate_count", "top10_members_sha256", "model"
+        ]) &&
+        index.schema_version === spec.indexSchema && index.index_kind === spec.indexKind &&
+        index.status === spec.publicStatus && index.research_only === true && index.data_alias === false &&
+        index.latest_fallback_allowed === false,
+        "原盈利实验排序索引合同无效"
+      );
+      const signalDate = canonicalYmd(index.latest_signal_date);
+      const projectionPrefix = `${spec.root}/projection_${signalDate}`;
+      legacyProfitRelativeExpect(
+        signalDate && signalDate === canonicalYmd(currentThreeRank?.signal_date) &&
+        index.latest_projection_json_url === `${projectionPrefix}.json` &&
+        index.latest_projection_csv_url === `${projectionPrefix}.csv` &&
+        [index.latest_projection_json_sha256, index.latest_projection_csv_sha256, index.latest_projection_snapshot_sha256, index.top10_members_sha256].every(isSha256) &&
+        Number.isInteger(index.candidate_count) && index.candidate_count >= 0 && index.candidate_count <= 10,
+        "原盈利实验排序索引日期或指针无效"
+      );
+      legacyProfitRelativeExpect(
+        exactObjectKeys(index.model, ["official_status", "version", "model_as_of_date", "sealed_artifact_sha256", "score_semantics"]) &&
+        index.model.official_status === "NOT_READY_VALIDATION_GATE" && index.model.version === spec.modelVersion &&
+        index.model.model_as_of_date === spec.modelAsOfDate && index.model.sealed_artifact_sha256 === spec.artifactSha256 &&
+        index.model.score_semantics === "raw_model_relative_score_not_probability",
+        "原盈利实验排序索引模型绑定无效"
+      );
+      const [projectionBytes, csvBytes] = await Promise.all([
+        fetchLegacyProfitRelativePath(index.latest_projection_json_url, "bytes"),
+        fetchLegacyProfitRelativePath(index.latest_projection_csv_url, "bytes")
+      ]);
+      legacyProfitRelativeExpect(
+        await sha256Hex(projectionBytes) === index.latest_projection_json_sha256 &&
+        await sha256Hex(csvBytes) === index.latest_projection_csv_sha256,
+        "原盈利实验排序dated工件SHA256不一致"
+      );
+      const projection = strictJsonFromBytes(projectionBytes, "原盈利实验排序dated JSON");
+      return validateLegacyProfitRelativeProjection(projection, index, currentThreeRank);
+    }
+
+    async function refreshCurrentLegacyProfitRelativeResearch(currentThreeRank) {
+      try {
+        state.currentLegacyProfitRelativeResearch = await loadCurrentLegacyProfitRelativeResearch(currentThreeRank);
+      } catch (_) {
+        // This research-only sidecar is optional. A missing or invalid file
+        // hides only the experiment and can never break the official TopN.
+        state.currentLegacyProfitRelativeResearch = null;
+      }
+    }
+
     function renderThreeRankWatchlist(plan, contract) {
       const models = contract.models || {};
-      const gateSummary = meta => {
-        if (!validValidationGateSummary(meta) || meta?.validation_gate_total_count == null) {
-          return "验证门通过率：暂无严格派生值";
-        }
-        const score = Number(meta.validation_gate_score_pct);
-        const scoreText = Number.isInteger(score) ? score.toFixed(0) : score.toFixed(1);
-        return `验证门通过率 ${meta.validation_gate_pass_count}/${meta.validation_gate_total_count} = ${scoreText}%`;
-      };
-      const modelCards = [
-        ["promotion", "晋级引擎", "排名1＝T日涨停概率最高", "价值：在D日2→3/3→4全池中估计T日晋级涨停概率，并唯一冻结官方Top10。"],
-        ["big_loss", "大跌安全引擎", "排名1＝大跌概率最低", "价值：只在冻结Top10内估计T至T+1净收益≤-3%的概率，排名1最安全。"],
-        ["profit", "盈利引擎", "排名1＝T+1盈利概率最高", "价值：只在冻结Top10内估计T+1净收益>0的概率，排名1盈利概率最高。"]
-      ].map(([key, label, rule, value]) => {
-        const model = models[key] || {};
-        const ready = model.status === "READY";
-        return `<div class="three-rank-model ${ready ? "ready" : "not-ready"}">
-          <strong>${escapeHtml(label)} · ${escapeHtml(threeRankModelLabel(model.status))}</strong>
-          <span>${escapeHtml(value)}</span>
-          <span>${escapeHtml(rule)}</span>
-          <span>${escapeHtml(gateSummary(model))}</span>
-          <span>100%为全部门通过；不是收益率或准确率</span>
-          <span>版本：${escapeHtml(model.version || "-")}</span>
-          <span>训练真值截至：${dateText(model.model_as_of_date)}</span>
-        </div>`;
-      }).join("") + (() => {
-        const shadow = contract.shadow_contract || {};
-        const ready = shadow.model_status === "SHADOW_READY";
-        const status = ready ? "SHADOW_READY · 影子可用" : `影子未就绪 · ${shadow.model_status || "缺少状态"}`;
-        return `<div class="three-rank-model shadow-only ${ready ? "ready" : "not-ready"}">
-          <strong>P_fill 可买性影子 · ${escapeHtml(status)}</strong>
-          <span>价值：观察T日公开市场可买性代理；仅影子，不得改变成员或三核心排名。</span>
-          <span>SHADOW_ONLY · 不进入三核心模型READY聚合</span>
-          <span>${escapeHtml(gateSummary(shadow))}</span>
-          <span>100%为全部门通过；不是收益率或准确率</span>
-          <span>版本：${escapeHtml(shadow.model_version || "-")}</span>
-          <span>训练真值截至：${dateText(shadow.model_as_of_date)}</span>
-        </div>`;
-      })();
       const downloads = contract.downloads || {};
       const expectedPrefix = `outputs/decision/three_rank_top10_${contract.signal_date}`;
       const safeJson = String(downloads.json_url || "") === `${expectedPrefix}.json` ? downloads.json_url : "";
@@ -2633,8 +2591,25 @@
       ].join("");
       const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
-      const fixedRows = contract.rows.map(row => ({ ...(truthByCode.get(String(row.ts_code)) || {}), ...row }));
-      const pFillShadowTop2 = validatedPFillShadowTop2(contract);
+      const legacyProjection = state.index === 0 &&
+        state.currentLegacyProfitRelativeResearch?.signal_date === contract.signal_date &&
+        state.currentLegacyProfitRelativeResearch?.top10_members_sha256 === contract.top10_members_sha256
+        ? state.currentLegacyProfitRelativeResearch
+        : null;
+      const legacyByCode = new Map((legacyProjection?.rows || []).map(row => [String(row.ts_code), row]));
+      const fixedRows = contract.rows.map(row => {
+        const legacy = legacyByCode.get(String(row.ts_code));
+        return {
+          ...(truthByCode.get(String(row.ts_code)) || {}),
+          ...row,
+          legacy_profit_relative_rank: legacy?.legacy_profit_relative_rank ?? null,
+          legacy_profit_raw_score: legacy?.legacy_profit_raw_score ?? null,
+          legacy_profit_relative_percentile: legacy?.legacy_profit_relative_percentile ?? null,
+          legacy_profit_rank_tied: legacy?.rank_tied === true,
+          legacy_profit_rank_group_size: legacy?.rank_group_size ?? null
+        };
+      });
+      const legacyVisible = Boolean(legacyProjection && legacyByCode.size === fixedRows.length);
       const poolSize = Number(contract.promotion_pool_size || fixedRows.length);
       els.stageCount.textContent = `晋级池 ${poolSize} 只 · 官方Top10 ${fixedRows.length} 只`;
       els.stageGeneratedTime.textContent = beijingDateTimeText(contract.generated_at_utc)
@@ -2645,7 +2620,11 @@
         const sorted = [...fixedRows].sort((left, right) => {
           const leftRank = finiteNumber(left?.[sortField]) ?? Number.POSITIVE_INFINITY;
           const rightRank = finiteNumber(right?.[sortField]) ?? Number.POSITIVE_INFINITY;
-          return leftRank - rightRank || String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
+          if (leftRank !== rightRank) return leftRank - rightRank;
+          if (sortField === "legacy_profit_relative_rank") {
+            return Number(left?.promotion_rank || Number.POSITIVE_INFINITY) - Number(right?.promotion_rank || Number.POSITIVE_INFINITY);
+          }
+          return String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
         });
         const body = sorted.map(row => `<tr>
           <td class="left">${escapeHtml(row.ts_code || "-")}</td>
@@ -2658,6 +2637,8 @@
           <td>${models.big_loss?.status === "READY" ? pct(row.predicted_big_loss_probability) : "模型未就绪"}</td>
           <td><span class="truth-badge">${models.profit?.status === "READY" ? escapeHtml(row.profit_rank) : "-"}</span></td>
           <td>${models.profit?.status === "READY" ? pct(row.predicted_profit_probability) : "模型未就绪"}</td>
+          ${legacyVisible ? `<td><span class="truth-badge">${escapeHtml(row.legacy_profit_relative_rank)}${row.legacy_profit_rank_tied ? "（并列）" : ""}</span></td>
+          <td class="legacy-profit-relative-score">${finiteNumber(row.legacy_profit_raw_score)?.toFixed(6) || "-"}<small>TopN内相对分位 ${pct(row.legacy_profit_relative_percentile, 1)}</small></td>` : ""}
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
           <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
           <td><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></td>
@@ -2670,31 +2651,28 @@
       };
 
       if (models.promotion?.status !== "READY") {
-        els.stageContent.innerHTML = `<div class="three-rank-models">${modelCards}</div>
-          <div class="empty"><strong>官方Top10未生成</strong>晋级引擎没有达到READY合同；系统不会使用常数或旧观察顺序伪造Top10。</div>`;
+        els.stageContent.innerHTML = '<div class="empty"><strong>官方Top10未生成</strong>晋级引擎没有达到READY合同；系统不会使用常数或旧观察顺序伪造Top10。模型资格与集合指纹请到“模型与资格审计”查看。</div>';
         return;
       }
-      const shadowRows = sourceRows.filter(row => Number(row?.trade_shadow_selected || 0) === 1);
-      els.stageContent.innerHTML = `<div class="three-rank-models">${modelCards}</div>
-        <div class="three-rank-proof">同一Top10集合指纹：${escapeHtml(contract.top10_members_sha256 || "-")} · B/C仅对该集合重排，不得改票。</div>
-        <div class="three-rank-toolbar">
+      const legacyBanner = legacyVisible ? `<div class="legacy-profit-relative-banner">
+        <strong>原盈利模型·相对实验排序（未放行）</strong>
+        仅比较当前同一官方TopN内的相对先后：目标为“market_fill代理=1条件下，T开盘代理至T+1开盘代理净收益&gt;0”。原始模型分不是盈利概率、不是收益保证，未融合P_fill，也不等于下方新的“可实现盈利概率排序”；不会改变名单、晋级排序或Action。
+      </div>` : "";
+      els.stageContent.innerHTML = `${legacyBanner}<div class="three-rank-toolbar">
           <div class="three-rank-sort">
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank">按晋级排序</button>
             <button class="three-rank-btn" type="button" data-three-rank-sort="big_loss_safety_rank" ${models.big_loss?.status === "READY" ? "" : "disabled"}>按大跌排序（安全优先）</button>
             <button class="three-rank-btn" type="button" data-three-rank-sort="profit_rank" ${models.profit?.status === "READY" ? "" : "disabled"}>按盈利排序</button>
+            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank">按原盈利模型实验顺序（未放行）</button>' : ""}
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
         ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
           <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
           <th>晋级排序</th><th>晋级概率</th><th>大跌排序（安全优先）</th><th>大跌概率</th><th>盈利排序</th><th>盈利概率</th>
+          ${legacyVisible ? "<th>原盈利实验名次</th><th>原模型相对分（非概率）</th>" : ""}
           <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
-        </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
-        ${pFillShadowTop2Html(plan, contract, pFillShadowTop2)}
-        <details class="three-rank-shadow"><summary>Trade Selector 二筛影子（旧策略链路，仅注释） · ${shadowRows.length}只</summary>
-          <p>${shadowRows.length ? shadowRows.map(row => `${escapeHtml(row.ts_code || "-")} · 影子交易排名 ${escapeHtml(row.trade_rank || "-")}`).join("；") : "当日无影子入选。"}</p>
-          <p>该模块读取 trade_shadow_selected / trade_rank，与 P_fill 可买性影子 Top2 不是同一排名。</p>
-        </details>`;
+        </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));
       });
@@ -2702,18 +2680,7 @@
     }
 
     function renderStageWatchlist(plan) {
-      const sidecarPlan = state.index === 0 ? state.currentThreeRank : null;
-      const sidecarContract = sidecarPlan
-        ? validatedThreeRankContract(sidecarPlan)
-        : null;
-      const planSignalDate = canonicalYmd(plan?.signal_date);
-      const sidecarSignalDate = canonicalYmd(sidecarPlan?.signal_date);
-      const displayPlan = sidecarContract && sidecarSignalDate >= INDEPENDENCE_CUTOVER_SIGNAL_DATE && (
-        plan?.historical_parity === true || !planSignalDate || sidecarSignalDate >= planSignalDate
-      ) ? sidecarPlan : plan;
-      const threeRank = displayPlan === sidecarPlan
-        ? sidecarContract
-        : validatedThreeRankContract(displayPlan);
+      const { displayPlan, contract: threeRank } = displayedThreeRank(plan);
       if (threeRank === false) {
         els.stageCount.textContent = "三排名合同错误";
         els.stageContent.innerHTML = '<div class="empty"><strong>三排名工件未通过合同校验</strong>页面已失败关闭，不会回退到旧排名或展示部分数据。</div>';
@@ -2935,6 +2902,24 @@
       );
     }
 
+    function threeRankAuditSectionHtml(plan) {
+      const { contract } = displayedThreeRank(plan);
+      if (contract === false) {
+        return `<div class="audit-block three-rank-audit-block"><h3>2→3→4 三排名模型资格</h3>
+          <div class="empty"><strong>三排名模型审计失败</strong>当前D日工件未通过合同校验；四张模型卡与集合指纹均不展示，不会回退到旧日期。</div></div>`;
+      }
+      if (!contract) {
+        return `<div class="audit-block three-rank-audit-block"><h3>2→3→4 三排名模型资格</h3>
+          <div class="empty"><strong>尚无同日三排名审计数据</strong>未取得与当前报告日期一致、通过校验的三排名合同；不会显示旧模型卡或旧集合指纹。</div></div>`;
+      }
+      const generated = beijingDateTimeText(contract.generated_at_utc);
+      return `<div class="audit-block three-rank-audit-block">
+        <h3>2→3→4 三排名模型资格 · D ${dateText(contract.signal_date)}${generated ? ` · 生成 ${escapeHtml(generated)}` : ""}</h3>
+        <div class="three-rank-models">${threeRankModelCardsHtml(contract)}</div>
+        <div class="three-rank-proof">同一TopN集合指纹：${escapeHtml(contract.top10_members_sha256 || "-")} · 晋级引擎唯一冻结成员；大跌/盈利仅可在该集合内重排，P_fill仅为影子，不得改票。</div>
+      </div>`;
+    }
+
     function renderAudit(plan) {
       const model = plan?.model || {};
       const universe = plan?.universe_eligibility || {};
@@ -2968,7 +2953,7 @@
         : ablation.sentiment_selected === true
           ? `通过，Brier ${number(ablation.streak_path_cohort_and_sentiment_brier, 4)}，逐日胜率 ${pct(ablation.sentiment_daily_win_rate)}`
           : `未通过，自动回退；Brier ${number(ablation.streak_path_cohort_and_sentiment_brier, 4)}，逐日胜率 ${pct(ablation.sentiment_daily_win_rate)}`;
-      els.auditContent.innerHTML = `
+      els.auditContent.innerHTML = `${threeRankAuditSectionHtml(plan)}
         <div class="audit-block">
           <h3>执行合同</h3>
           <div class="audit-list">
@@ -3479,7 +3464,6 @@
 
     async function initialize(force = false) {
       els.refreshBtn.disabled = true;
-      void loadThreeRankHistorySummary();
       let targetInfo = null;
       try {
         if (force) state.reports = [];
@@ -3489,6 +3473,7 @@
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
         state.currentThreeRank = await loadCurrentThreeRank();
+        await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
         await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
         state.index = 0;
         targetInfo = state.reports[0];

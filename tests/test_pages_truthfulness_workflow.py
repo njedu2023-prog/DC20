@@ -150,6 +150,48 @@ def test_pages_projects_and_publicly_verifies_full_research_context() -> None:
     assert "public historical parity evaluation {field} binding is wrong" in text
 
 
+def test_pages_quarantines_invalid_legacy_profit_research_before_copy() -> None:
+    text = _workflow()
+    validation_step = text.split(
+        "- name: Validate optional legacy-profit relative research chain", 1
+    )[1].split("- uses: actions/configure-pages@", 1)[0]
+    site_step = text.split("- name: Build isolated DC2.0 Decision site", 1)[1]
+
+    assert "validate_repository_chain(root)" in validation_step
+    assert "OUTPUT_ROOT" in validation_step
+    assert "publish = False" in validation_step
+    assert "except Exception as exc:" in validation_step
+    assert "Legacy profit research quarantined" in validation_step
+    assert "handle.write(f'publish={str(publish).lower()}\\n')" in validation_step
+
+    assert (
+        'PUBLISH_LEGACY_PROFIT_RELATIVE="${{ '
+        'steps.legacy_profit_relative.outputs.publish }}"'
+    ) in site_step
+    assert "optional_name = 'legacy_profit_relative_research'" in site_step
+    assert "if child.name == optional_name:" in site_step
+    assert "if publish_optional:" in site_step
+    assert "shutil.copytree(optional_source, destination / optional_name)" in site_step
+    assert "rm -rf" not in site_step
+
+    validation_position = text.index("validate_repository_chain(root)")
+    copy_position = text.index("source = Path('outputs/decision').resolve(strict=True)")
+    assert validation_position < copy_position
+
+
+def test_legacy_profit_research_code_changes_trigger_pages_validation() -> None:
+    text = _workflow()
+    push_header = text.split("schedule:", 1)[0]
+    assert (
+        "src/top10decision/decision/legacy_profit_relative_research.py"
+        in push_header
+    )
+    assert (
+        "scripts/project_decision_legacy_profit_relative_research.py"
+        in push_header
+    )
+
+
 def test_dashboard_never_falls_back_to_an_unrelated_latest_action() -> None:
     text = DASHBOARD.read_text(encoding="utf-8")
     assert "info.action_available === true && info.action_url" in text

@@ -576,11 +576,13 @@ jobs:
           TRADE_DATE: ${{ inputs.trade_date }}
           DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
           PYTHONPATH: ${{ github.workspace }}/src
+          DC20_PERSIST_LEGACY_PROFIT_PRIVATE_RUNTIME: "1"
         run: |
           set -euo pipefail
           research_root="${RUNNER_TEMP}/dc20-daily-research-root"
           mkdir -p "${research_root}"
-          rsync -a --delete --exclude='.git' --exclude='__pycache__' ./ "${research_root}/"
+          rsync -a --delete --exclude='.git' --exclude='__pycache__' \
+            --exclude='.dc20-private' ./ "${research_root}/"
           read -r signal_date report_date < <(python - <<'PY'
           import os
           from pathlib import Path
@@ -1038,6 +1040,244 @@ jobs:
           if not hmac.compare_digest(action_digest, os.environ['PRESERVED_ACTION_SHA256']):
               raise SystemExit('Daily executable-profit projection modified the preserved action')
           PY
+      - name: Project isolated legacy-profit relative research sidecar
+        if: ${{ steps.session.outputs.write_eligible == 'true' }}
+        env:
+          DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
+          PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
+          TRADE_DATE: ${{ inputs.trade_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          research_root="${RUNNER_TEMP}/dc20-daily-research-root"
+          read -r signal_date report_date < <(python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from top10decision.decision.run_receipt import validate_decision_run_receipt
+
+          receipt = validate_decision_run_receipt(
+              root=Path.cwd(),
+              receipt_path=Path(os.environ['DECISION_RUN_RECEIPT_PATH']),
+              requested_trade_date=os.environ.get('TRADE_DATE', ''),
+          )
+          print(receipt['signal_date'], receipt['exec_date'])
+          PY
+          )
+          private_relative=".dc20-private/legacy_profit_relative_research/runtime_features_${signal_date}.csv"
+          private_features="${research_root}/${private_relative}"
+          canonical_relative="data/decision/legacy_profit_relative/runtime_features_${signal_date}.csv"
+          canonical_features="${research_root}/${canonical_relative}"
+          test -f "${private_features}"
+          test ! -L "${private_features}"
+          test -s "${private_features}"
+          RESEARCH_ROOT="${research_root}" \
+            PRIVATE_FEATURES="${private_features}" \
+            CANONICAL_FEATURES="${canonical_features}" \
+            SIGNAL_DATE="${signal_date}" \
+            python - <<'PY'
+          import os
+          import re
+          import tempfile
+          from pathlib import Path
+
+          root = Path(os.environ['RESEARCH_ROOT']).resolve(strict=True)
+          signal_date = os.environ['SIGNAL_DATE']
+          if re.fullmatch(r'20\d{6}', signal_date) is None:
+              raise SystemExit('Legacy-profit runtime feature date is invalid')
+          source = Path(os.environ['PRIVATE_FEATURES']).resolve(strict=True)
+          expected_source = (
+              root
+              / '.dc20-private/legacy_profit_relative_research'
+              / f'runtime_features_{signal_date}.csv'
+          )
+          target = Path(os.environ['CANONICAL_FEATURES'])
+          expected_target = (
+              root
+              / 'data/decision/legacy_profit_relative'
+              / f'runtime_features_{signal_date}.csv'
+          )
+          if (
+              source != expected_source
+              or expected_source.is_symlink()
+              or target != expected_target
+              or target.is_symlink()
+          ):
+              raise SystemExit('Legacy-profit private/canonical feature path drifted')
+          payload = source.read_bytes()
+          if not payload:
+              raise SystemExit('Legacy-profit private feature input is empty')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          if target.exists():
+              if not target.is_file() or target.is_symlink() or target.read_bytes() != payload:
+                  raise SystemExit('Legacy-profit immutable runtime evidence conflict')
+          else:
+              with tempfile.NamedTemporaryFile(
+                  'wb', dir=target.parent, prefix=f'.{target.name}.', delete=False
+              ) as handle:
+                  temporary = Path(handle.name)
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              try:
+                  os.link(temporary, target)
+              except FileExistsError:
+                  if target.read_bytes() != payload:
+                      raise SystemExit('Legacy-profit runtime evidence raced')
+              finally:
+                  temporary.unlink(missing_ok=True)
+          PY
+          PYTHONPATH="${research_root}/src:${research_root}" \
+            python "${research_root}/scripts/project_decision_legacy_profit_relative_research.py" \
+              --root "${research_root}" \
+              --signal-date "${signal_date}" \
+              --runtime-features-csv "${canonical_features}"
+          SOURCE_ROOT="${research_root}" \
+            TARGET_ROOT="${GITHUB_WORKSPACE}" \
+            SIGNAL_DATE="${signal_date}" \
+            PRESERVED_ACTION_SHA256="${PRESERVED_ACTION_SHA256}" \
+            PYTHONPATH="${research_root}/src:${research_root}" \
+            python - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from top10decision.decision.legacy_profit_relative_research import (
+              OUTPUT_ROOT,
+              validate_repository_chain,
+          )
+
+          source_root = Path(os.environ['SOURCE_ROOT']).resolve(strict=True)
+          target_root = Path(os.environ['TARGET_ROOT']).resolve(strict=True)
+          signal_date = os.environ['SIGNAL_DATE']
+          if source_root == target_root:
+              raise SystemExit('Legacy-profit research source must be isolated')
+          evidence = validate_repository_chain(source_root)
+          if (
+              evidence.get('signal_date') != signal_date
+              or evidence.get('deterministic_rebuild_match') is not True
+              or evidence.get('public_static_chain_match') is not True
+          ):
+              raise SystemExit('Legacy-profit deterministic source validation failed')
+
+          projection_json = OUTPUT_ROOT / f'projection_{signal_date}.json'
+          projection_csv = OUTPUT_ROOT / f'projection_{signal_date}.csv'
+          public_index = OUTPUT_ROOT / 'index.json'
+          runtime_evidence = Path(
+              f'data/decision/legacy_profit_relative/runtime_features_{signal_date}.csv'
+          )
+          immutable_relatives = (
+              runtime_evidence,
+              projection_json,
+              projection_csv,
+          )
+          mutable_relatives = (public_index,)
+          exact_relatives = immutable_relatives + mutable_relatives
+
+          def safe_source(relative: Path) -> Path:
+              if relative.is_absolute() or '..' in relative.parts:
+                  raise SystemExit(f'Legacy-profit source path is unsafe: {relative}')
+              current = source_root
+              for part in relative.parts:
+                  current = current / part
+                  if current.is_symlink():
+                      raise SystemExit(
+                          f'Legacy-profit source has a symlink ancestor: {relative}'
+                      )
+              if not current.is_file() or current.resolve(strict=True) != current:
+                  raise SystemExit(f'Legacy-profit source is missing/escaped: {relative}')
+              return current
+
+          def target_path(relative: Path) -> Path:
+              current = target_root
+              for part in relative.parent.parts:
+                  current = current / part
+                  if current.exists():
+                      if not current.is_dir() or current.is_symlink():
+                          raise SystemExit(
+                              f'Legacy-profit target ancestor is unsafe: {relative}'
+                          )
+                  else:
+                      current.mkdir()
+              path = target_root / relative
+              if path.exists() and (not path.is_file() or path.is_symlink()):
+                  raise SystemExit(f'Legacy-profit target is unsafe: {relative}')
+              return path
+
+          def install_immutable(relative: Path) -> None:
+              payload = safe_source(relative).read_bytes()
+              target = target_path(relative)
+              if target.exists():
+                  if target.read_bytes() != payload:
+                      raise SystemExit(
+                          f'Legacy-profit immutable conflict: {relative}'
+                      )
+                  return
+              with tempfile.NamedTemporaryFile(
+                  'wb', dir=target.parent, prefix=f'.{target.name}.', delete=False
+              ) as handle:
+                  temporary = Path(handle.name)
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              try:
+                  os.link(temporary, target)
+              except FileExistsError:
+                  if target.read_bytes() != payload:
+                      raise SystemExit(
+                          f'Legacy-profit immutable copy raced: {relative}'
+                      )
+              finally:
+                  temporary.unlink(missing_ok=True)
+
+          def replace_pointer(relative: Path) -> None:
+              payload = safe_source(relative).read_bytes()
+              target = target_path(relative)
+              with tempfile.NamedTemporaryFile(
+                  'wb', dir=target.parent, prefix=f'.{target.name}.', delete=False
+              ) as handle:
+                  temporary = Path(handle.name)
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              try:
+                  os.replace(temporary, target)
+              finally:
+                  temporary.unlink(missing_ok=True)
+
+          for relative in immutable_relatives:
+              install_immutable(relative)
+          for relative in mutable_relatives:
+              replace_pointer(relative)
+
+          public_evidence = validate_repository_chain(target_root)
+          if (
+              public_evidence.get('signal_date') != signal_date
+              or public_evidence.get('public_static_chain_match') is not True
+              or public_evidence.get('deterministic_rebuild_match') is not True
+          ):
+              raise SystemExit('Copied legacy-profit public chain is invalid')
+          private_target = target_root / '.dc20-private'
+          if private_target.exists():
+              raise SystemExit('Private legacy-profit runtime pool escaped isolation')
+          action = target_root / 'outputs/decision/action_plan_latest.json'
+          action_digest = hashlib.sha256(action.read_bytes()).hexdigest() if action.is_file() else ''
+          if not hmac.compare_digest(
+              action_digest,
+              os.environ['PRESERVED_ACTION_SHA256'],
+          ):
+              raise SystemExit('Legacy-profit sidecar modified preserved Action')
+          print(json.dumps({
+              'status': 'LEGACY_PROFIT_RELATIVE_SIDECAR_COPIED',
+              'signal_date': signal_date,
+              'copied_paths': [value.as_posix() for value in exact_relatives],
+              'private_runtime_copied': False,
+              'actual_execution_claimed': False,
+          }, ensure_ascii=False, sort_keys=True))
+          PY
       - name: Build exact allowlisted Daily candidate patch
         id: candidate
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -1056,7 +1296,7 @@ jobs:
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
@@ -1188,7 +1428,7 @@ jobs:
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
           import fnmatch, os
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
           forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):

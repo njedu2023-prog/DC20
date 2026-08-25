@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -104,6 +105,12 @@ MODEL_EXECUTABLE_POLICY_THRESHOLDS = (
     "min_exit_probability",
     "min_conservative_ev",
     "min_selection_score",
+)
+LEGACY_PROFIT_PRIVATE_RUNTIME_ENV = (
+    "DC20_PERSIST_LEGACY_PROFIT_PRIVATE_RUNTIME"
+)
+LEGACY_PROFIT_PRIVATE_RUNTIME_ROOT = Path(
+    ".dc20-private/legacy_profit_relative_research"
 )
 
 # These are the only columns the independent three-engine runtime is allowed
@@ -6832,6 +6839,76 @@ class AuctionV3Engine:
             )
             return fail_closed(reason)
 
+    def _persist_private_legacy_profit_runtime_features(
+        self,
+        signal_date: str,
+        frame: pd.DataFrame,
+    ) -> Path:
+        """Persist the complete pre-overlay pool only inside an isolated root.
+
+        The fixed dot-directory is intentionally outside every Daily publish
+        allowlist. Callers cannot choose an arbitrary destination, and the
+        workflow copies only the derived public sidecar after validating a
+        deterministic sealed-model rebuild.
+        """
+
+        date = _normal_date(signal_date)
+        if not date:
+            raise RuntimeError("private legacy-profit runtime date is invalid")
+        root = self.config.root.resolve()
+        private_root = root / LEGACY_PROFIT_PRIVATE_RUNTIME_ROOT
+        current = root
+        for part in LEGACY_PROFIT_PRIVATE_RUNTIME_ROOT.parts:
+            current = current / part
+            if current.exists():
+                if not current.is_dir() or current.is_symlink():
+                    raise RuntimeError(
+                        "private legacy-profit runtime root is unsafe"
+                    )
+            else:
+                current.mkdir()
+        if current.resolve() != private_root.resolve():
+            raise RuntimeError(
+                "private legacy-profit runtime root escaped repository"
+            )
+        output = frame.copy()
+        if "signal_date" not in output.columns:
+            output["signal_date"] = pd.Series(
+                date,
+                index=output.index,
+                dtype="object",
+            )
+        if "ts_code" not in output.columns and output.empty:
+            # ``_current_base`` naturally has no columns when D contains no
+            # hard-range candidates.  Preserve that legitimate N=0 result as
+            # a header-only evidence CSV; a non-empty official three-rank
+            # pool is still rejected later by the exact-member projector.
+            output["ts_code"] = pd.Series(index=output.index, dtype="object")
+        row_dates = output["signal_date"].map(_normal_date)
+        codes = output.get("ts_code", pd.Series("", index=output.index)).map(
+            lambda value: str(value or "").strip().upper()
+        )
+        if (
+            not row_dates.eq(date).all()
+            or codes.eq("").any()
+            or codes.duplicated().any()
+        ):
+            raise RuntimeError(
+                "private legacy-profit runtime pool identity is invalid"
+            )
+        output["signal_date"] = date
+        output["ts_code"] = codes
+        output = output.sort_values("ts_code", kind="stable").reset_index(
+            drop=True
+        )
+        path = private_root / f"runtime_features_{date}.csv"
+        if path.exists() and (not path.is_file() or path.is_symlink()):
+            raise RuntimeError(
+                "private legacy-profit runtime feature path is unsafe"
+            )
+        _write_csv(output, path)
+        return path
+
     def build_prediction(
         self,
         signal_date: str,
@@ -6847,6 +6924,27 @@ class AuctionV3Engine:
             signal_date,
             candidates,
         )
+        private_runtime_base: pd.DataFrame | None = None
+        private_runtime_mode = os.environ.get(
+            LEGACY_PROFIT_PRIVATE_RUNTIME_ENV
+        )
+        if private_runtime_mode is not None:
+            if private_runtime_mode != "1":
+                raise RuntimeError(
+                    f"{LEGACY_PROFIT_PRIVATE_RUNTIME_ENV} must be exactly 1"
+                )
+            # Build this before every immutable-prediction early return. Daily
+            # may legitimately reuse a frozen pred_D, but the isolated
+            # research root must still reconstruct the exact pre-overlay D
+            # feature pool used by the sealed legacy-profit research scorer.
+            private_runtime_base = self._current_base(
+                signal_date,
+                candidates,
+            )
+            self._persist_private_legacy_profit_runtime_features(
+                signal_date,
+                private_runtime_base,
+            )
         # ``force`` may refresh a still-open D/T snapshot, but it is never an
         # authorization to rewrite a dated prediction after its 09:25
         # deadline.  Historical files are evidence, not mutable cache.
@@ -6923,7 +7021,11 @@ class AuctionV3Engine:
                 )
                 if not archive_path.exists():
                     _write_csv(frozen, archive_path)
-        base = self._current_base(signal_date, candidates)
+        base = (
+            private_runtime_base
+            if private_runtime_base is not None
+            else self._current_base(signal_date, candidates)
+        )
         scored = self.score_candidates(base, bundle)
         promoted = backtest_metrics.get("promoted") is True
         scored["prediction_id"] = [f"{signal_date}-{code}-{self.config.model_version}" for code in scored["ts_code"]]

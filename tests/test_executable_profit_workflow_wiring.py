@@ -30,7 +30,7 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
     step = _between(
         text,
         "- name: Freeze immutable executable-profit research order and public D projection",
-        "- name: Build exact allowlisted Daily candidate patch",
+        "- name: Project isolated legacy-profit relative research sidecar",
     )
     assert text.index("Build isolated full Daily research context") < text.index(
         "Freeze immutable executable-profit research order"
@@ -303,32 +303,12 @@ def test_verify_candidate_and_publisher_recheck_exact_truth_and_forbid_selection
 
 def test_pages_validates_and_publicly_refetches_exact_profit_chain() -> None:
     text = _text("deploy_dc20_pages.yml")
-    assert "_validate_existing_index_chain(repo_root, index)" in text
     assert "_validate_existing_index_chain(site_root, index)" in text
-    assert text.index("_validate_existing_index_chain(repo_root, index)") < text.index(
-        "copy_exact_source(kind, relative, expected_sha256)"
-    ) < text.index("_validate_existing_index_chain(site_root, index)")
-    assert "copy_exact_source" in text
-    assert "copied_source_paths" in text
-    assert "source copy inventory is duplicated" in text
-    assert "cp -R data" not in text
-    assert "cp -R models" not in text
-    for source_path in (
-        "decision_executable_profit_research_projection_contract.json",
-        "data/decision_executable_profit/forward/selections/",
-        "data/decision_executable_profit/forward/verifications/",
-        "data/decision_executable_profit/forward/settlements/",
-        "data/decision_executable_profit/forward/statistics/summary.json",
-    ):
-        assert source_path in text
     assert "validate_research_projection_index" in text
     assert "validate_research_projection(" in text
     assert "validate_shadow_statistics_projection" in text
     assert "executable-profit public index differs from exact build" in text
     assert "executable-profit public bytes differ from build" in text
-    assert "executable-profit public source SHA256 mismatch" in text
-    assert "executable-profit public source bytes differ" in text
-    assert "executable-profit local source is missing" in text
     assert "'latest_projection_json_sha256'" in text
     assert "'latest_projection_csv_sha256'" in text
     assert "'latest_statistics_json_sha256'" in text

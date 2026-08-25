@@ -24,6 +24,7 @@ dist/
 *.egg-info/
 
 # Local secrets and runtime-only configuration
+.dc20-private/
 .env
 .env.*
 !.env.example
