@@ -11,7 +11,7 @@ on:
         default: true
         type: boolean
       trade_date:
-        description: "手动指定交易日 YYYYMMDD（留空=自动使用最新快照）"
+        description: "手动指定交易日 YYYYMMDD（留空=由当前交易所会话严格解析）"
         required: false
         type: string
 
@@ -430,10 +430,23 @@ jobs:
           session_evidence="${RUNNER_TEMP}/daily-session-sync.json"
           python scripts/sync_tushare_minute.py "${args[@]}" > "${session_evidence}"
           SESSION_EVIDENCE="${session_evidence}" python - <<'PY'
-          import json, os
+          import json, os, re
+          from datetime import datetime
           from pathlib import Path
           payload = json.loads(Path(os.environ['SESSION_EVIDENCE']).read_text(encoding='utf-8'))
           if not isinstance(payload, dict): raise SystemExit('Daily session evidence must be one JSON object')
+          trade_date = payload.get('trade_date')
+          if type(trade_date) is not str or re.fullmatch(r'\d{8}', trade_date) is None:
+              raise SystemExit('Daily session evidence trade_date must be exactly 8 digits')
+          try:
+              parsed_trade_date = datetime.strptime(trade_date, '%Y%m%d').strftime('%Y%m%d')
+          except ValueError as exc:
+              raise SystemExit('Daily session evidence trade_date is not a valid calendar date') from exc
+          if parsed_trade_date != trade_date:
+              raise SystemExit('Daily session evidence trade_date is not canonical YYYYMMDD')
+          requested_trade_date = os.environ.get('TRADE_DATE', '')
+          if requested_trade_date and requested_trade_date != trade_date:
+              raise SystemExit('Daily session evidence trade_date differs from requested trade_date')
           status, reason, active = payload.get('status'), payload.get('reason'), payload.get('active_window')
           if type(active) is not bool: raise SystemExit('Daily active_window must be a JSON boolean')
           no_write_reasons = {'exchange_closed', 'outside_active_minute_window'}
@@ -445,6 +458,7 @@ jobs:
               raise SystemExit(f'unexpected Daily session evidence: status={status!r} reason={reason!r}')
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
               output.write(f"write_eligible={'true' if eligible else 'false'}\n")
+              output.write(f"target_trade_date={trade_date}\n")
           PY
       - name: Resolve immutable upstream commits before any source write
         id: upstream
@@ -479,7 +493,7 @@ jobs:
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           MARKET_RAW_OWNER: njedu2023-prog
           MARKET_RAW_REPO: a-share-top3-data
@@ -491,23 +505,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p data/pred/archive data/market/raw data/decision docs/signals docs/reports docs/weights outputs/decision outputs/learning models
-          if [ -n "${TRADE_DATE}" ]; then
-            url="https://raw.githubusercontent.com/njedu2023-prog/a-top10/${A_TOP10_COMMIT}/outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
-            TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${url}" python scripts/sync_pred_source.py
-            python scripts/sync_market_raw.py --trade-date "${TRADE_DATE}"
-          else
-            TOP10_PRED_URL="https://raw.githubusercontent.com/njedu2023-prog/a-top10/${A_TOP10_COMMIT}/outputs/decisio/pred_decisio_latest.csv" python scripts/sync_pred_source.py
-            python scripts/sync_market_raw.py
-          fi
+          [[ "${TRADE_DATE}" =~ ^[0-9]{8}$ ]]
+          url="https://raw.githubusercontent.com/njedu2023-prog/a-top10/${A_TOP10_COMMIT}/outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+          TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${url}" python scripts/sync_pred_source.py
+          python scripts/sync_market_raw.py \
+            --trade-date "${TRADE_DATE}" \
+            --ensure-sse-open-context 21 \
+            --strict-dated-source \
+            --trade-calendar-file data/market/trade_cal_sse.csv
       - name: Build market features and strict exchange calendar
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -n "${TRADE_DATE}" ]; then python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"; else python scripts/build_market_fs.py; fi
+          [[ "${TRADE_DATE}" =~ ^[0-9]{8}$ ]]
+          python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"
       - name: Pin the last Auction-validated action plan
         id: preserved_action
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -546,13 +561,14 @@ jobs:
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
           DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
         run: |
           set -euo pipefail
-          if [ -n "${TRADE_DATE}" ]; then python scripts/run_v2.py --trade-date "${TRADE_DATE}"; else python scripts/run_v2.py; fi
+          [[ "${TRADE_DATE}" =~ ^[0-9]{8}$ ]]
+          python scripts/run_v2.py --trade-date "${TRADE_DATE}"
           python - <<'PY'
           import hashlib, hmac, os
           from pathlib import Path
@@ -573,7 +589,7 @@ jobs:
         env:
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
           PYTHONPATH: ${{ github.workspace }}/src
           DC20_PERSIST_LEGACY_PROFIT_PRIVATE_RUNTIME: "1"
@@ -644,7 +660,7 @@ jobs:
         env:
           DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
           PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail
@@ -1045,7 +1061,7 @@ jobs:
         env:
           DECISION_RUN_RECEIPT_PATH: ${{ runner.temp }}/decision-run-receipt.json
           PRESERVED_ACTION_SHA256: ${{ steps.preserved_action.outputs.sha256 }}
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail

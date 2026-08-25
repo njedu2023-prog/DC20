@@ -2119,6 +2119,11 @@ class ThreeEngineRuntimeMixin:
                 signal_date,
                 candidates,
             )
+            if inference_pool.empty:
+                raise RuntimeError(
+                    "three-engine hard-range inference pool is empty "
+                    f"for signal_date={signal_date}"
+                )
             official_codes = set(inference_pool["ts_code"].astype(str))
             scored = scored.loc[
                 scored["ts_code"].astype(str).isin(official_codes)

@@ -160,6 +160,80 @@ def _assert_verify_market_pin(text: str) -> None:
     assert "MARKET_RAW_COMMIT: ${{ steps.upstream.outputs.market_sha }}" in compute
 
 
+def test_daily_uses_one_session_bound_target_for_exact_sources_and_all_computation() -> None:
+    daily = _text("run_decision_daily.yml")
+    compute = daily[daily.index("  compute:") : daily.index("\n  publish:")]
+    ordered_steps = (
+        "Resolve Daily exchange write eligibility",
+        "Resolve immutable upstream commits before any source write",
+        "Sync prediction and market source snapshots",
+        "Build market features and strict exchange calendar",
+        "Pin the last Auction-validated action plan",
+        "Run Daily Decision once with learning and refresh disabled",
+        "Build isolated full Daily research context without creating action",
+        "Freeze immutable executable-profit research order and public D projection",
+        "Project isolated legacy-profit relative research sidecar",
+    )
+    positions = [compute.index(name) for name in ordered_steps]
+    assert positions == sorted(positions)
+
+    session_step = compute.split(
+        "- name: Resolve Daily exchange write eligibility", 1
+    )[1].split("- name: Resolve immutable upstream commits before any source write", 1)[0]
+    after_session = compute.split(
+        "- name: Resolve immutable upstream commits before any source write", 1
+    )[1]
+    assert "re.fullmatch(r'\\d{8}', trade_date)" in session_step
+    assert "datetime.strptime(trade_date, '%Y%m%d')" in session_step
+    assert "target_trade_date={trade_date}" in session_step
+    assert "TRADE_DATE: ${{ inputs.trade_date }}" not in after_session
+    assert after_session.count(
+        "TRADE_DATE: ${{ steps.session.outputs.target_trade_date }}"
+    ) == 6
+
+    sync_step = compute.split("- name: Sync prediction and market source snapshots", 1)[1].split(
+        "- name: Build market features and strict exchange calendar", 1
+    )[0]
+    exact_prediction = (
+        "https://raw.githubusercontent.com/njedu2023-prog/a-top10/"
+        "${A_TOP10_COMMIT}/outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+    )
+    assert exact_prediction in sync_step
+    assert "TOP10_PRED_RESOLVED_COMMIT: ${{ steps.upstream.outputs.pred_sha }}" in sync_step
+    assert "pred_decisio_latest.csv" not in sync_step
+    assert 'if [ -n "${TRADE_DATE}" ]' not in sync_step
+    market_command = sync_step.index("python scripts/sync_market_raw.py")
+    market_arguments = tuple(
+        sync_step.index(argument, market_command)
+        for argument in (
+            '--trade-date "${TRADE_DATE}"',
+            "--ensure-sse-open-context 21",
+            "--strict-dated-source",
+            "--trade-calendar-file data/market/trade_cal_sse.csv",
+        )
+    )
+    assert market_arguments == tuple(sorted(market_arguments))
+    for forbidden in (
+        "build_market_fs.py",
+        "run_v2.py",
+        "publish_decision_action.py",
+        "action_plan_",
+    ):
+        assert forbidden not in sync_step
+
+    build_step = compute.split(
+        "- name: Build market features and strict exchange calendar", 1
+    )[1].split("- name: Pin the last Auction-validated action plan", 1)[0]
+    run_step = compute.split(
+        "- name: Run Daily Decision once with learning and refresh disabled", 1
+    )[1].split("- name: Build isolated full Daily research context without creating action", 1)[0]
+    assert 'python scripts/build_market_fs.py --trade-date "${TRADE_DATE}"' in build_step
+    assert 'python scripts/build_market_fs.py;' not in build_step
+    assert 'python scripts/run_v2.py --trade-date "${TRADE_DATE}"' in run_step
+    assert 'python scripts/run_v2.py;' not in run_step
+    assert 'if [ -n "${TRADE_DATE}" ]' not in after_session
+
+
 def test_every_writer_defaults_manual_dispatch_to_read_only_dry_run() -> None:
     for name in WRITERS:
         text = _text(name)
@@ -2150,6 +2224,79 @@ def test_auction_current_run_sync_evidence_fails_open_session_without_valid_rows
         exec(compile(source, "<auction-open-empty-sync-evidence>", "exec"), {})
 
 
+def test_daily_session_evidence_emits_one_strict_target_trade_date(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence = tmp_path / "daily-session-sync.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "reason": "calendar_synced",
+                "active_window": False,
+                "trade_date": "20260825",
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("SESSION_EVIDENCE", str(evidence))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("TRADE_DATE", "20260825")
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(compute, 'SESSION_EVIDENCE="${session_evidence}"')
+    exec(compile(source, "<daily-session-target>", "exec"), {})
+    assert output.read_text(encoding="utf-8") == (
+        "write_eligible=true\ntarget_trade_date=20260825\n"
+    )
+
+
+@pytest.mark.parametrize("trade_date", (None, "2026-08-25", "20260230"))
+def test_daily_session_evidence_rejects_missing_malformed_or_invalid_target_date(
+    trade_date: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload: dict[str, object] = {
+        "status": "success",
+        "reason": "calendar_synced",
+        "active_window": False,
+    }
+    if trade_date is not None:
+        payload["trade_date"] = trade_date
+    evidence = tmp_path / "daily-session-sync.json"
+    evidence.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("SESSION_EVIDENCE", str(evidence))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+    monkeypatch.setenv("TRADE_DATE", "")
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(compute, 'SESSION_EVIDENCE="${session_evidence}"')
+    with pytest.raises(SystemExit, match="trade_date"):
+        exec(compile(source, "<daily-invalid-session-target>", "exec"), {})
+
+
+def test_daily_session_evidence_rejects_requested_date_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence = tmp_path / "daily-session-sync.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "reason": "calendar_synced",
+                "active_window": False,
+                "trade_date": "20260825",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SESSION_EVIDENCE", str(evidence))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+    monkeypatch.setenv("TRADE_DATE", "20260826")
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(compute, 'SESSION_EVIDENCE="${session_evidence}"')
+    with pytest.raises(SystemExit, match="differs from requested"):
+        exec(compile(source, "<daily-mismatched-session-target>", "exec"), {})
+
+
 @pytest.mark.parametrize("reason", ("exchange_closed", "outside_active_minute_window"))
 def test_daily_and_auction_no_write_sessions_make_publish_unreachable(
     reason: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2171,6 +2318,7 @@ def test_daily_and_auction_no_write_sessions_make_publish_unreachable(
         "status": "not_applicable",
         "reason": reason,
         "active_window": False,
+        "trade_date": "20260825",
         "candidate_codes": 0,
         "minute_files_written": 0,
     }
@@ -2183,9 +2331,14 @@ def test_daily_and_auction_no_write_sessions_make_publish_unreachable(
         output = tmp_path / f"{name}-{reason}.out"
         monkeypatch.setenv(env_name, str(evidence))
         monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        if name == "run_decision_daily.yml":
+            monkeypatch.setenv("TRADE_DATE", "")
         source = _embedded_python_after(_text(name).split("\n  publish:", 1)[0], marker)
         exec(compile(source, f"<{name}-{reason}>", "exec"), {})
-        assert output.read_text(encoding="utf-8") == "write_eligible=false\n"
+        expected = "write_eligible=false\n"
+        if name == "run_decision_daily.yml":
+            expected += "target_trade_date=20260825\n"
+        assert output.read_text(encoding="utf-8") == expected
 
 
 def test_verify_resolves_immutable_market_commit_and_missing_token_fails_before_sync(

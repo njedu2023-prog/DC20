@@ -28,6 +28,575 @@ SPEC.loader.exec_module(sync_market_raw)
 
 class SyncMarketRawTest(unittest.TestCase):
     COMMIT = "b" * 40
+    CONTEXT_DATES = (
+        "20260728",
+        "20260729",
+        "20260730",
+        "20260731",
+        "20260803",
+        "20260804",
+        "20260805",
+        "20260806",
+        "20260807",
+        "20260810",
+        "20260811",
+        "20260812",
+        "20260813",
+        "20260814",
+        "20260817",
+        "20260818",
+        "20260819",
+        "20260820",
+        "20260821",
+        "20260824",
+        "20260825",
+    )
+
+    @classmethod
+    def _calendar_rows(cls) -> list[dict[str, str]]:
+        previous = "20260727"
+        rows: list[dict[str, str]] = []
+        for trade_date in cls.CONTEXT_DATES:
+            rows.append(
+                {
+                    "exchange": "SSE",
+                    "cal_date": trade_date,
+                    "is_open": "1",
+                    "pretrade_date": previous,
+                }
+            )
+            previous = trade_date
+        return rows
+
+    @staticmethod
+    def _write_calendar(path: Path, rows: list[dict[str, str]]) -> None:
+        lines = ["exchange,cal_date,is_open,pretrade_date"]
+        lines.extend(
+            ",".join(
+                (
+                    row["exchange"],
+                    row["cal_date"],
+                    row["is_open"],
+                    row["pretrade_date"],
+                )
+            )
+            for row in rows
+        )
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _install_strict_generation(
+        *,
+        trade_date: str,
+        commit: str,
+        specs: list[object],
+        require_latest: bool,
+    ) -> dict[str, object]:
+        owner = "njedu2023-prog"
+        repo = "a-share-top3-data"
+        exact_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{commit}"
+        files: list[dict[str, object]] = []
+        for spec in specs:
+            if spec.date_scoped:
+                payload = (
+                    "trade_date,ts_code,close\n"
+                    f"{trade_date},600000.SH,10.0\n"
+                ).encode("utf-8")
+                source_trade_date: str | None = trade_date
+            else:
+                payload = b"ts_code,name\n600000.SH,PF\n"
+                source_trade_date = None
+            dated_path = sync_market_raw._build_dated_path(
+                spec.upstream_name,
+                trade_date,
+            )
+            dated_path.parent.mkdir(parents=True, exist_ok=True)
+            dated_path.write_bytes(payload)
+            latest_path = sync_market_raw._build_latest_path(spec.upstream_name)
+            if require_latest:
+                latest_path.parent.mkdir(parents=True, exist_ok=True)
+                latest_path.write_bytes(payload)
+            files.append(
+                {
+                    "name": spec.local_stem,
+                    "upstream_name": spec.upstream_name,
+                    "required": spec.required,
+                    "date_scoped": spec.date_scoped,
+                    "success": True,
+                    "source_url": (
+                        f"{exact_base}/data/raw/{trade_date[:4]}/{trade_date}/"
+                        f"{spec.upstream_name}"
+                    ),
+                    "source_trade_date": source_trade_date,
+                    "status_code": 200,
+                    "error": "",
+                    "dated_path": str(dated_path),
+                    "latest_path": str(latest_path) if require_latest else "",
+                    "bytes": len(payload),
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                }
+            )
+        meta: dict[str, object] = {
+            "trade_date": trade_date,
+            "requested_trade_date": trade_date,
+            "resolved_trade_date": trade_date,
+            "strict_dated_source": True,
+            "dated_only": not require_latest,
+            "source_repo": {
+                "owner": owner,
+                "repo": repo,
+                "branch": "main",
+                "resolved_commit": commit,
+            },
+            "upstream_meta_url": (
+                f"{exact_base}/data/raw/{trade_date[:4]}/{trade_date}/_meta.json"
+            ),
+            "files": files,
+            "required_failures": [],
+            "write_failures": [],
+        }
+        meta_bytes = (
+            json.dumps(meta, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+        dated_meta = sync_market_raw._build_meta_dated_path(trade_date)
+        dated_meta.write_bytes(meta_bytes)
+        if require_latest:
+            latest_meta = sync_market_raw._build_meta_latest_path()
+            latest_meta.parent.mkdir(parents=True, exist_ok=True)
+            latest_meta.write_bytes(meta_bytes)
+        return meta
+
+    def test_strict_dated_url_is_unique_and_exact_commit_bound(self) -> None:
+        urls = sync_market_raw._build_candidate_urls(
+            "njedu2023-prog",
+            "a-share-top3-data",
+            self.COMMIT,
+            "daily.csv",
+            "20260825",
+            strict_dated=True,
+        )
+        self.assertEqual(
+            urls,
+            [
+                "https://raw.githubusercontent.com/njedu2023-prog/"
+                f"a-share-top3-data/{self.COMMIT}/data/raw/2026/20260825/"
+                "daily.csv"
+            ],
+        )
+        self.assertNotIn("latest", urls[0])
+        with self.assertRaisesRegex(RuntimeError, "requires trade_date"):
+            sync_market_raw._build_candidate_urls(
+                "njedu2023-prog",
+                "a-share-top3-data",
+                self.COMMIT,
+                "daily.csv",
+                None,
+                strict_dated=True,
+            )
+
+    def test_strict_dated_download_rejects_mixed_date_rows(self) -> None:
+        mixed = (
+            "trade_date,ts_code,close\n"
+            "20260825,600000.SH,10.0\n"
+            "20260824,600001.SH,11.0\n"
+        )
+        with mock.patch.object(
+            sync_market_raw,
+            "_http_get_text",
+            return_value=(True, mixed, 200),
+        ):
+            url, text, code, source_date, error = (
+                sync_market_raw._fetch_first_matching_trade_date(
+                    ["https://example.test/exact/daily.csv"],
+                    expected_trade_date="20260825",
+                    date_scoped=True,
+                    require_all_rows_match=True,
+                )
+            )
+        self.assertIsNone(url)
+        self.assertIsNone(text)
+        self.assertEqual(code, 200)
+        self.assertIsNone(source_date)
+        self.assertTrue(error.startswith("trade_date_mismatch:"), error)
+        self.assertFalse(
+            sync_market_raw._all_csv_rows_match_trade_date(mixed, "20260825")
+        )
+
+    def test_strict_sse_calendar_returns_exact_21_open_session_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            calendar = Path(temp) / "trade_cal_sse.csv"
+            self._write_calendar(calendar, self._calendar_rows())
+            self.assertEqual(
+                sync_market_raw._strict_sse_context_window(
+                    calendar,
+                    "20260825",
+                    21,
+                ),
+                list(self.CONTEXT_DATES),
+            )
+
+    def test_strict_sse_calendar_corruption_fails_closed(self) -> None:
+        cases: list[tuple[str, list[dict[str, str]], str]] = []
+
+        duplicate = self._calendar_rows()
+        duplicate.insert(5, dict(duplicate[4]))
+        cases.append(("duplicate", duplicate, "row is invalid"))
+
+        closed_d = self._calendar_rows()
+        closed_d[-1]["is_open"] = "0"
+        cases.append(("closed_d", closed_d, "not an open SSE session"))
+
+        broken_open_chain = self._calendar_rows()
+        broken_open_chain[-1]["pretrade_date"] = "20260820"
+        cases.append(("broken_open_chain", broken_open_chain, "pretrade chain"))
+
+        broken_closed_chain = self._calendar_rows()
+        broken_closed_chain.insert(
+            4,
+            {
+                "exchange": "SSE",
+                "cal_date": "20260801",
+                "is_open": "0",
+                "pretrade_date": "20260730",
+            },
+        )
+        cases.append(("broken_closed_chain", broken_closed_chain, "pretrade chain"))
+
+        with tempfile.TemporaryDirectory() as temp:
+            for name, rows, message in cases:
+                with self.subTest(name=name):
+                    calendar = Path(temp) / f"{name}.csv"
+                    self._write_calendar(calendar, rows)
+                    with self.assertRaisesRegex(RuntimeError, message):
+                        sync_market_raw._strict_sse_context_window(
+                            calendar,
+                            "20260825",
+                            21,
+                        )
+
+    def test_context_orchestration_spawns_21_exact_dated_generations(self) -> None:
+        generated: set[str] = set()
+        validation_calls: list[tuple[str, str, bool]] = []
+        commands: list[list[str]] = []
+
+        def valid(
+            trade_date: str,
+            resolved_commit: str,
+            *,
+            require_latest: bool,
+        ) -> bool:
+            validation_calls.append(
+                (trade_date, resolved_commit, require_latest)
+            )
+            self.assertEqual(resolved_commit, self.COMMIT)
+            self.assertEqual(require_latest, trade_date == "20260825")
+            return trade_date in generated
+
+        def run(command: list[str], *, check: bool) -> mock.Mock:
+            self.assertFalse(check)
+            commands.append(list(command))
+            date_index = command.index("--trade-date") + 1
+            generated.add(command[date_index])
+            return mock.Mock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as temp:
+            calendar = Path(temp) / "trade_cal_sse.csv"
+            self._write_calendar(calendar, self._calendar_rows())
+            with mock.patch.object(
+                sync_market_raw,
+                "_strict_generation_valid",
+                side_effect=valid,
+            ), mock.patch.object(
+                sync_market_raw.subprocess,
+                "run",
+                side_effect=run,
+            ):
+                self.assertEqual(
+                    sync_market_raw._sync_strict_sse_context(
+                        trade_date="20260825",
+                        resolved_commit=self.COMMIT,
+                        calendar_path=calendar,
+                        open_sessions=21,
+                    ),
+                    0,
+                )
+
+        self.assertEqual(len(commands), 21)
+        self.assertEqual(generated, set(self.CONTEXT_DATES))
+        self.assertEqual(len(validation_calls), 42)
+        for index, command in enumerate(commands):
+            self.assertEqual(command[0], sys.executable)
+            self.assertIn("--strict-dated-source", command)
+            self.assertEqual(
+                command[command.index("--trade-date") + 1],
+                self.CONTEXT_DATES[index],
+            )
+            if index < 20:
+                self.assertIn("--dated-only", command)
+            else:
+                self.assertNotIn("--dated-only", command)
+
+    def test_strict_generation_validator_binds_hash_path_commit_and_latest(self) -> None:
+        specs = [
+            sync_market_raw.SourceSpec(
+                "daily",
+                "daily.csv",
+                required=True,
+                date_scoped=True,
+            ),
+            sync_market_raw.SourceSpec(
+                "stock_basic",
+                "stock_basic.csv",
+                required=True,
+                date_scoped=False,
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(
+            sync_market_raw,
+            "SOURCE_SPECS",
+            specs,
+        ):
+            old = Path.cwd()
+            os.chdir(temp)
+            try:
+                prior_meta = self._install_strict_generation(
+                    trade_date="20260824",
+                    commit=self.COMMIT,
+                    specs=specs,
+                    require_latest=False,
+                )
+                final_meta = self._install_strict_generation(
+                    trade_date="20260825",
+                    commit=self.COMMIT,
+                    specs=specs,
+                    require_latest=True,
+                )
+                self.assertTrue(
+                    sync_market_raw._strict_generation_valid(
+                        "20260824",
+                        self.COMMIT,
+                        require_latest=False,
+                    )
+                )
+                self.assertTrue(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        "c" * 40,
+                        require_latest=True,
+                    )
+                )
+
+                dated_meta_path = sync_market_raw._build_meta_dated_path(
+                    "20260825"
+                )
+                latest_meta_path = sync_market_raw._build_meta_latest_path()
+                missing_mode_meta = dict(final_meta)
+                missing_mode_meta.pop("dated_only")
+                missing_mode_bytes = (
+                    json.dumps(missing_mode_meta, ensure_ascii=False, indent=2)
+                    + "\n"
+                ).encode("utf-8")
+                dated_meta_path.write_bytes(missing_mode_bytes)
+                latest_meta_path.write_bytes(missing_mode_bytes)
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                restored_meta_bytes = (
+                    json.dumps(final_meta, ensure_ascii=False, indent=2) + "\n"
+                ).encode("utf-8")
+                dated_meta_path.write_bytes(restored_meta_bytes)
+                latest_meta_path.write_bytes(restored_meta_bytes)
+
+                dated_daily = sync_market_raw._build_dated_path(
+                    "daily.csv",
+                    "20260825",
+                )
+                original_daily = dated_daily.read_bytes()
+                dated_daily.write_bytes(original_daily + b"tampered")
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                dated_daily.write_bytes(original_daily)
+
+                final_meta["files"][0]["dated_path"] = "wrong/daily.csv"
+                wrong_path_bytes = (
+                    json.dumps(final_meta, ensure_ascii=False, indent=2) + "\n"
+                ).encode("utf-8")
+                dated_meta_path.write_bytes(wrong_path_bytes)
+                latest_meta_path.write_bytes(wrong_path_bytes)
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                final_meta["files"][0]["dated_path"] = str(dated_daily)
+
+                restored_meta_bytes = (
+                    json.dumps(final_meta, ensure_ascii=False, indent=2) + "\n"
+                ).encode("utf-8")
+                dated_meta_path.write_bytes(restored_meta_bytes)
+                latest_meta_path.write_bytes(restored_meta_bytes)
+                latest_daily = sync_market_raw._build_latest_path("daily.csv")
+                latest_original = latest_daily.read_bytes()
+                latest_daily.write_bytes(latest_original + b"stale")
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                latest_daily.write_bytes(latest_original)
+                self.assertTrue(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+
+                latest_meta_path.write_bytes(restored_meta_bytes + b" ")
+                self.assertFalse(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+                self.assertTrue(prior_meta["dated_only"])
+            finally:
+                os.chdir(old)
+
+    def test_strict_dated_only_preserves_latest_until_final_d_generation(self) -> None:
+        spec = sync_market_raw.SourceSpec(
+            "daily",
+            "daily.csv",
+            required=True,
+            date_scoped=True,
+        )
+
+        def load_meta(**kwargs: object) -> tuple[dict[str, str], str]:
+            trade_date = str(kwargs["trade_date"])
+            self.assertTrue(kwargs["strict_dated"])
+            self.assertEqual(kwargs["branch"], self.COMMIT)
+            return (
+                {"trade_date": trade_date},
+                "https://raw.githubusercontent.com/njedu2023-prog/"
+                f"a-share-top3-data/{self.COMMIT}/data/raw/{trade_date[:4]}/"
+                f"{trade_date}/_meta.json",
+            )
+
+        def fetch(
+            urls: list[str],
+            *,
+            expected_trade_date: str,
+            require_all_rows_match: bool,
+            **_kwargs: object,
+        ) -> tuple[str, str, int, str, str]:
+            expected_url = (
+                "https://raw.githubusercontent.com/njedu2023-prog/"
+                f"a-share-top3-data/{self.COMMIT}/data/raw/"
+                f"{expected_trade_date[:4]}/{expected_trade_date}/daily.csv"
+            )
+            self.assertEqual(urls, [expected_url])
+            self.assertTrue(require_all_rows_match)
+            body = (
+                "trade_date,ts_code,close\n"
+                f"{expected_trade_date},600000.SH,10.0\n"
+            )
+            return expected_url, body, 200, expected_trade_date, ""
+
+        with tempfile.TemporaryDirectory() as temp, mock.patch.dict(
+            os.environ,
+            {
+                "MARKET_RAW_COMMIT": self.COMMIT,
+                "MARKET_RAW_BRANCH": "main",
+                "MARKET_RAW_OWNER": "njedu2023-prog",
+                "MARKET_RAW_REPO": "a-share-top3-data",
+            },
+            clear=True,
+        ), mock.patch.object(
+            sync_market_raw,
+            "SOURCE_SPECS",
+            [spec],
+        ), mock.patch.object(
+            sync_market_raw,
+            "_load_upstream_meta",
+            side_effect=load_meta,
+        ), mock.patch.object(
+            sync_market_raw,
+            "_fetch_first_matching_trade_date",
+            side_effect=fetch,
+        ):
+            old = Path.cwd()
+            os.chdir(temp)
+            try:
+                latest_daily = sync_market_raw._build_latest_path("daily.csv")
+                latest_meta = sync_market_raw._build_meta_latest_path()
+                latest_daily.parent.mkdir(parents=True, exist_ok=True)
+                latest_daily.write_bytes(b"previous-final")
+                latest_meta.write_bytes(b"previous-meta")
+
+                with mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        str(SCRIPT_PATH),
+                        "--trade-date",
+                        "20260824",
+                        "--strict-dated-source",
+                        "--dated-only",
+                    ],
+                ):
+                    self.assertEqual(sync_market_raw.main(), 0)
+                self.assertEqual(latest_daily.read_bytes(), b"previous-final")
+                self.assertEqual(latest_meta.read_bytes(), b"previous-meta")
+                self.assertTrue(
+                    sync_market_raw._strict_generation_valid(
+                        "20260824",
+                        self.COMMIT,
+                        require_latest=False,
+                    )
+                )
+
+                with mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        str(SCRIPT_PATH),
+                        "--trade-date",
+                        "20260825",
+                        "--strict-dated-source",
+                    ],
+                ):
+                    self.assertEqual(sync_market_raw.main(), 0)
+                self.assertIn(b"20260825", latest_daily.read_bytes())
+                self.assertTrue(
+                    sync_market_raw._strict_generation_valid(
+                        "20260825",
+                        self.COMMIT,
+                        require_latest=True,
+                    )
+                )
+            finally:
+                os.chdir(old)
 
     def test_explicit_date_rejects_stale_latest_fallback(self) -> None:
         urls = [

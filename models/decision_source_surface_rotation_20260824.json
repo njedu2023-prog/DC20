@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Fail closed and roll back if the frozen hard-range inference pool is empty. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -38,8 +38,14 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "c6eb6a719b6ae6e0f7edfb98c87046afff47316622d73e7f2aae917e8f33feb8",
+  "changed_surface_sha256": "bfc58943d864f4ceca849b85ffd6af56f0cea020c56283b266c338a3c6fad8f1",
   "pin_changes": [
+    {
+      "path": ".github/workflows/run_decision_daily.yml",
+      "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
+      "current_sha256": "096cce5af18e833d1f3b2bfbb7508be91136f0a41494bd9693032ba4ed253f4c",
+      "classification": "strict_dated_daily_context_workflow"
+    },
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
       "prior_sha256": "9e3539e4df723f363e741acbbaa162149d9cc4ecc006190d21ee5831170ff269",
@@ -51,6 +57,12 @@
       "prior_sha256": "51cb5ba9fdb1d92e950bda84d855b4df388529543fb680a6584d9e981a9e65a9",
       "current_sha256": "75040355136ba140bc21b1478bca6b9d18fcdd34f02d1d3d900bb04905b632bf",
       "classification": "three_engine_runtime_adapter"
+    },
+    {
+      "path": "scripts/sync_market_raw.py",
+      "prior_sha256": "cd559b8eaa1feb4ab06e71e0a6803d617b3f256026363983bbe1156b4f91b9fa",
+      "current_sha256": "a18c2099133ad3962309891379983945c0e4b00ad069e736243ed5737b30be55",
+      "classification": "strict_dated_sse_context_sync"
     },
     {
       "path": "src/top10decision/auction_v3/calibration.py",
@@ -79,13 +91,13 @@
     {
       "path": "src/top10decision/decision/three_rank.py",
       "prior_sha256": "443b9496fd8412b417ae5fbbbcd575c397657fa223f4794fe0c00cbcfb3c7d77",
-      "current_sha256": "f216efe77e19b3e26c5781d174a7203fc130a84b69a4183beb9b19e05a290ec3",
+      "current_sha256": "fa1b1af8d0f11fae276e4e18e1473a2374793ffe12cff7259ecad0dbbcee8c11",
       "classification": "three_engine_runtime_adapter"
     },
     {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
       "prior_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
-      "current_sha256": "663002503e9f6d8af0b15a5a140670a8f7532ca33531a353bf635a3e155bcd79",
+      "current_sha256": "ed042aab93c4f55ca304da9a613f214c7471e23d7323837cb2e7f72ed6492b6a",
       "classification": "three_engine_runtime_adapter_test"
     },
     {
@@ -113,6 +125,12 @@
       "classification": "three_engine_helper_externalization_test"
     },
     {
+      "path": "tests/test_sync_market_raw.py",
+      "prior_sha256": "729740da94c74c2285e93ff67918103315182f5bbd6ad56b6922a26f5f8e2af2",
+      "current_sha256": "a0bf085e4742ebe1772a2c7ab171e6ef4e45ae4cd72d05f68eb6e7e75d12f33a",
+      "classification": "strict_dated_sse_context_sync_test"
+    },
+    {
       "path": "tests/test_three_engine_models.py",
       "prior_sha256": "25c23624081854578066549914fe721e32e200b111749ccd59b266fa3d2c02b9",
       "current_sha256": "b9c776c638b5a168421b35b14c0063da0d8888a6c12b56dd80604c8ed981b155",
@@ -123,6 +141,12 @@
       "prior_sha256": "de7b9c7edba4d02b665cf7f0f2be76176755f761c15b782d189c62a12fe6dc4e",
       "current_sha256": "0ca9387ee893f84cbee22c97292ff61788e76d65499928873905c0d99273c7b7",
       "classification": "canonical_diagnostic_overlay_isolation_test"
+    },
+    {
+      "path": "tests/test_writer_workflow_hardening.py",
+      "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
+      "current_sha256": "b7bdcc628cffbbf996942cb6abfa854231f02e18bdad319f7fa659695482bf6f",
+      "classification": "strict_dated_daily_context_workflow_test"
     }
   ]
 }

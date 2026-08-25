@@ -372,6 +372,99 @@ def test_overlay_failure_restores_exact_projection_bytes(
         assert not latest.exists()
 
 
+@pytest.mark.parametrize("existing_projection", [False, True])
+def test_empty_hard_range_pool_fails_before_scoring_and_restores_projection_bytes(
+    tmp_path: Path,
+    existing_projection: bool,
+) -> None:
+    canonical = pd.DataFrame(
+        {
+            "signal_date": ["20260820"],
+            "ts_code": ["600001.SH"],
+            "stage": ["2→3"],
+        }
+    )
+
+    class _CanonicalWriterStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20990102", "20990103"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return True
+
+        def build_prediction(self, *_args, **_kwargs) -> pd.DataFrame:
+            self.config.prediction_root.mkdir(parents=True, exist_ok=True)
+            canonical.to_csv(
+                self.config.prediction_root / "pred_20260820.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+            canonical.to_csv(
+                self.config.prediction_root / "pred_latest.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+            return canonical.copy()
+
+    class _EmptyPoolEngine(ThreeEngineRuntimeMixin, _CanonicalWriterStub):
+        @staticmethod
+        def build_three_engine_inference_pool(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> pd.DataFrame:
+            return pd.DataFrame(columns=["ts_code"])
+
+    engine = _EmptyPoolEngine()
+    dated = engine.config.prediction_root / "pred_20260820.csv"
+    latest = engine.config.prediction_root / "pred_latest.csv"
+    before_dated = None
+    before_latest = None
+    if existing_projection:
+        dated.parent.mkdir(parents=True)
+        incomplete = pd.DataFrame(
+            {"signal_date": ["20260820"], "ts_code": ["OLD.SZ"]}
+        )
+        incomplete.to_csv(dated, index=False, encoding="utf-8-sig")
+        incomplete.assign(signal_date="20260819").to_csv(
+            latest,
+            index=False,
+            encoding="utf-8-sig",
+        )
+        before_dated = dated.read_bytes()
+        before_latest = latest.read_bytes()
+
+    with mock.patch(
+        "top10decision.decision.three_rank.score_three_engine_snapshot"
+    ) as scorer:
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                "three-engine hard-range inference pool is empty "
+                "for signal_date=20260820"
+            ),
+        ):
+            engine.build_prediction("20260820", canonical, object(), {})
+
+    scorer.assert_not_called()
+    if existing_projection:
+        assert dated.read_bytes() == before_dated
+        assert latest.read_bytes() == before_latest
+    else:
+        assert not dated.exists()
+        assert not latest.exists()
+
+
 @pytest.mark.parametrize("existing_incomplete", [False, True])
 def test_post_freeze_incomplete_projection_blocks_before_super_or_file_creation(
     tmp_path: Path,

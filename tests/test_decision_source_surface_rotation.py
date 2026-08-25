@@ -75,10 +75,12 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 14
+    assert len(paths) == len(set(paths)) == 18
     assert set(paths) == {
+        ".github/workflows/run_decision_daily.yml",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/run_auction_v3.py",
+        "scripts/sync_market_raw.py",
         "src/top10decision/auction_v3/calibration.py",
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
@@ -89,14 +91,20 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_decision_three_rank_contract.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_promotion_model.py",
+        "tests/test_sync_market_raw.py",
         "tests/test_three_engine_models.py",
         "tests/test_three_rank_freeze.py",
+        "tests/test_writer_workflow_hardening.py",
     }
     expected_classification = {
+        ".github/workflows/run_decision_daily.yml": (
+            "strict_dated_daily_context_workflow"
+        ),
         "scripts/build_three_engine_five_year_ledger.py": (
             "three_engine_helper_externalization"
         ),
         "scripts/run_auction_v3.py": "three_engine_runtime_adapter",
+        "scripts/sync_market_raw.py": "strict_dated_sse_context_sync",
         "src/top10decision/auction_v3/calibration.py": (
             "canonical_source_preimage_restore"
         ),
@@ -125,11 +133,17 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_promotion_model.py": (
             "three_engine_helper_externalization_test"
         ),
+        "tests/test_sync_market_raw.py": (
+            "strict_dated_sse_context_sync_test"
+        ),
         "tests/test_three_engine_models.py": (
             "independent_monotonic_calibration_test"
         ),
         "tests/test_three_rank_freeze.py": (
             "canonical_diagnostic_overlay_isolation_test"
+        ),
+        "tests/test_writer_workflow_hardening.py": (
+            "strict_dated_daily_context_workflow_test"
         ),
     }
     current_surface: dict[str, str] = {}
