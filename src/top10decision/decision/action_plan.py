@@ -453,6 +453,45 @@ THREE_RANK_PENDING_PASSTHROUGH_FIELDS = (
     "p_fill_shadow_validation_gate_total_count",
     "p_fill_shadow_validation_gate_score_pct",
 )
+THREE_RANK_ACTION_EXTENSION_FIELDS = (
+    "big_loss_safety_rank",
+    "profit_rank",
+    "top10_selected",
+    "three_rank_contract_version",
+    "promotion_pool_size",
+    "top10_members_sha256",
+    "feature_snapshot_sha256",
+    "promotion_model_status",
+    "promotion_model_version",
+    "promotion_model_as_of_date",
+    "promotion_model_artifact_sha256",
+    "promotion_validation_gate_pass_count",
+    "promotion_validation_gate_total_count",
+    "promotion_validation_gate_score_pct",
+    "big_loss_model_status",
+    "big_loss_model_version",
+    "big_loss_model_as_of_date",
+    "big_loss_model_artifact_sha256",
+    "big_loss_validation_gate_pass_count",
+    "big_loss_validation_gate_total_count",
+    "big_loss_validation_gate_score_pct",
+    "profit_model_status",
+    "profit_model_version",
+    "profit_model_as_of_date",
+    "profit_model_artifact_sha256",
+    "profit_validation_gate_pass_count",
+    "profit_validation_gate_total_count",
+    "profit_validation_gate_score_pct",
+    "p_fill_shadow_rank",
+    "p_fill_shadow_probability",
+    "p_fill_shadow_status",
+    "p_fill_shadow_model_version",
+    "p_fill_shadow_model_as_of_date",
+    "p_fill_shadow_model_artifact_sha256",
+    "p_fill_shadow_validation_gate_pass_count",
+    "p_fill_shadow_validation_gate_total_count",
+    "p_fill_shadow_validation_gate_score_pct",
+)
 
 
 def _utc_now() -> str:
@@ -2211,9 +2250,43 @@ def _decision_lookup(frame: pd.DataFrame) -> dict[str, pd.Series]:
     return {str(row["ts_code"]): row for _, row in frame.drop_duplicates("ts_code", keep="first").iterrows()}
 
 
+def _three_rank_action_surface_active(frame: pd.DataFrame) -> bool:
+    """Distinguish a complete V1 extension from a marker-free legacy ledger."""
+
+    if frame.empty:
+        return False
+    extension_without_marker = set(THREE_RANK_ACTION_EXTENSION_FIELDS) - {
+        "three_rank_contract_version"
+    }
+    if "three_rank_contract_version" not in frame.columns:
+        if extension_without_marker.intersection(frame.columns):
+            raise ValueError(
+                "three-rank action surface has extension fields without a contract marker"
+            )
+        return False
+    versions = frame["three_rank_contract_version"].map(_text)
+    if versions.eq("").all():
+        if extension_without_marker.intersection(frame.columns):
+            raise ValueError(
+                "three-rank action surface has extension fields without a contract marker"
+            )
+        return False
+    if not versions.eq(THREE_RANK_CONTRACT_VERSION).all():
+        raise ValueError(
+            "three-rank action surface has a partial or unsupported contract marker"
+        )
+    missing = sorted(set(THREE_RANK_ACTION_EXTENSION_FIELDS) - set(frame.columns))
+    if missing:
+        raise ValueError(
+            "three-rank action surface is incomplete: " + ", ".join(missing)
+        )
+    return True
+
+
 def _pending_candidates(frame: pd.DataFrame, limit: int = 20) -> list[dict[str, Any]]:
     if frame.empty:
         return []
+    three_rank_surface_active = _three_rank_action_surface_active(frame)
     eligible, _ = filter_standard_limit_universe(frame, code_col="ts_code", name_col="name")
     rows: list[dict[str, Any]] = []
     for index, (_, row) in enumerate(eligible.head(limit).iterrows(), start=1):
@@ -2251,8 +2324,9 @@ def _pending_candidates(frame: pd.DataFrame, limit: int = 20) -> list[dict[str, 
         # already frozen a valid D-close Top10.  Keep the entire independent
         # three-head surface intact; action authorization is removed by the
         # fields above, not by deleting research evidence.
-        for field in THREE_RANK_PENDING_PASSTHROUGH_FIELDS:
-            pending[field] = _json_safe(row.get(field))
+        if three_rank_surface_active:
+            for field in THREE_RANK_PENDING_PASSTHROUGH_FIELDS:
+                pending[field] = _json_safe(row.get(field))
         rows.append(pending)
     return rows
 
@@ -2264,6 +2338,7 @@ def _merge_auction_candidates(
     promoted: bool,
     risk_budget: float,
 ) -> list[dict[str, Any]]:
+    three_rank_surface_active = _three_rank_action_surface_active(prediction)
     lookup = _decision_lookup(decision)
     prediction = annotate_standard_limit_universe(prediction, code_col="ts_code", name_col="name")
     selected_source = (
@@ -2305,8 +2380,7 @@ def _merge_auction_candidates(
             reason = "第二层影子交易排序入选，但严格样本外晋级尚未通过"
         elif action != "BUY":
             reason = _rejection_reason(row.get("model_reason"))
-        rows.append(
-            {
+        candidate = {
                 "rank": index,
                 "action": action,
                 "ts_code": code,
@@ -2612,7 +2686,10 @@ def _merge_auction_candidates(
                 ),
                 "rejection_reason": reason,
             }
-        )
+        if not three_rank_surface_active:
+            for field in THREE_RANK_ACTION_EXTENSION_FIELDS:
+                candidate.pop(field, None)
+        rows.append(candidate)
     return rows
 
 

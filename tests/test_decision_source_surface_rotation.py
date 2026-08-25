@@ -75,16 +75,18 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 12
+    assert len(paths) == len(set(paths)) == 14
     assert set(paths) == {
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/run_auction_v3.py",
         "src/top10decision/auction_v3/calibration.py",
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
+        "src/top10decision/decision/action_plan.py",
         "src/top10decision/decision/three_rank.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
+        "tests/test_decision_three_rank_contract.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_promotion_model.py",
         "tests/test_three_engine_models.py",
@@ -104,6 +106,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/auction_v3/promotion_model.py": (
             "canonical_source_preimage_restore"
         ),
+        "src/top10decision/decision/action_plan.py": (
+            "legacy_action_schema_compatibility"
+        ),
         "src/top10decision/decision/three_rank.py": (
             "three_engine_runtime_adapter"
         ),
@@ -111,6 +116,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "three_engine_runtime_adapter_test"
         ),
         "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
+        "tests/test_decision_three_rank_contract.py": (
+            "legacy_action_schema_compatibility_test"
+        ),
         "tests/test_decision_v8_calibration.py": (
             "independent_monotonic_calibration_test"
         ),

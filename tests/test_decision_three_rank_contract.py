@@ -11,7 +11,9 @@ import pandas as pd
 import pytest
 
 from top10decision.decision.action_plan import (
+    THREE_RANK_ACTION_EXTENSION_FIELDS,
     _independent_d_close_research_rows,
+    _merge_auction_candidates,
     _pending_candidates,
     _stage_watchlist,
 )
@@ -41,6 +43,10 @@ def _ready_row(code: str, rank: int, count: int = 3) -> dict[str, object]:
         "top10_selected": 1,
         "three_rank_contract_version": THREE_RANK_CONTRACT_VERSION,
         "promotion_pool_size": count,
+        "top10_members_sha256": top10_members_sha256(
+            SIGNAL_DATE,
+            [f"60000{item}.SH" for item in range(1, count + 1)],
+        ),
         "promotion_rank": rank,
         "predicted_promotion_probability": 0.90 - rank * 0.05,
         "big_loss_safety_rank": count + 1 - rank,
@@ -92,6 +98,107 @@ def _plan(count: int = 3) -> dict[str, object]:
         "candidates": [],
         "model": {},
     }
+
+
+def _legacy_action_row(code: str = "600001.SH") -> dict[str, object]:
+    return {
+        "ts_code": code,
+        "name": "历史样本",
+        "industry": "测试行业",
+        "stage": "2→3",
+        "stage_transition": "2→3",
+        "decision_limit_pct": 10.0,
+        "selected": 0,
+        "trade_selected": 0,
+        "trade_shadow_selected": 0,
+        "promotion_rank": 1,
+        "predicted_promotion_probability": 0.5,
+        "model_reason": "below_learned_policy",
+    }
+
+
+def test_legacy_action_merge_does_not_materialize_empty_three_rank_extension() -> None:
+    source = _legacy_action_row()
+    rows = _merge_auction_candidates(
+        pd.DataFrame([source]),
+        pd.DataFrame(),
+        promoted=False,
+        risk_budget=0.0,
+    )
+    pending = _pending_candidates(pd.DataFrame([source]))
+
+    assert len(rows) == 1
+    assert rows[0]["promotion_rank"] == 1
+    assert rows[0]["predicted_promotion_probability"] == 0.5
+    assert set(THREE_RANK_ACTION_EXTENSION_FIELDS).isdisjoint(rows[0])
+    assert len(pending) == 1
+    assert set(THREE_RANK_ACTION_EXTENSION_FIELDS).isdisjoint(pending[0])
+
+
+@pytest.mark.parametrize(
+    "versions",
+    [
+        [THREE_RANK_CONTRACT_VERSION, ""],
+        ["decision_three_rank_unknown_v9"],
+    ],
+)
+def test_action_merge_rejects_partial_or_unknown_three_rank_marker(
+    versions: list[str],
+) -> None:
+    rows = []
+    for index, version in enumerate(versions, start=1):
+        row = _legacy_action_row(f"60000{index}.SH")
+        row["three_rank_contract_version"] = version
+        rows.append(row)
+
+    with pytest.raises(ValueError, match="partial or unsupported contract marker"):
+        _merge_auction_candidates(
+            pd.DataFrame(rows),
+            pd.DataFrame(),
+            promoted=False,
+            risk_budget=0.0,
+        )
+
+
+def test_action_merge_rejects_extension_without_three_rank_marker() -> None:
+    source = _legacy_action_row()
+    source["profit_rank"] = 1
+
+    with pytest.raises(ValueError, match="extension fields without a contract marker"):
+        _merge_auction_candidates(
+            pd.DataFrame([source]),
+            pd.DataFrame(),
+            promoted=False,
+            risk_budget=0.0,
+        )
+
+
+def test_action_merge_preserves_complete_three_rank_extension() -> None:
+    source = _legacy_action_row()
+    source.update(_ready_row("600001.SH", 1, 1))
+    source.update(
+        {
+            "stage": "2→3",
+            "decision_limit_pct": 10.0,
+            "selected": 0,
+            "trade_selected": 0,
+            "trade_shadow_selected": 0,
+            "model_reason": "below_learned_policy",
+        }
+    )
+
+    rows = _merge_auction_candidates(
+        pd.DataFrame([source]),
+        pd.DataFrame(),
+        promoted=False,
+        risk_budget=0.0,
+    )
+
+    assert len(rows) == 1
+    assert set(THREE_RANK_ACTION_EXTENSION_FIELDS).issubset(rows[0])
+    assert rows[0]["three_rank_contract_version"] == THREE_RANK_CONTRACT_VERSION
+    assert rows[0]["profit_rank"] == 1
+    assert rows[0]["p_fill_shadow_rank"] == 1
 
 
 def test_member_hash_is_set_stable_but_membership_sensitive() -> None:

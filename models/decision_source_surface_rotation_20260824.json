@@ -38,7 +38,7 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "9fff75a141df83493328ae26aea54d69ca31741237c3a3939c71a9e56e10c843",
+  "changed_surface_sha256": "c6eb6a719b6ae6e0f7edfb98c87046afff47316622d73e7f2aae917e8f33feb8",
   "pin_changes": [
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
@@ -71,6 +71,12 @@
       "classification": "canonical_source_preimage_restore"
     },
     {
+      "path": "src/top10decision/decision/action_plan.py",
+      "prior_sha256": "ddd54ff47d5414f529eb56b79a5a1e3e3cbf07e047f5a9e4de098cd3125874ce",
+      "current_sha256": "2f754f9f83c29ad04a4e8959ae93018cf54162ff521fe3bcf4c93848ca01150e",
+      "classification": "legacy_action_schema_compatibility"
+    },
+    {
       "path": "src/top10decision/decision/three_rank.py",
       "prior_sha256": "443b9496fd8412b417ae5fbbbcd575c397657fa223f4794fe0c00cbcfb3c7d77",
       "current_sha256": "f216efe77e19b3e26c5781d174a7203fc130a84b69a4183beb9b19e05a290ec3",
@@ -87,6 +93,12 @@
       "prior_sha256": "5bd7bc7063980bd1b496e8ab3874febbb9f42f8a46aa15ec703b5fcfe82b02d4",
       "current_sha256": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
       "classification": "three_engine_runtime_adapter_test"
+    },
+    {
+      "path": "tests/test_decision_three_rank_contract.py",
+      "prior_sha256": "6426ba54908a8638c80b35bb02b3cf917863946b08591d2636d3e90bdabf93a3",
+      "current_sha256": "d1a7b36a217be73a8912a2478b65bed46bbebef3de4324360957d4b14716a738",
+      "classification": "legacy_action_schema_compatibility_test"
     },
     {
       "path": "tests/test_decision_v8_calibration.py",
