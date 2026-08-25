@@ -2,23 +2,29 @@ from __future__ import annotations
 
 import tempfile
 import shutil
+import inspect
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from top10decision.auction_v3.config import AuctionV3Config
-from top10decision.auction_v3.engine import (
-    THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
-    AuctionV3Engine,
-)
+from top10decision.auction_v3.engine import AuctionV3Engine
 from top10decision.decision.three_engine_models import (
     PROMOTION_SOURCE_FEATURES,
+    RUNTIME_ALIGNED_POOL_FEATURES,
+    THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
     THREE_ENGINE_VALIDATION_GATE_NAMES,
+    ThreeEngineRuntimeMixin,
     ThreeEngineArtifactError,
+    apply_three_engine_runtime,
+    augment_three_engine_runtime_base,
     load_three_engine_artifacts,
+    three_engine_d_close_market_features,
+    top10_members_sha256,
 )
 
 
@@ -28,18 +34,24 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_future_dated_prediction_keeps_all_d_only_promotion_source_features() -> None:
     """The internal profit shadow must consume the already-frozen D surface."""
 
-    source = (ROOT / "src/top10decision/auction_v3/engine.py").read_text(
-        encoding="utf-8"
-    )
-    ordered = source.split("        ordered = [", 1)[1].split(
-        "        scored = scored[[name for name in ordered", 1
-    )[0]
-    assert "*PROMOTION_SOURCE_FEATURES" in ordered
+    source = inspect.getsource(ThreeEngineRuntimeMixin.build_prediction)
+    assert "*PROMOTION_SOURCE_FEATURES" in source
     assert len(PROMOTION_SOURCE_FEATURES) == 18
 
 
+class _RuntimeEngine(ThreeEngineRuntimeMixin, AuctionV3Engine):
+    pass
+
+
+def test_runtime_adapter_never_overrides_canonical_current_base() -> None:
+    assert "_current_base" not in ThreeEngineRuntimeMixin.__dict__
+    assert callable(
+        ThreeEngineRuntimeMixin.__dict__["build_three_engine_inference_pool"]
+    )
+
+
 def _engine(tmp_path: Path) -> AuctionV3Engine:
-    return AuctionV3Engine(AuctionV3Config(root=tmp_path))
+    return _RuntimeEngine(AuctionV3Config(root=tmp_path))
 
 
 def _pool(size: int = 12) -> pd.DataFrame:
@@ -99,7 +111,15 @@ def _official_snapshot(pool: pd.DataFrame, *, ready: bool = True) -> SimpleNames
             rows.loc[: selected_count - 1, probability_name] = np.linspace(
                 0.1, 0.9, selected_count
             )
-    rows["top10_members_sha256"] = "b" * 64
+    snapshot_date = (
+        str(rows["signal_date"].iloc[0])
+        if "signal_date" in rows.columns
+        else "20260820"
+    )
+    rows["top10_members_sha256"] = top10_members_sha256(
+        snapshot_date,
+        rows.loc[rows["top10_selected"].eq(1), "ts_code"].astype(str),
+    )
     rows["p_fill_shadow_status"] = "SHADOW_READY" if ready else "SHADOW_NOT_READY_RUNTIME_FEATURES"
     rows["p_fill_shadow_model_version"] = "p_fill_shadow-v1"
     rows["p_fill_shadow_model_as_of_date"] = "20260811"
@@ -130,6 +150,390 @@ def _official_snapshot(pool: pd.DataFrame, *, ready: bool = True) -> SimpleNames
     )
 
 
+def test_prediction_projects_exact_hard_range_surface_without_changing_actions(
+    tmp_path: Path,
+) -> None:
+    canonical = pd.DataFrame(
+        {
+            "ts_code": ["600001.SH", "600002.SH", "600003.SH", "600004.SH"],
+            "limit_times": [1.0, 2.0, 3.0, 4.0],
+            "stage": ["1→2", "2→3", "3→4", "4→5"],
+            "action": ["WATCH", "SHADOW_ONLY", "REJECT", "WATCH"],
+            "selected": [0, 0, 0, 0],
+            "observation_rank": [pd.NA, 2, 1, pd.NA],
+            "trade_rank": [pd.NA, 1, 2, pd.NA],
+            "canonical_marker": [101, 202, 303, 404],
+            "promotion_rank": [pd.NA, 8, 7, pd.NA],
+            "promotion_rank_score": [np.nan, 0.8, 0.7, np.nan],
+            "predicted_promotion_probability": [np.nan, 0.58, 0.57, np.nan],
+            "predicted_big_loss_probability": [np.nan, 0.18, 0.19, np.nan],
+            "predicted_profit_probability": [np.nan, 0.38, 0.39, np.nan],
+        }
+    )
+    inference_pool = canonical.loc[
+        canonical["limit_times"].isin((2.0, 3.0))
+    ].copy().reset_index(drop=True)
+    inference_pool["board"] = "SH_MAIN"
+    pool_values = {
+        "mechanism_limit_pct": [10.0, 10.0],
+        "focus_pool_size": [2.0, 2.0],
+        "stage_pool_size": [1.0, 1.0],
+        "stage2_pool_size": [1.0, 1.0],
+        "stage3_pool_size": [1.0, 1.0],
+        "stage_pool_share": [0.5, 0.5],
+        "same_industry_stage_count": [1.0, 1.0],
+        "market_max_limit_times": [3.0, 3.0],
+        "open_board_count": [2.0, 3.0],
+        "reseal_score": [0.2, 0.3],
+        "late_withdraw": [0.0, 1.0],
+    }
+    for column, values in pool_values.items():
+        inference_pool[column] = values
+        canonical[column] = -999.0
+
+    class _CanonicalPredictionStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "data" / "decision" / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20990102", "20990103"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return True
+
+        def _current_base(
+            self,
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> pd.DataFrame:
+            return canonical.copy()
+
+        def build_prediction(
+            self,
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+            _bundle: object,
+            _backtest_metrics: dict[str, object],
+            *,
+            force: bool = False,
+        ) -> pd.DataFrame:
+            del force
+            return canonical.copy()
+
+    class _ProjectionEngine(ThreeEngineRuntimeMixin, _CanonicalPredictionStub):
+        def build_three_engine_inference_pool(
+            self,
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> pd.DataFrame:
+            return inference_pool.copy()
+
+    engine = _ProjectionEngine()
+    engine.config.prediction_root.mkdir(parents=True, exist_ok=True)
+    partial_path = engine.config.prediction_root / "pred_20260820.csv"
+    canonical.to_csv(partial_path, index=False, encoding="utf-8-sig")
+    partial_bytes = partial_path.read_bytes()
+    snapshot = _official_snapshot(inference_pool)
+    with mock.patch(
+        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
+        return_value=object(),
+    ), mock.patch(
+        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
+        return_value=snapshot,
+    ) as scorer:
+        result = engine.build_prediction(
+            "20260820",
+            canonical[["ts_code"]],
+            object(),
+            {},
+        )
+
+    assert list(result["ts_code"]) == ["600002.SH", "600003.SH"]
+    assert partial_path.read_bytes() != partial_bytes
+    pd.testing.assert_frame_equal(
+        scorer.call_args.args[0].reset_index(drop=True),
+        inference_pool.reset_index(drop=True),
+        check_dtype=False,
+    )
+    projected = result.set_index("ts_code")
+    expected = inference_pool.set_index("ts_code")
+    for column in RUNTIME_ALIGNED_POOL_FEATURES:
+        pd.testing.assert_series_equal(
+            projected[column],
+            expected[column],
+            check_names=False,
+            check_dtype=False,
+        )
+    for column in (
+        "action",
+        "selected",
+        "observation_rank",
+        "trade_rank",
+        "canonical_marker",
+    ):
+        pd.testing.assert_series_equal(
+            projected[column],
+            canonical.set_index("ts_code").loc[projected.index, column],
+            check_names=False,
+            check_dtype=False,
+        )
+
+
+@pytest.mark.parametrize("existing_projection", [False, True])
+def test_overlay_failure_restores_exact_projection_bytes(
+    tmp_path: Path,
+    existing_projection: bool,
+) -> None:
+    canonical = pd.DataFrame(
+        {
+            "signal_date": ["20260820"],
+            "ts_code": ["600001.SH"],
+            "stage": ["2→3"],
+        }
+    )
+
+    class _CanonicalWriterStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20990102", "20990103"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return True
+
+        def build_prediction(self, *_args, **_kwargs) -> pd.DataFrame:
+            self.config.prediction_root.mkdir(parents=True, exist_ok=True)
+            canonical.to_csv(
+                self.config.prediction_root / "pred_20260820.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+            canonical.to_csv(
+                self.config.prediction_root / "pred_latest.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+            return canonical.copy()
+
+    class _BrokenOverlayEngine(ThreeEngineRuntimeMixin, _CanonicalWriterStub):
+        @staticmethod
+        def build_three_engine_inference_pool(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> pd.DataFrame:
+            raise RuntimeError("overlay exploded")
+
+    engine = _BrokenOverlayEngine()
+    dated = engine.config.prediction_root / "pred_20260820.csv"
+    latest = engine.config.prediction_root / "pred_latest.csv"
+    before_dated = None
+    before_latest = None
+    if existing_projection:
+        dated.parent.mkdir(parents=True)
+        incomplete = pd.DataFrame(
+            {"signal_date": ["20260820"], "ts_code": ["OLD.SZ"]}
+        )
+        incomplete.to_csv(dated, index=False, encoding="utf-8-sig")
+        incomplete.assign(signal_date="20260819").to_csv(
+            latest,
+            index=False,
+            encoding="utf-8-sig",
+        )
+        before_dated = dated.read_bytes()
+        before_latest = latest.read_bytes()
+
+    with pytest.raises(RuntimeError, match="overlay exploded"):
+        engine.build_prediction("20260820", canonical, object(), {})
+
+    if existing_projection:
+        assert dated.read_bytes() == before_dated
+        assert latest.read_bytes() == before_latest
+    else:
+        assert not dated.exists()
+        assert not latest.exists()
+
+
+@pytest.mark.parametrize("existing_incomplete", [False, True])
+def test_post_freeze_incomplete_projection_blocks_before_super_or_file_creation(
+    tmp_path: Path,
+    existing_incomplete: bool,
+) -> None:
+    calls = 0
+
+    class _ClosedCanonicalStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20260821", "20260824"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return False
+
+        def build_prediction(self, *_args, **_kwargs) -> pd.DataFrame:
+            nonlocal calls
+            calls += 1
+            raise AssertionError("post-freeze validation must run before super")
+
+    class _ClosedProjectionEngine(ThreeEngineRuntimeMixin, _ClosedCanonicalStub):
+        pass
+
+    engine = _ClosedProjectionEngine()
+    dated = engine.config.prediction_root / "pred_20260820.csv"
+    before = None
+    if existing_incomplete:
+        dated.parent.mkdir(parents=True)
+        pd.DataFrame(
+            {"signal_date": ["20260820"], "ts_code": ["600001.SH"]}
+        ).to_csv(dated, index=False, encoding="utf-8-sig")
+        before = dated.read_bytes()
+
+    with pytest.raises(RuntimeError, match="historical D prediction"):
+        engine.build_prediction("20260820", pd.DataFrame(), object(), {})
+
+    assert calls == 0
+    assert not (engine.config.prediction_root / "pred_latest.csv").exists()
+    if existing_incomplete:
+        assert dated.read_bytes() == before
+    else:
+        assert not dated.exists()
+
+
+def test_complete_post_freeze_projection_recovers_latest_without_recompute(
+    tmp_path: Path,
+) -> None:
+    class _ClosedCanonicalStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20260821", "20260824"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return False
+
+        @staticmethod
+        def build_prediction(*_args, **_kwargs) -> pd.DataFrame:
+            raise AssertionError("complete frozen projection must be reused")
+
+    class _ClosedProjectionEngine(ThreeEngineRuntimeMixin, _ClosedCanonicalStub):
+        pass
+
+    engine = _ClosedProjectionEngine()
+    engine.config.prediction_root.mkdir(parents=True)
+    complete = _official_snapshot(_pool(2)).rows
+    complete["three_engine_runtime_status"] = "READY"
+    complete["three_engine_runtime_feature_gate_passed"] = 1
+    complete["three_engine_runtime_artifacts_hash_bound"] = 1
+    complete["three_engine_runtime_input_pool_complete"] = 1
+    complete["three_engine_runtime_failure"] = ""
+    dated = engine.config.prediction_root / "pred_20260820.csv"
+    complete.to_csv(dated, index=False, encoding="utf-8-sig")
+    before = dated.read_bytes()
+
+    result = engine.build_prediction("20260820", pd.DataFrame(), object(), {})
+
+    assert dated.read_bytes() == before
+    latest = engine.config.prediction_root / "pred_latest.csv"
+    assert latest.is_file()
+    pd.testing.assert_frame_equal(
+        result.reset_index(drop=True),
+        pd.read_csv(latest, encoding="utf-8-sig").reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
+@pytest.mark.parametrize("repair_pool_size", [False, True])
+def test_post_freeze_truncated_projection_fails_internal_identity(
+    tmp_path: Path,
+    repair_pool_size: bool,
+) -> None:
+    calls = 0
+
+    class _ClosedCanonicalStub:
+        def __init__(self) -> None:
+            self.config = SimpleNamespace(
+                root=tmp_path,
+                prediction_root=tmp_path / "predictions",
+            )
+
+        @staticmethod
+        def _prediction_dates(
+            _signal_date: str,
+            _candidates: pd.DataFrame,
+        ) -> tuple[str, str]:
+            return "20260821", "20260824"
+
+        @staticmethod
+        def _prediction_revision_allowed(_expected_buy: str) -> bool:
+            return False
+
+        def build_prediction(self, *_args, **_kwargs) -> pd.DataFrame:
+            nonlocal calls
+            calls += 1
+            raise AssertionError("truncated frozen projection must not reach super")
+
+    class _ClosedProjectionEngine(ThreeEngineRuntimeMixin, _ClosedCanonicalStub):
+        pass
+
+    engine = _ClosedProjectionEngine()
+    engine.config.prediction_root.mkdir(parents=True)
+    complete = _official_snapshot(_pool(3)).rows
+    complete["three_engine_runtime_status"] = "READY"
+    complete["three_engine_runtime_feature_gate_passed"] = 1
+    complete["three_engine_runtime_artifacts_hash_bound"] = 1
+    complete["three_engine_runtime_input_pool_complete"] = 1
+    complete["three_engine_runtime_failure"] = ""
+    truncated = complete.iloc[:-1].copy()
+    if repair_pool_size:
+        # Repair the obvious row count while retaining the forged member hash.
+        # The frozen projection must still fail closed on its internal identity.
+        truncated["promotion_pool_size"] = len(truncated)
+    dated = engine.config.prediction_root / "pred_20260820.csv"
+    truncated.to_csv(dated, index=False, encoding="utf-8-sig")
+    before = dated.read_bytes()
+
+    with pytest.raises(RuntimeError, match="historical D prediction is incomplete"):
+        engine.build_prediction("20260820", pd.DataFrame(), object(), {})
+
+    assert calls == 0
+    assert dated.read_bytes() == before
+    assert not (engine.config.prediction_root / "pred_latest.csv").exists()
+
+
 def test_official_a_scores_complete_pool_and_freezes_same_top10_set(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
     pool = _pool(12)
@@ -137,13 +541,15 @@ def test_official_a_scores_complete_pool_and_freezes_same_top10_set(tmp_path: Pa
     snapshot = _official_snapshot(pool)
 
     with mock.patch(
-        "top10decision.auction_v3.engine.load_three_engine_artifacts",
+        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
         return_value=object(),
     ) as loader, mock.patch(
-        "top10decision.auction_v3.engine.score_three_engine_snapshot",
+        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
         return_value=snapshot,
     ) as scorer:
-        result = engine._apply_three_engine_runtime(legacy, pool, "20260820")
+        result = apply_three_engine_runtime(
+            engine, legacy, pool, "20260820"
+        )
 
     loader.assert_called_once()
     scored_pool = scorer.call_args.args[0]
@@ -164,13 +570,15 @@ def test_legacy_selector_is_namespaced_shadow_and_cannot_overwrite_official_rank
     legacy = _legacy_scored(pool)
     snapshot = _official_snapshot(pool)
     with mock.patch(
-        "top10decision.auction_v3.engine.load_three_engine_artifacts",
+        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
         return_value=object(),
     ), mock.patch(
-        "top10decision.auction_v3.engine.score_three_engine_snapshot",
+        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
         return_value=snapshot,
     ):
-        result = engine._apply_three_engine_runtime(legacy, pool, "20260820")
+        result = apply_three_engine_runtime(
+            engine, legacy, pool, "20260820"
+        )
 
     assert result["promotion_rank"].tolist() == list(range(1, 13))
     assert result["legacy_shadow_promotion_rank"].tolist() == list(
@@ -192,10 +600,12 @@ def test_artifact_hash_drift_fails_closed_without_legacy_rank_fallback(
     pool = _pool(12)
     legacy = _legacy_scored(pool)
     with mock.patch(
-        "top10decision.auction_v3.engine.load_three_engine_artifacts",
+        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
         side_effect=ThreeEngineArtifactError("promotion artifact hash mismatch"),
     ):
-        result = engine._apply_three_engine_runtime(legacy, pool, "20260820")
+        result = apply_three_engine_runtime(
+            engine, legacy, pool, "20260820"
+        )
 
     assert result["top10_selected"].eq(0).all()
     assert result["promotion_rank"].isna().all()
@@ -215,13 +625,15 @@ def test_missing_or_all_empty_runtime_features_never_receive_official_fallback(
     legacy = _legacy_scored(pool)
     snapshot = _official_snapshot(pool, ready=False)
     with mock.patch(
-        "top10decision.auction_v3.engine.load_three_engine_artifacts",
+        "top10decision.decision.three_engine_models.load_three_engine_artifacts",
         return_value=object(),
     ), mock.patch(
-        "top10decision.auction_v3.engine.score_three_engine_snapshot",
+        "top10decision.decision.three_engine_models.score_three_engine_snapshot",
         return_value=snapshot,
     ):
-        result = engine._apply_three_engine_runtime(legacy, pool, "20260820")
+        result = apply_three_engine_runtime(
+            engine, legacy, pool, "20260820"
+        )
 
     assert result["three_engine_runtime_feature_gate_passed"].eq(0).all()
     assert result["top10_selected"].eq(0).all()
@@ -253,7 +665,9 @@ def test_d_close_market_features_match_registered_ledger_names(tmp_path: Path) -
         engine._market_cache[(date, "daily")] = row
         previous = close
 
-    features = engine._three_engine_d_close_market_features(dates[-1], code, dates)
+    features = three_engine_d_close_market_features(
+        engine, dates[-1], code, dates
+    )
     expected = {
         "returns_1d",
         "high_low_range",
@@ -274,6 +688,50 @@ def test_d_close_market_features_match_registered_ledger_names(tmp_path: Path) -
     assert set(features) == expected
     assert all(np.isfinite(features[name]) for name in expected)
     assert abs(features["returns_1d"] - 10.0) < 1e-9
+
+
+def test_runtime_d_pct_change_matches_canonical_pre_close_fallbacks(
+    tmp_path: Path,
+) -> None:
+    engine = _engine(tmp_path)
+    signal_date = "20260820"
+    codes = ["600001.SH", "600002.SH"]
+    daily = pd.DataFrame(
+        [
+            {
+                "ts_code": codes[0],
+                "close": 11.0,
+                "pre_close_est": 10.0,
+                "pct_chg": 999.0,
+            },
+            {
+                "ts_code": codes[1],
+                "close": 11.0,
+                "pct_chg": 10.0,
+            },
+        ]
+    ).set_index("ts_code", drop=False)
+    engine._market_cache[(signal_date, "daily")] = daily
+    engine._market_cache[(signal_date, "daily_basic")] = pd.DataFrame()
+    engine.market_dates = lambda: [signal_date]  # type: ignore[method-assign]
+    base = pd.DataFrame(
+        {
+            "signal_date": signal_date,
+            "ts_code": codes,
+            "industry": ["I1", "I2"],
+            "limit_times": [2.0, 3.0],
+            "stage": ["2→3", "3→4"],
+        }
+    )
+
+    result = augment_three_engine_runtime_base(engine, signal_date, base)
+
+    np.testing.assert_allclose(
+        result["d_pct_change"].to_numpy(dtype=float),
+        [10.0, 10.0],
+        rtol=0.0,
+        atol=1e-12,
+    )
 
 
 def test_future_d_full_current_base_uses_hash_bound_partial_release(
@@ -370,7 +828,10 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
         }
     )
     engine = _engine(tmp_path)
-    base = engine._current_base(signal_date, candidates)
+    base = engine.build_three_engine_inference_pool(
+        signal_date,
+        candidates,
+    )
     assert len(base) == 12
     assert base["stage"].value_counts().to_dict() == {"2→3": 6, "3→4": 6}
 
@@ -407,8 +868,8 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
         expected_context = engine._promotion_source_context_features(
             signal_date, row.ts_code, dates
         )
-        expected_market = engine._three_engine_d_close_market_features(
-            signal_date, row.ts_code, dates
+        expected_market = three_engine_d_close_market_features(
+            engine, signal_date, row.ts_code, dates
         )
         for name in promotion_context:
             assert np.isclose(getattr(row, name), expected_context[name])
@@ -429,7 +890,8 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
     except ThreeEngineArtifactError:
         copied_promotion_ready = False
 
-    result = engine._apply_three_engine_runtime(
+    result = apply_three_engine_runtime(
+        engine,
         base.copy(),
         base.copy(),
         signal_date,
@@ -542,20 +1004,22 @@ def test_future_d_full_current_base_uses_hash_bound_partial_release(
     }
 
 
-def test_force_cannot_rewrite_historical_dated_prediction(tmp_path: Path) -> None:
+def test_force_cannot_rewrite_complete_historical_dated_prediction(
+    tmp_path: Path,
+) -> None:
     engine = _engine(tmp_path)
     signal_date = "20260105"
     dated = engine.config.prediction_root / f"pred_{signal_date}.csv"
-    frozen = pd.DataFrame(
-        [
-            {
-                "signal_date": signal_date,
-                "expected_buy_date": "20260106",
-                "ts_code": "600000.SH",
-                "promotion_rank": 1,
-            }
-        ]
-    )
+    pool = _pool(1)
+    pool["signal_date"] = signal_date
+    pool["ts_code"] = "600000.SH"
+    frozen = _official_snapshot(pool).rows
+    frozen["expected_buy_date"] = "20260106"
+    frozen["three_engine_runtime_status"] = "READY"
+    frozen["three_engine_runtime_feature_gate_passed"] = 1
+    frozen["three_engine_runtime_artifacts_hash_bound"] = 1
+    frozen["three_engine_runtime_input_pool_complete"] = 1
+    frozen["three_engine_runtime_failure"] = ""
     frozen.to_csv(dated, index=False)
     before = dated.read_bytes()
     candidates = pd.DataFrame(
@@ -580,3 +1044,4 @@ def test_force_cannot_rewrite_historical_dated_prediction(tmp_path: Path) -> Non
 
     assert dated.read_bytes() == before
     assert result["ts_code"].tolist() == ["600000.SH"]
+    assert (engine.config.prediction_root / "pred_latest.csv").is_file()

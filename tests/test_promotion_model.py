@@ -15,13 +15,15 @@ from sklearn.pipeline import Pipeline
 from top10decision.auction_v3 import AuctionV3Config, AuctionV3Engine
 from top10decision.auction_v3.calibration import ProbabilityCalibrator
 from top10decision.auction_v3.promotion_model import (
-    PROMOTION_D_CONTEXT_FEATURES,
     PROMOTION_PRIOR_FEATURES,
     PROMOTION_SOURCE_FEATURES,
     attach_promotion_source_features,
-    build_promotion_context_features,
     fit_promotion_blend,
     load_promotion_validation,
+)
+from top10decision.decision.three_engine_models import (
+    PROMOTION_D_CONTEXT_FEATURES,
+    build_promotion_context_features,
 )
 
 

@@ -7,13 +7,15 @@ import numpy as np
 import pandas as pd
 
 from scripts import build_three_engine_five_year_ledger as ledger_builder
-from top10decision.auction_v3 import engine as auction_engine
 from top10decision.auction_v3.config import AuctionV3Config
 from top10decision.auction_v3.engine import AuctionV3Engine
 from top10decision.decision import d_close_features
 from top10decision.decision.d_close_features import (
     D_CLOSE_FEATURE_COLUMNS,
     compute_d_close_features,
+)
+from top10decision.decision.three_engine_models import (
+    three_engine_d_close_market_features,
 )
 
 
@@ -58,7 +60,8 @@ def _engine_features(
         engine._market_cache[(str(trade_date), "daily")] = daily.set_index(
             "ts_code", drop=False
         )
-    return engine._three_engine_d_close_market_features(
+    return three_engine_d_close_market_features(
+        engine,
         signal_date,
         CODE,
         calendar,
@@ -102,7 +105,6 @@ def _assert_exact_parity(
 
 def test_builder_and_runtime_reference_one_canonical_function() -> None:
     assert ledger_builder.compute_d_close_features is compute_d_close_features
-    assert auction_engine.compute_d_close_features is compute_d_close_features
     assert ledger_builder.RUNTIME_ALIGNED_FEATURE_COLUMNS == (
         D_CLOSE_FEATURE_COLUMNS
     )

@@ -8,15 +8,6 @@ import numpy as np
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 
-from top10decision.probability_calibration import (
-    MINIMUM_CALIBRATION_OUTPUT_SPAN,
-    MONOTONICITY_GRID_POINTS,
-    MONOTONICITY_SCHEMA_VERSION,
-    MONOTONICITY_TOLERANCE,
-    calibrator_monotonicity_evidence,
-    monotonicity_evidence_is_valid,
-)
-
 
 EPS = 1e-6
 
@@ -77,17 +68,9 @@ def fit_probability_calibrator(
     if len(raw) != len(y) or len(y) == 0:
         return None
     if method == "constant":
-        candidate = ProbabilityCalibrator("constant", constant)
-        evidence = calibrator_monotonicity_evidence(candidate, raw)
-        return candidate if evidence["nondecreasing"] else None
+        return ProbabilityCalibrator("constant", constant)
     if method == "identity":
-        candidate = ProbabilityCalibrator("identity", constant)
-        evidence = calibrator_monotonicity_evidence(candidate, raw)
-        return candidate if monotonicity_evidence_is_valid(
-            evidence,
-            expected_method=method,
-            require_nonconstant=True,
-        ) else None
+        return ProbabilityCalibrator("identity", constant)
     if np.unique(y).size < 2:
         return None
     if method == "isotonic":
@@ -99,24 +82,12 @@ def fit_probability_calibrator(
             out_of_bounds="clip",
         )
         estimator.fit(raw, y, sample_weight=weights)
-        candidate = ProbabilityCalibrator(method, constant, estimator)
-        evidence = calibrator_monotonicity_evidence(candidate, raw)
-        return candidate if monotonicity_evidence_is_valid(
-            evidence,
-            expected_method=method,
-            require_nonconstant=True,
-        ) else None
+        return ProbabilityCalibrator(method, constant, estimator)
     if method not in {"platt", "beta"}:
         raise ValueError(f"unsupported probability calibration method: {method}")
     estimator = LogisticRegression(C=1.0, max_iter=2_000, random_state=20260726)
     estimator.fit(_design(method, raw), y, sample_weight=weights)
-    candidate = ProbabilityCalibrator(method, constant, estimator)
-    evidence = calibrator_monotonicity_evidence(candidate, raw)
-    return candidate if monotonicity_evidence_is_valid(
-        evidence,
-        expected_method=method,
-        require_nonconstant=True,
-    ) else None
+    return ProbabilityCalibrator(method, constant, estimator)
 
 
 def probability_metrics(
@@ -198,14 +169,8 @@ def chronological_calibration_split(
 
 
 __all__ = [
-    "MONOTONICITY_GRID_POINTS",
-    "MONOTONICITY_SCHEMA_VERSION",
-    "MONOTONICITY_TOLERANCE",
-    "MINIMUM_CALIBRATION_OUTPUT_SPAN",
     "ProbabilityCalibrator",
-    "calibrator_monotonicity_evidence",
     "chronological_calibration_split",
     "fit_probability_calibrator",
-    "monotonicity_evidence_is_valid",
     "probability_metrics",
 ]

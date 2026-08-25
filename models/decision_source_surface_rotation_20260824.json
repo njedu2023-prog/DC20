@@ -1,11 +1,11 @@
 {
   "schema_version": "decision_source_surface_rotation_v1",
-  "rotation_id": "dc20_parallel_full_replay_diagnostic_gate_20260825",
-  "approved_base_commit": "162da987ad307046a7e7af1328579f7d3299b7ab",
-  "prior_manifest_sha256": "acfd27898ad9f40b987296a7b0df0db256c8761161eaa2f4e2942d0930cfd13e",
-  "prior_pinned_files_sha256": "ae71b50027a813779b5c91efb7ba7ba54dda01fbb073feaf7648809e6db48608",
-  "prior_evidence_sha256": "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7",
-  "reason": "Run the full frozen canonical replay as an independent Core job and emit only the four model fingerprint digests on failure, so canonical drift is diagnosed without weakening validation, mutating frozen model identity, or delaying the ordinary regression suite.",
+  "rotation_id": "dc20_restore_canonical_source_external_runtime_20260826",
+  "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
+  "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
+  "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
+  "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -29,20 +29,96 @@
     ],
     "underlying_ledgers_preserved": true,
     "canonical_engine_bytes_restored": true,
+    "canonical_source_set_restored": true,
+    "independent_three_engine_runtime_adapter": true,
     "research_runtime_export_after_canonical_audit": true,
     "full_frozen_replay_ci_required": true,
     "codex_runtime_dependency": false,
     "external_top10_decision_runtime_dependency": false,
     "writer_dispatch_performed": false
   },
-  "added_runtime_pins": {},
-  "changed_surface_sha256": "8a619a4b72c5264b017e5ed76f04c93d29de8afcd9ad5d948a90d8d22d8687d6",
+  "added_runtime_pins": {
+    "tests/test_decision_source_surface_rotation.py": "1aa8b4872d23c4a0e285783b1f874f49f6c33419517ee444c197df978ec7a597"
+  },
+  "changed_surface_sha256": "62c15973c9b4492013ecccf5dbd5a4ff64fd91917583c646a08f6e156b1c729c",
   "pin_changes": [
     {
-      "path": ".github/workflows/test_decision_core.yml",
-      "prior_sha256": "f2d0e5cdbc21920d965bcf90b18cb2a74078d7a4d3e2e0e330692284e1097d2b",
-      "current_sha256": "ab3a25af9bc00c74d0a6b52122af32b0a79e19f6f64ad547c7950fa3a18f25f3",
-      "classification": "canonical_frozen_runtime_diagnostic_gate"
+      "path": "scripts/build_three_engine_five_year_ledger.py",
+      "prior_sha256": "9e3539e4df723f363e741acbbaa162149d9cc4ecc006190d21ee5831170ff269",
+      "current_sha256": "d8c5ce2ba75a22043a1169ad68bde596ac490502f06fd72452580758faeb8a09",
+      "classification": "three_engine_helper_externalization"
+    },
+    {
+      "path": "scripts/run_auction_v3.py",
+      "prior_sha256": "51cb5ba9fdb1d92e950bda84d855b4df388529543fb680a6584d9e981a9e65a9",
+      "current_sha256": "f5687bee60e80d9ad6d40ea99cff779abd3ce650ecb178311975dd6237b1f3c7",
+      "classification": "three_engine_runtime_adapter"
+    },
+    {
+      "path": "src/top10decision/auction_v3/calibration.py",
+      "prior_sha256": "ebe50bb3045045b00bd1fd7a5ba4b43a986c4f8e1f0f570041800657b714be3a",
+      "current_sha256": "06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9",
+      "classification": "canonical_source_preimage_restore"
+    },
+    {
+      "path": "src/top10decision/auction_v3/engine.py",
+      "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
+      "current_sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
+      "classification": "canonical_source_preimage_restore"
+    },
+    {
+      "path": "src/top10decision/auction_v3/promotion_model.py",
+      "prior_sha256": "7f1ea9217ac77433983c18f16e42cd4cae37f8ad0ae1477918fb2a984ce91b57",
+      "current_sha256": "af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170",
+      "classification": "canonical_source_preimage_restore"
+    },
+    {
+      "path": "src/top10decision/decision/model_freeze.py",
+      "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
+      "current_sha256": "ec4c5471fa8cf74eb97859112ab50ffc71180a1c49065ed40c65ee72e72f50f4",
+      "classification": "rotation_trust_root_enforcement"
+    },
+    {
+      "path": "src/top10decision/decision/three_engine_models.py",
+      "prior_sha256": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34",
+      "current_sha256": "c5177f78c0a9fba3e69ae77211c1efc4ccbd67debfed58ddf364959ccb0a3990",
+      "classification": "three_engine_runtime_adapter"
+    },
+    {
+      "path": "tests/test_auction_v3_three_engine_runtime.py",
+      "prior_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
+      "current_sha256": "5cca33b2d85f3a31e89611cec7e10cbf17ff91fdfead83c0680107dbef48e7b9",
+      "classification": "three_engine_runtime_adapter_test"
+    },
+    {
+      "path": "tests/test_d_close_features.py",
+      "prior_sha256": "5bd7bc7063980bd1b496e8ab3874febbb9f42f8a46aa15ec703b5fcfe82b02d4",
+      "current_sha256": "81e93c766656e9eaacd3325ce4d0c211ee914ce81faa5add00ada1e426acebb0",
+      "classification": "three_engine_runtime_adapter_test"
+    },
+    {
+      "path": "tests/test_decision_v8_calibration.py",
+      "prior_sha256": "500f449936873b3f4de3f566d8574eeb3c529df2cf8d23b34ed61e3d502c192e",
+      "current_sha256": "12c36c9dc2a5600cb6524bfa4e09ee3694b816f2701a140003718e9694c686bd",
+      "classification": "independent_monotonic_calibration_test"
+    },
+    {
+      "path": "tests/test_promotion_model.py",
+      "prior_sha256": "b0dcb3ed8b02d1b902a73aa82275d455d66b6b23a0227f38d75c449c17806408",
+      "current_sha256": "338118833bb4ea5971ce3e532abd380167b0cd5c653efa8d17d1211a204e64c7",
+      "classification": "three_engine_helper_externalization_test"
+    },
+    {
+      "path": "tests/test_three_engine_models.py",
+      "prior_sha256": "25c23624081854578066549914fe721e32e200b111749ccd59b266fa3d2c02b9",
+      "current_sha256": "b9c776c638b5a168421b35b14c0063da0d8888a6c12b56dd80604c8ed981b155",
+      "classification": "independent_monotonic_calibration_test"
+    },
+    {
+      "path": "tests/test_three_rank_freeze.py",
+      "prior_sha256": "de7b9c7edba4d02b665cf7f0f2be76176755f761c15b782d189c62a12fe6dc4e",
+      "current_sha256": "18d980784e6f5bf26898d91cba553826981b46e88674239625fae9403b2d33cd",
+      "classification": "canonical_diagnostic_overlay_isolation_test"
     }
   ]
 }

@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 import top10decision.decision.three_engine_models as three_engine_models
-from top10decision.auction_v3.calibration import (
+from top10decision.probability_calibration import (
     monotonicity_evidence_is_valid,
 )
 

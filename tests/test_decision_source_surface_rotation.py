@@ -10,7 +10,9 @@ from top10decision.decision.model_freeze import REQUIRED_ACTIVE_PIN_PATHS
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
-EXPECTED_ADDED_RUNTIME_PINS: set[str] = set()
+EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
+    "tests/test_decision_source_surface_rotation.py",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -42,14 +44,17 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "evidence_path": EVIDENCE.relative_to(ROOT).as_posix(),
         "evidence_sha256": _sha256(EVIDENCE),
     }
+    assert evidence["rotation_id"] == (
+        "dc20_restore_canonical_source_external_runtime_20260826"
+    )
     assert evidence["approved_base_commit"] == (
-        "162da987ad307046a7e7af1328579f7d3299b7ab"
+        "d079e13f4fa90c9079de45578f845b6a5d6a433e"
     )
     assert evidence["prior_manifest_sha256"] == (
-        "acfd27898ad9f40b987296a7b0df0db256c8761161eaa2f4e2942d0930cfd13e"
+        "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff"
     )
     assert evidence["prior_evidence_sha256"] == (
-        "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7"
+        "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3"
     )
     assert evidence["prior_manifest_sha256"] != _sha256(MANIFEST)
     assert manifest["pinned_files"][rotation["evidence_path"]] == (
@@ -72,16 +77,63 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 1
+    assert len(paths) == len(set(paths)) == 13
     assert set(paths) == {
-        ".github/workflows/test_decision_core.yml",
+        "scripts/build_three_engine_five_year_ledger.py",
+        "scripts/run_auction_v3.py",
+        "src/top10decision/auction_v3/calibration.py",
+        "src/top10decision/auction_v3/engine.py",
+        "src/top10decision/auction_v3/promotion_model.py",
+        "src/top10decision/decision/model_freeze.py",
+        "src/top10decision/decision/three_engine_models.py",
+        "tests/test_auction_v3_three_engine_runtime.py",
+        "tests/test_d_close_features.py",
+        "tests/test_decision_v8_calibration.py",
+        "tests/test_promotion_model.py",
+        "tests/test_three_engine_models.py",
+        "tests/test_three_rank_freeze.py",
+    }
+    expected_classification = {
+        "scripts/build_three_engine_five_year_ledger.py": (
+            "three_engine_helper_externalization"
+        ),
+        "scripts/run_auction_v3.py": "three_engine_runtime_adapter",
+        "src/top10decision/auction_v3/calibration.py": (
+            "canonical_source_preimage_restore"
+        ),
+        "src/top10decision/auction_v3/engine.py": (
+            "canonical_source_preimage_restore"
+        ),
+        "src/top10decision/auction_v3/promotion_model.py": (
+            "canonical_source_preimage_restore"
+        ),
+        "src/top10decision/decision/model_freeze.py": (
+            "rotation_trust_root_enforcement"
+        ),
+        "src/top10decision/decision/three_engine_models.py": (
+            "three_engine_runtime_adapter"
+        ),
+        "tests/test_auction_v3_three_engine_runtime.py": (
+            "three_engine_runtime_adapter_test"
+        ),
+        "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
+        "tests/test_decision_v8_calibration.py": (
+            "independent_monotonic_calibration_test"
+        ),
+        "tests/test_promotion_model.py": (
+            "three_engine_helper_externalization_test"
+        ),
+        "tests/test_three_engine_models.py": (
+            "independent_monotonic_calibration_test"
+        ),
+        "tests/test_three_rank_freeze.py": (
+            "canonical_diagnostic_overlay_isolation_test"
+        ),
     }
     current_surface: dict[str, str] = {}
     for item in changes:
         assert item["prior_sha256"] != item["current_sha256"]
-        assert item["classification"] == (
-            "canonical_frozen_runtime_diagnostic_gate"
-        )
+        assert item["classification"] == expected_classification[item["path"]]
         target = ROOT / item["path"]
         assert target.is_file() and not target.is_symlink()
         assert _sha256(target) == item["current_sha256"]
@@ -133,6 +185,8 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ],
         "underlying_ledgers_preserved": True,
         "canonical_engine_bytes_restored": True,
+        "canonical_source_set_restored": True,
+        "independent_three_engine_runtime_adapter": True,
         "research_runtime_export_after_canonical_audit": True,
         "full_frozen_replay_ci_required": True,
         "codex_runtime_dependency": False,

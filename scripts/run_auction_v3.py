@@ -29,6 +29,9 @@ from top10decision.decision.model_freeze import (  # noqa: E402
     validate_pinned_files,
     validate_runtime_artifacts,
 )
+from top10decision.decision.three_engine_models import (  # noqa: E402
+    ThreeEngineRuntimeMixin,
+)
 
 
 LEGACY_PROFIT_PRIVATE_RUNTIME_ENV = (
@@ -152,10 +155,25 @@ def _capture_private_legacy_profit_runtime_features(
             "for private legacy-profit runtime capture"
         )
     candidates = engine.load_candidates(date, source)
-    return engine._current_base(date, candidates)
+    builder = getattr(engine, "build_three_engine_inference_pool", None)
+    if not callable(builder):
+        raise RuntimeError(
+            "independent three-engine inference adapter is unavailable"
+        )
+    return builder(date, candidates)
 
 
-class FreezeAwareAuctionV3Engine(AuctionV3Engine):
+class ThreeEngineRuntimeAuctionV3Engine(
+    ThreeEngineRuntimeMixin,
+    AuctionV3Engine,
+):
+    pass
+
+
+class FreezeAwareAuctionV3Engine(
+    ThreeEngineRuntimeMixin,
+    AuctionV3Engine,
+):
     def __init__(
         self,
         config: AuctionV3Config,
@@ -260,7 +278,7 @@ def main() -> int:
             force_inactive=force_inactive,
         )
     else:
-        engine = AuctionV3Engine(config)
+        engine = ThreeEngineRuntimeAuctionV3Engine(config)
     private_runtime_mode = os.environ.get(
         LEGACY_PROFIT_PRIVATE_RUNTIME_ENV
     )

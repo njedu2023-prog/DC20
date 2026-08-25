@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-import top10decision.auction_v3.engine as auction_engine_module
+import top10decision.decision.three_engine_models as three_engine_runtime_module
 
 from scripts.refreeze_decision_three_rank import (
     ThreeRankRefreezeError,
@@ -718,7 +718,7 @@ def test_diagnostic_frozen_engine_bypasses_three_rank_assets_exactly(
         raise AssertionError("diagnostic replay must not inspect overlay assets")
 
     monkeypatch.setattr(
-        auction_engine_module,
+        three_engine_runtime_module,
         "load_three_engine_artifacts",
         reject_overlay_load,
     )

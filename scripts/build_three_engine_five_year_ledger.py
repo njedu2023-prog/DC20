@@ -624,7 +624,7 @@ def _rebuild_promotion_bar_context(
 ) -> pd.DataFrame:
     """Rebuild the eight runtime bar-context fields from owned price bars."""
 
-    from top10decision.auction_v3.promotion_model import (
+    from top10decision.decision.three_engine_models import (
         build_promotion_context_features,
     )
 
