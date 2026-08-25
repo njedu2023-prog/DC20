@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Fail closed and roll back if the frozen hard-range inference pool is empty. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -38,12 +38,12 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "760a4d3719cf83926a1f096271e54bda60c0a58eae1693c2c963aca8070fac3a",
+  "changed_surface_sha256": "0182a4b51968cf991cc42b1e05d9817f0db285e39f273bfb3cab4e4913051a83",
   "pin_changes": [
     {
       "path": ".github/workflows/run_decision_daily.yml",
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-      "current_sha256": "096cce5af18e833d1f3b2bfbb7508be91136f0a41494bd9693032ba4ed253f4c",
+      "current_sha256": "243b7154a7cb4067ec5f544f1ca59937cab6e5daa5167ae0f748102d6f7e5370",
       "classification": "strict_dated_daily_context_workflow"
     },
     {
@@ -123,6 +123,12 @@
       "prior_sha256": "b0ad443ae5e0baa10e3eeac8af102b3b2353b09b288f3db236bcb0c6c015924f",
       "current_sha256": "242818d99175bf28384d5d1040f21b2c3c6082f6939939bd10c09808d898837c",
       "classification": "three_rank_canonical_preimage_runtime_validation_test"
+    },
+    {
+      "path": "tests/test_decision_research_context.py",
+      "prior_sha256": "9bdcba2e39d1b86919c9d0d5ec30c3e01045e118dab1b869926a8bfb5cbd69a5",
+      "current_sha256": "4cf15f8dee7788f9f7b956ae9d786c4251132b6bb8b9af23e6ba3d136f3ab670",
+      "classification": "isolated_daily_research_root_test"
     },
     {
       "path": "tests/test_decision_three_rank_contract.py",

@@ -75,7 +75,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 21
+    assert len(paths) == len(set(paths)) == 22
     assert set(paths) == {
         ".github/workflows/run_decision_daily.yml",
         "scripts/build_three_engine_five_year_ledger.py",
@@ -90,6 +90,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/decision/three_rank.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
+        "tests/test_decision_research_context.py",
         "tests/test_decision_three_rank_contract.py",
         "tests/test_decision_model_freeze.py",
         "tests/test_decision_v8_calibration.py",
@@ -138,6 +139,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "tests/test_decision_model_freeze.py": (
             "three_rank_canonical_preimage_runtime_validation_test"
+        ),
+        "tests/test_decision_research_context.py": (
+            "isolated_daily_research_root_test"
         ),
         "tests/test_decision_v8_calibration.py": (
             "independent_monotonic_calibration_test"

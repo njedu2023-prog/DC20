@@ -619,13 +619,14 @@ jobs:
             "${research_root}/scripts/run_auction_v3.py" "${auction_args[@]}"
           python "${research_root}/scripts/publish_decision_research_context.py" \
             --source-root "${research_root}" \
-            --output-root "${GITHUB_WORKSPACE}" \
+            --output-root "${research_root}" \
             --report-date "${report_date}"
-          research_path="outputs/decision/research_context_dc20_${report_date}.json"
+          research_path="${research_root}/outputs/decision/research_context_dc20_${report_date}.json"
           if [ ! -f "${research_path}" ]; then
-            research_path="outputs/decision/research_context_${report_date}.json"
+            research_path="${research_root}/outputs/decision/research_context_${report_date}.json"
           fi
           RESEARCH_PATH="${research_path}" \
+            RESEARCH_ROOT="${research_root}" \
             REPORT_DATE="${report_date}" \
             PYTHONPATH="${GITHUB_WORKSPACE}/src" \
             python - <<'PY'
@@ -650,10 +651,26 @@ jobs:
               print('Daily preserved historical parity research context')
           else:
               validate_research_context(context, expected_report_date=os.environ['REPORT_DATE'])
-          action = Path('outputs/decision/action_plan_latest.json')
-          digest = hashlib.sha256(action.read_bytes()).hexdigest() if action.is_file() else ''
-          if not hmac.compare_digest(digest, os.environ['PRESERVED_ACTION_SHA256']):
-              raise SystemExit('Daily research generation modified the preserved Auction action plan')
+          for label, action in (
+              ('workspace', Path('outputs/decision/action_plan_latest.json')),
+              (
+                  'isolated research root',
+                  Path(os.environ['RESEARCH_ROOT'])
+                  / 'outputs/decision/action_plan_latest.json',
+              ),
+          ):
+              digest = (
+                  hashlib.sha256(action.read_bytes()).hexdigest()
+                  if action.is_file()
+                  else ''
+              )
+              if not hmac.compare_digest(
+                  digest, os.environ['PRESERVED_ACTION_SHA256']
+              ):
+                  raise SystemExit(
+                      f'Daily research generation modified the preserved '
+                      f'Auction action plan in {label}'
+                  )
           PY
       - name: Freeze immutable executable-profit research order and public D projection
         if: ${{ steps.session.outputs.write_eligible == 'true' }}
@@ -668,6 +685,7 @@ jobs:
           selection_inventory="${RUNNER_TEMP}/executable-profit-selection-before.json"
           SELECTION_INVENTORY="${selection_inventory}" python - <<'PY'
           import hashlib
+          import hmac
           import json
           import os
           from pathlib import Path
@@ -706,11 +724,27 @@ jobs:
           PY
           )
           feature_path="${research_root}/outputs/auction_v3/predictions/pred_${signal_date}.csv"
-          test -f "${feature_path}"
-          test ! -L "${feature_path}"
-          test -s "${feature_path}"
-          test -f "${research_root}/outputs/decision/three_rank_top10_${signal_date}.json"
-          test -f "${research_root}/outputs/decision/three_rank_top10_${signal_date}.csv"
+          require_regular_nonempty() {
+            local path="$1"
+            local label="$2"
+            if [ ! -f "${path}" ] || [ -L "${path}" ] || [ ! -s "${path}" ]; then
+              echo "Daily isolated ${label} is missing, empty, or unsafe: ${path}" >&2
+              exit 1
+            fi
+          }
+          require_regular_nonempty "${feature_path}" "canonical pred_D feature"
+          require_regular_nonempty \
+            "${research_root}/outputs/decision/three_rank_top10_${signal_date}.json" \
+            "three-rank JSON for signal_date=${signal_date}"
+          require_regular_nonempty \
+            "${research_root}/outputs/decision/three_rank_top10_${signal_date}.csv" \
+            "three-rank CSV for signal_date=${signal_date}"
+          require_regular_nonempty \
+            "${research_root}/outputs/decision/three_rank_index.json" \
+            "three-rank index"
+          require_regular_nonempty \
+            "${research_root}/outputs/decision/research_context_dc20_${report_date}.json" \
+            "DC20 research context for report_date=${report_date}"
           root_contract_evidence="${RUNNER_TEMP}/executable-profit-root-contract.json"
           RESEARCH_ROOT="${research_root}" \
             FEATURE_PATH="${feature_path}" \
@@ -770,7 +804,10 @@ jobs:
           SOURCE_ROOT="${research_root}" \
             TARGET_ROOT="${GITHUB_WORKSPACE}" \
             SIGNAL_DATE="${signal_date}" \
+            REPORT_DATE="${report_date}" \
             python - <<'PY'
+          import hashlib
+          import hmac
           import json
           import os
           import tempfile
@@ -790,13 +827,33 @@ jobs:
           from top10decision.decision.executable_profit_shadow_settlement import (
               validate_statistics,
           )
+          from top10decision.decision.research_context import (
+              validate_research_context,
+          )
+          from top10decision.decision.three_rank import (
+              _three_rank_index_payload,
+              validate_three_rank_contract,
+              validate_three_rank_index,
+          )
 
           source_root = Path(os.environ['SOURCE_ROOT']).resolve(strict=True)
           target_root = Path(os.environ['TARGET_ROOT']).resolve(strict=True)
           signal_date = os.environ['SIGNAL_DATE']
+          report_date = os.environ['REPORT_DATE']
           if source_root == target_root:
               raise SystemExit('Daily research projection source must be isolated')
 
+          decision_prefix = Path('outputs/decision')
+          three_rank_json_relative = (
+              decision_prefix / f'three_rank_top10_{signal_date}.json'
+          )
+          three_rank_csv_relative = (
+              decision_prefix / f'three_rank_top10_{signal_date}.csv'
+          )
+          three_rank_index_relative = decision_prefix / 'three_rank_index.json'
+          research_context_relative = (
+              decision_prefix / f'research_context_dc20_{report_date}.json'
+          )
           selection_prefix = Path(
               'data/decision_executable_profit/forward/selections'
           )
@@ -834,6 +891,67 @@ jobs:
           projection_json = safe_source(projection_json_relative)
           projection_csv = safe_source(projection_csv_relative)
           public_index_path = safe_source(public_index_relative)
+          three_rank_json = safe_source(three_rank_json_relative)
+          three_rank_csv = safe_source(three_rank_csv_relative)
+          three_rank_index_path = safe_source(three_rank_index_relative)
+          research_context_path = safe_source(research_context_relative)
+
+          three_rank = json.loads(three_rank_json.read_text(encoding='utf-8'))
+          validate_three_rank_contract(three_rank)
+          three_rank_index = json.loads(
+              three_rank_index_path.read_text(encoding='utf-8')
+          )
+          validate_three_rank_index(three_rank_index)
+          research_context = json.loads(
+              research_context_path.read_text(encoding='utf-8')
+          )
+          validate_research_context(
+              research_context,
+              expected_report_date=report_date,
+          )
+          three_rank_json_sha256 = hashlib.sha256(
+              three_rank_json.read_bytes()
+          ).hexdigest()
+          three_rank_csv_sha256 = hashlib.sha256(
+              three_rank_csv.read_bytes()
+          ).hexdigest()
+          expected_three_rank_index = _three_rank_index_payload(
+              three_rank,
+              contract_sha256=three_rank_json_sha256,
+          )
+          expected_context_files = {
+              three_rank['downloads']['json_url']: three_rank_json_sha256,
+              three_rank['downloads']['csv_url']: three_rank_csv_sha256,
+          }
+          if (
+              three_rank.get('signal_date') != signal_date
+              or three_rank_index != expected_three_rank_index
+              or research_context.get('signal_date') != signal_date
+              or research_context.get('report_date') != report_date
+              or research_context.get('three_rank') != three_rank
+              or (research_context.get('source_binding') or {}).get('files')
+              != expected_context_files
+          ):
+              raise SystemExit(
+                  'Daily isolated three-rank/context binding drifted'
+              )
+
+          source_action = (
+              source_root / 'outputs/decision/action_plan_latest.json'
+          )
+          source_action_sha256 = (
+              hashlib.sha256(source_action.read_bytes()).hexdigest()
+              if source_action.is_file() and not source_action.is_symlink()
+              else ''
+          )
+          if not hmac.compare_digest(
+              source_action_sha256,
+              os.environ['PRESERVED_ACTION_SHA256'],
+          ):
+              raise SystemExit(
+                  'Daily executable-profit scorer modified the isolated '
+                  'preserved action'
+              )
 
           selection = json.loads(selection_json.read_text(encoding='utf-8'))
           validate_internal_forward_shadow_payload(selection, require_downloads=True)
@@ -874,6 +992,9 @@ jobs:
               raise SystemExit('Daily isolated research artifacts lost exact D binding')
 
           immutable_relatives = (
+              three_rank_json_relative,
+              three_rank_csv_relative,
+              research_context_relative,
               selection_json_relative,
               selection_csv_relative,
               projection_json_relative,
@@ -881,12 +1002,13 @@ jobs:
               public_statistics_relative,
           )
           mutable_relatives = (
+              three_rank_index_relative,
               statistics_relative,
               selection_index_relative,
               public_index_relative,
           )
           exact_relatives = immutable_relatives + mutable_relatives
-          if len(set(exact_relatives)) != 8:
+          if len(set(exact_relatives)) != 12:
               raise SystemExit('Daily research projection copy inventory drifted')
 
           def target_path(relative: Path) -> Path:
@@ -958,9 +1080,11 @@ jobs:
               'target_root': target_root.as_posix(),
               'copied_paths': [value.as_posix() for value in exact_relatives],
               'outputs_auction_v3_copied': False,
+              'isolated_three_rank_and_context_copied': True,
           }, ensure_ascii=False, sort_keys=True))
           PY
           SIGNAL_DATE="${signal_date}" \
+            REPORT_DATE="${report_date}" \
             SELECTION_INVENTORY="${selection_inventory}" \
             python - <<'PY'
           import hashlib
@@ -983,9 +1107,18 @@ jobs:
           from top10decision.decision.executable_profit_shadow_settlement import (
               validate_statistics,
           )
+          from top10decision.decision.research_context import (
+              validate_research_context,
+          )
+          from top10decision.decision.three_rank import (
+              _three_rank_index_payload,
+              validate_three_rank_contract,
+              validate_three_rank_index,
+          )
 
           root = Path('.').resolve()
           signal_date = os.environ['SIGNAL_DATE']
+          report_date = os.environ['REPORT_DATE']
           selection_root = root / 'data/decision_executable_profit/forward/selections'
           before = json.loads(
               Path(os.environ['SELECTION_INVENTORY']).read_text(encoding='utf-8')
@@ -1050,6 +1183,57 @@ jobs:
               or projection.get('candidate_count') > 10
           ):
               raise SystemExit('Daily executable-profit projection/date/count binding drifted')
+
+          three_rank_path = (
+              root / f'outputs/decision/three_rank_top10_{signal_date}.json'
+          )
+          three_rank_csv_path = (
+              root / f'outputs/decision/three_rank_top10_{signal_date}.csv'
+          )
+          three_rank = json.loads(three_rank_path.read_text(encoding='utf-8'))
+          validate_three_rank_contract(three_rank)
+          three_rank_index = json.loads(
+              (root / 'outputs' / 'decision' / 'three_rank_index.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          validate_three_rank_index(three_rank_index)
+          research_context = json.loads(
+              (
+                  root
+                  / f'outputs/decision/research_context_dc20_{report_date}.json'
+              ).read_text(encoding='utf-8')
+          )
+          validate_research_context(
+              research_context,
+              expected_report_date=report_date,
+          )
+          three_rank_json_sha256 = hashlib.sha256(
+              three_rank_path.read_bytes()
+          ).hexdigest()
+          three_rank_csv_sha256 = hashlib.sha256(
+              three_rank_csv_path.read_bytes()
+          ).hexdigest()
+          expected_three_rank_index = _three_rank_index_payload(
+              three_rank,
+              contract_sha256=three_rank_json_sha256,
+          )
+          expected_context_files = {
+              three_rank['downloads']['json_url']: three_rank_json_sha256,
+              three_rank['downloads']['csv_url']: three_rank_csv_sha256,
+          }
+          if (
+              three_rank.get('signal_date') != signal_date
+              or three_rank_index != expected_three_rank_index
+              or research_context.get('signal_date') != signal_date
+              or research_context.get('report_date') != report_date
+              or research_context.get('three_rank') != three_rank
+              or (research_context.get('source_binding') or {}).get('files')
+              != expected_context_files
+          ):
+              raise SystemExit(
+                  'Daily copied three-rank/context binding drifted'
+              )
 
           action = root / 'outputs/decision/action_plan_latest.json'
           action_digest = hashlib.sha256(action.read_bytes()).hexdigest() if action.is_file() else ''

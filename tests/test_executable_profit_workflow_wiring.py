@@ -39,14 +39,23 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
         'feature_path="${research_root}/outputs/auction_v3/predictions/'
         'pred_${signal_date}.csv"'
     ) in step
+    assert "require_regular_nonempty()" in step
     assert (
-        'test -f "${research_root}/outputs/decision/'
+        '"${research_root}/outputs/decision/'
         'three_rank_top10_${signal_date}.json"'
     ) in step
     assert (
-        'test -f "${research_root}/outputs/decision/'
+        '"${research_root}/outputs/decision/'
         'three_rank_top10_${signal_date}.csv"'
     ) in step
+    assert (
+        '"${research_root}/outputs/decision/three_rank_index.json"'
+    ) in step
+    assert (
+        '"${research_root}/outputs/decision/'
+        'research_context_dc20_${report_date}.json"'
+    ) in step
+    assert "Daily isolated ${label} is missing, empty, or unsafe" in step
     assert "validate_decision_run_receipt" in step
     assert (
         'PYTHONPATH="${research_root}/src" python "${research_root}/scripts/'
@@ -65,9 +74,43 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
     assert "validate_research_projection_index(public_index)" in step
     assert "validate_public_index_chain(root, public_index)" in step
     assert "validate_shadow_statistics_projection(statistics)" in step
+    assert "validate_three_rank_contract(three_rank)" in step
+    assert "validate_three_rank_index(three_rank_index)" in step
+    assert "three_rank_index != expected_three_rank_index" in step
+    assert "validate_research_context(" in step
+    assert "research_context.get('three_rank') != three_rank" in step
+    assert "!= expected_context_files" in step
+    assert "Daily isolated three-rank/context binding drifted" in step
+    assert "Daily copied three-rank/context binding drifted" in step
+    assert "Daily executable-profit scorer modified the isolated" in step
     assert "candidate_count') > 10" in step
-    assert "len(set(exact_relatives)) != 8" in step
+    assert "len(set(exact_relatives)) != 12" in step
+    immutable = step.split("immutable_relatives = (", 1)[1].split(
+        "mutable_relatives = (", 1
+    )[0]
+    mutable = step.split("mutable_relatives = (", 1)[1].split(
+        "exact_relatives =", 1
+    )[0]
+    for relative in (
+        "three_rank_json_relative",
+        "three_rank_csv_relative",
+        "research_context_relative",
+        "selection_json_relative",
+        "selection_csv_relative",
+        "projection_json_relative",
+        "projection_csv_relative",
+        "public_statistics_relative",
+    ):
+        assert relative in immutable
+    for relative in (
+        "three_rank_index_relative",
+        "statistics_relative",
+        "selection_index_relative",
+        "public_index_relative",
+    ):
+        assert relative in mutable
     assert "'outputs_auction_v3_copied': False" in step
+    assert "'isolated_three_rank_and_context_copied': True" in step
     assert "Daily rewrote an immutable selection" in step
     assert "Daily created a foreign selection artifact" in step
     assert "Daily executable-profit projection modified the preserved action" in step

@@ -272,8 +272,14 @@ def test_daily_workflow_builds_research_in_isolation_and_preserves_action() -> N
     assert "scripts/run_auction_v3.py" in text
     assert "scripts/publish_decision_research_context.py" in text
     assert '--source-root "${research_root}"' in text
-    assert '--output-root "${GITHUB_WORKSPACE}"' in text
-    assert "Daily research generation modified the preserved Auction action plan" in text
+    assert '--output-root "${research_root}"' in text
+    assert (
+        'research_path="${research_root}/outputs/decision/'
+        'research_context_dc20_${report_date}.json"'
+    ) in text
+    assert "'isolated research root'" in text
+    assert "Daily research generation modified the preserved " in text
+    assert "Auction action plan in {label}" in text
     assert "outputs/decision/action_plan_*.json" in text
     assert "outputs/auction_v3/**" in text
     assert "outputs/decision/research_context_20??????.json" in text
@@ -563,6 +569,47 @@ def test_cutover_publisher_keeps_history_archive_and_writes_dc20_sidecar(
             tmp_path,
             "20260824",
         )
+
+
+def test_daily_isolated_publisher_materializes_step17_handoff_in_one_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    independent = project_research_context(
+        _independent_plan(),
+        source_files=_sources(),
+    )
+    monkeypatch.setattr(
+        research_context_module,
+        "build_research_context",
+        lambda _root, _date="": copy.deepcopy(independent),
+    )
+    research_root = tmp_path / "daily-research-root"
+    workspace_root = tmp_path / "workspace-root"
+
+    context_path, context = publish_research_context(
+        research_root,
+        research_root,
+        "20260824",
+    )
+
+    decision_root = research_root / "outputs/decision"
+    json_path = decision_root / "three_rank_top10_20260821.json"
+    csv_path = decision_root / "three_rank_top10_20260821.csv"
+    index_path = decision_root / "three_rank_index.json"
+    assert context_path == decision_root / "research_context_dc20_20260824.json"
+    for path in (context_path, json_path, csv_path, index_path):
+        assert path.is_file() and not path.is_symlink() and path.stat().st_size > 0
+    assert context["three_rank"] == json.loads(json_path.read_text(encoding="utf-8"))
+    assert context["source_binding"]["files"] == {
+        "outputs/decision/three_rank_top10_20260821.json": hashlib.sha256(
+            json_path.read_bytes()
+        ).hexdigest(),
+        "outputs/decision/three_rank_top10_20260821.csv": hashlib.sha256(
+            csv_path.read_bytes()
+        ).hexdigest(),
+    }
+    assert not (workspace_root / "outputs/decision").exists()
 
 
 def test_vendored_history_dated_file_is_write_once(tmp_path: Path) -> None:
