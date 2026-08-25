@@ -1,11 +1,11 @@
 {
   "schema_version": "decision_source_surface_rotation_v1",
-  "rotation_id": "dc20_legacy_profit_relative_research_and_decision_ui_cleanup_20260825",
-  "approved_base_commit": "1c06ca4658049e76b225617f3a8413c302258938",
-  "prior_manifest_sha256": "a9b1db64363994a9c9ebbb437d2b3e1ff5d4ed3f0174f27e01ffab5682a15730",
-  "prior_pinned_files_sha256": "1791da2ff91191d8f981354b9bea48ae8f01dab607e58770533eeb757c489899",
-  "prior_evidence_sha256": "eaff60c840e0856ecfe067858c3ef0e68588acd164a8bf76d6abfa15da456abd",
-  "reason": "Authorize a visible raw relative ordering from the existing unapproved profit head inside the frozen promotion TopN, move model qualification cards into the audit section, and remove the p_fill Top2, legacy Trade Selector, and historical three-rank archive UI blocks while preserving independent same-repository data, ledgers, promotion membership, promotion order, model identity, and zero-action boundaries.",
+  "rotation_id": "dc20_restore_frozen_canonical_engine_externalize_legacy_profit_runtime_20260825",
+  "approved_base_commit": "4639ee93e1baed7735dfc2e77c890fa4fd7dcd16",
+  "prior_manifest_sha256": "ab976a07e98d76e1e82e26771cb32bfa57f1ef6799b5450c310b8e9ba4f1eceb",
+  "prior_pinned_files_sha256": "f02ca6ab3f87381a266d9229922aea5b0de891f0250f915e1874bd38848c079a",
+  "prior_evidence_sha256": "a75f0cf89e0618eb35e10d222aa5db403989c7b0eba0b2861dc9f3f2af8944c8",
+  "reason": "Restore the accepted frozen Auction engine bytes after an additive legacy-profit runtime export accidentally entered the canonical model provenance surface; move that research-only export into the outer runner after the full runtime audit and add a real frozen replay CI gate, while preserving model identity, promotion membership and order, historical Action bytes, and zero-action boundaries.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -28,69 +28,33 @@
       "three_rank_history_archive"
     ],
     "underlying_ledgers_preserved": true,
+    "canonical_engine_bytes_restored": true,
+    "research_runtime_export_after_canonical_audit": true,
+    "full_frozen_replay_ci_required": true,
     "codex_runtime_dependency": false,
     "external_top10_decision_runtime_dependency": false,
     "writer_dispatch_performed": false
   },
-  "added_runtime_pins": {
-    "scripts/project_decision_legacy_profit_relative_research.py": "0c29627b32693dac2f6e9e5fa474e2831147b5e507b634a8063beb5a478423b0",
-    "src/top10decision/decision/legacy_profit_relative_research.py": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2"
-  },
-  "changed_surface_sha256": "e5cbba08e3d39c4bfdd368961c060b72d3fd18e7aba33bcc5eb7d8475be82419",
+  "added_runtime_pins": {},
+  "changed_surface_sha256": "323ed42d802d506e91ec5c747acffec5ffdcd13ddc8a0851c372f3383b24a380",
   "pin_changes": [
     {
-      "path": ".github/workflows/deploy_dc20_pages.yml",
-      "prior_sha256": "90a6e3b9619adc46d819824b896e2152921ef08bf193c21aae69aa285668cc35",
-      "current_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
-      "classification": "legacy_profit_pages_fail_closed"
+      "path": ".github/workflows/test_decision_core.yml",
+      "prior_sha256": "61d6cb66be024bdc719cacc0e005664d2d5167420ec76bb3f5eb4d0849217017",
+      "current_sha256": "f2d0e5cdbc21920d965bcf90b18cb2a74078d7a4d3e2e0e330692284e1097d2b",
+      "classification": "canonical_frozen_runtime_regression"
     },
     {
-      "path": ".github/workflows/run_decision_daily.yml",
-      "prior_sha256": "fe5ae6862ff00ce411a179cdda254791e2cd253a951ca85aebf07f40cc1ec17c",
-      "current_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-      "classification": "legacy_profit_independent_runtime_path"
-    },
-    {
-      "path": "decision.html",
-      "prior_sha256": "677a7808c1d2c36fe923c81a6a6696539cd8ab7e4013c5b606abbd53590197b7",
-      "current_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "classification": "decision_ui_research_ranking_and_cleanup"
+      "path": "scripts/run_auction_v3.py",
+      "prior_sha256": "8d481906d1f59974d501c4a2f8358b22d17174dc5846cf8db17d658a207c2a44",
+      "current_sha256": "51cb5ba9fdb1d92e950bda84d855b4df388529543fb680a6584d9e981a9e65a9",
+      "classification": "legacy_profit_research_runtime_externalization"
     },
     {
       "path": "src/top10decision/auction_v3/engine.py",
-      "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "current_sha256": "59c21de7a6b9b275f78e5d4855c2c7442f5a0ecbb259deb6ffa5015924243614",
-      "classification": "legacy_profit_independent_runtime_path"
-    },
-    {
-      "path": "src/top10decision/decision/model_freeze.py",
-      "prior_sha256": "1601ef11b4d826c5db1076ddcd022dabda39743c6d2176d2db644ea4031e3de8",
-      "current_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
-      "classification": "legacy_profit_required_runtime_pin_closure"
-    },
-    {
-      "path": "tests/test_dashboard_research_projection.py",
-      "prior_sha256": "3a91b90d62831a589a4e7b406125c2d098e175f8022c88ecd09d739af62a9d48",
-      "current_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
-      "classification": "decision_ui_research_ranking_and_cleanup"
-    },
-    {
-      "path": "tests/test_decision_three_rank_frontend.py",
-      "prior_sha256": "3344f568efb836fd577bab55b984f6e9364ef322c4a1816c5f4b898f5d33c639",
-      "current_sha256": "e75f11b84482cf299bc7919f4e5eb0c773d8cae3631369622b02af659f6267ab",
-      "classification": "decision_ui_research_ranking_and_cleanup"
-    },
-    {
-      "path": "tests/test_decision_three_rank_history_projection.py",
-      "prior_sha256": "e4d524b679feb9507d8679320961442990715077166de72262e938e2aa8e6963",
-      "current_sha256": "d08842e9d93b6676ad7975f6d81559ee02e9176eb9fbba91b19e5fced3ea1d20",
-      "classification": "decision_ui_research_ranking_and_cleanup"
-    },
-    {
-      "path": "tests/test_pages_truthfulness_workflow.py",
-      "prior_sha256": "1ffa088c8728a0566f8bb6b5b91b60e598e3039386e4b987798e807de6151027",
-      "current_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
-      "classification": "legacy_profit_pages_fail_closed"
+      "prior_sha256": "59c21de7a6b9b275f78e5d4855c2c7442f5a0ecbb259deb6ffa5015924243614",
+      "current_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
+      "classification": "canonical_engine_restoration"
     }
   ]
 }

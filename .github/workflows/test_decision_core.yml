@@ -98,3 +98,30 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
         run: python -m pytest -q
+
+      - name: Run full frozen canonical runtime replay
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          replay_report="${RUNNER_TEMP}/core-frozen-replay.json"
+          python scripts/run_deterministic_numeric.py \
+            scripts/replay_frozen_canonical_v2.py \
+            --root "${GITHUB_WORKSPACE}" \
+            --signal-date 20260814 \
+            --report-date 20260817 \
+            --report "${replay_report}"
+          REPLAY_REPORT="${replay_report}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(
+              Path(os.environ['REPLAY_REPORT']).read_text(encoding='utf-8')
+          )
+          if payload.get('status') != 'pass':
+              raise SystemExit('Core full frozen replay did not pass')
+          runtime = payload.get('runtime_validation') or {}
+          if runtime.get('validated') is not True:
+              raise SystemExit('Core full frozen replay runtime was not validated')
+          PY

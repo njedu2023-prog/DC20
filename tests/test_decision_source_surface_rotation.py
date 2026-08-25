@@ -10,10 +10,7 @@ from top10decision.decision.model_freeze import REQUIRED_ACTIVE_PIN_PATHS
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
-EXPECTED_ADDED_RUNTIME_PINS = {
-    "scripts/project_decision_legacy_profit_relative_research.py",
-    "src/top10decision/decision/legacy_profit_relative_research.py",
-}
+EXPECTED_ADDED_RUNTIME_PINS: set[str] = set()
 
 
 def _sha256(path: Path) -> str:
@@ -46,13 +43,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "evidence_sha256": _sha256(EVIDENCE),
     }
     assert evidence["approved_base_commit"] == (
-        "1c06ca4658049e76b225617f3a8413c302258938"
+        "4639ee93e1baed7735dfc2e77c890fa4fd7dcd16"
     )
     assert evidence["prior_manifest_sha256"] == (
-        "a9b1db64363994a9c9ebbb437d2b3e1ff5d4ed3f0174f27e01ffab5682a15730"
+        "ab976a07e98d76e1e82e26771cb32bfa57f1ef6799b5450c310b8e9ba4f1eceb"
     )
     assert evidence["prior_evidence_sha256"] == (
-        "eaff60c840e0856ecfe067858c3ef0e68588acd164a8bf76d6abfa15da456abd"
+        "a75f0cf89e0618eb35e10d222aa5db403989c7b0eba0b2861dc9f3f2af8944c8"
     )
     assert evidence["prior_manifest_sha256"] != _sha256(MANIFEST)
     assert manifest["pinned_files"][rotation["evidence_path"]] == (
@@ -75,26 +72,19 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 9
+    assert len(paths) == len(set(paths)) == 3
     assert set(paths) == {
-        ".github/workflows/deploy_dc20_pages.yml",
-        ".github/workflows/run_decision_daily.yml",
-        "decision.html",
+        ".github/workflows/test_decision_core.yml",
+        "scripts/run_auction_v3.py",
         "src/top10decision/auction_v3/engine.py",
-        "src/top10decision/decision/model_freeze.py",
-        "tests/test_dashboard_research_projection.py",
-        "tests/test_decision_three_rank_frontend.py",
-        "tests/test_decision_three_rank_history_projection.py",
-        "tests/test_pages_truthfulness_workflow.py",
     }
     current_surface: dict[str, str] = {}
     for item in changes:
         assert item["prior_sha256"] != item["current_sha256"]
         assert item["classification"] in {
-            "decision_ui_research_ranking_and_cleanup",
-            "legacy_profit_independent_runtime_path",
-            "legacy_profit_pages_fail_closed",
-            "legacy_profit_required_runtime_pin_closure",
+            "canonical_engine_restoration",
+            "canonical_frozen_runtime_regression",
+            "legacy_profit_research_runtime_externalization",
         }
         target = ROOT / item["path"]
         assert target.is_file() and not target.is_symlink()
@@ -146,6 +136,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "three_rank_history_archive",
         ],
         "underlying_ledgers_preserved": True,
+        "canonical_engine_bytes_restored": True,
+        "research_runtime_export_after_canonical_audit": True,
+        "full_frozen_replay_ci_required": True,
         "codex_runtime_dependency": False,
         "external_top10_decision_runtime_dependency": False,
         "writer_dispatch_performed": False,

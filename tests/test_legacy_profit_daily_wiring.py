@@ -4,11 +4,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from top10decision.auction_v3.config import AuctionV3Config
-from top10decision.auction_v3.engine import (
+from scripts.run_auction_v3 import (
     LEGACY_PROFIT_PRIVATE_RUNTIME_ENV,
     LEGACY_PROFIT_PRIVATE_RUNTIME_ROOT,
-    AuctionV3Engine,
+    _persist_private_legacy_profit_runtime_features,
 )
 from top10decision.decision.legacy_profit_relative_research import (
     SEALED_VALIDATION_PATH,
@@ -30,14 +29,14 @@ WORKFLOW = ROOT / ".github/workflows/run_decision_daily.yml"
 def test_private_pre_overlay_runtime_pool_uses_fixed_unpublished_root(
     tmp_path: Path,
 ) -> None:
-    engine = AuctionV3Engine(AuctionV3Config(root=tmp_path))
     frame = pd.DataFrame(
         [
             {"signal_date": "20260824", "ts_code": "002412.SZ", "stage": 3},
             {"signal_date": "20260824", "ts_code": "000710.SZ", "stage": 2},
         ]
     )
-    path = engine._persist_private_legacy_profit_runtime_features(
+    path = _persist_private_legacy_profit_runtime_features(
+        tmp_path,
         "20260824",
         frame,
     )
@@ -55,10 +54,10 @@ def test_private_pre_overlay_runtime_pool_uses_fixed_unpublished_root(
 def test_private_runtime_pool_accepts_zero_candidates_with_header(
     tmp_path: Path,
 ) -> None:
-    engine = AuctionV3Engine(AuctionV3Config(root=tmp_path))
     # This is the shape returned by ``_current_base`` on a true zero-pool D.
     empty = pd.DataFrame()
-    path = engine._persist_private_legacy_profit_runtime_features(
+    path = _persist_private_legacy_profit_runtime_features(
+        tmp_path,
         "20260824",
         empty,
     )
@@ -137,14 +136,26 @@ def test_zero_candidate_research_score_is_valid_and_never_padded() -> None:
     assert actual_snapshot == feature_snapshot
 
 
-def test_private_runtime_env_is_checked_before_frozen_prediction_returns() -> None:
-    text = (
+def test_private_runtime_capture_is_outside_canonical_engine() -> None:
+    engine_text = (
         ROOT / "src/top10decision/auction_v3/engine.py"
     ).read_text(encoding="utf-8")
-    env_position = text.index("private_runtime_mode = os.environ.get(")
-    first_frozen_return = text.index("return frozen", env_position)
-    persist_position = text.index(
-        "self._persist_private_legacy_profit_runtime_features(",
-        env_position,
+    runner_text = (
+        ROOT / "scripts/run_auction_v3.py"
+    ).read_text(encoding="utf-8")
+    assert "LEGACY_PROFIT_PRIVATE_RUNTIME" not in engine_text
+    assert "_persist_private_legacy_profit_runtime_features" not in engine_text
+    run_position = runner_text.index("result = engine.run(")
+    audit_position = runner_text.index(
+        "runtime_audit = validate_runtime_artifacts(",
+        run_position,
     )
-    assert env_position < persist_position < first_frozen_return
+    capture_position = runner_text.index(
+        "_capture_private_legacy_profit_runtime_features(",
+        audit_position,
+    )
+    persist_position = runner_text.index(
+        "_persist_private_legacy_profit_runtime_features(",
+        capture_position,
+    )
+    assert run_position < audit_position < capture_position < persist_position
