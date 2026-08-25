@@ -160,8 +160,8 @@ def _prepare_repo(
     research_order = list(reversed(three_rows))
     selection_rows = []
     for research_rank, source in enumerate(research_order, start=1):
-        fill = 0.60 + research_rank * 0.05
-        conditional = 0.80 - research_rank * 0.05
+        fill = 0.80 - research_rank * 0.05
+        conditional = 0.80 - research_rank * 0.04
         selection_rows.append(
             {
                 "ts_code": source["ts_code"],
@@ -347,19 +347,33 @@ def test_visible_projection_preserves_independent_orders_and_never_pads(
     repo, _, _ = _prepare_repo(tmp_path)
     projection = public.build_research_projection(repo, "20260824")
 
-    assert projection["display_name"] == "可实现盈利研究排序（未校准代理分）"
+    assert projection["display_name"] == "可实现盈利概率排序（模型估计·未校准）"
     assert [row["executable_profit_research_rank"] for row in projection["rows"]] == [1, 2, 3]
     assert [row["promotion_rank"] for row in projection["rows"]] == [3, 2, 1]
     assert [row["shadow_slot"] for row in projection["rows"]] == [1, 2, None]
+    estimated = [
+        row["estimated_executable_profit_probability"]
+        for row in projection["rows"]
+    ]
+    assert estimated == sorted(estimated, reverse=True)
+    assert estimated == [
+        row["research_joint_proxy_score"] for row in projection["rows"]
+    ]
     assert projection["rows"][0]["shadow_max_price"] == 10.1
     assert projection["rows"][0]["shadow_price_basis"] == (
         "D_FROZEN_RECOMMENDED_MAX_PRICE"
     )
     assert projection["rows"][0]["shadow_price_source_sha256"] == "c" * 64
     assert projection["ranking_contract"]["shadow_actual_slots"] == 2
+    assert projection["ranking_contract"]["estimated_probability_field"] == (
+        "estimated_executable_profit_probability"
+    )
+    assert projection["ranking_contract"]["estimated_probability_calibrated"] is False
     assert "not a buy instruction" in projection["ranking_contract"]["shadow_price_use"]
     assert projection["boundaries"] == public.PUBLIC_BOUNDARIES
     assert projection["boundaries"]["formal_probability_allowed"] is False
+    assert projection["boundaries"]["estimated_probability_display_allowed"] is True
+    assert projection["boundaries"]["estimated_probability_calibrated"] is False
     assert projection["boundaries"]["formal_rank_allowed"] is False
 
 
@@ -563,6 +577,9 @@ def test_materialize_rebuild_rejects_projection_semantic_tampering(
             row["research_fill_proxy_score"]
             * row["research_conditional_profit_score"]
         )
+        row["estimated_executable_profit_probability"] = row[
+            "research_joint_proxy_score"
+        ]
     elif mutation == "rank":
         first = tampered["rows"][0]["promotion_rank"]
         tampered["rows"][0]["promotion_rank"] = tampered["rows"][1][
@@ -660,6 +677,9 @@ def test_same_d_different_projection_and_backward_pointer_are_rejected(
     changed["rows"][0]["research_joint_proxy_score"] = (
         0.5 * changed["rows"][0]["research_conditional_profit_score"]
     )
+    changed["rows"][0]["estimated_executable_profit_probability"] = changed[
+        "rows"
+    ][0]["research_joint_proxy_score"]
     changed["snapshot_sha256"] = public._payload_snapshot(changed)
     changed_stats = public.build_shadow_statistics_projection(
         repo,

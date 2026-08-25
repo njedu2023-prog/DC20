@@ -23,6 +23,7 @@ from top10decision.rt_min_contract import (  # noqa: E402
     RT_MIN_CANONICAL_FIELDS,
     RT_MIN_CODE_FIELDS,
     RT_MIN_VALUE_FIELDS,
+    RT_MIN_WIRE_FIELDS,
     RTMinContractError,
     validate_rt_min_response,
 )
@@ -43,6 +44,7 @@ AUCTION_FIELDS = (
     "vwap",
 )
 REALTIME_FIELDS = RT_MIN_CANONICAL_FIELDS
+REALTIME_WIRE_FIELDS = RT_MIN_WIRE_FIELDS
 REALTIME_CODE_FIELDS = RT_MIN_CODE_FIELDS
 REALTIME_VALUE_FIELDS = RT_MIN_VALUE_FIELDS
 REALTIME_CLOCK_SKEW = timedelta(minutes=2)
@@ -402,7 +404,7 @@ def run_health_check(
         _, entitlement_rows = api_call(
             "rt_min_daily",
             {"ts_code": entitlement_code, "freq": "1MIN"},
-            REALTIME_FIELDS,
+            REALTIME_WIRE_FIELDS,
             token,
             timeout_seconds,
         )
@@ -425,7 +427,7 @@ def run_health_check(
                 realtime_fields, rows = api_call(
                     "rt_min_daily",
                     {"ts_code": probe_code, "freq": "1MIN"},
-                    REALTIME_FIELDS,
+                    REALTIME_WIRE_FIELDS,
                     token,
                     timeout_seconds,
                 )

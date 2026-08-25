@@ -69,15 +69,18 @@ def test_public_research_layer_is_separate_from_frozen_promotion_panel() -> None
     assert "may_change_promotion_membership_or_rank: false" in text
 
 
-def test_public_research_layer_labels_proxy_scores_without_probability_claim() -> None:
+def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() -> None:
     text = _text()
     for token in (
-        "可实现盈利研究排序",
-        "公开研究可见 · 未校准代理分 · 非正式概率 · 仅供人工决策参考",
-        "联合代理分",
+        "可实现盈利概率排序（研究估计）",
+        "公开研究可见 · 模型估计概率（未校准） · 全N排序 · 仅供人工决策参考",
+        "模型估计可实现盈利概率（未校准）",
         "可买代理分",
         "条件盈利代理分",
-        "三项都不是已校准概率",
+        "尚未经过前向校准",
+        "不能解释为真实命中率",
+        "estimated_probability_display_allowed: true",
+        "estimated_probability_calibrated: false",
         "formal_probability_allowed: false",
         "formal_rank_allowed: false",
         "human_decision_support_only: true",
@@ -86,8 +89,20 @@ def test_public_research_layer_labels_proxy_scores_without_probability_claim() -
     ):
         assert token in text
     assert "research_joint_proxy_score - row.research_fill_proxy_score * row.research_conditional_profit_score" in text
-    assert 'number(row.research_joint_proxy_score, 4)' in text
-    assert 'pct(row.research_joint_proxy_score)' not in text
+    assert "estimated_executable_profit_probability - row.research_joint_proxy_score" in text
+    assert 'pct(row.estimated_executable_profit_probability)' in text
+    assert "按模型估计可实现盈利概率从高到低显示全部真实" in text
+
+
+def test_frontend_selection_binding_matches_projection_v2_surface() -> None:
+    text = _text()
+    assert "dc20_executable_profit_public_research_projection_v2" in text
+    assert "dc20_executable_profit_research_projection_20260825_v2" in text
+    assert (
+        'exactObjectKeys(bindings.selection, ["json_path", "json_sha256", '
+        '"csv_path", "csv_sha256", "snapshot_sha256", '
+        '"d_feature_file_sha256"])'
+    ) in text
 
 
 def test_real_candidate_count_and_shadow_slots_are_never_padded() -> None:
@@ -134,7 +149,7 @@ def test_index_projection_statistics_and_all_sources_are_sha_bound() -> None:
     for token in (
         "dc20_executable_profit_public_research_index_v1",
         "dated_executable_profit_research_pointer_only",
-        "dc20_executable_profit_public_research_projection_v1",
+        "dc20_executable_profit_public_research_projection_v2",
         "immutable_d_frozen_executable_profit_research_projection",
         "dc20_executable_profit_public_shadow_statistics_v1",
         "immutable_asof_executable_profit_shadow_statistics_projection",

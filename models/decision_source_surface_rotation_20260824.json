@@ -1,10 +1,11 @@
 {
   "schema_version": "decision_source_surface_rotation_v1",
-  "rotation_id": "dc20_executable_profit_public_surface_20260824",
-  "approved_base_commit": "fd0934af6c84e762252e52c3e5f494728e0ae8be",
-  "prior_manifest_sha256": "8271fa1a7038fa3614bb033c8f3e56b94a452eff68ff80ebd0d73b9be7432f77",
-  "prior_pinned_files_sha256": "1b474b2fbdac709add0db588f15621ffdbd46b9c0ca62842156a4585ffa9be1a",
-  "reason": "Atomically reconcile three previously reviewed executable-profit source pins and authorize the independent public research panel plus Daily, Verify, and Pages wiring without changing the frozen promotion model, training ledger, or action plan.",
+  "rotation_id": "dc20_executable_profit_probability_and_rt_min_repair_20260825",
+  "approved_base_commit": "90d52c12ea2e0892410b2703263215b07ab4f7f5",
+  "prior_manifest_sha256": "671789aa65ae8209db45cf824002e8dbd2ff39d840b72e9b64457496d95e7c7b",
+  "prior_pinned_files_sha256": "b863820fea37d058badf581a4b9c891fd9dfdb24c4ff17cad755eaf80601d6f1",
+  "prior_evidence_sha256": "b39ab27e7021ea04bf254e886ada72382719a2e0822a2136bfe52b01ab4898b6",
+  "reason": "Authorize a visible full-N model-estimated executable-profit probability ranking inside the frozen promotion TopN, fix the six-field projection binding, and request the native Tushare rt_min_daily response while preserving strict identity, frequency, time, and exact-schema gates.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -17,79 +18,65 @@
   "release_contract": {
     "candidate_count": "ACTUAL_N_0_TO_10_NO_PADDING",
     "shadow_slots": "min(2,N)",
-    "public_label": "UNCALIBRATED_RESEARCH_PROXY_NOT_FORMAL_PROBABILITY",
+    "public_label": "MODEL_ESTIMATED_EXECUTABLE_PROFIT_PROBABILITY_UNCALIBRATED_NOT_FORMAL",
+    "visible_full_n_probability_ranking": true,
+    "promotion_rank_frozen_and_independent": true,
+    "rt_min_wire_fields": "NATIVE_DEFAULT_EMPTY_PROJECTION",
+    "rt_min_response_contract": "EXACT_CODE_XOR_TS_CODE_PLUS_FREQ_TIME_OHLCVA",
     "codex_runtime_dependency": false,
     "external_top10_decision_runtime_dependency": false,
     "writer_dispatch_performed": false
   },
-  "added_runtime_pins": {
-    "models/decision_executable_profit_forward_settlement_contract.json": "6b8027a2f3ecb16c4e2c725869909da288741f8974941d5e0c4be616170a14f7",
-    "models/decision_executable_profit_internal_forward_challenger.json": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
-    "models/decision_executable_profit_research_projection_contract.json": "085a856419ef5a34121c6815e63ed8a8a9370cf8aaf59f0f17f2612180dfb634",
-    "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
-    "scripts/project_decision_executable_profit_research.py": "d13746053a0807dbc55626400cbb2f7f327ea439dd0bec1356e99c6bb838d57f",
-    "scripts/run_decision_executable_profit_forward_shadow.py": "3e513f44c02b0b02eea494796c50ec1743f9a339b3671e6c0a38c7a4c4f231ba",
-    "scripts/settle_decision_executable_profit_forward_shadow.py": "d412ce6b156665547d9be94640d1f4c43151b334e3fb7d3b1d6fff43b264c745",
-    "scripts/validate_decision_executable_profit_shadow_contract.py": "70ca540b79203742f3afe494a3ffd99994fcfb3dd764acfbb3a6b2d8a71cd881",
-    "src/top10decision/decision/executable_profit_research_projection.py": "34ebb72e8f16110dc31821cb8addf069e51e0f9d63b7599608e7b8d717d67896",
-    "src/top10decision/decision/executable_profit_shadow.py": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
-    "src/top10decision/decision/executable_profit_shadow_settlement.py": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458"
-  },
-  "changed_surface_sha256": "05b1d76edf9f24a4bd5af79b683a31ea596985b4460018facaf3c14718393283",
+  "added_runtime_pins": {},
+  "changed_surface_sha256": "35041802601603cd8689ffdc8fc95bc0cb7100fe97c242ba9b020c20b1611e55",
   "pin_changes": [
     {
-      "path": ".github/workflows/deploy_dc20_pages.yml",
-      "prior_sha256": "2f83db1b8e835229c8eac0f5281322dc6e11bd69c763317e325ce59db8cfb03a",
-      "current_sha256": "90a6e3b9619adc46d819824b896e2152921ef08bf193c21aae69aa285668cc35",
-      "classification": "executable_profit_public_surface_release"
-    },
-    {
-      "path": ".github/workflows/run_decision_daily.yml",
-      "prior_sha256": "8b9a053df83a918b3bcf376ecfb778eef932d62bd4faec447009dd682e09475b",
-      "current_sha256": "fe5ae6862ff00ce411a179cdda254791e2cd253a951ca85aebf07f40cc1ec17c",
-      "classification": "executable_profit_public_surface_release"
-    },
-    {
-      "path": ".github/workflows/train_decision_three_engines.yml",
-      "prior_sha256": "80b7d663cf0238ff167dd2c693d2ce11242c0335c5bb4e88881ac2998f0e2365",
-      "current_sha256": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
-      "classification": "prior_executable_profit_source_pin_reconciliation"
-    },
-    {
-      "path": ".github/workflows/verify_decision_observations.yml",
-      "prior_sha256": "c76faaca9c2f55c48d4fcd54f2aa418c5add9517ff9a75dd5098104f06cb92b0",
-      "current_sha256": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
-      "classification": "executable_profit_public_surface_release"
-    },
-    {
       "path": "decision.html",
-      "prior_sha256": "e90b5bf401d46b243b1dc25f65c7549331d085e10ebee2b4873337c08d213e53",
-      "current_sha256": "b100387f7d2449c5ff65bf0f5a1ee1a55a533746e55409c82c31a6b68f262eb3",
-      "classification": "executable_profit_public_surface_release"
+      "prior_sha256": "b100387f7d2449c5ff65bf0f5a1ee1a55a533746e55409c82c31a6b68f262eb3",
+      "current_sha256": "677a7808c1d2c36fe923c81a6a6696539cd8ab7e4013c5b606abbd53590197b7",
+      "classification": "executable_profit_probability_surface_upgrade"
     },
     {
-      "path": "src/top10decision/auction_v3/engine.py",
-      "prior_sha256": "c39451dd9b364db358f52a1258e666037b50000273ac7de4cbbbf1f802eef49f",
-      "current_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "classification": "prior_executable_profit_source_pin_reconciliation"
+      "path": "models/decision_executable_profit_research_projection_contract.json",
+      "prior_sha256": "085a856419ef5a34121c6815e63ed8a8a9370cf8aaf59f0f17f2612180dfb634",
+      "current_sha256": "ec4de53bea6baab94b699d5ebf9ed99e918c140f96bdb8afd3e03178e96cae36",
+      "classification": "executable_profit_probability_surface_upgrade"
     },
     {
-      "path": "src/top10decision/decision/model_freeze.py",
-      "prior_sha256": "3489186554c570519d32278537b71286c2f8bba9d748ef74638b54dbb915e980",
-      "current_sha256": "1601ef11b4d826c5db1076ddcd022dabda39743c6d2176d2db644ea4031e3de8",
-      "classification": "freeze_required_pin_set_closure"
+      "path": "scripts/check_tushare_health.py",
+      "prior_sha256": "b77474c4f85855db30222b6e0c013e98244eb59e0acbbd99462be40b5ef2b97d",
+      "current_sha256": "c7348a7abf1f1d97eb8f2aeaf0ca41aee25c01dddb1a10b242be309f08192a78",
+      "classification": "rt_min_native_wire_contract_repair"
     },
     {
-      "path": "tests/test_auction_v3_three_engine_runtime.py",
-      "prior_sha256": "eede26a904b9ff9a22b9a47620d54297de27dbb7c1e2d7466e4ee5249ff0d8e3",
-      "current_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
-      "classification": "prior_executable_profit_source_pin_reconciliation"
+      "path": "src/top10decision/data/tushare_minute.py",
+      "prior_sha256": "e3006bbda36779f69701bac8e4e0497c435ef66e4618eb7bdb12a0ae385ec65e",
+      "current_sha256": "30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785",
+      "classification": "rt_min_native_wire_contract_repair"
     },
     {
-      "path": "tests/test_frozen_canonical_v2_replay.py",
-      "prior_sha256": "0cf2a96014ee89279a6283724b1918975f0b44464f47a7cb80fbca3d9b1ebaa7",
-      "current_sha256": "3f91d17cdacb9cd5e3d373f5eeb9963239a08694ae882cd820cb681a6b0aab7b",
-      "classification": "freeze_required_pin_set_closure"
+      "path": "src/top10decision/decision/executable_profit_research_projection.py",
+      "prior_sha256": "34ebb72e8f16110dc31821cb8addf069e51e0f9d63b7599608e7b8d717d67896",
+      "current_sha256": "506ff7aa9ca799fe33b409790f080c95ede05caa27ebe6c59a7c8b1d06ad097d",
+      "classification": "executable_profit_probability_surface_upgrade"
+    },
+    {
+      "path": "src/top10decision/rt_min_contract.py",
+      "prior_sha256": "7cc3557fae392bcaf46ab7fc9157f32e1b0d48d763f8876f9f2903c52d8d0b2e",
+      "current_sha256": "693fab2ce829f6a7b4772c6ef1e7bbd4e5ff11540f70c4828fe76abdddeea846",
+      "classification": "rt_min_native_wire_contract_repair"
+    },
+    {
+      "path": "tests/test_decision_contract.py",
+      "prior_sha256": "c75098599522eaa51fccd3d1f352850463c564edfa2728f69d852158ed2168eb",
+      "current_sha256": "286319e39a730e357f421ff183b80974f1ab89bcc135b3094be7c87e0e99be8d",
+      "classification": "rt_min_native_wire_contract_repair"
+    },
+    {
+      "path": "tests/test_decision_tushare_health.py",
+      "prior_sha256": "fbb4b36f526dbab320fa242915f9c6dd62c187a00ef99da01d295de82a5eb483",
+      "current_sha256": "51c997957469d72f807dd20e1b0d5b20c27cb98b1c6ddbbb3300246a9a32c7b3",
+      "classification": "rt_min_native_wire_contract_repair"
     }
   ]
 }

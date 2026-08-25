@@ -12,6 +12,7 @@ import requests
 
 from top10decision.rt_min_contract import (
     RT_MIN_CANONICAL_FIELDS,
+    RT_MIN_WIRE_FIELDS,
     RTMinContractError,
     validate_rt_min_response,
 )
@@ -19,6 +20,7 @@ from top10decision.rt_min_contract import (
 
 API_URL = "https://api.tushare.pro"
 MINUTE_FIELDS = RT_MIN_CANONICAL_FIELDS
+MINUTE_WIRE_FIELDS = RT_MIN_WIRE_FIELDS
 HISTORICAL_MINUTE_FIELDS = (
     "ts_code",
     "trade_time",
@@ -367,7 +369,7 @@ class TushareClient:
             response_fields, response_rows = self._call_rows(
                 "rt_min_daily",
                 {"ts_code": code, "freq": normalized_freq},
-                MINUTE_FIELDS,
+                MINUTE_WIRE_FIELDS,
             )
         except TushareResponseSchemaError as exc:
             raise RTMinContractError(
@@ -716,6 +718,7 @@ __all__ = [
     "DAILY_LIMIT_FIELDS",
     "DAILY_LIMIT_LIST_FIELDS",
     "MINUTE_FIELDS",
+    "MINUTE_WIRE_FIELDS",
     "RTMinContractError",
     "TushareClient",
     "TushareResponseSchemaError",

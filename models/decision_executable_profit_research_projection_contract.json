@@ -1,8 +1,8 @@
 {
-  "schema_version": "dc20_executable_profit_research_projection_contract_v1",
-  "contract_id": "dc20_executable_profit_research_projection_20260824_v1",
+  "schema_version": "dc20_executable_profit_research_projection_contract_v2",
+  "contract_id": "dc20_executable_profit_research_projection_20260825_v2",
   "status": "PUBLIC_RESEARCH_PROJECTION_ALLOWED",
-  "display_name": "可实现盈利研究排序（未校准代理分）",
+  "display_name": "可实现盈利概率排序（模型估计·未校准）",
   "authority": {
     "repository": "njedu2023-prog/DC20",
     "branch": "main",
@@ -28,8 +28,11 @@
     "shadow_slot_rule": "actual_slots = min(2, N); never pad Top2",
     "promotion_rank_is_independent": true,
     "shadow_price_use": "D-frozen research price cap only; not a buy instruction",
-    "score_kind": "uncalibrated research proxy score",
-    "probability_claim_allowed": false
+    "score_kind": "uncalibrated model-estimated executable-profit probability",
+    "estimated_probability_field": "estimated_executable_profit_probability",
+    "estimated_probability_display_allowed": true,
+    "estimated_probability_calibrated": false,
+    "formal_probability_claim_allowed": false
   },
   "outputs": {
     "projection_json": "outputs/decision/executable_profit_research/projection_<D>.json",
@@ -43,6 +46,8 @@
   },
   "boundaries": {
     "public_research_projection_allowed": true,
+    "estimated_probability_display_allowed": true,
+    "estimated_probability_calibrated": false,
     "formal_probability_allowed": false,
     "formal_rank_allowed": false,
     "official_trade_action_allowed": false,

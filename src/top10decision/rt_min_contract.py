@@ -16,6 +16,12 @@ RT_MIN_CANONICAL_FIELDS = (
     "amount",
 )
 RT_MIN_VALUE_FIELDS = RT_MIN_CANONICAL_FIELDS[1:]
+# Ask Tushare for its native rt_min_daily response surface.  The endpoint's
+# documented request field is ``ts_code`` while the live result can identify
+# the same column as ``code``.  Projecting ``ts_code`` on the wire can therefore
+# turn a valid native response into an ambiguous schema.  Callers must request
+# no projection and then validate the exact native surface below.
+RT_MIN_WIRE_FIELDS: tuple[str, ...] = ()
 
 
 class RTMinContractError(RuntimeError):
@@ -75,9 +81,9 @@ def validate_rt_min_response(
         )
     identity_field = identity_fields[0]
     required_fields = (identity_field, *RT_MIN_VALUE_FIELDS)
-    if any(field not in names for field in required_fields):
+    if set(names) != set(required_fields) or len(names) != len(required_fields):
         raise RTMinContractError(
-            "rt_min_daily: required fields are missing",
+            "rt_min_daily: response fields differ from the exact native contract",
             reason="schema",
             row_count=row_count,
         )
@@ -135,6 +141,7 @@ __all__ = [
     "RT_MIN_CANONICAL_FIELDS",
     "RT_MIN_CODE_FIELDS",
     "RT_MIN_VALUE_FIELDS",
+    "RT_MIN_WIRE_FIELDS",
     "RTMinContractError",
     "validate_rt_min_response",
 ]

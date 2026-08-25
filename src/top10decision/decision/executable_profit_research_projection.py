@@ -21,12 +21,12 @@ from top10decision.decision.three_rank import (
 )
 
 
-CONTRACT_ID = "dc20_executable_profit_research_projection_20260824_v1"
+CONTRACT_ID = "dc20_executable_profit_research_projection_20260825_v2"
 CONTRACT_PATH = Path(
     "models/decision_executable_profit_research_projection_contract.json"
 )
-DISPLAY_NAME = "可实现盈利研究排序（未校准代理分）"
-PROJECTION_SCHEMA = "dc20_executable_profit_public_research_projection_v1"
+DISPLAY_NAME = "可实现盈利概率排序（模型估计·未校准）"
+PROJECTION_SCHEMA = "dc20_executable_profit_public_research_projection_v2"
 PROJECTION_KIND = "immutable_d_frozen_executable_profit_research_projection"
 STATISTICS_SCHEMA = "dc20_executable_profit_public_shadow_statistics_v1"
 STATISTICS_KIND = "immutable_asof_executable_profit_shadow_statistics_projection"
@@ -45,6 +45,8 @@ SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 PUBLIC_BOUNDARIES = {
     "public_research_projection_allowed": True,
+    "estimated_probability_display_allowed": True,
+    "estimated_probability_calibrated": False,
     "formal_probability_allowed": False,
     "formal_rank_allowed": False,
     "official_trade_action_allowed": False,
@@ -205,7 +207,7 @@ def _load_contract(repo_root: Path) -> tuple[Path, dict[str, Any]]:
     contract = _read_json(path, label="public research projection contract")
     _expect(
         contract.get("schema_version")
-        == "dc20_executable_profit_research_projection_contract_v1"
+        == "dc20_executable_profit_research_projection_contract_v2"
         and contract.get("contract_id") == CONTRACT_ID
         and contract.get("status") == "PUBLIC_RESEARCH_PROJECTION_ALLOWED"
         and contract.get("display_name") == DISPLAY_NAME,
@@ -264,8 +266,15 @@ def _load_contract(repo_root: Path) -> tuple[Path, dict[str, Any]]:
             "shadow_price_use": (
                 "D-frozen research price cap only; not a buy instruction"
             ),
-            "score_kind": "uncalibrated research proxy score",
-            "probability_claim_allowed": False,
+            "score_kind": (
+                "uncalibrated model-estimated executable-profit probability"
+            ),
+            "estimated_probability_field": (
+                "estimated_executable_profit_probability"
+            ),
+            "estimated_probability_display_allowed": True,
+            "estimated_probability_calibrated": False,
+            "formal_probability_claim_allowed": False,
         },
         "public research projection ranking boundary drifted",
     )
@@ -556,6 +565,9 @@ def build_research_projection(
                 "research_joint_proxy_score": float(
                     frozen["research_joint_proxy_score"]
                 ),
+                "estimated_executable_profit_probability": float(
+                    frozen["research_joint_proxy_score"]
+                ),
                 "research_fill_proxy_score": float(
                     frozen["research_fill_proxy_score"]
                 ),
@@ -588,7 +600,11 @@ def build_research_projection(
         "ranking_contract": {
             "source_order": "immutable selection internal_shadow_order",
             "visible_rank_field": "executable_profit_research_rank",
-            "score_label": "未校准代理分",
+            "estimated_probability_field": (
+                "estimated_executable_profit_probability"
+            ),
+            "score_label": "模型估计可实现盈利概率（未校准）",
+            "estimated_probability_calibrated": False,
             "recomputed_or_reranked": False,
             "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
             "shadow_requested_slots": 2,
@@ -615,6 +631,7 @@ PROJECTION_ROW_KEYS = {
     "promotion_rank",
     "predicted_promotion_probability",
     "executable_profit_research_rank",
+    "estimated_executable_profit_probability",
     "research_joint_proxy_score",
     "research_fill_proxy_score",
     "research_conditional_profit_score",
@@ -715,6 +732,7 @@ def validate_research_projection(
         )
         for field in (
             "predicted_promotion_probability",
+            "estimated_executable_profit_probability",
             "research_joint_proxy_score",
             "research_fill_proxy_score",
             "research_conditional_profit_score",
@@ -725,11 +743,23 @@ def validate_research_projection(
                 f"public research projection {field} invalid",
             )
         joint = float(row["research_joint_proxy_score"])
+        estimated_probability = float(
+            row["estimated_executable_profit_probability"]
+        )
         fill = float(row["research_fill_proxy_score"])
         conditional = float(row["research_conditional_profit_score"])
         _expect(
             math.isclose(joint, fill * conditional, rel_tol=0.0, abs_tol=1e-15),
             "public research projection lost exact joint proxy identity",
+        )
+        _expect(
+            math.isclose(
+                estimated_probability,
+                joint,
+                rel_tol=0.0,
+                abs_tol=1e-15,
+            ),
+            "model-estimated executable-profit probability drifted from frozen joint score",
         )
         selected = index <= min(2, len(rows))
         _expect(
@@ -776,7 +806,11 @@ def validate_research_projection(
         == {
             "source_order": "immutable selection internal_shadow_order",
             "visible_rank_field": "executable_profit_research_rank",
-            "score_label": "未校准代理分",
+            "estimated_probability_field": (
+                "estimated_executable_profit_probability"
+            ),
+            "score_label": "模型估计可实现盈利概率（未校准）",
+            "estimated_probability_calibrated": False,
             "recomputed_or_reranked": False,
             "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
             "shadow_requested_slots": 2,
@@ -1535,6 +1569,7 @@ PROJECTION_CSV_FIELDS = (
     "promotion_rank",
     "predicted_promotion_probability",
     "executable_profit_research_rank",
+    "estimated_executable_profit_probability",
     "research_joint_proxy_score",
     "research_fill_proxy_score",
     "research_conditional_profit_score",
@@ -1544,6 +1579,8 @@ PROJECTION_CSV_FIELDS = (
     "shadow_price_basis",
     "shadow_price_source_sha256",
     "public_research_projection_allowed",
+    "estimated_probability_display_allowed",
+    "estimated_probability_calibrated",
     "formal_probability_allowed",
     "formal_rank_allowed",
     "official_trade_action_allowed",
@@ -1572,6 +1609,8 @@ def _projection_csv_bytes(payload: Mapping[str, Any]) -> bytes:
         "top10_members_sha256": payload["top10_members_sha256"],
         "source_bundle_sha256": payload["source_bundle_sha256"],
         "public_research_projection_allowed": True,
+        "estimated_probability_display_allowed": True,
+        "estimated_probability_calibrated": False,
         "formal_probability_allowed": False,
         "formal_rank_allowed": False,
         "official_trade_action_allowed": False,

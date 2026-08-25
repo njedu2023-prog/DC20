@@ -65,6 +65,7 @@ from scripts.validate_io_contract import (  # noqa: E402
 )
 from top10decision.data.tushare_minute import (  # noqa: E402
     MINUTE_FIELDS,
+    MINUTE_WIRE_FIELDS,
     TushareClient,
     TushareResponseSchemaError,
     opening_auction_price_from_snapshot,
@@ -1717,7 +1718,8 @@ class DecisionRealtimeMinuteContractTests(unittest.TestCase):
         _, api_name, params, fields = call.call_args.args
         self.assertEqual(api_name, "rt_min_daily")
         self.assertEqual(params, {"ts_code": "600000.SH", "freq": "1MIN"})
-        self.assertEqual(tuple(fields), MINUTE_FIELDS)
+        self.assertEqual(tuple(fields), MINUTE_WIRE_FIELDS)
+        self.assertEqual(MINUTE_WIRE_FIELDS, ())
         self.assertEqual(
             frame.columns.tolist(),
             ["ts_code", "time", "open", "close", "high", "low", "vol", "amount"],
@@ -1822,6 +1824,10 @@ class DecisionRealtimeMinuteContractTests(unittest.TestCase):
             "empty_required_value": (
                 list(MINUTE_FIELDS),
                 [[*self._row()[:-1], None]],
+            ),
+            "unexpected_extra_field": (
+                [*MINUTE_FIELDS, "unexpected"],
+                [[*self._row(), "unsafe"]],
             ),
         }
         client = TushareClient(token="secret")

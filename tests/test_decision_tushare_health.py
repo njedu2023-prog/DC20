@@ -114,6 +114,42 @@ def test_rt_min_daily_contract_matches_documented_fields_and_frequency() -> None
         "amount",
     )
     assert health.REALTIME_CODE_FIELDS == ("ts_code", "code")
+    assert health.REALTIME_WIRE_FIELDS == ()
+
+
+def test_rt_min_daily_health_requests_native_wire_surface() -> None:
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake_call(api_name, params, fields, token, timeout):
+        del params, token, timeout
+        calls.append((api_name, tuple(fields)))
+        if api_name == "trade_cal":
+            return _calendar(open_today=False)
+        if api_name == "stk_auction_o":
+            return _auction()
+        if api_name == "rt_min_daily":
+            return [], []
+        raise AssertionError(api_name)
+
+    health.run_health_check(
+        token="secret-value",
+        now_shanghai=datetime(2026, 8, 16, 8, 0, tzinfo=health.SHANGHAI),
+        api_call=fake_call,
+    )
+    assert calls[-1] == ("rt_min_daily", ())
+
+
+def test_rt_min_daily_rejects_unexpected_native_field() -> None:
+    fields, rows = _realtime(code_field="code")
+    with pytest.raises(health.HealthCheckError) as caught:
+        health._valid_realtime_rows(
+            [*fields, "unexpected"],
+            [[*rows[0], "unsafe"]],
+            probe_code="600000.SH",
+            now_shanghai=datetime(2026, 8, 17, 10, 40, tzinfo=health.SHANGHAI),
+        )
+    assert caught.value.reason == "schema"
+    assert caught.value.row_count == 1
 
 
 def test_rt_min_daily_accepts_documented_code_result_header() -> None:
