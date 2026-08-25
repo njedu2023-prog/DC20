@@ -7,12 +7,14 @@ on:
       - decision.html
       - outputs/decision/**
       - outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
+      - data/decision_three_engines/five_year_supervised_ledger.csv.gz
+      - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
       - models/decision_model_freeze.json
       - models/decision_three_engines/validation_latest.json
       - models/decision_three_rank_history_sources.json
-      - requirements.lock
       - src/top10decision/decision/legacy_profit_relative_research.py
+      - requirements.lock
       - scripts/build_decision_three_rank_history.py
       - scripts/project_decision_legacy_profit_relative_research.py
       - scripts/validate_decision_model_freeze.py
@@ -165,13 +167,16 @@ jobs:
             --source-root . \
             --output-root _site/outputs/decision/three_rank_history
           PYTHONPATH=src python3 - <<'PY'
+          import hashlib
           import json
+          import re
           from pathlib import Path
 
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain,
           )
 
+          repo_root = Path('.').resolve(strict=True)
           site_root = Path('_site').resolve(strict=True)
           index_path = (
               site_root
@@ -181,6 +186,135 @@ jobs:
               if not index_path.is_file() or index_path.is_symlink():
                   raise SystemExit('Pages executable-profit research index is unsafe')
               index = json.loads(index_path.read_text(encoding='utf-8'))
+              # Validate against the complete repository first. The public
+              # site then receives only exact source bytes named by this
+              # validated chain; no data directory is copied wholesale.
+              _validate_existing_index_chain(repo_root, index)
+              signal_date = str(index['latest_signal_date'])
+              projection_path = (
+                  repo_root / str(index['latest_projection_json_url'])
+              )
+              statistics_path = repo_root / str(index['latest_statistics_url'])
+              projection = json.loads(projection_path.read_text(encoding='utf-8'))
+              statistics = json.loads(statistics_path.read_text(encoding='utf-8'))
+
+              expected_paths = {
+                  'contract': (
+                      'models/decision_executable_profit_research_projection_contract.json'
+                  ),
+                  'selection_json': (
+                      'data/decision_executable_profit/forward/selections/'
+                      f'shadow_{signal_date}.json'
+                  ),
+                  'selection_csv': (
+                      'data/decision_executable_profit/forward/selections/'
+                      f'shadow_{signal_date}.csv'
+                  ),
+                  't_verification': (
+                      'data/decision_executable_profit/forward/verifications/'
+                      f't_verification_{signal_date}.json'
+                  ),
+                  't1_settlement': (
+                      'data/decision_executable_profit/forward/settlements/'
+                      f'settlement_{signal_date}.json'
+                  ),
+                  'statistics': (
+                      'data/decision_executable_profit/forward/statistics/summary.json'
+                  ),
+              }
+              selection = projection['source_bindings']['selection']
+              exact_sources = [
+                  (
+                      'contract',
+                      expected_paths['contract'],
+                      projection['contract_file_sha256'],
+                  ),
+                  (
+                      'selection_json',
+                      selection['json_path'],
+                      selection['json_sha256'],
+                  ),
+                  (
+                      'selection_csv',
+                      selection['csv_path'],
+                      selection['csv_sha256'],
+                  ),
+              ]
+              for kind in ('t_verification', 't1_settlement', 'statistics'):
+                  binding = statistics['source_bindings'][kind]
+                  if binding is not None:
+                      exact_sources.append(
+                          (kind, binding['path'], binding['file_sha256'])
+                      )
+
+              def safe_file(root, relative, label):
+                  value = Path(str(relative))
+                  if value.is_absolute() or '..' in value.parts:
+                      raise SystemExit(f'Pages executable-profit {label} path is unsafe')
+                  current = root
+                  for part in value.parts:
+                      current = current / part
+                      if current.is_symlink():
+                          raise SystemExit(
+                              f'Pages executable-profit {label} has a symlink ancestor'
+                          )
+                  if not current.is_file() or current.resolve(strict=True) != current:
+                      raise SystemExit(
+                          f'Pages executable-profit {label} source is not a regular file'
+                      )
+                  return value, current
+
+              def copy_exact_source(kind, relative, expected_sha256):
+                  if relative != expected_paths[kind]:
+                      raise SystemExit(
+                          f'Pages executable-profit {kind} path is not exact dated source'
+                      )
+                  if re.fullmatch(r'[0-9a-f]{64}', str(expected_sha256)) is None:
+                      raise SystemExit(
+                          f'Pages executable-profit {kind} SHA256 is invalid'
+                      )
+                  value, source = safe_file(repo_root, relative, kind)
+                  payload = source.read_bytes()
+                  if hashlib.sha256(payload).hexdigest() != expected_sha256:
+                      raise SystemExit(
+                          f'Pages executable-profit {kind} source SHA256 drifted'
+                      )
+                  target = site_root / value
+                  current = site_root
+                  for part in value.parent.parts:
+                      current = current / part
+                      if current.exists():
+                          if not current.is_dir() or current.is_symlink():
+                              raise SystemExit(
+                                  f'Pages executable-profit {kind} target ancestor is unsafe'
+                              )
+                      else:
+                          current.mkdir()
+                  if target.exists() and (
+                      not target.is_file() or target.is_symlink()
+                  ):
+                      raise SystemExit(
+                          f'Pages executable-profit {kind} target is unsafe'
+                      )
+                  target.write_bytes(payload)
+                  if (
+                      target.read_bytes() != payload
+                      or hashlib.sha256(target.read_bytes()).hexdigest()
+                      != expected_sha256
+                  ):
+                      raise SystemExit(
+                          f'Pages executable-profit {kind} target copy drifted'
+                      )
+                  return value.as_posix()
+
+              copied_sources = [
+                  copy_exact_source(kind, relative, expected_sha256)
+                  for kind, relative, expected_sha256 in exact_sources
+              ]
+              if len(copied_sources) != len(set(copied_sources)):
+                  raise SystemExit(
+                      'Pages executable-profit source copy inventory is duplicated'
+                  )
               _validate_existing_index_chain(site_root, index)
               print(json.dumps({
                   'status': 'PUBLIC_RESEARCH_CHAIN_VALIDATED',
@@ -188,6 +322,7 @@ jobs:
                   'as_of_date': index['latest_statistics_as_of_date'],
                   'projection_url': index['latest_projection_json_url'],
                   'statistics_url': index['latest_statistics_url'],
+                  'copied_source_paths': copied_sources,
               }, ensure_ascii=False, sort_keys=True))
           PY
           touch _site/.nojekyll
@@ -488,6 +623,7 @@ jobs:
           import hashlib
           import json
           import os
+          import re
           import time
           from pathlib import Path
           from urllib.parse import urljoin
@@ -660,6 +796,122 @@ jobs:
                       validate_shadow_statistics_projection(
                           executable_profit_payloads['statistics']
                       )
+                      projection_payload = executable_profit_payloads[
+                          'projection_json'
+                      ]
+                      statistics_payload = executable_profit_payloads['statistics']
+                      exact_signal_date = str(
+                          public_executable_profit_index['latest_signal_date']
+                      )
+                      expected_source_paths = {
+                          'contract': (
+                              'models/'
+                              'decision_executable_profit_research_projection_contract.json'
+                          ),
+                          'selection_json': (
+                              'data/decision_executable_profit/forward/selections/'
+                              f'shadow_{exact_signal_date}.json'
+                          ),
+                          'selection_csv': (
+                              'data/decision_executable_profit/forward/selections/'
+                              f'shadow_{exact_signal_date}.csv'
+                          ),
+                          'three_rank_json': (
+                              'outputs/decision/'
+                              f'three_rank_top10_{exact_signal_date}.json'
+                          ),
+                          'three_rank_csv': (
+                              'outputs/decision/'
+                              f'three_rank_top10_{exact_signal_date}.csv'
+                          ),
+                          't_verification': (
+                              'data/decision_executable_profit/forward/verifications/'
+                              f't_verification_{exact_signal_date}.json'
+                          ),
+                          't1_settlement': (
+                              'data/decision_executable_profit/forward/settlements/'
+                              f'settlement_{exact_signal_date}.json'
+                          ),
+                          'statistics': (
+                              'data/decision_executable_profit/forward/statistics/'
+                              'summary.json'
+                          ),
+                      }
+                      projection_sources = projection_payload['source_bindings']
+                      exact_source_bindings = [
+                          (
+                              'contract',
+                              expected_source_paths['contract'],
+                              projection_payload['contract_file_sha256'],
+                          ),
+                          (
+                              'selection_json',
+                              projection_sources['selection']['json_path'],
+                              projection_sources['selection']['json_sha256'],
+                          ),
+                          (
+                              'selection_csv',
+                              projection_sources['selection']['csv_path'],
+                              projection_sources['selection']['csv_sha256'],
+                          ),
+                          (
+                              'three_rank_json',
+                              projection_sources['three_rank']['json_path'],
+                              projection_sources['three_rank']['json_sha256'],
+                          ),
+                          (
+                              'three_rank_csv',
+                              projection_sources['three_rank']['csv_path'],
+                              projection_sources['three_rank']['csv_sha256'],
+                          ),
+                      ]
+                      for kind in (
+                          't_verification',
+                          't1_settlement',
+                          'statistics',
+                      ):
+                          binding = statistics_payload['source_bindings'][kind]
+                          if binding is not None:
+                              exact_source_bindings.append(
+                                  (kind, binding['path'], binding['file_sha256'])
+                              )
+
+                      seen_source_urls = set()
+                      for kind, url, expected_sha256 in exact_source_bindings:
+                          if (
+                              url != expected_source_paths[kind]
+                              or re.fullmatch(
+                                  r'[0-9a-f]{64}', str(expected_sha256)
+                              )
+                              is None
+                              or url in seen_source_urls
+                          ):
+                              raise RuntimeError(
+                                  f'executable-profit public {kind} source binding is not exact'
+                              )
+                          seen_source_urls.add(url)
+                          local_source_path = Path('_site') / url
+                          if (
+                              not local_source_path.is_file()
+                              or local_source_path.is_symlink()
+                          ):
+                              raise RuntimeError(
+                                  f'executable-profit local source is missing: {url}'
+                              )
+                          local_source_bytes = local_source_path.read_bytes()
+                          public_source_bytes = fetch_bytes(url)
+                          if (
+                              hashlib.sha256(public_source_bytes).hexdigest()
+                              != expected_sha256
+                          ):
+                              raise RuntimeError(
+                                  f'executable-profit public source SHA256 mismatch: {url}'
+                              )
+                          if public_source_bytes != local_source_bytes:
+                              raise RuntimeError(
+                                  'executable-profit public source bytes differ '
+                                  f'from exact build: {url}'
+                              )
                   history_prefix = "outputs/decision/three_rank_history/"
                   local_history_root = Path("_site") / history_prefix
                   local_history_index_bytes = (local_history_root / "index.json").read_bytes()
@@ -669,7 +921,7 @@ jobs:
                   history_index = json.loads(public_history_index_bytes.decode("utf-8"))
                   if (
                       history_index.get("schema_version")
-                      != "dc20_three_rank_history_index_v1"
+                      != "dc20_three_rank_history_index_v2"
                       or history_index.get("index_kind")
                       != "dated_annual_shards_pointer_only"
                       or history_index.get("data_alias") is not False
@@ -723,8 +975,14 @@ jobs:
                   history_statistics = json.loads(
                       fetch_text(history_index["statistics_url"])
                   )
+                  p_fill_oof = history_statistics.get("p_fill_shadow_top2_oof")
+                  p_fill_forward = history_statistics.get(
+                      "p_fill_shadow_top2_forward"
+                  )
                   if (
-                      history_statistics.get("actual_execution_claimed") is not False
+                      history_statistics.get("schema_version")
+                      != "dc20_three_rank_history_statistics_v2"
+                      or history_statistics.get("actual_execution_claimed") is not False
                       or history_statistics.get("final_model_historical_scoring_used")
                       is not False
                       or history_statistics.get("calendar_source")
@@ -737,6 +995,26 @@ jobs:
                       != "RESEARCH_NOT_RELEASED"
                       or history_statistics["official_model_status"]["profit"]
                       != "RESEARCH_NOT_RELEASED"
+                      or not isinstance(p_fill_oof, dict)
+                      or p_fill_oof.get("schema_version")
+                      != "dc20_p_fill_shadow_oof_cumulative_v1"
+                      or p_fill_oof.get("selection_dates", 0) <= 0
+                      or p_fill_oof.get("selected_slots", 0) <= 0
+                      or p_fill_oof.get("separation_guards", {}).get(
+                          "actual_execution_claimed"
+                      ) is not False
+                      or not isinstance(p_fill_forward, dict)
+                      or p_fill_forward.get("schema_version")
+                      != "dc20_p_fill_shadow_forward_top2_v1"
+                      or p_fill_forward.get("separation_guards", {}).get(
+                          "actual_execution_claimed"
+                      ) is not False
+                      or p_fill_forward.get("fill_truth", {}).get(
+                          "actual_order_fill_observed"
+                      ) is not False
+                      or p_fill_forward.get("returns", {}).get(
+                          "actual_trading_result"
+                      ) is not False
                   ):
                       raise RuntimeError("public history release status is unsafe")
 

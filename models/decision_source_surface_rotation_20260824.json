@@ -1,11 +1,11 @@
 {
   "schema_version": "decision_source_surface_rotation_v1",
-  "rotation_id": "dc20_executable_profit_probability_and_rt_min_repair_20260825",
-  "approved_base_commit": "90d52c12ea2e0892410b2703263215b07ab4f7f5",
-  "prior_manifest_sha256": "671789aa65ae8209db45cf824002e8dbd2ff39d840b72e9b64457496d95e7c7b",
-  "prior_pinned_files_sha256": "b863820fea37d058badf581a4b9c891fd9dfdb24c4ff17cad755eaf80601d6f1",
-  "prior_evidence_sha256": "b39ab27e7021ea04bf254e886ada72382719a2e0822a2136bfe52b01ab4898b6",
-  "reason": "Authorize a visible full-N model-estimated executable-profit probability ranking inside the frozen promotion TopN, fix the six-field projection binding, and request the native Tushare rt_min_daily response while preserving strict identity, frequency, time, and exact-schema gates.",
+  "rotation_id": "dc20_legacy_profit_relative_research_and_decision_ui_cleanup_20260825",
+  "approved_base_commit": "1c06ca4658049e76b225617f3a8413c302258938",
+  "prior_manifest_sha256": "a9b1db64363994a9c9ebbb437d2b3e1ff5d4ed3f0174f27e01ffab5682a15730",
+  "prior_pinned_files_sha256": "1791da2ff91191d8f981354b9bea48ae8f01dab607e58770533eeb757c489899",
+  "prior_evidence_sha256": "eaff60c840e0856ecfe067858c3ef0e68588acd164a8bf76d6abfa15da456abd",
+  "reason": "Authorize a visible raw relative ordering from the existing unapproved profit head inside the frozen promotion TopN, move model qualification cards into the audit section, and remove the p_fill Top2, legacy Trade Selector, and historical three-rank archive UI blocks while preserving independent same-repository data, ledgers, promotion membership, promotion order, model identity, and zero-action boundaries.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -17,66 +17,80 @@
   },
   "release_contract": {
     "candidate_count": "ACTUAL_N_0_TO_10_NO_PADDING",
-    "shadow_slots": "min(2,N)",
-    "public_label": "MODEL_ESTIMATED_EXECUTABLE_PROFIT_PROBABILITY_UNCALIBRATED_NOT_FORMAL",
-    "visible_full_n_probability_ranking": true,
+    "public_label": "LEGACY_PROFIT_RAW_RELATIVE_SCORE_NOT_PROBABILITY_NOT_FORMAL",
+    "visible_full_n_relative_ranking": true,
+    "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
     "promotion_rank_frozen_and_independent": true,
-    "rt_min_wire_fields": "NATIVE_DEFAULT_EMPTY_PROJECTION",
-    "rt_min_response_contract": "EXACT_CODE_XOR_TS_CODE_PLUS_FREQ_TIME_OHLCVA",
+    "official_action_count": 0,
+    "removed_ui_blocks": [
+      "p_fill_shadow_top2",
+      "trade_selector_legacy_commentary",
+      "three_rank_history_archive"
+    ],
+    "underlying_ledgers_preserved": true,
     "codex_runtime_dependency": false,
     "external_top10_decision_runtime_dependency": false,
     "writer_dispatch_performed": false
   },
-  "added_runtime_pins": {},
-  "changed_surface_sha256": "35041802601603cd8689ffdc8fc95bc0cb7100fe97c242ba9b020c20b1611e55",
+  "added_runtime_pins": {
+    "scripts/project_decision_legacy_profit_relative_research.py": "0c29627b32693dac2f6e9e5fa474e2831147b5e507b634a8063beb5a478423b0",
+    "src/top10decision/decision/legacy_profit_relative_research.py": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2"
+  },
+  "changed_surface_sha256": "e5cbba08e3d39c4bfdd368961c060b72d3fd18e7aba33bcc5eb7d8475be82419",
   "pin_changes": [
     {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "prior_sha256": "90a6e3b9619adc46d819824b896e2152921ef08bf193c21aae69aa285668cc35",
+      "current_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
+      "classification": "legacy_profit_pages_fail_closed"
+    },
+    {
+      "path": ".github/workflows/run_decision_daily.yml",
+      "prior_sha256": "fe5ae6862ff00ce411a179cdda254791e2cd253a951ca85aebf07f40cc1ec17c",
+      "current_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
+      "classification": "legacy_profit_independent_runtime_path"
+    },
+    {
       "path": "decision.html",
-      "prior_sha256": "b100387f7d2449c5ff65bf0f5a1ee1a55a533746e55409c82c31a6b68f262eb3",
-      "current_sha256": "677a7808c1d2c36fe923c81a6a6696539cd8ab7e4013c5b606abbd53590197b7",
-      "classification": "executable_profit_probability_surface_upgrade"
+      "prior_sha256": "677a7808c1d2c36fe923c81a6a6696539cd8ab7e4013c5b606abbd53590197b7",
+      "current_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
+      "classification": "decision_ui_research_ranking_and_cleanup"
     },
     {
-      "path": "models/decision_executable_profit_research_projection_contract.json",
-      "prior_sha256": "085a856419ef5a34121c6815e63ed8a8a9370cf8aaf59f0f17f2612180dfb634",
-      "current_sha256": "ec4de53bea6baab94b699d5ebf9ed99e918c140f96bdb8afd3e03178e96cae36",
-      "classification": "executable_profit_probability_surface_upgrade"
+      "path": "src/top10decision/auction_v3/engine.py",
+      "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
+      "current_sha256": "59c21de7a6b9b275f78e5d4855c2c7442f5a0ecbb259deb6ffa5015924243614",
+      "classification": "legacy_profit_independent_runtime_path"
     },
     {
-      "path": "scripts/check_tushare_health.py",
-      "prior_sha256": "b77474c4f85855db30222b6e0c013e98244eb59e0acbbd99462be40b5ef2b97d",
-      "current_sha256": "c7348a7abf1f1d97eb8f2aeaf0ca41aee25c01dddb1a10b242be309f08192a78",
-      "classification": "rt_min_native_wire_contract_repair"
+      "path": "src/top10decision/decision/model_freeze.py",
+      "prior_sha256": "1601ef11b4d826c5db1076ddcd022dabda39743c6d2176d2db644ea4031e3de8",
+      "current_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
+      "classification": "legacy_profit_required_runtime_pin_closure"
     },
     {
-      "path": "src/top10decision/data/tushare_minute.py",
-      "prior_sha256": "e3006bbda36779f69701bac8e4e0497c435ef66e4618eb7bdb12a0ae385ec65e",
-      "current_sha256": "30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785",
-      "classification": "rt_min_native_wire_contract_repair"
+      "path": "tests/test_dashboard_research_projection.py",
+      "prior_sha256": "3a91b90d62831a589a4e7b406125c2d098e175f8022c88ecd09d739af62a9d48",
+      "current_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
+      "classification": "decision_ui_research_ranking_and_cleanup"
     },
     {
-      "path": "src/top10decision/decision/executable_profit_research_projection.py",
-      "prior_sha256": "34ebb72e8f16110dc31821cb8addf069e51e0f9d63b7599608e7b8d717d67896",
-      "current_sha256": "506ff7aa9ca799fe33b409790f080c95ede05caa27ebe6c59a7c8b1d06ad097d",
-      "classification": "executable_profit_probability_surface_upgrade"
+      "path": "tests/test_decision_three_rank_frontend.py",
+      "prior_sha256": "3344f568efb836fd577bab55b984f6e9364ef322c4a1816c5f4b898f5d33c639",
+      "current_sha256": "e75f11b84482cf299bc7919f4e5eb0c773d8cae3631369622b02af659f6267ab",
+      "classification": "decision_ui_research_ranking_and_cleanup"
     },
     {
-      "path": "src/top10decision/rt_min_contract.py",
-      "prior_sha256": "7cc3557fae392bcaf46ab7fc9157f32e1b0d48d763f8876f9f2903c52d8d0b2e",
-      "current_sha256": "693fab2ce829f6a7b4772c6ef1e7bbd4e5ff11540f70c4828fe76abdddeea846",
-      "classification": "rt_min_native_wire_contract_repair"
+      "path": "tests/test_decision_three_rank_history_projection.py",
+      "prior_sha256": "e4d524b679feb9507d8679320961442990715077166de72262e938e2aa8e6963",
+      "current_sha256": "d08842e9d93b6676ad7975f6d81559ee02e9176eb9fbba91b19e5fced3ea1d20",
+      "classification": "decision_ui_research_ranking_and_cleanup"
     },
     {
-      "path": "tests/test_decision_contract.py",
-      "prior_sha256": "c75098599522eaa51fccd3d1f352850463c564edfa2728f69d852158ed2168eb",
-      "current_sha256": "286319e39a730e357f421ff183b80974f1ab89bcc135b3094be7c87e0e99be8d",
-      "classification": "rt_min_native_wire_contract_repair"
-    },
-    {
-      "path": "tests/test_decision_tushare_health.py",
-      "prior_sha256": "fbb4b36f526dbab320fa242915f9c6dd62c187a00ef99da01d295de82a5eb483",
-      "current_sha256": "51c997957469d72f807dd20e1b0d5b20c27cb98b1c6ddbbb3300246a9a32c7b3",
-      "classification": "rt_min_native_wire_contract_repair"
+      "path": "tests/test_pages_truthfulness_workflow.py",
+      "prior_sha256": "1ffa088c8728a0566f8bb6b5b91b60e598e3039386e4b987798e807de6151027",
+      "current_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
+      "classification": "legacy_profit_pages_fail_closed"
     }
   ]
 }

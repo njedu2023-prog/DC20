@@ -230,6 +230,24 @@ def test_legacy_profit_relative_sidecar_is_same_origin_only() -> None:
     assert "fetchPath(" not in loader
 
 
+def test_ready_fixture_builds_rank_bound_pfill_shadow_top2() -> None:
+    contract = build_three_rank_contract(_ready_contract_plan())
+
+    assert contract["shadow_contract"]["model_status"] == "SHADOW_READY"
+    assert contract["shadow_contract"]["may_change_membership"] is False
+    assert contract["shadow_contract"]["may_override_core_ranks"] is False
+    assert contract["shadow_top2"]["may_create_trade_action"] is False
+    assert contract["shadow_top2"]["actual_slots"] == 2
+    assert [row["p_fill_shadow_rank"] for row in contract["shadow_top2"]["rows"]] == [
+        1,
+        2,
+    ]
+    assert [row["ts_code"] for row in contract["shadow_top2"]["rows"]] == [
+        "600001.SH",
+        "600002.SH",
+    ]
+
+
 def _write_public_three_rank_action(site_root: Path) -> tuple[Path, Path]:
     contract = build_three_rank_contract(_ready_contract_plan())
     _, csv_path, enriched = materialize_three_rank_artifacts(

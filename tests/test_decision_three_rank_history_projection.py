@@ -1301,20 +1301,16 @@ def test_pages_workflow_builds_and_publicly_hash_verifies_history() -> None:
     assert "data/decision_three_engines/five_year_ledger_manifest.json" in push_header
 
 
-def test_dashboard_only_exposes_history_coverage_and_downloads_as_research() -> None:
+def test_dashboard_hides_history_archive_while_pages_preserves_data() -> None:
     text = DASHBOARD.read_text(encoding="utf-8")
     for token in (
         "历史三排名研究归档",
-        "历史覆盖未验证",
-        "B/C仅研究诊断，未发布为正式排名",
+        'id="threeRankHistoryPanel"',
+        "threeRankHistoryCoverage",
+        "threeRankHistoryDownloads",
+        "pFillHistorySummary",
         "loadThreeRankHistorySummary",
-        "statisticsBytes",
-        "await sha256Hex(statisticsBytes) !== index.statistics_sha256",
-        "年度下载已隐藏",
-        "${year} JSON",
-        "${year} CSV.gz",
-        "tushare:trade_cal:SSE",
-        "strict_calendar=true",
+        "dc20_three_rank_history_index_v2",
     ):
-        assert token in text
+        assert token not in text
     assert "历史覆盖 910 个D日 · 6753 行" not in text
