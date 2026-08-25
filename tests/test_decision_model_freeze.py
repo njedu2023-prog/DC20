@@ -1633,6 +1633,266 @@ class DecisionModelFreezeV2BehaviorTest(FreezeV2Fixture):
 
 
 class DecisionModelFreezeV2RuntimeTest(FreezeV2Fixture):
+    def _write_three_rank_overlay(self) -> Path:
+        self._write_runtime()
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        action = json.loads(action_path.read_text(encoding="utf-8"))
+        action["stage_watch_eligible_count"] = 2
+        _write_json(action_path, action)
+        path = self.root / "outputs/auction_v3/predictions/pred_latest.csv"
+        prediction = pd.read_csv(path)
+        for canonical, shadow in (
+            freeze_module.THREE_RANK_CANONICAL_PREIMAGE_COLUMNS.items()
+        ):
+            if canonical not in prediction:
+                prediction[canonical] = 0.2
+            prediction[shadow] = prediction[canonical]
+        prediction["three_rank_contract_version"] = (
+            freeze_module.THREE_RANK_CONTRACT_VERSION
+        )
+        prediction["three_engine_runtime_status"] = (
+            "PARTIAL_MODELS_NOT_READY"
+        )
+        prediction["three_engine_runtime_feature_gate_passed"] = 1
+        prediction["three_engine_runtime_artifacts_hash_bound"] = 1
+        prediction["three_engine_runtime_input_pool_complete"] = 1
+        prediction["three_engine_runtime_failure"] = ""
+        prediction["feature_snapshot_sha256"] = "a" * 64
+        prediction["top10_members_sha256"] = "b" * 64
+        prediction["promotion_pool_size"] = len(prediction)
+        prediction["top10_selected"] = [0, 1]
+        prediction["promotion_rank"] = [2, 1]
+        prediction["promotion_rank_score"] = [0.91, 0.87]
+        prediction["predicted_promotion_probability"] = [0.61, 0.57]
+        prediction["promotion_model_status"] = "READY"
+        prediction["big_loss_model_status"] = "NOT_READY_VALIDATION_GATE"
+        prediction["profit_model_status"] = "NOT_READY_VALIDATION_GATE"
+        prediction["big_loss_safety_rank"] = float("nan")
+        prediction["big_loss_rank_score"] = float("nan")
+        prediction["predicted_big_loss_probability"] = float("nan")
+        prediction["profit_rank"] = float("nan")
+        prediction["profit_rank_score"] = float("nan")
+        prediction["predicted_profit_probability"] = float("nan")
+        prediction.to_csv(path, index=False)
+        return path
+
+    def test_three_rank_overlay_validates_exact_canonical_preimage(self):
+        path = self._write_three_rank_overlay()
+        with patch(
+            "top10decision.decision.three_rank."
+            "_three_engine_projection_is_complete",
+            return_value=True,
+        ):
+            audit = self._validate_runtime()
+
+        preimage = audit["three_rank_canonical_preimage"]
+        self.assertTrue(preimage["active"])
+        self.assertTrue(preimage["canonical_preimage_validated"])
+        self.assertEqual(preimage["rows"], 2)
+        self.assertEqual(preimage["signal_date"], "20260814")
+        persisted = pd.read_csv(path)
+        self.assertTrue(
+            persisted["predicted_big_loss_probability"].isna().all()
+        )
+        self.assertTrue(
+            persisted["predicted_profit_probability"].isna().all()
+        )
+
+        with patch(
+            "top10decision.decision.three_rank."
+            "_three_engine_projection_is_complete",
+            return_value=True,
+        ):
+            action_audit = self._validate_action()
+        action_preimage = action_audit["action_plan"][
+            "three_rank_canonical_preimage"
+        ]
+        self.assertTrue(action_preimage["active"])
+        self.assertTrue(action_preimage["canonical_preimage_validated"])
+        self.assertEqual(action_preimage["rows"], 2)
+
+    def test_three_rank_overlay_preserves_round_trip_float_tokens(self):
+        path = self._write_three_rank_overlay()
+        exact_score = "0.30485097454095084"
+        prediction_text = pd.read_csv(
+            path,
+            dtype=str,
+            keep_default_na=False,
+        )
+        prediction_text.loc[0, "promotion_rank_score"] = exact_score
+        prediction_text.to_csv(path, index=False)
+
+        with patch(
+            "top10decision.decision.three_rank."
+            "_three_engine_projection_is_complete",
+            return_value=True,
+        ):
+            audit = self._validate_runtime()
+
+        self.assertTrue(
+            audit["three_rank_canonical_preimage"][
+                "canonical_preimage_validated"
+            ]
+        )
+        parsed = freeze_module._read_csv(path, "round-trip prediction")
+        exact = freeze_module._read_csv_exact_text(
+            path,
+            "round-trip prediction text",
+        )
+        self.assertEqual(
+            float(parsed.loc[0, "promotion_rank_score"]),
+            float(exact_score),
+        )
+        self.assertEqual(
+            exact.loc[0, "promotion_rank_score"],
+            exact_score,
+        )
+
+    def test_three_rank_overlay_preimage_is_strict_and_fail_closed(self):
+        path = self._write_three_rank_overlay()
+        baseline = pd.read_csv(path)
+        cases = []
+
+        partial = baseline.drop(
+            columns=["legacy_shadow_predicted_big_loss_probability"]
+        )
+        cases.append(("incomplete", partial, "preimage is incomplete"))
+
+        nonfinite = baseline.copy(deep=True)
+        nonfinite.loc[
+            0, "legacy_shadow_predicted_big_loss_probability"
+        ] = float("nan")
+        cases.append(("nonfinite", nonfinite, "exact finite decimal"))
+
+        profit_nonfinite = baseline.copy(deep=True)
+        profit_nonfinite.loc[
+            0, "legacy_shadow_predicted_profit_probability"
+        ] = float("nan")
+        cases.append(
+            ("profit_nonfinite", profit_nonfinite, "exact finite decimal")
+        )
+
+        promotion_probability_nonfinite = baseline.copy(deep=True)
+        promotion_probability_nonfinite.loc[
+            1, "legacy_shadow_predicted_promotion_probability"
+        ] = float("nan")
+        cases.append(
+            (
+                "promotion_probability_nonfinite",
+                promotion_probability_nonfinite,
+                "exact finite decimal",
+            )
+        )
+
+        rank_drift = baseline.copy(deep=True)
+        rank_drift.loc[1, "legacy_shadow_promotion_rank"] = 2
+        cases.append(("rank_drift", rank_drift, "promotion_rank"))
+
+        unbound = baseline.copy(deep=True)
+        unbound["three_engine_runtime_artifacts_hash_bound"] = 0
+        unbound["three_engine_runtime_failure"] = "not_hash_bound"
+        cases.append(("unbound", unbound, "must remain one"))
+
+        promotion_not_ready = baseline.copy(deep=True)
+        promotion_not_ready["promotion_model_status"] = (
+            "NOT_READY_VALIDATION_GATE"
+        )
+        promotion_not_ready["three_engine_runtime_status"] = (
+            "NOT_READY_PROMOTION"
+        )
+        cases.append(
+            (
+                "promotion_not_ready",
+                promotion_not_ready,
+                "READY promotion head",
+            )
+        )
+
+        unauthorized_big_loss = baseline.copy(deep=True)
+        unauthorized_big_loss.loc[1, "big_loss_safety_rank"] = 1
+        unauthorized_big_loss.loc[1, "big_loss_rank_score"] = 0.7
+        unauthorized_big_loss.loc[
+            1, "predicted_big_loss_probability"
+        ] = 0.2
+        cases.append(
+            (
+                "unauthorized_big_loss",
+                unauthorized_big_loss,
+                "unauthorized value",
+            )
+        )
+
+        for name, candidate, error in cases:
+            with self.subTest(name=name):
+                candidate.to_csv(path, index=False)
+                with patch(
+                    "top10decision.decision.three_rank."
+                    "_three_engine_projection_is_complete",
+                    return_value=True,
+                ):
+                    with self.assertRaisesRegex(
+                        DecisionModelFreezeError,
+                        error,
+                    ):
+                        self._validate_runtime()
+
+        self._write_runtime()
+        native = self._validate_runtime()["three_rank_canonical_preimage"]
+        self.assertFalse(native["active"])
+        self.assertEqual(native["source"], "native_canonical_prediction")
+
+    def test_three_rank_action_watchlist_binds_to_overlay_promotion_order(self):
+        path = self._write_three_rank_overlay()
+        prediction = pd.read_csv(path)
+        prediction["top10_selected"] = 1
+        prediction.to_csv(path, index=False)
+
+        action_path = self.root / "outputs/decision/action_plan_latest.json"
+        action = json.loads(action_path.read_text(encoding="utf-8"))
+        candidates = {
+            row["ts_code"]: row for row in action["candidates"]
+        }
+        watchlist = []
+        for rank, code in enumerate(("000002.SZ", "000001.SZ"), start=1):
+            row = copy.deepcopy(candidates[code])
+            row["stage_watch_rank"] = rank
+            row["watch_label"] = (
+                "二筛影子"
+                if row["trade_shadow_selected"] == 1
+                else "仅观察"
+            )
+            watchlist.append(row)
+        action["stage_watchlist"] = watchlist
+        action["stage_watch_count"] = 2
+        action["stage_watch_eligible_count"] = 2
+        _write_json(action_path, action)
+
+        with patch(
+            "top10decision.decision.three_rank."
+            "_three_engine_projection_is_complete",
+            return_value=True,
+        ):
+            audit = self._validate_action()
+        self.assertEqual(
+            audit["action_plan"]["runtime_binding"][
+                "watchlist_rank_source"
+            ],
+            "three_engine_promotion_rank",
+        )
+
+        action["stage_watchlist"].reverse()
+        _write_json(action_path, action)
+        with patch(
+            "top10decision.decision.three_rank."
+            "_three_engine_projection_is_complete",
+            return_value=True,
+        ):
+            with self.assertRaisesRegex(
+                DecisionModelFreezeError,
+                "promotion ranks|rank order",
+            ):
+                self._validate_action()
+
     def test_runtime_action_is_dynamic_but_bound_to_same_run_prediction(self):
         reference_sha = self.manifest["behavior_contract"]["action_watchlist"][
             "sha256"

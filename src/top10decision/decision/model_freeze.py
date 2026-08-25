@@ -128,6 +128,50 @@ THREE_RANK_RUNTIME_FEATURE_COLUMNS = (
 )
 THREE_RANK_CORE_HEADS = ("promotion", "big_loss", "profit")
 THREE_RANK_ALL_HEADS = (*THREE_RANK_CORE_HEADS, "p_fill_shadow")
+THREE_RANK_CANONICAL_PREIMAGE_COLUMNS = {
+    "promotion_rank": "legacy_shadow_promotion_rank",
+    "promotion_rank_score": "legacy_shadow_promotion_rank_score",
+    "predicted_promotion_probability": (
+        "legacy_shadow_predicted_promotion_probability"
+    ),
+    "predicted_big_loss_probability": (
+        "legacy_shadow_predicted_big_loss_probability"
+    ),
+    "predicted_profit_probability": (
+        "legacy_shadow_predicted_profit_probability"
+    ),
+}
+THREE_RANK_RUNTIME_PREIMAGE_MARKERS = frozenset(
+    {
+        "three_rank_contract_version",
+        "three_engine_runtime_status",
+        "three_engine_runtime_feature_gate_passed",
+        "three_engine_runtime_artifacts_hash_bound",
+        "three_engine_runtime_input_pool_complete",
+        "three_engine_runtime_failure",
+        *THREE_RANK_CANONICAL_PREIMAGE_COLUMNS.values(),
+    }
+)
+THREE_RANK_RELEASE_OVERLAY_COLUMNS = frozenset(
+    {
+        "feature_snapshot_sha256",
+        "top10_selected",
+        "promotion_pool_size",
+        "top10_members_sha256",
+        "promotion_rank",
+        "promotion_rank_score",
+        "predicted_promotion_probability",
+        "promotion_model_status",
+        "big_loss_safety_rank",
+        "big_loss_rank_score",
+        "predicted_big_loss_probability",
+        "big_loss_model_status",
+        "profit_rank",
+        "profit_rank_score",
+        "predicted_profit_probability",
+        "profit_model_status",
+    }
+)
 THREE_RANK_RELEASE_MODES = ("ALL_CORE_READY", "PROMOTION_READY_PARTIAL")
 THREE_RANK_DYNAMIC_ASSET_PATHS = frozenset(
     {
@@ -2634,6 +2678,7 @@ def _read_csv(path: Path, context: str) -> pd.DataFrame:
         return pd.read_csv(
             path,
             low_memory=False,
+            float_precision="round_trip",
             dtype={"signal_date": "string", "ts_code": "string"},
         )
     except (OSError, ValueError, pd.errors.ParserError) as exc:
@@ -2797,6 +2842,329 @@ def _prediction_text_decimal(
     if probability and not Decimal(0) <= number <= Decimal(1):
         _fail(f"{context} must be within [0,1]")
     return number
+
+
+def _canonical_prediction_validation_view(
+    prediction: pd.DataFrame,
+    prediction_text: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    """Recover the frozen Auction surface from a proven three-rank overlay.
+
+    The independent three-engine runtime intentionally owns the public
+    promotion columns and leaves not-ready downstream heads blank.  The
+    canonical Auction V2 validator must still verify its original execution
+    surface, which is preserved row-for-row in ``legacy_shadow_*`` columns.
+    This adapter is deliberately fail-closed: any partial marker/preimage or
+    incomplete three-engine projection is rejected rather than interpreted as
+    a legacy prediction.
+    """
+
+    parsed_columns = set(prediction.columns)
+    text_columns = set(prediction_text.columns)
+    overlay_present = bool(
+        THREE_RANK_RUNTIME_PREIMAGE_MARKERS
+        & (parsed_columns | text_columns)
+    )
+    if not overlay_present:
+        return prediction, prediction_text, {
+            "active": False,
+            "canonical_preimage_validated": False,
+            "source": "native_canonical_prediction",
+        }
+
+    required = set(THREE_RANK_RUNTIME_PREIMAGE_MARKERS).union(
+        THREE_RANK_RELEASE_OVERLAY_COLUMNS
+    )
+    missing_parsed = sorted(required.difference(parsed_columns))
+    missing_text = sorted(required.difference(text_columns))
+    if missing_parsed or missing_text:
+        _fail(
+            "three-rank canonical preimage is incomplete: "
+            f"parsed_missing={missing_parsed!r}, text_missing={missing_text!r}"
+        )
+    if prediction.empty or len(prediction) != len(prediction_text):
+        _fail("three-rank canonical preimage row binding is invalid")
+
+    # Import lazily so the canonical freeze module remains the lower-level
+    # authority during normal imports.  The projection validator checks the
+    # complete D pool, hash-bound runtime evidence and exact TopN membership.
+    from .three_rank import _three_engine_projection_is_complete
+
+    signal_dates = prediction_text["signal_date"].tolist()
+    if (
+        not signal_dates
+        or any(
+            not isinstance(value, str) or DATE_PATTERN.fullmatch(value) is None
+            for value in signal_dates
+        )
+        or len(set(signal_dates)) != 1
+        or not _three_engine_projection_is_complete(
+            prediction,
+            signal_dates[0],
+        )
+    ):
+        _fail("three-rank runtime overlay is incomplete or not hash-bound")
+
+    def exact_uniform_text(column: str) -> str:
+        values = prediction_text[column].tolist()
+        if (
+            not values
+            or any(not isinstance(value, str) or value == "" for value in values)
+            or len(set(values)) != 1
+        ):
+            _fail(f"three-rank overlay {column} must be one exact nonempty value")
+        return values[0]
+
+    def require_exact_numeric(
+        position: int,
+        column: str,
+        *,
+        probability: bool = False,
+        positive_integer: bool = False,
+    ) -> Decimal:
+        exact = _prediction_text_decimal(
+            prediction_text,
+            position,
+            column,
+            probability=probability,
+        )
+        parsed = prediction.iloc[position][column]
+        try:
+            parsed_number = float(parsed)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise DecisionModelFreezeError(
+                f"prediction.{column}[{position}] must match its exact text"
+            ) from exc
+        if not math.isfinite(parsed_number) or parsed_number != float(exact):
+            _fail(f"prediction.{column}[{position}] must match its exact text")
+        if positive_integer and (
+            exact != exact.to_integral_value() or exact < 1
+        ):
+            _fail(f"prediction.{column}[{position}] must be a positive integer")
+        return exact
+
+    for binary_column in (
+        "three_engine_runtime_feature_gate_passed",
+        "three_engine_runtime_artifacts_hash_bound",
+        "three_engine_runtime_input_pool_complete",
+    ):
+        for position in range(len(prediction)):
+            if require_exact_numeric(position, binary_column) != 1:
+                _fail(f"three-rank overlay {binary_column} must remain one")
+    if any(
+        value != ""
+        for value in prediction_text["three_engine_runtime_failure"].tolist()
+    ):
+        _fail("three-rank hash-bound overlay must not expose a runtime failure")
+
+    runtime_status = exact_uniform_text("three_engine_runtime_status")
+    promotion_status = exact_uniform_text("promotion_model_status")
+    big_loss_status = exact_uniform_text("big_loss_model_status")
+    profit_status = exact_uniform_text("profit_model_status")
+    if promotion_status != "READY":
+        _fail("three-rank canonical preimage requires a READY promotion head")
+
+    promotion_ranks: list[int] = []
+    for position in range(len(prediction)):
+        promotion_ranks.append(
+            int(
+                require_exact_numeric(
+                    position,
+                    "promotion_rank",
+                    positive_integer=True,
+                )
+            )
+        )
+        require_exact_numeric(
+            position,
+            "promotion_rank_score",
+            probability=True,
+        )
+        require_exact_numeric(
+            position,
+            "predicted_promotion_probability",
+            probability=True,
+        )
+    if sorted(promotion_ranks) != list(range(1, len(prediction) + 1)):
+        _fail("three-rank promotion ranks must cover the complete D pool")
+
+    selected_flags = [
+        _behavior_boolean(
+            value,
+            f"prediction.top10_selected[{position}]",
+        )
+        for position, value in enumerate(prediction["top10_selected"])
+    ]
+    selected_count = sum(selected_flags)
+    for status, rank_column, score_column, probability_column in (
+        (
+            big_loss_status,
+            "big_loss_safety_rank",
+            "big_loss_rank_score",
+            "predicted_big_loss_probability",
+        ),
+        (
+            profit_status,
+            "profit_rank",
+            "profit_rank_score",
+            "predicted_profit_probability",
+        ),
+    ):
+        ready = status == "READY"
+        head_ranks: list[int] = []
+        for position, selected in enumerate(selected_flags):
+            expected_value = ready and selected == 1
+            for column in (rank_column, score_column, probability_column):
+                if expected_value:
+                    exact = require_exact_numeric(
+                        position,
+                        column,
+                        probability=column != rank_column,
+                        positive_integer=column == rank_column,
+                    )
+                    if column == rank_column:
+                        head_ranks.append(int(exact))
+                elif (
+                    prediction_text.iloc[position][column] != ""
+                    or not _is_missing(prediction.iloc[position][column])
+                ):
+                    _fail(
+                        f"three-rank {status} head exposes an unauthorized "
+                        f"value in {column}"
+                    )
+        if ready and sorted(head_ranks) != list(
+            range(1, selected_count + 1)
+        ):
+            _fail("three-rank READY head ranks must cover its frozen TopN")
+
+    expected_runtime_status = (
+        "READY"
+        if big_loss_status == profit_status == "READY"
+        else "PARTIAL_MODELS_NOT_READY"
+    )
+    if runtime_status != expected_runtime_status:
+        _fail("three-rank aggregate status differs from its head readiness")
+
+    observation_flags = _prediction_observation_flags(prediction)
+    for position, selected in enumerate(observation_flags):
+        for preimage_column in (
+            "legacy_shadow_predicted_big_loss_probability",
+            "legacy_shadow_predicted_profit_probability",
+        ):
+            exact = _prediction_text_decimal(
+                prediction_text,
+                position,
+                preimage_column,
+                probability=True,
+            )
+            parsed = prediction.iloc[position][preimage_column]
+            try:
+                parsed_number = float(parsed)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise DecisionModelFreezeError(
+                    f"prediction.{preimage_column}[{position}] must match "
+                    "its exact-text canonical preimage"
+                ) from exc
+            if (
+                not math.isfinite(parsed_number)
+                or parsed_number != float(exact)
+            ):
+                _fail(
+                    f"prediction.{preimage_column}[{position}] must match "
+                    "its exact-text canonical preimage"
+                )
+
+        promotion_columns = (
+            "legacy_shadow_promotion_rank",
+            "legacy_shadow_promotion_rank_score",
+            "legacy_shadow_predicted_promotion_probability",
+        )
+        if selected == 0:
+            for preimage_column in promotion_columns:
+                exact_value = prediction_text.iloc[position][preimage_column]
+                parsed_value = prediction.iloc[position][preimage_column]
+                if exact_value != "" or not _is_missing(parsed_value):
+                    _fail(
+                        f"prediction.{preimage_column}[{position}] must be "
+                        "empty outside the frozen observation domain"
+                    )
+            continue
+
+        promotion_rank = _prediction_text_decimal(
+            prediction_text,
+            position,
+            "legacy_shadow_promotion_rank",
+        )
+        if promotion_rank != promotion_rank.to_integral_value() or promotion_rank < 1:
+            _fail(
+                "prediction.legacy_shadow_promotion_rank"
+                f"[{position}] must be a positive exact integer"
+            )
+        for preimage_column in (
+            "legacy_shadow_promotion_rank_score",
+            "legacy_shadow_predicted_promotion_probability",
+        ):
+            exact = _prediction_text_decimal(
+                prediction_text,
+                position,
+                preimage_column,
+                probability=True,
+            )
+            parsed = prediction.iloc[position][preimage_column]
+            try:
+                parsed_number = float(parsed)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise DecisionModelFreezeError(
+                    f"prediction.{preimage_column}[{position}] must match "
+                    "its exact-text canonical preimage"
+                ) from exc
+            if (
+                not math.isfinite(parsed_number)
+                or parsed_number != float(exact)
+            ):
+                _fail(
+                    f"prediction.{preimage_column}[{position}] must match "
+                    "its exact-text canonical preimage"
+                )
+        parsed_rank = prediction.iloc[position][
+            "legacy_shadow_promotion_rank"
+        ]
+        try:
+            parsed_rank_number = float(parsed_rank)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise DecisionModelFreezeError(
+                "prediction.legacy_shadow_promotion_rank"
+                f"[{position}] must match its exact-text canonical preimage"
+            ) from exc
+        if (
+            not math.isfinite(parsed_rank_number)
+            or parsed_rank_number != float(promotion_rank)
+        ):
+            _fail(
+                "prediction.legacy_shadow_promotion_rank"
+                f"[{position}] must match its exact-text canonical preimage"
+            )
+
+    canonical = prediction.copy(deep=True)
+    canonical_text = prediction_text.copy(deep=True)
+    for canonical_column, preimage_column in (
+        THREE_RANK_CANONICAL_PREIMAGE_COLUMNS.items()
+    ):
+        canonical[canonical_column] = prediction[preimage_column].copy()
+        canonical_text[canonical_column] = prediction_text[
+            preimage_column
+        ].copy()
+
+    return canonical, canonical_text, {
+        "active": True,
+        "canonical_preimage_validated": True,
+        "source": "row_bound_legacy_shadow_preimage",
+        "rows": len(canonical),
+        "signal_date": signal_dates[0],
+        "restored_columns": sorted(
+            THREE_RANK_CANONICAL_PREIMAGE_COLUMNS
+        ),
+    }
 
 
 def _validate_prediction_policy_gates(
@@ -4160,6 +4528,7 @@ def _validate_action_plan_runtime_binding(
     *,
     prediction: pd.DataFrame,
     prediction_text: pd.DataFrame,
+    three_rank_overlay_prediction: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     if len(prediction) != len(prediction_text) or prediction.empty:
         _fail("parsed and exact-text prediction rows must be identical and nonempty")
@@ -4299,19 +4668,69 @@ def _validate_action_plan_runtime_binding(
 
     observation_audit = _validate_prediction_observation_contract(prediction)
     selected_prediction_rows: list[tuple[int, dict[str, Any]]] = []
-    for position, (_, row) in enumerate(prediction.iterrows()):
-        selected = _behavior_boolean(
-            row["observation_selected"],
-            f"prediction.observation_selected[{position}]",
-        )
-        if selected != 1:
-            continue
-        observation_rank = _behavior_integer(
-            row["observation_rank"], f"prediction.observation_rank[{position}]"
-        )
-        selected_prediction_rows.append(
-            (observation_rank, prediction_rows[str(row["ts_code"])])
-        )
+    watchlist_rank_source = "frozen_observation_rank"
+    expected_watch_pool_size = observation_audit["pool_size"]
+    if three_rank_overlay_prediction is not None:
+        overlay = three_rank_overlay_prediction
+        if len(overlay) != len(prediction) or overlay.empty:
+            _fail("three-rank action overlay rows differ from canonical prediction")
+        required_overlay = {
+            "ts_code",
+            "top10_selected",
+            "promotion_rank",
+            "promotion_pool_size",
+        }
+        missing_overlay = sorted(required_overlay.difference(overlay.columns))
+        if missing_overlay:
+            _fail(
+                "three-rank action overlay missing columns: "
+                f"{missing_overlay!r}"
+            )
+        if overlay["ts_code"].tolist() != prediction["ts_code"].tolist():
+            _fail("three-rank action overlay row identity differs from prediction")
+        pool_sizes: set[int] = set()
+        for position, (_, row) in enumerate(overlay.iterrows()):
+            pool_size = _behavior_integer(
+                row["promotion_pool_size"],
+                f"prediction.promotion_pool_size[{position}]",
+            )
+            if pool_size < 1:
+                _fail("three-rank action overlay pool size must be positive")
+            pool_sizes.add(pool_size)
+            selected = _behavior_boolean(
+                row["top10_selected"],
+                f"prediction.top10_selected[{position}]",
+            )
+            if selected != 1:
+                continue
+            promotion_rank = _behavior_integer(
+                row["promotion_rank"],
+                f"prediction.promotion_rank[{position}]",
+            )
+            selected_prediction_rows.append(
+                (promotion_rank, prediction_rows[str(row["ts_code"])])
+            )
+        if len(pool_sizes) != 1:
+            _fail("three-rank action overlay pool size is not constant")
+        expected_watch_pool_size = next(iter(pool_sizes))
+        if expected_watch_pool_size != len(overlay):
+            _fail("three-rank action overlay pool size differs from prediction rows")
+        watchlist_rank_source = "three_engine_promotion_rank"
+    else:
+        for position, (_, row) in enumerate(prediction.iterrows()):
+            selected = _behavior_boolean(
+                row["observation_selected"],
+                f"prediction.observation_selected[{position}]",
+            )
+            if selected != 1:
+                continue
+            observation_rank = _behavior_integer(
+                row["observation_rank"],
+                f"prediction.observation_rank[{position}]",
+            )
+            selected_prediction_rows.append(
+                (observation_rank, prediction_rows[str(row["ts_code"])])
+            )
     selected_prediction_rows.sort(key=lambda item: item[0])
     if [rank for rank, _ in selected_prediction_rows] != list(
         range(1, len(selected_prediction_rows) + 1)
@@ -4368,15 +4787,23 @@ def _validate_action_plan_runtime_binding(
             f"action watchlist stage_watch_rank[{position}]",
             minimum=1,
         ) != observation_rank:
-            _fail("action stage_watch_rank differs from prediction observation_rank")
+            _fail("action stage_watch_rank differs from its frozen ranking source")
         if item.get("watch_label") != expected_label:
             _fail("action watch label differs from same-run prediction shadow state")
 
-    expected_shadow_count = sum(
+    watchlist_shadow_count = sum(
         row["trade_shadow_selected"] for _, row in selected_prediction_rows
     )
-    if expected_shadow_count != min(2, len(selected_prediction_rows)):
+    canonical_shadow_count = sum(
+        row["trade_shadow_selected"] for row in prediction_rows.values()
+    )
+    if (
+        three_rank_overlay_prediction is None
+        and watchlist_shadow_count != min(2, len(selected_prediction_rows))
+    ):
         _fail("same-run prediction does not preserve relative-best-two")
+    if three_rank_overlay_prediction is not None and watchlist_shadow_count > 2:
+        _fail("three-rank watchlist exposes more than two legacy shadow rows")
     if _require_int(action.get("stage_watch_count"), "action_plan.stage_watch_count") != len(
         selected_prediction_rows
     ):
@@ -4384,7 +4811,7 @@ def _validate_action_plan_runtime_binding(
     if _require_int(
         action.get("stage_watch_eligible_count"),
         "action_plan.stage_watch_eligible_count",
-    ) != observation_audit["pool_size"]:
+    ) != expected_watch_pool_size:
         _fail("action stage_watch_eligible_count differs from prediction")
     if _require_int(
         action.get("stage_watch_display_limit"),
@@ -4401,7 +4828,9 @@ def _validate_action_plan_runtime_binding(
         "evaluation_dates_exact": True,
         "candidate_rows_exact": True,
         "watchlist_rows_exact": True,
-        "shadow_rows": expected_shadow_count,
+        "watchlist_rank_source": watchlist_rank_source,
+        "shadow_rows": canonical_shadow_count,
+        "watchlist_shadow_rows": watchlist_shadow_count,
     }
 
 
@@ -4482,6 +4911,8 @@ def _validate_action_plan_contract(
     prediction_text: pd.DataFrame | None = None,
     prediction_policy_gates: Mapping[str, Any] | None = None,
     model_raw_policy: Mapping[str, Any] | None = None,
+    three_rank_overlay_prediction: pd.DataFrame | None = None,
+    three_rank_preimage_audit: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     production = _require_mapping(manifest.get("production"), "manifest.production")
     canonical = _require_mapping(
@@ -4507,7 +4938,24 @@ def _validate_action_plan_contract(
         prediction_text = _read_csv_exact_text(
             prediction_path, "action prediction exact-text binding"
         )
+    action_preimage_audit: dict[str, Any] = dict(
+        three_rank_preimage_audit
+        or {
+            "active": False,
+            "canonical_preimage_validated": False,
+            "source": "upstream_runtime_prevalidated",
+        }
+    )
     if prediction_policy_gates is None and model_raw_policy is None:
+        raw_prediction = prediction
+        prediction, prediction_text, action_preimage_audit = (
+            _canonical_prediction_validation_view(
+                prediction,
+                prediction_text,
+            )
+        )
+        if action_preimage_audit["active"]:
+            three_rank_overlay_prediction = raw_prediction
         prediction_policy_gates, model_raw_policy = (
             _standalone_prediction_policy_gates(
                 root_path,
@@ -4734,6 +5182,7 @@ def _validate_action_plan_contract(
         stage_watchlist,
         prediction=prediction,
         prediction_text=prediction_text,
+        three_rank_overlay_prediction=three_rank_overlay_prediction,
     )
     if runtime_binding["shadow_rows"] != shadow_count:
         _fail("action candidate shadow count differs from same-run prediction")
@@ -4748,6 +5197,7 @@ def _validate_action_plan_contract(
         "watchlist": watch_actual,
         "model_raw_policy_match": True,
         "prediction_policy_gates": dict(prediction_policy_gates),
+        "three_rank_canonical_preimage": action_preimage_audit,
         "runtime_binding": runtime_binding,
         "activation_reference": {
             "path": watch_contract["path"],
@@ -4827,10 +5277,16 @@ def validate_runtime_artifacts(
     )
     backtest = _read_json(root_path / "outputs/auction_v3/metrics/backtest_latest.json")
     prediction_path = root_path / "outputs/auction_v3/predictions/pred_latest.csv"
-    prediction = _read_csv(prediction_path, "prediction artifact")
-    prediction_text = _read_csv_exact_text(
+    prediction_overlay = _read_csv(prediction_path, "prediction artifact")
+    prediction_text_overlay = _read_csv_exact_text(
         prediction_path,
         "prediction exact-text artifact",
+    )
+    prediction, prediction_text, three_rank_preimage_audit = (
+        _canonical_prediction_validation_view(
+            prediction_overlay,
+            prediction_text_overlay,
+        )
     )
     production = manifest["production"]
     expected_canonical = production["canonical_v2"]
@@ -5008,6 +5464,12 @@ def validate_runtime_artifacts(
             prediction_text=prediction_text,
             prediction_policy_gates=prediction_policy_gates,
             model_raw_policy=meta_model_raw_policy,
+            three_rank_overlay_prediction=(
+                prediction_overlay
+                if three_rank_preimage_audit["active"]
+                else None
+            ),
+            three_rank_preimage_audit=three_rank_preimage_audit,
         )
         action_path = root_path / "outputs/decision/action_plan_latest.json"
         if not action_path.is_file():
@@ -5245,6 +5707,7 @@ def validate_runtime_artifacts(
         "prediction_model_policy_text_surface": model_policy_text_surface,
         "prediction_policy_gates": prediction_policy_gates,
         "prediction_observation": prediction_observation,
+        "three_rank_canonical_preimage": three_rank_preimage_audit,
         "legacy_v1_audit": {
             "enforcement": "audit_only",
             "expected": legacy_expected,

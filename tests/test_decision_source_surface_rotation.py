@@ -75,7 +75,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 18
+    assert len(paths) == len(set(paths)) == 21
     assert set(paths) == {
         ".github/workflows/run_decision_daily.yml",
         "scripts/build_three_engine_five_year_ledger.py",
@@ -85,10 +85,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
         "src/top10decision/decision/action_plan.py",
+        "src/top10decision/decision/model_freeze.py",
+        "src/top10decision/decision/observation.py",
         "src/top10decision/decision/three_rank.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
         "tests/test_decision_three_rank_contract.py",
+        "tests/test_decision_model_freeze.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_promotion_model.py",
         "tests/test_sync_market_raw.py",
@@ -117,6 +120,12 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/decision/action_plan.py": (
             "legacy_action_schema_compatibility"
         ),
+        "src/top10decision/decision/model_freeze.py": (
+            "three_rank_canonical_preimage_runtime_validation"
+        ),
+        "src/top10decision/decision/observation.py": (
+            "three_rank_canonical_observation_preimage"
+        ),
         "src/top10decision/decision/three_rank.py": (
             "three_engine_runtime_adapter"
         ),
@@ -126,6 +135,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
         "tests/test_decision_three_rank_contract.py": (
             "legacy_action_schema_compatibility_test"
+        ),
+        "tests/test_decision_model_freeze.py": (
+            "three_rank_canonical_preimage_runtime_validation_test"
         ),
         "tests/test_decision_v8_calibration.py": (
             "independent_monotonic_calibration_test"

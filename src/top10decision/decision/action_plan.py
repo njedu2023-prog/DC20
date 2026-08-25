@@ -1607,6 +1607,36 @@ def _selector_prediction_domain(
     """
 
     failures: list[str] = []
+    if (
+        not prediction.empty
+        and "three_rank_contract_version" in prediction.columns
+        and any(
+            _text(value)
+            for value in prediction["three_rank_contract_version"].tolist()
+        )
+    ):
+        promotion_preimage = {
+            "promotion_rank": "legacy_shadow_promotion_rank",
+            "promotion_rank_score": "legacy_shadow_promotion_rank_score",
+            "predicted_promotion_probability": (
+                "legacy_shadow_predicted_promotion_probability"
+            ),
+        }
+        missing_preimage = sorted(
+            set(promotion_preimage.values()).difference(prediction.columns)
+        )
+        if missing_preimage:
+            return {
+                "frame": prediction.iloc[0:0].copy(),
+                "outside": prediction.copy(),
+                "valid": False,
+                "failures": ["three_rank_canonical_preimage"],
+                "rows": 0,
+                "outside_rows": int(len(prediction)),
+            }
+        prediction = prediction.copy(deep=True)
+        for canonical, preimage in promotion_preimage.items():
+            prediction[canonical] = prediction[preimage].copy()
     if prediction.empty or "observation_selected" not in prediction.columns:
         return {
             "frame": prediction.iloc[0:0].copy(),

@@ -24,9 +24,18 @@ from top10decision.decision.three_engine_models import (
 from top10decision.decision.three_rank import (
     THREE_ENGINE_RUNTIME_OUTPUT_COLUMNS,
     ThreeEngineRuntimeMixin,
+    _three_engine_projection_is_complete,
     apply_three_engine_runtime,
     augment_three_engine_runtime_base,
     three_engine_d_close_market_features,
+)
+from top10decision.decision.observation import (
+    observation_big_loss_probability,
+    rank_observation_rows,
+)
+from top10decision.decision.model_freeze import (
+    DecisionModelFreezeError,
+    _canonical_prediction_validation_view,
 )
 
 
@@ -78,6 +87,161 @@ def _legacy_scored(pool: pd.DataFrame) -> pd.DataFrame:
     scored["predicted_big_loss_probability"] = 0.77
     scored["predicted_profit_probability"] = 0.22
     return scored
+
+
+def test_three_rank_overlay_preserves_frozen_observation_risk_order() -> None:
+    rows = [
+        {
+            "ts_code": "600001.SH",
+            "stage": "2→3",
+            "mechanism_limit_pct": 10.0,
+            "risk_gate_pass": 0,
+            "predicted_big_loss_probability": np.nan,
+            "legacy_shadow_predicted_big_loss_probability": 0.10,
+            "predicted_return_lcb": 0.0,
+            "predicted_exit_probability": 0.90,
+            "max_big_loss_probability": 0.15,
+            "conservative_ev": 0.0,
+            "source_rank": 2,
+            "three_rank_contract_version": "decision_three_rank_v1",
+        },
+        {
+            "ts_code": "600002.SH",
+            "stage": "2→3",
+            "mechanism_limit_pct": 10.0,
+            "risk_gate_pass": 0,
+            "predicted_big_loss_probability": np.nan,
+            "legacy_shadow_predicted_big_loss_probability": 0.90,
+            "predicted_return_lcb": 0.0,
+            "predicted_exit_probability": 0.90,
+            "max_big_loss_probability": 0.15,
+            "conservative_ev": 0.0,
+            "source_rank": 1,
+            "three_rank_contract_version": "decision_three_rank_v1",
+        },
+    ]
+
+    ranked, total = rank_observation_rows(rows)
+
+    assert total == 2
+    assert [row["ts_code"] for row in ranked] == [
+        "600001.SH",
+        "600002.SH",
+    ]
+    assert [row["observation_risk_tier"] for row in ranked] == [1, 2]
+    assert observation_big_loss_probability(rows[0]) == 0.10
+    missing_preimage = dict(rows[0])
+    missing_preimage.pop("legacy_shadow_predicted_big_loss_probability")
+    with pytest.raises(ValueError, match="big-loss preimage"):
+        observation_big_loss_probability(missing_preimage)
+
+
+def test_selector_audit_uses_canonical_promotion_preimage_under_overlay() -> None:
+    from top10decision.decision.action_plan import (
+        SELECTOR_ARTIFACT_COLUMNS,
+        SELECTOR_DOMAIN_BINARY_COLUMNS,
+        SELECTOR_DOMAIN_RANK_COLUMNS,
+        SELECTOR_DOMAIN_SCORE_COLUMNS,
+        SELECTOR_GLOBAL_BINARY_COLUMNS,
+        _selector_prediction_domain,
+    )
+
+    frame = pd.DataFrame(
+        {
+            "observation_selected": [1, 0],
+            "three_rank_contract_version": [
+                "decision_three_rank_v1",
+                "decision_three_rank_v1",
+            ],
+            "promotion_rank": [2, 1],
+            "promotion_rank_score": [0.20, 0.90],
+            "predicted_promotion_probability": [0.20, 0.90],
+            "legacy_shadow_promotion_rank": [1, np.nan],
+            "legacy_shadow_promotion_rank_score": [0.70, np.nan],
+            "legacy_shadow_predicted_promotion_probability": [0.60, np.nan],
+            "trade_model_reason": [
+                "relative_best_two_only",
+                "outside_observation_top10",
+            ],
+        }
+    )
+    for column in SELECTOR_DOMAIN_SCORE_COLUMNS:
+        if column not in frame:
+            frame[column] = [0.5, np.nan]
+    for column in SELECTOR_DOMAIN_RANK_COLUMNS:
+        if column not in frame:
+            frame[column] = [1, np.nan]
+    for column in SELECTOR_DOMAIN_BINARY_COLUMNS:
+        frame[column] = [0, 0]
+    for column in SELECTOR_GLOBAL_BINARY_COLUMNS:
+        frame[column] = [0, 0]
+    for column in SELECTOR_ARTIFACT_COLUMNS:
+        frame[column] = ["a" * 64, ""]
+
+    audit = _selector_prediction_domain(frame)
+
+    assert audit["valid"] is True
+    assert audit["rows"] == 1
+    assert int(audit["frame"].iloc[0]["promotion_rank"]) == 1
+
+    missing = frame.drop(columns=["legacy_shadow_promotion_rank_score"])
+    rejected = _selector_prediction_domain(missing)
+    assert rejected["valid"] is False
+    assert rejected["failures"] == ["three_rank_canonical_preimage"]
+
+
+def test_three_rank_risk_settlement_uses_frozen_big_loss_preimage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _engine(tmp_path)
+    prediction_path = tmp_path / "pred_20260825.csv"
+    pd.DataFrame(
+        [
+            {
+                "signal_date": "20260825",
+                "expected_buy_date": "20260826",
+                "expected_exit_date": "20260827",
+                "ts_code": "600001.SH",
+                "selected": 0,
+                "recommended_max_price": 11.0,
+                "predicted_net_return": 0.05,
+                "predicted_big_loss_probability": np.nan,
+                "legacy_shadow_predicted_big_loss_probability": 0.10,
+                "three_rank_contract_version": "decision_three_rank_v1",
+            }
+        ]
+    ).to_csv(prediction_path, index=False)
+    daily = pd.DataFrame(
+        [{"ts_code": "600001.SH", "open": 10.0, "close": 10.5}]
+    ).set_index("ts_code", drop=False)
+    monkeypatch.setattr(engine, "market_table", lambda *_args: daily)
+    monkeypatch.setattr(engine, "_execution_open_price", lambda *_args: 10.0)
+    monkeypatch.setattr(engine, "_market_buyable", lambda *_args: (1, "ok"))
+    monkeypatch.setattr(
+        engine,
+        "_resolve_exit",
+        lambda *_args, **_kwargs: ("20260827", 11.0, 1, "tplus1"),
+    )
+    monkeypatch.setattr(
+        engine,
+        "_realized_gross_return",
+        lambda *_args, **_kwargs: 0.10,
+    )
+    monkeypatch.setattr(
+        engine,
+        "_execution_open_source",
+        lambda *_args: "official_daily_open_proxy",
+    )
+
+    verified = engine._verify_prediction_file(
+        prediction_path,
+        ["20260825", "20260826", "20260827"],
+        pd.DataFrame(),
+    )
+
+    assert verified.loc[0, "risk_prediction_success"] == 1
+    assert pd.isna(verified.loc[0, "predicted_big_loss_probability"])
 
 
 def _official_snapshot(pool: pd.DataFrame, *, ready: bool = True) -> SimpleNamespace:
@@ -150,6 +314,87 @@ def _official_snapshot(pool: pd.DataFrame, *, ready: bool = True) -> SimpleNames
         status="READY" if ready else "NOT_READY_PROMOTION",
         diagnostics={"runtime_feature_gate_passed": ready},
     )
+
+
+def _overlay_roundtrip(
+    tmp_path: Path,
+    frame: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    path = tmp_path / "overlay.csv"
+    frame.to_csv(path, index=False)
+    return (
+        pd.read_csv(path),
+        pd.read_csv(
+            path,
+            dtype=str,
+            keep_default_na=False,
+            na_filter=False,
+        ),
+    )
+
+
+def test_canonical_preimage_rejects_complete_but_unreleased_overlays(
+    tmp_path: Path,
+) -> None:
+    pool = _pool(3)
+    scored = _legacy_scored(pool)
+    scored["observation_selected"] = 1
+    engine = SimpleNamespace(config=SimpleNamespace(root=tmp_path))
+
+    unavailable_snapshot = _official_snapshot(pool, ready=False)
+    with mock.patch(
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
+        return_value=object(),
+    ), mock.patch(
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
+        return_value=unavailable_snapshot,
+    ):
+        unavailable = apply_three_engine_runtime(
+            engine,
+            scored,
+            pool,
+            "20260820",
+        )
+    unavailable, unavailable_text = _overlay_roundtrip(
+        tmp_path,
+        unavailable,
+    )
+    assert _three_engine_projection_is_complete(unavailable, "20260820")
+    with pytest.raises(DecisionModelFreezeError, match="must remain one"):
+        _canonical_prediction_validation_view(
+            unavailable,
+            unavailable_text,
+        )
+
+    fake_partial_snapshot = _official_snapshot(pool, ready=True)
+    fake_partial_snapshot.status = "PARTIAL_MODELS_NOT_READY"
+    for head in ("big_loss", "profit"):
+        fake_partial_snapshot.rows[f"{head}_model_status"] = (
+            "NOT_READY_VALIDATION_GATE"
+        )
+    with mock.patch(
+        "top10decision.decision.three_rank.load_three_engine_artifacts",
+        return_value=object(),
+    ), mock.patch(
+        "top10decision.decision.three_rank.score_three_engine_snapshot",
+        return_value=fake_partial_snapshot,
+    ):
+        fake_partial = apply_three_engine_runtime(
+            engine,
+            scored,
+            pool,
+            "20260820",
+        )
+    fake_partial, fake_partial_text = _overlay_roundtrip(
+        tmp_path,
+        fake_partial,
+    )
+    assert _three_engine_projection_is_complete(fake_partial, "20260820")
+    with pytest.raises(DecisionModelFreezeError, match="unauthorized value"):
+        _canonical_prediction_validation_view(
+            fake_partial,
+            fake_partial_text,
+        )
 
 
 def test_prediction_projects_exact_hard_range_surface_without_changing_actions(

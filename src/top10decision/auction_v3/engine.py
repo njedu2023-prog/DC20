@@ -38,6 +38,7 @@ from top10decision.decision.canonical_fingerprint import (
 from top10decision.decision.eligibility import filter_standard_limit_universe
 from top10decision.decision.exit_policy import simulate_tplus1_exit
 from top10decision.decision.observation import (
+    observation_big_loss_probability,
     observation_price_contract,
     rank_observation_rows,
 )
@@ -7120,7 +7121,7 @@ class AuctionV3Engine:
             )
             net = gross - self.config.cost_rate if math.isfinite(gross) else np.nan
             predicted = _finite(row.get("predicted_net_return"))
-            predicted_loss = _finite(row.get("predicted_big_loss_probability"))
+            predicted_loss = _finite(observation_big_loss_probability(row))
             base.update(
                 {
                     "actual_buy_price": buy_price,

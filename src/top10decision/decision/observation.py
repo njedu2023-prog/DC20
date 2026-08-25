@@ -8,6 +8,10 @@ from typing import Any
 OBSERVATION_START_EXEC_DATE = "20260721"
 OBSERVATION_TOP_N = 10
 FOCUS_TRANSITIONS = {"2→3", "3→4"}
+THREE_RANK_CONTRACT_FIELD = "three_rank_contract_version"
+LEGACY_BIG_LOSS_PREIMAGE_FIELD = (
+    "legacy_shadow_predicted_big_loss_probability"
+)
 
 
 def _number(value: Any) -> float | None:
@@ -31,6 +35,33 @@ def _text(value: Any) -> str:
 def canonical_transition(value: Any) -> str:
     text = _text(value).replace("->", "→").replace("－", "→").replace("-", "→")
     return text if text in FOCUS_TRANSITIONS else ""
+
+
+def observation_big_loss_probability(
+    row: Mapping[str, Any],
+) -> float | None:
+    """Read the frozen observation-risk value under a three-rank overlay.
+
+    The independent three-engine surface may leave its not-ready big-loss
+    head blank.  Observation ordering and the legacy risk audit must keep
+    using the row-bound canonical preimage instead of silently changing their
+    historical meaning.  A marked overlay never falls back when that preimage
+    is absent or invalid; publication validation rejects it separately.
+    """
+
+    overlay = bool(_text(row.get(THREE_RANK_CONTRACT_FIELD)))
+    field = (
+        LEGACY_BIG_LOSS_PREIMAGE_FIELD
+        if overlay
+        else "predicted_big_loss_probability"
+    )
+    value = _number(row.get(field))
+    if overlay and value is None:
+        raise ValueError(
+            "three-rank observation overlay is missing its frozen "
+            "big-loss preimage"
+        )
+    return value
 
 
 def observation_price_contract(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -96,7 +127,7 @@ def rank_observation_rows(
     def risk_tier(row: Mapping[str, Any]) -> int:
         if _integer(row.get("risk_gate_pass")) == 1:
             return 0
-        big_loss = _number(row.get("predicted_big_loss_probability"))
+        big_loss = observation_big_loss_probability(row)
         lower_bound = _number(row.get("predicted_return_lcb"))
         exit_probability = _number(row.get("predicted_exit_probability"))
         formal_cap = _number(row.get("max_big_loss_probability"))
@@ -113,7 +144,7 @@ def rank_observation_rows(
 
     def sort_key(row: Mapping[str, Any]) -> tuple[int, float, float, float, float, int, str]:
         continuation = _number(row.get("predicted_continuation_limit_up_probability"))
-        big_loss = _number(row.get("predicted_big_loss_probability"))
+        big_loss = observation_big_loss_probability(row)
         conservative = _number(row.get("conservative_ev"))
         lower_bound = _number(row.get("predicted_return_lcb"))
         source_rank = _integer(row.get("rank", row.get("source_rank")), 999999)
@@ -151,6 +182,7 @@ __all__ = [
     "OBSERVATION_START_EXEC_DATE",
     "OBSERVATION_TOP_N",
     "canonical_transition",
+    "observation_big_loss_probability",
     "observation_price_contract",
     "rank_observation_rows",
 ]

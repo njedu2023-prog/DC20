@@ -38,7 +38,7 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "bfc58943d864f4ceca849b85ffd6af56f0cea020c56283b266c338a3c6fad8f1",
+  "changed_surface_sha256": "d815868d617fdc232311946a66554d4ccf5dade240c6d1a21179f2edfcc2793b",
   "pin_changes": [
     {
       "path": ".github/workflows/run_decision_daily.yml",
@@ -73,7 +73,7 @@
     {
       "path": "src/top10decision/auction_v3/engine.py",
       "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "current_sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
+      "current_sha256": "a1e818f2372fd9cbfc0083cf9b73730fb2b72de43cc5d7489c17848a1bc66ba3",
       "classification": "canonical_source_preimage_restore"
     },
     {
@@ -85,8 +85,20 @@
     {
       "path": "src/top10decision/decision/action_plan.py",
       "prior_sha256": "ddd54ff47d5414f529eb56b79a5a1e3e3cbf07e047f5a9e4de098cd3125874ce",
-      "current_sha256": "2f754f9f83c29ad04a4e8959ae93018cf54162ff521fe3bcf4c93848ca01150e",
+      "current_sha256": "c8310f412d237aa0fa58650c8bbb163eedc97ce0c4097ca475e0e82146b473e3",
       "classification": "legacy_action_schema_compatibility"
+    },
+    {
+      "path": "src/top10decision/decision/model_freeze.py",
+      "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
+      "current_sha256": "130ae0ac26644d16c0337274f4fa83a693b250df99f44927f436034dd8a1cf87",
+      "classification": "three_rank_canonical_preimage_runtime_validation"
+    },
+    {
+      "path": "src/top10decision/decision/observation.py",
+      "prior_sha256": "7f8f6d92971995f4eae3e6f7b5f4e1290461f0ecf8f4b05de741b8d2af78c15a",
+      "current_sha256": "8f721512a0a6463349f4c7531746ebb009018a703209095c2905d1e952304471",
+      "classification": "three_rank_canonical_observation_preimage"
     },
     {
       "path": "src/top10decision/decision/three_rank.py",
@@ -97,7 +109,7 @@
     {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
       "prior_sha256": "93ce576c7a6852dfa8e7469b1ac34f5a3cd767ea3d6f8473a273acb27f4c157e",
-      "current_sha256": "ed042aab93c4f55ca304da9a613f214c7471e23d7323837cb2e7f72ed6492b6a",
+      "current_sha256": "154c41576713ebbf97f3ff625bd1ed18696948dab3e96d16c315a454a49c53fd",
       "classification": "three_engine_runtime_adapter_test"
     },
     {
@@ -105,6 +117,12 @@
       "prior_sha256": "5bd7bc7063980bd1b496e8ab3874febbb9f42f8a46aa15ec703b5fcfe82b02d4",
       "current_sha256": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
       "classification": "three_engine_runtime_adapter_test"
+    },
+    {
+      "path": "tests/test_decision_model_freeze.py",
+      "prior_sha256": "b0ad443ae5e0baa10e3eeac8af102b3b2353b09b288f3db236bcb0c6c015924f",
+      "current_sha256": "0d02cbddd1de150783de9a36753fbd6a4e5f3a46275763e1ab02f64223c08ea0",
+      "classification": "three_rank_canonical_preimage_runtime_validation_test"
     },
     {
       "path": "tests/test_decision_three_rank_contract.py",
