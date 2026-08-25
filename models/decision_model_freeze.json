@@ -620,11 +620,11 @@
   },
   "source_surface_rotation": {
     "schema_version": "decision_source_surface_rotation_v1",
-    "rotation_id": "dc20_restore_frozen_canonical_engine_externalize_legacy_profit_runtime_20260825",
-    "approved_base_commit": "4639ee93e1baed7735dfc2e77c890fa4fd7dcd16",
-    "prior_manifest_sha256": "ab976a07e98d76e1e82e26771cb32bfa57f1ef6799b5450c310b8e9ba4f1eceb",
+    "rotation_id": "dc20_parallel_full_replay_diagnostic_gate_20260825",
+    "approved_base_commit": "162da987ad307046a7e7af1328579f7d3299b7ab",
+    "prior_manifest_sha256": "acfd27898ad9f40b987296a7b0df0db256c8761161eaa2f4e2942d0930cfd13e",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7"
+    "evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -634,7 +634,7 @@
     ".github/workflows/migrate_decision_runtime.yml": "18e9e489ea78205528ddbdd9a9068ed85ab64d3a79960ca51192e9469532e545",
     ".github/workflows/run_auction_v3.yml": "341cd6584a72ad157840416690a6c3e68c9f055ded32bf23cf3022572bafc609",
     ".github/workflows/run_decision_daily.yml": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-    ".github/workflows/test_decision_core.yml": "f2d0e5cdbc21920d965bcf90b18cb2a74078d7a4d3e2e0e330692284e1097d2b",
+    ".github/workflows/test_decision_core.yml": "ab3a25af9bc00c74d0a6b52122af32b0a79e19f6f64ad547c7950fa3a18f25f3",
     ".github/workflows/train_decision_three_engines.yml": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
     ".github/workflows/verify_decision_observations.yml": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
     "data/auction_v3/promotion_prior/five_year_event_features.csv.gz": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
@@ -669,7 +669,7 @@
     "models/decision_executable_profit_internal_forward_challenger.json": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
     "models/decision_executable_profit_research_projection_contract.json": "ec4de53bea6baab94b699d5ebf9ed99e918c140f96bdb8afd3e03178e96cae36",
     "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
-    "models/decision_source_surface_rotation_20260824.json": "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7",
+    "models/decision_source_surface_rotation_20260824.json": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",

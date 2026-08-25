@@ -1,11 +1,11 @@
 {
   "schema_version": "decision_source_surface_rotation_v1",
-  "rotation_id": "dc20_restore_frozen_canonical_engine_externalize_legacy_profit_runtime_20260825",
-  "approved_base_commit": "4639ee93e1baed7735dfc2e77c890fa4fd7dcd16",
-  "prior_manifest_sha256": "ab976a07e98d76e1e82e26771cb32bfa57f1ef6799b5450c310b8e9ba4f1eceb",
-  "prior_pinned_files_sha256": "f02ca6ab3f87381a266d9229922aea5b0de891f0250f915e1874bd38848c079a",
-  "prior_evidence_sha256": "a75f0cf89e0618eb35e10d222aa5db403989c7b0eba0b2861dc9f3f2af8944c8",
-  "reason": "Restore the accepted frozen Auction engine bytes after an additive legacy-profit runtime export accidentally entered the canonical model provenance surface; move that research-only export into the outer runner after the full runtime audit and add a real frozen replay CI gate, while preserving model identity, promotion membership and order, historical Action bytes, and zero-action boundaries.",
+  "rotation_id": "dc20_parallel_full_replay_diagnostic_gate_20260825",
+  "approved_base_commit": "162da987ad307046a7e7af1328579f7d3299b7ab",
+  "prior_manifest_sha256": "acfd27898ad9f40b987296a7b0df0db256c8761161eaa2f4e2942d0930cfd13e",
+  "prior_pinned_files_sha256": "ae71b50027a813779b5c91efb7ba7ba54dda01fbb073feaf7648809e6db48608",
+  "prior_evidence_sha256": "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7",
+  "reason": "Run the full frozen canonical replay as an independent Core job and emit only the four model fingerprint digests on failure, so canonical drift is diagnosed without weakening validation, mutating frozen model identity, or delaying the ordinary regression suite.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -36,25 +36,13 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "323ed42d802d506e91ec5c747acffec5ffdcd13ddc8a0851c372f3383b24a380",
+  "changed_surface_sha256": "8a619a4b72c5264b017e5ed76f04c93d29de8afcd9ad5d948a90d8d22d8687d6",
   "pin_changes": [
     {
       "path": ".github/workflows/test_decision_core.yml",
-      "prior_sha256": "61d6cb66be024bdc719cacc0e005664d2d5167420ec76bb3f5eb4d0849217017",
-      "current_sha256": "f2d0e5cdbc21920d965bcf90b18cb2a74078d7a4d3e2e0e330692284e1097d2b",
-      "classification": "canonical_frozen_runtime_regression"
-    },
-    {
-      "path": "scripts/run_auction_v3.py",
-      "prior_sha256": "8d481906d1f59974d501c4a2f8358b22d17174dc5846cf8db17d658a207c2a44",
-      "current_sha256": "51cb5ba9fdb1d92e950bda84d855b4df388529543fb680a6584d9e981a9e65a9",
-      "classification": "legacy_profit_research_runtime_externalization"
-    },
-    {
-      "path": "src/top10decision/auction_v3/engine.py",
-      "prior_sha256": "59c21de7a6b9b275f78e5d4855c2c7442f5a0ecbb259deb6ffa5015924243614",
-      "current_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "classification": "canonical_engine_restoration"
+      "prior_sha256": "f2d0e5cdbc21920d965bcf90b18cb2a74078d7a4d3e2e0e330692284e1097d2b",
+      "current_sha256": "ab3a25af9bc00c74d0a6b52122af32b0a79e19f6f64ad547c7950fa3a18f25f3",
+      "classification": "canonical_frozen_runtime_diagnostic_gate"
     }
   ]
 }

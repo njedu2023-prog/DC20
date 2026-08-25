@@ -43,13 +43,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "evidence_sha256": _sha256(EVIDENCE),
     }
     assert evidence["approved_base_commit"] == (
-        "4639ee93e1baed7735dfc2e77c890fa4fd7dcd16"
+        "162da987ad307046a7e7af1328579f7d3299b7ab"
     )
     assert evidence["prior_manifest_sha256"] == (
-        "ab976a07e98d76e1e82e26771cb32bfa57f1ef6799b5450c310b8e9ba4f1eceb"
+        "acfd27898ad9f40b987296a7b0df0db256c8761161eaa2f4e2942d0930cfd13e"
     )
     assert evidence["prior_evidence_sha256"] == (
-        "a75f0cf89e0618eb35e10d222aa5db403989c7b0eba0b2861dc9f3f2af8944c8"
+        "f96cd246362e7025dbee0a70e35dda507776d424ea8d8bee09d22c31348126a7"
     )
     assert evidence["prior_manifest_sha256"] != _sha256(MANIFEST)
     assert manifest["pinned_files"][rotation["evidence_path"]] == (
@@ -72,20 +72,16 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 3
+    assert len(paths) == len(set(paths)) == 1
     assert set(paths) == {
         ".github/workflows/test_decision_core.yml",
-        "scripts/run_auction_v3.py",
-        "src/top10decision/auction_v3/engine.py",
     }
     current_surface: dict[str, str] = {}
     for item in changes:
         assert item["prior_sha256"] != item["current_sha256"]
-        assert item["classification"] in {
-            "canonical_engine_restoration",
-            "canonical_frozen_runtime_regression",
-            "legacy_profit_research_runtime_externalization",
-        }
+        assert item["classification"] == (
+            "canonical_frozen_runtime_diagnostic_gate"
+        )
         target = ROOT / item["path"]
         assert target.is_file() and not target.is_symlink()
         assert _sha256(target) == item["current_sha256"]

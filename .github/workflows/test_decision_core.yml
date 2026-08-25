@@ -99,29 +99,122 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
         run: python -m pytest -q
 
-      - name: Run full frozen canonical runtime replay
+  frozen-canonical-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Verify checkout is byte-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain=v1 --untracked-files=no)"
+          if [[ -n "${status}" ]]; then
+            printf '%s\n' "${status}"
+            echo "checkout is dirty after Git attribute normalization" >&2
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: "pip"
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install deps
+        run: |
+          set -e
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+          python -c "import pip; assert pip.__version__ == '26.2.1', pip.__version__"
+          python -m pip check
+
+      - name: Run and diagnose full frozen canonical runtime replay
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
         run: |
           set -euo pipefail
           replay_report="${RUNNER_TEMP}/core-frozen-replay.json"
+          replay_stdout="${RUNNER_TEMP}/core-frozen-replay.stdout"
+          set +e
           python scripts/run_deterministic_numeric.py \
             scripts/replay_frozen_canonical_v2.py \
             --root "${GITHUB_WORKSPACE}" \
             --signal-date 20260814 \
             --report-date 20260817 \
-            --report "${replay_report}"
-          REPLAY_REPORT="${replay_report}" python - <<'PY'
+            --report "${replay_report}" > "${replay_stdout}"
+          replay_status=$?
+          set -e
+          sed -n '1,240p' "${replay_stdout}"
+          REPLAY_REPORT="${replay_report}" \
+            REPLAY_STATUS="${replay_status}" \
+            python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          payload = json.loads(
-              Path(os.environ['REPLAY_REPORT']).read_text(encoding='utf-8')
+          root = Path.cwd()
+          report = Path(os.environ['REPLAY_REPORT'])
+          payload = json.loads(report.read_text(encoding='utf-8'))
+
+          def load(relative):
+              path = root / relative
+              if not path.is_file():
+                  return {}
+              return json.loads(path.read_text(encoding='utf-8'))
+
+          manifest = load('models/decision_model_freeze.json')
+          meta = load('outputs/auction_v3/models/model_meta_latest.json')
+          backtest = load('outputs/auction_v3/metrics/backtest_latest.json')
+
+          def compact(value):
+              fingerprint = value if isinstance(value, dict) else {}
+              return {
+                  key: fingerprint.get(key)
+                  for key in (
+                      'provenance_sha256',
+                      'semantic_sha256',
+                      'policy_sha256',
+                      'artifact_sha256',
+                  )
+              }
+
+          manifest_model = (
+              manifest.get('production', {})
+              .get('canonical_v2', {})
+              .get('model', {})
           )
-          if payload.get('status') != 'pass':
-              raise SystemExit('Core full frozen replay did not pass')
-          runtime = payload.get('runtime_validation') or {}
-          if runtime.get('validated') is not True:
-              raise SystemExit('Core full frozen replay runtime was not validated')
+          diagnostic = {
+              'status': payload.get('status'),
+              'error': payload.get('error'),
+              'manifest': compact(
+                  manifest_model.get('fingerprint_v2', {})
+              ),
+              'model_meta': compact(meta.get('model_fingerprint_v2', {})),
+              'backtest': compact(backtest.get('model_fingerprint_v2', {})),
+          }
+          print(json.dumps(
+              diagnostic,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(',', ':'),
+          ))
+          status = int(os.environ['REPLAY_STATUS'])
+          if status == 0:
+              runtime = payload.get('runtime_validation') or {}
+              if (
+                  payload.get('status') != 'pass'
+                  or runtime.get('validated') is not True
+              ):
+                  raise SystemExit(
+                      'Core full frozen replay runtime was not validated'
+                  )
           PY
+          if [ "${replay_status}" -ne 0 ]; then
+            exit "${replay_status}"
+          fi
