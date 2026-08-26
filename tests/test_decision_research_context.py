@@ -281,7 +281,12 @@ def test_daily_workflow_builds_research_in_isolation_and_preserves_action() -> N
     assert "Daily research generation modified the preserved " in text
     assert "Auction action plan in {label}" in text
     assert "outputs/decision/action_plan_*.json" in text
-    assert "outputs/auction_v3/**" in text
+    assert "outputs/auction_v3/predictions/pred_20??????.csv" in text
+    assert (
+        "expected_prediction=f'outputs/auction_v3/predictions/"
+        "pred_{signal_date}.csv'"
+    ) in text
+    assert "outputs/auction_v3/**" not in text
     assert "outputs/decision/research_context_20??????.json" in text
     assert "DECISION_RUN_RECEIPT_PATH" in text
     assert "validate_decision_run_receipt" in text

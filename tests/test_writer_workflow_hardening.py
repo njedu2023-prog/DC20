@@ -1311,8 +1311,11 @@ def test_daily_candidate_staging_tolerates_absent_optional_reports_and_tracks_de
     )
     staged_paths = tmp_path / "staged-paths.bin"
     staged_paths.write_bytes(b"docs/reports/nested/escape.md\0")
+    signal_date_file = tmp_path / "daily-signal-date.txt"
+    signal_date_file.write_text("20260824\n", encoding="ascii")
     monkeypatch.setenv("STAGED_PATHS", str(staged_paths))
     monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(staged_paths))
+    monkeypatch.setenv("SIGNAL_DATE_FILE", str(signal_date_file))
     with pytest.raises(SystemExit, match="non-allowlisted Daily paths staged"):
         exec(compile(compute_source, "<daily-compute-segment-allowlist>", "exec"), {})
     with pytest.raises(SystemExit, match="non-allowlisted Daily publish paths staged"):
@@ -1509,10 +1512,13 @@ def test_daily_allowlists_reject_symlink_and_gitlink_modes(
     assert b"120000 " in index_bytes
     assert b"160000 " in index_bytes
 
+    signal_date_file = tmp_path / "daily-signal-date.txt"
+    signal_date_file.write_text("20260824\n", encoding="ascii")
     monkeypatch.setenv("STAGED_PATHS", str(staged_paths))
     monkeypatch.setenv("STAGED_INDEX", str(staged_index))
     monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(staged_paths))
     monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(staged_index))
+    monkeypatch.setenv("SIGNAL_DATE_FILE", str(signal_date_file))
     with pytest.raises(SystemExit, match="non-regular Daily paths staged") as compute_error:
         exec(compile(compute_source, "<daily-compute-mode-allowlist>", "exec"), {})
     assert "120000" in str(compute_error.value) and "160000" in str(compute_error.value)
