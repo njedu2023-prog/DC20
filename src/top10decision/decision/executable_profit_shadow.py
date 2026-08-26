@@ -16,6 +16,7 @@ import tempfile
 from dataclasses import dataclass
 from contextlib import contextmanager
 from datetime import datetime
+from numbers import Real
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Iterable, Mapping, Sequence
@@ -956,15 +957,19 @@ def _strict_frozen_stage_numbers(values: pd.Series) -> pd.Series:
     missing so the caller's frozen-scope check fails closed.
     """
 
-    numeric = pd.to_numeric(values, errors="coerce")
-    numeric = numeric.where(numeric.isin((2.0, 3.0)))
-    canonical = (
-        values.fillna("")
-        .astype(str)
-        .str.strip()
-        .map({"2→3": 2.0, "3→4": 3.0})
-    )
-    return numeric.where(numeric.notna(), canonical)
+    def normalize(value: Any) -> float:
+        if isinstance(value, (bool, np.bool_)):
+            return np.nan
+        if isinstance(value, Real):
+            number = float(value)
+            if math.isfinite(number) and number in (2.0, 3.0):
+                return number
+            return np.nan
+        if isinstance(value, str):
+            return {"2→3": 2.0, "3→4": 3.0}.get(value, np.nan)
+        return np.nan
+
+    return values.map(normalize).astype(float)
 
 
 def _restore_hash_bound_runtime_promotion_priors(

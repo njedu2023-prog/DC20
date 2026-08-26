@@ -526,7 +526,24 @@ def test_promotion_snapshot_recreates_only_hash_bound_runtime_priors(
     ) != expected
 
 
-@pytest.mark.parametrize("bad_stage", ["1→2", "2→4", "4→5", "2.5", "stage-2"])
+@pytest.mark.parametrize(
+    "bad_stage",
+    [
+        "1→2",
+        "2→4",
+        "4→5",
+        "2.5",
+        "stage-2",
+        "2",
+        "3",
+        "02",
+        "+2",
+        "2e0",
+        "2.000",
+        " 3 ",
+        " 2→3 ",
+    ],
+)
 def test_promotion_snapshot_rejects_non_frozen_stage_values(
     loaded: shadow.LoadedInternalChallenger,
     source_sample: pd.DataFrame,

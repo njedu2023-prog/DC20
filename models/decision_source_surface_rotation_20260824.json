@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -38,8 +38,14 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "a0a1a9e456ea5e5fa80584187d6af2b8bae90fc7d8a51150da9c62853c40b0de",
+  "changed_surface_sha256": "564779cbc52e601d7e955f429ceac5ecabafd9c16e1f0e6524008475e1a43b76",
   "pin_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "prior_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
+      "current_sha256": "98f56262847358971941b7b7daa10726f8a1a6d388b32f7ca7030d0840831abd",
+      "classification": "canonical_dc20_research_context_pages_binding"
+    },
     {
       "path": ".github/workflows/run_decision_daily.yml",
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
@@ -91,7 +97,7 @@
     {
       "path": "src/top10decision/decision/executable_profit_shadow.py",
       "prior_sha256": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
-      "current_sha256": "31df9153c66643c1122330f3ad9530b2a8fce65077b26af6b70701e40c1c79fc",
+      "current_sha256": "872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c",
       "classification": "strict_canonical_d_stage_normalization_for_internal_profit_shadow"
     },
     {
@@ -147,6 +153,12 @@
       "prior_sha256": "500f449936873b3f4de3f566d8574eeb3c529df2cf8d23b34ed61e3d502c192e",
       "current_sha256": "12c36c9dc2a5600cb6524bfa4e09ee3694b816f2701a140003718e9694c686bd",
       "classification": "independent_monotonic_calibration_test"
+    },
+    {
+      "path": "tests/test_pages_truthfulness_workflow.py",
+      "prior_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
+      "current_sha256": "15490d2f8e62c02334fd3991aa402a4aea73aba0a386fe94b2ba55f7aa4f924c",
+      "classification": "canonical_dc20_research_context_pages_binding_test"
     },
     {
       "path": "tests/test_promotion_model.py",

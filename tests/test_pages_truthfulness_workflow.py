@@ -128,7 +128,13 @@ def test_pages_projects_site_inventory_before_validating_or_selecting_latest() -
 def test_pages_projects_and_publicly_verifies_full_research_context() -> None:
     text = _workflow()
     assert 'research_available = latest_row.get("research_available", False)' in text
-    assert 'expected_research_url = f"outputs/decision/research_context_{report_date}.json"' in text
+    assert 'research_kind = latest_row.get("research_kind", "")' in text
+    assert 'if research_kind == "dc20_independent":' in text
+    assert 'elif research_kind in {"legacy_daily", "historical_archive"}:' in text
+    assert 'f"outputs/decision/research_context_dc20_{report_date}.json"' in text
+    assert 'f"outputs/decision/research_context_{report_date}.json"' in text
+    assert 'raise SystemExit("latest research_kind is unsupported")' in text
+    assert 'if research_url or research_kind:' in text
     assert '"latest_research_available": research_available' in text
     assert '"latest_research_url": research_url' in text
     assert "EXPECTED_RESEARCH_AVAILABLE" in text

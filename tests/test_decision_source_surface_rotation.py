@@ -75,8 +75,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 23
+    assert len(paths) == len(set(paths)) == 25
     assert set(paths) == {
+        ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/run_decision_daily.yml",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/run_auction_v3.py",
@@ -96,12 +97,16 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_decision_model_freeze.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_promotion_model.py",
+        "tests/test_pages_truthfulness_workflow.py",
         "tests/test_sync_market_raw.py",
         "tests/test_three_engine_models.py",
         "tests/test_three_rank_freeze.py",
         "tests/test_writer_workflow_hardening.py",
     }
     expected_classification = {
+        ".github/workflows/deploy_dc20_pages.yml": (
+            "canonical_dc20_research_context_pages_binding"
+        ),
         ".github/workflows/run_decision_daily.yml": (
             "strict_dated_daily_context_workflow"
         ),
@@ -152,6 +157,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "tests/test_promotion_model.py": (
             "three_engine_helper_externalization_test"
+        ),
+        "tests/test_pages_truthfulness_workflow.py": (
+            "canonical_dc20_research_context_pages_binding_test"
         ),
         "tests/test_sync_market_raw.py": (
             "strict_dated_sse_context_sync_test"

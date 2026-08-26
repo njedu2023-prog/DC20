@@ -368,13 +368,30 @@ jobs:
           latest_row = latest_rows[0]
           research_available = latest_row.get("research_available", False)
           research_url = latest_row.get("research_url", "")
+          research_kind = latest_row.get("research_kind", "")
           if type(research_available) is not bool:
               raise SystemExit("latest research_available must be a bool when present")
-          expected_research_url = f"outputs/decision/research_context_{report_date}.json"
-          if research_available and research_url != expected_research_url:
-              raise SystemExit("latest research_url is not exact")
-          if not research_available and research_url:
-              raise SystemExit("unavailable latest research context must not have research_url")
+          if not isinstance(research_url, str) or not isinstance(research_kind, str):
+              raise SystemExit("latest research URL and kind must be strings")
+          if research_available:
+              if research_kind == "dc20_independent":
+                  expected_research_url = (
+                      f"outputs/decision/research_context_dc20_{report_date}.json"
+                  )
+              elif research_kind in {"legacy_daily", "historical_archive"}:
+                  expected_research_url = (
+                      f"outputs/decision/research_context_{report_date}.json"
+                  )
+              else:
+                  raise SystemExit("latest research_kind is unsupported")
+              if research_url != expected_research_url:
+                  raise SystemExit("latest research_url is not exact")
+          else:
+              expected_research_url = ""
+              if research_url or research_kind:
+                  raise SystemExit(
+                      "unavailable latest research context must not have URL or kind"
+                  )
           inventory_projected = report_index.get("inventory_projected")
           source_latest_report_date = report_index.get("source_latest_report_date")
           if not report_date or not report_file:
