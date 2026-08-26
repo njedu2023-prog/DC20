@@ -245,6 +245,8 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ],
         "removed_ui_blocks": [
             "executable_profit_proof",
+            "executable_profit_public_banner",
+            "executable_profit_toolbar_caption",
             "legacy_profit_relative_banner",
             "manual_operation_reference_section",
             "p_fill_shadow_top2",

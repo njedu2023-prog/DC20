@@ -175,8 +175,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
         "legacy_profit_relative_rank",
         "legacy_profit_raw_score",
         "legacy_profit_relative_percentile",
-        "按原盈利模型实验顺序（未放行）",
-        "原模型相对分（非概率）",
+        "单一盈利排序",
+        "模型分值",
         'model.official_status === "NOT_READY_VALIDATION_GATE"',
         "model.validation_gate_score_pct === 76.9",
         "source.bundle_sha256 === contract.bundle_sha256",
@@ -211,7 +211,10 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     ):
         assert removed not in renderer
     assert "下载 CSV" in renderer
-    assert "按原盈利模型实验顺序（未放行）" in renderer
+    assert "单一盈利排序" in renderer
+    assert "按原盈利模型实验顺序（未放行）" not in renderer
+    assert "原盈利实验名次" not in renderer
+    assert "原模型相对分（非概率）" not in renderer
 
 
 def test_legacy_profit_relative_sidecar_is_same_origin_only() -> None:

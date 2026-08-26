@@ -910,12 +910,11 @@
     <section id="executableProfitResearchPanel" class="panel">
       <div class="panel-head">
         <div>
-          <h2>可实现盈利概率排序（研究估计）</h2>
+          <h2>混合盈利排序</h2>
           <p>在冻结晋级名单内独立排序；晋级成员与晋级排名保持不变。</p>
         </div>
         <span id="executableProfitResearchState" class="count" aria-live="polite">待读取</span>
       </div>
-      <div id="executableProfitResearchBanner" class="executable-profit-banner">模型估计概率（未校准） · 全N排序 · 仅供人工决策参考</div>
       <div id="executableProfitResearchContent">
         <div class="empty"><strong>正在读取独立研究投影</strong>只接受同仓库、同D日、日期与字节SHA256完整绑定的 dated 工件。</div>
       </div>
@@ -995,7 +994,7 @@
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchBanner", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = {
@@ -1901,10 +1900,6 @@
     function resetExecutableProfitResearchView(kind, detail = "") {
       const invalid = kind === "invalid";
       const history = kind === "history";
-      els.executableProfitResearchBanner.className = `executable-profit-banner${invalid ? " bad" : ""}`;
-      els.executableProfitResearchBanner.textContent = invalid
-        ? "研究投影校验失败 · 新层已隐藏 · 晋级排序不受影响"
-        : "模型估计概率（未校准） · 全N排序 · 仅供人工决策参考";
       els.executableProfitResearchState.textContent = invalid
         ? "校验失败 · 已隐藏"
         : history
@@ -1973,8 +1968,6 @@
       }
       const candidateCount = projection.rows.length;
       const shadowCount = Math.min(2, candidateCount);
-      els.executableProfitResearchBanner.className = "executable-profit-banner good";
-      els.executableProfitResearchBanner.textContent = "公开研究可见 · 模型估计概率（未校准） · 全N排序 · 仅供人工决策参考";
       els.executableProfitResearchState.textContent = candidateCount === 0
         ? "D日硬范围候选为0 · 不补票 · 当日无Shadow"
         : candidateCount === 1
@@ -2007,7 +2000,7 @@
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_statistics_url))}" download>下载 Shadow 统计</a>`;
-      els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div><strong>按模型估计可实现盈利概率从高到低显示全部真实 N=${candidateCount}</strong></div><div class="three-rank-downloads">${downloads}</div></div>
+      els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
       ${candidateCount ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
         <th>盈利概率排名</th><th>晋级排名</th><th>Shadow</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>模型估计可实现盈利概率（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th><th>D冻结最高研究价</th><th>T验证</th><th>T+1净收益（来源合同成本后）</th>
       </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>当日没有2→3或3→4候选；系统展示真实N=0，不从池外补票，也不生成Shadow Top1/Top2。</div>'}`;
@@ -2638,14 +2631,14 @@
       els.stageContent.innerHTML = `<div class="three-rank-toolbar">
           <div class="three-rank-sort">
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank">按晋级排序</button>
-            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank">按原盈利模型实验顺序（未放行）</button>' : ""}
+            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank">单一盈利排序</button>' : ""}
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
         ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
           <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
           <th>晋级排序</th><th>晋级概率</th>
-          ${legacyVisible ? "<th>原盈利实验名次</th><th>原模型相对分（非概率）</th>" : ""}
+          ${legacyVisible ? "<th>单一盈利排序</th><th>模型分值</th>" : ""}
           <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {

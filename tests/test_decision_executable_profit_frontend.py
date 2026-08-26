@@ -50,7 +50,6 @@ def test_public_research_layer_is_separate_from_frozen_promotion_panel() -> None
         "stagePanel",
         "stageContent",
         "executableProfitResearchPanel",
-        "executableProfitResearchBanner",
         "executableProfitResearchState",
         "executableProfitResearchContent",
         "executableProfitShadowPanel",
@@ -72,8 +71,7 @@ def test_public_research_layer_is_separate_from_frozen_promotion_panel() -> None
 def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() -> None:
     text = _text()
     for token in (
-        "可实现盈利概率排序（研究估计）",
-        "公开研究可见 · 模型估计概率（未校准） · 全N排序 · 仅供人工决策参考",
+        "混合盈利排序",
         "模型估计可实现盈利概率（未校准）",
         "可买代理分",
         "条件盈利代理分",
@@ -89,7 +87,10 @@ def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() 
     assert "research_joint_proxy_score - row.research_fill_proxy_score * row.research_conditional_profit_score" in text
     assert "estimated_executable_profit_probability - row.research_joint_proxy_score" in text
     assert 'pct(row.estimated_executable_profit_probability)' in text
-    assert "按模型估计可实现盈利概率从高到低显示全部真实" in text
+    assert "可实现盈利概率排序（研究估计）" not in text
+    assert "公开研究可见 · 模型估计概率（未校准） · 全N排序 · 仅供人工决策参考" not in text
+    assert "按模型估计可实现盈利概率从高到低显示全部真实" not in text
+    assert 'id="executableProfitResearchBanner"' not in text
 
 
 def test_selected_html_only_blocks_fields_and_action_section_are_not_rendered() -> None:
@@ -115,6 +116,7 @@ def test_selected_html_only_blocks_fields_and_action_section_are_not_rendered() 
     assert "下载 CSV" in stage
 
     assert '<div class="executable-profit-proof">' not in profit
+    assert "按模型估计可实现盈利概率从高到低显示全部真实" not in profit
     assert '<table class="executable-profit-table">' in profit
     assert "下载研究 CSV" in profit
     assert "下载研究 JSON" in profit
@@ -241,7 +243,8 @@ def test_hash_or_date_failure_hides_only_new_layer() -> None:
         "executableProfitPriceBasisLabel",
     )
 
-    assert "研究投影校验失败 · 新层已隐藏 · 晋级排序不受影响" in reset
+    assert "校验失败 · 已隐藏" in reset
+    assert "未展示可实现盈利研究排序" in reset
     assert "失败只关闭本层，不会覆盖晋级排序" in reset
     assert "executableProfitResearchContent" in reset
     assert "executableProfitShadowContent" in reset
