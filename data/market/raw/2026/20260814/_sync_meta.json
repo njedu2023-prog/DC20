@@ -1,17 +1,20 @@
 {
   "trade_date": "20260814",
-  "created_at_utc": "2026-08-14T14:19:51+00:00",
+  "created_at_utc": "2026-08-26T00:26:26+00:00",
   "source_repo": {
     "owner": "njedu2023-prog",
     "repo": "a-share-top3-data",
-    "branch": "main"
+    "branch": "main",
+    "resolved_commit": "929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c"
   },
-  "requested_trade_date": null,
+  "requested_trade_date": "20260814",
   "resolved_trade_date": "20260814",
+  "strict_dated_source": true,
+  "dated_only": true,
   "raw_storage_pattern": "data/market/raw/{YYYY}/{YYYYMMDD}/{filename}",
   "raw_latest_pattern": "data/market/raw/latest/{filename}",
   "upstream_primary_pattern": "data/raw/{YYYY}/{YYYYMMDD}/{filename}",
-  "upstream_meta_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/_meta.json",
+  "upstream_meta_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/_meta.json",
   "upstream_meta": {
     "requested_trade_date": null,
     "resolved_trade_date": "20260814",
@@ -287,13 +290,14 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/daily.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/daily.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/daily.csv",
-      "latest_path": "data/market/raw/latest/daily.csv",
-      "bytes": 411883
+      "latest_path": "",
+      "bytes": 411883,
+      "sha256": "4ad4c0eb7af4b88143e54d3cf91d20d1cf0dad611e8fcf38193968ff76d09e8d"
     },
     {
       "name": "daily_basic",
@@ -301,13 +305,14 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/daily_basic.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/daily_basic.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/daily_basic.csv",
-      "latest_path": "data/market/raw/latest/daily_basic.csv",
-      "bytes": 279911
+      "latest_path": "",
+      "bytes": 279911,
+      "sha256": "c43fe17225866b058c21b4e485f2f68e19ac96f22fac6bcd0ce0f7f7c1038c26"
     },
     {
       "name": "hot_boards",
@@ -315,13 +320,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/hot_boards.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/hot_boards.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/hot_boards.csv",
-      "latest_path": "data/market/raw/latest/hot_boards.csv",
-      "bytes": 301
+      "latest_path": "",
+      "bytes": 301,
+      "sha256": "e239c64dc1f28dbfb3c2f1506a22e5e844d3a7762fe7c6554597a87d1f84346d"
     },
     {
       "name": "intraday_features",
@@ -329,13 +335,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/intraday_features.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/intraday_features.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/intraday_features.csv",
-      "latest_path": "data/market/raw/latest/intraday_features.csv",
-      "bytes": 10759
+      "latest_path": "",
+      "bytes": 10759,
+      "sha256": "64738412e84f68b9e399b28ba68a5edb75f4643b7631c92917580b14d84e9fcb"
     },
     {
       "name": "limit_break_d",
@@ -343,7 +350,7 @@
       "required": false,
       "date_scoped": true,
       "success": false,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/limit_break_d.csv",
+      "source_url": "",
       "source_trade_date": null,
       "status_code": 200,
       "error": "trade_date_mismatch:requested=20260814,actual=missing"
@@ -354,13 +361,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/limit_list_d.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/limit_list_d.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/limit_list_d.csv",
-      "latest_path": "data/market/raw/latest/limit_list_d.csv",
-      "bytes": 9933
+      "latest_path": "",
+      "bytes": 9933,
+      "sha256": "b586db7a7c4c38f3c6caafd20f67ffe7ed583d5973f287d3f74cb8208bf391e2"
     },
     {
       "name": "limit_up_tags",
@@ -368,13 +376,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/limit_up_tags.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/limit_up_tags.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/limit_up_tags.csv",
-      "latest_path": "data/market/raw/latest/limit_up_tags.csv",
-      "bytes": 3443
+      "latest_path": "",
+      "bytes": 3443,
+      "sha256": "489699e64a42f9b7fa959889c42bd3b9c40f0cfb296e3a672489cf30fdfbe40d"
     },
     {
       "name": "moneyflow_hsgt",
@@ -382,13 +391,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/moneyflow_hsgt.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/moneyflow_hsgt.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/moneyflow_hsgt.csv",
-      "latest_path": "data/market/raw/latest/moneyflow_hsgt.csv",
-      "bytes": 131
+      "latest_path": "",
+      "bytes": 131,
+      "sha256": "d738085f3acecad8011a6d4da8f98d7746948b0fd19221858d1495acf6b2c61d"
     },
     {
       "name": "namechange",
@@ -396,13 +406,14 @@
       "required": false,
       "date_scoped": false,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/namechange.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/namechange.csv",
       "source_trade_date": null,
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/namechange.csv",
-      "latest_path": "data/market/raw/latest/namechange.csv",
-      "bytes": 1593
+      "latest_path": "",
+      "bytes": 1593,
+      "sha256": "af5571df3f25e7fd3b195d36aa852997b041baaf906776ee8f02d6c2b602654f"
     },
     {
       "name": "stk_auction",
@@ -410,13 +421,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/stk_auction.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/stk_auction.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/stk_auction.csv",
-      "latest_path": "data/market/raw/latest/stk_auction.csv",
-      "bytes": 298678
+      "latest_path": "",
+      "bytes": 298678,
+      "sha256": "5dea5a022d3896ae0349da5a6d7dd7d73cdd0b4f2d1a8cafc13ddcabebe05bd5"
     },
     {
       "name": "stk_limit",
@@ -424,13 +436,14 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/stk_limit.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/stk_limit.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/stk_limit.csv",
-      "latest_path": "data/market/raw/latest/stk_limit.csv",
-      "bytes": 234841
+      "latest_path": "",
+      "bytes": 234841,
+      "sha256": "8438091faa219c69633c1db21f702189a02713ba7968169de47120c41d79d91e"
     },
     {
       "name": "stock_basic",
@@ -438,13 +451,14 @@
       "required": true,
       "date_scoped": false,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/stock_basic.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/stock_basic.csv",
       "source_trade_date": null,
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/stock_basic.csv",
-      "latest_path": "data/market/raw/latest/stock_basic.csv",
-      "bytes": 361851
+      "latest_path": "",
+      "bytes": 361851,
+      "sha256": "e57a3dcc2e1b9db4778a63be9e8976cd6935d6c367684323e3bde496c511dff5"
     },
     {
       "name": "top_list",
@@ -452,13 +466,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/main/data/latest/top_list.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/929c3e6d4fe6d4e1b2aed1bbe21177d58c65180c/data/raw/2026/20260814/top_list.csv",
       "source_trade_date": "20260814",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20260814/top_list.csv",
-      "latest_path": "data/market/raw/latest/top_list.csv",
-      "bytes": 14350
+      "latest_path": "",
+      "bytes": 14350,
+      "sha256": "366f3336e6df79c844e55c48cd21e5007d57b78599d313db80f0644fa4d538e3"
     }
   ],
   "required_failures": [],
