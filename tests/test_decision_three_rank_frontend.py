@@ -62,7 +62,8 @@ def test_dashboard_fails_closed_and_shadow_cannot_override_core_rank() -> None:
     assert "loadThreeRankHistorySummary" not in text
     # The new renderer may join truth fields, but the frozen artifact row is
     # spread last so truth/shadow records cannot replace any core rank field.
-    assert "...(truthByCode.get(String(row.ts_code)) || {}),\n          ...row," in text
+    assert "const truth = truthByCode.get(String(row.ts_code)) || {};" in text
+    assert "...truth,\n          ...row," in text
 
 
 def test_daily_and_auction_writers_allow_exact_dated_three_rank_artifacts() -> None:
