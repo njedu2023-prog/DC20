@@ -1004,6 +1004,7 @@
       current: null,
       currentThreeRank: null,
       currentThreeRankTTruth: null,
+      publishedRevisionSha: null,
       currentLegacyProfitRelativeResearch: null,
       currentExecutableProfitResearch: null
     };
@@ -1238,13 +1239,32 @@
       return rows;
     }
 
-    async function fetchPublishedBytes(path) {
-      const url = location.protocol === "file:" ? RAW_BASE + path : new URL(path, location.href).href;
-      if (location.protocol !== "file:" && new URL(url).origin !== location.origin) {
-        throw new Error("T日真值拒绝跨源读取");
+    async function publishedRevisionSha() {
+      if (location.protocol === "file:") return REPO.branch;
+      if (state.publishedRevisionSha) return state.publishedRevisionSha;
+      const revisionUrl = new URL("revision.json", location.href).href;
+      const response = await fetch(`${revisionUrl}?v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Pages revision HTTP ${response.status}`);
+      const revision = await response.json();
+      const headSha = String(revision?.head_sha || "");
+      if (revision?.repository !== `${REPO.owner}/${REPO.name}` ||
+          revision?.branch !== REPO.branch ||
+          !/^[0-9a-f]{40}$/.test(headSha)) {
+        throw new Error("Pages revision与DC20部署身份不一致");
       }
-      const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      state.publishedRevisionSha = headSha;
+      return headSha;
+    }
+
+    async function fetchPublishedBytes(path) {
+      const primary = location.protocol === "file:" ? RAW_BASE + path : new URL(path, location.href).href;
+      const primaryResponse = await fetch(`${primary}${primary.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+      if (primaryResponse.ok) return new Uint8Array(await primaryResponse.arrayBuffer());
+      if (location.protocol === "file:") throw new Error(`HTTP ${primaryResponse.status}`);
+      const headSha = await publishedRevisionSha();
+      const exactRaw = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${headSha}/${path}`;
+      const response = await fetch(`${exactRaw}?v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`exact revision HTTP ${response.status}`);
       return new Uint8Array(await response.arrayBuffer());
     }
 

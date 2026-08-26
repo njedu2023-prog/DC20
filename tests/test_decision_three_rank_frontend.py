@@ -87,7 +87,12 @@ def test_latest_three_rank_t_close_truth_is_exact_date_bound_and_read_only() -> 
     assert 'validation_status_label: "T已验证 · 等待T+1"' in loader
     assert "daily_sha256: await sha256Hex(dailyBytes)" in loader
     assert "stk_limit_sha256: await sha256Hex(limitBytes)" in loader
-    assert "T日真值拒绝跨源读取" in text
+    assert 'new URL("revision.json", location.href).href' in text
+    assert 'revision?.repository !== `${REPO.owner}/${REPO.name}`' in text
+    assert "revision?.branch !== REPO.branch" in text
+    assert '!/^[0-9a-f]{40}$/.test(headSha)' in text
+    assert '`https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${headSha}/${path}`' in text
+    assert '`${REPO.owner}/${REPO.name}/${REPO.branch}/${path}`' not in text
     assert "state.index === 0" in renderer
     assert "state.currentThreeRankTTruth?.signal_date === contract.signal_date" in renderer
     assert "state.currentThreeRankTTruth?.exec_date === contract.exec_date" in renderer
