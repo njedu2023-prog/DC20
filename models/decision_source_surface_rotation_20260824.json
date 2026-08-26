@@ -52,7 +52,7 @@
   "added_runtime_pins": {
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a"
   },
-  "changed_surface_sha256": "1f3a908629fa060cf1682b2b3f9f1e83fc7085a07f96ed09fba0961d1213681c",
+  "changed_surface_sha256": "d46b70f96f9d155d203e5b61f4aad3a4d24badc3b2dc8cc90e104bbaa2953b7e",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -77,6 +77,12 @@
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
       "current_sha256": "dc4e91bc3f64f34805ae17859a4b8ef1e50acf33bc4bb403e2af408ad51e7ad5",
       "classification": "strict_dated_daily_context_workflow"
+    },
+    {
+      "path": ".github/workflows/test_decision_core.yml",
+      "prior_sha256": "ab3a25af9bc00c74d0a6b52122af32b0a79e19f6f64ad547c7950fa3a18f25f3",
+      "current_sha256": "f38b2b0ab78be89dd7992c49582b9991703f7bcb384ff30a90090ab6c9a6fba6",
+      "classification": "frozen_replay_input_snapshot_binding_workflow"
     },
     {
       "path": "decision.html",
@@ -261,7 +267,7 @@
     {
       "path": "tests/test_writer_workflow_hardening.py",
       "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
-      "current_sha256": "b19d25798da21391afc559b176262015f9849c0b2d25fa111fa207e631128ec4",
+      "current_sha256": "a022a36f493e3ca813e8fe916d3375db05694e8eaa9390aa8a5f87ff5b18d710",
       "classification": "strict_dated_daily_context_workflow_test"
     }
   ]

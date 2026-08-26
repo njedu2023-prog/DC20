@@ -368,6 +368,34 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "python scripts/validate_decision_model_freeze.py --runtime" in auction
 
 
+def test_core_full_replay_is_bound_to_the_legacy_action_snapshot() -> None:
+    core = _text("test_decision_core.yml")
+    replay_step = core.split(
+        "- name: Run and diagnose full frozen canonical runtime replay",
+        1,
+    )[1]
+    action_semantic_sha256 = (
+        "1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f"
+    )
+    assert "--signal-date 20260814" in replay_step
+    assert "--report-date 20260817" in replay_step
+    assert (
+        "--expected-action-semantic-sha256 " + action_semantic_sha256
+    ) in replay_step
+    snapshot = (
+        ROOT
+        / "models"
+        / "decision_replay_input_snapshots"
+        / f"{action_semantic_sha256}.json"
+    )
+    assert snapshot.is_file()
+    freeze = json.loads((ROOT / "models" / "decision_model_freeze.json").read_text())
+    relative = snapshot.relative_to(ROOT).as_posix()
+    assert freeze["pinned_files"][relative] == hashlib.sha256(
+        snapshot.read_bytes()
+    ).hexdigest()
+
+
 def test_daily_real_publication_rejects_invalid_persisted_auction_action(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

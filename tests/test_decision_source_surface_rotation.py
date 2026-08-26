@@ -77,12 +77,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 35
+    assert len(paths) == len(set(paths)) == 36
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
         ".github/workflows/run_auction_v3.yml",
         ".github/workflows/run_decision_daily.yml",
+        ".github/workflows/test_decision_core.yml",
         "decision.html",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/migrate_decision_runtime.py",
@@ -127,6 +128,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         ".github/workflows/run_decision_daily.yml": (
             "strict_dated_daily_context_workflow"
+        ),
+        ".github/workflows/test_decision_core.yml": (
+            "frozen_replay_input_snapshot_binding_workflow"
         ),
         "decision.html": "html_only_decision_surface_cleanup",
         "scripts/build_three_engine_five_year_ledger.py": (

@@ -147,6 +147,7 @@ jobs:
             --root "${GITHUB_WORKSPACE}" \
             --signal-date 20260814 \
             --report-date 20260817 \
+            --expected-action-semantic-sha256 1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f \
             --report "${replay_report}" > "${replay_stdout}"
           replay_status=$?
           set -e
