@@ -2017,10 +2017,7 @@
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_statistics_url))}" download>下载 Shadow 统计</a>`;
-      els.executableProfitResearchContent.innerHTML = `<div class="executable-profit-proof">
-        D ${dateText(projection.signal_date)} · T ${dateText(projection.exec_date)} · T+1 ${dateText(projection.exit_date)} · 同一晋级集合指纹 ${escapeHtml(projection.top10_members_sha256)}。概率排序不改变晋级排名；模型估计可实现盈利概率＝可买代理分×条件盈利代理分。该概率尚未经过前向校准，不能解释为真实命中率。D冻结最高研究价仅用于公开市场代理记账；T代理价超过该价即记为未成交，不是购买建议。
-      </div>
-      <div class="three-rank-toolbar"><div><strong>按模型估计可实现盈利概率从高到低显示全部真实 N=${candidateCount}</strong></div><div class="three-rank-downloads">${downloads}</div></div>
+      els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div><strong>按模型估计可实现盈利概率从高到低显示全部真实 N=${candidateCount}</strong></div><div class="three-rank-downloads">${downloads}</div></div>
       ${candidateCount ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
         <th>盈利概率排名</th><th>晋级排名</th><th>Shadow</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>模型估计可实现盈利概率（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th><th>D冻结最高研究价</th><th>T验证</th><th>T+1净收益（来源合同成本后）</th>
       </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>当日没有2→3或3→4候选；系统展示真实N=0，不从池外补票，也不生成Shadow Top1/Top2。</div>'}`;
@@ -2583,12 +2580,10 @@
       const models = contract.models || {};
       const downloads = contract.downloads || {};
       const expectedPrefix = `outputs/decision/three_rank_top10_${contract.signal_date}`;
-      const safeJson = String(downloads.json_url || "") === `${expectedPrefix}.json` ? downloads.json_url : "";
       const safeCsv = String(downloads.csv_url || "") === `${expectedPrefix}.csv` ? downloads.csv_url : "";
-      const downloadButtons = [
-        safeCsv ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeCsv))}" download>下载 CSV</a>` : "",
-        safeJson ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeJson))}" download>下载 JSON</a>` : ""
-      ].join("");
+      const downloadButtons = safeCsv
+        ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeCsv))}" download>下载 CSV</a>`
+        : "";
       const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
       const legacyProjection = state.index === 0 &&
@@ -2633,10 +2628,6 @@
           <td>${escapeHtml(row.stage_transition || "-")}</td>
           <td><span class="truth-badge">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
-          <td><span class="truth-badge">${models.big_loss?.status === "READY" ? escapeHtml(row.big_loss_safety_rank) : "-"}</span></td>
-          <td>${models.big_loss?.status === "READY" ? pct(row.predicted_big_loss_probability) : "模型未就绪"}</td>
-          <td><span class="truth-badge">${models.profit?.status === "READY" ? escapeHtml(row.profit_rank) : "-"}</span></td>
-          <td>${models.profit?.status === "READY" ? pct(row.predicted_profit_probability) : "模型未就绪"}</td>
           ${legacyVisible ? `<td><span class="truth-badge">${escapeHtml(row.legacy_profit_relative_rank)}${row.legacy_profit_rank_tied ? "（并列）" : ""}</span></td>
           <td class="legacy-profit-relative-score">${finiteNumber(row.legacy_profit_raw_score)?.toFixed(6) || "-"}<small>TopN内相对分位 ${pct(row.legacy_profit_relative_percentile, 1)}</small></td>` : ""}
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
@@ -2654,22 +2645,16 @@
         els.stageContent.innerHTML = '<div class="empty"><strong>官方Top10未生成</strong>晋级引擎没有达到READY合同；系统不会使用常数或旧观察顺序伪造Top10。模型资格与集合指纹请到“模型与资格审计”查看。</div>';
         return;
       }
-      const legacyBanner = legacyVisible ? `<div class="legacy-profit-relative-banner">
-        <strong>原盈利模型·相对实验排序（未放行）</strong>
-        仅比较当前同一官方TopN内的相对先后：目标为“market_fill代理=1条件下，T开盘代理至T+1开盘代理净收益&gt;0”。原始模型分不是盈利概率、不是收益保证，未融合P_fill，也不等于下方新的“可实现盈利概率排序”；不会改变名单、晋级排序或Action。
-      </div>` : "";
-      els.stageContent.innerHTML = `${legacyBanner}<div class="three-rank-toolbar">
+      els.stageContent.innerHTML = `<div class="three-rank-toolbar">
           <div class="three-rank-sort">
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank">按晋级排序</button>
-            <button class="three-rank-btn" type="button" data-three-rank-sort="big_loss_safety_rank" ${models.big_loss?.status === "READY" ? "" : "disabled"}>按大跌排序（安全优先）</button>
-            <button class="three-rank-btn" type="button" data-three-rank-sort="profit_rank" ${models.profit?.status === "READY" ? "" : "disabled"}>按盈利排序</button>
             ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank">按原盈利模型实验顺序（未放行）</button>' : ""}
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
         ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
           <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
-          <th>晋级排序</th><th>晋级概率</th><th>大跌排序（安全优先）</th><th>大跌概率</th><th>盈利排序</th><th>盈利概率</th>
+          <th>晋级排序</th><th>晋级概率</th>
           ${legacyVisible ? "<th>原盈利实验名次</th><th>原模型相对分（非概率）</th>" : ""}
           <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
@@ -2849,7 +2834,7 @@
       const notice = plan?.historical_parity === true
         ? '<div class="empty"><strong>历史原始数值逐字节复现，仅供只读核对</strong>来源清单固定 commit、blob SHA 与原始 SHA256；本页不缓存该历史载荷，历史操作/标签不代表当前建议，不能据此下单。</div>'
         : plan?.research_only === true
-        ? '<div class="empty"><strong>完整研究明细已生成，但不是竞价行动</strong>本表保留与原研究页一致的模型字段；所有行均强制为“观察”、仓位为0。只有同日 Auction action_plan 才能产生正式人工建议。</div>'
+        ? ""
         : formal.length
         ? `<div class="empty"><strong>本次正式人工建议 ${formal.length} 只</strong>请在 9:25 前仅用限价单按冻结上限自行挂单；禁止无上限市价单，超过上限或未成交均放弃。</div>`
         : '<div class="empty"><strong>本次没有正式买入建议</strong>影子验证只用于累计样本外证据；未晋级模型不得作为人工交易依据。</div>';

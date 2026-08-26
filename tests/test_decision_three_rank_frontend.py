@@ -34,10 +34,7 @@ def test_dashboard_exposes_exact_three_rank_fields_and_downloads() -> None:
         "predicted_profit_probability",
         "top10_members_sha256",
         "晋级排序",
-        "大跌排序（安全优先）",
-        "盈利排序",
         "下载 CSV",
-        "下载 JSON",
         "验证门通过率",
         "100%为全部门通过；不是收益率或准确率",
         "价值：在D日2→3/3→4全池中估计T日晋级涨停概率",
@@ -178,11 +175,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
         "legacy_profit_relative_rank",
         "legacy_profit_raw_score",
         "legacy_profit_relative_percentile",
-        "原盈利模型·相对实验排序（未放行）",
         "按原盈利模型实验顺序（未放行）",
         "原模型相对分（非概率）",
-        "未融合P_fill",
-        "不等于下方新的“可实现盈利概率排序”",
         'model.official_status === "NOT_READY_VALIDATION_GATE"',
         "model.validation_gate_score_pct === 76.9",
         "source.bundle_sha256 === contract.bundle_sha256",
@@ -201,7 +195,23 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     assert "threeRankModelCardsHtml(contract)" not in renderer
     assert "threeRankModelCardsHtml(contract)" in audit
     assert "同一TopN集合指纹" in audit
-    assert "models.profit?.status === \"READY\"" in renderer
+    for removed in (
+        '<div class="legacy-profit-relative-banner">',
+        'data-three-rank-sort="big_loss_safety_rank"',
+        'data-three-rank-sort="profit_rank"',
+        '<th>大跌排序（安全优先）</th>',
+        '<th>大跌概率</th>',
+        '<th>盈利排序</th>',
+        '<th>盈利概率</th>',
+        "row.big_loss_safety_rank",
+        "row.predicted_big_loss_probability",
+        "row.profit_rank",
+        "row.predicted_profit_probability",
+        "下载 JSON",
+    ):
+        assert removed not in renderer
+    assert "下载 CSV" in renderer
+    assert "按原盈利模型实验顺序（未放行）" in renderer
 
 
 def test_legacy_profit_relative_sidecar_is_same_origin_only() -> None:

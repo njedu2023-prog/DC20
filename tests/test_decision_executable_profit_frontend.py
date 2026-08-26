@@ -77,8 +77,6 @@ def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() 
         "模型估计可实现盈利概率（未校准）",
         "可买代理分",
         "条件盈利代理分",
-        "尚未经过前向校准",
-        "不能解释为真实命中率",
         "estimated_probability_display_allowed: true",
         "estimated_probability_calibrated: false",
         "formal_probability_allowed: false",
@@ -92,6 +90,40 @@ def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() 
     assert "estimated_executable_profit_probability - row.research_joint_proxy_score" in text
     assert 'pct(row.estimated_executable_profit_probability)' in text
     assert "按模型估计可实现盈利概率从高到低显示全部真实" in text
+
+
+def test_selected_html_only_blocks_and_fields_are_not_rendered() -> None:
+    text = _text()
+    stage = _function(text, "renderThreeRankWatchlist", "renderStageWatchlist")
+    profit = _function(
+        text,
+        "renderExecutableProfitResearch",
+        "validatedPFillShadowTop2",
+    )
+    actions = _function(text, "renderActions", "auditRow")
+
+    for removed in (
+        '<div class="legacy-profit-relative-banner">',
+        'data-three-rank-sort="big_loss_safety_rank"',
+        'data-three-rank-sort="profit_rank"',
+        '<th>大跌排序（安全优先）</th>',
+        '<th>大跌概率</th>',
+        '<th>盈利排序</th>',
+        '<th>盈利概率</th>',
+        "下载 JSON",
+    ):
+        assert removed not in stage
+    assert '<table class="three-rank-table">' in stage
+    assert "下载 CSV" in stage
+
+    assert '<div class="executable-profit-proof">' not in profit
+    assert '<table class="executable-profit-table">' in profit
+    assert "下载研究 CSV" in profit
+    assert "下载研究 JSON" in profit
+
+    assert "完整研究明细已生成，但不是竞价行动" not in actions
+    assert "els.actionContent.innerHTML" in actions
+    assert '<div class="table-wrap"><table>' in actions
 
 
 def test_frontend_selection_binding_matches_projection_v2_surface() -> None:
@@ -140,16 +172,14 @@ def test_d_frozen_price_is_visible_and_is_not_a_buy_instruction() -> None:
         "shadow_price_basis",
         "shadow_price_source_sha256",
         "D冻结最高研究价",
-        "T代理价超过该价即记为未成交，不是购买建议",
         "D日正式安全价冻结",
         "D日观察价冻结",
         "D日模型诊断价",
         "D收盘保守价",
         "publicRow.shadow_price_source_sha256 === selection.source_d_feature.file_sha256",
+        'ranking.shadow_price_use === "D-frozen research price cap only; not a buy instruction"',
     ):
         assert token in text
-    assert "超过该价" in text
-    assert "不是购买建议" in text
 
 
 def test_index_projection_statistics_and_all_sources_are_sha_bound() -> None:
