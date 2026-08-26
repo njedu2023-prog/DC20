@@ -247,6 +247,7 @@ jobs:
             --root "${GITHUB_WORKSPACE}" \
             --signal-date "${{ steps.persisted_action.outputs.signal_date }}" \
             --report-date "${{ steps.persisted_action.outputs.report_date }}" \
+            --expected-action-semantic-sha256 "${{ steps.persisted_action.outputs.semantic_sha256 }}" \
             --reference-dir "${FINGERPRINT_REFERENCE_DIR}" \
             --reference-profile persisted-c6 \
             --report "${FINGERPRINT_REPLAY_REPORT}" > /dev/null 2>&1

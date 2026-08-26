@@ -180,6 +180,8 @@ jobs:
           SYNC_EVIDENCE="${sync_evidence}" python - <<'PY'
           import json
           import os
+          import re
+          from datetime import datetime
           from pathlib import Path
 
           payload = json.loads(Path(os.environ['SYNC_EVIDENCE']).read_text(encoding='utf-8'))
@@ -188,6 +190,17 @@ jobs:
           status = payload.get('status')
           reason = payload.get('reason')
           session_open = payload.get('active_window')
+          trade_date = payload.get('trade_date')
+          if type(trade_date) is not str or re.fullmatch(r'20\d{6}', trade_date) is None:
+              raise SystemExit('Auction sync trade_date must be canonical YYYYMMDD')
+          try:
+              parsed_trade_date = datetime.strptime(
+                  trade_date, '%Y%m%d'
+              ).strftime('%Y%m%d')
+          except ValueError as exc:
+              raise SystemExit('Auction sync trade_date is invalid') from exc
+          if parsed_trade_date != trade_date:
+              raise SystemExit('Auction sync trade_date is not canonical')
           if status not in {'success', 'partial_success', 'not_applicable'}:
               raise SystemExit(f'unexpected Auction sync status: {status!r}')
           if not isinstance(reason, str) or not reason:
@@ -210,7 +223,10 @@ jobs:
               if reason not in allowed or not session_open or counts['candidate_codes'] == 0 or valid_count == 0:
                   raise SystemExit('open production Auction sync produced no valid minute rows')
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
-              output.write(f"write_eligible={'false' if status == 'not_applicable' else 'true'}\n")
+              output.write(
+                  f"write_eligible={'false' if status == 'not_applicable' else 'true'}\n"
+                  f"target_trade_date={trade_date}\n"
+              )
           PY
       - name: Run Auction pipeline and final runtime gates
         if: ${{ steps.minute_sync.outputs.write_eligible == 'true' }}
@@ -219,6 +235,7 @@ jobs:
           SIGNAL_DATE: ${{ inputs.signal_date }}
           ORDER_AMOUNT: ${{ inputs.order_amount || '100000' }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
+          TARGET_TRADE_DATE: ${{ steps.minute_sync.outputs.target_trade_date }}
         run: |
           set -euo pipefail
           args=(--order-amount "${ORDER_AMOUNT}")
@@ -244,7 +261,115 @@ jobs:
           if audit.get('validated') is not True or audit.get('enforced') is not True:
               raise SystemExit('Auction action plan contract was not enforced')
           PY
+          python - <<'PY'
+          import csv, json, os, re
+          from datetime import datetime
+          from pathlib import Path
+
+          def unique_object(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise ValueError(f'duplicate Auction action key: {key}')
+                  value[key] = item
+              return value
+
+          def canonical_date(value):
+              if type(value) is not str or re.fullmatch(r'20\d{6}', value) is None:
+                  return False
+              try:
+                  return datetime.strptime(value, '%Y%m%d').strftime('%Y%m%d') == value
+              except ValueError:
+                  return False
+
+          target = os.environ.get('TARGET_TRADE_DATE', '')
+          if re.fullmatch(r'20\d{6}', target) is None:
+              raise SystemExit('Auction target trade date is not canonical')
+          try:
+              parsed_target = datetime.strptime(target, '%Y%m%d').strftime('%Y%m%d')
+          except ValueError as exc:
+              raise SystemExit('Auction target trade date is invalid') from exc
+          if parsed_target != target:
+              raise SystemExit('Auction target trade date is not canonical')
+
+          action_path = Path('outputs/decision/action_plan_latest.json')
+          if action_path.is_symlink() or not action_path.is_file():
+              raise SystemExit('Auction current action is missing or unsafe')
+          try:
+              action = json.loads(
+                  action_path.read_text(encoding='utf-8'),
+                  object_pairs_hook=unique_object,
+              )
+          except (OSError, UnicodeError, ValueError) as exc:
+              raise SystemExit('Auction current action JSON is invalid') from exc
+          if not isinstance(action, dict):
+              raise SystemExit('Auction current action must be one object')
+          date_fields = {
+              key: action.get(key)
+              for key in ('signal_date', 'report_date', 'exec_date', 'exit_date')
+          }
+          if any(
+              not canonical_date(value)
+              for value in date_fields.values()
+          ):
+              raise SystemExit('Auction current action date binding is invalid')
+          if not (
+              date_fields['report_date']
+              == date_fields['exec_date']
+              == target
+          ):
+              raise SystemExit(
+                  'Auction current action T differs from minute-sync target'
+              )
+
+          calendar_path = Path('data/market/trade_cal_sse.csv')
+          if calendar_path.is_symlink() or not calendar_path.is_file():
+              raise SystemExit('Auction strict SSE calendar is missing or unsafe')
+          states = {}
+          with calendar_path.open(
+              'r', encoding='utf-8-sig', newline=''
+          ) as handle:
+              reader = csv.DictReader(handle)
+              if not {'cal_date', 'is_open'}.issubset(reader.fieldnames or ()):
+                  raise SystemExit('Auction strict SSE calendar schema drifted')
+              for row in reader:
+                  if 'exchange' in row and str(row.get('exchange') or '').strip() != 'SSE':
+                      continue
+                  trade_date = str(row.get('cal_date') or '').strip()
+                  is_open = str(row.get('is_open') or '').strip()
+                  if re.fullmatch(r'20\d{6}', trade_date) is None or is_open not in {'0', '1'}:
+                      raise SystemExit('Auction strict SSE calendar row is invalid')
+                  state = int(is_open)
+                  previous = states.setdefault(trade_date, state)
+                  if previous != state:
+                      raise SystemExit(
+                          'Auction strict SSE calendar has conflicting sessions'
+                      )
+          open_dates = sorted(
+              trade_date for trade_date, state in states.items() if state == 1
+          )
+          try:
+              target_index = open_dates.index(target)
+          except ValueError as exc:
+              raise SystemExit('Auction target is not an SSE open session') from exc
+          if target_index == 0 or target_index + 1 >= len(open_dates):
+              raise SystemExit('Auction target lacks strict adjacent SSE sessions')
+          expected_signal = open_dates[target_index - 1]
+          expected_exit = open_dates[target_index + 1]
+          if (
+              date_fields['signal_date'] != expected_signal
+              or date_fields['exit_date'] != expected_exit
+          ):
+              raise SystemExit(
+                  'Auction current action D/T/T+1 is not the strict SSE chain'
+              )
+          PY
           if [ "${PUBLISH}" = "true" ]; then
+            python scripts/replay_frozen_canonical_v2.py \
+              --root "${GITHUB_WORKSPACE}" \
+              --materialize-current-action-market-snapshot \
+              --snapshot-creator-run-id "${GITHUB_RUN_ID}" \
+              --snapshot-receipt "${RUNNER_TEMP}/auction-replay-snapshot.json"
             python scripts/validate_decision_model_freeze.py --runtime
           else
             python scripts/validate_decision_model_freeze.py --runtime --force-inactive
@@ -338,7 +463,12 @@ jobs:
           }}
         env:
           ROUTE: ${{ steps.mode.outputs.route }}
+          PUBLISH: ${{ steps.mode.outputs.publish }}
           RECOVERY_RECEIPT: ${{ runner.temp }}/recovery-receipt.json
+          SNAPSHOT_RECEIPT: ${{ runner.temp }}/auction-replay-snapshot.json
+          SNAPSHOT_CREATOR_RUN_ID: ${{ github.run_id }}
+          BASE_SHA_FILE: ${{ runner.temp }}/base_sha.txt
+          PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
@@ -351,10 +481,127 @@ jobs:
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
-          import fnmatch, json, os, re
+          import fnmatch, hashlib, json, os, re, stat, subprocess
           from datetime import datetime
           from pathlib import Path
-          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
+          )
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+
+          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','models/decision_replay_input_snapshots/*.json','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
+          def unique_object(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise ValueError(f'duplicate Auction snapshot JSON key: {key}')
+                  value[key] = item
+              return value
+
+          def action_semantic_sha256(root):
+              action_path = root / 'outputs/decision/action_plan_latest.json'
+              if action_path.is_symlink() or not action_path.is_file():
+                  raise SystemExit('Auction snapshot action is missing or unsafe')
+              try:
+                  action = json.loads(
+                      action_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit('Auction snapshot action JSON is invalid') from exc
+              if not isinstance(action, dict):
+                  raise SystemExit('Auction snapshot action must be one object')
+              action.pop('generated_at_utc', None)
+              profile = action_plan_semantic_comparison_profile_v3(action)
+              projection = action_plan_semantic_projection_v3(
+                  action,
+                  comparison_profile=profile,
+              )
+              return (
+                  hashlib.sha256(canonical_json_bytes(projection)).hexdigest(),
+                  action,
+              )
+
+          def validate_snapshot_receipt(root, receipt_path, base_sha, creator_run_id):
+              try:
+                  receipt = json.loads(
+                      receipt_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit('Auction snapshot receipt is invalid') from exc
+              expected_fields = {
+                  'status', 'schema_version', 'created', 'path', 'file_sha256',
+                  'action_semantic_sha256', 'signal_date', 'report_date',
+                  'exit_date', 'creator_run_id', 'creator_base_revision',
+                  'snapshot',
+              }
+              if not isinstance(receipt, dict) or set(receipt) != expected_fields:
+                  raise SystemExit('Auction snapshot receipt field set drifted')
+              if (
+                  receipt.get('status') != 'pass'
+                  or receipt.get('schema_version')
+                  != 'decision_replay_market_snapshot_receipt_v1'
+                  or type(receipt.get('created')) is not bool
+                  or receipt.get('creator_run_id') != creator_run_id
+                  or receipt.get('creator_base_revision') != base_sha
+              ):
+                  raise SystemExit('Auction snapshot receipt identity drifted')
+              semantic, action = action_semantic_sha256(root)
+              expected_path = (
+                  'models/decision_replay_input_snapshots/'
+                  f'{semantic}.json'
+              )
+              claimed_sha = receipt.get('file_sha256')
+              if (
+                  receipt.get('action_semantic_sha256') != semantic
+                  or receipt.get('path') != expected_path
+                  or re.fullmatch(r'[0-9a-f]{64}', str(claimed_sha or '')) is None
+                  or receipt.get('signal_date') != action.get('signal_date')
+                  or receipt.get('report_date') != action.get('report_date')
+                  or receipt.get('exit_date') != action.get('exit_date')
+              ):
+                  raise SystemExit('Auction snapshot receipt action binding drifted')
+              snapshot_path = root / expected_path
+              if (
+                  snapshot_path.parent.is_symlink()
+                  or snapshot_path.is_symlink()
+                  or not snapshot_path.is_file()
+                  or not stat.S_ISREG(snapshot_path.stat().st_mode)
+                  or hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+                  != claimed_sha
+              ):
+                  raise SystemExit('Auction snapshot file hash or type drifted')
+              try:
+                  snapshot = json.loads(
+                      snapshot_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit('Auction snapshot file is invalid') from exc
+              audit = receipt.get('snapshot')
+              if (
+                  not isinstance(snapshot, dict)
+                  or snapshot.get('schema_version')
+                  != 'decision_market_input_snapshot_v2'
+                  or snapshot.get('bound_action_semantic_sha256') != semantic
+                  or not isinstance(audit, dict)
+                  or audit.get('schema_version')
+                  != 'decision_market_input_snapshot_v2'
+                  or audit.get('path') != expected_path
+                  or audit.get('file_sha256') != claimed_sha
+                  or audit.get('bound_action_semantic_sha256') != semantic
+                  or audit.get('live_raw_inventory_scanned') is not False
+                  or audit.get('live_minute_inventory_scanned') is not False
+              ):
+                  raise SystemExit('Auction snapshot payload or audit drifted')
+              if receipt['created'] is True and (
+                  snapshot.get('creator_run_id') != creator_run_id
+                  or snapshot.get('creator_base_revision') != base_sha
+              ):
+                  raise SystemExit('Auction new snapshot provenance drifted')
+              return receipt, expected_path
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -395,6 +642,21 @@ jobs:
               return parsed.strftime('%Y%m%d') == trade_date and year == trade_date[:4]
           paths = [p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
           route = os.environ.get('ROUTE', 'auction')
+          publish = os.environ.get('PUBLISH') == 'true'
+          snapshot_receipt = None
+          expected_snapshot_path = ''
+          if route == 'auction' and publish:
+              base_sha = Path(os.environ['BASE_SHA_FILE']).read_text(
+                  encoding='ascii'
+              ).strip()
+              if re.fullmatch(r'[0-9a-f]{40}', base_sha) is None:
+                  raise SystemExit('Auction snapshot base SHA is invalid')
+              snapshot_receipt, expected_snapshot_path = validate_snapshot_receipt(
+                  Path('.').resolve(),
+                  Path(os.environ['SNAPSHOT_RECEIPT']),
+                  base_sha,
+                  os.environ['SNAPSHOT_CREATOR_RUN_ID'],
+              )
           if route == 'recovery':
               receipt = json.loads(Path(os.environ['RECOVERY_RECEIPT']).read_text(encoding='utf-8'))
               expected = receipt.get('changed_paths')
@@ -405,6 +667,21 @@ jobs:
                   raise SystemExit(f'non-allowlisted Auction recovery paths staged: {bad}')
           else:
               bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
+              snapshot_paths = [
+                  path for path in paths
+                  if path.startswith('models/decision_replay_input_snapshots/')
+              ]
+              if publish:
+                  assert isinstance(snapshot_receipt, dict)
+                  expected_snapshot_paths = (
+                      [expected_snapshot_path]
+                      if snapshot_receipt['created'] is True
+                      else []
+                  )
+                  if snapshot_paths != expected_snapshot_paths:
+                      bad.extend(snapshot_paths or [expected_snapshot_path])
+              elif snapshot_paths:
+                  bad.extend(snapshot_paths)
               if bad: raise SystemExit(f'non-allowlisted Auction paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
@@ -414,13 +691,38 @@ jobs:
               metadata, raw_path=entry.split(b'\t', 1)
               mode, _object_id, stage=metadata.decode('ascii').split()
               path=raw_path.decode()
-              if path not in path_set:
+              if path not in path_set and path != expected_snapshot_path:
                   continue
               if stage != '0' or path in index_modes:
                   raise SystemExit(f'non-stage-zero Auction index entry: {path}')
               index_modes[path]=mode
           bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
           if bad_modes: raise SystemExit(f'non-regular Auction paths staged: {bad_modes}')
+          if publish:
+              if index_modes.get(expected_snapshot_path) != '100644':
+                  raise SystemExit('Auction snapshot index mode is not a regular file')
+              if snapshot_receipt['created'] is True:
+                  snapshot_status = subprocess.run(
+                      [
+                          'git', 'diff', '--cached', '--no-renames',
+                          '--name-status', '--', expected_snapshot_path,
+                      ],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  ).stdout.strip()
+                  if snapshot_status != f'A\t{expected_snapshot_path}':
+                      raise SystemExit(
+                          'Auction new snapshot is not one exact added file'
+                      )
+              else:
+                  base_snapshot = subprocess.run(
+                      ['git', 'show', f'HEAD:{expected_snapshot_path}'],
+                      check=True,
+                      capture_output=True,
+                  ).stdout
+                  if hashlib.sha256(base_snapshot).hexdigest() != snapshot_receipt['file_sha256']:
+                      raise SystemExit('Auction existing snapshot differs from exact base')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
           CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" CANDIDATE_SHA="${RUNNER_TEMP}/candidate.patch.sha256" python - <<'PY'
@@ -443,6 +745,7 @@ jobs:
             ${{ runner.temp }}/base_sha.txt
             ${{ runner.temp }}/candidate.patch
             ${{ runner.temp }}/candidate.patch.sha256
+            ${{ runner.temp }}/auction-replay-snapshot.json
             ${{ runner.temp }}/recovery-receipt.json
           if-no-files-found: error
           retention-days: 1
@@ -464,6 +767,18 @@ jobs:
           ref: main
           fetch-depth: 1
           persist-credentials: false
+      - name: Setup Python for independent snapshot revalidation
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install locked snapshot validator dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+          python -c 'import pip; assert pip.__version__ == "26.2.1", pip.__version__'
+          python -m pip check
       - name: Download validated candidate
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -473,6 +788,7 @@ jobs:
         env:
           CANDIDATE_DIR: ${{ runner.temp }}/candidate
           ROUTE: ${{ needs.compute.outputs.route }}
+          SNAPSHOT_CREATOR_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -492,6 +808,8 @@ jobs:
               raise SystemExit(f'invalid candidate route: {route!r}')
           if route == 'recovery':
               expected_files.add('recovery-receipt.json')
+          else:
+              expected_files.add('auction-replay-snapshot.json')
           if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
               raise SystemExit('candidate envelope is missing or contains a symlink')
           actual_files = {path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()}
@@ -506,6 +824,49 @@ jobs:
           actual_sha = hashlib.sha256((root / 'candidate.patch').read_bytes()).hexdigest()
           if actual_sha != claimed_sha:
               raise SystemExit('candidate.patch SHA256 mismatch')
+          if route == 'auction':
+              try:
+                  snapshot_receipt = json.loads(
+                      (root / 'auction-replay-snapshot.json').read_text(
+                          encoding='utf-8'
+                      ),
+                      object_pairs_hook=unique_object,
+                  )
+              except Exception as exc:
+                  raise SystemExit(
+                      'Auction snapshot receipt is not valid JSON'
+                  ) from exc
+              expected_snapshot_fields = {
+                  'status', 'schema_version', 'created', 'path',
+                  'file_sha256', 'action_semantic_sha256', 'signal_date',
+                  'report_date', 'exit_date', 'creator_run_id',
+                  'creator_base_revision', 'snapshot',
+              }
+              semantic = snapshot_receipt.get('action_semantic_sha256')
+              expected_snapshot_path = (
+                  'models/decision_replay_input_snapshots/'
+                  f'{semantic}.json'
+              )
+              if (
+                  not isinstance(snapshot_receipt, dict)
+                  or set(snapshot_receipt) != expected_snapshot_fields
+                  or snapshot_receipt.get('status') != 'pass'
+                  or snapshot_receipt.get('schema_version')
+                  != 'decision_replay_market_snapshot_receipt_v1'
+                  or type(snapshot_receipt.get('created')) is not bool
+                  or re.fullmatch(r'[0-9a-f]{64}', str(semantic or '')) is None
+                  or snapshot_receipt.get('path') != expected_snapshot_path
+                  or re.fullmatch(
+                      r'[0-9a-f]{64}',
+                      str(snapshot_receipt.get('file_sha256') or ''),
+                  )
+                  is None
+                  or snapshot_receipt.get('creator_run_id')
+                  != os.environ['SNAPSHOT_CREATOR_RUN_ID']
+                  or snapshot_receipt.get('creator_base_revision') != base_sha
+                  or not isinstance(snapshot_receipt.get('snapshot'), dict)
+              ):
+                  raise SystemExit('Auction snapshot receipt envelope drifted')
           if route == 'recovery':
               try:
                   receipt = json.loads(
@@ -552,6 +913,9 @@ jobs:
       - name: Apply candidate with base-SHA CAS and create one commit
         env:
           ROUTE: ${{ needs.compute.outputs.route }}
+          SNAPSHOT_RECEIPT: ${{ runner.temp }}/candidate/auction-replay-snapshot.json
+          SNAPSHOT_CREATOR_RUN_ID: ${{ github.run_id }}
+          PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
@@ -560,9 +924,14 @@ jobs:
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/publish_staged_index.bin"
           PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" RECOVERY_RECEIPT="${RUNNER_TEMP}/candidate/recovery-receipt.json" BASE_SHA="${expected}" python - <<'PY'
-          import fnmatch, hashlib, json, os, re, subprocess
+          import fnmatch, hashlib, json, os, re, stat, subprocess
           from datetime import datetime
           from pathlib import Path
+          from top10decision.decision.action_plan import (
+              action_plan_semantic_comparison_profile_v3,
+              action_plan_semantic_projection_v3,
+          )
+          from top10decision.decision.canonical_fingerprint import canonical_json_bytes
           def unique_object(pairs):
               value = {}
               for key, item in pairs:
@@ -570,7 +939,32 @@ jobs:
                       raise SystemExit(f'duplicate recovery JSON key: {key}')
                   value[key] = item
               return value
-          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
+          def current_action_semantic(root):
+              action_path = root / 'outputs/decision/action_plan_latest.json'
+              if action_path.is_symlink() or not action_path.is_file():
+                  raise SystemExit('published Auction snapshot action is unsafe')
+              try:
+                  action = json.loads(
+                      action_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit(
+                      'published Auction snapshot action JSON is invalid'
+                  ) from exc
+              if not isinstance(action, dict):
+                  raise SystemExit('published Auction action must be one object')
+              action.pop('generated_at_utc', None)
+              profile = action_plan_semantic_comparison_profile_v3(action)
+              projection = action_plan_semantic_projection_v3(
+                  action,
+                  comparison_profile=profile,
+              )
+              return (
+                  hashlib.sha256(canonical_json_bytes(projection)).hexdigest(),
+                  action,
+              )
+          allowed = ('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/report_index.json','models/decision_v12_frozen_history_20260805.csv.gz','models/decision_replay_input_snapshots/*.json','data/market/trade_cal_sse.csv','data/market/minute_1m/**','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','docs/reports/auction_v3*.html')
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -612,6 +1006,8 @@ jobs:
           paths = [p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
           route = os.environ.get('ROUTE', 'auction')
           receipt = None
+          snapshot_receipt = None
+          expected_snapshot_path = ''
           if route == 'recovery':
               receipt = json.loads(
                   Path(os.environ['RECOVERY_RECEIPT']).read_text(encoding='utf-8'),
@@ -624,7 +1020,102 @@ jobs:
               if bad:
                   raise SystemExit(f'non-allowlisted Auction recovery publish paths staged: {bad}')
           else:
+              try:
+                  snapshot_receipt = json.loads(
+                      Path(os.environ['SNAPSHOT_RECEIPT']).read_text(
+                          encoding='utf-8'
+                      ),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit(
+                      'published Auction snapshot receipt is invalid'
+                  ) from exc
+              expected_snapshot_fields = {
+                  'status', 'schema_version', 'created', 'path',
+                  'file_sha256', 'action_semantic_sha256', 'signal_date',
+                  'report_date', 'exit_date', 'creator_run_id',
+                  'creator_base_revision', 'snapshot',
+              }
+              semantic, action = current_action_semantic(Path('.').resolve())
+              expected_snapshot_path = (
+                  'models/decision_replay_input_snapshots/'
+                  f'{semantic}.json'
+              )
+              claimed_sha = snapshot_receipt.get('file_sha256')
+              snapshot_path = Path(expected_snapshot_path)
+              snapshot_audit = snapshot_receipt.get('snapshot')
+              if (
+                  not isinstance(snapshot_receipt, dict)
+                  or set(snapshot_receipt) != expected_snapshot_fields
+                  or snapshot_receipt.get('status') != 'pass'
+                  or snapshot_receipt.get('schema_version')
+                  != 'decision_replay_market_snapshot_receipt_v1'
+                  or type(snapshot_receipt.get('created')) is not bool
+                  or snapshot_receipt.get('path') != expected_snapshot_path
+                  or snapshot_receipt.get('action_semantic_sha256') != semantic
+                  or snapshot_receipt.get('signal_date') != action.get('signal_date')
+                  or snapshot_receipt.get('report_date') != action.get('report_date')
+                  or snapshot_receipt.get('exit_date') != action.get('exit_date')
+                  or snapshot_receipt.get('creator_run_id')
+                  != os.environ['SNAPSHOT_CREATOR_RUN_ID']
+                  or snapshot_receipt.get('creator_base_revision')
+                  != os.environ['BASE_SHA']
+                  or re.fullmatch(r'[0-9a-f]{64}', str(claimed_sha or '')) is None
+                  or not isinstance(snapshot_audit, dict)
+                  or snapshot_audit.get('schema_version')
+                  != 'decision_market_input_snapshot_v2'
+                  or snapshot_audit.get('path') != expected_snapshot_path
+                  or snapshot_audit.get('file_sha256') != claimed_sha
+                  or snapshot_audit.get('bound_action_semantic_sha256')
+                  != semantic
+                  or snapshot_audit.get('live_raw_inventory_scanned') is not False
+                  or snapshot_audit.get('live_minute_inventory_scanned') is not False
+                  or snapshot_path.parent.is_symlink()
+                  or snapshot_path.is_symlink()
+                  or not snapshot_path.is_file()
+                  or not stat.S_ISREG(snapshot_path.stat().st_mode)
+                  or hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+                  != claimed_sha
+              ):
+                  raise SystemExit('published Auction snapshot binding drifted')
+              try:
+                  snapshot = json.loads(
+                      snapshot_path.read_text(encoding='utf-8'),
+                      object_pairs_hook=unique_object,
+                  )
+              except (OSError, UnicodeError, ValueError) as exc:
+                  raise SystemExit(
+                      'published Auction snapshot JSON is invalid'
+                  ) from exc
+              if (
+                  not isinstance(snapshot, dict)
+                  or snapshot.get('schema_version')
+                  != 'decision_market_input_snapshot_v2'
+                  or snapshot.get('bound_action_semantic_sha256') != semantic
+              ):
+                  raise SystemExit('published Auction snapshot payload drifted')
+              if snapshot_receipt['created'] is True and (
+                  snapshot.get('creator_base_revision')
+                  != os.environ['BASE_SHA']
+                  or snapshot.get('creator_run_id')
+                  != os.environ['SNAPSHOT_CREATOR_RUN_ID']
+              ):
+                  raise SystemExit(
+                      'published Auction new snapshot provenance drifted'
+                  )
               bad = [p for p in paths if not any(matches(p, pattern) for pattern in allowed) or not dated_raw_path_is_valid(p)]
+              snapshot_paths = [
+                  path for path in paths
+                  if path.startswith('models/decision_replay_input_snapshots/')
+              ]
+              expected_snapshot_paths = (
+                  [expected_snapshot_path]
+                  if snapshot_receipt['created'] is True
+                  else []
+              )
+              if snapshot_paths != expected_snapshot_paths:
+                  bad.extend(snapshot_paths or [expected_snapshot_path])
               if bad: raise SystemExit(f'non-allowlisted Auction publish paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
@@ -634,13 +1125,43 @@ jobs:
               metadata, raw_path=entry.split(b'\t', 1)
               mode, _object_id, stage=metadata.decode('ascii').split()
               path=raw_path.decode()
-              if path not in path_set:
+              if path not in path_set and path != expected_snapshot_path:
                   continue
               if stage != '0' or path in index_modes:
                   raise SystemExit(f'non-stage-zero Auction publish index entry: {path}')
               index_modes[path]=mode
           bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
           if bad_modes: raise SystemExit(f'non-regular Auction publish paths staged: {bad_modes}')
+          if route == 'auction':
+              assert isinstance(snapshot_receipt, dict)
+              if index_modes.get(expected_snapshot_path) != '100644':
+                  raise SystemExit(
+                      'published Auction snapshot is not index mode 100644'
+                  )
+              if snapshot_receipt['created'] is True:
+                  snapshot_status = subprocess.run(
+                      [
+                          'git', 'diff', '--cached', '--no-renames',
+                          '--name-status', '--', expected_snapshot_path,
+                      ],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  ).stdout.strip()
+                  if snapshot_status != f'A\t{expected_snapshot_path}':
+                      raise SystemExit(
+                          'published Auction snapshot is not one exact add'
+                      )
+              else:
+                  base_snapshot = subprocess.run(
+                      ['git', 'show', f"{os.environ['BASE_SHA']}:{expected_snapshot_path}"],
+                      check=True,
+                      capture_output=True,
+                  ).stdout
+                  if hashlib.sha256(base_snapshot).hexdigest() != snapshot_receipt['file_sha256']:
+                      raise SystemExit(
+                          'published Auction existing snapshot differs from base'
+                      )
           if not paths: raise SystemExit('Auction candidate patch became empty')
           if route == 'recovery':
               assert isinstance(receipt, dict)
@@ -736,6 +1257,51 @@ jobs:
             commit_message='auto: recover retrospective Decision action display gaps'
           fi
           git commit -m "${commit_message}"
+          if [ "${ROUTE}" = "auction" ]; then
+            post_apply_receipt="${RUNNER_TEMP}/auction-replay-snapshot-post-commit.json"
+            python scripts/replay_frozen_canonical_v2.py \
+              --root "${GITHUB_WORKSPACE}" \
+              --materialize-current-action-market-snapshot \
+              --snapshot-creator-run-id "${GITHUB_RUN_ID}" \
+              --snapshot-receipt "${post_apply_receipt}"
+            ORIGINAL_SNAPSHOT_RECEIPT="${SNAPSHOT_RECEIPT}" \
+            POST_APPLY_SNAPSHOT_RECEIPT="${post_apply_receipt}" \
+            python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+
+          original = json.loads(
+              Path(os.environ['ORIGINAL_SNAPSHOT_RECEIPT']).read_text(
+                  encoding='utf-8'
+              )
+          )
+          verified = json.loads(
+              Path(os.environ['POST_APPLY_SNAPSHOT_RECEIPT']).read_text(
+                  encoding='utf-8'
+              )
+          )
+          invariant = {
+              'status', 'schema_version', 'path', 'file_sha256',
+              'action_semantic_sha256', 'signal_date', 'report_date',
+              'exit_date', 'creator_run_id', 'snapshot',
+          }
+          if (
+              verified.get('created') is not False
+              or any(verified.get(key) != original.get(key) for key in invariant)
+          ):
+              raise SystemExit(
+                  'post-commit Auction snapshot receipt differs from candidate'
+              )
+          relative = str(original['path'])
+          head_bytes = subprocess.run(
+              ['git', 'show', f'HEAD:{relative}'],
+              check=True,
+              capture_output=True,
+          ).stdout
+          if hashlib.sha256(head_bytes).hexdigest() != original['file_sha256']:
+              raise SystemExit('committed Auction snapshot SHA256 drifted')
+          PY
+          fi
       - name: Publish exact CAS commit with minimally injected token
         id: publish
         env:

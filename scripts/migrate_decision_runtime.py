@@ -47,6 +47,10 @@ NUMERIC_RUNTIME_HOST = "github_ubuntu_24_04_x86_64"
 NUMERIC_EVIDENCE_ENV = "DC20_NUMERIC_RUNTIME_EVIDENCE_FILE"
 NUMERIC_LAUNCHER_PATH = "scripts/run_deterministic_numeric.py"
 NUMERIC_REPLAY_TARGET_PATH = "scripts/replay_frozen_canonical_v2.py"
+REPLAY_MARKET_SNAPSHOT_SCHEMA = "decision_market_input_snapshot_v2"
+REPLAY_MARKET_SNAPSHOT_PATH_RE = re.compile(
+    r"models/decision_replay_input_snapshots/([0-9a-f]{64})\.json"
+)
 ACTION_REBUILD_STABILITY_SCHEMA = "decision_action_rebuild_stability_v2"
 ACTION_REBUILD_PROJECTION = (
     "raw_action_excluding_generation_and_exact_base_observation_truth"
@@ -204,6 +208,7 @@ class MigrationBinding:
     report_date: str
     exec_date: str
     exit_date: str
+    action_semantic_sha256: str
     evaluation_path: str
     report_path: str
     candidates_path: str
@@ -547,6 +552,41 @@ def _exact_base_file_evidence(
     }
 
 
+def _action_semantic_sha256_v3(payload: dict[str, Any], label: str) -> str:
+    """Match Daily's timestamp-free persisted-action semantic digest exactly."""
+
+    from top10decision.decision.action_plan import (
+        action_plan_semantic_comparison_profile_v3,
+        action_plan_semantic_projection_v3,
+    )
+    from top10decision.decision.canonical_fingerprint import canonical_json_bytes
+
+    action = copy.deepcopy(payload)
+    generated_at = action.pop("generated_at_utc", None)
+    try:
+        generated_time = datetime.fromisoformat(generated_at)
+    except (TypeError, ValueError) as exc:
+        raise MigrationError(f"{label} timestamp is invalid") from exc
+    offset = generated_time.utcoffset()
+    if (
+        type(generated_at) is not str
+        or generated_time.isoformat() != generated_at
+        or offset is None
+        or offset.total_seconds() != 0
+        or generated_time.microsecond != 0
+    ):
+        _fail(f"{label} timestamp is invalid")
+    try:
+        profile = action_plan_semantic_comparison_profile_v3(action)
+        projection = action_plan_semantic_projection_v3(
+            action,
+            comparison_profile=profile,
+        )
+    except ValueError as exc:
+        raise MigrationError(f"{label} semantic evidence is invalid") from exc
+    return hashlib.sha256(canonical_json_bytes(projection)).hexdigest()
+
+
 def discover_binding(root: Path, requested_signal_date: str = "") -> MigrationBinding:
     from decision_pages_truth import (
         DecisionPagesTruthError,
@@ -636,11 +676,37 @@ def discover_binding(root: Path, requested_signal_date: str = "") -> MigrationBi
         path = _child(root, relative, label)
         if path.is_symlink() or not path.is_file() or path.stat().st_size <= 0:
             _fail(f"{label} is missing, empty, or a symlink: {relative}")
+    dated_action = load_strict_json(
+        _child(root, expected_action_url, "dated action"),
+        "dated action",
+    )
+    latest_action = load_strict_json(
+        _child(root, "outputs/decision/action_plan_latest.json", "latest action"),
+        "latest action",
+    )
+    for label, action in (
+        ("dated action", dated_action),
+        ("latest action", latest_action),
+    ):
+        expected_dates = {
+            "signal_date": signal_date,
+            "report_date": report_date,
+            "exec_date": exec_date,
+            "exit_date": exit_date,
+        }
+        for field, expected in expected_dates.items():
+            if action.get(field) != expected or type(action.get(field)) is not str:
+                _fail(f"{label} {field} differs from migration binding")
+    dated_semantic_sha256 = _action_semantic_sha256_v3(dated_action, "dated action")
+    latest_semantic_sha256 = _action_semantic_sha256_v3(latest_action, "latest action")
+    if dated_semantic_sha256 != latest_semantic_sha256:
+        _fail("dated/latest action V3 semantic digests differ")
     return MigrationBinding(
         signal_date=signal_date,
         report_date=report_date,
         exec_date=exec_date,
         exit_date=exit_date,
+        action_semantic_sha256=dated_semantic_sha256,
         evaluation_path=evaluation_path,
         report_path=report_path,
         candidates_path=candidates_path,
@@ -754,6 +820,11 @@ def run_frozen_replay(
     report_path: Path,
     evidence_path: Path,
 ) -> dict[str, Any]:
+    expected_action_semantic_sha256 = _strict_sha(
+        binding.action_semantic_sha256,
+        "expected replay action semantic SHA256",
+        SHA256_RE,
+    )
     supplied_evidence = evidence_path.absolute()
     if supplied_evidence.exists() or supplied_evidence.is_symlink():
         _fail("numeric runtime evidence output must not already exist")
@@ -772,6 +843,8 @@ def run_frozen_replay(
             binding.signal_date,
             "--report-date",
             binding.report_date,
+            "--expected-action-semantic-sha256",
+            expected_action_semantic_sha256,
             "--report",
             str(report_path),
         ],
@@ -792,6 +865,31 @@ def run_frozen_replay(
         _fail("frozen replay did not complete runtime validation")
     if runtime.get("canonical_v2_enforced") is not True:
         _fail("frozen replay did not enforce canonical V2")
+    history = replay.get("history")
+    snapshot = (
+        history.get("market_input_snapshot") if isinstance(history, dict) else None
+    )
+    if not isinstance(snapshot, dict):
+        _fail("frozen replay lacks immutable market-input snapshot evidence")
+    expected_snapshot_path = (
+        "models/decision_replay_input_snapshots/"
+        f"{expected_action_semantic_sha256}.json"
+    )
+    expected_snapshot_fields = {
+        "schema_version": REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "path": expected_snapshot_path,
+        "bound_action_semantic_sha256": expected_action_semantic_sha256,
+        "signal_date": binding.signal_date,
+        "report_date": binding.report_date,
+        "exit_date": binding.exit_date,
+        "live_raw_inventory_scanned": False,
+        "live_minute_inventory_scanned": False,
+    }
+    for field, expected in expected_snapshot_fields.items():
+        if snapshot.get(field) != expected or type(snapshot.get(field)) is not type(
+            expected
+        ):
+            _fail(f"frozen replay market-input snapshot has invalid {field}")
     numeric_runtime = validate_numeric_runtime_evidence(
         load_strict_json(supplied_evidence, "numeric runtime evidence"),
         expected_launcher_sha256=_sha256_file(root / NUMERIC_LAUNCHER_PATH),
@@ -799,6 +897,74 @@ def run_frozen_replay(
     )
     replay["numeric_runtime"] = numeric_runtime
     return replay
+
+
+def resolve_replay_market_snapshot_semantic_sha256(
+    root: Path,
+    binding: MigrationBinding,
+    manifest: dict[str, Any],
+) -> str:
+    """Select exactly one freeze-pinned immutable market snapshot for D/T/T+1."""
+
+    pins = manifest.get("pinned_files")
+    if not isinstance(pins, dict) or not pins:
+        _fail("freeze manifest pinned_files must be nonempty")
+    matches: list[str] = []
+    for relative, expected_file_sha256 in pins.items():
+        if type(relative) is not str:
+            _fail("freeze manifest pin path must be a string")
+        match = REPLAY_MARKET_SNAPSHOT_PATH_RE.fullmatch(relative)
+        if match is None:
+            continue
+        semantic_sha256 = _strict_sha(
+            match.group(1),
+            "replay market snapshot filename semantic SHA256",
+            SHA256_RE,
+        )
+        expected_file_sha256 = _strict_sha(
+            expected_file_sha256,
+            f"replay market snapshot pin {relative}",
+            SHA256_RE,
+        )
+        path = _child(root, relative, "replay market snapshot")
+        if _sha256_file(path) != expected_file_sha256:
+            _fail(f"replay market snapshot differs from freeze pin: {relative}")
+        payload = load_strict_json(path, "replay market snapshot")
+        if payload.get("schema_version") != REPLAY_MARKET_SNAPSHOT_SCHEMA:
+            _fail(f"replay market snapshot schema is invalid: {relative}")
+        if payload.get("bound_action_semantic_sha256") != semantic_sha256:
+            _fail(f"replay market snapshot semantic binding differs: {relative}")
+        snapshot_dates = {
+            "signal_date": _strict_date(
+                payload.get("signal_date"),
+                f"{relative} signal_date",
+            ),
+            "report_date": _strict_date(
+                payload.get("report_date"),
+                f"{relative} report_date",
+            ),
+            "exit_date": _strict_date(
+                payload.get("exit_date"),
+                f"{relative} exit_date",
+            ),
+        }
+        if snapshot_dates == {
+            "signal_date": binding.signal_date,
+            "report_date": binding.report_date,
+            "exit_date": binding.exit_date,
+        }:
+            if semantic_sha256 != binding.action_semantic_sha256:
+                _fail(
+                    "replay market snapshot semantic differs from persisted "
+                    "dated/latest action"
+                )
+            matches.append(semantic_sha256)
+    if len(matches) != 1:
+        _fail(
+            "migration requires exactly one freeze-pinned replay market snapshot "
+            f"for D/T/T+1; found {len(matches)}"
+        )
+    return matches[0]
 
 
 def action_rebuild_stability_projection(action: Any) -> dict[str, Any]:
@@ -1800,6 +1966,17 @@ def verify_envelope(
         for relative, expected_sha in pins.items():
             _safe_repo_path(relative, "exact-base manifest pin")
             _strict_sha(expected_sha, f"manifest pin {relative}", SHA256_RE)
+        replay_snapshot_semantic_sha256 = (
+            resolve_replay_market_snapshot_semantic_sha256(
+                source_root,
+                source_binding,
+                manifest,
+            )
+        )
+        if replay_snapshot_semantic_sha256 != source_binding.action_semantic_sha256:
+            _fail(
+                "exact-base replay snapshot differs from action semantic binding"
+            )
         expected_sources = _source_evidence(
             source_root,
             git_base,
@@ -1899,6 +2076,11 @@ def build_migration(
     )
     if pins.get("validated") is not True or pins.get("enforced") is not True:
         _fail("migration requires exact freeze-pin enforcement")
+    expected_action_semantic_sha256 = resolve_replay_market_snapshot_semantic_sha256(
+        root, binding, manifest
+    )
+    if expected_action_semantic_sha256 != binding.action_semantic_sha256:
+        _fail("freeze-pinned replay snapshot differs from action semantic binding")
     source_evidence = _source_evidence(root, git_base, binding, manifest)
     allowed = candidate_paths(binding.signal_date, binding.report_date)
 

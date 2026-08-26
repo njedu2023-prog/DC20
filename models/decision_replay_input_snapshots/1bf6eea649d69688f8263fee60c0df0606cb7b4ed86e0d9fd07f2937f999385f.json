@@ -1,0 +1,159 @@
+{
+  "schema_version": "decision_market_input_snapshot_v2",
+  "bound_action_semantic_sha256": "1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f",
+  "signal_date": "20260814",
+  "report_date": "20260817",
+  "exit_date": "20260818",
+  "creator_base_revision": "30dd32a6b488b08f5df70c323d25ff75d613b33b",
+  "creator_run_id": "32568848370",
+  "market_dates": [
+    "20260813",
+    "20260814",
+    "20260817",
+    "20260818"
+  ],
+  "bound_dates": [
+    "20260813",
+    "20260814",
+    "20260817",
+    "20260818"
+  ],
+  "candidate_snapshot": {
+    "path": "data/pred/archive/pred_source_20260814.csv",
+    "sha256": "eda0f4008756b1c72ed0a9e03b8621b1a7790512809c42f6cf0da04d1cd0e041"
+  },
+  "market_files": {
+    "20260813:daily": {
+      "path": "data/market/raw/2026/20260813/daily.csv",
+      "sha256": "64b3096da35d612e122ea10122b0133ddbfe3c9d959ef21746d3aa9d4e0cd523"
+    },
+    "20260813:daily_basic": {
+      "path": "data/market/raw/2026/20260813/daily_basic.csv",
+      "sha256": "251a74438156ca6c84709804d188d9fdea00e40fc64cdd33a16221c5a3e7c5d6"
+    },
+    "20260813:limit_list_d": {
+      "path": "data/market/raw/2026/20260813/limit_list_d.csv",
+      "sha256": "dcefe11cdb3a1cf69acb2e5ca94756321c5deff5a63fbd85f011d16cf4e4da12"
+    },
+    "20260813:limit_up_tags": {
+      "path": "data/market/raw/2026/20260813/limit_up_tags.csv",
+      "sha256": "fa5b92b5eb8ab72a92b756007d1b2ba9dba569b6482b7674fed158442e8dfd71"
+    },
+    "20260813:stk_auction": {
+      "path": "data/market/raw/2026/20260813/stk_auction.csv",
+      "sha256": "1146c47b2c53b16f58b35fb867e346fcd6f50b58b8b7832c8555fe37df1dd8de"
+    },
+    "20260813:stk_auction_o": {
+      "path": "data/market/raw/2026/20260813/stk_auction_o.csv",
+      "sha256": "499f82f8786bb307c58572882b392ceb21fc87df16ff8925d79f62c546bfe4b8"
+    },
+    "20260813:stk_limit": {
+      "path": "data/market/raw/2026/20260813/stk_limit.csv",
+      "sha256": "96edbc8b5567b61fed16de4a1ab528042eeaa6ec1c216681c14d848d27b62292"
+    },
+    "20260813:stock_basic": {
+      "path": "data/market/raw/2026/20260813/stock_basic.csv",
+      "sha256": "92d9b0f7b322a65c8f32a59db6e5cb66fdc47628ea0c90292bf5e896b0f7a5b5"
+    },
+    "20260814:daily": {
+      "path": "data/market/raw/2026/20260814/daily.csv",
+      "sha256": "4ad4c0eb7af4b88143e54d3cf91d20d1cf0dad611e8fcf38193968ff76d09e8d"
+    },
+    "20260814:daily_basic": {
+      "path": "data/market/raw/2026/20260814/daily_basic.csv",
+      "sha256": "c43fe17225866b058c21b4e485f2f68e19ac96f22fac6bcd0ce0f7f7c1038c26"
+    },
+    "20260814:limit_list_d": {
+      "path": "data/market/raw/2026/20260814/limit_list_d.csv",
+      "sha256": "b586db7a7c4c38f3c6caafd20f67ffe7ed583d5973f287d3f74cb8208bf391e2"
+    },
+    "20260814:limit_up_tags": {
+      "path": "data/market/raw/2026/20260814/limit_up_tags.csv",
+      "sha256": "489699e64a42f9b7fa959889c42bd3b9c40f0cfb296e3a672489cf30fdfbe40d"
+    },
+    "20260814:stk_auction": {
+      "path": "data/market/raw/2026/20260814/stk_auction.csv",
+      "sha256": "5dea5a022d3896ae0349da5a6d7dd7d73cdd0b4f2d1a8cafc13ddcabebe05bd5"
+    },
+    "20260814:stk_auction_o": {
+      "path": "data/market/raw/2026/20260814/stk_auction_o.csv",
+      "sha256": "7ae6234f1774b7d857b604dea2676bf5d7f5e51e59e11006c3f8297dbd463e37"
+    },
+    "20260814:stk_limit": {
+      "path": "data/market/raw/2026/20260814/stk_limit.csv",
+      "sha256": "8438091faa219c69633c1db21f702189a02713ba7968169de47120c41d79d91e"
+    },
+    "20260814:stock_basic": {
+      "path": "data/market/raw/2026/20260814/stock_basic.csv",
+      "sha256": "e57a3dcc2e1b9db4778a63be9e8976cd6935d6c367684323e3bde496c511dff5"
+    },
+    "20260817:daily": {
+      "path": "data/market/raw/2026/20260817/daily.csv",
+      "sha256": "3b769302451569132aeede72dd4538d41eda662ea0124080ddb0c3855f9dba62"
+    },
+    "20260817:daily_basic": {
+      "path": "data/market/raw/2026/20260817/daily_basic.csv",
+      "sha256": "bc34ad1d7b57a02d890c1e815fc7e28468613faae519add3d27927a6021023a2"
+    },
+    "20260817:limit_list_d": {
+      "path": "data/market/raw/2026/20260817/limit_list_d.csv",
+      "sha256": "b4f5963931f90f90e4a261512fcb427ac08303bbbba50f5f9ec9b9cadb7ed465"
+    },
+    "20260817:limit_up_tags": {
+      "path": "data/market/raw/2026/20260817/limit_up_tags.csv",
+      "sha256": "d049630466581153d310721cb9d39055fee5bc8bdb26e6798fdacf57e1ef86c2"
+    },
+    "20260817:stk_auction": {
+      "path": "data/market/raw/2026/20260817/stk_auction.csv",
+      "sha256": "28cc8feed6320292c5da0919a7db4bc898157c6907e9d9cdac72f4de710d1a66"
+    },
+    "20260817:stk_limit": {
+      "path": "data/market/raw/2026/20260817/stk_limit.csv",
+      "sha256": "c318c21fa49fa158085d782fe47438861fbff1cd2ff32f4fb6eba3a01b0209af"
+    },
+    "20260817:stock_basic": {
+      "path": "data/market/raw/2026/20260817/stock_basic.csv",
+      "sha256": "bb0061d57eae2b4739bf9593aefe6357a80820ba9fb5840739caeca7971b7e0a"
+    },
+    "20260818:daily": {
+      "path": "data/market/raw/2026/20260818/daily.csv",
+      "sha256": "05447a3a593c1cbed38e996a5ede390a9a60728fd088c1ae1a7ff636cb4e4465"
+    },
+    "20260818:daily_basic": {
+      "path": "data/market/raw/2026/20260818/daily_basic.csv",
+      "sha256": "7d7a2500aca41b2879b1bf62e33ddb399758a5e98e8e3210170f9084199ef33c"
+    },
+    "20260818:limit_list_d": {
+      "path": "data/market/raw/2026/20260818/limit_list_d.csv",
+      "sha256": "88f53249b7a761f19f9c772bcd0f21dd6e19e11aaf7709f82512c8554714e9d2"
+    },
+    "20260818:limit_up_tags": {
+      "path": "data/market/raw/2026/20260818/limit_up_tags.csv",
+      "sha256": "205fcd6d38efc447943dd93e1836b4252c32266eec6a4ced9bf4433e035b6f3d"
+    },
+    "20260818:stk_auction": {
+      "path": "data/market/raw/2026/20260818/stk_auction.csv",
+      "sha256": "be88938fbe15a1d81a256508d949d74c0fede0a2ef4ef1662dc304ed2df7e988"
+    },
+    "20260818:stk_limit": {
+      "path": "data/market/raw/2026/20260818/stk_limit.csv",
+      "sha256": "32802bf09f4d933ba189f7048392664718a0ade691b8439324ba99c4c68a05c5"
+    },
+    "20260818:stock_basic": {
+      "path": "data/market/raw/2026/20260818/stock_basic.csv",
+      "sha256": "5e0c1499596076a628919e42173421ffdb2f2bb466e38b7e203fe98c8afa3f44"
+    }
+  },
+  "missing_market_tables": [
+    "20260817:stk_auction_o",
+    "20260818:stk_auction_o"
+  ],
+  "auxiliary_files": {
+    "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909"
+  },
+  "minute_binding": {
+    "mode": "all_missing",
+    "paths": []
+  },
+  "canonical_sha256": "85fff4cc4839aa8e7d9e12699d901168044865d465b64b3327dd6c5b45676f6d"
+}

@@ -28,6 +28,7 @@ BASE_TREE_SHA = "2" * 40
 SIGNAL_DATE = "20260821"
 REPORT_DATE = "20260824"
 EXIT_DATE = "20260825"
+ACTION_SEMANTIC_SHA256 = "a" * 64
 
 
 def _binding() -> object:
@@ -36,6 +37,7 @@ def _binding() -> object:
         report_date=REPORT_DATE,
         exec_date=REPORT_DATE,
         exit_date=EXIT_DATE,
+        action_semantic_sha256=ACTION_SEMANTIC_SHA256,
         evaluation_path=f"outputs/decision/eval_{REPORT_DATE}.json",
         report_path=f"outputs/decision/decision_report_{REPORT_DATE}.md",
         candidates_path=f"data/decision/decision_candidates_{SIGNAL_DATE}.csv",
@@ -73,6 +75,51 @@ def _action_payload() -> dict[str, object]:
             }
         ],
     }
+
+
+def _replay_market_snapshot_audit(
+    semantic_sha256: str = ACTION_SEMANTIC_SHA256,
+) -> dict[str, object]:
+    return {
+        "schema_version": MIGRATION.REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "path": (
+            "models/decision_replay_input_snapshots/"
+            f"{semantic_sha256}.json"
+        ),
+        "bound_action_semantic_sha256": semantic_sha256,
+        "signal_date": SIGNAL_DATE,
+        "report_date": REPORT_DATE,
+        "exit_date": EXIT_DATE,
+        "live_raw_inventory_scanned": False,
+        "live_minute_inventory_scanned": False,
+    }
+
+
+def _write_replay_market_snapshot_pin(
+    root: Path,
+    semantic_sha256: str = ACTION_SEMANTIC_SHA256,
+) -> tuple[str, str]:
+    relative = (
+        "models/decision_replay_input_snapshots/"
+        f"{semantic_sha256}.json"
+    )
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": MIGRATION.REPLAY_MARKET_SNAPSHOT_SCHEMA,
+                "bound_action_semantic_sha256": semantic_sha256,
+                "signal_date": SIGNAL_DATE,
+                "report_date": REPORT_DATE,
+                "exit_date": EXIT_DATE,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return relative, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _strict_receipt_bytes(payload: dict[str, object]) -> bytes:
@@ -376,6 +423,9 @@ def test_run_frozen_replay_captures_numeric_runtime_in_same_temp_directory(
                         "validated": True,
                         "canonical_v2_enforced": True,
                     },
+                    "history": {
+                        "market_input_snapshot": _replay_market_snapshot_audit()
+                    },
                 }
             )
             + "\n",
@@ -418,7 +468,10 @@ def test_run_frozen_replay_captures_numeric_runtime_in_same_temp_directory(
 
     monkeypatch.setattr(MIGRATION, "_run_checked", fake_run_checked)
     replay = MIGRATION.run_frozen_replay(
-        root, _binding(), report_path, evidence_path
+        root,
+        _binding(),
+        report_path,
+        evidence_path,
     )
     assert replay["numeric_runtime"]["target"] == target.name
     assert captured["command"] == [
@@ -431,6 +484,8 @@ def test_run_frozen_replay_captures_numeric_runtime_in_same_temp_directory(
         SIGNAL_DATE,
         "--report-date",
         REPORT_DATE,
+        "--expected-action-semantic-sha256",
+        ACTION_SEMANTIC_SHA256,
         "--report",
         str(report_path),
     ]
@@ -463,6 +518,9 @@ def test_run_frozen_replay_fails_if_launcher_omits_numeric_evidence(
                         "validated": True,
                         "canonical_v2_enforced": True,
                     },
+                    "history": {
+                        "market_input_snapshot": _replay_market_snapshot_audit()
+                    },
                 }
             )
             + "\n",
@@ -472,7 +530,12 @@ def test_run_frozen_replay_fails_if_launcher_omits_numeric_evidence(
 
     monkeypatch.setattr(MIGRATION, "_run_checked", fake_run_checked)
     with pytest.raises(MIGRATION.MigrationError, match="numeric runtime evidence"):
-        MIGRATION.run_frozen_replay(root, _binding(), report_path, evidence_path)
+        MIGRATION.run_frozen_replay(
+            root,
+            _binding(),
+            report_path,
+            evidence_path,
+        )
 
 
 def test_run_frozen_replay_rejects_unsafe_numeric_evidence_paths(
@@ -496,7 +559,37 @@ def test_run_frozen_replay_rejects_unsafe_numeric_evidence_paths(
     other.mkdir()
     with pytest.raises(MIGRATION.MigrationError, match="replay temporary directory"):
         MIGRATION.run_frozen_replay(
-            root, _binding(), report_path, other / "numeric-runtime.json"
+            root,
+            _binding(),
+            report_path,
+            other / "numeric-runtime.json",
+        )
+
+
+def test_resolve_replay_market_snapshot_semantic_sha256_is_exact_and_pinned(
+    tmp_path: Path,
+) -> None:
+    relative, file_sha256 = _write_replay_market_snapshot_pin(tmp_path)
+    manifest = {"pinned_files": {relative: file_sha256}}
+    assert MIGRATION.resolve_replay_market_snapshot_semantic_sha256(
+        tmp_path,
+        _binding(),
+        manifest,
+    ) == ACTION_SEMANTIC_SHA256
+
+
+def test_resolve_replay_market_snapshot_semantic_sha256_rejects_wrong_semantic(
+    tmp_path: Path,
+) -> None:
+    second_semantic_sha256 = "b" * 64
+    first = _write_replay_market_snapshot_pin(tmp_path)
+    second = _write_replay_market_snapshot_pin(tmp_path, second_semantic_sha256)
+    manifest = {"pinned_files": dict((first, second))}
+    with pytest.raises(MIGRATION.MigrationError, match="semantic differs"):
+        MIGRATION.resolve_replay_market_snapshot_semantic_sha256(
+            tmp_path,
+            _binding(),
+            manifest,
         )
 
 
@@ -537,6 +630,10 @@ def _write_binding_root(root: Path) -> dict[str, object]:
         json.dumps(_action_payload()) + "\n",
         encoding="utf-8",
     )
+    (decision / "action_plan_latest.json").write_text(
+        json.dumps(_action_payload()) + "\n",
+        encoding="utf-8",
+    )
     for relative in (
         f"data/decision/decision_candidates_{SIGNAL_DATE}.csv",
         f"data/decision/decision_execution_{REPORT_DATE}.csv",
@@ -552,11 +649,60 @@ def _write_binding_root(root: Path) -> dict[str, object]:
     return index
 
 
-def test_discover_binding_uses_latest_action_not_newer_report(tmp_path: Path) -> None:
+def test_discover_binding_uses_latest_action_not_newer_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     index = _write_binding_root(tmp_path)
+    monkeypatch.setattr(
+        MIGRATION,
+        "_action_semantic_sha256_v3",
+        lambda _payload, _label: ACTION_SEMANTIC_SHA256,
+    )
     assert index["latest_report_date"] == "20260825"
     assert index["latest_action_report_date"] == REPORT_DATE
     assert MIGRATION.discover_binding(tmp_path, SIGNAL_DATE) == _binding()
+
+
+def test_current_dated_and_latest_actions_match_timestamp_free_v3_semantic() -> None:
+    expected = (
+        "1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f"
+    )
+    dated = MIGRATION.load_strict_json(
+        ROOT / "outputs" / "decision" / "action_plan_20260817.json",
+        "current dated action",
+    )
+    latest = MIGRATION.load_strict_json(
+        ROOT / "outputs" / "decision" / "action_plan_latest.json",
+        "current latest action",
+    )
+    assert MIGRATION._action_semantic_sha256_v3(dated, "dated action") == expected
+    assert MIGRATION._action_semantic_sha256_v3(latest, "latest action") == expected
+
+
+def test_action_semantic_sha256_v3_rejects_noncanonical_timestamp() -> None:
+    action = MIGRATION.load_strict_json(
+        ROOT / "outputs" / "decision" / "action_plan_latest.json",
+        "current latest action",
+    )
+    action["generated_at_utc"] = "2026-08-21T18:15:31Z"
+    with pytest.raises(MIGRATION.MigrationError, match="timestamp is invalid"):
+        MIGRATION._action_semantic_sha256_v3(action, "latest action")
+
+
+def test_discover_binding_rejects_dated_latest_semantic_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_binding_root(tmp_path)
+    digests = iter((ACTION_SEMANTIC_SHA256, "b" * 64))
+    monkeypatch.setattr(
+        MIGRATION,
+        "_action_semantic_sha256_v3",
+        lambda _payload, _label: next(digests),
+    )
+    with pytest.raises(MIGRATION.MigrationError, match="semantic digests differ"):
+        MIGRATION.discover_binding(tmp_path, SIGNAL_DATE)
 
 
 @pytest.mark.parametrize(
@@ -1051,6 +1197,7 @@ def test_post_prune_sequence_rebuilds_only_current_action_before_second_validati
 
 def test_verify_with_exact_base_reconstructs_complete_source_path_set(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_root = tmp_path / "source"
     evaluation_path = f"outputs/decision/eval_{REPORT_DATE}.json"
@@ -1154,11 +1301,24 @@ def test_verify_with_exact_base_reconstructs_complete_source_path_set(
         json.dumps(_action_payload()) + "\n",
         encoding="utf-8",
     )
+    (source_root / "outputs" / "decision" / "action_plan_latest.json").write_text(
+        json.dumps(_action_payload()) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        MIGRATION,
+        "_action_semantic_sha256_v3",
+        lambda _payload, _label: ACTION_SEMANTIC_SHA256,
+    )
     pinned_sha = hashlib.sha256((source_root / pinned_path).read_bytes()).hexdigest()
+    snapshot_relative, snapshot_sha = _write_replay_market_snapshot_pin(source_root)
     manifest = {
         "schema_version": "decision_model_freeze_v2",
         "active": False,
-        "pinned_files": {pinned_path: pinned_sha},
+        "pinned_files": {
+            pinned_path: pinned_sha,
+            snapshot_relative: snapshot_sha,
+        },
     }
     (source_root / "models" / "decision_model_freeze.json").write_text(
         json.dumps(manifest) + "\n", encoding="utf-8"

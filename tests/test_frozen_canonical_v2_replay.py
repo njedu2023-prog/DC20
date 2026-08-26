@@ -108,20 +108,57 @@ def test_forced_replay_binds_engine_signal_and_publisher_report_date(
 ) -> None:
     calls: dict[str, object] = {}
     history = pd.DataFrame({"signal_date": ["20260805"]})
+    semantic_sha = "1" * 64
+    snapshot_relative = (
+        replay.REPLAY_MARKET_SNAPSHOT_ROOT / f"{semantic_sha}.json"
+    ).as_posix()
+    snapshot_path = tmp_path / snapshot_relative
+    snapshot_path.parent.mkdir(parents=True)
+    snapshot_path.write_text("{}\n", encoding="utf-8")
     monkeypatch.setattr(
         replay,
         "load_forced_frozen_history",
-        lambda _root: (history, {}, {"validated": True}),
+        lambda _root: (
+            history,
+            {
+                "pinned_files": {
+                    snapshot_relative: "2" * 64,
+                    replay.REPLAY_SSE_CALENDAR_PATH: "3" * 64,
+                }
+            },
+            {"validated": True},
+        ),
     )
     monkeypatch.setattr(
         replay,
         "AuctionV3Config",
         lambda *, root: SimpleNamespace(root=root),
     )
+    market_snapshot = {
+        "signal_date": "20260814",
+        "candidate_snapshot": {"path": "data/pred/archive/pred_source_20260814.csv"},
+        "market_dates": ["20260814", "20260817", "20260818"],
+        "bound_dates": ["20260814", "20260817", "20260818"],
+        "market_files": {},
+        "missing_market_tables": [],
+        "minute_binding": {"mode": "all_missing", "paths": []},
+    }
+    monkeypatch.setattr(
+        replay,
+        "_load_replay_market_snapshot",
+        lambda _root, **_kwargs: (market_snapshot, {"validated": True}),
+    )
 
     class FakeEngine:
-        def __init__(self, config, loaded_history, history_audit) -> None:
-            calls["engine_init"] = (config.root, loaded_history, history_audit)
+        def __init__(
+            self, config, loaded_history, history_audit, loaded_market_snapshot
+        ) -> None:
+            calls["engine_init"] = (
+                config.root,
+                loaded_history,
+                history_audit,
+                loaded_market_snapshot,
+            )
 
         def run(self, signal_date: str, *, force_prediction: bool):
             calls["engine_run"] = (signal_date, force_prediction)
@@ -144,9 +181,16 @@ def test_forced_replay_binds_engine_signal_and_publisher_report_date(
         tmp_path,
         signal_date="20260814",
         report_date="20260817",
+        expected_action_semantic_sha256=semantic_sha,
     )
     assert result == {"signal_date": "20260814"}
-    assert audit == {"validated": True}
+    assert audit == {
+        "validated": True,
+        "market_input_snapshot": {
+            "validated": True,
+            "trust_source": "active_freeze_pin",
+        },
+    }
     assert published == {"status": "pass"}
     assert calls["engine_run"] == ("20260814", True)
     assert calls["publisher_command"][-2:] == ["--report-date", "20260817"]
@@ -156,6 +200,477 @@ def test_forced_replay_binds_engine_signal_and_publisher_report_date(
         "capture_output": True,
         "text": True,
     }
+
+
+def _write_synthetic_market_snapshot(tmp_path: Path, semantic_sha: str) -> Path:
+    signal_date, report_date, exit_date = "20260814", "20260817", "20260818"
+    dates = [signal_date, report_date, exit_date]
+    candidate_relative = f"data/pred/archive/pred_source_{signal_date}.csv"
+    candidate_path = tmp_path / candidate_relative
+    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path.write_text("trade_date,ts_code\n20260814,000001.SZ\n", encoding="utf-8")
+    auxiliary_relative = (
+        "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv"
+    )
+    auxiliary_path = tmp_path / auxiliary_relative
+    auxiliary_path.parent.mkdir(parents=True, exist_ok=True)
+    auxiliary_path.write_text("signal_date,ts_code\n", encoding="utf-8")
+    calendar_path = tmp_path / replay.REPLAY_SSE_CALENDAR_PATH
+    calendar_path.parent.mkdir(parents=True, exist_ok=True)
+    calendar_path.write_text(
+        "exchange,cal_date,is_open,pretrade_date\n"
+        "SSE,20260814,1,20260813\n"
+        "SSE,20260817,1,20260814\n"
+        "SSE,20260818,1,20260817\n",
+        encoding="utf-8",
+    )
+    files: dict[str, dict[str, str]] = {}
+    missing: list[str] = []
+    for date in dates:
+        for table in sorted(replay.REPLAY_MARKET_TABLES):
+            key = f"{date}:{table}"
+            if table != "daily":
+                missing.append(key)
+                continue
+            relative = f"data/market/raw/{date[:4]}/{date}/{table}.csv"
+            target = tmp_path / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                f"trade_date,ts_code,close\n{date},000001.SZ,10.00\n",
+                encoding="utf-8",
+            )
+            files[key] = {
+                "path": relative,
+                "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+            }
+    payload = {
+        "schema_version": replay.REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "bound_action_semantic_sha256": semantic_sha,
+        "signal_date": signal_date,
+        "report_date": report_date,
+        "exit_date": exit_date,
+        "creator_base_revision": "a" * 40,
+        "creator_run_id": "1",
+        "market_dates": dates,
+        "bound_dates": dates,
+        "candidate_snapshot": {
+            "path": candidate_relative,
+            "sha256": hashlib.sha256(candidate_path.read_bytes()).hexdigest(),
+        },
+        "market_files": files,
+        "missing_market_tables": sorted(missing),
+        "auxiliary_files": {
+            auxiliary_relative: hashlib.sha256(auxiliary_path.read_bytes()).hexdigest()
+        },
+        "minute_binding": {"mode": "all_missing", "paths": []},
+    }
+    payload["canonical_sha256"] = hashlib.sha256(
+        replay.canonical_json_bytes(payload)
+    ).hexdigest()
+    path = (
+        tmp_path
+        / replay.REPLAY_MARKET_SNAPSHOT_ROOT
+        / f"{semantic_sha}.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def test_market_snapshot_hides_later_backfilled_pre_d_and_minute_partitions(
+    tmp_path: Path,
+) -> None:
+    semantic_sha = "1" * 64
+    snapshot_path = _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    snapshot, audit = replay._load_replay_market_snapshot(
+        tmp_path,
+        expected_action_semantic_sha256=semantic_sha,
+        expected_snapshot_file_sha256=hashlib.sha256(
+            snapshot_path.read_bytes()
+        ).hexdigest(),
+        expected_calendar_file_sha256=hashlib.sha256(
+            (tmp_path / replay.REPLAY_SSE_CALENDAR_PATH).read_bytes()
+        ).hexdigest(),
+        signal_date="20260814",
+        report_date="20260817",
+    )
+    engine = replay.DiagnosticFrozenEngine(
+        replay.AuctionV3Config(root=tmp_path),
+        pd.DataFrame(),
+        {},
+        snapshot,
+    )
+    before_dates = engine.market_dates()
+    before_candidate = engine.candidate_snapshots()
+
+    backfilled = tmp_path / "data/market/raw/2026/20260812/daily.csv"
+    backfilled.parent.mkdir(parents=True, exist_ok=True)
+    backfilled.write_text(
+        "trade_date,ts_code,close\n20260812,000001.SZ,9.50\n",
+        encoding="utf-8",
+    )
+    minute = tmp_path / "data/market/minute_1m/2026/20260814/000001_SZ.csv"
+    minute.parent.mkdir(parents=True, exist_ok=True)
+    minute.write_text("time,open\n09:30,10.00\n", encoding="utf-8")
+
+    assert engine.market_dates() == before_dates == [
+        "20260814",
+        "20260817",
+        "20260818",
+    ]
+    assert engine.candidate_snapshots() == before_candidate
+    assert engine.minute_table("20260814", "000001.SZ").empty
+    assert audit["live_raw_inventory_scanned"] is False
+    assert audit["live_minute_inventory_scanned"] is False
+    with pytest.raises(RuntimeError, match="undeclared market input"):
+        engine._market_path("20260812", "daily")
+
+
+def _rewrite_snapshot_payload(path: Path, payload: dict[str, object]) -> None:
+    payload.pop("canonical_sha256", None)
+    payload["canonical_sha256"] = hashlib.sha256(
+        replay.canonical_json_bytes(payload)
+    ).hexdigest()
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+
+
+def test_market_snapshot_rejects_non_sse_open_market_date(tmp_path: Path) -> None:
+    semantic_sha = "8" * 64
+    snapshot_path = _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    payload["market_dates"] = [
+        "20260814",
+        "20260815",
+        "20260817",
+        "20260818",
+    ]
+    payload["bound_dates"] = list(payload["market_dates"])
+    _rewrite_snapshot_payload(snapshot_path, payload)
+
+    with pytest.raises(RuntimeError, match="non-SSE-open market date"):
+        replay._load_replay_market_snapshot(
+            tmp_path,
+            expected_action_semantic_sha256=semantic_sha,
+            expected_snapshot_file_sha256=hashlib.sha256(
+                snapshot_path.read_bytes()
+            ).hexdigest(),
+            expected_calendar_file_sha256=hashlib.sha256(
+                (tmp_path / replay.REPLAY_SSE_CALENDAR_PATH).read_bytes()
+            ).hexdigest(),
+            signal_date="20260814",
+            report_date="20260817",
+        )
+
+
+def test_market_snapshot_rejects_extra_bound_date(tmp_path: Path) -> None:
+    semantic_sha = "9" * 64
+    snapshot_path = _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    calendar_path = tmp_path / replay.REPLAY_SSE_CALENDAR_PATH
+    calendar_path.write_text(
+        "exchange,cal_date,is_open,pretrade_date\n"
+        "SSE,20260813,1,20260812\n"
+        "SSE,20260814,1,20260813\n"
+        "SSE,20260817,1,20260814\n"
+        "SSE,20260818,1,20260817\n",
+        encoding="utf-8",
+    )
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    payload["bound_dates"] = [
+        "20260813",
+        "20260814",
+        "20260817",
+        "20260818",
+    ]
+    _rewrite_snapshot_payload(snapshot_path, payload)
+
+    with pytest.raises(RuntimeError, match="exact market plus D/T/T\\+1 union"):
+        replay._load_replay_market_snapshot(
+            tmp_path,
+            expected_action_semantic_sha256=semantic_sha,
+            expected_snapshot_file_sha256=hashlib.sha256(
+                snapshot_path.read_bytes()
+            ).hexdigest(),
+            expected_calendar_file_sha256=hashlib.sha256(
+                calendar_path.read_bytes()
+            ).hexdigest(),
+            signal_date="20260814",
+            report_date="20260817",
+        )
+
+
+def test_market_snapshot_fails_closed_on_bound_file_drift(tmp_path: Path) -> None:
+    semantic_sha = "2" * 64
+    snapshot_path = _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    bound = tmp_path / "data/market/raw/2026/20260814/daily.csv"
+    bound.write_text("tampered\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="SHA drifted"):
+        replay._load_replay_market_snapshot(
+            tmp_path,
+            expected_action_semantic_sha256=semantic_sha,
+            expected_snapshot_file_sha256=hashlib.sha256(
+                snapshot_path.read_bytes()
+            ).hexdigest(),
+            expected_calendar_file_sha256=hashlib.sha256(
+                (tmp_path / replay.REPLAY_SSE_CALENDAR_PATH).read_bytes()
+            ).hexdigest(),
+            signal_date="20260814",
+            report_date="20260817",
+        )
+
+
+def test_market_snapshot_fails_closed_when_sidecar_is_not_the_active_pin(
+    tmp_path: Path,
+) -> None:
+    semantic_sha = "3" * 64
+    _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    with pytest.raises(RuntimeError, match="active pinned file"):
+        replay._load_replay_market_snapshot(
+            tmp_path,
+            expected_action_semantic_sha256=semantic_sha,
+            expected_snapshot_file_sha256="4" * 64,
+            expected_calendar_file_sha256=hashlib.sha256(
+                (tmp_path / replay.REPLAY_SSE_CALENDAR_PATH).read_bytes()
+            ).hexdigest(),
+            signal_date="20260814",
+            report_date="20260817",
+        )
+
+
+def test_missing_snapshot_is_materialized_from_the_pre_sync_inventory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semantic_sha = "5" * 64
+    signal_date, report_date, exit_date = "20260814", "20260817", "20260818"
+    calendar = tmp_path / replay.REPLAY_SSE_CALENDAR_PATH
+    calendar.parent.mkdir(parents=True)
+    calendar.write_text(
+        "exchange,cal_date,is_open,pretrade_date\n"
+        "SSE,20260814,1,20260813\n"
+        "SSE,20260817,1,20260814\n"
+        "SSE,20260818,1,20260817\n",
+        encoding="utf-8",
+    )
+    candidate_relative = f"data/pred/archive/pred_source_{signal_date}.csv"
+    candidate = tmp_path / candidate_relative
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(
+        "trade_date,ts_code\n20260814,000001.SZ\n",
+        encoding="utf-8",
+    )
+    auxiliary = tmp_path / replay.REPLAY_AUXILIARY_PATH
+    auxiliary.parent.mkdir(parents=True)
+    auxiliary.write_text("signal_date,ts_code\n", encoding="utf-8")
+    daily_paths: dict[str, Path] = {}
+    for trade_date in (signal_date, report_date, exit_date):
+        target = (
+            tmp_path
+            / f"data/market/raw/{trade_date[:4]}/{trade_date}/daily.csv"
+        )
+        target.parent.mkdir(parents=True)
+        target.write_text(
+            f"trade_date,ts_code,close\n{trade_date},000001.SZ,10.0\n",
+            encoding="utf-8",
+        )
+        daily_paths[trade_date] = target
+
+    class FakeInventoryEngine:
+        def __init__(self, _config: object) -> None:
+            pass
+
+        def market_dates(self) -> list[str]:
+            return [signal_date, report_date, exit_date]
+
+        def candidate_snapshots(self) -> dict[str, Path]:
+            return {signal_date: candidate}
+
+        def _market_path(self, trade_date: str, table: str) -> Path | None:
+            return daily_paths[trade_date] if table == "daily" else None
+
+    monkeypatch.setattr(replay, "AuctionV3Engine", FakeInventoryEngine)
+    monkeypatch.setattr(replay, "_git_head_sha", lambda _root: "a" * 40)
+    path, file_sha256 = replay._materialize_replay_market_snapshot(
+        tmp_path,
+        expected_action_semantic_sha256=semantic_sha,
+        signal_date=signal_date,
+        report_date=report_date,
+        creator_run_id="123",
+        expected_calendar_file_sha256=hashlib.sha256(
+            calendar.read_bytes()
+        ).hexdigest(),
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert file_sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert payload["bound_action_semantic_sha256"] == semantic_sha
+    assert payload["exit_date"] == exit_date
+    assert payload["market_dates"] == [signal_date, report_date, exit_date]
+    assert payload["bound_dates"] == [signal_date, report_date, exit_date]
+    assert payload["minute_binding"] == {"mode": "all_missing", "paths": []}
+    assert len(payload["market_files"]) == 3
+    assert len(payload["missing_market_tables"]) == 21
+
+
+def test_current_action_snapshot_retry_reuses_exact_head_with_old_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semantic_sha = "7" * 64
+    binding = {
+        "action_semantic_sha256": semantic_sha,
+        "signal_date": "20260814",
+        "report_date": "20260817",
+        "exit_date": "20260818",
+    }
+    snapshot_path = (
+        tmp_path
+        / replay.REPLAY_MARKET_SNAPSHOT_ROOT
+        / f"{semantic_sha}.json"
+    )
+    current_base = ["a" * 40]
+
+    monkeypatch.setattr(
+        replay,
+        "load_model_freeze",
+        lambda _root, required=True: {
+            "pinned_files": {replay.REPLAY_SSE_CALENDAR_PATH: "c" * 64}
+        },
+    )
+    monkeypatch.setattr(
+        replay,
+        "validate_pinned_files",
+        lambda *_args, **_kwargs: {"enforced": True},
+    )
+    monkeypatch.setattr(
+        replay,
+        "_persisted_action_snapshot_binding",
+        lambda _root: dict(binding),
+    )
+    monkeypatch.setattr(replay, "_git_head_sha", lambda _root: current_base[0])
+
+    def materialize(
+        _root: Path,
+        *,
+        expected_action_semantic_sha256: str,
+        signal_date: str,
+        report_date: str,
+        creator_run_id: str,
+        expected_calendar_file_sha256: str,
+    ) -> tuple[Path, str]:
+        assert expected_action_semantic_sha256 == semantic_sha
+        assert (signal_date, report_date) == ("20260814", "20260817")
+        assert creator_run_id == "111"
+        assert expected_calendar_file_sha256 == "c" * 64
+        snapshot_path.parent.mkdir(parents=True)
+        snapshot_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": replay.REPLAY_MARKET_SNAPSHOT_SCHEMA,
+                    "bound_action_semantic_sha256": semantic_sha,
+                    "creator_run_id": creator_run_id,
+                    "creator_base_revision": current_base[0],
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        return snapshot_path, hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+
+    def load_snapshot(
+        _root: Path,
+        **kwargs: object,
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        digest = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+        assert kwargs["expected_snapshot_file_sha256"] == digest
+        return payload, {
+            "schema_version": replay.REPLAY_MARKET_SNAPSHOT_SCHEMA,
+            "path": snapshot_path.relative_to(tmp_path).as_posix(),
+            "file_sha256": digest,
+            "bound_action_semantic_sha256": semantic_sha,
+            "signal_date": "20260814",
+            "report_date": "20260817",
+            "exit_date": "20260818",
+            "live_raw_inventory_scanned": False,
+            "live_minute_inventory_scanned": False,
+        }
+
+    monkeypatch.setattr(replay, "_materialize_replay_market_snapshot", materialize)
+    monkeypatch.setattr(replay, "_load_replay_market_snapshot", load_snapshot)
+    monkeypatch.setattr(
+        replay,
+        "_tracked_snapshot_sha256",
+        lambda _root, _relative: hashlib.sha256(snapshot_path.read_bytes()).hexdigest(),
+    )
+
+    first = replay.materialize_current_action_market_snapshot(
+        tmp_path,
+        creator_run_id="111",
+    )
+    assert first["created"] is True
+    assert first["creator_run_id"] == "111"
+    assert first["creator_base_revision"] == "a" * 40
+
+    current_base[0] = "b" * 40
+    second = replay.materialize_current_action_market_snapshot(
+        tmp_path,
+        creator_run_id="222",
+    )
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert second["created"] is False
+    assert second["creator_run_id"] == "222"
+    assert second["creator_base_revision"] == "b" * 40
+    assert payload["creator_run_id"] == "111"
+    assert payload["creator_base_revision"] == "a" * 40
+
+
+def test_exact_minute_inventory_replays_only_bound_files(tmp_path: Path) -> None:
+    semantic_sha = "6" * 64
+    snapshot_path = _write_synthetic_market_snapshot(tmp_path, semantic_sha)
+    minute_relative = (
+        "data/market/minute_1m/2026/20260814/000001_SZ.csv"
+    )
+    minute_path = tmp_path / minute_relative
+    minute_path.parent.mkdir(parents=True, exist_ok=True)
+    minute_path.write_text(
+        "time,open,close,high,low,vol\n"
+        "09:30,10.0,10.1,10.1,10.0,100\n",
+        encoding="utf-8",
+    )
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    payload["minute_binding"] = {
+        "mode": "exact_inventory",
+        "files": {
+            "20260814:000001.SZ": {
+                "path": minute_relative,
+                "sha256": hashlib.sha256(minute_path.read_bytes()).hexdigest(),
+            }
+        },
+    }
+    payload.pop("canonical_sha256")
+    payload["canonical_sha256"] = hashlib.sha256(
+        replay.canonical_json_bytes(payload)
+    ).hexdigest()
+    snapshot_path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    snapshot, _audit = replay._load_replay_market_snapshot(
+        tmp_path,
+        expected_action_semantic_sha256=semantic_sha,
+        expected_snapshot_file_sha256=hashlib.sha256(
+            snapshot_path.read_bytes()
+        ).hexdigest(),
+        expected_calendar_file_sha256=hashlib.sha256(
+            (tmp_path / replay.REPLAY_SSE_CALENDAR_PATH).read_bytes()
+        ).hexdigest(),
+        signal_date="20260814",
+        report_date="20260817",
+    )
+    engine = replay.DiagnosticFrozenEngine(
+        replay.AuctionV3Config(root=tmp_path),
+        pd.DataFrame(),
+        {},
+        snapshot,
+    )
+    assert not engine.minute_table("20260814", "000001.SZ").empty
+    assert engine.minute_table("20260814", "000002.SZ").empty
 
 
 @pytest.mark.parametrize(

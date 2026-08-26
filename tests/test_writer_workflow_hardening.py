@@ -302,6 +302,10 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "f'report_date={report_date}\\n'" in prerequisite_step
     assert '--signal-date "${PERSISTED_ACTION_SIGNAL_DATE}"' in replay_step
     assert '--report-date "${PERSISTED_ACTION_REPORT_DATE}"' in replay_step
+    assert (
+        '--expected-action-semantic-sha256 '
+        '"${PERSISTED_ACTION_SEMANTIC_SHA256}"'
+    ) in replay_step
     assert '--signal-date "${TRADE_DATE}"' not in replay_step
     assert "Daily replayed action signal_date differs from persisted Auction action" in replay_step
     assert "Daily replayed action report_date differs from persisted Auction action" in replay_step
@@ -600,8 +604,12 @@ def test_daily_real_action_comparison_ignores_only_valid_generation_time(
         "- name: Rebuild exact-base frozen Auction runtime before live source mutation",
         "- name: Resolve Daily exchange write eligibility",
     )
-    assert len(replay_blocks) == 2
+    assert len(replay_blocks) == 3
     replay_validation_source = replay_blocks[1]
+    snapshot_validation_source = replay_blocks[2]
+    assert "decision_market_input_snapshot_v2" in snapshot_validation_source
+    assert "live_raw_inventory_scanned" in snapshot_validation_source
+    assert "source_successful_run_id" not in snapshot_validation_source
     action_path = tmp_path / "outputs/decision/action_plan_latest.json"
     action_path.parent.mkdir(parents=True)
     action = _with_exact_retrospective_migration(
@@ -1881,7 +1889,25 @@ def test_auction_and_verify_allow_only_exact_dated_raw_truth_layout(
     monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(paths_file))
     monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(index_file))
     exec(compile(compute_source, f"<{name}-valid-compute>", "exec"), {})
-    exec(compile(publish_source, f"<{name}-valid-publish>", "exec"), {})
+    raw_validator = None
+    auction_validator_namespace: dict[str, object] | None = None
+    if name == "run_auction_v3.yml":
+        validator_prefix = publish_source.split("paths =", 1)[0]
+        validator_namespace: dict[str, object] = {}
+        exec(
+            compile(
+                validator_prefix,
+                f"<{name}-dated-raw-validator>",
+                "exec",
+            ),
+            validator_namespace,
+        )
+        raw_validator = validator_namespace["dated_raw_path_is_valid"]
+        auction_validator_namespace = validator_namespace
+        assert callable(raw_validator)
+        assert all(raw_validator(path) for path in valid)
+    else:
+        exec(compile(publish_source, f"<{name}-valid-publish>", "exec"), {})
 
     invalid = (
         "data/market/raw/20260813/stk_auction_o.csv",
@@ -1899,8 +1925,18 @@ def test_auction_and_verify_allow_only_exact_dated_raw_truth_layout(
         paths_file.write_bytes(path.encode() + b"\0")
         with pytest.raises(SystemExit, match=compute_error):
             exec(compile(compute_source, f"<{name}-invalid-compute>", "exec"), {})
-        with pytest.raises(SystemExit, match=publish_error):
-            exec(compile(publish_source, f"<{name}-invalid-publish>", "exec"), {})
+        if raw_validator is not None:
+            assert auction_validator_namespace is not None
+            path_matches = auction_validator_namespace["matches"]
+            allowed = auction_validator_namespace["allowed"]
+            assert callable(path_matches)
+            assert (
+                not any(path_matches(path, pattern) for pattern in allowed)
+                or raw_validator(path) is False
+            )
+        else:
+            with pytest.raises(SystemExit, match=publish_error):
+                exec(compile(publish_source, f"<{name}-invalid-publish>", "exec"), {})
 
     paths_file.write_bytes(valid[0].encode() + b"\0")
     index_file.write_bytes(
@@ -1908,8 +1944,9 @@ def test_auction_and_verify_allow_only_exact_dated_raw_truth_layout(
     )
     with pytest.raises(SystemExit, match="non-regular"):
         exec(compile(compute_source, f"<{name}-symlink-compute>", "exec"), {})
-    with pytest.raises(SystemExit, match="non-regular"):
-        exec(compile(publish_source, f"<{name}-symlink-publish>", "exec"), {})
+    if raw_validator is None:
+        with pytest.raises(SystemExit, match="non-regular"):
+            exec(compile(publish_source, f"<{name}-symlink-publish>", "exec"), {})
 
 
 def test_all_writer_candidate_and_publisher_path_gates_expand_renames_and_check_modes() -> None:
@@ -2034,6 +2071,70 @@ def test_auction_recovery_candidate_and_publisher_are_exact_receipted_cas() -> N
     assert "recovery receipt source hashes differ from action payloads" in publisher
     assert "recovery source SHA256 differs from exact base" in publisher
     assert "recovery source blob differs from exact base" in publisher
+
+
+def test_auction_snapshot_is_created_before_runtime_gate_and_published_in_same_cas() -> None:
+    auction = _text("run_auction_v3.yml")
+    pipeline = auction.split(
+        "- name: Run Auction pipeline and final runtime gates",
+        1,
+    )[1].split("- name: Build isolated retrospective action recovery candidate", 1)[0]
+    candidate = auction.split(
+        "- name: Build exact allowlisted candidate patch",
+        1,
+    )[1].split("- name: Upload immutable candidate patch", 1)[0]
+    envelope = auction.split(
+        "- name: Verify immutable candidate envelope",
+        1,
+    )[1].split("- name: Apply candidate with base-SHA CAS and create one commit", 1)[0]
+    publisher = auction.split(
+        "- name: Apply candidate with base-SHA CAS and create one commit",
+        1,
+    )[1].split("- name: Publish exact CAS commit", 1)[0]
+    daily = _text("run_decision_daily.yml")
+
+    materialize = "--materialize-current-action-market-snapshot"
+    assert pipeline.index("scripts/publish_decision_action.py") < pipeline.index(materialize)
+    assert pipeline.index(
+        "Auction current action T differs from minute-sync target"
+    ) < pipeline.index(materialize)
+    assert pipeline.index(
+        "Auction current action D/T/T+1 is not the strict SSE chain"
+    ) < pipeline.index(materialize)
+    assert pipeline.index(materialize) < pipeline.index(
+        "scripts/validate_decision_model_freeze.py --runtime"
+    )
+    assert '--snapshot-creator-run-id "${GITHUB_RUN_ID}"' in pipeline
+    assert (
+        '--snapshot-receipt '
+        '"${RUNNER_TEMP}/auction-replay-snapshot.json"'
+    ) in pipeline
+    recovery = auction.split(
+        "- name: Build isolated retrospective action recovery candidate",
+        1,
+    )[1].split("- name: Build exact allowlisted candidate patch", 1)[0]
+    assert materialize not in recovery
+    assert materialize not in daily
+    assert "decision_market_input_snapshot_v2" in daily
+
+    for section in (candidate, publisher):
+        assert "models/decision_replay_input_snapshots/*.json" in section
+        assert "expected_snapshot_path" in section
+        assert "action_semantic_sha256" in section
+        assert "file_sha256" in section
+        assert "decision_market_input_snapshot_v2" in section
+        assert "live_raw_inventory_scanned" in section
+        assert "live_minute_inventory_scanned" in section
+        assert "created'] is True" in section
+        assert "100644" in section
+        assert "--no-renames" in section
+    assert "snapshot_status != f'A\\t{expected_snapshot_path}'" in candidate
+    assert "snapshot_status != f'A\\t{expected_snapshot_path}'" in publisher
+    assert "Auction existing snapshot differs from exact base" in candidate
+    assert "published Auction existing snapshot differs from base" in publisher
+    assert "auction-replay-snapshot.json" in envelope
+    assert "candidate envelope file set mismatch" in envelope
+    assert "Auction snapshot receipt envelope drifted" in envelope
     assert "action_plan_latest byte/blob identity changed during recovery" in publisher
     assert "action_plan_latest byte SHA256 changed during recovery" in publisher
     assert publisher.count("git commit -m") == 1
@@ -2195,6 +2296,34 @@ def test_publisher_envelope_rejects_patch_checksum_mismatch(
         (candidate / "daily-signal-date.txt").write_text(
             "20260824\n", encoding="ascii"
         )
+    if name == "run_auction_v3.yml":
+        semantic = "b" * 64
+        (candidate / "auction-replay-snapshot.json").write_text(
+            json.dumps(
+                {
+                    "status": "pass",
+                    "schema_version": (
+                        "decision_replay_market_snapshot_receipt_v1"
+                    ),
+                    "created": True,
+                    "path": (
+                        "models/decision_replay_input_snapshots/"
+                        f"{semantic}.json"
+                    ),
+                    "file_sha256": "c" * 64,
+                    "action_semantic_sha256": semantic,
+                    "signal_date": "20260814",
+                    "report_date": "20260817",
+                    "exit_date": "20260818",
+                    "creator_run_id": "1",
+                    "creator_base_revision": "a" * 40,
+                    "snapshot": {},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("SNAPSHOT_CREATOR_RUN_ID", "1")
     checksum = candidate / "candidate.patch.sha256"
     checksum.write_text(hashlib.sha256(patch).hexdigest() + "\n", encoding="ascii")
     monkeypatch.setenv("CANDIDATE_DIR", str(candidate))
@@ -2224,6 +2353,7 @@ def test_auction_current_run_sync_evidence_allows_clean_closed_checkout_and_igno
                 "status": "not_applicable",
                 "reason": "exchange_closed",
                 "active_window": False,
+                "trade_date": "20260825",
                 "candidate_codes": 0,
                 "minute_files_written": 0,
             }
@@ -2236,7 +2366,9 @@ def test_auction_current_run_sync_evidence_allows_clean_closed_checkout_and_igno
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     source = _embedded_python_after(compute, "SYNC_EVIDENCE=\"${sync_evidence}\"")
     exec(compile(source, "<auction-sync-evidence>", "exec"), {})
-    assert output.read_text(encoding="utf-8") == "write_eligible=false\n"
+    assert output.read_text(encoding="utf-8") == (
+        "write_eligible=false\ntarget_trade_date=20260825\n"
+    )
 
 
 def test_auction_current_run_sync_evidence_fails_open_session_without_valid_rows(
@@ -2249,6 +2381,7 @@ def test_auction_current_run_sync_evidence_fails_open_session_without_valid_rows
                 "status": "partial_success",
                 "reason": "minute_partial_success",
                 "active_window": True,
+                "trade_date": "20260825",
                 "candidate_codes": 3,
                 "minute_files_written": 0,
             }
@@ -2260,6 +2393,92 @@ def test_auction_current_run_sync_evidence_fails_open_session_without_valid_rows
     source = _embedded_python_after(compute, "SYNC_EVIDENCE=\"${sync_evidence}\"")
     with pytest.raises(SystemExit, match="produced no valid minute rows"):
         exec(compile(source, "<auction-open-empty-sync-evidence>", "exec"), {})
+
+
+@pytest.mark.parametrize("trade_date", (None, "2026-08-25", "20260230"))
+def test_auction_sync_evidence_rejects_missing_malformed_or_invalid_target_date(
+    trade_date: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload: dict[str, object] = {
+        "status": "success",
+        "reason": "minute_sync_success",
+        "active_window": True,
+        "candidate_codes": 2,
+        "minute_files_written": 2,
+    }
+    if trade_date is not None:
+        payload["trade_date"] = trade_date
+    evidence = tmp_path / "auction-minute-sync-invalid-date.json"
+    evidence.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("SYNC_EVIDENCE", str(evidence))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+    compute = _text("run_auction_v3.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(
+        compute,
+        'SYNC_EVIDENCE="${sync_evidence}"',
+    )
+    with pytest.raises(SystemExit, match="trade_date"):
+        exec(compile(source, "<auction-invalid-sync-target>", "exec"), {})
+
+
+def test_auction_action_dates_must_match_current_sync_and_strict_sse_chain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auction = _text("run_auction_v3.yml")
+    blocks = _embedded_python_blocks_between(
+        auction,
+        "- name: Run Auction pipeline and final runtime gates",
+        "- name: Build isolated retrospective action recovery candidate",
+    )
+    assert len(blocks) == 2
+    date_gate = blocks[1]
+    assert "TARGET_TRADE_DATE" in date_gate
+    assert "strict SSE chain" in date_gate
+
+    action_path = tmp_path / "outputs/decision/action_plan_latest.json"
+    action_path.parent.mkdir(parents=True)
+    calendar_path = tmp_path / "data/market/trade_cal_sse.csv"
+    calendar_path.parent.mkdir(parents=True)
+    calendar_path.write_text(
+        "exchange,cal_date,is_open,pretrade_date\n"
+        "SSE,20260822,0,20260821\n"
+        "SSE,20260823,0,20260821\n"
+        "SSE,20260824,1,20260821\n"
+        "SSE,20260825,1,20260824\n"
+        "SSE,20260826,1,20260825\n",
+        encoding="utf-8",
+    )
+    valid = {
+        "signal_date": "20260824",
+        "report_date": "20260825",
+        "exec_date": "20260825",
+        "exit_date": "20260826",
+    }
+    action_path.write_text(json.dumps(valid), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TARGET_TRADE_DATE", "20260825")
+    exec(compile(date_gate, "<auction-current-date-chain>", "exec"), {})
+
+    stale_t = dict(valid, report_date="20260824", exec_date="20260824")
+    action_path.write_text(json.dumps(stale_t), encoding="utf-8")
+    with pytest.raises(
+        SystemExit,
+        match="T differs from minute-sync target",
+    ):
+        exec(compile(date_gate, "<auction-stale-t-chain>", "exec"), {})
+
+    stale_d = dict(valid, signal_date="20260821")
+    action_path.write_text(json.dumps(stale_d), encoding="utf-8")
+    with pytest.raises(SystemExit, match="not the strict SSE chain"):
+        exec(compile(date_gate, "<auction-stale-d-chain>", "exec"), {})
+
+    wrong_exit = dict(valid, exit_date="20260827")
+    action_path.write_text(json.dumps(wrong_exit), encoding="utf-8")
+    with pytest.raises(SystemExit, match="not the strict SSE chain"):
+        exec(compile(date_gate, "<auction-wrong-exit-chain>", "exec"), {})
 
 
 def test_daily_session_evidence_emits_one_strict_target_trade_date(
@@ -2374,7 +2593,7 @@ def test_daily_and_auction_no_write_sessions_make_publish_unreachable(
         source = _embedded_python_after(_text(name).split("\n  publish:", 1)[0], marker)
         exec(compile(source, f"<{name}-{reason}>", "exec"), {})
         expected = "write_eligible=false\n"
-        if name == "run_decision_daily.yml":
+        if name in {"run_decision_daily.yml", "run_auction_v3.yml"}:
             expected += "target_trade_date=20260825\n"
         assert output.read_text(encoding="utf-8") == expected
 
@@ -2571,6 +2790,10 @@ def test_diagnostic_compares_persisted_and_replayed_exact_v3_action() -> None:
     assert "f\"report_date={bound_dates['report_date']}\\n\"" in text
     assert '--signal-date "${{ steps.persisted_action.outputs.signal_date }}"' in text
     assert '--report-date "${{ steps.persisted_action.outputs.report_date }}"' in text
+    assert (
+        '--expected-action-semantic-sha256 '
+        '"${{ steps.persisted_action.outputs.semantic_sha256 }}"'
+    ) in text
     assert "PERSISTED_SIGNAL_DATE: ${{ steps.persisted_action.outputs.signal_date }}" in text
     assert "PERSISTED_REPORT_DATE: ${{ steps.persisted_action.outputs.report_date }}" in text
     assert "diagnostic replayed action signal_date drifted" in text

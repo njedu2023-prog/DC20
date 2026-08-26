@@ -251,6 +251,7 @@ jobs:
             replay_args+=(
               --signal-date "${PERSISTED_ACTION_SIGNAL_DATE}"
               --report-date "${PERSISTED_ACTION_REPORT_DATE}"
+              --expected-action-semantic-sha256 "${PERSISTED_ACTION_SEMANTIC_SHA256}"
             )
           fi
           set +e
@@ -406,6 +407,74 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
               output.write(f"sha256={digest}\n")
           PY
+          if [ "${PUBLISH}" = true ]; then
+            SNAPSHOT_REPORT="${replay_report}" \
+            SNAPSHOT_SEMANTIC_SHA256="${PERSISTED_ACTION_SEMANTIC_SHA256}" \
+            python - <<'PY'
+          import hashlib, json, os, re, stat
+          from pathlib import Path
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError('duplicate JSON key')
+                  result[key] = value
+              return result
+
+          semantic = os.environ['SNAPSHOT_SEMANTIC_SHA256']
+          if re.fullmatch(r'[0-9a-f]{64}', semantic) is None:
+              raise SystemExit('Daily replay snapshot semantic SHA256 is invalid')
+          relative = Path(
+              'models/decision_replay_input_snapshots'
+          ) / f'{semantic}.json'
+          path = Path(relative)
+          if (
+              path.parent.is_symlink()
+              or path.is_symlink()
+              or not path.is_file()
+              or not stat.S_ISREG(path.stat().st_mode)
+          ):
+              raise SystemExit('Daily replay snapshot is missing or unsafe')
+          try:
+              payload = json.loads(
+                  path.read_text(encoding='utf-8'),
+                  object_pairs_hook=reject_duplicate_keys,
+              )
+              report = json.loads(
+                  Path(os.environ['SNAPSHOT_REPORT']).read_text(encoding='utf-8'),
+                  object_pairs_hook=reject_duplicate_keys,
+              )
+          except (OSError, UnicodeError, ValueError):
+              raise SystemExit('Daily replay snapshot evidence is invalid')
+          audit = ((report.get('history') or {}).get('market_input_snapshot') or {})
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          if (
+              not isinstance(payload, dict)
+              or payload.get('schema_version')
+              != 'decision_market_input_snapshot_v2'
+              or payload.get('bound_action_semantic_sha256') != semantic
+              or re.fullmatch(
+                  r'[0-9a-f]{40}',
+                  str(payload.get('creator_base_revision') or ''),
+              )
+              is None
+              or re.fullmatch(
+                  r'[1-9][0-9]*',
+                  str(payload.get('creator_run_id') or ''),
+              )
+              is None
+              or audit.get('schema_version')
+              != 'decision_market_input_snapshot_v2'
+              or audit.get('path') != relative.as_posix()
+              or audit.get('file_sha256') != digest
+              or audit.get('bound_action_semantic_sha256') != semantic
+              or audit.get('live_raw_inventory_scanned') is not False
+              or audit.get('live_minute_inventory_scanned') is not False
+          ):
+              raise SystemExit('Daily replay snapshot binding drifted')
+          PY
+          fi
           auction_reports="${RUNNER_TEMP}/daily-auction-report-paths.bin"
           git ls-files -z --cached -- ':(glob,top)docs/reports/auction_v3*.html' > "${auction_reports}"
           if [ -s "${auction_reports}" ]; then

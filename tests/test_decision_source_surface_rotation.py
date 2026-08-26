@@ -10,7 +10,9 @@ from top10decision.decision.model_freeze import REQUIRED_ACTIVE_PIN_PATHS
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
-EXPECTED_ADDED_RUNTIME_PINS: set[str] = set()
+EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
+    "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json"
+}
 
 
 def _sha256(path: Path) -> str:
@@ -75,13 +77,16 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 30
+    assert len(paths) == len(set(paths)) == 35
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
+        ".github/workflows/diagnose_decision_fingerprint.yml",
         ".github/workflows/run_auction_v3.yml",
         ".github/workflows/run_decision_daily.yml",
         "decision.html",
         "scripts/build_three_engine_five_year_ledger.py",
+        "scripts/migrate_decision_runtime.py",
+        "scripts/replay_frozen_canonical_v2.py",
         "scripts/run_auction_v3.py",
         "scripts/sync_market_raw.py",
         "src/top10decision/auction_v3/calibration.py",
@@ -101,6 +106,8 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_decision_three_rank_history_projection.py",
         "tests/test_decision_model_freeze.py",
         "tests/test_decision_v8_calibration.py",
+        "tests/test_frozen_canonical_v2_replay.py",
+        "tests/test_migrate_decision_runtime.py",
         "tests/test_promotion_model.py",
         "tests/test_pages_truthfulness_workflow.py",
         "tests/test_sync_market_raw.py",
@@ -112,6 +119,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/deploy_dc20_pages.yml": (
             "canonical_dc20_research_context_pages_binding"
         ),
+        ".github/workflows/diagnose_decision_fingerprint.yml": (
+            "frozen_replay_input_snapshot_binding_workflow"
+        ),
         ".github/workflows/run_auction_v3.yml": (
             "push_read_only_auction_pipeline_gate"
         ),
@@ -121,6 +131,12 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "decision.html": "html_only_decision_surface_cleanup",
         "scripts/build_three_engine_five_year_ledger.py": (
             "three_engine_helper_externalization"
+        ),
+        "scripts/migrate_decision_runtime.py": (
+            "immutable_replay_snapshot_migration_binding"
+        ),
+        "scripts/replay_frozen_canonical_v2.py": (
+            "frozen_replay_input_snapshot_binding"
         ),
         "scripts/run_auction_v3.py": "three_engine_runtime_adapter",
         "scripts/sync_market_raw.py": "strict_dated_sse_context_sync",
@@ -172,6 +188,12 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "tests/test_decision_v8_calibration.py": (
             "independent_monotonic_calibration_test"
+        ),
+        "tests/test_frozen_canonical_v2_replay.py": (
+            "frozen_replay_input_snapshot_binding_test"
+        ),
+        "tests/test_migrate_decision_runtime.py": (
+            "immutable_replay_snapshot_migration_binding_test"
         ),
         "tests/test_promotion_model.py": (
             "three_engine_helper_externalization_test"

@@ -19,6 +19,7 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -92,6 +93,27 @@ REFERENCE_C6_GIT_BLOBS = {
     "backtest_latest.json": "e27511643fc5aa1ee5bdb60f1d3b15b7e90adef4",
     "model_meta_latest.json": "9fee4a2bc9904bf703a292b5df3c367c4c39712b",
 }
+REPLAY_MARKET_SNAPSHOT_SCHEMA = "decision_market_input_snapshot_v2"
+REPLAY_MARKET_SNAPSHOT_RECEIPT_SCHEMA = (
+    "decision_replay_market_snapshot_receipt_v1"
+)
+REPLAY_MARKET_SNAPSHOT_ROOT = Path("models/decision_replay_input_snapshots")
+REPLAY_SSE_CALENDAR_PATH = "data/market/trade_cal_sse.csv"
+REPLAY_AUXILIARY_PATH = (
+    "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv"
+)
+REPLAY_MARKET_TABLES = frozenset(
+    {
+        "daily",
+        "daily_basic",
+        "limit_list_d",
+        "limit_up_tags",
+        "stk_auction",
+        "stk_auction_o",
+        "stk_limit",
+        "stock_basic",
+    }
+)
 
 IDENTITY_COLUMNS = ("signal_date", "ts_code")
 TOP10_DISCRETE_COLUMNS = (
@@ -175,6 +197,602 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _git_head_sha(root: Path) -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    sha = completed.stdout.strip().lower()
+    _require(
+        completed.returncode == 0
+        and re.fullmatch(r"[0-9a-f]{40}", sha) is not None,
+        "cannot resolve replay snapshot source revision",
+    )
+    return sha
+
+
+def _strict_sse_open_dates(
+    root: Path,
+    *,
+    expected_calendar_file_sha256: str,
+) -> list[str]:
+    path = _safe_exact_repository_file(
+        root,
+        REPLAY_SSE_CALENDAR_PATH,
+        label="replay strict SSE calendar",
+    )
+    _require(
+        SHA256_RE.fullmatch(expected_calendar_file_sha256) is not None
+        and _sha256(path) == expected_calendar_file_sha256,
+        "replay strict SSE calendar differs from active freeze pin",
+    )
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise RuntimeError("replay strict SSE calendar is unreadable") from exc
+    states: dict[str, int] = {}
+    for row in rows:
+        if str(row.get("exchange") or "").strip().upper() != "SSE":
+            continue
+        trade_date = str(row.get("cal_date") or "").strip()
+        is_open = str(row.get("is_open") or "").strip()
+        _require(
+            DATE_RE.fullmatch(trade_date) is not None and is_open in {"0", "1"},
+            "replay strict SSE calendar contains an invalid session",
+        )
+        state = int(is_open)
+        previous = states.setdefault(trade_date, state)
+        _require(
+            previous == state,
+            "replay strict SSE calendar contains conflicting sessions",
+        )
+    open_dates = sorted(date for date, state in states.items() if state == 1)
+    _require(bool(open_dates), "replay strict SSE calendar contains no open session")
+    return open_dates
+
+
+def _require_adjacent_sse_dates(
+    open_dates: list[str],
+    *,
+    signal_date: str,
+    report_date: str,
+    exit_date: str,
+) -> None:
+    try:
+        signal_index = open_dates.index(signal_date)
+    except ValueError as exc:
+        raise RuntimeError("replay D is not a strict SSE open session") from exc
+    _require(
+        signal_index + 2 < len(open_dates)
+        and open_dates[signal_index + 1] == report_date
+        and open_dates[signal_index + 2] == exit_date,
+        "replay D/T/T+1 are not adjacent strict SSE open sessions",
+    )
+
+
+def _tracked_snapshot_sha256(root: Path, relative: str) -> str:
+    """Accept an existing dynamic snapshot only from the exact HEAD tree."""
+
+    path = _safe_exact_repository_file(root, relative, label="replay market snapshot")
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--",
+            relative,
+        ],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    tree = subprocess.run(
+        ["git", "rev-parse", f"HEAD:{relative}"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    index = subprocess.run(
+        ["git", "ls-files", "--stage", "--", relative],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    expected_blob = tree.stdout.strip().lower()
+    index_parts = index.stdout.strip().split()
+    _require(
+        status.returncode == 0
+        and not status.stdout.strip()
+        and tree.returncode == 0
+        and index.returncode == 0
+        and len(index_parts) >= 4
+        and index_parts[0] == "100644"
+        and index_parts[1] == expected_blob
+        and index_parts[2] == "0"
+        and re.fullmatch(r"[0-9a-f]{40}", expected_blob) is not None
+        and _git_blob_sha1(path) == expected_blob,
+        "existing replay market snapshot is neither pinned nor exact HEAD data",
+    )
+    return _sha256(path)
+
+
+def _minute_snapshot_key(path: Path, root: Path) -> tuple[str, str]:
+    relative = path.relative_to(root).as_posix()
+    parts = relative.split("/")
+    _require(
+        len(parts) == 6
+        and parts[:3] == ["data", "market", "minute_1m"]
+        and parts[3] == parts[4][:4]
+        and DATE_RE.fullmatch(parts[4]) is not None
+        and parts[5].endswith(".csv"),
+        f"replay minute snapshot path is noncanonical: {relative}",
+    )
+    stem = parts[5][:-4]
+    match = re.fullmatch(r"(\d{6})_(SH|SZ|BJ)", stem)
+    _require(match is not None, f"replay minute snapshot code is invalid: {relative}")
+    return f"{parts[4]}:{match.group(1)}.{match.group(2)}", relative
+
+
+def _materialize_replay_market_snapshot(
+    root: Path,
+    *,
+    expected_action_semantic_sha256: str,
+    signal_date: str,
+    report_date: str,
+    creator_run_id: str,
+    expected_calendar_file_sha256: str,
+) -> tuple[Path, str]:
+    """Freeze the pre-sync market view for one newly persisted action.
+
+    This is permitted only when the SHA-addressed path does not yet exist.
+    The Auction writer immediately validates and stages the sidecar with the
+    action in the same CAS candidate.
+    """
+
+    _require(
+        SHA256_RE.fullmatch(expected_action_semantic_sha256) is not None,
+        "materialized replay action semantic SHA256 is invalid",
+    )
+    _require(
+        re.fullmatch(r"[1-9][0-9]*", creator_run_id) is not None,
+        "materialized replay creator run id is invalid",
+    )
+    relative = REPLAY_MARKET_SNAPSHOT_ROOT / (
+        f"{expected_action_semantic_sha256}.json"
+    )
+    path = root / relative
+    _require(
+        not path.exists() and not path.is_symlink(),
+        "materialized replay snapshot target already exists",
+    )
+    open_dates = _strict_sse_open_dates(
+        root,
+        expected_calendar_file_sha256=expected_calendar_file_sha256,
+    )
+    try:
+        signal_index = open_dates.index(signal_date)
+    except ValueError as exc:
+        raise RuntimeError("materialized replay D is not an SSE session") from exc
+    _require(
+        signal_index + 2 < len(open_dates)
+        and open_dates[signal_index + 1] == report_date,
+        "materialized replay D/T are not adjacent SSE sessions",
+    )
+    exit_date = open_dates[signal_index + 2]
+
+    engine = AuctionV3Engine(AuctionV3Config(root=root))
+    market_dates = engine.market_dates()
+    _require(
+        market_dates == sorted(set(market_dates))
+        and all(date in open_dates for date in market_dates)
+        and signal_date in market_dates,
+        "materialized replay market-date inventory is invalid",
+    )
+    bound_dates = sorted(set((*market_dates, signal_date, report_date, exit_date)))
+    candidate_relative = f"data/pred/archive/pred_source_{signal_date}.csv"
+    candidate_path = engine.candidate_snapshots().get(signal_date)
+    _require(
+        candidate_path is not None
+        and candidate_path.relative_to(root).as_posix() == candidate_relative,
+        "materialized replay candidate snapshot is not the exact dated archive",
+    )
+    candidate_path = _safe_exact_repository_file(
+        root,
+        candidate_relative,
+        label="materialized replay candidate snapshot",
+    )
+
+    market_files: dict[str, dict[str, str]] = {}
+    missing_market_tables: list[str] = []
+    for trade_date in bound_dates:
+        for table in sorted(REPLAY_MARKET_TABLES):
+            key = f"{trade_date}:{table}"
+            expected_relative = (
+                f"data/market/raw/{trade_date[:4]}/{trade_date}/{table}.csv"
+            )
+            market_path = engine._market_path(trade_date, table)
+            if market_path is None:
+                missing_market_tables.append(key)
+                continue
+            _require(
+                market_path.relative_to(root).as_posix() == expected_relative,
+                f"materialized replay market input is noncanonical: {key}",
+            )
+            market_path = _safe_exact_repository_file(
+                root,
+                expected_relative,
+                label=f"materialized replay market input {key}",
+            )
+            market_files[key] = {
+                "path": expected_relative,
+                "sha256": _sha256(market_path),
+            }
+
+    auxiliary_path = _safe_exact_repository_file(
+        root,
+        REPLAY_AUXILIARY_PATH,
+        label="materialized replay auxiliary input",
+    )
+    minute_files: dict[str, dict[str, str]] = {}
+    minute_root = root / "data" / "market" / "minute_1m"
+    if minute_root.exists():
+        _require(minute_root.is_dir() and not minute_root.is_symlink(), "replay minute root is unsafe")
+        for minute_path in sorted(minute_root.rglob("*.csv")):
+            key, minute_relative = _minute_snapshot_key(minute_path, root)
+            if key.split(":", 1)[0] not in bound_dates:
+                continue
+            _safe_exact_repository_file(
+                root,
+                minute_relative,
+                label=f"materialized replay minute input {key}",
+            )
+            _require(key not in minute_files, f"duplicate replay minute input: {key}")
+            minute_files[key] = {
+                "path": minute_relative,
+                "sha256": _sha256(minute_path),
+            }
+    minute_binding: dict[str, Any] = (
+        {"mode": "exact_inventory", "files": minute_files}
+        if minute_files
+        else {"mode": "all_missing", "paths": []}
+    )
+    payload: dict[str, Any] = {
+        "schema_version": REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "bound_action_semantic_sha256": expected_action_semantic_sha256,
+        "signal_date": signal_date,
+        "report_date": report_date,
+        "exit_date": exit_date,
+        "creator_base_revision": _git_head_sha(root),
+        "creator_run_id": creator_run_id,
+        "market_dates": market_dates,
+        "bound_dates": bound_dates,
+        "candidate_snapshot": {
+            "path": candidate_relative,
+            "sha256": _sha256(candidate_path),
+        },
+        "market_files": market_files,
+        "missing_market_tables": sorted(missing_market_tables),
+        "auxiliary_files": {
+            REPLAY_AUXILIARY_PATH: _sha256(auxiliary_path),
+        },
+        "minute_binding": minute_binding,
+    }
+    payload["canonical_sha256"] = hashlib.sha256(
+        canonical_json_bytes(payload)
+    ).hexdigest()
+    rendered = (
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as handle:
+        handle.write(rendered)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return path, _sha256(path)
+
+
+def _load_replay_market_snapshot(
+    root: Path,
+    *,
+    expected_action_semantic_sha256: str,
+    expected_snapshot_file_sha256: str,
+    expected_calendar_file_sha256: str,
+    signal_date: str,
+    report_date: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load one SHA-addressed immutable raw-input view for dated replay.
+
+    Historical replay must not rescan the live ``data/market/raw`` inventory:
+    a later backfill for a date before D changes streak, path, cohort and model
+    features even when every old dated file is byte-identical.  The sidecar is
+    itself an active freeze pin and binds both the permitted date inventory and
+    every readable table byte.
+    """
+
+    _require(
+        SHA256_RE.fullmatch(expected_action_semantic_sha256) is not None,
+        "replay expected action semantic SHA256 is invalid",
+    )
+    _require(bool(signal_date and report_date), "dated replay snapshot requires D and T")
+    relative = REPLAY_MARKET_SNAPSHOT_ROOT / (
+        f"{expected_action_semantic_sha256}.json"
+    )
+    path = _safe_exact_repository_file(
+        root,
+        relative.as_posix(),
+        label="replay market snapshot",
+    )
+    _require(
+        SHA256_RE.fullmatch(expected_snapshot_file_sha256) is not None
+        and _sha256(path) == expected_snapshot_file_sha256,
+        "replay market snapshot is not the active pinned file",
+    )
+
+    def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise RuntimeError("replay market snapshot has duplicate JSON key")
+            result[key] = value
+        return result
+
+    payload = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+    )
+    _require(isinstance(payload, dict), "replay market snapshot must be an object")
+    expected_keys = {
+        "schema_version",
+        "bound_action_semantic_sha256",
+        "signal_date",
+        "report_date",
+        "exit_date",
+        "creator_base_revision",
+        "creator_run_id",
+        "market_dates",
+        "bound_dates",
+        "candidate_snapshot",
+        "market_files",
+        "missing_market_tables",
+        "auxiliary_files",
+        "minute_binding",
+        "canonical_sha256",
+    }
+    _require(set(payload) == expected_keys, "replay market snapshot fields drifted")
+    _require(
+        payload.get("schema_version") == REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "replay market snapshot schema drifted",
+    )
+    _require(
+        payload.get("bound_action_semantic_sha256")
+        == expected_action_semantic_sha256,
+        "replay market snapshot action semantic SHA differs",
+    )
+    _require(payload.get("signal_date") == signal_date, "replay market snapshot D differs")
+    _require(payload.get("report_date") == report_date, "replay market snapshot T differs")
+    exit_date = payload.get("exit_date")
+    _require(type(exit_date) is str and DATE_RE.fullmatch(exit_date) is not None, "replay market snapshot T+1 is invalid")
+    _require(signal_date < report_date < exit_date, "replay market snapshot D/T/T+1 sequence is invalid")
+    open_dates = _strict_sse_open_dates(
+        root,
+        expected_calendar_file_sha256=expected_calendar_file_sha256,
+    )
+    _require_adjacent_sse_dates(
+        open_dates,
+        signal_date=signal_date,
+        report_date=report_date,
+        exit_date=exit_date,
+    )
+    _require(
+        re.fullmatch(
+            r"[0-9a-f]{40}",
+            str(payload.get("creator_base_revision") or ""),
+        )
+        is not None,
+        "replay market snapshot creator base revision is invalid",
+    )
+    _require(
+        re.fullmatch(r"[1-9][0-9]*", str(payload.get("creator_run_id") or ""))
+        is not None,
+        "replay market snapshot creator run is invalid",
+    )
+
+    dates = payload.get("market_dates")
+    _require(isinstance(dates, list) and bool(dates), "replay market snapshot dates are missing")
+    _require(
+        all(type(value) is str and DATE_RE.fullmatch(value) is not None for value in dates),
+        "replay market snapshot contains an invalid market date",
+    )
+    _require(dates == sorted(set(dates)), "replay market snapshot dates must be sorted and unique")
+    _require(
+        all(value in open_dates for value in dates),
+        "replay market snapshot contains a non-SSE-open market date",
+    )
+    _require(signal_date in dates, "replay market-date inventory omits D")
+    bound_dates = payload.get("bound_dates")
+    _require(
+        isinstance(bound_dates, list)
+        and all(
+            type(value) is str and DATE_RE.fullmatch(value) is not None
+            for value in bound_dates
+        )
+        and bound_dates == sorted(set(bound_dates)),
+        "replay bound-date inventory is invalid",
+    )
+    expected_bound_dates = sorted(
+        set((*dates, signal_date, report_date, exit_date))
+    )
+    _require(
+        bound_dates == expected_bound_dates,
+        "replay bound-date inventory is not the exact market plus D/T/T+1 union",
+    )
+
+    candidate = payload.get("candidate_snapshot")
+    _require(
+        isinstance(candidate, dict) and set(candidate) == {"path", "sha256"},
+        "replay candidate snapshot binding is invalid",
+    )
+    expected_candidate_path = f"data/pred/archive/pred_source_{signal_date}.csv"
+    _require(candidate.get("path") == expected_candidate_path, "replay candidate snapshot path differs")
+    _require(SHA256_RE.fullmatch(str(candidate.get("sha256") or "")) is not None, "replay candidate snapshot SHA is invalid")
+
+    files = payload.get("market_files")
+    missing = payload.get("missing_market_tables")
+    _require(isinstance(files, dict), "replay market file bindings are invalid")
+    _require(
+        isinstance(missing, list)
+        and all(type(value) is str for value in missing)
+        and missing == sorted(set(missing)),
+        "replay missing-table bindings are invalid",
+    )
+    expected_bindings = {
+        f"{date}:{table}"
+        for date in bound_dates
+        for table in REPLAY_MARKET_TABLES
+    }
+    _require(
+        set(files).isdisjoint(missing)
+        and set(files).union(missing) == expected_bindings,
+        "replay market table binding coverage is incomplete",
+    )
+
+    def checked_relative_file(relative_path: str, expected_sha: str, label: str) -> Path:
+        _require(
+            type(relative_path) is str
+            and relative_path
+            and not Path(relative_path).is_absolute()
+            and ".." not in Path(relative_path).parts
+            and Path(relative_path).as_posix() == relative_path,
+            f"{label} path is unsafe",
+        )
+        target = root
+        for part in Path(relative_path).parts:
+            target = target / part
+            _require(
+                not target.is_symlink(),
+                f"{label} path must not traverse a symlink",
+            )
+        _require(target.is_file(), f"{label} file is missing")
+        _require(SHA256_RE.fullmatch(expected_sha) is not None, f"{label} SHA is invalid")
+        _require(_sha256(target) == expected_sha, f"{label} SHA drifted")
+        return target
+
+    candidate_path = checked_relative_file(
+        str(candidate["path"]), str(candidate["sha256"]), "replay candidate snapshot"
+    )
+    verified_files: dict[str, str] = {}
+    for key, binding in files.items():
+        _require(
+            isinstance(binding, dict) and set(binding) == {"path", "sha256"},
+            f"replay market binding is invalid: {key}",
+        )
+        date, table = key.split(":", 1)
+        expected_path = f"data/market/raw/{date[:4]}/{date}/{table}.csv"
+        _require(binding.get("path") == expected_path, f"replay market binding path differs: {key}")
+        checked_relative_file(
+            expected_path,
+            str(binding.get("sha256") or ""),
+            f"replay market binding {key}",
+        )
+        verified_files[key] = expected_path
+
+    auxiliary = payload.get("auxiliary_files")
+    expected_auxiliary = {REPLAY_AUXILIARY_PATH}
+    _require(
+        isinstance(auxiliary, dict) and set(auxiliary) == expected_auxiliary,
+        "replay auxiliary file bindings are invalid",
+    )
+    for relative_path, expected_sha in auxiliary.items():
+        checked_relative_file(
+            relative_path,
+            str(expected_sha or ""),
+            f"replay auxiliary binding {relative_path}",
+        )
+
+    minute = payload.get("minute_binding")
+    _require(isinstance(minute, dict), "replay minute binding is invalid")
+    verified_minutes: dict[str, str] = {}
+    if minute == {"mode": "all_missing", "paths": []}:
+        pass
+    else:
+        _require(
+            set(minute) == {"mode", "files"}
+            and minute.get("mode") == "exact_inventory"
+            and isinstance(minute.get("files"), dict),
+            "replay minute binding is not an exact inventory",
+        )
+        for key, binding in minute["files"].items():
+            _require(
+                type(key) is str
+                and re.fullmatch(r"20\d{6}:\d{6}\.(?:SH|SZ|BJ)", key)
+                is not None
+                and key.split(":", 1)[0] in bound_dates,
+                f"replay minute binding key is invalid: {key}",
+            )
+            _require(
+                isinstance(binding, dict) and set(binding) == {"path", "sha256"},
+                f"replay minute file binding is invalid: {key}",
+            )
+            trade_date, code = key.split(":", 1)
+            expected_path = (
+                "data/market/minute_1m/"
+                f"{trade_date[:4]}/{trade_date}/{code.replace('.', '_')}.csv"
+            )
+            _require(
+                binding.get("path") == expected_path,
+                f"replay minute binding path differs: {key}",
+            )
+            checked_relative_file(
+                expected_path,
+                str(binding.get("sha256") or ""),
+                f"replay minute binding {key}",
+            )
+            verified_minutes[key] = expected_path
+    canonical_sha = str(payload.get("canonical_sha256") or "")
+    canonical_payload = dict(payload)
+    canonical_payload.pop("canonical_sha256", None)
+    _require(
+        SHA256_RE.fullmatch(canonical_sha) is not None
+        and hashlib.sha256(canonical_json_bytes(canonical_payload)).hexdigest()
+        == canonical_sha,
+        "replay market snapshot canonical SHA drifted",
+    )
+    return copy.deepcopy(payload), {
+        "schema_version": REPLAY_MARKET_SNAPSHOT_SCHEMA,
+        "path": relative.as_posix(),
+        "file_sha256": _sha256(path),
+        "canonical_sha256": canonical_sha,
+        "bound_action_semantic_sha256": expected_action_semantic_sha256,
+        "signal_date": signal_date,
+        "report_date": report_date,
+        "exit_date": exit_date,
+        "market_dates": list(dates),
+        "bound_dates": list(bound_dates),
+        "market_file_bindings": len(verified_files),
+        "missing_market_bindings": len(missing),
+        "auxiliary_file_bindings": len(auxiliary),
+        "minute_file_bindings": len(verified_minutes),
+        "candidate_path": candidate_path.relative_to(root).as_posix(),
+        "live_raw_inventory_scanned": False,
+        "live_minute_inventory_scanned": False,
+    }
 
 
 def _git_blob_sha1(path: Path) -> str:
@@ -435,10 +1053,73 @@ class DiagnosticFrozenEngine(AuctionV3Engine):
         config: AuctionV3Config,
         history: pd.DataFrame,
         audit: dict[str, Any],
+        market_snapshot: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(config)
         self._diagnostic_history = history.copy()
         self.diagnostic_history_audit = dict(audit)
+        self._diagnostic_market_snapshot = copy.deepcopy(market_snapshot)
+        self._diagnostic_market_files: dict[str, Path] = {}
+        self._diagnostic_missing_market_tables: set[str] = set()
+        self._diagnostic_minute_files: dict[str, Path] = {}
+        if market_snapshot is not None:
+            self._diagnostic_market_files = {
+                key: self.config.root / binding["path"]
+                for key, binding in market_snapshot["market_files"].items()
+            }
+            self._diagnostic_missing_market_tables = set(
+                market_snapshot["missing_market_tables"]
+            )
+            minute_binding = market_snapshot["minute_binding"]
+            if minute_binding.get("mode") == "exact_inventory":
+                self._diagnostic_minute_files = {
+                    key: self.config.root / binding["path"]
+                    for key, binding in minute_binding["files"].items()
+                }
+
+    def market_dates(self) -> list[str]:
+        if self._diagnostic_market_snapshot is None:
+            return super().market_dates()
+        return list(self._diagnostic_market_snapshot["market_dates"])
+
+    def candidate_snapshots(self) -> dict[str, Path]:
+        if self._diagnostic_market_snapshot is None:
+            return super().candidate_snapshots()
+        return {
+            self._diagnostic_market_snapshot["signal_date"]: (
+                self.config.root
+                / self._diagnostic_market_snapshot["candidate_snapshot"]["path"]
+            )
+        }
+
+    def _market_path(self, trade_date: str, name: str) -> Path | None:
+        if self._diagnostic_market_snapshot is None:
+            return super()._market_path(trade_date, name)
+        key = f"{trade_date}:{name}"
+        if key in self._diagnostic_market_files:
+            return self._diagnostic_market_files[key]
+        if key in self._diagnostic_missing_market_tables:
+            return None
+        raise RuntimeError(f"frozen replay attempted undeclared market input: {key}")
+
+    def minute_table(self, trade_date: str, code: str) -> pd.DataFrame:
+        if self._diagnostic_market_snapshot is None:
+            return super().minute_table(trade_date, code)
+        if trade_date not in set(self._diagnostic_market_snapshot["bound_dates"]):
+            raise RuntimeError(
+                f"frozen replay attempted undeclared minute date: {trade_date}"
+            )
+        key = f"{trade_date}:{str(code).strip().upper()}"
+        if key not in self._diagnostic_minute_files:
+            # Preserve an explicit absence even if a minute file is backfilled
+            # after this action was frozen.
+            return pd.DataFrame()
+        expected = self._diagnostic_minute_files[key]
+        _require(
+            self._minute_path(trade_date, code) == expected,
+            f"frozen replay minute input path differs: {key}",
+        )
+        return super().minute_table(trade_date, code)
 
     def build_history(self) -> pd.DataFrame:
         return self._diagnostic_history.copy()
@@ -2303,11 +2984,162 @@ def compare_frozen_golden(
     }
 
 
+def _persisted_action_snapshot_binding(root: Path) -> dict[str, str]:
+    from top10decision.decision.action_plan import (
+        action_plan_semantic_comparison_profile_v3,
+        action_plan_semantic_projection_v3,
+    )
+
+    def load_action(path: Path, label: str) -> tuple[dict[str, Any], str]:
+        def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            value: dict[str, Any] = {}
+            for key, item in pairs:
+                _require(key not in value, f"{label} has duplicate JSON key")
+                value[key] = item
+            return value
+
+        try:
+            action = json.loads(
+                path.read_text(encoding="utf-8"),
+                object_pairs_hook=reject_duplicate_keys,
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"{label} is unreadable") from exc
+        _require(isinstance(action, dict), f"{label} must be an object")
+        generated_at = action.pop("generated_at_utc", None)
+        try:
+            generated_time = datetime.fromisoformat(generated_at)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"{label} generated_at_utc is invalid") from exc
+        offset = generated_time.utcoffset()
+        _require(
+            type(generated_at) is str
+            and generated_time.isoformat() == generated_at
+            and offset is not None
+            and offset.total_seconds() == 0
+            and generated_time.microsecond == 0,
+            f"{label} generated_at_utc is invalid",
+        )
+        try:
+            profile = action_plan_semantic_comparison_profile_v3(action)
+            projection = action_plan_semantic_projection_v3(
+                action,
+                comparison_profile=profile,
+            )
+        except ValueError as exc:
+            raise RuntimeError(f"{label} semantic projection is invalid") from exc
+        digest = hashlib.sha256(canonical_json_bytes(projection)).hexdigest()
+        return action, digest
+
+    latest_path = _safe_exact_repository_file(
+        root,
+        "outputs/decision/action_plan_latest.json",
+        label="latest persisted action",
+    )
+    latest, latest_sha = load_action(latest_path, "latest persisted action")
+    report_date = str(latest.get("report_date") or "")
+    _require(DATE_RE.fullmatch(report_date) is not None, "latest action T is invalid")
+    dated_relative = f"outputs/decision/action_plan_{report_date}.json"
+    dated_path = _safe_exact_repository_file(
+        root,
+        dated_relative,
+        label="dated persisted action",
+    )
+    dated, dated_sha = load_action(dated_path, "dated persisted action")
+    fields = ("signal_date", "report_date", "exec_date", "exit_date")
+    _require(
+        all(
+            type(latest.get(field)) is str
+            and DATE_RE.fullmatch(str(latest[field])) is not None
+            and dated.get(field) == latest.get(field)
+            for field in fields
+        ),
+        "dated/latest action date binding differs",
+    )
+    _require(
+        latest.get("exec_date") == report_date
+        and latest_sha == dated_sha,
+        "dated/latest action semantic binding differs",
+    )
+    return {
+        "action_semantic_sha256": latest_sha,
+        "signal_date": str(latest["signal_date"]),
+        "report_date": report_date,
+        "exit_date": str(latest["exit_date"]),
+    }
+
+
+def materialize_current_action_market_snapshot(
+    root: Path,
+    *,
+    creator_run_id: str,
+) -> dict[str, Any]:
+    """Create or verify the sidecar atomically staged with a new Auction action."""
+
+    root = root.resolve()
+    manifest = load_model_freeze(root, required=True)
+    pins_audit = validate_pinned_files(root, manifest, force_enforcement=True)
+    _require(
+        pins_audit.get("enforced") is True,
+        "Auction snapshot creation requires enforced freeze pins",
+    )
+    pinned_files = manifest.get("pinned_files")
+    _require(isinstance(pinned_files, dict), "freeze manifest pinned_files are invalid")
+    calendar_sha256 = str(pinned_files.get(REPLAY_SSE_CALENDAR_PATH) or "")
+    _require(
+        SHA256_RE.fullmatch(calendar_sha256) is not None,
+        "Auction snapshot SSE calendar is not freeze-pinned",
+    )
+    binding = _persisted_action_snapshot_binding(root)
+    semantic_sha = binding["action_semantic_sha256"]
+    relative = (
+        REPLAY_MARKET_SNAPSHOT_ROOT / f"{semantic_sha}.json"
+    ).as_posix()
+    path = root / relative
+    pinned_sha = str(pinned_files.get(relative) or "")
+    created = False
+    if not path.exists() and not path.is_symlink():
+        path, snapshot_sha = _materialize_replay_market_snapshot(
+            root,
+            expected_action_semantic_sha256=semantic_sha,
+            signal_date=binding["signal_date"],
+            report_date=binding["report_date"],
+            creator_run_id=creator_run_id,
+            expected_calendar_file_sha256=calendar_sha256,
+        )
+        created = True
+    elif SHA256_RE.fullmatch(pinned_sha) is not None:
+        snapshot_sha = pinned_sha
+    else:
+        snapshot_sha = _tracked_snapshot_sha256(root, relative)
+    _payload, audit = _load_replay_market_snapshot(
+        root,
+        expected_action_semantic_sha256=semantic_sha,
+        expected_snapshot_file_sha256=snapshot_sha,
+        expected_calendar_file_sha256=calendar_sha256,
+        signal_date=binding["signal_date"],
+        report_date=binding["report_date"],
+    )
+    _require(audit["exit_date"] == binding["exit_date"], "snapshot T+1 differs")
+    return {
+        "status": "pass",
+        "schema_version": REPLAY_MARKET_SNAPSHOT_RECEIPT_SCHEMA,
+        "created": created,
+        "path": relative,
+        "file_sha256": snapshot_sha,
+        **binding,
+        "creator_run_id": creator_run_id,
+        "creator_base_revision": _git_head_sha(root),
+        "snapshot": audit,
+    }
+
+
 def run_forced_replay(
     root: Path,
     *,
     signal_date: str = "",
     report_date: str = "",
+    expected_action_semantic_sha256: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     for label, value in (
         ("signal_date", signal_date),
@@ -2324,9 +3156,64 @@ def run_forced_replay(
     if report_date:
         _require(bool(signal_date), "replay report_date requires an explicit signal_date")
         _require(signal_date < report_date, "replay signal/report date sequence is invalid")
-    history, _forced_manifest, history_audit = load_forced_frozen_history(root)
+    if signal_date or report_date:
+        _require(
+            bool(expected_action_semantic_sha256),
+            "dated replay requires the persisted action semantic SHA256",
+        )
+    elif expected_action_semantic_sha256:
+        raise RuntimeError("replay action semantic SHA256 requires explicit D and T")
+    history, forced_manifest, history_audit = load_forced_frozen_history(root)
+    market_snapshot: dict[str, Any] | None = None
+    if expected_action_semantic_sha256:
+        relative_snapshot = (
+            REPLAY_MARKET_SNAPSHOT_ROOT
+            / f"{expected_action_semantic_sha256}.json"
+        ).as_posix()
+        pinned_files = forced_manifest.get("pinned_files")
+        _require(
+            isinstance(pinned_files, dict),
+            "dated replay requires active freeze pins",
+        )
+        calendar_sha256 = str(
+            pinned_files.get(REPLAY_SSE_CALENDAR_PATH) or ""
+        )
+        _require(
+            SHA256_RE.fullmatch(calendar_sha256) is not None,
+            "dated replay strict SSE calendar is not an active freeze pin",
+        )
+        pinned_snapshot_sha256 = str(pinned_files.get(relative_snapshot) or "")
+        if SHA256_RE.fullmatch(pinned_snapshot_sha256) is not None:
+            snapshot_sha256 = pinned_snapshot_sha256
+        else:
+            snapshot_sha256 = _tracked_snapshot_sha256(
+                root,
+                relative_snapshot,
+            )
+        market_snapshot, market_snapshot_audit = _load_replay_market_snapshot(
+            root,
+            expected_action_semantic_sha256=expected_action_semantic_sha256,
+            expected_snapshot_file_sha256=snapshot_sha256,
+            expected_calendar_file_sha256=calendar_sha256,
+            signal_date=signal_date,
+            report_date=report_date,
+        )
+        market_snapshot_audit["trust_source"] = (
+            "active_freeze_pin"
+            if SHA256_RE.fullmatch(pinned_snapshot_sha256) is not None
+            else "exact_head_tree"
+        )
+        history_audit = {
+            **history_audit,
+            "market_input_snapshot": market_snapshot_audit,
+        }
     config = AuctionV3Config(root=root.resolve())
-    engine = DiagnosticFrozenEngine(config, history, history_audit)
+    engine = DiagnosticFrozenEngine(
+        config,
+        history,
+        history_audit,
+        market_snapshot,
+    )
     # Mandatory in diagnostic mode: a pre-existing dated prediction may be V1
     # or from another replay.  Replacement is confined to this runner checkout.
     result = engine.run(signal_date, force_prediction=True)
@@ -2373,6 +3260,21 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Bind action-plan publication to this exact execution/report date",
     )
+    parser.add_argument(
+        "--expected-action-semantic-sha256",
+        default="",
+        help=(
+            "Select the SHA-addressed immutable market-input snapshot for "
+            "dated action replay"
+        ),
+    )
+    parser.add_argument(
+        "--materialize-current-action-market-snapshot",
+        action="store_true",
+        help="Auction-only mode: create or verify the current action sidecar",
+    )
+    parser.add_argument("--snapshot-creator-run-id", default="")
+    parser.add_argument("--snapshot-receipt", default="")
     parser.add_argument("--reference-dir", default="")
     parser.add_argument(
         "--reference-profile",
@@ -2390,6 +3292,51 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     root = Path(args.root).resolve()
+    if args.materialize_current_action_market_snapshot:
+        _require(
+            not any(
+                (
+                    args.signal_date,
+                    args.report_date,
+                    args.expected_action_semantic_sha256,
+                    args.reference_dir,
+                    args.report,
+                )
+            ),
+            "Auction snapshot mode cannot be combined with replay arguments",
+        )
+        receipt_path = Path(args.snapshot_receipt).absolute()
+        _require(bool(args.snapshot_receipt), "Auction snapshot receipt path is required")
+        _require(
+            not receipt_path.exists() and not receipt_path.is_symlink(),
+            "Auction snapshot receipt target already exists",
+        )
+        try:
+            payload = materialize_current_action_market_snapshot(
+                root,
+                creator_run_id=args.snapshot_creator_run_id,
+            )
+        except (DecisionModelFreezeError, RuntimeError, ValueError) as exc:
+            payload = {
+                "status": "fail",
+                "schema_version": REPLAY_MARKET_SNAPSHOT_RECEIPT_SCHEMA,
+                "error": str(exc),
+            }
+        rendered = json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(rendered + "\n", encoding="utf-8")
+        print(rendered)
+        return 0 if payload["status"] == "pass" else 1
+    _require(
+        not args.snapshot_creator_run_id and not args.snapshot_receipt,
+        "Auction snapshot arguments require materialization mode",
+    )
     manifest_path = root / "models" / "decision_model_freeze.json"
     manifest_before = _sha256(manifest_path)
     try:
@@ -2398,6 +3345,9 @@ def main() -> int:
             root,
             signal_date=args.signal_date,
             report_date=args.report_date,
+            expected_action_semantic_sha256=(
+                args.expected_action_semantic_sha256
+            ),
         )
         _require(_sha256(manifest_path) == manifest_before, "freeze manifest was mutated")
         behavior_contract_candidate = build_candidate_behavior_contract(root)

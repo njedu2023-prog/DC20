@@ -300,6 +300,7 @@ REQUIRED_ACTIVE_PIN_PATHS = frozenset(
         "models/decision_executable_profit_internal_forward_challenger.json",
         "models/decision_executable_profit_research_projection_contract.json",
         "models/decision_executable_profit_shadow_contract.json",
+        "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json",
         "models/decision_source_surface_rotation_20260824.json",
         "models/decision_v12_frozen_history_20260805.csv.gz",
         "scripts/backfill_decision_v11_history.py",
