@@ -245,7 +245,7 @@ def test_dashboard_loads_research_context_without_weakening_action_truth() -> No
     assert 'info.action_available === true && info.action_url' in text
     assert "同日行动计划读取失败，不能降级成尚未生成" in text
     assert "decodeHistoricalParityContext(info, wrapper)" in text
-    assert "历史原始数值逐字节复现" in text
+    assert "历史原始数值逐字节复现" not in text
     assert "payloads_base64" in text
     assert "historical_report_md" in text
     assert "historical_evaluation" in text
