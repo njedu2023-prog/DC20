@@ -52,6 +52,7 @@ ALLOWLISTS = {
         "data/market/_meta_*.json",
         "docs/weights/**",
         "docs/signals/**",
+        "outputs/auction_v3/predictions/pred_20??????.csv",
         "outputs/decision/decision_report_20??????.md",
         "outputs/decision/eval_20??????.json",
         "outputs/decision/forward_observation_protocol_v12.json",
@@ -138,6 +139,14 @@ def _assert_publish_hardening(text: str, name: str) -> None:
     assert "candidate.patch.sha256" in publish, name
     if name == "backfill_decision_v11_history.yml":
         assert "expected_files = {'base_sha.txt', 'backfill-receipt.json', 'candidate.patch', 'candidate.patch.sha256'}" in publish, name
+    elif name == "run_decision_daily.yml":
+        for envelope_file in (
+            "base_sha.txt",
+            "candidate.patch",
+            "candidate.patch.sha256",
+            "daily-signal-date.txt",
+        ):
+            assert f"'{envelope_file}'" in publish, (name, envelope_file)
     else:
         assert "expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}" in publish, name
     assert "candidate envelope file set mismatch" in publish, name
@@ -346,7 +355,9 @@ def test_daily_preserves_the_last_auction_validated_action_plan() -> None:
     assert "python scripts/publish_decision_action.py" not in run_step
     assert "python scripts/publish_decision_action.py" not in daily
     assert "git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json'" in daily
-    assert "forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in daily
+    assert "outputs/auction_v3/predictions/pred_20??????.csv" in daily
+    assert "expected_prediction=f'outputs/auction_v3/predictions/pred_{signal_date}.csv'" in daily
+    assert "forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')" in daily
 
     auction = _text("run_auction_v3.yml")
     assert "python scripts/publish_decision_action.py" in auction
@@ -1920,6 +1931,22 @@ def test_auction_dry_run_rebuilds_verified_frozen_runtime_and_full_action_contra
     assert "validate_io_contract.py" not in run_step
 
 
+def test_auction_push_validates_code_but_cannot_enter_live_pipeline() -> None:
+    text = _text("run_auction_v3.yml")
+    mode = text.split("- name: Resolve dry-run mode and immutable base", 1)[1].split(
+        "- name: Setup Python", 1
+    )[0]
+    sync = text.split("- name: Sync strict calendar and minute truth", 1)[1].split(
+        "- name: Run Auction pipeline and final runtime gates", 1
+    )[0]
+
+    assert 'if [ "${GITHUB_EVENT_NAME}" = "push" ]; then' in mode
+    assert "publish=false" in mode
+    assert "execute_pipeline=false" in mode
+    assert 'echo "execute_pipeline=${execute_pipeline}"' in mode
+    assert "steps.mode.outputs.execute_pipeline == 'true'" in sync
+
+
 def test_auction_recovery_route_is_active_only_and_never_enters_live_pipeline() -> None:
     text = _text("run_auction_v3.yml")
     header = text.split("\npermissions:", 1)[0]
@@ -1943,7 +1970,8 @@ def test_auction_recovery_route_is_active_only_and_never_enters_live_pipeline() 
     assert "route=${route}" in mode
     assert "route == 'recovery' and not active" in preflight
     assert "requires active Decision freeze even in dry-run" in preflight
-    assert "if: ${{ steps.mode.outputs.route == 'auction' }}" in sync
+    assert "steps.mode.outputs.route == 'auction'" in sync
+    assert "steps.mode.outputs.execute_pipeline == 'true'" in sync
     assert "TUSHARE_TOKEN" in sync
     assert "scripts/sync_tushare_minute.py" in sync
 
@@ -2157,6 +2185,10 @@ def test_publisher_envelope_rejects_patch_checksum_mismatch(
     (candidate / "candidate.patch").write_bytes(patch)
     if name == "backfill_decision_v11_history.yml":
         (candidate / "backfill-receipt.json").write_text("{}\n", encoding="utf-8")
+    if name == "run_decision_daily.yml":
+        (candidate / "daily-signal-date.txt").write_text(
+            "20260824\n", encoding="ascii"
+        )
     checksum = candidate / "candidate.patch.sha256"
     checksum.write_text(hashlib.sha256(patch).hexdigest() + "\n", encoding="ascii")
     monkeypatch.setenv("CANDIDATE_DIR", str(candidate))

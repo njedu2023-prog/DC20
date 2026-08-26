@@ -723,6 +723,7 @@ jobs:
           print(receipt['signal_date'], receipt['exec_date'])
           PY
           )
+          printf '%s\n' "${signal_date}" > "${RUNNER_TEMP}/daily-signal-date.txt"
           feature_path="${research_root}/outputs/auction_v3/predictions/pred_${signal_date}.csv"
           require_regular_nonempty() {
             local path="$1"
@@ -813,6 +814,8 @@ jobs:
           import tempfile
           from pathlib import Path
 
+          import pandas as pd
+
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain as validate_public_index_chain,
               validate_research_projection,
@@ -831,6 +834,7 @@ jobs:
               validate_research_context,
           )
           from top10decision.decision.three_rank import (
+              _three_engine_projection_is_complete,
               _three_rank_index_payload,
               validate_three_rank_contract,
               validate_three_rank_index,
@@ -853,6 +857,10 @@ jobs:
           three_rank_index_relative = decision_prefix / 'three_rank_index.json'
           research_context_relative = (
               decision_prefix / f'research_context_dc20_{report_date}.json'
+          )
+          canonical_prediction_relative = (
+              Path('outputs/auction_v3/predictions')
+              / f'pred_{signal_date}.csv'
           )
           selection_prefix = Path(
               'data/decision_executable_profit/forward/selections'
@@ -895,6 +903,9 @@ jobs:
           three_rank_csv = safe_source(three_rank_csv_relative)
           three_rank_index_path = safe_source(three_rank_index_relative)
           research_context_path = safe_source(research_context_relative)
+          canonical_prediction_path = safe_source(
+              canonical_prediction_relative
+          )
 
           three_rank = json.loads(three_rank_json.read_text(encoding='utf-8'))
           validate_three_rank_contract(three_rank)
@@ -936,6 +947,127 @@ jobs:
                   'Daily isolated three-rank/context binding drifted'
               )
 
+          canonical_prediction = pd.read_csv(canonical_prediction_path)
+          if not _three_engine_projection_is_complete(
+              canonical_prediction,
+              signal_date,
+          ):
+              raise SystemExit(
+                  'Daily canonical pred_D three-engine projection is incomplete'
+              )
+          if canonical_prediction.empty:
+              raise SystemExit(
+                  'Daily canonical pred_D hard-range inference pool is empty'
+              )
+          if not canonical_prediction.empty:
+              expected_dates = {
+                  'signal_date': signal_date,
+                  'expected_buy_date': str(three_rank['exec_date']),
+                  'expected_exit_date': str(three_rank['exit_date']),
+              }
+              for column, expected in expected_dates.items():
+                  values = {
+                      str(value).strip().removesuffix('.0')
+                      for value in canonical_prediction[column].tolist()
+                  }
+                  if values != {expected}:
+                      raise SystemExit(
+                          f'Daily canonical pred_D {column} binding drifted'
+                      )
+          selected_prediction = canonical_prediction.loc[
+              pd.to_numeric(
+                  canonical_prediction['top10_selected'], errors='coerce'
+              ).eq(1)
+          ].copy()
+          selected_prediction['_promotion_rank'] = pd.to_numeric(
+              selected_prediction['promotion_rank'], errors='coerce'
+          )
+          selected_prediction = selected_prediction.sort_values(
+              '_promotion_rank', kind='stable'
+          )
+          prediction_identity = [
+              (
+                  str(row['ts_code']),
+                  int(row['_promotion_rank']),
+                  str(row['stage']).replace('->', '→'),
+                  round(float(row['predicted_promotion_probability']), 10),
+              )
+              for _, row in selected_prediction.iterrows()
+          ]
+          contract_identity = [
+              (
+                  str(row['ts_code']),
+                  int(row['promotion_rank']),
+                  str(row['stage_transition']).replace('->', '→'),
+                  round(float(row['predicted_promotion_probability']), 10),
+              )
+              for row in sorted(
+                  three_rank['rows'], key=lambda row: int(row['promotion_rank'])
+              )
+          ]
+          if prediction_identity != contract_identity:
+              raise SystemExit(
+                  'Daily canonical pred_D promotion membership or order drifted'
+              )
+          if not canonical_prediction.empty and (
+              set(
+                  canonical_prediction['top10_members_sha256']
+                  .fillna('')
+                  .astype(str)
+              )
+              != {str(three_rank['top10_members_sha256'])}
+              or set(
+                  canonical_prediction['feature_snapshot_sha256']
+                  .fillna('')
+                  .astype(str)
+              )
+              != {str(three_rank['feature_snapshot_sha256'])}
+          ):
+              raise SystemExit(
+                  'Daily canonical pred_D hash binding drifted'
+              )
+          for column in (
+              'selected',
+              'first_layer_selected',
+              'trade_selected',
+          ):
+              values = pd.to_numeric(
+                  canonical_prediction[column], errors='coerce'
+              )
+              if values.isna().any() or not values.eq(0).all():
+                  raise SystemExit(
+                      f'Daily canonical pred_D contains formal action: {column}'
+                  )
+          actions = set(
+              canonical_prediction['action'].fillna('').astype(str).str.strip()
+          )
+          if not actions.issubset({'REJECT', 'SHADOW_ONLY'}):
+              raise SystemExit(
+                  'Daily canonical pred_D contains a non-shadow action'
+              )
+          for column, expected in (
+              ('guidance_only', 1),
+              ('broker_connected', 0),
+              ('market_order_allowed', 0),
+          ):
+              values = pd.to_numeric(
+                  canonical_prediction[column], errors='coerce'
+              )
+              if values.isna().any() or not values.eq(expected).all():
+                  raise SystemExit(
+                      f'Daily canonical pred_D action boundary drifted: {column}'
+                  )
+          order_types = set(
+              canonical_prediction['order_type']
+              .fillna('')
+              .astype(str)
+              .str.strip()
+          )
+          if not order_types.issubset({'LIMIT_ONLY_MANUAL'}):
+              raise SystemExit(
+                  'Daily canonical pred_D order_type boundary drifted'
+              )
+
           source_action = (
               source_root / 'outputs/decision/action_plan_latest.json'
           )
@@ -964,6 +1096,26 @@ jobs:
           validate_statistics(summary)
           projection = json.loads(projection_json.read_text(encoding='utf-8'))
           validate_research_projection(projection, require_downloads=True)
+          canonical_prediction_sha256 = hashlib.sha256(
+              canonical_prediction_path.read_bytes()
+          ).hexdigest()
+          selection_d_feature = selection.get('source_d_feature') or {}
+          projection_selection_binding = (
+              (projection.get('source_bindings') or {}).get('selection') or {}
+          )
+          if (
+              selection_d_feature.get('file_name')
+              != canonical_prediction_relative.name
+              or selection_d_feature.get('file_sha256')
+              != canonical_prediction_sha256
+              or selection_d_feature.get('selected_row_count')
+              != len(contract_identity)
+              or projection_selection_binding.get('d_feature_file_sha256')
+              != canonical_prediction_sha256
+          ):
+              raise SystemExit(
+                  'Daily canonical pred_D selection/projection SHA binding drifted'
+              )
           public_index = json.loads(public_index_path.read_text(encoding='utf-8'))
           validate_research_projection_index(public_index)
           validate_public_index_chain(source_root, public_index)
@@ -992,6 +1144,7 @@ jobs:
               raise SystemExit('Daily isolated research artifacts lost exact D binding')
 
           immutable_relatives = (
+              canonical_prediction_relative,
               three_rank_json_relative,
               three_rank_csv_relative,
               research_context_relative,
@@ -1008,7 +1161,7 @@ jobs:
               public_index_relative,
           )
           exact_relatives = immutable_relatives + mutable_relatives
-          if len(set(exact_relatives)) != 12:
+          if len(set(exact_relatives)) != 13:
               raise SystemExit('Daily research projection copy inventory drifted')
 
           def target_path(relative: Path) -> Path:
@@ -1079,7 +1232,8 @@ jobs:
               'source_root': source_root.as_posix(),
               'target_root': target_root.as_posix(),
               'copied_paths': [value.as_posix() for value in exact_relatives],
-              'outputs_auction_v3_copied': False,
+              'outputs_auction_v3_copied': True,
+              'canonical_prediction_only': True,
               'isolated_three_rank_and_context_copied': True,
           }, ensure_ascii=False, sort_keys=True))
           PY
@@ -1490,14 +1644,17 @@ jobs:
           git add -A -- docs
           git add -A -- outputs/decision data/decision
           git add -A -- data/decision_executable_profit/forward/selections data/decision_executable_profit/forward/statistics/summary.json
+          signal_date="$(tr -d '\r\n' < "${RUNNER_TEMP}/daily-signal-date.txt")"
+          git add -A -- "outputs/auction_v3/predictions/pred_${signal_date}.csv"
           git reset -q HEAD -- ':(glob)outputs/decision/action_plan_*.json' 'outputs/decision/report_index.json'
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
-          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
-          import fnmatch, os
+          STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" SIGNAL_DATE_FILE="${RUNNER_TEMP}/daily-signal-date.txt" python - <<'PY'
+          import csv, fnmatch, hashlib, json, os, re
+          from decimal import Decimal, InvalidOperation
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
-          forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/auction_v3/predictions/pred_20??????.csv','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
+          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
                   return path.startswith(pattern[:-3] + '/')
@@ -1508,7 +1665,15 @@ jobs:
                   for part, expected in zip(path_parts, pattern_parts)
               )
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
+          signal_date=Path(os.environ['SIGNAL_DATE_FILE']).read_text(encoding='ascii').strip()
+          if re.fullmatch(r'20\d{6}', signal_date) is None:
+              raise SystemExit('invalid Daily candidate signal date')
+          expected_prediction=f'outputs/auction_v3/predictions/pred_{signal_date}.csv'
           bad=[p for p in paths if not any(matches(p,a) for a in allowed) or any(matches(p,a) for a in forbidden)]
+          bad.extend(
+              p for p in paths
+              if p.startswith('outputs/auction_v3/') and p != expected_prediction
+          )
           if bad: raise SystemExit(f'non-allowlisted Daily paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
@@ -1518,13 +1683,88 @@ jobs:
               metadata, raw_path = entry.split(b'\t', 1)
               mode, _object_id, stage = metadata.decode('ascii').split()
               path = raw_path.decode()
-              if path not in path_set:
+              if path not in path_set and path != expected_prediction:
                   continue
               if stage != '0' or path in index_modes:
                   raise SystemExit(f'non-stage-zero Daily index entry: {path}')
               index_modes[path] = mode
           bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
           if bad_modes: raise SystemExit(f'non-regular Daily paths staged: {bad_modes}')
+          prediction_path=Path(expected_prediction)
+          if (
+              index_modes.get(expected_prediction) != '100644'
+              or prediction_path.is_symlink()
+              or not prediction_path.is_file()
+              or prediction_path.stat().st_size <= 0
+          ):
+              raise SystemExit('Daily exact pred_D is missing or unsafe')
+          selection_path=Path(
+              f'data/decision_executable_profit/forward/selections/'
+              f'shadow_{signal_date}.json'
+          )
+          projection_path=Path(
+              f'outputs/decision/executable_profit_research/'
+              f'projection_{signal_date}.json'
+          )
+          if any(
+              path.is_symlink() or not path.is_file()
+              for path in (selection_path, projection_path)
+          ):
+              raise SystemExit('Daily exact pred_D binding artifact is unsafe')
+          selection=json.loads(selection_path.read_text(encoding='utf-8'))
+          projection=json.loads(projection_path.read_text(encoding='utf-8'))
+          digest=hashlib.sha256(prediction_path.read_bytes()).hexdigest()
+          source_d=selection.get('source_d_feature') or {}
+          source_binding=(
+              (projection.get('source_bindings') or {}).get('selection') or {}
+          )
+          selection_rows=selection.get('rows')
+          if (
+              selection.get('signal_date') != signal_date
+              or projection.get('signal_date') != signal_date
+              or not isinstance(selection_rows, list)
+              or source_d.get('file_name') != prediction_path.name
+              or source_d.get('file_sha256') != digest
+              or source_d.get('selected_row_count') != len(selection_rows)
+              or source_binding.get('d_feature_file_sha256') != digest
+          ):
+              raise SystemExit('Daily exact pred_D SHA binding drifted')
+          with prediction_path.open(
+              'r', encoding='utf-8-sig', newline=''
+          ) as handle:
+              reader=csv.DictReader(handle)
+              required={
+                  'action', 'selected', 'first_layer_selected',
+                  'trade_selected', 'guidance_only', 'broker_connected',
+                  'market_order_allowed', 'order_type',
+              }
+              if not required.issubset(reader.fieldnames or ()):
+                  raise SystemExit('Daily exact pred_D action columns are missing')
+              prediction_rows=list(reader)
+          if not prediction_rows:
+              raise SystemExit('Daily exact pred_D candidate pool is empty')
+          def exact_integer(value, expected):
+              try:
+                  return Decimal(str(value).strip()) == expected
+              except (InvalidOperation, ValueError):
+                  return False
+          for row in prediction_rows:
+              if (
+                  str(row.get('action') or '').strip()
+                  not in {'REJECT', 'SHADOW_ONLY'}
+                  or not all(
+                      exact_integer(row.get(column), 0)
+                      for column in (
+                          'selected', 'first_layer_selected',
+                          'trade_selected', 'broker_connected',
+                          'market_order_allowed',
+                      )
+                  )
+                  or not exact_integer(row.get('guidance_only'), 1)
+                  or str(row.get('order_type') or '').strip()
+                  != 'LIMIT_ONLY_MANUAL'
+              ):
+                  raise SystemExit('Daily exact pred_D action boundary drifted')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/candidate.patch"
           CANDIDATE_PATCH="${RUNNER_TEMP}/candidate.patch" CANDIDATE_SHA="${RUNNER_TEMP}/candidate.patch.sha256" python - <<'PY'
@@ -1543,6 +1783,7 @@ jobs:
             ${{ runner.temp }}/base_sha.txt
             ${{ runner.temp }}/candidate.patch
             ${{ runner.temp }}/candidate.patch.sha256
+            ${{ runner.temp }}/daily-signal-date.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -1601,7 +1842,12 @@ jobs:
           import hashlib, os, re
           from pathlib import Path
           root = Path(os.environ['CANDIDATE_DIR'])
-          expected_files = {'base_sha.txt', 'candidate.patch', 'candidate.patch.sha256'}
+          expected_files = {
+              'base_sha.txt',
+              'candidate.patch',
+              'candidate.patch.sha256',
+              'daily-signal-date.txt',
+          }
           if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
               raise SystemExit('candidate envelope is missing or contains a symlink')
           actual_files = {path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()}
@@ -1609,10 +1855,15 @@ jobs:
               raise SystemExit(f'candidate envelope file set mismatch: {sorted(actual_files)}')
           base_sha = (root / 'base_sha.txt').read_text(encoding='ascii').strip()
           claimed_sha = (root / 'candidate.patch.sha256').read_text(encoding='ascii').strip()
+          signal_date = (root / 'daily-signal-date.txt').read_text(
+              encoding='ascii'
+          ).strip()
           if re.fullmatch(r'[0-9a-f]{40}', base_sha) is None:
               raise SystemExit('invalid candidate base SHA')
           if re.fullmatch(r'[0-9a-f]{64}', claimed_sha) is None:
               raise SystemExit('invalid candidate patch SHA256')
+          if re.fullmatch(r'20\d{6}', signal_date) is None:
+              raise SystemExit('invalid Daily candidate signal date')
           actual_sha = hashlib.sha256((root / 'candidate.patch').read_bytes()).hexdigest()
           if actual_sha != claimed_sha:
               raise SystemExit('candidate.patch SHA256 mismatch')
@@ -1625,11 +1876,12 @@ jobs:
           git apply --index --binary "${RUNNER_TEMP}/candidate/candidate.patch"
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/publish_staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/publish_staged_index.bin"
-          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" python - <<'PY'
-          import fnmatch, os
+          PUBLISH_STAGED_PATHS="${RUNNER_TEMP}/publish_staged_paths.bin" PUBLISH_STAGED_INDEX="${RUNNER_TEMP}/publish_staged_index.bin" SIGNAL_DATE_FILE="${RUNNER_TEMP}/candidate/daily-signal-date.txt" python - <<'PY'
+          import csv, fnmatch, hashlib, json, os, re
+          from decimal import Decimal, InvalidOperation
           from pathlib import Path
-          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
-          forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
+          allowed=('data/pred/pred_source_latest.csv','data/pred/_pred_source_meta.json','data/pred/archive/**','data/pred/pred_top10_*.csv','data/market/raw/**','data/market/trade_cal_sse.csv','data/market/features_base_*.csv','data/market/features_limit_*.csv','data/market/truth_close_*.csv','data/market/_meta_*.json','docs/weights/**','docs/signals/**','outputs/auction_v3/predictions/pred_20??????.csv','outputs/decision/decision_report_20??????.md','outputs/decision/eval_20??????.json','outputs/decision/forward_observation_protocol_v12.json','outputs/decision/research_context_20??????.json','outputs/decision/research_context_dc20_20??????.json','outputs/decision/three_rank_top10_20??????.json','outputs/decision/three_rank_top10_20??????.csv','outputs/decision/three_rank_index.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/legacy_profit_relative_research/projection_20??????.json','outputs/decision/legacy_profit_relative_research/projection_20??????.csv','outputs/decision/legacy_profit_relative_research/index.json','data/decision_executable_profit/forward/selections/shadow_20??????.json','data/decision_executable_profit/forward/selections/shadow_20??????.csv','data/decision_executable_profit/forward/selections/index.json','data/decision_executable_profit/forward/statistics/summary.json','data/decision/**','docs/reports/*.md')
+          forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           def matches(path, pattern):
               if pattern.endswith('/**'):
                   return path.startswith(pattern[:-3] + '/')
@@ -1640,7 +1892,15 @@ jobs:
                   for part, expected in zip(path_parts, pattern_parts)
               )
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
+          signal_date=Path(os.environ['SIGNAL_DATE_FILE']).read_text(encoding='ascii').strip()
+          if re.fullmatch(r'20\d{6}', signal_date) is None:
+              raise SystemExit('invalid Daily publish signal date')
+          expected_prediction=f'outputs/auction_v3/predictions/pred_{signal_date}.csv'
           bad=[p for p in paths if not any(matches(p,a) for a in allowed) or any(matches(p,a) for a in forbidden)]
+          bad.extend(
+              p for p in paths
+              if p.startswith('outputs/auction_v3/') and p != expected_prediction
+          )
           if bad: raise SystemExit(f'non-allowlisted Daily publish paths staged: {bad}')
           path_set=set(paths)
           index_modes={}
@@ -1650,13 +1910,94 @@ jobs:
               metadata, raw_path = entry.split(b'\t', 1)
               mode, _object_id, stage = metadata.decode('ascii').split()
               path = raw_path.decode()
-              if path not in path_set:
+              if path not in path_set and path != expected_prediction:
                   continue
               if stage != '0' or path in index_modes:
                   raise SystemExit(f'non-stage-zero Daily publish index entry: {path}')
               index_modes[path] = mode
           bad_modes=[(path,index_modes[path]) for path in paths if path in index_modes and index_modes[path] != '100644']
           if bad_modes: raise SystemExit(f'non-regular Daily publish paths staged: {bad_modes}')
+          prediction_path=Path(expected_prediction)
+          if (
+              index_modes.get(expected_prediction) != '100644'
+              or prediction_path.is_symlink()
+              or not prediction_path.is_file()
+              or prediction_path.stat().st_size <= 0
+          ):
+              raise SystemExit('Daily publish exact pred_D is missing or unsafe')
+          selection_path=Path(
+              f'data/decision_executable_profit/forward/selections/'
+              f'shadow_{signal_date}.json'
+          )
+          projection_path=Path(
+              f'outputs/decision/executable_profit_research/'
+              f'projection_{signal_date}.json'
+          )
+          if any(
+              path.is_symlink() or not path.is_file()
+              for path in (selection_path, projection_path)
+          ):
+              raise SystemExit(
+                  'Daily publish exact pred_D binding artifact is unsafe'
+              )
+          selection=json.loads(selection_path.read_text(encoding='utf-8'))
+          projection=json.loads(projection_path.read_text(encoding='utf-8'))
+          digest=hashlib.sha256(prediction_path.read_bytes()).hexdigest()
+          source_d=selection.get('source_d_feature') or {}
+          source_binding=(
+              (projection.get('source_bindings') or {}).get('selection') or {}
+          )
+          selection_rows=selection.get('rows')
+          if (
+              selection.get('signal_date') != signal_date
+              or projection.get('signal_date') != signal_date
+              or not isinstance(selection_rows, list)
+              or source_d.get('file_name') != prediction_path.name
+              or source_d.get('file_sha256') != digest
+              or source_d.get('selected_row_count') != len(selection_rows)
+              or source_binding.get('d_feature_file_sha256') != digest
+          ):
+              raise SystemExit('Daily publish exact pred_D SHA binding drifted')
+          with prediction_path.open(
+              'r', encoding='utf-8-sig', newline=''
+          ) as handle:
+              reader=csv.DictReader(handle)
+              required={
+                  'action', 'selected', 'first_layer_selected',
+                  'trade_selected', 'guidance_only', 'broker_connected',
+                  'market_order_allowed', 'order_type',
+              }
+              if not required.issubset(reader.fieldnames or ()):
+                  raise SystemExit(
+                      'Daily publish exact pred_D action columns are missing'
+                  )
+              prediction_rows=list(reader)
+          if not prediction_rows:
+              raise SystemExit('Daily publish exact pred_D candidate pool is empty')
+          def exact_integer(value, expected):
+              try:
+                  return Decimal(str(value).strip()) == expected
+              except (InvalidOperation, ValueError):
+                  return False
+          for row in prediction_rows:
+              if (
+                  str(row.get('action') or '').strip()
+                  not in {'REJECT', 'SHADOW_ONLY'}
+                  or not all(
+                      exact_integer(row.get(column), 0)
+                      for column in (
+                          'selected', 'first_layer_selected',
+                          'trade_selected', 'broker_connected',
+                          'market_order_allowed',
+                      )
+                  )
+                  or not exact_integer(row.get('guidance_only'), 1)
+                  or str(row.get('order_type') or '').strip()
+                  != 'LIMIT_ONLY_MANUAL'
+              ):
+                  raise SystemExit(
+                      'Daily publish exact pred_D action boundary drifted'
+                  )
           if not paths: raise SystemExit('Daily candidate patch became empty')
           PY
           git config user.name 'github-actions[bot]'

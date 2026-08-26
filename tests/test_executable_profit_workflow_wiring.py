@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import textwrap
 from pathlib import Path
@@ -83,8 +84,16 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
     assert "Daily isolated three-rank/context binding drifted" in step
     assert "Daily copied three-rank/context binding drifted" in step
     assert "Daily executable-profit scorer modified the isolated" in step
+    assert "_three_engine_projection_is_complete" in step
+    assert "Daily canonical pred_D hard-range inference pool is empty" in step
+    assert "Daily canonical pred_D promotion membership or order drifted" in step
+    assert "Daily canonical pred_D selection/projection SHA binding drifted" in step
+    assert "Daily canonical pred_D contains formal action" in step
+    assert "Daily canonical pred_D contains a non-shadow action" in step
+    assert "Daily canonical pred_D action boundary drifted" in step
+    assert "Daily canonical pred_D order_type boundary drifted" in step
     assert "candidate_count') > 10" in step
-    assert "len(set(exact_relatives)) != 12" in step
+    assert "len(set(exact_relatives)) != 13" in step
     immutable = step.split("immutable_relatives = (", 1)[1].split(
         "mutable_relatives = (", 1
     )[0]
@@ -92,6 +101,7 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
         "exact_relatives =", 1
     )[0]
     for relative in (
+        "canonical_prediction_relative",
         "three_rank_json_relative",
         "three_rank_csv_relative",
         "research_context_relative",
@@ -109,7 +119,8 @@ def test_daily_freezes_only_exact_isolated_d_surface_then_projects_n_without_pad
         "public_index_relative",
     ):
         assert relative in mutable
-    assert "'outputs_auction_v3_copied': False" in step
+    assert "'outputs_auction_v3_copied': True" in step
+    assert "'canonical_prediction_only': True" in step
     assert "'isolated_three_rank_and_context_copied': True" in step
     assert "Daily rewrote an immutable selection" in step
     assert "Daily created a foreign selection artifact" in step
@@ -182,13 +193,17 @@ def test_daily_candidate_and_publisher_allow_only_exact_research_artifacts() -> 
             "shadow_statistics_20??????_asof_20??????.json"
         ),
         "outputs/decision/executable_profit_research/index.json",
+        "outputs/auction_v3/predictions/pred_20??????.csv",
     )
     for pattern in exact_patterns:
         assert text.count(pattern) >= 2, pattern
-    assert text.count("forbidden=('outputs/auction_v3/**','outputs/decision/action_plan_*.json','outputs/decision/report_index.json')") == 2
+    assert text.count(
+        "forbidden=('outputs/decision/action_plan_*.json',"
+        "'outputs/decision/report_index.json')"
+    ) == 2
 
 
-def test_daily_main_allowlists_execute_fail_closed_for_auction_outputs(
+def test_daily_main_allowlists_only_exact_current_d_prediction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -201,25 +216,156 @@ def test_daily_main_allowlists_execute_fail_closed_for_auction_outputs(
         text,
         "- name: Apply exact base candidate and create one commit",
     )
-    forbidden = "outputs/auction_v3/predictions/pred_20260824.csv"
     paths = tmp_path / "paths.bin"
     index = tmp_path / "index.bin"
-    paths.write_bytes(forbidden.encode() + b"\0")
-    index.write_bytes(
-        b"100644 " + b"0" * 40 + b" 0\t" + forbidden.encode() + b"\0"
-    )
+    signal_date_file = tmp_path / "daily-signal-date.txt"
+    signal_date_file.write_text("20260824\n", encoding="ascii")
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("STAGED_PATHS", str(paths))
     monkeypatch.setenv("STAGED_INDEX", str(index))
     monkeypatch.setenv("PUBLISH_STAGED_PATHS", str(paths))
     monkeypatch.setenv("PUBLISH_STAGED_INDEX", str(index))
+    monkeypatch.setenv("SIGNAL_DATE_FILE", str(signal_date_file))
 
-    with pytest.raises(SystemExit, match="non-allowlisted Daily paths staged"):
-        exec(compile(compute, "<daily-auction-output-compute>", "exec"), {})
+    exact = "outputs/auction_v3/predictions/pred_20260824.csv"
+    exact_path = tmp_path / exact
+    exact_path.parent.mkdir(parents=True)
+    selection_path = (
+        tmp_path
+        / "data/decision_executable_profit/forward/selections/"
+        / "shadow_20260824.json"
+    )
+    projection_path = (
+        tmp_path
+        / "outputs/decision/executable_profit_research/"
+        / "projection_20260824.json"
+    )
+    selection_path.parent.mkdir(parents=True)
+    projection_path.parent.mkdir(parents=True)
+
+    header = (
+        "action,selected,first_layer_selected,trade_selected,"
+        "guidance_only,broker_connected,market_order_allowed,order_type\n"
+    )
+
+    def write_prediction(*, action: str = "REJECT", include_row: bool = True) -> None:
+        exact_path.write_text(
+            header
+            + (
+                f"{action},0,0,0,1,0,0,LIMIT_ONLY_MANUAL\n"
+                if include_row
+                else ""
+            ),
+            encoding="utf-8",
+        )
+
+    def write_bindings(*, selected_rows: int = 1) -> None:
+        digest = hashlib.sha256(exact_path.read_bytes()).hexdigest()
+        selection_path.write_text(
+            json.dumps(
+                {
+                    "signal_date": "20260824",
+                    "rows": [
+                        {"ts_code": f"00000{index}.SZ"}
+                        for index in range(1, selected_rows + 1)
+                    ],
+                    "source_d_feature": {
+                        "file_name": exact_path.name,
+                        "file_sha256": digest,
+                        "selected_row_count": selected_rows,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        projection_path.write_text(
+            json.dumps(
+                {
+                    "signal_date": "20260824",
+                    "source_bindings": {
+                        "selection": {"d_feature_file_sha256": digest}
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def set_path(path: str, *, include_exact_index: bool = False) -> None:
+        encoded = path.encode()
+        paths.write_bytes(encoded + b"\0")
+        entries = [
+            b"100644 " + b"0" * 40 + b" 0\t" + encoded + b"\0"
+        ]
+        if include_exact_index and path != exact:
+            entries.append(
+                b"100644 "
+                + b"1" * 40
+                + b" 0\t"
+                + exact.encode()
+                + b"\0"
+            )
+        index.write_bytes(b"".join(entries))
+
+    write_prediction()
+    write_bindings()
+    set_path(exact)
+    exec(compile(compute, "<daily-exact-pred-compute>", "exec"), {})
+    exec(compile(publish, "<daily-exact-pred-publish>", "exec"), {})
+
+    write_prediction(include_row=False)
+    write_bindings(selected_rows=0)
+    with pytest.raises(SystemExit, match="exact pred_D candidate pool is empty"):
+        exec(compile(compute, "<daily-empty-pred-compute>", "exec"), {})
     with pytest.raises(
-        SystemExit,
-        match="non-allowlisted Daily publish paths staged",
+        SystemExit, match="publish exact pred_D candidate pool is empty"
     ):
-        exec(compile(publish, "<daily-auction-output-publish>", "exec"), {})
+        exec(compile(publish, "<daily-empty-pred-publish>", "exec"), {})
+
+    for forbidden in (
+        "outputs/auction_v3/predictions/pred_20260823.csv",
+        "outputs/auction_v3/predictions/pred_latest.csv",
+        "outputs/auction_v3/metrics/backtest_latest.json",
+    ):
+        set_path(forbidden)
+        with pytest.raises(SystemExit, match="non-allowlisted Daily paths staged"):
+            exec(compile(compute, "<daily-auction-output-compute>", "exec"), {})
+        with pytest.raises(
+            SystemExit,
+            match="non-allowlisted Daily publish paths staged",
+        ):
+            exec(compile(publish, "<daily-auction-output-publish>", "exec"), {})
+
+    write_prediction(action="BUY")
+    write_bindings()
+    set_path(exact)
+    with pytest.raises(SystemExit, match="exact pred_D action boundary drifted"):
+        exec(compile(compute, "<daily-buy-action-compute>", "exec"), {})
+    with pytest.raises(
+        SystemExit, match="publish exact pred_D action boundary drifted"
+    ):
+        exec(compile(publish, "<daily-buy-action-publish>", "exec"), {})
+
+    write_prediction()
+    write_bindings()
+    exact_path.write_text(exact_path.read_text() + "\n", encoding="utf-8")
+    set_path(exact)
+    with pytest.raises(SystemExit, match="exact pred_D SHA binding drifted"):
+        exec(compile(compute, "<daily-sha-drift-compute>", "exec"), {})
+    with pytest.raises(
+        SystemExit, match="publish exact pred_D SHA binding drifted"
+    ):
+        exec(compile(publish, "<daily-sha-drift-publish>", "exec"), {})
+
+    write_prediction()
+    write_bindings()
+    paths.write_bytes(exact.encode() + b"\0")
+    index.write_bytes(b"")
+    with pytest.raises(SystemExit, match="exact pred_D is missing or unsafe"):
+        exec(compile(compute, "<daily-deleted-index-compute>", "exec"), {})
+    with pytest.raises(
+        SystemExit, match="publish exact pred_D is missing or unsafe"
+    ):
+        exec(compile(publish, "<daily-deleted-index-publish>", "exec"), {})
 
 
 def test_verify_continues_all_frozen_forward_dates_to_exact_asof_and_keeps_latest_d() -> None:

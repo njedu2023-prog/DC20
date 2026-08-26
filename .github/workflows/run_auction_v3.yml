@@ -74,6 +74,7 @@ jobs:
     outputs:
       publish: ${{ steps.mode.outputs.publish }}
       route: ${{ steps.mode.outputs.route }}
+      execute_pipeline: ${{ steps.mode.outputs.execute_pipeline }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
@@ -92,6 +93,11 @@ jobs:
         run: |
           set -euo pipefail
           publish=true
+          execute_pipeline=true
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            publish=false
+            execute_pipeline=false
+          fi
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${INPUT_DRY_RUN:-true}" != "false" ]; then publish=false; fi
           route=auction
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_RECOVERY_REPORT_DATES:-}" ]; then
@@ -108,6 +114,7 @@ jobs:
           git rev-parse HEAD > "${RUNNER_TEMP}/base_sha.txt"
           echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
           echo "route=${route}" >> "${GITHUB_OUTPUT}"
+          echo "execute_pipeline=${execute_pipeline}" >> "${GITHUB_OUTPUT}"
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -155,7 +162,11 @@ jobs:
           python -m unittest discover -s tests -p 'test_decision_model_freeze.py' -v
       - name: Sync strict calendar and minute truth
         id: minute_sync
-        if: ${{ steps.mode.outputs.route == 'auction' }}
+        if: >-
+          ${{
+            steps.mode.outputs.route == 'auction' &&
+            steps.mode.outputs.execute_pipeline == 'true'
+          }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
