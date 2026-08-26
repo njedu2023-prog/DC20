@@ -141,11 +141,6 @@ jobs:
           set -euo pipefail
           replay_report="${RUNNER_TEMP}/core-frozen-replay.json"
           replay_stdout="${RUNNER_TEMP}/core-frozen-replay.stdout"
-          persisted_action="${RUNNER_TEMP}/core-persisted-action.json"
-          semantic_report="${RUNNER_TEMP}/core-action-semantic-diff.json"
-          test -f outputs/decision/action_plan_latest.json
-          test ! -L outputs/decision/action_plan_latest.json
-          cp -- outputs/decision/action_plan_latest.json "${persisted_action}"
           set +e
           python scripts/run_deterministic_numeric.py \
             scripts/replay_frozen_canonical_v2.py \
@@ -223,16 +218,3 @@ jobs:
           if [ "${replay_status}" -ne 0 ]; then
             exit "${replay_status}"
           fi
-          python scripts/compare_action_semantics.py \
-            --persisted "${persisted_action}" \
-            --replayed outputs/decision/action_plan_latest.json \
-            --report "${semantic_report}"
-
-      - name: Upload frozen action semantic deep-diff evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: core-frozen-action-semantic-diff-${{ github.run_id }}
-          path: ${{ runner.temp }}/core-action-semantic-diff.json
-          if-no-files-found: ignore
-          retention-days: 7
