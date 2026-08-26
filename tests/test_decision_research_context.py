@@ -249,7 +249,7 @@ def test_dashboard_loads_research_context_without_weakening_action_truth() -> No
     assert "payloads_base64" in text
     assert "historical_report_md" in text
     assert "historical_evaluation" in text
-    assert "本页不缓存该历史载荷" in text
+    assert "本页不缓存该历史载荷" not in text
     assert "plan?.historical_parity === true || plan?.schema_version" in text
     assert "cachedPlan?.schema_version === \"decision_research_context_v1_historical_parity\"" in text
     assert "本页已验证来源 commit" not in text
