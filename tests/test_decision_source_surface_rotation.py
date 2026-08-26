@@ -75,7 +75,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 22
+    assert len(paths) == len(set(paths)) == 23
     assert set(paths) == {
         ".github/workflows/run_decision_daily.yml",
         "scripts/build_three_engine_five_year_ledger.py",
@@ -85,6 +85,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
         "src/top10decision/decision/action_plan.py",
+        "src/top10decision/decision/executable_profit_shadow.py",
         "src/top10decision/decision/model_freeze.py",
         "src/top10decision/decision/observation.py",
         "src/top10decision/decision/three_rank.py",
@@ -120,6 +121,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "src/top10decision/decision/action_plan.py": (
             "legacy_action_schema_compatibility"
+        ),
+        "src/top10decision/decision/executable_profit_shadow.py": (
+            "strict_canonical_d_stage_normalization_for_internal_profit_shadow"
         ),
         "src/top10decision/decision/model_freeze.py": (
             "three_rank_canonical_preimage_runtime_validation"

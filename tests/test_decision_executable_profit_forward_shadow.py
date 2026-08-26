@@ -408,6 +408,7 @@ def test_file_scoring_binds_actual_bytes_and_filters_full_pred_surface(
     rejected["board"] = "SH_MAIN"
     rejected["top10_selected"] = 0
     full_surface = pd.concat([features, rejected], ignore_index=True)
+    full_surface["stage"] = full_surface["stage"].map({2: "2→3", 3: "3→4"})
     promotion_snapshot = shadow._promotion_feature_snapshot_sha256(
         full_surface,
         loaded,
@@ -470,6 +471,79 @@ def test_file_scoring_binds_actual_bytes_and_filters_full_pred_surface(
     ).hexdigest()
     assert payload["source_d_feature"]["file_name"] == source_path.name
     assert payload["top10_count"] == 10
+
+
+def test_promotion_snapshot_exact_arrow_stages_preserve_numeric_hash(
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+) -> None:
+    _, numeric, _ = _case(loaded, source_sample)
+    numeric_snapshot = shadow._promotion_feature_snapshot_sha256(
+        numeric,
+        loaded,
+        signal_date="20260824",
+    )
+    canonical = numeric.copy()
+    canonical["stage"] = canonical["stage"].map({2: "2→3", 3: "3→4"})
+    assert shadow._promotion_feature_snapshot_sha256(
+        canonical,
+        loaded,
+        signal_date="20260824",
+    ) == numeric_snapshot
+
+
+def test_promotion_snapshot_recreates_only_hash_bound_runtime_priors(
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+) -> None:
+    _, features, _ = _case(loaded, source_sample)
+    expected = shadow._promotion_feature_snapshot_sha256(
+        features,
+        loaded,
+        signal_date="20260824",
+    )
+    stale = features.copy()
+    stale[list(shadow.RUNTIME_PROMOTION_PRIOR_FEATURES)] = -999.0
+    assert shadow._promotion_feature_snapshot_sha256(
+        stale,
+        loaded,
+        signal_date="20260824",
+    ) == expected
+
+    unrelated = stale.copy()
+    unaffected = next(
+        column
+        for column in loaded.raw_base_features
+        if column not in shadow.RUNTIME_PROMOTION_PRIOR_FEATURES
+    )
+    unrelated[unaffected] = pd.to_numeric(
+        unrelated[unaffected], errors="coerce"
+    ).fillna(0.0) + 1.0
+    assert shadow._promotion_feature_snapshot_sha256(
+        unrelated,
+        loaded,
+        signal_date="20260824",
+    ) != expected
+
+
+@pytest.mark.parametrize("bad_stage", ["1→2", "2→4", "4→5", "2.5", "stage-2"])
+def test_promotion_snapshot_rejects_non_frozen_stage_values(
+    loaded: shadow.LoadedInternalChallenger,
+    source_sample: pd.DataFrame,
+    bad_stage: str,
+) -> None:
+    _, features, _ = _case(loaded, source_sample)
+    features["stage"] = features["stage"].astype(object)
+    features.loc[features.index[0], "stage"] = bad_stage
+    with pytest.raises(
+        shadow.ExecutableProfitShadowError,
+        match="full D surface escaped the frozen date/stage scope",
+    ):
+        shadow._promotion_feature_snapshot_sha256(
+            features,
+            loaded,
+            signal_date="20260824",
+        )
 
 
 def test_proxy_identity_fixed_top2_and_not_ready_boundaries(scored: dict) -> None:
@@ -724,6 +798,7 @@ def test_exact_top2_top3_joint_tie_fails_closed(
         feature_columns=loaded.feature_columns,
         raw_base_features=loaded.raw_base_features,
         lagged_features=loaded.lagged_features,
+        runtime_prior_ledger=loaded.runtime_prior_ledger,
         source_hashes=loaded.source_hashes,
     )
     with pytest.raises(shadow.ExecutableProfitShadowError, match="Top2/Top3"):

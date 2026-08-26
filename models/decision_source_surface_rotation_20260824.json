@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -38,7 +38,7 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "0182a4b51968cf991cc42b1e05d9817f0db285e39f273bfb3cab4e4913051a83",
+  "changed_surface_sha256": "a0a1a9e456ea5e5fa80584187d6af2b8bae90fc7d8a51150da9c62853c40b0de",
   "pin_changes": [
     {
       "path": ".github/workflows/run_decision_daily.yml",
@@ -87,6 +87,12 @@
       "prior_sha256": "ddd54ff47d5414f529eb56b79a5a1e3e3cbf07e047f5a9e4de098cd3125874ce",
       "current_sha256": "c8310f412d237aa0fa58650c8bbb163eedc97ce0c4097ca475e0e82146b473e3",
       "classification": "legacy_action_schema_compatibility"
+    },
+    {
+      "path": "src/top10decision/decision/executable_profit_shadow.py",
+      "prior_sha256": "2f3bc21a7316ce765c39eb727c8d4b4311d808cd968f077cae6d39ffc75ae0d4",
+      "current_sha256": "31df9153c66643c1122330f3ad9530b2a8fce65077b26af6b70701e40c1c79fc",
+      "classification": "strict_canonical_d_stage_normalization_for_internal_profit_shadow"
     },
     {
       "path": "src/top10decision/decision/model_freeze.py",

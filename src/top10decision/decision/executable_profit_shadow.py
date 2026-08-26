@@ -26,6 +26,10 @@ import pandas as pd
 
 from top10decision.auction_v3.promotion_model import PROMOTION_SOURCE_FEATURES
 from top10decision.decision.observation import observation_price_contract
+from top10decision.decision.three_engine_models import (
+    RUNTIME_PROMOTION_PRIOR_FEATURES,
+    attach_runtime_promotion_priors,
+)
 from top10decision.decision.three_rank import (
     top10_members_sha256,
     validate_three_rank_contract,
@@ -555,6 +559,7 @@ class LoadedInternalChallenger:
     feature_columns: tuple[str, ...]
     raw_base_features: tuple[str, ...]
     lagged_features: tuple[str, ...]
+    runtime_prior_ledger: pd.DataFrame
     source_hashes: Mapping[str, str]
 
 
@@ -806,6 +811,20 @@ def load_internal_challenger(
         "history ledger SHA binding drifted",
     )
     _expect(calendar_sha == EXPECTED_CALENDAR_SHA256 == inputs.get("strict_sse_calendar_sha256") == calendar_spec.get("sha256"), "strict SSE calendar SHA binding drifted")
+    try:
+        runtime_prior_ledger = pd.read_csv(
+            history_path,
+            usecols=["signal_date", "stage", "board", "promotion_hit"],
+            low_memory=False,
+        )
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        raise ExecutableProfitShadowError(
+            "cannot read hash-bound promotion-prior ledger"
+        ) from exc
+    _expect(
+        not runtime_prior_ledger.empty,
+        "hash-bound promotion-prior ledger is empty",
+    )
     historical_output = manifest.get("output")
     _expect(isinstance(historical_output, Mapping) and historical_output.get("sha256") == inputs.get("historical_oof_top10_ledger_sha256"), "training OOF ledger binding drifted")
 
@@ -818,6 +837,7 @@ def load_internal_challenger(
         feature_columns=tuple(features),
         raw_base_features=tuple(base_features[:44]),
         lagged_features=tuple(expected_lagged),
+        runtime_prior_ledger=runtime_prior_ledger,
         source_hashes={
             "formal_contract_sha256": formal_sha,
             "artifact_index_sha256": EXPECTED_ARTIFACT_INDEX_SHA256,
@@ -927,6 +947,77 @@ def _strict_top10_targets(
     )
 
 
+def _strict_frozen_stage_numbers(values: pd.Series) -> pd.Series:
+    """Normalize only the two frozen stage identities used by pred_D.
+
+    The canonical Auction CSV renders stages as ``2→3``/``3→4`` while the
+    trained feature builders consume the source stage number.  Accept those
+    exact labels and the numeric 2/3 representation; every other value remains
+    missing so the caller's frozen-scope check fails closed.
+    """
+
+    numeric = pd.to_numeric(values, errors="coerce")
+    numeric = numeric.where(numeric.isin((2.0, 3.0)))
+    canonical = (
+        values.fillna("")
+        .astype(str)
+        .str.strip()
+        .map({"2→3": 2.0, "3→4": 3.0})
+    )
+    return numeric.where(numeric.notna(), canonical)
+
+
+def _restore_hash_bound_runtime_promotion_priors(
+    frame: pd.DataFrame,
+    loaded: LoadedInternalChallenger,
+    *,
+    signal_date: str,
+) -> pd.DataFrame:
+    """Recreate the eight priors used by the frozen promotion snapshot.
+
+    Auction writes the pre-attachment values for these eight columns to the
+    dated CSV, while its frozen feature hash is computed after replacing them
+    from the strictly-before-D ledger.  Recreate only that known upstream
+    transform from the same hash-bound DC20 ledger; every other D feature stays
+    byte-derived from the immutable dated CSV.
+    """
+
+    _expect(
+        tuple(PROMOTION_SOURCE_FEATURES[:8])
+        == tuple(RUNTIME_PROMOTION_PRIOR_FEATURES),
+        "promotion-prior feature inventory drifted",
+    )
+    for column in RUNTIME_PROMOTION_PRIOR_FEATURES:
+        original = frame[column]
+        numeric = pd.to_numeric(original, errors="coerce").replace(
+            [np.inf, -np.inf], np.nan
+        )
+        invalid = (
+            original.notna()
+            & original.astype(str).str.strip().ne("")
+            & numeric.isna()
+        )
+        _expect(
+            not invalid.any() and numeric.notna().any(),
+            f"D runtime promotion prior is invalid: {column}",
+        )
+    try:
+        restored = attach_runtime_promotion_priors(
+            frame,
+            loaded.runtime_prior_ledger,
+            signal_date=signal_date,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ExecutableProfitShadowError(
+            "cannot recreate hash-bound runtime promotion priors"
+        ) from exc
+    _expect(
+        restored[list(RUNTIME_PROMOTION_PRIOR_FEATURES)].notna().all().all(),
+        "recreated runtime promotion priors are incomplete",
+    )
+    return restored
+
+
 def _prepare_base_features(
     base_features: pd.DataFrame,
     targets: pd.DataFrame,
@@ -978,9 +1069,23 @@ def _prepare_base_features(
         start < generated < end,
         "D feature file was not generated after D close and before T 09:20",
     )
+    frame["stage"] = _strict_frozen_stage_numbers(frame["stage"])
+    frame["board"] = frame["board"].fillna("").astype(str).str.upper()
+    _expect(
+        frame["stage"].notna().all(),
+        "D feature stage escaped the frozen 2-to-3/3-to-4 scope",
+    )
+    frame = _restore_hash_bound_runtime_promotion_priors(
+        frame,
+        loaded,
+        signal_date=signal_date,
+    )
     joined = targets.merge(frame, on=["signal_date", "ts_code"], how="left", validate="one_to_one", suffixes=("", "_input"))
-    supplied = pd.to_numeric(joined["stage_input"], errors="coerce").round()
-    _expect(supplied.eq(joined["stage"]).all(), "D feature stage drifted from frozen Top10")
+    supplied = _strict_frozen_stage_numbers(joined["stage_input"])
+    _expect(
+        supplied.notna().all() and supplied.eq(joined["stage"]).all(),
+        "D feature stage drifted from frozen Top10",
+    )
     supplied_board = joined["board_input"].fillna("").astype(str).str.upper()
     _expect(
         supplied_board.eq(joined["board"]).all(),
@@ -1080,7 +1185,7 @@ def _promotion_feature_snapshot_sha256(
     frame = full_surface.copy()
     frame["signal_date"] = frame["signal_date"].map(_normal_date)
     frame["ts_code"] = frame["ts_code"].map(_normal_code)
-    frame["stage"] = pd.to_numeric(frame["stage"], errors="coerce")
+    frame["stage"] = _strict_frozen_stage_numbers(frame["stage"])
     frame["board"] = frame["board"].fillna("").astype(str).str.upper()
     _expect(
         frame["signal_date"].eq(signal_date).all()
@@ -1098,6 +1203,11 @@ def _promotion_feature_snapshot_sha256(
             )
         ).all(),
         "full D surface contains a non-main-board or mismatched board",
+    )
+    frame = _restore_hash_bound_runtime_promotion_priors(
+        frame,
+        loaded,
+        signal_date=signal_date,
     )
     for column in loaded.raw_base_features:
         original = frame[column]
