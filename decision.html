@@ -1812,7 +1812,7 @@
         executableProfitExpect(sourceRow && sourceRow.ts_code === publicRow.ts_code && sourceRow.promotion_rank === publicRow.promotion_rank && sourceRow.internal_shadow_order === publicRow.executable_profit_research_rank, "公开研究排序不再等于冻结Shadow顺序");
         executableProfitExpect(sourceRow.research_joint_proxy_score === publicRow.research_joint_proxy_score && sourceRow.research_fill_proxy_score === publicRow.research_fill_proxy_score && sourceRow.research_conditional_profit_score === publicRow.research_conditional_profit_score, "公开研究代理分与冻结Shadow来源不一致");
         executableProfitExpect(sourceRow.shadow_max_price === publicRow.shadow_max_price && sourceRow.shadow_price_basis === publicRow.shadow_price_basis && sourceRow.shadow_price_source_sha256 === publicRow.shadow_price_source_sha256 && publicRow.shadow_price_source_sha256 === selection.source_d_feature.file_sha256, "D冻结最高研究价与D特征来源SHA不一致");
-        executableProfitExpect(sourceRow.internal_shadow_selected === publicRow.shadow_selected && sourceRow.shadow_slot === publicRow.shadow_slot, "公开Shadow Top1/Top2与冻结选择不一致");
+        executableProfitExpect(sourceRow.internal_shadow_selected === (publicRow.shadow_selected ? 1 : 0) && sourceRow.shadow_slot === publicRow.shadow_slot, "公开Shadow Top1/Top2与冻结选择不一致");
       }
       const sourceThreeRank = threeRankJson.payload;
       const wrapper = { signal_date: projection.signal_date, exec_date: projection.exec_date, exit_date: projection.exit_date, three_rank: sourceThreeRank, independent_dc20_sidecar: true };

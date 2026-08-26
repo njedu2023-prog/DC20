@@ -20,6 +20,7 @@ from top10decision.decision.legacy_profit_relative_research import (
     SCORE_SEMANTICS,
     SEALED_PROFIT_ARTIFACT_SHA256,
     SEALED_VALIDATION_PATH,
+    _index_payload,
     _payload_snapshot,
     _pretty_json_bytes,
     _projection_csv_bytes,
@@ -318,12 +319,13 @@ def test_projection_rejects_formal_field_injection(d21_inputs) -> None:
 
 
 def test_public_chain_matches_a_deterministic_sealed_rebuild() -> None:
+    index = json.loads((ROOT / OUTPUT_ROOT / "index.json").read_text(encoding="utf-8"))
     evidence = validate_repository_chain(ROOT)
-    assert evidence["signal_date"] == SIGNAL_DATE
-    assert evidence["candidate_count"] == 9
+    assert evidence["signal_date"] == index["latest_signal_date"]
+    assert evidence["candidate_count"] == index["candidate_count"]
     assert evidence["deterministic_rebuild_match"] is True
-    assert (ROOT / OUTPUT_ROOT / "projection_20260821.json").is_file()
-    assert (ROOT / OUTPUT_ROOT / "projection_20260821.csv").is_file()
+    assert (ROOT / index["latest_projection_json_url"]).is_file()
+    assert (ROOT / index["latest_projection_csv_url"]).is_file()
     assert (ROOT / OUTPUT_ROOT / "index.json").is_file()
 
 
@@ -358,12 +360,8 @@ def test_public_chain_rejects_forged_self_consistent_scores(
     csv_path.write_bytes(csv_bytes)
     projection_path.write_bytes(_pretty_json_bytes(projection))
 
-    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index = _index_payload(projection)
     index["latest_projection_json_sha256"] = _sha256(projection_path)
-    index["latest_projection_csv_sha256"] = _sha256(csv_path)
-    index["latest_projection_snapshot_sha256"] = projection[
-        "snapshot_sha256"
-    ]
     index_path.write_bytes(_pretty_json_bytes(index))
 
     with pytest.raises(

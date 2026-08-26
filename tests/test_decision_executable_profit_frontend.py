@@ -103,6 +103,14 @@ def test_frontend_selection_binding_matches_projection_v2_surface() -> None:
         '"csv_path", "csv_sha256", "snapshot_sha256", '
         '"d_feature_file_sha256"])'
     ) in text
+    assert (
+        "sourceRow.internal_shadow_selected === "
+        "(publicRow.shadow_selected ? 1 : 0)"
+    ) in text
+    assert (
+        "sourceRow.internal_shadow_selected === publicRow.shadow_selected"
+        not in text
+    )
 
 
 def test_real_candidate_count_and_shadow_slots_are_never_padded() -> None:

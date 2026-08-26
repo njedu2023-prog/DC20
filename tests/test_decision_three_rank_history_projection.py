@@ -50,7 +50,9 @@ def _load(path: Path) -> dict:
 
 
 def _copy_projection_sources(
-    destination: Path, *, include_forward_snapshots: bool = True
+    destination: Path,
+    *,
+    forward_snapshot_dates: tuple[str, ...] = ("20260821",),
 ) -> Path:
     source = destination / "source"
     for relative in (
@@ -66,12 +68,10 @@ def _copy_projection_sources(
         shutil.copy2(ROOT / relative, target)
     reports = source / "outputs" / "decision"
     reports.mkdir(parents=True, exist_ok=True)
-    if include_forward_snapshots:
-        for path in (ROOT / "outputs" / "decision").iterdir():
-            if path.is_file() and path.name.startswith("three_rank_top10_20") and (
-                path.suffix in {".json", ".csv"}
-            ):
-                shutil.copy2(path, reports / path.name)
+    for date in forward_snapshot_dates:
+        for suffix in ("json", "csv"):
+            name = f"three_rank_top10_{date}.{suffix}"
+            shutil.copy2(ROOT / "outputs" / "decision" / name, reports / name)
     manifest = _load(source / "models/decision_three_rank_history_sources.json")
     for entry in manifest["entries"]:
         for kind in ("report", "evaluation"):
@@ -538,36 +538,40 @@ def test_p_fill_shadow_oof_top2_has_exact_daily_cumulative_statistics(
     }
 
 
-def test_forward_shadow_keeps_legacy_d21_pending_and_out_of_statistics(
+def test_forward_shadow_keeps_legal_records_separate_from_oof(
     archive: Path,
 ) -> None:
     forward = _load(archive / "statistics.json")["p_fill_shadow_top2_forward"]
     assert forward["schema_version"] == "dc20_p_fill_shadow_forward_top2_v1"
-    assert forward["discovered_snapshot_dates"] == ["20260821"]
-    assert set(forward["accepted_snapshot_dates"]) | set(
-        forward["provisional_snapshot_dates"]
-    ) == {"20260821"}
+    discovered = forward["discovered_snapshot_dates"]
+    accepted = forward["accepted_snapshot_dates"]
+    provisional = forward["provisional_snapshot_dates"]
+    assert discovered == sorted(set(discovered))
+    assert {"20260821", "20260825"}.issubset(discovered)
+    assert {"20260821", "20260825"}.issubset(accepted)
+    assert set(accepted).isdisjoint(provisional)
+    assert set(accepted) | set(provisional) == set(discovered)
     assert forward["separation_guards"]["historical_oof_rows_used"] == 0
     assert forward["separation_guards"]["actual_order_rows_used"] == 0
-    if forward["provisional_snapshot_dates"]:
-        assert forward["selection_dates"] == 0
-        assert forward["selected_entries"] == 0
-        provisional = forward["provisional_pre_freeze_records"]
-        assert len(provisional) == 1
-        assert provisional[0]["signal_date"] == "20260821"
-        assert provisional[0]["status"] == "PENDING_SNAPSHOT_CONTRACT_UPGRADE"
-        assert provisional[0]["excluded_from_forward_statistics"] is True
-        assert [
-            row["ts_code"]
-            for row in provisional[0]["probability_order_candidates_not_frozen"]
-        ] == ["002903.SZ", "002491.SZ"]
-    else:
-        assert forward["selection_dates"] == 1
-        assert forward["selected_entries"] == 2
-        assert all(
-            row["settlement_status"] == "PENDING"
-            for row in forward["records"][0]["rows"]
-        )
+    records = {record["signal_date"]: record for record in forward["records"]}
+    assert set(records) == set(accepted)
+    assert forward["selection_dates"] == len(records)
+    assert forward["selected_entries"] == sum(
+        record["selected_slots"] for record in records.values()
+    )
+    assert [row["ts_code"] for row in records["20260821"]["rows"]] == [
+        "002903.SZ",
+        "002491.SZ",
+    ]
+    assert [row["ts_code"] for row in records["20260825"]["rows"]] == [
+        "600785.SH",
+        "002041.SZ",
+    ]
+    assert all(
+        row["actual_order_fill_observed"] is False
+        for record in records.values()
+        for row in record["rows"]
+    )
 
 
 def test_audit_grade_forward_shadow_freezes_rank_top2_and_stays_pending(
@@ -628,7 +632,7 @@ def test_forward_shadow_rank_and_hash_drift_fails_closed(
 def test_forward_shadow_settles_matured_rows_from_exact_ledger_identity(
     tmp_path: Path,
 ) -> None:
-    source = _copy_projection_sources(tmp_path, include_forward_snapshots=False)
+    source = _copy_projection_sources(tmp_path, forward_snapshot_dates=())
     _add_matured_forward_snapshot(source)
     result = build_history_archive(source, tmp_path / "site")
     forward = result["statistics"]["p_fill_shadow_top2_forward"]

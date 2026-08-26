@@ -75,10 +75,11 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 25
+    assert len(paths) == len(set(paths)) == 27
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/run_decision_daily.yml",
+        "decision.html",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/run_auction_v3.py",
         "scripts/sync_market_raw.py",
@@ -94,6 +95,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_d_close_features.py",
         "tests/test_decision_research_context.py",
         "tests/test_decision_three_rank_contract.py",
+        "tests/test_decision_three_rank_history_projection.py",
         "tests/test_decision_model_freeze.py",
         "tests/test_decision_v8_calibration.py",
         "tests/test_promotion_model.py",
@@ -110,6 +112,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/run_decision_daily.yml": (
             "strict_dated_daily_context_workflow"
         ),
+        "decision.html": "executable_profit_shadow_flag_type_bridge",
         "scripts/build_three_engine_five_year_ledger.py": (
             "three_engine_helper_externalization"
         ),
@@ -145,6 +148,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
         "tests/test_decision_three_rank_contract.py": (
             "legacy_action_schema_compatibility_test"
+        ),
+        "tests/test_decision_three_rank_history_projection.py": (
+            "appended_forward_history_contract_test"
         ),
         "tests/test_decision_model_freeze.py": (
             "three_rank_canonical_preimage_runtime_validation_test"

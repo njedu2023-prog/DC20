@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, and research context in the isolated Daily root, validate their exact cross-file hashes, and copy only the 12 allowlisted dated and pointer artifacts into the publication candidate. Fail closed and roll back if the frozen hard-range inference pool is empty or the isolated handoff is incomplete. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Bridge the frozen integer Shadow selection flag to the public boolean projection without weakening either contract, and make forward-history tests accept legal appended dates while retaining exact D21 and D25 identity checks. Preserve the frozen model identity, historical prediction bytes, action semantics, official membership, and zero formal actions while retaining the visible research ranking path.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -38,7 +38,7 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "564779cbc52e601d7e955f429ceac5ecabafd9c16e1f0e6524008475e1a43b76",
+  "changed_surface_sha256": "e431fe0f9f04a6e7cdee20d44fcf19b094f8407b7213a2074a16c3d8d73e7d6f",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -51,6 +51,12 @@
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
       "current_sha256": "243b7154a7cb4067ec5f544f1ca59937cab6e5daa5167ae0f748102d6f7e5370",
       "classification": "strict_dated_daily_context_workflow"
+    },
+    {
+      "path": "decision.html",
+      "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
+      "current_sha256": "1088d2a7952d40c3515bf69326bb46ce1ed60bc60ce6d3278914fe7b8dea83bc",
+      "classification": "executable_profit_shadow_flag_type_bridge"
     },
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
@@ -147,6 +153,12 @@
       "prior_sha256": "6426ba54908a8638c80b35bb02b3cf917863946b08591d2636d3e90bdabf93a3",
       "current_sha256": "d1a7b36a217be73a8912a2478b65bed46bbebef3de4324360957d4b14716a738",
       "classification": "legacy_action_schema_compatibility_test"
+    },
+    {
+      "path": "tests/test_decision_three_rank_history_projection.py",
+      "prior_sha256": "d08842e9d93b6676ad7975f6d81559ee02e9176eb9fbba91b19e5fced3ea1d20",
+      "current_sha256": "eeec0908ce1fa1db6761b31a41cb54c97b68f97bb6f3a8c0ce07707f4ac82226",
+      "classification": "appended_forward_history_contract_test"
     },
     {
       "path": "tests/test_decision_v8_calibration.py",
