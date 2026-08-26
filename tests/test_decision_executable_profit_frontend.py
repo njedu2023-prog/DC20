@@ -283,6 +283,20 @@ def test_shadow_truth_statistics_and_human_results_are_separate() -> None:
     assert "diagnostics.brier_score == null" in text
 
 
+def test_shadow_current_slots_join_company_names_from_bound_projection() -> None:
+    text = _text()
+    renderer = _function(
+        text,
+        "renderExecutableProfitResearch",
+        "validatedPFillShadowTop2",
+    )
+
+    assert "const nameByCode = new Map(rows.map(row => [row.ts_code, row.name]));" in renderer
+    assert '<th class="left">公司名称</th>' in renderer
+    assert 'escapeHtml(nameByCode.get(row.ts_code) || "-")' in renderer
+    assert 'class="left name"' in renderer
+
+
 def test_downloads_are_exact_dated_projection_and_asof_statistics() -> None:
     text = _text()
     for token in (

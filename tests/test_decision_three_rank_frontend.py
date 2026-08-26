@@ -66,6 +66,39 @@ def test_dashboard_fails_closed_and_shadow_cannot_override_core_rank() -> None:
     assert "...truth,\n          ...row," in text
 
 
+def test_latest_three_rank_t_close_truth_is_exact_date_bound_and_read_only() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+    loader = text.split("async function loadCurrentThreeRankTTruth", 1)[1].split(
+        "async function refreshCurrentThreeRankTTruth", 1
+    )[0]
+    renderer = text.split("function renderThreeRankWatchlist", 1)[1].split(
+        "function renderStageWatchlist", 1
+    )[0]
+
+    assert "validatedThreeRankContract(currentThreeRank)" in loader
+    assert 'canonicalYmd(contract.exec_date)' in loader
+    assert '`data/market/raw/${year}/${execDate}/daily.csv`' in loader
+    assert '`data/market/raw/${year}/${execDate}/stk_limit.csv`' in loader
+    assert 'canonicalYmd(row.trade_date) !== execDate' in loader
+    assert "T日行情日期与冻结exec_date不一致" in loader
+    assert "T日真值缺少冻结成员" in loader
+    assert "Math.abs(close - upLimit) <= tolerance ? 1 : 0" in loader
+    assert 'validation_status: "T_VERIFIED_PENDING_T1"' in loader
+    assert 'validation_status_label: "T已验证 · 等待T+1"' in loader
+    assert "daily_sha256: await sha256Hex(dailyBytes)" in loader
+    assert "stk_limit_sha256: await sha256Hex(limitBytes)" in loader
+    assert "T日真值拒绝跨源读取" in text
+    assert "state.index === 0" in renderer
+    assert "state.currentThreeRankTTruth?.signal_date === contract.signal_date" in renderer
+    assert "state.currentThreeRankTTruth?.exec_date === contract.exec_date" in renderer
+    assert "tCloseTruth?.continuation_limit_up_hit" in renderer
+    assert "tCloseTruth?.validation_status_label" in renderer
+    # This overlay is limited to T-close truth fields; the immutable D rows
+    # remain spread last before those explicit, allowlisted fields.
+    assert "...truth,\n          ...row," in renderer
+    assert "tCloseTruth?.promotion_rank" not in renderer
+
+
 def test_daily_and_auction_writers_allow_exact_dated_three_rank_artifacts() -> None:
     daily = (ROOT / ".github/workflows/run_decision_daily.yml").read_text(
         encoding="utf-8"

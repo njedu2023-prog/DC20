@@ -32,7 +32,9 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert 'evaluation?.execution_gate || extractField(md, "execution_gate")' in text
     assert 'const CACHE_KEY = "dc20-decision-dashboard-v5-cache"' in text
     assert "JSON.stringify({ info, plan, md, evaluation" in text
-    assert 'els.reportDetails.open = info.action_available !== true' in text
+    assert 'els.reportDetails.open = info.action_available !== true' not in text
+    assert text.count("els.reportDetails.open = false;") == 2
+    assert '<details id="reportDetails" class="panel" open>' not in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
     assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url", "research_kind", "research_archive_url"]' in text
     assert "targetInfo?.action_available === true" in text

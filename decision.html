@@ -1003,6 +1003,7 @@
       index: 0,
       current: null,
       currentThreeRank: null,
+      currentThreeRankTTruth: null,
       currentLegacyProfitRelativeResearch: null,
       currentExecutableProfitResearch: null
     };
@@ -1182,6 +1183,139 @@
       if (value === "FINAL_VERIFIED") return "final";
       if (value === "FINAL_NO_FILL" || value === "T_VERIFIED_NO_FILL") return "no-fill";
       return "pending";
+    }
+
+    function parseStrictCsvBytes(bytes, requiredColumns, label) {
+      let text;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
+      } catch (_) {
+        throw new Error(`${label}不是严格UTF-8 CSV`);
+      }
+      const matrix = [];
+      let row = [];
+      let cell = "";
+      let quoted = false;
+      for (let index = 0; index < text.length; index += 1) {
+        const character = text[index];
+        if (quoted) {
+          if (character === '"' && text[index + 1] === '"') {
+            cell += '"';
+            index += 1;
+          } else if (character === '"') {
+            quoted = false;
+          } else {
+            cell += character;
+          }
+        } else if (character === '"') {
+          quoted = true;
+        } else if (character === ",") {
+          row.push(cell);
+          cell = "";
+        } else if (character === "\n") {
+          row.push(cell.replace(/\r$/, ""));
+          if (row.some(value => value !== "")) matrix.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += character;
+        }
+      }
+      if (quoted) throw new Error(`${label}存在未闭合引号`);
+      if (cell !== "" || row.length) {
+        row.push(cell.replace(/\r$/, ""));
+        if (row.some(value => value !== "")) matrix.push(row);
+      }
+      if (!matrix.length) throw new Error(`${label}为空`);
+      const header = matrix[0];
+      if (new Set(header).size !== header.length || requiredColumns.some(column => !header.includes(column))) {
+        throw new Error(`${label}表头不完整或重复`);
+      }
+      const rows = matrix.slice(1).map(values => {
+        if (values.length !== header.length) throw new Error(`${label}行列数不一致`);
+        return Object.fromEntries(header.map((column, index) => [column, values[index]]));
+      });
+      return rows;
+    }
+
+    async function fetchPublishedBytes(path) {
+      const url = location.protocol === "file:" ? RAW_BASE + path : new URL(path, location.href).href;
+      if (location.protocol !== "file:" && new URL(url).origin !== location.origin) {
+        throw new Error("T日真值拒绝跨源读取");
+      }
+      const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return new Uint8Array(await response.arrayBuffer());
+    }
+
+    async function loadCurrentThreeRankTTruth(currentThreeRank) {
+      const contract = validatedThreeRankContract(currentThreeRank);
+      if (!contract || contract === false) return null;
+      const signalDate = canonicalYmd(contract.signal_date);
+      const execDate = canonicalYmd(contract.exec_date);
+      const codes = contract.rows.map(row => String(row.ts_code || ""));
+      if (!signalDate || !execDate || new Set(codes).size !== codes.length || codes.some(code => !code)) return null;
+      const year = execDate.slice(0, 4);
+      const dailyPath = `data/market/raw/${year}/${execDate}/daily.csv`;
+      const limitPath = `data/market/raw/${year}/${execDate}/stk_limit.csv`;
+      const [dailyBytes, limitBytes] = await Promise.all([
+        fetchPublishedBytes(dailyPath),
+        fetchPublishedBytes(limitPath)
+      ]);
+      const dailyRows = parseStrictCsvBytes(dailyBytes, ["ts_code", "trade_date", "close"], "T日收盘行情");
+      const limitRows = parseStrictCsvBytes(limitBytes, ["trade_date", "ts_code", "up_limit"], "T日涨停价");
+      if (dailyRows.some(row => canonicalYmd(row.trade_date) !== execDate) ||
+          limitRows.some(row => canonicalYmd(row.trade_date) !== execDate)) {
+        throw new Error("T日行情日期与冻结exec_date不一致");
+      }
+      const uniqueByCode = (rows, label) => {
+        const mapped = new Map();
+        rows.forEach(row => {
+          const code = String(row.ts_code || "");
+          if (!code || mapped.has(code)) throw new Error(`${label}证券代码缺失或重复`);
+          mapped.set(code, row);
+        });
+        return mapped;
+      };
+      const dailyByCode = uniqueByCode(dailyRows, "T日收盘行情");
+      const limitByCode = uniqueByCode(limitRows, "T日涨停价");
+      const rows = codes.map(code => {
+        const daily = dailyByCode.get(code);
+        const limit = limitByCode.get(code);
+        const close = finiteNumber(daily?.close);
+        const upLimit = finiteNumber(limit?.up_limit);
+        if (!daily || !limit || close == null || upLimit == null || close <= 0 || upLimit <= 0) {
+          throw new Error(`T日真值缺少冻结成员 ${code}`);
+        }
+        const tolerance = Math.max(1e-6, Math.abs(upLimit) * 1e-8);
+        return {
+          ts_code: code,
+          t_close: close,
+          t_up_limit: upLimit,
+          continuation_limit_up_hit: Math.abs(close - upLimit) <= tolerance ? 1 : 0,
+          validation_status: "T_VERIFIED_PENDING_T1",
+          validation_status_label: "T已验证 · 等待T+1"
+        };
+      });
+      return {
+        signal_date: signalDate,
+        exec_date: execDate,
+        daily_path: dailyPath,
+        daily_sha256: await sha256Hex(dailyBytes),
+        stk_limit_path: limitPath,
+        stk_limit_sha256: await sha256Hex(limitBytes),
+        rows
+      };
+    }
+
+    async function refreshCurrentThreeRankTTruth(currentThreeRank) {
+      try {
+        state.currentThreeRankTTruth = await loadCurrentThreeRankTTruth(currentThreeRank);
+      } catch (_) {
+        // Before T close (or when exact dated truth is incomplete), the D-frozen
+        // rows remain pending. Never use latest files or partial member matches.
+        state.currentThreeRankTTruth = null;
+      }
     }
 
     function timingClass(status) {
@@ -1975,6 +2109,7 @@
           : `完整候选 ${candidateCount} 支 · 不足10不补票 · Shadow ${shadowCount} 支`;
       const truthByCode = new Map(statistics.latest_selected_rows.map(row => [row.ts_code, row]));
       const rows = [...projection.rows].sort((left, right) => left.executable_profit_research_rank - right.executable_profit_research_rank);
+      const nameByCode = new Map(rows.map(row => [row.ts_code, row.name]));
       const body = rows.map(row => {
         const truth = truthByCode.get(row.ts_code);
         const tState = executableProfitTLabel(truth);
@@ -2007,7 +2142,7 @@
       const latestBody = statistics.latest_selected_rows.map(row => {
         const tState = executableProfitTLabel(row);
         const t1State = executableProfitT1Label(row);
-        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td><span class="truth-badge ${tState.tone}">${escapeHtml(tState.label)}</span></td><td><span class="truth-badge ${t1State.tone}">${escapeHtml(t1State.label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
+        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(nameByCode.get(row.ts_code) || "-")}</td><td><span class="truth-badge ${tState.tone}">${escapeHtml(tState.label)}</span></td><td><span class="truth-badge ${t1State.tone}">${escapeHtml(t1State.label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
       }).join("");
       const summary = statistics.statistics;
       const progress = summary?.forward_signal_date_progress_180;
@@ -2022,7 +2157,7 @@
         metric("等权累计净收益", overall ? signedPct(overall.equal_weight_cumulative_return) : "-", valueTone(overall?.equal_weight_cumulative_return))
       ].join("");
       const latestTable = statistics.latest_selected_rows.length
-        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
+        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2；零候选日仍可进入D日进度统计。</div>';
       els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>Top1、Top2分别统计 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(summary)}`;
       els.executableProfitShadowNote.textContent = `统计截至 ${dateText(statistics.as_of_date)}；成本后收益只来自模型冻结Shadow并服从SHA绑定的结算来源合同，代理未成交的条件收益为空、策略槽位收益记0。页面显示的是未校准模型估计概率，正式校准状态仍为false；人工作业结果使用独立账本，不回填模型Shadow。`;
@@ -2575,9 +2710,16 @@
         ? state.currentLegacyProfitRelativeResearch
         : null;
       const legacyByCode = new Map((legacyProjection?.rows || []).map(row => [String(row.ts_code), row]));
+      const tTruth = state.index === 0 &&
+        state.currentThreeRankTTruth?.signal_date === contract.signal_date &&
+        state.currentThreeRankTTruth?.exec_date === contract.exec_date
+        ? state.currentThreeRankTTruth
+        : null;
+      const tTruthByCode = new Map((tTruth?.rows || []).map(row => [String(row.ts_code), row]));
       const fixedRows = contract.rows.map(row => {
         const truth = truthByCode.get(String(row.ts_code)) || {};
         const legacy = legacyByCode.get(String(row.ts_code));
+        const tCloseTruth = tTruthByCode.get(String(row.ts_code));
         return {
           ...truth,
           ...row,
@@ -2585,6 +2727,9 @@
           path_label_code: truth.path_label_code ?? row.path_label_code ?? null,
           path_explanation: truth.path_explanation ?? row.path_explanation ?? null,
           path_strength_delta: truth.path_strength_delta ?? row.path_strength_delta ?? null,
+          continuation_limit_up_hit: tCloseTruth?.continuation_limit_up_hit ?? truth.continuation_limit_up_hit ?? row.continuation_limit_up_hit ?? null,
+          validation_status: tCloseTruth?.validation_status ?? truth.validation_status ?? row.validation_status ?? null,
+          validation_status_label: tCloseTruth?.validation_status_label ?? truth.validation_status_label ?? row.validation_status_label ?? null,
           legacy_profit_relative_rank: legacy?.legacy_profit_relative_rank ?? null,
           legacy_profit_raw_score: legacy?.legacy_profit_raw_score ?? null,
           legacy_profit_relative_percentile: legacy?.legacy_profit_relative_percentile ?? null,
@@ -3386,7 +3531,7 @@
       renderResearchOutput(md, evaluation, info, plan);
       renderExecutableProfitResearch(plan);
       renderReport(md, info.report_file);
-      els.reportDetails.open = info.action_available !== true;
+      els.reportDetails.open = false;
       cacheCurrent(info, plan, md, evaluation);
       els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
     }
@@ -3402,6 +3547,7 @@
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
         state.currentThreeRank = await loadCurrentThreeRank();
+        await refreshCurrentThreeRankTTruth(state.currentThreeRank);
         await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
         await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
         state.index = 0;
@@ -3421,7 +3567,7 @@
         renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {}, cached.plan);
         renderExecutableProfitResearch(cached.plan);
         renderReport(cached.md || "", cached.info?.report_file || "cached_report");
-        els.reportDetails.open = cached.info?.action_available !== true;
+        els.reportDetails.open = false;
         els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
         setNavigation();
       } finally {
