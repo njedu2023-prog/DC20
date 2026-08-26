@@ -373,7 +373,7 @@
       line-height: 1.55;
     }
     table { border-collapse: collapse; width: 100%; min-width: 1380px; font-size: 12px; }
-    table.three-rank-table { min-width: 1380px; }
+    table.three-rank-table { min-width: 1560px; }
     table.top10-backtest-table { min-width: 1040px; table-layout: fixed; font-size: 11px; }
     table.top10-backtest-table th,
     table.top10-backtest-table td { padding: 7px 6px; }
@@ -2609,6 +2609,8 @@
           <td class="left name">${escapeHtml(row.name || "-")}</td>
           <td class="left">${escapeHtml(row.industry || "未分类")}</td>
           <td>${escapeHtml(row.stage_transition || "-")}</td>
+          <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
+          <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
           <td><span class="truth-badge">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
           ${legacyVisible ? `<td><span class="truth-badge">${escapeHtml(row.legacy_profit_relative_rank)}${row.legacy_profit_rank_tied ? "（并列）" : ""}</span></td>
@@ -2637,6 +2639,7 @@
         </div>
         ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
           <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
+          <th class="left">连板路径</th><th>路径变化</th>
           <th>晋级排序</th><th>晋级概率</th>
           ${legacyVisible ? "<th>单一盈利排序</th><th>模型分值</th>" : ""}
           <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>

@@ -211,6 +211,11 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     ):
         assert removed not in renderer
     assert "下载 CSV" in renderer
+    assert '<th class="left">连板路径</th><th>路径变化</th>' in renderer
+    assert "pathClass(row.path_label_code)" in renderer
+    assert 'row.path_label || "路径数据不足"' in renderer
+    assert "valueTone(row.path_strength_delta)" in renderer
+    assert "signedPct(row.path_strength_delta)" in renderer
     assert "单一盈利排序" in renderer
     assert "按原盈利模型实验顺序（未放行）" not in renderer
     assert "原盈利实验名次" not in renderer
