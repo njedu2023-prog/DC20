@@ -92,7 +92,7 @@ def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() 
     assert "按模型估计可实现盈利概率从高到低显示全部真实" in text
 
 
-def test_selected_html_only_blocks_and_fields_are_not_rendered() -> None:
+def test_selected_html_only_blocks_fields_and_action_section_are_not_rendered() -> None:
     text = _text()
     stage = _function(text, "renderThreeRankWatchlist", "renderStageWatchlist")
     profit = _function(
@@ -100,8 +100,6 @@ def test_selected_html_only_blocks_and_fields_are_not_rendered() -> None:
         "renderExecutableProfitResearch",
         "validatedPFillShadowTop2",
     )
-    actions = _function(text, "renderActions", "auditRow")
-
     for removed in (
         '<div class="legacy-profit-relative-banner">',
         'data-three-rank-sort="big_loss_safety_rank"',
@@ -121,9 +119,25 @@ def test_selected_html_only_blocks_and_fields_are_not_rendered() -> None:
     assert "下载研究 CSV" in profit
     assert "下载研究 JSON" in profit
 
-    assert "完整研究明细已生成，但不是竞价行动" not in actions
-    assert "els.actionContent.innerHTML" in actions
-    assert '<div class="table-wrap"><table>' in actions
+    for removed in (
+        "人工操作参考",
+        'id="candidateCount"',
+        'id="actionContent"',
+        '"candidateCount", "actionContent"',
+        "function renderActions(",
+        "renderActions(plan);",
+        "renderActions(cached.plan);",
+        "els.actionContent.innerHTML",
+    ):
+        assert removed not in text
+    assert "validatedActionPlan" in text
+    assert "fetchPath(latestActionPath)" in text
+    assert (
+        '<details id="sentimentPanel" class="panel observation-disclosure">'
+        in text
+    )
+    assert "<summary class=\"panel-head\">\n        <div>\n          <h2>市场情绪量化</h2>" in text
+    assert '<details id="sentimentPanel" class="panel observation-disclosure" open>' not in text
 
 
 def test_frontend_selection_binding_matches_projection_v2_surface() -> None:

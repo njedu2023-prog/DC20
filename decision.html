@@ -886,16 +886,16 @@
       <section id="metrics" class="metrics" aria-label="核心指标"></section>
     </details>
 
-    <section id="sentimentPanel" class="panel">
-      <div class="panel-head">
+    <details id="sentimentPanel" class="panel observation-disclosure">
+      <summary class="panel-head">
         <div>
           <h2>市场情绪量化</h2>
         </div>
         <span id="sentimentState" class="count">数据不足</span>
-      </div>
+      </summary>
       <div id="sentimentMetrics" class="metrics panel-metrics"></div>
       <div id="sentimentIndustries" class="sentiment-industries"></div>
-    </section>
+    </details>
 
     <section id="stagePanel" class="panel">
       <div class="panel-head">
@@ -952,16 +952,6 @@
       <p id="pathDiagnosticsNote" class="stats-note"></p>
     </details>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>人工操作参考</h2>
-        </div>
-        <span id="candidateCount" class="count">0 条</span>
-      </div>
-      <div id="actionContent"></div>
-    </section>
-
     <section id="auditPanel" class="panel">
       <div class="panel-head">
         <div>
@@ -1005,7 +995,7 @@
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
-      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchBanner", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "candidateCount", "actionContent", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
+      "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchBanner", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
     ].map(id => [id, document.getElementById(id)]));
 
     const state = {
@@ -2820,55 +2810,6 @@
       els.pathDiagnosticsNote.textContent = `路径结果是诊断分组，不是独立交易策略。任一路径少于 ${minimumSamples} 笔时，收益与胜率仅展示原始事实，不着色、不参与交易结论；达到门槛也只代表可以开始观察，不能替代严格样本外检验。`;
     }
 
-    function renderActions(plan) {
-      const rows = Array.isArray(plan?.candidates) ? plan.candidates : [];
-      els.candidateCount.textContent = `${rows.length} 条`;
-      if (!rows.length) {
-        const detail = plan?.daily_research_only === true
-          ? "同日竞价行动计划尚未生成；上方日线研究候选仅用于观察，不是买入建议。"
-          : "行动计划尚未生成，或资格过滤后候选池为空。";
-        els.actionContent.innerHTML = `<div class="empty"><strong>当前没有正式行动候选</strong>${escapeHtml(detail)}</div>`;
-        return;
-      }
-      const formal = rows.filter(row => row.action === "BUY");
-      const notice = plan?.historical_parity === true
-        ? '<div class="empty"><strong>历史原始数值逐字节复现，仅供只读核对</strong>来源清单固定 commit、blob SHA 与原始 SHA256；本页不缓存该历史载荷，历史操作/标签不代表当前建议，不能据此下单。</div>'
-        : plan?.research_only === true
-        ? ""
-        : formal.length
-        ? `<div class="empty"><strong>本次正式人工建议 ${formal.length} 只</strong>请在 9:25 前仅用限价单按冻结上限自行挂单；禁止无上限市价单，超过上限或未成交均放弃。</div>`
-        : '<div class="empty"><strong>本次没有正式买入建议</strong>影子验证只用于累计样本外证据；未晋级模型不得作为人工交易依据。</div>';
-      const headers = ["操作", "排名", "代码", "股票", "行业板块", "晋级", "连板路径", "路径变化", "同梯队", "近20日晋级率", "竞价上限", "最高涨幅", "T+1卖出", "P_fill", "P_exit", "晋级涨停概率", "盈利概率", "预计净收益", "保守下界", "大跌概率", "目标仓位", "原因 / 退出规则"];
-      const body = rows.map(row => {
-        const reason = row.action === "BUY" ? (row.exit_rule || "T+1日9:30开盘集合竞价退出") : (row.rejection_reason || "-");
-        return `<tr>
-          <td class="left"><span class="action ${actionClass(row.action)}">${escapeHtml(actionLabel(row.action))}</span></td>
-          <td>${escapeHtml(row.rank ?? "-")}</td>
-          <td class="left">${escapeHtml(row.ts_code || "-")}</td>
-          <td class="left name">${escapeHtml(row.name || "-")}</td>
-          <td class="left">${escapeHtml(row.industry || "未分类")}</td>
-          <td>${escapeHtml(row.stage_transition || "-")}</td>
-          <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
-          <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
-          <td>${escapeHtml(row.stage_pool_size ?? "-")}</td>
-          <td title="最近20个可用信号日，同一晋级阶段的历史真值">${pct(row.stage_recent_promotion_rate)}</td>
-          <td>${price(row.recommended_max_price)}</td>
-          <td>${finiteNumber(row.max_auction_change_pct) == null ? "-" : `${finiteNumber(row.max_auction_change_pct).toFixed(2)}%`}</td>
-          <td>${escapeHtml(row.latest_exit_time || "09:30")}</td>
-          <td>${pct(row.predicted_fill_probability)}</td>
-          <td>${pct(row.predicted_exit_probability)}</td>
-          <td title="${Number(row.promotion_probability_quality_ready) === 1 ? "独立晋级概率已通过样本外校准门" : "精确概率未通过校准门，显示原模型概率"}">${pct(Number(row.promotion_probability_quality_ready) === 1 ? row.predicted_promotion_probability : row.predicted_continuation_limit_up_probability)}</td>
-          <td>${pct(row.predicted_profit_probability)}</td>
-          <td class="${valueTone(row.predicted_net_return)}">${pct(row.predicted_net_return)}</td>
-          <td class="${valueTone(row.predicted_return_lcb)}">${pct(row.predicted_return_lcb)}</td>
-          <td>${pct(row.predicted_big_loss_probability)}</td>
-          <td>${pct(row.target_weight)}</td>
-          <td class="reason">${escapeHtml(reason)}</td>
-        </tr>`;
-      }).join("");
-      els.actionContent.innerHTML = `${notice}<div class="table-wrap"><table><thead><tr>${headers.map((h, i) => `<th class="${[0,2,3,4,6,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
-    }
-
     function auditRow(label, value) {
       return `<div class="audit-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value == null || value === "" ? "-" : value)}</strong></div>`;
     }
@@ -3127,7 +3068,7 @@
         metric("Daily 执行门", researchGateLabel(gate), gate.startsWith("NO_TRADE") ? "bad" : "warn")
       ].join("");
       if (full?.rows?.length) {
-        els.researchContent.innerHTML = `<div class="empty"><strong>候选数据已生成，但不是竞价行动</strong>共 ${integerText(researchRows)} 条研究候选；Daily 入选 ${integerText(dailyPickedRows)} 条（仍非行动）。只有同日 action_plan 中明确标记的行动才可进入“人工操作参考”。</div>${markdownTableHtml(full)}`;
+        els.researchContent.innerHTML = `<div class="empty"><strong>候选数据已生成，但不是竞价行动</strong>共 ${integerText(researchRows)} 条研究候选；Daily 入选 ${integerText(dailyPickedRows)} 条（仍非行动）。只有同日 action_plan 中明确标记的行动才属于正式行动。</div>${markdownTableHtml(full)}`;
       } else {
         els.researchContent.innerHTML = '<div class="empty"><strong>本报告没有研究候选表</strong>请以结构化评估中的行数与执行门为准。</div>';
       }
@@ -3440,7 +3381,6 @@
       renderPathDiagnostics(plan);
       renderResearchOutput(md, evaluation, info, plan);
       renderExecutableProfitResearch(plan);
-      renderActions(plan);
       renderReport(md, info.report_file);
       els.reportDetails.open = info.action_available !== true;
       cacheCurrent(info, plan, md, evaluation);
@@ -3476,7 +3416,6 @@
         renderPathDiagnostics(cached.plan);
         renderResearchOutput(cached.md || "", cached.evaluation || null, cached.info || {}, cached.plan);
         renderExecutableProfitResearch(cached.plan);
-        renderActions(cached.plan);
         renderReport(cached.md || "", cached.info?.report_file || "cached_report");
         els.reportDetails.open = cached.info?.action_available !== true;
         els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
@@ -3503,8 +3442,6 @@
       els.researchMetrics.innerHTML = "";
       els.researchContent.innerHTML = '<div class="empty"><strong>未展示任何研究候选</strong>同日报告或评估没有通过读取与日期绑定校验。</div>';
       els.researchNote.textContent = "";
-      els.candidateCount.textContent = "0 条";
-      els.actionContent.innerHTML = '<div class="empty"><strong>未展示任何正式行动</strong>同日行动计划没有通过读取与日期绑定校验。</div>';
     }
 
     window.addEventListener("error", event => showError(event.error || event.message));

@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, research context, and exact canonical pred_D in the isolated Daily root; validate their exact cross-file hashes, including the pred_D SHA bound by both the frozen selection and public projection; and copy only the 13 allowlisted dated and pointer artifacts into the publication candidate. Revalidate the exact pred_D regular-file mode, twin SHA binding, and zero-formal-action boundary in both candidate and publisher jobs. Fail closed and roll back if the hard-range inference pool is empty or the isolated handoff is incomplete; never pad outside the actual pool. Keep Auction push events code-validation-only so a freeze-only source commit cannot enter the live minute pipeline; leave scheduled and manual Auction execution unchanged. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Bridge the frozen integer Shadow selection flag to the public boolean projection without weakening either contract, and make forward-history tests accept legal appended dates while retaining exact D21 and D25 identity checks. Remove only the user-selected decision-page HTML banner, proof paragraph, research notice, inactive big-loss/profit columns and sort controls, and the main-table JSON download while preserving all backend fields, contracts, model bytes, ledgers, rankings, research downloads, action rows, official membership, and zero formal actions.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, research context, and exact canonical pred_D in the isolated Daily root; validate their exact cross-file hashes, including the pred_D SHA bound by both the frozen selection and public projection; and copy only the 13 allowlisted dated and pointer artifacts into the publication candidate. Revalidate the exact pred_D regular-file mode, twin SHA binding, and zero-formal-action boundary in both candidate and publisher jobs. Fail closed and roll back if the hard-range inference pool is empty or the isolated handoff is incomplete; never pad outside the actual pool. Keep Auction push events code-validation-only so a freeze-only source commit cannot enter the live minute pipeline; leave scheduled and manual Auction execution unchanged. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Bridge the frozen integer Shadow selection flag to the public boolean projection without weakening either contract, and make forward-history tests accept legal appended dates while retaining exact D21 and D25 identity checks. Remove only the user-selected decision-page HTML banner, proof paragraph, research notice, inactive big-loss/profit columns and sort controls, main-table JSON download, and manual-operation reference section; default the market-sentiment panel to the existing unified disclosure style; and preserve all backend fields, contracts, model bytes, ledgers, rankings, research downloads, action_plan data, official membership, and zero formal actions.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -22,9 +22,13 @@
     "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
     "promotion_rank_frozen_and_independent": true,
     "official_action_count": 0,
+    "default_collapsed_ui_blocks": [
+      "sentiment_quantification"
+    ],
     "removed_ui_blocks": [
       "executable_profit_proof",
       "legacy_profit_relative_banner",
+      "manual_operation_reference_section",
       "p_fill_shadow_top2",
       "research_only_action_notice",
       "trade_selector_legacy_commentary",
@@ -44,7 +48,7 @@
     "writer_dispatch_performed": false
   },
   "added_runtime_pins": {},
-  "changed_surface_sha256": "7ae4d6f8e6ce45650db87374c8d131339980782b4f0c0c2e14c274afc4a18b7f",
+  "changed_surface_sha256": "3fe9aac252788c6ab31bfc2fad38f7e88fea56610ca9b0f919ea46243430859c",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -67,7 +71,7 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "8973c3f8746f5261e2a97e5fcc76a8640d3fd3caa0272c60bcb094b1d2ee0634",
+      "current_sha256": "95e50e2f7bb0b545b513519e02e50a7d095f3ccff7eb158478e52db51fe26f4c",
       "classification": "html_only_decision_surface_cleanup"
     },
     {
@@ -147,6 +151,12 @@
       "prior_sha256": "5bd7bc7063980bd1b496e8ab3874febbb9f42f8a46aa15ec703b5fcfe82b02d4",
       "current_sha256": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
       "classification": "three_engine_runtime_adapter_test"
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "prior_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
+      "current_sha256": "79e5fbcfc9a2793fba5286cb4bccfab5c0dfb84e2ae6b64fe22a8aad849b7c89",
+      "classification": "html_only_decision_surface_cleanup_test"
     },
     {
       "path": "tests/test_decision_model_freeze.py",

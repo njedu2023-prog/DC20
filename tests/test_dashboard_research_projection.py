@@ -21,7 +21,7 @@ def test_dashboard_exposes_daily_research_without_fabricating_action_truth() -> 
     assert 'metric("Daily 入选（非行动）"' in text
     assert 'metric("正式目标"' not in text
     assert "同日竞价行动尚未生成" in text
-    assert "上方日线研究候选仅用于观察，不是买入建议" in text
+    assert "只有同日 action_plan 中明确标记的行动才属于正式行动" in text
 
 
 def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
@@ -51,7 +51,6 @@ def test_dashboard_fails_closed_when_same_day_evidence_is_missing() -> None:
     assert "if (!evidence.available) throw new Error" in text
     assert "同日报告与评估均不可用或日期不匹配" in text
     assert "未展示任何研究候选" in text
-    assert "未展示任何正式行动" in text
     assert "markdownSignalDate !== evaluationSignalDate" in text
     assert "markdownExitDate !== evaluationExitDate" in text
     assert "validatedActionPlan(info, plan)" in text
@@ -65,6 +64,8 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     text = DASHBOARD.read_text(encoding="utf-8")
     assert text.index('id="researchContent"') < text.index('id="sentimentPanel"')
     assert text.index('id="researchContent"') < text.index('id="stagePanel"')
+    assert '<details id="sentimentPanel" class="panel observation-disclosure">' in text
+    assert '<details id="sentimentPanel" class="panel observation-disclosure" open>' not in text
     assert 'const available = plan?.daily_research_only !== true' in text
     assert 'els.sentimentPanel.hidden = !available' in text
     assert 'els.stagePanel.hidden = !available' in text

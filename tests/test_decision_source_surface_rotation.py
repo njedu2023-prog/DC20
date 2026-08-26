@@ -75,7 +75,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 29
+    assert len(paths) == len(set(paths)) == 30
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/run_auction_v3.yml",
@@ -94,6 +94,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/decision/three_rank.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
+        "tests/test_dashboard_research_projection.py",
         "tests/test_decision_research_context.py",
         "tests/test_decision_three_rank_contract.py",
         "tests/test_decision_three_rank_frontend.py",
@@ -151,6 +152,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "three_engine_runtime_adapter_test"
         ),
         "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
+        "tests/test_dashboard_research_projection.py": (
+            "html_only_decision_surface_cleanup_test"
+        ),
         "tests/test_decision_three_rank_contract.py": (
             "legacy_action_schema_compatibility_test"
         ),
@@ -236,9 +240,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
         "promotion_rank_frozen_and_independent": True,
         "official_action_count": 0,
+        "default_collapsed_ui_blocks": [
+            "sentiment_quantification",
+        ],
         "removed_ui_blocks": [
             "executable_profit_proof",
             "legacy_profit_relative_banner",
+            "manual_operation_reference_section",
             "p_fill_shadow_top2",
             "research_only_action_notice",
             "trade_selector_legacy_commentary",

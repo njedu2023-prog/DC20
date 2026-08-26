@@ -624,7 +624,7 @@
     "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
     "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "6c62d274dd390a48de6206bca31cf4cb4ed941d87cc4d1c715351d03ed78b5a8"
+    "evidence_sha256": "934ecd8923b637edeb9ff6811eef61c92e9f21906a58fd7c828a83748cd6d39a"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -664,12 +664,12 @@
     "data/decision_three_engines/recovery/20260821/source_meta.json": "59cc25c876178d98b2c74638706b549c2ceb8b9a28de62a91dcf6a09cf370695",
     "data/decision_three_engines/recovery/20260821/stock_priors.csv": "6d219ed52c23f369d4958ae814972a2bb761317bd429ebc4c7ee6118085e5462",
     "data/market/trade_cal_sse.csv": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
-    "decision.html": "8973c3f8746f5261e2a97e5fcc76a8640d3fd3caa0272c60bcb094b1d2ee0634",
+    "decision.html": "95e50e2f7bb0b545b513519e02e50a7d095f3ccff7eb158478e52db51fe26f4c",
     "models/decision_executable_profit_forward_settlement_contract.json": "6b8027a2f3ecb16c4e2c725869909da288741f8974941d5e0c4be616170a14f7",
     "models/decision_executable_profit_internal_forward_challenger.json": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
     "models/decision_executable_profit_research_projection_contract.json": "ec4de53bea6baab94b699d5ebf9ed99e918c140f96bdb8afd3e03178e96cae36",
     "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
-    "models/decision_source_surface_rotation_20260824.json": "6c62d274dd390a48de6206bca31cf4cb4ed941d87cc4d1c715351d03ed78b5a8",
+    "models/decision_source_surface_rotation_20260824.json": "934ecd8923b637edeb9ff6811eef61c92e9f21906a58fd7c828a83748cd6d39a",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -793,7 +793,7 @@
     "tests/test_canonical_fingerprint.py": "57a13f2508dd2ca49e8c86d75617d9cd492250baafd9507abd06b6a8f3743304",
     "tests/test_canonical_runtime_v2.py": "d12f75de5c6b4f7613634f3bb11374e57f2d898b1c9db5ca21bf99ad1ff34739",
     "tests/test_d_close_features.py": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
-    "tests/test_dashboard_research_projection.py": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
+    "tests/test_dashboard_research_projection.py": "79e5fbcfc9a2793fba5286cb4bccfab5c0dfb84e2ae6b64fe22a8aad849b7c89",
     "tests/test_decision_contract.py": "286319e39a730e357f421ff183b80974f1ab89bcc135b3094be7c87e0e99be8d",
     "tests/test_decision_intraday_costs.py": "a2618470d32bec91fe13fcf4b70f8109c4a081ec25cc3047ec4730744a7d72d6",
     "tests/test_decision_model_freeze.py": "242818d99175bf28384d5d1040f21b2c3c6082f6939939bd10c09808d898837c",
