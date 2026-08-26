@@ -2576,10 +2576,15 @@
         : null;
       const legacyByCode = new Map((legacyProjection?.rows || []).map(row => [String(row.ts_code), row]));
       const fixedRows = contract.rows.map(row => {
+        const truth = truthByCode.get(String(row.ts_code)) || {};
         const legacy = legacyByCode.get(String(row.ts_code));
         return {
-          ...(truthByCode.get(String(row.ts_code)) || {}),
+          ...truth,
           ...row,
+          path_label: truth.path_label ?? row.path_label ?? null,
+          path_label_code: truth.path_label_code ?? row.path_label_code ?? null,
+          path_explanation: truth.path_explanation ?? row.path_explanation ?? null,
+          path_strength_delta: truth.path_strength_delta ?? row.path_strength_delta ?? null,
           legacy_profit_relative_rank: legacy?.legacy_profit_relative_rank ?? null,
           legacy_profit_raw_score: legacy?.legacy_profit_raw_score ?? null,
           legacy_profit_relative_percentile: legacy?.legacy_profit_relative_percentile ?? null,
@@ -2658,7 +2663,10 @@
         return;
       }
       if (threeRank) {
-        renderThreeRankWatchlist(displayPlan, threeRank);
+        const truthPlan = canonicalYmd(plan?.signal_date) === canonicalYmd(threeRank.signal_date)
+          ? plan
+          : displayPlan;
+        renderThreeRankWatchlist(truthPlan, threeRank);
         return;
       }
       const rows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];

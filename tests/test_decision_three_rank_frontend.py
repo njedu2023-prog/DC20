@@ -214,6 +214,22 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     assert '<th class="left">连板路径</th><th>路径变化</th>' in renderer
     assert "pathClass(row.path_label_code)" in renderer
     assert 'row.path_label || "路径数据不足"' in renderer
+    assert "const truth = truthByCode.get(String(row.ts_code)) || {};" in renderer
+    stage_renderer = text.split("function renderStageWatchlist", 1)[1].split(
+        "function renderResearchCandidateTable", 1
+    )[0]
+    assert (
+        "canonicalYmd(plan?.signal_date) === canonicalYmd(threeRank.signal_date)"
+        in stage_renderer
+    )
+    assert "renderThreeRankWatchlist(truthPlan, threeRank)" in stage_renderer
+    assert "path_label: truth.path_label ?? row.path_label ?? null" in renderer
+    assert "path_label_code: truth.path_label_code ?? row.path_label_code ?? null" in renderer
+    assert "path_explanation: truth.path_explanation ?? row.path_explanation ?? null" in renderer
+    assert (
+        "path_strength_delta: truth.path_strength_delta "
+        "?? row.path_strength_delta ?? null"
+    ) in renderer
     assert "valueTone(row.path_strength_delta)" in renderer
     assert "signedPct(row.path_strength_delta)" in renderer
     assert "单一盈利排序" in renderer
