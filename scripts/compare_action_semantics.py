@@ -4,7 +4,7 @@
 This diagnostic is deliberately fail-closed.  It applies the repository's
 reviewed V3 projection to both action plans, reports JSON-Pointer differences,
 and exits non-zero whenever the exact canonical projections differ.  The q8
-flag is evidence only; it never changes the comparison result.
+flag is evidence only; it never changes the comparison result or any writer.
 """
 
 from __future__ import annotations
