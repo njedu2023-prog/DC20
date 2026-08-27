@@ -85,7 +85,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 39
+    assert len(paths) == len(set(paths)) == 40
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
@@ -93,6 +93,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/run_decision_daily.yml",
         ".github/workflows/test_decision_core.yml",
         "decision.html",
+        "scripts/build_decision_three_rank_history.py",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/decision_pages_truth.py",
         "scripts/migrate_decision_runtime.py",
@@ -144,6 +145,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "frozen_replay_input_snapshot_binding_workflow"
         ),
         "decision.html": "primary_action_independent_three_ranking_frontend",
+        "scripts/build_decision_three_rank_history.py": (
+            "primary_only_no_shadow_forward_exclusion"
+        ),
         "scripts/build_three_engine_five_year_ledger.py": (
             "three_engine_helper_externalization"
         ),
@@ -202,7 +206,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "primary_action_independent_three_ranking_frontend_test"
         ),
         "tests/test_decision_three_rank_history_projection.py": (
-            "appended_forward_history_contract_test"
+            "forward_history_primary_only_exclusion_test"
         ),
         "tests/test_decision_model_freeze.py": (
             "three_rank_canonical_preimage_runtime_validation_test"

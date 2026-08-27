@@ -67,7 +67,7 @@
     "tests/test_primary_profit_rankings_p1.py": "9b6457a4d07d081c5da8289b0deb12f5e1d5ac1a0de05bdb46097ce66501efbc",
     "tests/test_primary_three_rank_p0.py": "6fef5e73fba940115dc0fdf855381b00fcab92730f0d6dce0f56ad57fcaf26d8"
   },
-  "changed_surface_sha256": "35c5c372e0fdbe900b707d07ad02562ef8b7030b6ea88f95210101ba8e1b2562",
+  "changed_surface_sha256": "676935d6e5785cccea9fa4878b8c0c3517b2493858dfe23b97b96639012490f2",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -104,6 +104,12 @@
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
       "current_sha256": "079d829bb4dd673ec2b27822a471defc4f456c1ae9627096470e64931e82da71",
       "classification": "primary_action_independent_three_ranking_frontend"
+    },
+    {
+      "path": "scripts/build_decision_three_rank_history.py",
+      "prior_sha256": "d0d6592a1f2fe174a3ca335235bed61f867a17c2e51d56cc7e813b78bdfe69e4",
+      "current_sha256": "c5e796f74661acca10511b239af4957cfe269c8e38a30f996e07d3fb26227306",
+      "classification": "primary_only_no_shadow_forward_exclusion"
     },
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
@@ -246,8 +252,8 @@
     {
       "path": "tests/test_decision_three_rank_history_projection.py",
       "prior_sha256": "d08842e9d93b6676ad7975f6d81559ee02e9176eb9fbba91b19e5fced3ea1d20",
-      "current_sha256": "eeec0908ce1fa1db6761b31a41cb54c97b68f97bb6f3a8c0ce07707f4ac82226",
-      "classification": "appended_forward_history_contract_test"
+      "current_sha256": "455c34d395bf42f71ff027b43fe7d17d059d6ddc8bdc97952431807f881b2727",
+      "classification": "forward_history_primary_only_exclusion_test"
     },
     {
       "path": "tests/test_decision_v8_calibration.py",

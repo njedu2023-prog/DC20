@@ -1939,6 +1939,156 @@ def _validate_forward_core_snapshot(
     return signal_date, exec_date, exit_date, rows, members_sha256
 
 
+def _primary_only_non_shadow_receipt_binding(
+    *,
+    source_root: Path,
+    snapshot_path: Path,
+    payload: Mapping[str, Any],
+    signal_date: str,
+    exec_date: str,
+    exit_date: str,
+    rows: Sequence[Mapping[str, Any]],
+    members_sha256: str,
+) -> tuple[str, dict[str, Any]] | None:
+    """Return the exact P0 receipt which proves this is not p_fill Shadow.
+
+    Receipt presence alone is deliberately insufficient.  Every date, output hash,
+    primary-only flag and the null Shadow payload must agree before the snapshot is
+    excluded from p_fill forward statistics.  Both P0 modes are promotion-only:
+    ``NATURAL`` may be forward-eligible as a D list, but it is not a p_fill Shadow
+    observation because its receipt explicitly makes the Shadow ledger ineligible.
+    An incomplete receipt or any secondary output continues through the strict
+    forward-Shadow validator below and fails closed when its Shadow contract is not
+    audit grade.
+    """
+
+    receipt_path = (
+        source_root
+        / REPORTS_RELATIVE_PATH
+        / f"primary_d_receipt_{signal_date}.json"
+    )
+    if not receipt_path.is_file():
+        return None
+    receipt = _read_json(receipt_path)
+    mode = str(receipt.get("generation_mode") or "").strip().upper()
+    mode_flags = {
+        "NATURAL": {
+            "prospective": True,
+            "forward_eligible": True,
+            "not_forward_generated": False,
+        },
+        "RETROSPECTIVE_RECOVERY": {
+            "prospective": False,
+            "forward_eligible": False,
+            "not_forward_generated": True,
+        },
+    }.get(mode)
+    if mode_flags is None:
+        return None
+    secondary = receipt.get("secondary_outputs_generated")
+    outputs = receipt.get("outputs")
+    shadow = payload.get("shadow_contract")
+    expected_secondary = {
+        "action_plan": False,
+        "big_loss": False,
+        "profit": False,
+        "p_fill_shadow": False,
+        "executable_profit": False,
+    }
+    expected_shadow_top2 = _forward_shadow_top2_projection(
+        rows, model_status="SHADOW_NOT_READY_PRIMARY_ONLY"
+    )
+    snapshot_relative = snapshot_path.relative_to(source_root).as_posix()
+    downloads = payload.get("downloads")
+    models = payload.get("models")
+    primary_only_rows = all(
+        row.get("p_fill_shadow_rank") is None
+        and row.get("p_fill_shadow_probability") is None
+        and row.get("p_fill_shadow_status") == "SHADOW_NOT_READY_PRIMARY_ONLY"
+        for row in rows
+    )
+    primary_only_shadow = (
+        isinstance(shadow, dict)
+        and shadow.get("status") == "ANNOTATION_ONLY"
+        and shadow.get("input_members_sha256") == members_sha256
+        and shadow.get("may_change_membership") is False
+        and shadow.get("may_override_core_ranks") is False
+        and shadow.get("model_status") == "SHADOW_NOT_READY_PRIMARY_ONLY"
+        and shadow.get("model_version") == ""
+        and shadow.get("model_as_of_date") == ""
+        and shadow.get("model_artifact_sha256") == ""
+        and shadow.get("validation_gate_pass_count") is None
+        and shadow.get("validation_gate_total_count") is None
+        and shadow.get("validation_gate_score_pct") is None
+        and payload.get("shadow_top2") == expected_shadow_top2
+        and shadow.get("shadow_snapshot_sha256")
+        == _forward_shadow_snapshot_sha256(
+            signal_date=signal_date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            members_sha256=members_sha256,
+            shadow=shadow,
+            rows=rows,
+            shadow_top2=expected_shadow_top2,
+        )
+    )
+    if not (
+        receipt.get("schema_version") == "dc20_primary_d_receipt_v1"
+        and receipt.get("artifact_kind") == "p0_promotion_only_d_list_receipt"
+        and receipt.get("owner") == "njedu2023-prog/DC20"
+        and receipt.get("runtime_dependency_on_top10_decision") is False
+        and receipt.get("generation_mode") == mode
+        and receipt.get("prospective") is mode_flags["prospective"]
+        and receipt.get("forward_eligible") is mode_flags["forward_eligible"]
+        and receipt.get("not_forward_generated")
+        is mode_flags["not_forward_generated"]
+        and (
+            (mode == "NATURAL" and receipt.get("recovered_at_utc") == "")
+            or (
+                mode == "RETROSPECTIVE_RECOVERY"
+                and bool(str(receipt.get("recovered_at_utc") or "").strip())
+            )
+        )
+        and receipt.get("nominal_source_cutoff_bj")
+        == (
+            f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
+            "T21:15:00+08:00"
+        )
+        and receipt.get("signal_date") == signal_date
+        and receipt.get("exec_date") == exec_date
+        and receipt.get("exit_date") == exit_date
+        and receipt.get("primary_status") == "READY"
+        and receipt.get("action_authorized") is False
+        and receipt.get("action_input_consumed") is False
+        and receipt.get("formal_trade_count") == 0
+        and receipt.get("shadow_forward_ledger_eligible") is False
+        and receipt.get("future_market_data_consumed") is False
+        and receipt.get("latest_fallback_used") is False
+        and secondary == expected_secondary
+        and isinstance(outputs, dict)
+        and outputs.get("json_path") == snapshot_relative
+        and outputs.get("json_sha256") == _sha256_file(snapshot_path)
+        and isinstance(downloads, dict)
+        and outputs.get("csv_path") == downloads.get("csv_url")
+        and outputs.get("csv_sha256") == downloads.get("csv_sha256")
+        and outputs.get("bundle_sha256") == payload.get("bundle_sha256")
+        and outputs.get("feature_snapshot_sha256")
+        == payload.get("feature_snapshot_sha256")
+        and outputs.get("top10_members_sha256") == members_sha256
+        and outputs.get("promotion_pool_size") == payload.get("promotion_pool_size")
+        and outputs.get("top10_count") == len(rows)
+        and isinstance(models, dict)
+        and models.get("big_loss", {}).get("status")
+        == "NOT_READY_PRIMARY_ONLY"
+        and models.get("profit", {}).get("status")
+        == "NOT_READY_PRIMARY_ONLY"
+        and primary_only_rows
+        and primary_only_shadow
+    ):
+        return None
+    return mode, _binding(receipt_path, source_root)
+
+
 def _validate_forward_shadow_snapshot(
     *,
     signal_date: str,
@@ -2184,6 +2334,7 @@ def _forward_p_fill_shadow_top2(
     )
     accepted_records: list[dict[str, Any]] = []
     provisional_records: list[dict[str, Any]] = []
+    primary_only_non_shadow_records: list[dict[str, Any]] = []
     selected_entries = 0
     fill_truth_entries = 0
     fill_hits = 0
@@ -2203,6 +2354,41 @@ def _forward_p_fill_shadow_top2(
                 open_date_index=open_date_index,
             )
         )
+        snapshot_binding = _binding(path, source_root)
+        primary_only_receipt = _primary_only_non_shadow_receipt_binding(
+            source_root=source_root,
+            snapshot_path=path,
+            payload=payload,
+            signal_date=signal_date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            rows=rows,
+            members_sha256=members_sha256,
+        )
+        if primary_only_receipt is not None:
+            generation_mode, receipt_binding = primary_only_receipt
+            primary_only_non_shadow_records.append(
+                {
+                    "signal_date": signal_date,
+                    "exec_date": exec_date,
+                    "exit_date": exit_date,
+                    "generation_mode": generation_mode,
+                    "status": (
+                        "EXCLUDED_NATURAL_PRIMARY_ONLY_NO_PFILL_SHADOW"
+                        if generation_mode == "NATURAL"
+                        else "EXCLUDED_RETROSPECTIVE_PRIMARY_ONLY"
+                    ),
+                    "excluded_from_forward_statistics": True,
+                    "exclusion_reason": (
+                        "same_day_hash_bound_p0_primary_only_receipt_"
+                        "with_shadow_ledger_ineligible"
+                    ),
+                    "snapshot": snapshot_binding,
+                    "receipt": receipt_binding,
+                    "top10_members_sha256": members_sha256,
+                }
+            )
+            continue
         mode, shadow_projection = _validate_forward_shadow_snapshot(
             signal_date=signal_date,
             exec_date=exec_date,
@@ -2211,7 +2397,6 @@ def _forward_p_fill_shadow_top2(
             members_sha256=members_sha256,
             payload=payload,
         )
-        snapshot_binding = _binding(path, source_root)
         if mode == "legacy_provisional":
             provisional_records.append(
                 {
@@ -2319,6 +2504,20 @@ def _forward_p_fill_shadow_top2(
         "provisional_snapshot_dates": [
             record["signal_date"] for record in provisional_records
         ],
+        "primary_only_non_shadow_snapshot_dates": [
+            record["signal_date"]
+            for record in primary_only_non_shadow_records
+        ],
+        "natural_primary_only_snapshot_dates": [
+            record["signal_date"]
+            for record in primary_only_non_shadow_records
+            if record["generation_mode"] == "NATURAL"
+        ],
+        "retrospective_primary_only_snapshot_dates": [
+            record["signal_date"]
+            for record in primary_only_non_shadow_records
+            if record["generation_mode"] == "RETROSPECTIVE_RECOVERY"
+        ],
         "selection_dates": len(accepted_records),
         "selected_entries": selected_entries,
         "fill_truth": {
@@ -2352,12 +2551,14 @@ def _forward_p_fill_shadow_top2(
             "historical_oof_rows_used": 0,
             "actual_order_rows_used": 0,
             "actual_execution_claimed": False,
+            "primary_only_non_shadow_rows_used": 0,
             "may_change_core_members_or_ranks": False,
             "may_create_trade_action": False,
         },
         "source_bindings": ledger_sources,
         "records": accepted_records,
         "provisional_pre_freeze_records": provisional_records,
+        "primary_only_non_shadow_records": primary_only_non_shadow_records,
     }
 
 

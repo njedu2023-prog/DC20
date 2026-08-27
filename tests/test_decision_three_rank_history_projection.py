@@ -181,6 +181,123 @@ def _upgrade_forward_snapshot_to_frozen_shadow_v1(source: Path) -> Path:
     return path
 
 
+def _make_primary_only_snapshot(
+    source: Path,
+    *,
+    generation_mode: str = "RETROSPECTIVE_RECOVERY",
+) -> tuple[Path, Path]:
+    path = source / "outputs/decision/three_rank_top10_20260821.json"
+    payload = _load(path)
+    members_sha256 = payload["top10_members_sha256"]
+    for head in ("big_loss", "profit"):
+        model = payload["models"][head]
+        model.update(
+            {
+                "status": "NOT_READY_PRIMARY_ONLY",
+                "ranking_ready": False,
+                "probability_ready": False,
+                "version": "",
+                "model_as_of_date": "",
+                "artifact_sha256": "",
+                "validation_gate_pass_count": None,
+                "validation_gate_total_count": None,
+                "validation_gate_score_pct": None,
+            }
+        )
+    for row in payload["rows"]:
+        row["big_loss_safety_rank"] = None
+        row["predicted_big_loss_probability"] = None
+        row["profit_rank"] = None
+        row["predicted_profit_probability"] = None
+        row["p_fill_shadow_rank"] = None
+        row["p_fill_shadow_probability"] = None
+        row["p_fill_shadow_status"] = "SHADOW_NOT_READY_PRIMARY_ONLY"
+    shadow = {
+        "status": "ANNOTATION_ONLY",
+        "input_members_sha256": members_sha256,
+        "may_change_membership": False,
+        "may_override_core_ranks": False,
+        "model_status": "SHADOW_NOT_READY_PRIMARY_ONLY",
+        "model_version": "",
+        "model_as_of_date": "",
+        "model_artifact_sha256": "",
+        "validation_gate_pass_count": None,
+        "validation_gate_total_count": None,
+        "validation_gate_score_pct": None,
+    }
+    shadow_top2 = _forward_shadow_top2_projection(
+        payload["rows"], model_status="SHADOW_NOT_READY_PRIMARY_ONLY"
+    )
+    shadow["shadow_snapshot_sha256"] = _forward_shadow_snapshot_sha256(
+        signal_date=payload["signal_date"],
+        exec_date=payload["exec_date"],
+        exit_date=payload["exit_date"],
+        members_sha256=members_sha256,
+        shadow=shadow,
+        rows=payload["rows"],
+        shadow_top2=shadow_top2,
+    )
+    payload["shadow_contract"] = shadow
+    payload["shadow_top2"] = shadow_top2
+    payload["bundle_sha256"] = _canonical_sha256(
+        _three_rank_core_projection(payload)
+    )
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    receipt_path = source / "outputs/decision/primary_d_receipt_20260821.json"
+    natural = generation_mode == "NATURAL"
+    receipt = {
+        "schema_version": "dc20_primary_d_receipt_v1",
+        "artifact_kind": "p0_promotion_only_d_list_receipt",
+        "owner": "njedu2023-prog/DC20",
+        "runtime_dependency_on_top10_decision": False,
+        "generation_mode": generation_mode,
+        "prospective": natural,
+        "forward_eligible": natural,
+        "not_forward_generated": not natural,
+        "recovered_at_utc": (
+            "" if natural else "2026-08-22T13:15:00+00:00"
+        ),
+        "nominal_source_cutoff_bj": "2026-08-21T21:15:00+08:00",
+        "signal_date": payload["signal_date"],
+        "exec_date": payload["exec_date"],
+        "exit_date": payload["exit_date"],
+        "primary_status": "READY",
+        "action_authorized": False,
+        "action_input_consumed": False,
+        "formal_trade_count": 0,
+        "shadow_forward_ledger_eligible": False,
+        "future_market_data_consumed": False,
+        "latest_fallback_used": False,
+        "secondary_outputs_generated": {
+            "action_plan": False,
+            "big_loss": False,
+            "profit": False,
+            "p_fill_shadow": False,
+            "executable_profit": False,
+        },
+        "outputs": {
+            "json_path": "outputs/decision/three_rank_top10_20260821.json",
+            "json_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "csv_path": payload["downloads"]["csv_url"],
+            "csv_sha256": payload["downloads"]["csv_sha256"],
+            "bundle_sha256": payload["bundle_sha256"],
+            "feature_snapshot_sha256": payload["feature_snapshot_sha256"],
+            "top10_members_sha256": members_sha256,
+            "promotion_pool_size": payload["promotion_pool_size"],
+            "top10_count": len(payload["rows"]),
+        },
+    }
+    receipt_path.write_text(
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path, receipt_path
+
+
 def _add_matured_forward_snapshot(source: Path, signal_date: str = "20260814") -> Path:
     oof_path = source / "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz"
     with gzip.open(oof_path, "rt", encoding="utf-8-sig", newline="") as handle:
@@ -546,11 +663,14 @@ def test_forward_shadow_keeps_legal_records_separate_from_oof(
     discovered = forward["discovered_snapshot_dates"]
     accepted = forward["accepted_snapshot_dates"]
     provisional = forward["provisional_snapshot_dates"]
+    primary_only = forward["primary_only_non_shadow_snapshot_dates"]
     assert discovered == sorted(set(discovered))
     assert {"20260821", "20260825"}.issubset(discovered)
     assert {"20260821", "20260825"}.issubset(accepted)
     assert set(accepted).isdisjoint(provisional)
-    assert set(accepted) | set(provisional) == set(discovered)
+    assert set(accepted).isdisjoint(primary_only)
+    assert set(provisional).isdisjoint(primary_only)
+    assert set(accepted) | set(provisional) | set(primary_only) == set(discovered)
     assert forward["separation_guards"]["historical_oof_rows_used"] == 0
     assert forward["separation_guards"]["actual_order_rows_used"] == 0
     records = {record["signal_date"]: record for record in forward["records"]}
@@ -572,6 +692,109 @@ def test_forward_shadow_keeps_legal_records_separate_from_oof(
         for record in records.values()
         for row in record["rows"]
     )
+
+
+def test_hash_bound_primary_only_recovery_is_not_forward_shadow(
+    tmp_path: Path,
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    snapshot_path, receipt_path = _make_primary_only_snapshot(source)
+    result = build_history_archive(source, tmp_path / "site")
+    forward = result["statistics"]["p_fill_shadow_top2_forward"]
+    assert forward["accepted_snapshot_dates"] == []
+    assert forward["provisional_snapshot_dates"] == []
+    assert forward["retrospective_primary_only_snapshot_dates"] == ["20260821"]
+    assert forward["natural_primary_only_snapshot_dates"] == []
+    assert forward["selection_dates"] == 0
+    assert forward["selected_entries"] == 0
+    assert forward["records"] == []
+    record = forward["primary_only_non_shadow_records"][0]
+    assert record["generation_mode"] == "RETROSPECTIVE_RECOVERY"
+    assert record["status"] == "EXCLUDED_RETROSPECTIVE_PRIMARY_ONLY"
+    assert record["excluded_from_forward_statistics"] is True
+    assert record["snapshot"]["path"] == snapshot_path.relative_to(source).as_posix()
+    assert record["receipt"]["path"] == receipt_path.relative_to(source).as_posix()
+    assert forward["separation_guards"][
+        "primary_only_non_shadow_rows_used"
+    ] == 0
+
+
+def test_hash_bound_natural_primary_only_is_not_pfill_forward_shadow(
+    tmp_path: Path,
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    _make_primary_only_snapshot(source, generation_mode="NATURAL")
+    result = build_history_archive(source, tmp_path / "site")
+    forward = result["statistics"]["p_fill_shadow_top2_forward"]
+    assert forward["accepted_snapshot_dates"] == []
+    assert forward["provisional_snapshot_dates"] == []
+    assert forward["primary_only_non_shadow_snapshot_dates"] == ["20260821"]
+    assert forward["natural_primary_only_snapshot_dates"] == ["20260821"]
+    assert forward["retrospective_primary_only_snapshot_dates"] == []
+    assert forward["selection_dates"] == 0
+    assert forward["selected_entries"] == 0
+    record = forward["primary_only_non_shadow_records"][0]
+    assert record["generation_mode"] == "NATURAL"
+    assert record["status"] == "EXCLUDED_NATURAL_PRIMARY_ONLY_NO_PFILL_SHADOW"
+    assert record["excluded_from_forward_statistics"] is True
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("natural_mode", "secondary_true", "snapshot_hash", "receipt_date"),
+)
+def test_primary_only_exclusion_requires_exact_recovery_receipt(
+    tmp_path: Path, mutation: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    _, receipt_path = _make_primary_only_snapshot(source)
+    receipt = _load(receipt_path)
+    if mutation == "natural_mode":
+        receipt["generation_mode"] = "NATURAL"
+    elif mutation == "secondary_true":
+        receipt["secondary_outputs_generated"]["p_fill_shadow"] = True
+    elif mutation == "snapshot_hash":
+        receipt["outputs"]["json_sha256"] = "0" * 64
+    else:
+        receipt["signal_date"] = "20260820"
+    receipt_path.write_text(
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        HistoryProjectionError,
+        match="forward p_fill_shadow contract is invalid: 20260821",
+    ):
+        build_history_archive(source, tmp_path / "site")
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("secondary_true", "shadow_ledger_eligible", "not_forward_flag"),
+)
+def test_natural_primary_only_exclusion_fails_closed_on_receipt_drift(
+    tmp_path: Path, mutation: str
+) -> None:
+    source = _copy_projection_sources(tmp_path)
+    _, receipt_path = _make_primary_only_snapshot(
+        source, generation_mode="NATURAL"
+    )
+    receipt = _load(receipt_path)
+    if mutation == "secondary_true":
+        receipt["secondary_outputs_generated"]["p_fill_shadow"] = True
+    elif mutation == "shadow_ledger_eligible":
+        receipt["shadow_forward_ledger_eligible"] = True
+    else:
+        receipt["not_forward_generated"] = True
+    receipt_path.write_text(
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        HistoryProjectionError,
+        match="forward p_fill_shadow contract is invalid: 20260821",
+    ):
+        build_history_archive(source, tmp_path / "site")
 
 
 def test_audit_grade_forward_shadow_freezes_rank_top2_and_stays_pending(
