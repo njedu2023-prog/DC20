@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import shutil
@@ -28,6 +29,129 @@ D = "20260826"
 T = "20260827"
 T1 = "20260828"
 FEATURE_SHA = "f" * 64
+
+
+def _load_primary_p0_jobs_validator():
+    workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(
+        encoding="utf-8"
+    )
+    target = workflow.split("      - name: Resolve exact P0-owned D and mode", 1)[1]
+    target = target.split("      - name: Set up pinned Python runtime", 1)[0]
+    script = target.split("          python3 - <<'PY'\n", 1)[1]
+    script = textwrap.dedent(script.split("\n          PY", 1)[0])
+    module = ast.parse(script)
+    function = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "validate_primary_p0_jobs"
+    )
+    namespace: dict[str, object] = {}
+    exec(
+        compile(ast.Module(body=[function], type_ignores=[]), "<p1-target>", "exec"),
+        namespace,
+    )
+    return namespace["validate_primary_p0_jobs"]
+
+
+def _p0_jobs_payload(
+    *,
+    prefix: str = "",
+    compute: str = "success",
+    publish: str = "success",
+    deploy: str = "success",
+) -> dict[str, object]:
+    jobs = [
+        {
+            "name": f"{prefix}Build immutable promotion-only D candidate",
+            "status": "completed",
+            "conclusion": compute,
+        },
+        {
+            "name": f"{prefix}CAS publish one primary D commit",
+            "status": "completed",
+            "conclusion": publish,
+        },
+        {
+            "name": f"{prefix}Deploy exact primary D revision",
+            "status": "completed",
+            "conclusion": deploy,
+        },
+    ]
+    return {"total_count": len(jobs), "jobs": jobs}
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    ["", "Invoke Action-independent primary D publication / "],
+)
+@pytest.mark.parametrize("publish_conclusion", ["success", "skipped"])
+def test_p1_accepts_exact_successful_p0_job_chain(
+    prefix: str,
+    publish_conclusion: str,
+) -> None:
+    validate = _load_primary_p0_jobs_validator()
+    payload = _p0_jobs_payload(prefix=prefix, publish=publish_conclusion)
+    observed = validate(payload, prefix=prefix)
+    assert observed[f"{prefix}Build immutable promotion-only D candidate"] == (
+        "completed",
+        "success",
+    )
+    assert observed[f"{prefix}CAS publish one primary D commit"] == (
+        "completed",
+        publish_conclusion,
+    )
+    assert observed[f"{prefix}Deploy exact primary D revision"] == (
+        "completed",
+        "success",
+    )
+
+
+@pytest.mark.parametrize(
+    ("job", "conclusion"),
+    [
+        ("compute", "failure"),
+        ("compute", "skipped"),
+        ("publish", "failure"),
+        ("deploy", "failure"),
+        ("deploy", "skipped"),
+    ],
+)
+def test_p1_rejects_unsuccessful_critical_p0_job(
+    job: str,
+    conclusion: str,
+) -> None:
+    validate = _load_primary_p0_jobs_validator()
+    payload = _p0_jobs_payload(**{job: conclusion})
+    with pytest.raises(SystemExit, match="did not satisfy completion contract"):
+        validate(payload, prefix="")
+
+
+def test_p1_rejects_incomplete_or_paginated_p0_job_payload() -> None:
+    validate = _load_primary_p0_jobs_validator()
+    payload = _p0_jobs_payload()
+    payload["total_count"] = 4
+    with pytest.raises(SystemExit, match="jobs payload is incomplete"):
+        validate(payload, prefix="")
+
+
+def test_p1_rejects_missing_or_duplicate_critical_p0_jobs() -> None:
+    validate = _load_primary_p0_jobs_validator()
+    missing = _p0_jobs_payload()
+    missing_jobs = missing["jobs"]
+    assert isinstance(missing_jobs, list)
+    missing_jobs.pop()
+    missing["total_count"] = len(missing_jobs)
+    with pytest.raises(SystemExit, match="jobs are missing"):
+        validate(missing, prefix="")
+
+    duplicated = _p0_jobs_payload()
+    duplicate_jobs = duplicated["jobs"]
+    assert isinstance(duplicate_jobs, list)
+    duplicate_jobs.append(dict(duplicate_jobs[0]))
+    duplicated["total_count"] = len(duplicate_jobs)
+    with pytest.raises(SystemExit, match="job is duplicated"):
+        validate(duplicated, prefix="")
 
 
 def _sha256(path: Path) -> str:
@@ -448,12 +572,21 @@ def test_p1_source_and_workflow_never_use_action_or_forward_writer_inputs() -> N
     assert "UPSTREAM_CREATED_AT" in workflow
     assert "UPSTREAM_REPOSITORY" in workflow
     assert "UPSTREAM_RUN_ATTEMPT" in workflow
-    assert "shanghai.hour not in {0,21,22,23}" in workflow
+    assert "if shanghai.hour < 20:" in workflow
     assert "signal_day -= timedelta(days=1)" in workflow
+    assert "P1 strict SSE calendar is missing or unsafe" in workflow
+    assert "upstream_event in {'schedule','workflow_run'}" in workflow
+    assert "P1 workflow_run P0 event is not accepted" in workflow
     assert "str(run.get('run_attempt') or '') == expected['run_attempt']" in workflow
     assert "str((run.get('repository') or {}).get('full_name') or '') == expected['repository']" in workflow
     assert "str((run.get('head_repository') or {}).get('full_name') or '') == expected['head_repository']" in workflow
     assert "P1 upstream P0 API identity drifted" in workflow
+    assert "validate_primary_p0_jobs(jobs_payload,prefix=job_prefix)" in workflow
+    assert "/jobs?filter=latest&per_page=100" in workflow
+    assert "Build immutable promotion-only D candidate" in workflow
+    assert "CAS publish one primary D commit" in workflow
+    assert "Deploy exact primary D revision" in workflow
+    assert "Invoke Action-independent primary D publication / " in workflow
     assert "receipt_mode" in workflow
     assert "[dc20-p1-pages-owned]" in workflow
     assert "RETROSPECTIVE_RECOVERY" in workflow

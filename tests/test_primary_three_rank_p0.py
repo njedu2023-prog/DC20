@@ -431,6 +431,14 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert "shanghai.hour not in {0, 21, 22, 23}" in workflow
     assert "signal_day -= timedelta(days=1)" in workflow
     assert "'343703608'" in workflow and "'335484130'" in workflow
+    assert "DC2.0 · Test Decision Core" in header
+    assert "DC2.0 · Tushare Health Check" in header
+    assert "github.event.workflow_run.workflow_id == 335484132" in workflow
+    assert "github.event.workflow_run.workflow_id == 335582723" in workflow
+    assert "P0 workflow_run upstream API identity drifted" in workflow
+    assert "dc20-p0-ignored-{0}" in workflow
+    assert "if shanghai.hour < 20:" in workflow
+    assert "P0 workflow_run has no preceding strict SSE open day" in workflow
 
 
 def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:
@@ -441,7 +449,7 @@ def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:
     assert "base_head: ${{ steps.mode.outputs.base_head }}" in compute
     assert 'echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"' in compute
     assert "existing P0 D receipt generation mode is invalid" in compute
-    assert "scheduled P0 cannot adopt a retrospective recovery receipt" in compute
+    assert "natural P0 cannot adopt a retrospective recovery receipt" in compute
     assert "mode = receipt_mode" in compute
     assert "needs: [compute, publish]" in deploy
     assert "always()" in deploy

@@ -2,6 +2,14 @@ name: DC2.0 · Publish Primary D List (P0)
 
 on:
   workflow_call:
+  workflow_run:
+    workflows:
+      - DC2.0 · Test Decision Core
+      - DC2.0 · Tushare Health Check
+    branches:
+      - main
+    types:
+      - completed
   schedule:
     # Beijing 21:15 primary plus 22:15/23:15 and next-day 00:15 recovery.
     - cron: "15 13 * * 1-5"
@@ -54,13 +62,70 @@ env:
   LOKY_MAX_CPU_COUNT: "1"
 
 concurrency:
-  group: decision-auction-main-writer
+  # Valid natural/recovery runs own the shared writer.  Failed or untrusted
+  # workflow_run events are isolated so they cannot replace a pending writer.
+  # Writer compatibility contract: group: decision-auction-main-writer
+  group: >-
+    ${{
+      github.event_name == 'workflow_run' &&
+      (
+        github.event.workflow_run.status != 'completed' ||
+        github.event.workflow_run.conclusion != 'success' ||
+        github.event.workflow_run.run_attempt != 1 ||
+        !(
+          (
+            github.event.workflow_run.workflow_id == 335484132 &&
+            github.event.workflow_run.name == 'DC2.0 · Test Decision Core' &&
+            github.event.workflow_run.path == '.github/workflows/test_decision_core.yml' &&
+            github.event.workflow_run.event == 'push'
+          ) ||
+          (
+            github.event.workflow_run.workflow_id == 335582723 &&
+            github.event.workflow_run.name == 'DC2.0 · Tushare Health Check' &&
+            github.event.workflow_run.path == '.github/workflows/check_tushare_health.yml' &&
+            github.event.workflow_run.event == 'schedule'
+          )
+        ) ||
+        github.event.workflow_run.head_branch != 'main' ||
+        github.event.workflow_run.repository.full_name != github.repository ||
+        github.event.workflow_run.head_repository.full_name != github.repository
+      ) && format('dc20-p0-ignored-{0}', github.run_id) ||
+      'decision-auction-main-writer'
+    }}
   cancel-in-progress: false
 
 jobs:
   compute:
     name: Build immutable promotion-only D candidate
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        (
+          github.event_name != 'workflow_run' ||
+          (
+            github.event.workflow_run.status == 'completed' &&
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.run_attempt == 1 &&
+            (
+              (
+                github.event.workflow_run.workflow_id == 335484132 &&
+                github.event.workflow_run.name == 'DC2.0 · Test Decision Core' &&
+                github.event.workflow_run.path == '.github/workflows/test_decision_core.yml' &&
+                github.event.workflow_run.event == 'push'
+              ) ||
+              (
+                github.event.workflow_run.workflow_id == 335582723 &&
+                github.event.workflow_run.name == 'DC2.0 · Tushare Health Check' &&
+                github.event.workflow_run.path == '.github/workflows/check_tushare_health.yml' &&
+                github.event.workflow_run.event == 'schedule'
+              )
+            ) &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.repository.full_name == github.repository &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          )
+        )
+      }}
     permissions:
       actions: read
       contents: read
@@ -123,6 +188,7 @@ jobs:
           pins=manifest.get('pinned_files') or {}
           required={
               '.github/workflows/run_primary_d_daily.yml','.github/workflows/run_decision_daily.yml',
+              '.github/workflows/test_decision_core.yml','.github/workflows/check_tushare_health.yml',
               'requirements.lock',
               'scripts/publish_primary_three_rank.py','scripts/sync_market_raw.py','scripts/sync_pred_source.py',
               'src/top10decision/auction_v3/__init__.py','src/top10decision/auction_v3/calibration.py',
@@ -152,6 +218,7 @@ jobs:
       - name: Resolve exact D and reject a completed duplicate
         id: target
         env:
+          BASE_HEAD: ${{ steps.mode.outputs.base_head }}
           EVENT_SCHEDULE: ${{ github.event.schedule }}
           GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_TRADE_DATE: ${{ inputs.trade_date }}
@@ -161,6 +228,19 @@ jobs:
           INPUT_CONFIRM_RECOVERY: ${{ inputs.confirm_recovery }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PYTHONPATH: src
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          UPSTREAM_NAME: ${{ github.event.workflow_run.name }}
+          UPSTREAM_PATH: ${{ github.event.workflow_run.path }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_STATUS: ${{ github.event.workflow_run.status }}
+          UPSTREAM_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -182,6 +262,7 @@ jobs:
           market = str(os.environ.get('INPUT_MARKET_COMMIT') or '').strip().lower()
           date_re = re.compile(r'20\d{6}')
           sha_re = re.compile(r'[0-9a-f]{40}')
+          workflow_run_anchor = ''
           if event == 'schedule':
               schedule = os.environ.get('EVENT_SCHEDULE', '')
               token = os.environ.get('GH_API_TOKEN', '').strip()
@@ -244,6 +325,123 @@ jobs:
               signal_date = signal_day.strftime('%Y%m%d')
               mode = 'NATURAL'
               pred = market = ''
+          elif event == 'workflow_run':
+              token = str(os.environ.get('GH_API_TOKEN') or '').strip()
+              repository = str(os.environ.get('GITHUB_REPOSITORY') or '').strip()
+              base_head = str(os.environ.get('BASE_HEAD') or '').strip().lower()
+              current_run_id = str(os.environ.get('GITHUB_RUN_ID') or '').strip()
+              upstream_run_id = str(os.environ.get('UPSTREAM_RUN_ID') or '').strip()
+              if (
+                  not token
+                  or re.fullmatch(r'[^/\s]+/[^/\s]+', repository) is None
+                  or sha_re.fullmatch(base_head) is None
+                  or re.fullmatch(r'[1-9][0-9]*', current_run_id) is None
+                  or re.fullmatch(r'[1-9][0-9]*', upstream_run_id) is None
+              ):
+                  raise SystemExit('P0 workflow_run API inputs are invalid')
+
+              def fetch_run(run_id):
+                  request = Request(
+                      f'https://api.github.com/repos/{repository}/actions/runs/{run_id}',
+                      headers={
+                          'Accept': 'application/vnd.github+json',
+                          'Authorization': f'Bearer {token}',
+                          'X-GitHub-Api-Version': '2022-11-28',
+                      },
+                  )
+                  with urlopen(request, timeout=30) as response:
+                      return json.load(response)
+
+              current_run = fetch_run(current_run_id)
+              if not (
+                  str(current_run.get('id') or '') == current_run_id
+                  and str(current_run.get('workflow_id') or '') == '343703608'
+                  and str(current_run.get('name') or '') == 'DC2.0 · Publish Primary D List (P0)'
+                  and str(current_run.get('path') or '') == '.github/workflows/run_primary_d_daily.yml'
+                  and str(current_run.get('event') or '') == 'workflow_run'
+                  and str(current_run.get('run_attempt') or '') == '1'
+                  and str(current_run.get('head_branch') or '') == 'main'
+                  and str(current_run.get('head_sha') or '').lower() == base_head
+                  and str((current_run.get('repository') or {}).get('full_name') or '') == repository
+                  and str((current_run.get('head_repository') or {}).get('full_name') or '') == repository
+              ):
+                  raise SystemExit('P0 workflow_run self API identity drifted')
+
+              upstream_identities = {
+                  '335484132': {
+                      'name': 'DC2.0 · Test Decision Core',
+                      'path': '.github/workflows/test_decision_core.yml',
+                      'event': 'push',
+                  },
+                  '335582723': {
+                      'name': 'DC2.0 · Tushare Health Check',
+                      'path': '.github/workflows/check_tushare_health.yml',
+                      'event': 'schedule',
+                  },
+              }
+              workflow_id = str(os.environ.get('UPSTREAM_WORKFLOW_ID') or '')
+              identity = upstream_identities.get(workflow_id)
+              expected = {
+                  'status': 'completed',
+                  'conclusion': 'success',
+                  'run_attempt': '1',
+                  'workflow_id': workflow_id,
+                  'name': str((identity or {}).get('name') or ''),
+                  'path': str((identity or {}).get('path') or ''),
+                  'event': str((identity or {}).get('event') or ''),
+                  'head_branch': 'main',
+                  'head_sha': base_head,
+                  'repository': repository,
+                  'head_repository': repository,
+              }
+              supplied = {
+                  'status': str(os.environ.get('UPSTREAM_STATUS') or ''),
+                  'conclusion': str(os.environ.get('UPSTREAM_CONCLUSION') or ''),
+                  'run_attempt': str(os.environ.get('UPSTREAM_RUN_ATTEMPT') or ''),
+                  'workflow_id': workflow_id,
+                  'name': str(os.environ.get('UPSTREAM_NAME') or ''),
+                  'path': str(os.environ.get('UPSTREAM_PATH') or ''),
+                  'event': str(os.environ.get('UPSTREAM_EVENT') or ''),
+                  'head_branch': str(os.environ.get('UPSTREAM_HEAD_BRANCH') or ''),
+                  'head_sha': str(os.environ.get('UPSTREAM_HEAD_SHA') or '').lower(),
+                  'repository': str(os.environ.get('UPSTREAM_REPOSITORY') or ''),
+                  'head_repository': str(os.environ.get('UPSTREAM_HEAD_REPOSITORY') or ''),
+              }
+              if identity is None or supplied != expected:
+                  raise SystemExit('P0 workflow_run upstream event identity drifted')
+              upstream_run = fetch_run(upstream_run_id)
+              api_supplied = {
+                  'status': str(upstream_run.get('status') or ''),
+                  'conclusion': str(upstream_run.get('conclusion') or ''),
+                  'run_attempt': str(upstream_run.get('run_attempt') or ''),
+                  'workflow_id': str(upstream_run.get('workflow_id') or ''),
+                  'name': str(upstream_run.get('name') or ''),
+                  'path': str(upstream_run.get('path') or ''),
+                  'event': str(upstream_run.get('event') or ''),
+                  'head_branch': str(upstream_run.get('head_branch') or ''),
+                  'head_sha': str(upstream_run.get('head_sha') or '').lower(),
+                  'repository': str((upstream_run.get('repository') or {}).get('full_name') or ''),
+                  'head_repository': str((upstream_run.get('head_repository') or {}).get('full_name') or ''),
+              }
+              if (
+                  str(upstream_run.get('id') or '') != upstream_run_id
+                  or api_supplied != expected
+                  or str(upstream_run.get('created_at') or '') != str(os.environ.get('UPSTREAM_CREATED_AT') or '')
+              ):
+                  raise SystemExit('P0 workflow_run upstream API identity drifted')
+              created = datetime.fromisoformat(
+                  str(current_run.get('created_at') or '').replace('Z', '+00:00')
+              )
+              shanghai = created.astimezone(ZoneInfo('Asia/Shanghai'))
+              if shanghai.hour < 20:
+                  workflow_run_anchor = (
+                      shanghai.date() - timedelta(days=1)
+                  ).strftime('%Y%m%d')
+              else:
+                  workflow_run_anchor = shanghai.strftime('%Y%m%d')
+              signal_date = ''
+              mode = 'NATURAL'
+              pred = market = ''
           elif event == 'workflow_dispatch':
               signal_date = str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
               if date_re.fullmatch(signal_date) is None:
@@ -264,6 +462,11 @@ jobs:
           import pandas as pd
           cal = pd.read_csv(calendar, dtype=str)
           opened = set(cal.loc[pd.to_numeric(cal['is_open'], errors='coerce').eq(1), 'cal_date'].astype(str))
+          if event == 'workflow_run':
+              eligible = sorted(day for day in opened if day <= workflow_run_anchor)
+              if not eligible:
+                  raise SystemExit('P0 workflow_run has no preceding strict SSE open day')
+              signal_date = eligible[-1]
           if signal_date not in opened:
               raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')
 
@@ -337,8 +540,8 @@ jobs:
               receipt_mode = str(receipt.get('generation_mode') or '').strip().upper()
               if receipt_mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
                   raise SystemExit('existing P0 D receipt generation mode is invalid')
-              if event == 'schedule' and receipt_mode != 'NATURAL':
-                  raise SystemExit('scheduled P0 cannot adopt a retrospective recovery receipt')
+              if event in {'schedule', 'workflow_run'} and receipt_mode != 'NATURAL':
+                  raise SystemExit('natural P0 cannot adopt a retrospective recovery receipt')
               mode = receipt_mode
               already = True
 

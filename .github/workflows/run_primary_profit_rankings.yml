@@ -53,18 +53,22 @@ concurrency:
       (
         github.event.workflow_run.status != 'completed' ||
         github.event.workflow_run.conclusion != 'success' ||
-        github.event.workflow_run.event != 'schedule' ||
         github.event.workflow_run.run_attempt != 1 ||
         !(
           (
             github.event.workflow_run.workflow_id == 343703608 &&
             github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
-            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'
+            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+            (
+              github.event.workflow_run.event == 'schedule' ||
+              github.event.workflow_run.event == 'workflow_run'
+            )
           ) ||
           (
             github.event.workflow_run.workflow_id == 335484130 &&
             github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
-            github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'
+            github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml' &&
+            github.event.workflow_run.event == 'schedule'
           )
         ) ||
         github.event.workflow_run.head_branch != 'main' ||
@@ -85,19 +89,23 @@ jobs:
           github.event_name != 'workflow_run' ||
           (
             github.event.workflow_run.conclusion == 'success' &&
-            github.event.workflow_run.event == 'schedule' &&
             github.event.workflow_run.status == 'completed' &&
             github.event.workflow_run.run_attempt == 1 &&
             (
               (
                 github.event.workflow_run.workflow_id == 343703608 &&
                 github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
-                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'
+                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+                (
+                  github.event.workflow_run.event == 'schedule' ||
+                  github.event.workflow_run.event == 'workflow_run'
+                )
               ) ||
               (
                 github.event.workflow_run.workflow_id == 335484130 &&
                 github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
-                github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'
+                github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml' &&
+                github.event.workflow_run.event == 'schedule'
               )
             ) &&
             github.event.workflow_run.head_branch == 'main' &&
@@ -194,7 +202,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, re
+          import csv, json, os, re
           from datetime import datetime, timedelta
           from pathlib import Path
           from urllib.request import Request, urlopen
@@ -208,12 +216,71 @@ jobs:
               except (TypeError, ValueError) as exc:
                   raise SystemExit(f'{label} created_at is invalid') from exc
               shanghai=created.astimezone(ZoneInfo('Asia/Shanghai'))
-              if shanghai.hour not in {0,21,22,23}:
-                  raise SystemExit(f'{label} started outside the D recovery P1 window')
               signal_day=shanghai.date()
-              if shanghai.hour == 0:
+              if shanghai.hour < 20:
                   signal_day -= timedelta(days=1)
-              return signal_day.strftime('%Y%m%d')
+              anchor=signal_day.strftime('%Y%m%d')
+              calendar_path=Path('data/market/trade_cal_sse.csv')
+              if calendar_path.is_symlink() or not calendar_path.is_file():
+                  raise SystemExit('P1 strict SSE calendar is missing or unsafe')
+              with calendar_path.open('r',encoding='utf-8-sig',newline='') as handle:
+                  opened=sorted(
+                      str(row.get('cal_date') or '')
+                      for row in csv.DictReader(handle)
+                      if row.get('exchange') == 'SSE'
+                      and row.get('is_open') == '1'
+                      and re.fullmatch(r'20\d{6}',str(row.get('cal_date') or ''))
+                      and str(row.get('cal_date') or '') <= anchor
+                  )
+              if not opened:
+                  raise SystemExit(f'{label} has no preceding strict SSE open day')
+              return opened[-1]
+
+          def validate_primary_p0_jobs(payload, *, prefix):
+              if not isinstance(payload,dict):
+                  raise SystemExit('P1 upstream P0 jobs payload is invalid')
+              jobs=payload.get('jobs')
+              total=payload.get('total_count')
+              if (
+                  not isinstance(jobs,list)
+                  or isinstance(total,bool)
+                  or not isinstance(total,int)
+                  or total != len(jobs)
+                  or total > 100
+              ):
+                  raise SystemExit('P1 upstream P0 jobs payload is incomplete')
+              requirements={
+                  f'{prefix}Build immutable promotion-only D candidate':{'success'},
+                  f'{prefix}CAS publish one primary D commit':{'success','skipped'},
+                  f'{prefix}Deploy exact primary D revision':{'success'},
+              }
+              observed={}
+              for job in jobs:
+                  if not isinstance(job,dict):
+                      raise SystemExit('P1 upstream P0 jobs payload is invalid')
+                  name=str(job.get('name') or '')
+                  if name not in requirements:
+                      continue
+                  if name in observed:
+                      raise SystemExit(f'P1 upstream P0 job is duplicated: {name}')
+                  observed[name]=(
+                      str(job.get('status') or ''),
+                      str(job.get('conclusion') or ''),
+                  )
+              missing=sorted(set(requirements)-set(observed))
+              if missing:
+                  raise SystemExit(f"P1 upstream P0 jobs are missing: {','.join(missing)}")
+              for name,allowed in requirements.items():
+                  status,conclusion=observed[name]
+                  if status != 'completed' or conclusion not in allowed:
+                      raise SystemExit(
+                          f'P1 upstream P0 job did not satisfy completion contract: '
+                          f'{name} status={status} conclusion={conclusion}'
+                      )
+              # A skipped publisher is accepted only together with a successful
+              # deploy.  The pinned P0 deploy condition makes that combination
+              # reachable exclusively when compute proved already_complete.
+              return observed
 
           if event == 'workflow_run':
               identities={
@@ -230,10 +297,16 @@ jobs:
               identity=identities.get(workflow_id)
               if identity is None:
                   raise SystemExit('P1 workflow_run is not an accepted P0 scheduler identity')
+              upstream_event=os.environ.get('UPSTREAM_EVENT','')
+              if not (
+                  (workflow_id == '343703608' and upstream_event in {'schedule','workflow_run'})
+                  or (workflow_id == '335484130' and upstream_event == 'schedule')
+              ):
+                  raise SystemExit('P1 workflow_run P0 event is not accepted')
               expected={
                   'status':'completed',
                   'conclusion':'success',
-                  'event':'schedule',
+                  'event':upstream_event,
                   'run_attempt':'1',
                   'workflow_id':workflow_id,
                   'name':identity['name'],
@@ -285,6 +358,21 @@ jobs:
                   raise SystemExit('P1 upstream P0 API identity drifted')
               if str(run.get('created_at') or '') != str(os.environ.get('UPSTREAM_CREATED_AT') or ''):
                   raise SystemExit('P1 upstream P0 created_at differs from event payload')
+              job_prefix=(
+                  ''
+                  if workflow_id == '343703608'
+                  else 'Invoke Action-independent primary D publication / '
+              )
+              jobs_request=Request(
+                  f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}/jobs?filter=latest&per_page=100",
+                  headers={
+                      'Accept':'application/vnd.github+json',
+                      'Authorization':f'Bearer {token}',
+                      'X-GitHub-Api-Version':'2022-11-28',
+                  },
+              )
+              with urlopen(jobs_request,timeout=30) as response: jobs_payload=json.load(response)
+              validate_primary_p0_jobs(jobs_payload,prefix=job_prefix)
               d=beijing_run_date(run.get('created_at'),'upstream P0 run'); mode=''
           elif event == 'workflow_dispatch':
               d=str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
