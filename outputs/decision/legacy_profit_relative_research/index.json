@@ -1,23 +1,68 @@
 {
-  "candidate_count": 6,
-  "data_alias": false,
-  "index_kind": "dated_legacy_profit_relative_research_pointer_only",
-  "latest_fallback_allowed": false,
-  "latest_projection_csv_sha256": "1736ff6fc6d0a689dcb1e359460e5d09264f03df7bfcb9d1c6e77c19f7ce1d19",
-  "latest_projection_csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260825.csv",
-  "latest_projection_json_sha256": "af9baed9930235fcb18d5911b8c3e21ae4b6b764871f6081ba79a8b79047c1e9",
-  "latest_projection_json_url": "outputs/decision/legacy_profit_relative_research/projection_20260825.json",
-  "latest_projection_snapshot_sha256": "416edbca3e511a44334f73418c707e4bb46bb506ec2a00541a3f5d75a7e49e2d",
-  "latest_signal_date": "20260825",
-  "model": {
-    "model_as_of_date": "20260814",
-    "official_status": "NOT_READY_VALIDATION_GATE",
-    "score_semantics": "raw_model_relative_score_not_probability",
-    "sealed_artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
-    "version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta"
+  "boundaries": {
+    "action_input_consumed": false,
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "human_decision_support_only": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "public_research_projection_allowed": true,
+    "research_only": true
   },
-  "research_only": true,
-  "schema_version": "dc20_legacy_profit_relative_research_index_v1",
-  "status": "PUBLIC_RESEARCH_ONLY_NOT_FORMAL",
-  "top10_members_sha256": "b735cb7752034746b69418adf76cd64c17f22ac10e1257f9d2457f09b07845b7"
+  "candidate_count": 10,
+  "data_alias": false,
+  "display_name": "单一盈利排序",
+  "generation_mode": "RETROSPECTIVE_RECOVERY",
+  "index_kind": "dated_primary_profit_research_pointer_only",
+  "latest_exec_date": "20260827",
+  "latest_exit_date": "20260828",
+  "latest_projection_csv_sha256": "fbc2c5798171049ab0a35f73f103f75b9717ed0889dbb06b9f67d228c50d0f20",
+  "latest_projection_csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260826.csv",
+  "latest_projection_json_sha256": "b9719aa43500022cf8fad0266ae79a18a19d53950a39440a6a69eb8fb9a57ecb",
+  "latest_projection_json_url": "outputs/decision/legacy_profit_relative_research/projection_20260826.json",
+  "latest_projection_snapshot_sha256": "eb123464bc6d859b83cddefd5aec0f82e8e49a42ae6e9063e8353e090acd8b7b",
+  "latest_signal_date": "20260826",
+  "latest_source_bundle_sha256": "5d989114182546137b746c3c5f9a9e9de361090c81f564456e2ffad3e1ccf372",
+  "latest_source_feature_snapshot_sha256": "3005c774d9a0c4c930e307ff68d32943d48a68cbb936aad751786a299a12061b",
+  "latest_top10_members_sha256": "f7ea12fd6dc06868b9da68a5482a92946b219d580806113bf5b0739b7375d225",
+  "prospective": false,
+  "retrospective_non_forward": true,
+  "schema_version": "dc20_primary_single_profit_research_index_v1",
+  "source_bindings": {
+    "contract": {
+      "contract_id": "dc20_primary_profit_research_20260827_v1",
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780"
+    },
+    "primary_receipt": {
+      "generation_mode": "RETROSPECTIVE_RECOVERY",
+      "path": "outputs/decision/primary_d_receipt_20260826.json",
+      "sha256": "0eedb3ffffaec52e63dc53e7cbcda24f84c2fbfea0a6fbeb4807510c8a0de62b"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "3005c774d9a0c4c930e307ff68d32943d48a68cbb936aad751786a299a12061b",
+      "identity_sha256": "ecc1726d1bea9f14b3871b09eac02db7cb808bd690a2c3e0408cb52fbe5603df",
+      "path": "outputs/decision/primary_d_runtime_features_20260826.csv",
+      "row_count": 11,
+      "selected_count": 10,
+      "sha256": "6b0bdf874b75a4f93efdfceaf7586f9d27ff908eb6d8e6750b1565d76c465a10"
+    },
+    "three_rank": {
+      "bundle_sha256": "5d989114182546137b746c3c5f9a9e9de361090c81f564456e2ffad3e1ccf372",
+      "csv_path": "outputs/decision/three_rank_top10_20260826.csv",
+      "csv_sha256": "ad1491e946c5a23df763515a35b2f9a6706f2c2baae10e350c2b70015fe10c60",
+      "feature_snapshot_sha256": "3005c774d9a0c4c930e307ff68d32943d48a68cbb936aad751786a299a12061b",
+      "json_path": "outputs/decision/three_rank_top10_20260826.json",
+      "json_sha256": "f4e9abaf385b269cda82c9cef8ffc571578291d67fb9a40e4db8e6eb0e6ed57c",
+      "top10_members_sha256": "f7ea12fd6dc06868b9da68a5482a92946b219d580806113bf5b0739b7375d225"
+    }
+  },
+  "status": "RETROSPECTIVE_NON_FORWARD_RESEARCH"
 }
