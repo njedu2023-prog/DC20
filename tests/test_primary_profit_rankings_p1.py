@@ -424,8 +424,32 @@ def test_p1_source_and_workflow_never_use_action_or_forward_writer_inputs() -> N
     assert "action_plan_latest" not in script
     assert "data/decision_executable_profit/forward/selections" not in script
     assert "data/decision_executable_profit/forward/statistics" not in script
-    assert "group: decision-auction-main-writer" in workflow
-    assert "35 13 * * 1-5" in workflow and "35 14 * * 1-5" in workflow
+    header = workflow.split("\npermissions:", 1)[0]
+    assert "schedule:" not in header and "cron:" not in header
+    assert "'decision-auction-main-writer'" in workflow
+    assert "dc20-p1-ignored-{0}" in workflow
+    assert "workflow_run:" in workflow
+    assert "DC2.0 · Publish Primary D List (P0)" in workflow
+    assert "github.event.workflow_run.status == 'completed'" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.workflow_run.event == 'schedule'" in workflow
+    assert "github.event.workflow_run.run_attempt == 1" in workflow
+    assert "github.event.workflow_run.workflow_id == 343703608" in workflow
+    assert "github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'" in workflow
+    assert "github.event.workflow_run.head_branch == 'main'" in workflow
+    assert "github.event.workflow_run.repository.full_name == github.repository" in workflow
+    assert "github.event.workflow_run.head_repository.full_name == github.repository" in workflow
+    assert "Verify checked-out main is current GitHub API main" in workflow
+    assert "f'https://api.github.com/repos/{repository}/commits/main'" in workflow
+    assert "P1 checkout main differs from GitHub API commits/main" in workflow
+    assert "UPSTREAM_CREATED_AT" in workflow
+    assert "UPSTREAM_REPOSITORY" in workflow
+    assert "UPSTREAM_RUN_ATTEMPT" in workflow
+    assert "str(run.get('run_attempt') or '') == expected['run_attempt']" in workflow
+    assert "str((run.get('repository') or {}).get('full_name') or '') == expected['repository']" in workflow
+    assert "str((run.get('head_repository') or {}).get('full_name') or '') == expected['head_repository']" in workflow
+    assert "P1 upstream P0 API identity drifted" in workflow
+    assert "receipt_mode" in workflow
     assert "[dc20-p1-pages-owned]" in workflow
     assert "RETROSPECTIVE_RECOVERY" in workflow
     assert "primary_d_runtime_features_${signal_date}.csv" in workflow

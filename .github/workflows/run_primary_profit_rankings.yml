@@ -1,10 +1,11 @@
 name: DC2.0 · Publish Primary Profit Rankings (P1)
 
 on:
-  schedule:
-    # Beijing 21:35 primary attempt and 22:35 recovery attempt, after P0.
-    - cron: "35 13 * * 1-5"
-    - cron: "35 14 * * 1-5"
+  workflow_run:
+    workflows:
+      - DC2.0 · Publish Primary D List (P0)
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       dry_run:
@@ -43,14 +44,49 @@ env:
   LOKY_MAX_CPU_COUNT: "1"
 
 concurrency:
-  group: decision-auction-main-writer
+  # Invalid/manual P0 completions must not replace a pending P0 writer.  Only a
+  # successful natural P0 completion and explicit P1 recovery share the writer.
+  group: >-
+    ${{
+      github.event_name == 'workflow_run' &&
+      (
+        github.event.workflow_run.status != 'completed' ||
+        github.event.workflow_run.conclusion != 'success' ||
+        github.event.workflow_run.event != 'schedule' ||
+        github.event.workflow_run.run_attempt != 1 ||
+        github.event.workflow_run.workflow_id != 343703608 ||
+        github.event.workflow_run.head_branch != 'main' ||
+        github.event.workflow_run.repository.full_name != github.repository ||
+        github.event.workflow_run.head_repository.full_name != github.repository
+      ) && format('dc20-p1-ignored-{0}', github.run_id) ||
+      'decision-auction-main-writer'
+    }}
   cancel-in-progress: false
 
 jobs:
   compute:
     name: Build atomic P1 single/mixed research candidate
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        (
+          github.event_name != 'workflow_run' ||
+          (
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'schedule' &&
+            github.event.workflow_run.status == 'completed' &&
+            github.event.workflow_run.run_attempt == 1 &&
+            github.event.workflow_run.workflow_id == 343703608 &&
+            github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
+            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.repository.full_name == github.repository &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          )
+        )
+      }}
     permissions:
+      actions: read
       contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -68,6 +104,39 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Verify checked-out main is current GitHub API main
+        env:
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          checked_out="$(git rev-parse HEAD)"
+          CHECKED_OUT_SHA="${checked_out}" python3 - <<'PY'
+          import json, os, re
+          from urllib.request import Request, urlopen
+
+          token=str(os.environ.get('GH_API_TOKEN') or '').strip()
+          repository=str(os.environ.get('GITHUB_REPOSITORY') or '').strip()
+          checked_out=str(os.environ.get('CHECKED_OUT_SHA') or '').strip().lower()
+          if not token or re.fullmatch(r'[^/\s]+/[^/\s]+',repository) is None:
+              raise SystemExit('P1 current-main API inputs are invalid')
+          if re.fullmatch(r'[0-9a-f]{40}',checked_out) is None:
+              raise SystemExit('P1 checked-out main SHA is invalid')
+          request=Request(
+              f'https://api.github.com/repos/{repository}/commits/main',
+              headers={
+                  'Accept':'application/vnd.github+json',
+                  'Authorization':f'Bearer {token}',
+                  'X-GitHub-Api-Version':'2022-11-28',
+              },
+          )
+          with urlopen(request,timeout=30) as response: commit=json.load(response)
+          api_main=str(commit.get('sha') or '').strip().lower()
+          if re.fullmatch(r'[0-9a-f]{40}',api_main) is None:
+              raise SystemExit('P1 GitHub API main SHA is invalid')
+          if checked_out != api_main:
+              raise SystemExit('P1 checkout main differs from GitHub API commits/main')
+          PY
+
       - name: Resolve publication mode and immutable base
         id: mode
         env:
@@ -84,24 +153,101 @@ jobs:
       - name: Resolve exact P0-owned D and mode
         id: target
         env:
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_TRADE_DATE: ${{ inputs.trade_date }}
           INPUT_GENERATION_MODE: ${{ inputs.generation_mode }}
           INPUT_CONFIRM_RECOVERY: ${{ inputs.confirm_recovery }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          UPSTREAM_NAME: ${{ github.event.workflow_run.name }}
+          UPSTREAM_PATH: ${{ github.event.workflow_run.path }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_STATUS: ${{ github.event.workflow_run.status }}
+          UPSTREAM_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json, os, re
           from datetime import datetime
           from pathlib import Path
+          from urllib.request import Request, urlopen
           from zoneinfo import ZoneInfo
 
           event=os.environ['GITHUB_EVENT_NAME']; publish=os.environ['PUBLISH']=='true'
-          if event == 'schedule':
-              if os.environ.get('EVENT_SCHEDULE') not in {'35 13 * * 1-5','35 14 * * 1-5'}:
-                  raise SystemExit('P1 schedule contract drifted')
-              d=datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d'); mode='NATURAL'
+
+          def beijing_run_date(raw, label):
+              try:
+                  created=datetime.fromisoformat(str(raw).replace('Z','+00:00'))
+              except (TypeError, ValueError) as exc:
+                  raise SystemExit(f'{label} created_at is invalid') from exc
+              shanghai=created.astimezone(ZoneInfo('Asia/Shanghai'))
+              if shanghai.hour not in {21,22,23}:
+                  raise SystemExit(f'{label} started outside the same-evening P1 window')
+              return shanghai.strftime('%Y%m%d')
+
+          if event == 'workflow_run':
+              expected={
+                  'status':'completed',
+                  'conclusion':'success',
+                  'event':'schedule',
+                  'run_attempt':'1',
+                  'workflow_id':'343703608',
+                  'name':'DC2.0 · Publish Primary D List (P0)',
+                  'path':'.github/workflows/run_primary_d_daily.yml',
+                  'head_branch':'main',
+                  'repository':os.environ['GITHUB_REPOSITORY'],
+                  'head_repository':os.environ['GITHUB_REPOSITORY'],
+              }
+              supplied={
+                  'status':os.environ.get('UPSTREAM_STATUS',''),
+                  'conclusion':os.environ.get('UPSTREAM_CONCLUSION',''),
+                  'event':os.environ.get('UPSTREAM_EVENT',''),
+                  'run_attempt':os.environ.get('UPSTREAM_RUN_ATTEMPT',''),
+                  'workflow_id':os.environ.get('UPSTREAM_WORKFLOW_ID',''),
+                  'name':os.environ.get('UPSTREAM_NAME',''),
+                  'path':os.environ.get('UPSTREAM_PATH',''),
+                  'head_branch':os.environ.get('UPSTREAM_HEAD_BRANCH',''),
+                  'repository':os.environ.get('UPSTREAM_REPOSITORY',''),
+                  'head_repository':os.environ.get('UPSTREAM_HEAD_REPOSITORY',''),
+              }
+              if supplied != expected:
+                  raise SystemExit('P1 workflow_run is not the exact successful natural P0 run')
+              run_id=os.environ.get('UPSTREAM_RUN_ID','').strip()
+              if re.fullmatch(r'[1-9][0-9]*',run_id) is None:
+                  raise SystemExit('P1 upstream P0 run id is invalid')
+              token=os.environ.get('GH_API_TOKEN','').strip()
+              request=Request(
+                  f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}",
+                  headers={
+                      'Accept':'application/vnd.github+json',
+                      'Authorization':f'Bearer {token}',
+                      'X-GitHub-Api-Version':'2022-11-28',
+                  },
+              )
+              with urlopen(request,timeout=30) as response: run=json.load(response)
+              if not (
+                  str(run.get('id')) == run_id
+                  and str(run.get('status') or '') == expected['status']
+                  and str(run.get('conclusion') or '') == expected['conclusion']
+                  and str(run.get('event') or '') == expected['event']
+                  and str(run.get('run_attempt') or '') == expected['run_attempt']
+                  and str(run.get('workflow_id') or '') == expected['workflow_id']
+                  and str(run.get('name') or '') == expected['name']
+                  and str(run.get('path') or '') == expected['path']
+                  and str(run.get('head_branch') or '') == expected['head_branch']
+                  and str((run.get('repository') or {}).get('full_name') or '') == expected['repository']
+                  and str((run.get('head_repository') or {}).get('full_name') or '') == expected['head_repository']
+              ):
+                  raise SystemExit('P1 upstream P0 API identity drifted')
+              if str(run.get('created_at') or '') != str(os.environ.get('UPSTREAM_CREATED_AT') or ''):
+                  raise SystemExit('P1 upstream P0 created_at differs from event payload')
+              d=beijing_run_date(run.get('created_at'),'upstream P0 run'); mode=''
           elif event == 'workflow_dispatch':
               d=str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
               mode=str(os.environ.get('INPUT_GENERATION_MODE') or '').strip().upper()
@@ -117,7 +263,12 @@ jobs:
           if not all(path.is_file() and not path.is_symlink() for path in (receipt_path,runtime_path,three_path)):
               raise SystemExit('P1 requires the complete same-D P0 bundle already committed on main')
           receipt=json.loads(receipt_path.read_text(encoding='utf-8'))
-          if receipt.get('generation_mode') != mode: raise SystemExit('P1 mode differs from exact P0 receipt')
+          receipt_mode=str(receipt.get('generation_mode') or '').strip().upper()
+          if receipt_mode not in {'NATURAL','RETROSPECTIVE_RECOVERY'}:
+              raise SystemExit('P1 exact P0 receipt generation mode is invalid')
+          if event == 'workflow_dispatch' and receipt_mode != mode:
+              raise SystemExit('P1 mode differs from exact P0 receipt')
+          mode=receipt_mode
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
               out.write(f'signal_date={d}\ngeneration_mode={mode}\n')
           Path(os.environ['RUNNER_TEMP'],'p1-target.json').write_text(json.dumps({'signal_date':d,'generation_mode':mode},sort_keys=True)+'\n',encoding='utf-8')

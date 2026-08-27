@@ -2,9 +2,10 @@ name: DC2.0 · Publish Primary D List (P0)
 
 on:
   schedule:
-    # Beijing 21:15 primary and 22:15 independent recovery.
+    # Beijing 21:15 primary plus 22:15/23:15 independent scheduler recovery.
     - cron: "15 13 * * 1-5"
     - cron: "15 14 * * 1-5"
+    - cron: "15 15 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -180,7 +181,11 @@ jobs:
           sha_re = re.compile(r'[0-9a-f]{40}')
           if event == 'schedule':
               schedule = os.environ.get('EVENT_SCHEDULE', '')
-              if schedule not in {'15 13 * * 1-5', '15 14 * * 1-5'}:
+              if schedule not in {
+                  '15 13 * * 1-5',
+                  '15 14 * * 1-5',
+                  '15 15 * * 1-5',
+              }:
                   raise SystemExit('P0 schedule contract drifted')
               token = os.environ.get('GH_API_TOKEN', '').strip()
               request = Request(
@@ -293,6 +298,8 @@ jobs:
               receipt_mode = str(receipt.get('generation_mode') or '').strip().upper()
               if receipt_mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
                   raise SystemExit('existing P0 D receipt generation mode is invalid')
+              if event == 'schedule' and receipt_mode != 'NATURAL':
+                  raise SystemExit('scheduled P0 cannot adopt a retrospective recovery receipt')
               mode = receipt_mode
               already = True
 

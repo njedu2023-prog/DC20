@@ -13,7 +13,12 @@ from scripts.build_decision_three_rank_snapshot import (
     build_runtime_candidate_frame,
     load_recovery_inputs,
 )
+from scripts.publish_primary_profit_rankings import (
+    SINGLE_INDEX_SCHEMA,
+    validate_primary_profit_bundle,
+)
 from top10decision.decision.legacy_profit_relative_research import (
+    INDEX_SCHEMA,
     LegacyProfitRelativeResearchError,
     OUTPUT_ROOT,
     PROJECTION_SCHEMA,
@@ -50,6 +55,45 @@ RECOVERY_MANIFEST = (
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _validate_active_public_chain(root: Path) -> dict[str, object]:
+    """Strictly dispatch the shared output root by its explicit index schema.
+
+    The legacy forward-Shadow pointer and the P1 primary single-profit pointer
+    intentionally share ``legacy_profit_relative_research`` as their public
+    output directory.  They are separate contracts, so neither validator may
+    be used as a permissive fallback for the other.
+    """
+
+    index_path = root / OUTPUT_ROOT / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    schema = str(index.get("schema_version") or "")
+    if schema == INDEX_SCHEMA:
+        evidence = validate_repository_chain(root)
+        return {
+            "schema_version": schema,
+            "index": index,
+            "signal_date": evidence["signal_date"],
+            "candidate_count": evidence["candidate_count"],
+            "legacy_evidence": evidence,
+        }
+    if schema == SINGLE_INDEX_SCHEMA:
+        signal_date = str(index.get("latest_signal_date") or "")
+        generation_mode = str(index.get("generation_mode") or "")
+        bundle = validate_primary_profit_bundle(
+            root,
+            expected_signal_date=signal_date,
+            expected_generation_mode=generation_mode,
+        )
+        return {
+            "schema_version": schema,
+            "index": index,
+            "signal_date": signal_date,
+            "candidate_count": bundle["single"]["projection"]["candidate_count"],
+            "primary_bundle": bundle,
+        }
+    raise AssertionError(f"unsupported active single-profit index schema: {schema!r}")
 
 
 @pytest.fixture(scope="module")
@@ -318,15 +362,37 @@ def test_projection_rejects_formal_field_injection(d21_inputs) -> None:
         validate_projection(forged)
 
 
-def test_public_chain_matches_a_deterministic_sealed_rebuild() -> None:
-    index = json.loads((ROOT / OUTPUT_ROOT / "index.json").read_text(encoding="utf-8"))
-    evidence = validate_repository_chain(ROOT)
-    assert evidence["signal_date"] == index["latest_signal_date"]
-    assert evidence["candidate_count"] == index["candidate_count"]
-    assert evidence["deterministic_rebuild_match"] is True
+def test_public_chain_matches_its_explicit_strict_schema() -> None:
+    result = _validate_active_public_chain(ROOT)
+    index = result["index"]
+    assert result["signal_date"] == index["latest_signal_date"]
+    assert result["candidate_count"] == index["candidate_count"]
+    if result["schema_version"] == INDEX_SCHEMA:
+        assert result["legacy_evidence"]["deterministic_rebuild_match"] is True
+    else:
+        bundle = result["primary_bundle"]
+        assert result["schema_version"] == SINGLE_INDEX_SCHEMA
+        assert bundle["single"]["index"] == index
+        assert (
+            bundle["single"]["projection"]["top10_members_sha256"]
+            == bundle["mixed"]["projection"]["top10_members_sha256"]
+        )
     assert (ROOT / index["latest_projection_json_url"]).is_file()
     assert (ROOT / index["latest_projection_csv_url"]).is_file()
     assert (ROOT / OUTPUT_ROOT / "index.json").is_file()
+
+
+def test_public_chain_schema_dispatch_fails_closed_on_unknown_schema(
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / OUTPUT_ROOT / "index.json"
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text(
+        json.dumps({"schema_version": "dc20_unknown_profit_index_v1"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="unsupported active single-profit index schema"):
+        _validate_active_public_chain(tmp_path)
 
 
 def test_public_chain_rejects_forged_self_consistent_scores(

@@ -382,13 +382,14 @@ def test_hard_pool_cannot_be_published_as_a_fake_empty_inference() -> None:
         )
 
 
-def test_primary_workflow_owns_the_first_two_evening_slots_and_isolated_scope() -> None:
+def test_primary_workflow_owns_three_evening_slots_and_isolated_scope() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     full_daily = FULL_DAILY_WORKFLOW.read_text(encoding="utf-8")
     header = workflow.split("\npermissions:", 1)[0]
     full_daily_header = full_daily.split("\npermissions:", 1)[0]
     assert header.count('cron: "15 13 * * 1-5"') == 1
     assert header.count('cron: "15 14 * * 1-5"') == 1
+    assert header.count('cron: "15 15 * * 1-5"') == 1
     assert "schedule:" not in full_daily_header
     assert "cron:" not in full_daily_header
     assert "group: decision-auction-main-writer" in workflow
@@ -422,6 +423,7 @@ def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:
     assert "base_head: ${{ steps.mode.outputs.base_head }}" in compute
     assert 'echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"' in compute
     assert "existing P0 D receipt generation mode is invalid" in compute
+    assert "scheduled P0 cannot adopt a retrospective recovery receipt" in compute
     assert "mode = receipt_mode" in compute
     assert "needs: [compute, publish]" in deploy
     assert "always()" in deploy
