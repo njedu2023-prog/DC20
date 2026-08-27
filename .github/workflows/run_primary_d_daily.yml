@@ -1,8 +1,9 @@
 name: DC2.0 · Publish Primary D List (P0)
 
 on:
+  workflow_call:
   schedule:
-    # Beijing 21:15 primary plus 22:15/23:15 independent scheduler recovery.
+    # Beijing 21:15 primary plus 22:15/23:15 scheduler recovery.
     - cron: "15 13 * * 1-5"
     - cron: "15 14 * * 1-5"
     - cron: "15 15 * * 1-5"
@@ -120,7 +121,8 @@ jobs:
           if not model_freeze_active(manifest): raise SystemExit('P0 requires the active promotion freeze')
           pins=manifest.get('pinned_files') or {}
           required={
-              '.github/workflows/run_primary_d_daily.yml','requirements.lock',
+              '.github/workflows/run_primary_d_daily.yml','.github/workflows/run_decision_daily.yml',
+              'requirements.lock',
               'scripts/publish_primary_three_rank.py','scripts/sync_market_raw.py','scripts/sync_pred_source.py',
               'src/top10decision/auction_v3/__init__.py','src/top10decision/auction_v3/calibration.py',
               'src/top10decision/auction_v3/config.py','src/top10decision/auction_v3/engine.py',
@@ -181,12 +183,6 @@ jobs:
           sha_re = re.compile(r'[0-9a-f]{40}')
           if event == 'schedule':
               schedule = os.environ.get('EVENT_SCHEDULE', '')
-              if schedule not in {
-                  '15 13 * * 1-5',
-                  '15 14 * * 1-5',
-                  '15 15 * * 1-5',
-              }:
-                  raise SystemExit('P0 schedule contract drifted')
               token = os.environ.get('GH_API_TOKEN', '').strip()
               request = Request(
                   f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
@@ -198,6 +194,43 @@ jobs:
               )
               with urlopen(request, timeout=30) as response:
                   run = json.load(response)
+              identities = {
+                  '343703608': {
+                      'name': 'DC2.0 · Publish Primary D List (P0)',
+                      'path': '.github/workflows/run_primary_d_daily.yml',
+                      'schedules': {
+                          '15 13 * * 1-5',
+                          '15 14 * * 1-5',
+                          '15 15 * * 1-5',
+                      },
+                  },
+                  '335484130': {
+                      'name': 'DC2.0 · Legacy Full Research Replay (Manual)',
+                      'path': '.github/workflows/run_decision_daily.yml',
+                      'schedules': {
+                          '25 13 * * 1-5',
+                          '25 14 * * 1-5',
+                          '25 15 * * 1-5',
+                          '45 15 * * 1-5',
+                      },
+                  },
+              }
+              workflow_id = str(run.get('workflow_id') or '')
+              identity = identities.get(workflow_id)
+              repository = os.environ['GITHUB_REPOSITORY']
+              if (
+                  identity is None
+                  or schedule not in identity['schedules']
+                  or str(run.get('id') or '') != os.environ['GITHUB_RUN_ID']
+                  or str(run.get('event') or '') != 'schedule'
+                  or str(run.get('run_attempt') or '') != '1'
+                  or str(run.get('name') or '') != identity['name']
+                  or str(run.get('path') or '') != identity['path']
+                  or str(run.get('head_branch') or '') != 'main'
+                  or str((run.get('repository') or {}).get('full_name') or '') != repository
+                  or str((run.get('head_repository') or {}).get('full_name') or '') != repository
+              ):
+                  raise SystemExit('P0 scheduled run API identity drifted')
               created = datetime.fromisoformat(str(run['created_at']).replace('Z', '+00:00'))
               shanghai = created.astimezone(ZoneInfo('Asia/Shanghai'))
               if shanghai.hour not in {21, 22, 23}:

@@ -249,7 +249,7 @@ def test_daily_uses_one_session_bound_target_for_exact_sources_and_all_computati
     assert 'if [ -n "${TRADE_DATE}" ]' not in after_session
 
 
-def test_legacy_daily_is_manual_only_and_cannot_compete_with_core_writers() -> None:
+def test_established_daily_identity_bridges_schedule_without_running_legacy_compute() -> None:
     daily = _text("run_decision_daily.yml")
     pages = _text("deploy_dc20_pages.yml")
     header = daily.split("\npermissions:", 1)[0]
@@ -259,8 +259,14 @@ def test_legacy_daily_is_manual_only_and_cannot_compete_with_core_writers() -> N
         1,
     )[1].split("- name: Require persisted Auction action", 1)[0]
 
-    assert "schedule:" not in header
-    assert "cron:" not in header
+    assert "schedule:" in header
+    for cron in (
+        'cron: "25 13 * * 1-5"',
+        'cron: "25 14 * * 1-5"',
+        'cron: "25 15 * * 1-5"',
+        'cron: "45 15 * * 1-5"',
+    ):
+        assert header.count(cron) == 1
     assert "workflow_dispatch:" in header
     assert "Legacy Full Research Replay (Manual)" in header
     pages_header = pages.split("\npermissions:", 1)[0]
@@ -268,8 +274,18 @@ def test_legacy_daily_is_manual_only_and_cannot_compete_with_core_writers() -> N
     assert "cron:" not in pages_header
     assert 'cron: "30 13 * * 1-5"' not in pages
     assert 'cron: "30 14 * * 1-5"' not in pages
-    assert "group: decision-auction-main-writer" in daily
+    assert "dc20-p0-scheduler-bridge-{0}" in daily
+    assert "|| 'decision-auction-main-writer'" in daily
     assert "cancel-in-progress: false" in daily
+    bridge = daily[daily.index("  primary_d_schedule_bridge:") : daily.index("\n  compute:")]
+    assert "github.event_name == 'schedule'" in bridge
+    assert "uses: ./.github/workflows/run_primary_d_daily.yml" in bridge
+    assert "secrets: inherit" not in bridge
+    assert "contents: write" in bridge
+    assert "pages: write" in bridge
+    assert "id-token: write" in bridge
+    assert "github.event_name == 'workflow_dispatch'" in compute
+    assert "github.event_name == 'schedule'" not in compute.split("\n    steps:", 1)[0]
     assert "actions: read" in compute
     assert compute.index("Resolve immutable Daily target") < compute.index(
         "Require persisted Auction action"
@@ -2380,7 +2396,8 @@ def test_publish_jobs_are_single_commit_exact_base_cas() -> None:
     for name in WRITERS:
         text = _text(name)
         publish = text[text.index("\n  publish:") :]
-        assert text.count("contents: write") == 1, name
+        expected_write_permissions = 2 if name == "run_decision_daily.yml" else 1
+        assert text.count("contents: write") == expected_write_permissions, name
         assert text.count("git commit -m") == 1, name
         assert text.count("git push ") == 1, name
         assert "permissions:\n      contents: write" in publish, name

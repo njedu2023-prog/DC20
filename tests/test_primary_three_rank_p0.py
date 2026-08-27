@@ -382,7 +382,7 @@ def test_hard_pool_cannot_be_published_as_a_fake_empty_inference() -> None:
         )
 
 
-def test_primary_workflow_owns_three_evening_slots_and_isolated_scope() -> None:
+def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     full_daily = FULL_DAILY_WORKFLOW.read_text(encoding="utf-8")
     header = workflow.split("\npermissions:", 1)[0]
@@ -390,8 +390,19 @@ def test_primary_workflow_owns_three_evening_slots_and_isolated_scope() -> None:
     assert header.count('cron: "15 13 * * 1-5"') == 1
     assert header.count('cron: "15 14 * * 1-5"') == 1
     assert header.count('cron: "15 15 * * 1-5"') == 1
-    assert "schedule:" not in full_daily_header
-    assert "cron:" not in full_daily_header
+    assert 'cron: "45 15 * * 1-5"' not in header
+    assert "workflow_call:" in header
+    for cron in (
+        'cron: "25 13 * * 1-5"',
+        'cron: "25 14 * * 1-5"',
+        'cron: "25 15 * * 1-5"',
+        'cron: "45 15 * * 1-5"',
+    ):
+        assert full_daily_header.count(cron) == 1
+    assert "uses: ./.github/workflows/run_primary_d_daily.yml" in full_daily
+    assert "github.event_name == 'workflow_dispatch'" in full_daily
+    assert "dc20-p0-scheduler-bridge-{0}" in full_daily
+    assert "secrets: inherit" not in full_daily
     assert "group: decision-auction-main-writer" in workflow
     assert "cancel-in-progress: false" in workflow
     assert "scripts/publish_primary_three_rank.py" in workflow
@@ -413,6 +424,9 @@ def test_primary_workflow_owns_three_evening_slots_and_isolated_scope() -> None:
     assert "needs.publish.outputs.published_head" in workflow
     assert "primary_d_bundle_sha256" in workflow
     assert "runtime_identity_sha256" in workflow
+    assert "P0 scheduled run API identity drifted" in workflow
+    assert "str(run.get('run_attempt') or '') != '1'" in workflow
+    assert "'343703608'" in workflow and "'335484130'" in workflow
 
 
 def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:

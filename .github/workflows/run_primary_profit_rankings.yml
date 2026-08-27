@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows:
       - DC2.0 · Publish Primary D List (P0)
+      - DC2.0 · Legacy Full Research Replay (Manual)
     types:
       - completed
   workflow_dispatch:
@@ -54,7 +55,18 @@ concurrency:
         github.event.workflow_run.conclusion != 'success' ||
         github.event.workflow_run.event != 'schedule' ||
         github.event.workflow_run.run_attempt != 1 ||
-        github.event.workflow_run.workflow_id != 343703608 ||
+        !(
+          (
+            github.event.workflow_run.workflow_id == 343703608 &&
+            github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
+            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'
+          ) ||
+          (
+            github.event.workflow_run.workflow_id == 335484130 &&
+            github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
+            github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'
+          )
+        ) ||
         github.event.workflow_run.head_branch != 'main' ||
         github.event.workflow_run.repository.full_name != github.repository ||
         github.event.workflow_run.head_repository.full_name != github.repository
@@ -76,9 +88,18 @@ jobs:
             github.event.workflow_run.event == 'schedule' &&
             github.event.workflow_run.status == 'completed' &&
             github.event.workflow_run.run_attempt == 1 &&
-            github.event.workflow_run.workflow_id == 343703608 &&
-            github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
-            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+            (
+              (
+                github.event.workflow_run.workflow_id == 343703608 &&
+                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
+                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'
+              ) ||
+              (
+                github.event.workflow_run.workflow_id == 335484130 &&
+                github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
+                github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'
+              )
+            ) &&
             github.event.workflow_run.head_branch == 'main' &&
             github.event.workflow_run.repository.full_name == github.repository &&
             github.event.workflow_run.head_repository.full_name == github.repository
@@ -192,14 +213,28 @@ jobs:
               return shanghai.strftime('%Y%m%d')
 
           if event == 'workflow_run':
+              identities={
+                  '343703608':{
+                      'name':'DC2.0 · Publish Primary D List (P0)',
+                      'path':'.github/workflows/run_primary_d_daily.yml',
+                  },
+                  '335484130':{
+                      'name':'DC2.0 · Legacy Full Research Replay (Manual)',
+                      'path':'.github/workflows/run_decision_daily.yml',
+                  },
+              }
+              workflow_id=os.environ.get('UPSTREAM_WORKFLOW_ID','')
+              identity=identities.get(workflow_id)
+              if identity is None:
+                  raise SystemExit('P1 workflow_run is not an accepted P0 scheduler identity')
               expected={
                   'status':'completed',
                   'conclusion':'success',
                   'event':'schedule',
                   'run_attempt':'1',
-                  'workflow_id':'343703608',
-                  'name':'DC2.0 · Publish Primary D List (P0)',
-                  'path':'.github/workflows/run_primary_d_daily.yml',
+                  'workflow_id':workflow_id,
+                  'name':identity['name'],
+                  'path':identity['path'],
                   'head_branch':'main',
                   'repository':os.environ['GITHUB_REPOSITORY'],
                   'head_repository':os.environ['GITHUB_REPOSITORY'],

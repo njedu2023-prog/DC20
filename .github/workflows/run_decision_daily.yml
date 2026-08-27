@@ -1,6 +1,15 @@
 name: DC2.0 · Legacy Full Research Replay (Manual)
 
 on:
+  # This established workflow identity is the scheduler bridge for the
+  # Action-independent P0 path.  Its legacy replay remains manual-only below.
+  schedule:
+    # Staggered from direct P0 so each slot is a real recovery, not a
+    # same-minute duplicate competing for the shared writer.
+    - cron: "25 13 * * 1-5"
+    - cron: "25 14 * * 1-5"
+    - cron: "25 15 * * 1-5"
+    - cron: "45 15 * * 1-5"
   # Legacy all-in-one research/action replay.  It is intentionally manual-only:
   # the Action contract must never suppress or overwrite the P0 D list or its
   # action-free P1 ranking sidecars.
@@ -37,13 +46,26 @@ env:
   NPY_ENABLE_CPU_FEATURES: "X86_V3"
 
 concurrency:
-  group: decision-auction-main-writer
+  # A reusable workflow cannot start while its caller holds the same group.
+  # Scheduled callers therefore use a unique bridge-only group; the called P0
+  # owns decision-auction-main-writer.  Manual legacy replay keeps that lock.
+  group: ${{ github.event_name == 'schedule' && format('dc20-p0-scheduler-bridge-{0}', github.run_id) || 'decision-auction-main-writer' }}
   cancel-in-progress: false
 
 jobs:
+  primary_d_schedule_bridge:
+    name: Invoke Action-independent primary D publication
+    if: ${{ github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
+    permissions:
+      actions: read
+      contents: write
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/run_primary_d_daily.yml
+
   compute:
     name: Read-only build and validate Daily Decision candidate
-    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     permissions:
       actions: read
       contents: read

@@ -430,12 +430,15 @@ def test_p1_source_and_workflow_never_use_action_or_forward_writer_inputs() -> N
     assert "dc20-p1-ignored-{0}" in workflow
     assert "workflow_run:" in workflow
     assert "DC2.0 · Publish Primary D List (P0)" in workflow
+    assert "DC2.0 · Legacy Full Research Replay (Manual)" in workflow
     assert "github.event.workflow_run.status == 'completed'" in workflow
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert "github.event.workflow_run.event == 'schedule'" in workflow
     assert "github.event.workflow_run.run_attempt == 1" in workflow
     assert "github.event.workflow_run.workflow_id == 343703608" in workflow
     assert "github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'" in workflow
+    assert "github.event.workflow_run.workflow_id == 335484130" in workflow
+    assert "github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'" in workflow
     assert "github.event.workflow_run.head_branch == 'main'" in workflow
     assert "github.event.workflow_run.repository.full_name == github.repository" in workflow
     assert "github.event.workflow_run.head_repository.full_name == github.repository" in workflow
