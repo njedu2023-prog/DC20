@@ -20,10 +20,6 @@ on:
       - scripts/validate_decision_model_freeze.py
       - scripts/decision_pages_truth.py
       - .github/workflows/deploy_dc20_pages.yml
-  schedule:
-    - cron: "30 9 * * 1-5"
-    - cron: "30 13 * * 1-5"
-    - cron: "30 14 * * 1-5"
   workflow_dispatch: {}
   workflow_call:
     inputs:
@@ -43,7 +39,19 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.ref == 'refs/heads/main' }}
+    # P0/P1 writers own exact-head Pages deployments. Their marked commits must
+    # not start this generic deployer and later replace the writer-owned page.
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        !(
+          github.event_name == 'push' &&
+          (
+            contains(github.event.head_commit.message, '[dc20-p0-pages-owned]') ||
+            contains(github.event.head_commit.message, '[dc20-p1-pages-owned]')
+          )
+        )
+      }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

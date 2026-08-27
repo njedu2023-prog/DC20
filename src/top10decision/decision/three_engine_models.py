@@ -2952,8 +2952,15 @@ def _load_three_engine_artifacts(
     *,
     root: str | Path | None = None,
     legacy_ready_allowlist: Mapping[str, str],
+    required_heads: Iterable[str] = (*CORE_HEADS, "p_fill_shadow"),
 ) -> LoadedThreeEngineArtifacts:
-    """Internal loader; callers choose either the strict or sealed wrapper."""
+    """Internal loader; callers choose strict, promotion-only, or sealed scope.
+
+    ``required_heads`` is deliberately private to this module.  It lets the
+    P0 D-list path prove the promotion head without opening or trusting any
+    secondary artifact.  The public full loader continues to validate all
+    four heads exactly as before.
+    """
 
     validation_file = Path(validation_path).resolve()
     repository_root = (
@@ -2979,6 +2986,13 @@ def _load_three_engine_artifacts(
     if not isinstance(heads, Mapping):
         raise ThreeEngineArtifactError("three-engine head validation is missing")
 
+    all_heads = (*CORE_HEADS, "p_fill_shadow")
+    required = frozenset(str(head) for head in required_heads)
+    if not required or not required.issubset(all_heads):
+        raise ThreeEngineArtifactError(
+            "three-engine required head scope is invalid"
+        )
+
     runtime_ledger_path, runtime_ledger_sha, runtime_prior_ledger = (
         _load_hash_bound_runtime_prior_ledger(
             validation,
@@ -2989,7 +3003,30 @@ def _load_three_engine_artifacts(
     payloads: dict[str, dict[str, Any]] = {}
     metadata: dict[str, dict[str, Any]] = {}
     expected_features = validation.get("source", {}).get("feature_columns")
-    for head in (*CORE_HEADS, "p_fill_shadow"):
+    for head in all_heads:
+        if head not in required:
+            primary_only_status = (
+                "SHADOW_NOT_READY_PRIMARY_ONLY"
+                if head == "p_fill_shadow"
+                else "NOT_READY_PRIMARY_ONLY"
+            )
+            payloads[head] = {
+                "head": head,
+                "bundle": None,
+                "status": primary_only_status,
+            }
+            metadata[head] = {
+                "status": primary_only_status,
+                "version": "",
+                "as_of_date": "",
+                "artifact_sha256": "",
+                "path": "",
+                "validation_gate_pass_count": None,
+                "validation_gate_total_count": None,
+                "validation_gate_score_pct": None,
+                "research_only_legacy_calibration_evidence_missing": False,
+            }
+            continue
         record = records.get(head)
         claimed = metadata_source.get(head)
         head_validation = heads.get(head)
@@ -3350,6 +3387,28 @@ def load_three_engine_artifacts(
         validation_path,
         root=root,
         legacy_ready_allowlist={},
+    )
+
+
+def load_promotion_only_artifacts(
+    validation_path: str | Path,
+    *,
+    root: str | Path | None = None,
+) -> LoadedThreeEngineArtifacts:
+    """Load only the release-critical promotion head for the P0 D list.
+
+    The validation manifest, hash-bound runtime prior ledger, promotion model,
+    calibration evidence, and all promotion gates remain fail-closed.  Big
+    loss, profit, and P_fill are represented as explicitly unavailable and
+    their files are never opened, so a secondary research failure cannot
+    suppress a truthful promotion list.
+    """
+
+    return _load_three_engine_artifacts(
+        validation_path,
+        root=root,
+        legacy_ready_allowlist={},
+        required_heads=("promotion",),
     )
 
 
@@ -3807,6 +3866,7 @@ __all__ = [
     "attach_runtime_promotion_priors",
     "date_balanced_weights",
     "model_artifact_payload",
+    "load_promotion_only_artifacts",
     "load_three_engine_artifacts",
     "normalize_supervised_ledger",
     "resolve_d_close_feature_builder",

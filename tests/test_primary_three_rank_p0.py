@@ -1,0 +1,460 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from scripts.publish_primary_three_rank import (
+    HISTORY_CONTEXT_TABLES,
+    PRIMARY_RUNTIME_CODE_PATHS,
+    PROMOTION_PRIOR_SOURCE_PATHS,
+    PrimaryDGenerationError,
+    audit_complete_hard_pool,
+    publish_primary_three_rank,
+)
+from top10decision.decision.three_engine_models import (
+    ThreeEngineArtifactError,
+    load_promotion_only_artifacts,
+    load_three_engine_artifacts,
+)
+from top10decision.decision.three_rank import validate_three_rank_contract
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / ".github/workflows/run_primary_d_daily.yml"
+FULL_DAILY_WORKFLOW = ROOT / ".github/workflows/run_decision_daily.yml"
+SIGNAL_DATE = "20260826"
+EXEC_DATE = "20260827"
+EXIT_DATE = "20260828"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _copy_model_runtime(target: Path, *, all_models: bool) -> Path:
+    model_root = target / "models/decision_three_engines"
+    model_root.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        ROOT / "models/decision_three_engines/validation_latest.json",
+        model_root / "validation_latest.json",
+    )
+    names = ("promotion", "big_loss", "profit", "p_fill_shadow") if all_models else ("promotion",)
+    for name in names:
+        shutil.copy2(
+            ROOT / f"models/decision_three_engines/{name}.joblib",
+            model_root / f"{name}.joblib",
+        )
+    ledger_root = target / "data/decision_three_engines"
+    ledger_root.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "five_year_supervised_ledger.csv.gz",
+        "five_year_ledger_manifest.json",
+    ):
+        shutil.copy2(ROOT / f"data/decision_three_engines/{name}", ledger_root / name)
+    return model_root / "validation_latest.json"
+
+
+def _write_empty_exact_inputs(target: Path) -> None:
+    calendar = target / "data/market/trade_cal_sse.csv"
+    calendar.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "data/market/trade_cal_sse.csv", calendar)
+
+    archive = target / f"data/pred/archive/pred_source_{SIGNAL_DATE}.csv"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.write_text(
+        "trade_date,verify_date,rank,ts_code,name,limit_times\n",
+        encoding="utf-8",
+    )
+    archive_sha = _sha256(archive)
+    meta = target / "data/pred/_pred_source_meta.json"
+    meta.write_text(
+        json.dumps(
+            {
+                "created_at_utc": "2026-08-26T13:15:00+00:00",
+                "source_repository": "njedu2023-prog/a-top10",
+                "resolved_commit": "a" * 40,
+                "resolved_trade_date": SIGNAL_DATE,
+                "sha256": archive_sha,
+                "body_sha256": archive_sha,
+                "csv_profile": {
+                    "rows_sampled": 0,
+                    "trade_date": SIGNAL_DATE,
+                    "target_trade_date": EXEC_DATE,
+                },
+                "consistency": {
+                    "archive_path": f"data/pred/archive/pred_source_{SIGNAL_DATE}.csv",
+                    "target_trade_date": EXEC_DATE,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    market_root = target / f"data/market/raw/{SIGNAL_DATE[:4]}/{SIGNAL_DATE}"
+    market_root.mkdir(parents=True, exist_ok=True)
+    frames = {
+        "daily": pd.DataFrame(
+            [
+                {
+                    "ts_code": "000001.SZ",
+                    "trade_date": SIGNAL_DATE,
+                    "open": 10.0,
+                    "high": 10.0,
+                    "low": 10.0,
+                    "close": 10.0,
+                    "pre_close": 10.0,
+                    "vol": 1.0,
+                    "amount": 10.0,
+                }
+            ]
+        ),
+        "daily_basic": pd.DataFrame(
+            [
+                {
+                    "ts_code": "000001.SZ",
+                    "trade_date": SIGNAL_DATE,
+                    "turnover_rate": 1.0,
+                }
+            ]
+        ),
+        "limit_list_d": pd.DataFrame(
+            columns=("trade_date", "ts_code", "name", "limit_type", "limit_times")
+        ),
+        "stk_limit": pd.DataFrame(
+            [
+                {
+                    "ts_code": "000001.SZ",
+                    "trade_date": SIGNAL_DATE,
+                    "up_limit": 11.0,
+                    "down_limit": 9.0,
+                }
+            ]
+        ),
+        "stock_basic": pd.DataFrame(
+            [
+                {
+                    "ts_code": "000001.SZ",
+                    "name": "测试股份",
+                    "industry": "测试",
+                    "list_date": "20000101",
+                }
+            ]
+        ),
+    }
+    records = []
+    for name, frame in frames.items():
+        path = market_root / f"{name}.csv"
+        frame.to_csv(path, index=False)
+        date_scoped = name != "stock_basic"
+        records.append(
+            {
+                "name": name,
+                "success": True,
+                "date_scoped": date_scoped,
+                "source_trade_date": SIGNAL_DATE if date_scoped else None,
+                "dated_path": (
+                    f"data/market/raw/{SIGNAL_DATE[:4]}/{SIGNAL_DATE}/{name}.csv"
+                ),
+                "sha256": _sha256(path),
+            }
+        )
+    (market_root / "_sync_meta.json").write_text(
+        json.dumps(
+            {
+                "requested_trade_date": SIGNAL_DATE,
+                "resolved_trade_date": SIGNAL_DATE,
+                "strict_dated_source": True,
+                "source_repo": {
+                    "owner": "njedu2023-prog",
+                    "repo": "a-share-top3-data",
+                    "resolved_commit": "b" * 40,
+                },
+                "files": records,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _commit_primary_runtime_closure(target: Path) -> None:
+    calendar = pd.read_csv(ROOT / "data/market/trade_cal_sse.csv", dtype=str)
+    opened = calendar.loc[
+        pd.to_numeric(calendar["is_open"], errors="coerce").eq(1), "cal_date"
+    ].astype(str).tolist()
+    position = opened.index(SIGNAL_DATE)
+    history_dates = opened[position - 20 : position]
+    assert len(history_dates) == 20
+    for trade_date in history_dates:
+        for table in HISTORY_CONTEXT_TABLES:
+            relative = Path(
+                f"data/market/raw/{trade_date[:4]}/{trade_date}/{table}.csv"
+            )
+            destination = target / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, destination)
+    for relative_text in (*PRIMARY_RUNTIME_CODE_PATHS, *PROMOTION_PRIOR_SOURCE_PATHS):
+        relative = Path(relative_text)
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / relative, destination)
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(target),
+            "-c",
+            "user.name=P0 Test",
+            "-c",
+            "user.email=p0@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "fixture",
+        ],
+        check=True,
+    )
+
+
+def test_secondary_artifact_corruption_does_not_block_promotion_loader(
+    tmp_path: Path,
+) -> None:
+    validation = _copy_model_runtime(tmp_path, all_models=True)
+    profit = tmp_path / "models/decision_three_engines/profit.joblib"
+    profit.write_bytes(profit.read_bytes() + b"secondary-corruption")
+
+    loaded = load_promotion_only_artifacts(validation, root=tmp_path)
+    assert loaded.metadata["promotion"]["status"] == "READY"
+    assert loaded.metadata["big_loss"]["status"] == "NOT_READY_PRIMARY_ONLY"
+    assert loaded.metadata["profit"]["status"] == "NOT_READY_PRIMARY_ONLY"
+    assert loaded.metadata["p_fill_shadow"]["status"] == (
+        "SHADOW_NOT_READY_PRIMARY_ONLY"
+    )
+    with pytest.raises(ThreeEngineArtifactError, match="profit artifact hash mismatch"):
+        load_three_engine_artifacts(validation, root=tmp_path)
+
+
+def test_promotion_artifact_corruption_still_fails_closed(tmp_path: Path) -> None:
+    validation = _copy_model_runtime(tmp_path, all_models=False)
+    promotion = tmp_path / "models/decision_three_engines/promotion.joblib"
+    promotion.write_bytes(promotion.read_bytes() + b"primary-corruption")
+    with pytest.raises(
+        ThreeEngineArtifactError,
+        match="promotion artifact hash mismatch",
+    ):
+        load_promotion_only_artifacts(validation, root=tmp_path)
+
+
+def test_primary_publisher_accepts_truthful_zero_candidate_day(tmp_path: Path) -> None:
+    _copy_model_runtime(tmp_path, all_models=False)
+    _write_empty_exact_inputs(tmp_path)
+    _commit_primary_runtime_closure(tmp_path)
+
+    result = publish_primary_three_rank(
+        tmp_path,
+        SIGNAL_DATE,
+        generation_mode="RETROSPECTIVE_RECOVERY",
+    )
+    contract = result["contract"]
+    validate_three_rank_contract(contract)
+    assert contract["signal_date"] == SIGNAL_DATE
+    assert contract["exec_date"] == EXEC_DATE
+    assert contract["exit_date"] == EXIT_DATE
+    assert contract["status"] == "PARTIAL_MODELS_NOT_READY"
+    assert contract["models"]["promotion"]["status"] == "READY"
+    assert contract["models"]["big_loss"]["status"] == "NOT_READY_PRIMARY_ONLY"
+    assert contract["models"]["profit"]["status"] == "NOT_READY_PRIMARY_ONLY"
+    assert contract["promotion_pool_size"] == 0
+    assert contract["top10_count"] == 0
+    assert contract["rows"] == []
+    assert result["receipt"]["action_authorized"] is False
+    assert result["receipt"]["forward_eligible"] is False
+    assert result["receipt"]["not_forward_generated"] is True
+    assert result["receipt"]["action_input_consumed"] is False
+    assert result["receipt"]["formal_trade_count"] == 0
+    assert result["receipt"]["shadow_forward_ledger_eligible"] is False
+    assert result["receipt"]["future_market_data_consumed"] is False
+    assert result["receipt"]["latest_fallback_used"] is False
+    assert result["receipt"]["secondary_outputs_generated"] == {
+        "action_plan": False,
+        "big_loss": False,
+        "profit": False,
+        "p_fill_shadow": False,
+        "executable_profit": False,
+    }
+    runtime_path = result["paths"]["runtime_features"]
+    runtime = pd.read_csv(runtime_path, low_memory=False)
+    assert runtime.empty
+    assert {
+        "signal_date",
+        "ts_code",
+        "name",
+        "industry",
+        "stage",
+        "stage_transition",
+        "board",
+        "generated_at_utc",
+        "identity",
+        "feature_snapshot_sha256",
+        "top10_selected",
+        "promotion_rank",
+        "predicted_promotion_probability",
+    }.issubset(runtime.columns)
+    outputs = result["receipt"]["outputs"]
+    assert outputs["runtime_features_path"] == (
+        f"outputs/decision/primary_d_runtime_features_{SIGNAL_DATE}.csv"
+    )
+    assert outputs["runtime_features_sha256"] == _sha256(runtime_path)
+    assert outputs["runtime_feature_row_count"] == 0
+    assert outputs["runtime_selected_count"] == 0
+    assert len(outputs["runtime_identity_sha256"]) == 64
+    assert result["receipt"]["inputs"]["committed_history_context"][
+        "session_count"
+    ] == 20
+    assert result["receipt"]["pool_audit"]["hard_to_inference"][
+        "all_hard_identities_preserved"
+    ] is True
+    for path in result["paths"].values():
+        assert path.is_file()
+
+
+def test_hard_pool_cannot_be_published_as_a_fake_empty_inference() -> None:
+    class FakeEngine:
+        class Config:
+            max_mechanism_limit_pct = 10.0
+
+        config = Config()
+
+        @staticmethod
+        def _row(frame: pd.DataFrame, code: str) -> pd.Series | None:
+            if frame.empty or code not in frame.index:
+                return None
+            return frame.loc[code]
+
+        @staticmethod
+        def _limit_ratio(_daily: pd.Series, _limit: pd.Series) -> float:
+            return 0.10
+
+        def market_table(self, _date: str, name: str) -> pd.DataFrame:
+            if name == "daily":
+                return pd.DataFrame(
+                    [{"ts_code": "000002.SZ", "close": 11.0}]
+                ).set_index("ts_code", drop=False)
+            return pd.DataFrame(columns=("ts_code", "up_limit")).set_index(
+                "ts_code", drop=False
+            )
+
+    hard_pool = pd.DataFrame(
+        [
+            {
+                "signal_date": SIGNAL_DATE,
+                "ts_code": "000002.SZ",
+                "name": "测试股份",
+                "industry": "测试",
+                "limit_times": 2.0,
+                "stage": 2.0,
+            }
+        ]
+    )
+    with pytest.raises(
+        PrimaryDGenerationError,
+        match="MISSING_EXACT_D_STK_LIMIT_ROW.*000002.SZ",
+    ):
+        audit_complete_hard_pool(
+            hard_pool,
+            pd.DataFrame(),
+            pd.DataFrame(),
+            engine=FakeEngine(),  # type: ignore[arg-type]
+            signal_date=SIGNAL_DATE,
+        )
+
+
+def test_primary_workflow_owns_the_first_two_evening_slots_and_isolated_scope() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    full_daily = FULL_DAILY_WORKFLOW.read_text(encoding="utf-8")
+    header = workflow.split("\npermissions:", 1)[0]
+    full_daily_header = full_daily.split("\npermissions:", 1)[0]
+    assert header.count('cron: "15 13 * * 1-5"') == 1
+    assert header.count('cron: "15 14 * * 1-5"') == 1
+    assert "schedule:" not in full_daily_header
+    assert "cron:" not in full_daily_header
+    assert "group: decision-auction-main-writer" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "scripts/publish_primary_three_rank.py" in workflow
+    assert "primary_d_receipt_${SIGNAL_DATE}.json" in workflow
+    assert "primary_d_runtime_features_${SIGNAL_DATE}.csv" in workflow
+    assert "--ensure-sse-open-context" not in workflow
+    assert "PrimaryDReadOnlyEngine" in (
+        ROOT / "scripts/publish_primary_three_rank.py"
+    ).read_text(encoding="utf-8")
+    assert "real manual P0 publication is recovery-only" in workflow
+    assert "partial immutable P0 D bundle exists" in workflow
+    assert "P0 candidate lacks the immutable dated bundle" in workflow
+    assert "non-P0 path staged" in workflow
+    assert "cmp \"${RUNNER_TEMP}/protected-before.bin\"" in workflow
+    assert "action_plan_*.json" in workflow
+    assert "data/decision_executable_profit" in workflow
+    assert "outputs/decision/executable_profit_research" in workflow
+    assert "outputs/decision/legacy_profit_relative_research" in workflow
+    assert "needs.publish.outputs.published_head" in workflow
+    assert "primary_d_bundle_sha256" in workflow
+    assert "runtime_identity_sha256" in workflow
+
+
+def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    compute = workflow[workflow.index("  compute:") : workflow.index("\n  publish:")]
+    deploy = workflow[workflow.index("\n  deploy-primary-pages:") :]
+
+    assert "base_head: ${{ steps.mode.outputs.base_head }}" in compute
+    assert 'echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"' in compute
+    assert "existing P0 D receipt generation mode is invalid" in compute
+    assert "mode = receipt_mode" in compute
+    assert "needs: [compute, publish]" in deploy
+    assert "always()" in deploy
+    assert "needs.compute.outputs.already_complete == 'true'" in deploy
+    assert "needs.publish.result == 'skipped'" in deploy
+    deploy_head = (
+        "${{ needs.publish.outputs.published_head || "
+        "needs.compute.outputs.base_head }}"
+    )
+    assert deploy.count(deploy_head) == 3
+    assert "SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}" in deploy
+    assert "GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}" in deploy
+
+
+def test_primary_commit_has_exclusive_pages_owner_marker() -> None:
+    primary = WORKFLOW.read_text(encoding="utf-8")
+    pages = (ROOT / ".github/workflows/deploy_dc20_pages.yml").read_text(
+        encoding="utf-8"
+    )
+    marker = "[dc20-p0-pages-owned]"
+
+    assert f'git commit -m "auto: publish primary D list ${{signal_date}} {marker}"' in primary
+    assert "github.event_name == 'push'" in pages
+    assert f"contains(github.event.head_commit.message, '{marker}')" in pages
+
+
+def test_primary_workflow_does_not_call_secondary_generators() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    for forbidden in (
+        "scripts/run_v2.py",
+        "scripts/run_auction_v3.py",
+        "scripts/publish_decision_action.py",
+        "scripts/run_decision_executable_profit_forward_shadow.py",
+        "scripts/project_decision_executable_profit_research.py",
+    ):
+        assert forbidden not in workflow

@@ -1,0 +1,635 @@
+name: DC2.0 · Publish Primary D List (P0)
+
+on:
+  schedule:
+    # Beijing 21:15 primary and 22:15 independent recovery.
+    - cron: "15 13 * * 1-5"
+    - cron: "15 14 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只读演练；生成并校验但不提交"
+        required: true
+        default: true
+        type: boolean
+      trade_date:
+        description: "D日 YYYYMMDD；真实手动恢复时必填"
+        required: false
+        type: string
+      generation_mode:
+        description: "自然生成或明确的历史恢复"
+        required: true
+        default: RETROSPECTIVE_RECOVERY
+        type: choice
+        options:
+          - RETROSPECTIVE_RECOVERY
+          - NATURAL
+      pred_commit:
+        description: "恢复时固定 a-top10 的40位提交"
+        required: false
+        type: string
+      market_commit:
+        description: "恢复时固定 a-share-top3-data 的40位提交"
+        required: false
+        type: string
+      confirm_recovery:
+        description: "确认该结果标记为历史恢复而非当晚准时前向"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  LOKY_MAX_CPU_COUNT: "1"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  compute:
+    name: Build immutable promotion-only D candidate
+    if: ${{ github.ref == 'refs/heads/main' }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+      base_head: ${{ steps.mode.outputs.base_head }}
+      has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
+      already_complete: ${{ steps.target.outputs.already_complete || 'false' }}
+      signal_date: ${{ steps.target.outputs.signal_date }}
+      generation_mode: ${{ steps.target.outputs.generation_mode }}
+    steps:
+      - name: Checkout immutable main base without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve publication mode and immutable base
+        id: mode
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          publish=true
+          if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ] && [ "${INPUT_DRY_RUN:-true}" != false ]; then
+            publish=false
+          fi
+          base_head="$(git rev-parse HEAD)"
+          printf '%s\n' "${base_head}" > "${RUNNER_TEMP}/base_sha.txt"
+          echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
+          echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install exact hash-locked Decision runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            --only-binary=:all: --require-hashes -r requirements.lock
+          python -m pip check
+
+      - name: Enforce only the P0 promotion trust surface
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from top10decision.decision.model_freeze import load_model_freeze, model_freeze_active
+          root=Path('.').resolve(); manifest=load_model_freeze(root, required=True)
+          if not model_freeze_active(manifest): raise SystemExit('P0 requires the active promotion freeze')
+          pins=manifest.get('pinned_files') or {}
+          required={
+              '.github/workflows/run_primary_d_daily.yml','requirements.lock',
+              'scripts/publish_primary_three_rank.py','scripts/sync_market_raw.py','scripts/sync_pred_source.py',
+              'src/top10decision/auction_v3/__init__.py','src/top10decision/auction_v3/calibration.py',
+              'src/top10decision/auction_v3/config.py','src/top10decision/auction_v3/engine.py',
+              'src/top10decision/auction_v3/promotion_model.py','src/top10decision/data/tushare_minute.py',
+              'src/top10decision/decision/canonical_fingerprint.py','src/top10decision/decision/contracts.py',
+              'src/top10decision/decision/d_close_features.py','src/top10decision/decision/eligibility.py',
+              'src/top10decision/decision/exit_policy.py','src/top10decision/decision/model_freeze.py',
+              'src/top10decision/decision/observation.py','src/top10decision/decision/three_engine_models.py',
+              'src/top10decision/decision/three_rank.py','src/top10decision/decision/trade_selector.py',
+              'src/top10decision/probability_calibration.py','src/top10decision/writers/io_contract.py',
+              'data/market/trade_cal_sse.csv','data/decision_three_engines/five_year_supervised_ledger.csv.gz',
+              'data/decision_three_engines/five_year_ledger_manifest.json',
+              'data/auction_v3/promotion_prior/five_year_daily_stage_board.csv',
+              'data/auction_v3/promotion_prior/five_year_event_features.csv.gz',
+              'models/decision_three_engines/promotion.joblib','models/decision_three_engines/validation_latest.json',
+          }
+          for relative in sorted(required):
+              path=root/relative; expected=str(pins.get(relative) or '')
+              if path.is_symlink() or not path.is_file() or len(expected) != 64:
+                  raise SystemExit(f'P0 trust path is missing or unpinned: {relative}')
+              actual=hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected: raise SystemExit(f'P0 trust path hash drifted: {relative}')
+          print(f'P0 promotion trust surface validated: {len(required)} files')
+          PY
+
+      - name: Resolve exact D and reject a completed duplicate
+        id: target
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TRADE_DATE: ${{ inputs.trade_date }}
+          INPUT_GENERATION_MODE: ${{ inputs.generation_mode }}
+          INPUT_PRED_COMMIT: ${{ inputs.pred_commit }}
+          INPUT_MARKET_COMMIT: ${{ inputs.market_commit }}
+          INPUT_CONFIRM_RECOVERY: ${{ inputs.confirm_recovery }}
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, re
+          from datetime import datetime
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from zoneinfo import ZoneInfo
+
+          from top10decision.decision.three_rank import (
+              validate_three_rank_contract,
+              validate_three_rank_index,
+          )
+
+          event = os.environ['GITHUB_EVENT_NAME']
+          publish = os.environ['PUBLISH'] == 'true'
+          mode = str(os.environ.get('INPUT_GENERATION_MODE') or '').strip().upper()
+          pred = str(os.environ.get('INPUT_PRED_COMMIT') or '').strip().lower()
+          market = str(os.environ.get('INPUT_MARKET_COMMIT') or '').strip().lower()
+          date_re = re.compile(r'20\d{6}')
+          sha_re = re.compile(r'[0-9a-f]{40}')
+          if event == 'schedule':
+              schedule = os.environ.get('EVENT_SCHEDULE', '')
+              if schedule not in {'15 13 * * 1-5', '15 14 * * 1-5'}:
+                  raise SystemExit('P0 schedule contract drifted')
+              token = os.environ.get('GH_API_TOKEN', '').strip()
+              request = Request(
+                  f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urlopen(request, timeout=30) as response:
+                  run = json.load(response)
+              created = datetime.fromisoformat(str(run['created_at']).replace('Z', '+00:00'))
+              shanghai = created.astimezone(ZoneInfo('Asia/Shanghai'))
+              if shanghai.hour not in {21, 22, 23}:
+                  raise SystemExit('P0 scheduled run started outside the same-evening recovery window')
+              signal_date = shanghai.strftime('%Y%m%d')
+              mode = 'NATURAL'
+              pred = market = ''
+          elif event == 'workflow_dispatch':
+              signal_date = str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
+              if date_re.fullmatch(signal_date) is None:
+                  raise SystemExit('manual P0 trade_date must be YYYYMMDD')
+              if mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
+                  raise SystemExit('manual P0 generation_mode is invalid')
+              if publish:
+                  if mode != 'RETROSPECTIVE_RECOVERY':
+                      raise SystemExit('real manual P0 publication is recovery-only')
+                  if os.environ.get('INPUT_CONFIRM_RECOVERY') != 'true':
+                      raise SystemExit('real P0 recovery requires explicit confirmation')
+                  if sha_re.fullmatch(pred) is None or sha_re.fullmatch(market) is None:
+                      raise SystemExit('real P0 recovery requires two immutable upstream commits')
+          else:
+              raise SystemExit('unsupported P0 event')
+
+          calendar = Path('data/market/trade_cal_sse.csv')
+          import pandas as pd
+          cal = pd.read_csv(calendar, dtype=str)
+          opened = set(cal.loc[pd.to_numeric(cal['is_open'], errors='coerce').eq(1), 'cal_date'].astype(str))
+          if signal_date not in opened:
+              raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')
+
+          output = Path('outputs/decision')
+          json_path = output / f'three_rank_top10_{signal_date}.json'
+          csv_path = output / f'three_rank_top10_{signal_date}.csv'
+          runtime_path = output / f'primary_d_runtime_features_{signal_date}.csv'
+          receipt_path = output / f'primary_d_receipt_{signal_date}.json'
+          present = [path.is_file() and not path.is_symlink() for path in (json_path, csv_path, runtime_path, receipt_path)]
+          already = False
+          if any(present):
+              if not all(present):
+                  raise SystemExit('partial immutable P0 D bundle exists')
+              contract = json.loads(json_path.read_text(encoding='utf-8'))
+              receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+              runtime = pd.read_csv(runtime_path, low_memory=False)
+              validate_three_rank_contract(contract)
+              if contract.get('signal_date') != signal_date or receipt.get('signal_date') != signal_date:
+                  raise SystemExit('existing P0 D bundle date drifted')
+              outputs = receipt.get('outputs') or {}
+              models = contract.get('models') or {}
+              secondary = receipt.get('secondary_outputs_generated') or {}
+              runtime_required={
+                  'signal_date','ts_code','stage_transition','generated_at_utc','identity',
+                  'feature_snapshot_sha256','top10_selected','promotion_rank',
+                  'predicted_promotion_probability',
+              }
+              if not runtime_required.issubset(runtime.columns):
+                  raise SystemExit('existing P0 runtime snapshot columns are incomplete')
+              selected=pd.to_numeric(runtime['top10_selected'],errors='coerce')
+              identity_rows=[]
+              for row in runtime.sort_values('ts_code',kind='stable').to_dict('records'):
+                  identity_rows.append({
+                      'identity':str(row.get('identity') or ''),
+                      'ts_code':str(row.get('ts_code') or ''),
+                      'stage_transition':str(row.get('stage_transition') or ''),
+                      'top10_selected':int(float(row.get('top10_selected'))),
+                      'promotion_rank':int(float(row.get('promotion_rank'))),
+                  })
+              identity_sha=hashlib.sha256(json.dumps({
+                  'schema':'dc20_primary_d_runtime_identity_v1',
+                  'signal_date':signal_date,
+                  'rows':identity_rows,
+              },ensure_ascii=False,allow_nan=False,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
+              if (
+                  receipt.get('primary_status') != 'READY'
+                  or receipt.get('action_authorized') is not False
+                  or (models.get('promotion') or {}).get('status') != 'READY'
+                  or (models.get('big_loss') or {}).get('status') != 'NOT_READY_PRIMARY_ONLY'
+                  or (models.get('profit') or {}).get('status') != 'NOT_READY_PRIMARY_ONLY'
+                  or contract.get('top10_count') != min(10, int(contract.get('promotion_pool_size') or 0))
+                  or any(secondary.get(name) is not False for name in ('action_plan','big_loss','profit','p_fill_shadow','executable_profit'))
+                  or outputs.get('json_sha256') != hashlib.sha256(json_path.read_bytes()).hexdigest()
+                  or outputs.get('csv_sha256') != hashlib.sha256(csv_path.read_bytes()).hexdigest()
+                  or outputs.get('runtime_features_path') != f'outputs/decision/primary_d_runtime_features_{signal_date}.csv'
+                  or outputs.get('runtime_features_sha256') != hashlib.sha256(runtime_path.read_bytes()).hexdigest()
+                  or outputs.get('runtime_feature_row_count') != len(runtime)
+                  or outputs.get('runtime_selected_count') != int(selected.fillna(0).sum())
+                  or outputs.get('runtime_identity_sha256') != identity_sha
+                  or len(runtime) != int(contract.get('promotion_pool_size') or 0)
+                  or int(selected.fillna(0).sum()) != int(contract.get('top10_count') or 0)
+                  or (len(runtime) and not runtime['signal_date'].astype(str).eq(signal_date).all())
+                  or (len(runtime) and not runtime['feature_snapshot_sha256'].astype(str).eq(contract.get('feature_snapshot_sha256')).all())
+                  or (len(runtime) and runtime['generated_at_utc'].fillna('').astype(str).nunique() != 1)
+              ):
+                  raise SystemExit('existing P0 D receipt does not bind the immutable bundle')
+              index = json.loads((output / 'three_rank_index.json').read_text(encoding='utf-8'))
+              validate_three_rank_index(index)
+              if str(index.get('latest_signal_date') or '') < signal_date:
+                  raise SystemExit('existing P0 D bundle is not reachable from the public index')
+              receipt_mode = str(receipt.get('generation_mode') or '').strip().upper()
+              if receipt_mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
+                  raise SystemExit('existing P0 D receipt generation mode is invalid')
+              mode = receipt_mode
+              already = True
+
+          target_file = Path(os.environ['RUNNER_TEMP']) / 'primary-d-target.json'
+          target_file.write_text(json.dumps({
+              'signal_date': signal_date,
+              'generation_mode': mode,
+              'pred_commit': pred,
+              'market_commit': market,
+          }, sort_keys=True) + '\n', encoding='utf-8')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+              handle.write(f'signal_date={signal_date}\n')
+              handle.write(f'generation_mode={mode}\n')
+              handle.write(f'pred_commit={pred}\n')
+              handle.write(f'market_commit={market}\n')
+              handle.write(f"already_complete={'true' if already else 'false'}\n")
+          PY
+
+      - name: Resolve immutable upstream commits
+        id: upstream
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        env:
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PINNED_PRED: ${{ steps.target.outputs.pred_commit }}
+          PINNED_MARKET: ${{ steps.target.outputs.market_commit }}
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re
+          from datetime import datetime
+          from urllib.request import Request, urlopen
+          token=os.environ['GH_API_TOKEN'].strip(); result=[]
+          for key, repo, pinned in (
+              ('pred_sha','njedu2023-prog/a-top10',os.environ.get('PINNED_PRED','').strip()),
+              ('market_sha','njedu2023-prog/a-share-top3-data',os.environ.get('PINNED_MARKET','').strip()),
+          ):
+              sha=pinned; payload=None
+              if not sha:
+                  request=Request(
+                      f'https://api.github.com/repos/{repo}/commits/main',
+                      headers={'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','X-GitHub-Api-Version':'2022-11-28'},
+                  )
+                  with urlopen(request,timeout=30) as response: payload=json.load(response)
+                  sha=str(payload.get('sha') or '').lower()
+              if re.fullmatch(r'[0-9a-f]{40}',sha) is None: raise SystemExit(f'invalid upstream commit: {repo}')
+              if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch':
+                  request=Request(
+                      f'https://api.github.com/repos/{repo}/commits/{sha}',
+                      headers={'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','X-GitHub-Api-Version':'2022-11-28'},
+                  )
+                  with urlopen(request,timeout=30) as response: payload=json.load(response)
+                  committed=datetime.fromisoformat(str(payload['commit']['committer']['date']).replace('Z','+00:00'))
+                  cutoff=datetime.strptime(os.environ['SIGNAL_DATE']+'T13:15:00+0000','%Y%m%dT%H:%M:%S%z')
+                  if committed > cutoff: raise SystemExit(f'recovery upstream commit is after nominal D cutoff: {repo}')
+              result.append(f'{key}={sha}')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as handle: handle.write('\n'.join(result)+'\n')
+          PY
+
+      - name: Snapshot protected secondary state
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        run: |
+          set -euo pipefail
+          git status --porcelain=v1 -z --untracked-files=all -- \
+            ':(glob,top)outputs/decision/action_plan_*.json' \
+            ':(top)outputs/decision/report_index.json' \
+            ':(top)data/decision_executable_profit' \
+            ':(top)outputs/decision/executable_profit_research' \
+            ':(top)outputs/decision/legacy_profit_relative_research' \
+            > "${RUNNER_TEMP}/protected-before.bin"
+          test ! -s "${RUNNER_TEMP}/protected-before.bin"
+
+      - name: Sync exact-D independent inputs
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        env:
+          PYTHONPATH: src
+          TRADE_DATE: ${{ steps.target.outputs.signal_date }}
+          TOP10_PRED_RESOLVED_COMMIT: ${{ steps.upstream.outputs.pred_sha }}
+          A_TOP10_COMMIT: ${{ steps.upstream.outputs.pred_sha }}
+          MARKET_RAW_OWNER: njedu2023-prog
+          MARKET_RAW_REPO: a-share-top3-data
+          MARKET_RAW_BRANCH: main
+          MARKET_RAW_COMMIT: ${{ steps.upstream.outputs.market_sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/pred/archive data/market/raw outputs/decision
+          url="https://raw.githubusercontent.com/njedu2023-prog/a-top10/${A_TOP10_COMMIT}/outputs/decisio/pred_decisio_${TRADE_DATE}.csv"
+          TRADE_DATE="${TRADE_DATE}" TOP10_PRED_URL="${url}" python scripts/sync_pred_source.py
+          python scripts/sync_market_raw.py \
+            --trade-date "${TRADE_DATE}" \
+            --strict-dated-source \
+            --trade-calendar-file data/market/trade_cal_sse.csv
+
+      - name: Publish primary promotion list in the isolated scope
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        env:
+          PYTHONPATH: src
+          TRADE_DATE: ${{ steps.target.outputs.signal_date }}
+          GENERATION_MODE: ${{ steps.target.outputs.generation_mode }}
+        run: |
+          set -euo pipefail
+          python scripts/publish_primary_three_rank.py \
+            --root . --signal-date "${TRADE_DATE}" \
+            --generation-mode "${GENERATION_MODE}"
+          git status --porcelain=v1 -z --untracked-files=all -- \
+            ':(glob,top)outputs/decision/action_plan_*.json' \
+            ':(top)outputs/decision/report_index.json' \
+            ':(top)data/decision_executable_profit' \
+            ':(top)outputs/decision/executable_profit_research' \
+            ':(top)outputs/decision/legacy_profit_relative_research' \
+            > "${RUNNER_TEMP}/protected-after.bin"
+          cmp "${RUNNER_TEMP}/protected-before.bin" "${RUNNER_TEMP}/protected-after.bin"
+
+      - name: Build exact P0 candidate patch
+        id: candidate
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          year="${SIGNAL_DATE:0:4}"
+          git add -A -- \
+            data/pred/_pred_source_meta.json \
+            data/pred/pred_source_latest.csv \
+            "data/pred/archive/pred_source_${SIGNAL_DATE}.csv" \
+            data/market/trade_cal_sse.csv \
+            "data/market/raw/${year}/${SIGNAL_DATE}" \
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.json" \
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv" \
+            "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv" \
+            outputs/decision/three_rank_index.json \
+            "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json"
+          git diff --cached --name-only -z > "${RUNNER_TEMP}/primary-d-paths.bin"
+          SIGNAL_DATE="${SIGNAL_DATE}" PATHS="${RUNNER_TEMP}/primary-d-paths.bin" python - <<'PY'
+          import os
+          from pathlib import Path
+          d=os.environ['SIGNAL_DATE']; year=d[:4]
+          paths=[x.decode() for x in Path(os.environ['PATHS']).read_bytes().split(b'\0') if x]
+          prefixes=(f'data/market/raw/{year}/{d}/',)
+          exact={
+              'data/pred/_pred_source_meta.json','data/pred/pred_source_latest.csv',
+              f'data/pred/archive/pred_source_{d}.csv','data/market/trade_cal_sse.csv',
+              f'outputs/decision/three_rank_top10_{d}.json',f'outputs/decision/three_rank_top10_{d}.csv',
+              f'outputs/decision/primary_d_runtime_features_{d}.csv',
+              'outputs/decision/three_rank_index.json',f'outputs/decision/primary_d_receipt_{d}.json',
+          }
+          bad=[p for p in paths if p not in exact and not p.startswith(prefixes)]
+          required={
+              f'outputs/decision/three_rank_top10_{d}.json',
+              f'outputs/decision/three_rank_top10_{d}.csv',
+              f'outputs/decision/primary_d_runtime_features_{d}.csv',
+              f'outputs/decision/primary_d_receipt_{d}.json',
+          }
+          if bad: raise SystemExit(f'non-P0 path staged: {bad}')
+          if not required.issubset(paths): raise SystemExit('P0 candidate lacks the immutable dated bundle')
+          PY
+          git diff --cached --binary --full-index > "${RUNNER_TEMP}/primary-d.patch"
+          sha256sum "${RUNNER_TEMP}/primary-d.patch" | cut -d' ' -f1 > "${RUNNER_TEMP}/primary-d.patch.sha256"
+          cp "${RUNNER_TEMP}/primary-d-target.json" "${RUNNER_TEMP}/primary-d-target-envelope.json"
+          if git diff --cached --quiet; then echo 'has_changes=false' >> "${GITHUB_OUTPUT}"; else echo 'has_changes=true' >> "${GITHUB_OUTPUT}"; fi
+
+      - name: Upload immutable P0 candidate
+        if: ${{ steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: primary-d-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/base_sha.txt
+            ${{ runner.temp }}/primary-d.patch
+            ${{ runner.temp }}/primary-d.patch.sha256
+            ${{ runner.temp }}/primary-d-target-envelope.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: CAS publish one primary D commit
+    needs: compute
+    if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      published_head: ${{ steps.publish.outputs.published_head }}
+      signal_date: ${{ needs.compute.outputs.signal_date }}
+      generation_mode: ${{ needs.compute.outputs.generation_mode }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        with:
+          name: primary-d-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - name: Verify envelope and apply exact-base patch
+        run: |
+          set -euo pipefail
+          candidate="${RUNNER_TEMP}/candidate"
+          test "$(find "${candidate}" -type f | wc -l | tr -d ' ')" = 4
+          expected="$(cat "${candidate}/base_sha.txt")"
+          test "$(git rev-parse HEAD)" = "${expected}"
+          test "$(sha256sum "${candidate}/primary-d.patch" | cut -d' ' -f1)" = "$(cat "${candidate}/primary-d.patch.sha256")"
+          git apply --index --binary "${candidate}/primary-d.patch"
+          test -n "$(git diff --cached --name-only)"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          signal_date="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["signal_date"])' "${candidate}/primary-d-target-envelope.json")"
+          git commit -m "auto: publish primary D list ${signal_date} [dc20-p0-pages-owned]"
+      - name: Publish exact CAS commit
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${expected}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+  deploy-primary-pages:
+    name: Deploy exact primary D revision
+    needs: [compute, publish]
+    if: >-
+      ${{
+        always() &&
+        needs.compute.result == 'success' &&
+        needs.compute.outputs.publish == 'true' &&
+        (
+          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
+          (needs.compute.outputs.already_complete == 'true' && needs.publish.result == 'skipped')
+        )
+      }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: dc20-pages
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - name: Build primary-first Decision site
+        env:
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+          GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}
+          HEAD_SHA: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+        run: |
+          set -euo pipefail
+          mkdir -p _site/outputs
+          cp decision.html _site/index.html
+          cp decision.html _site/decision.html
+          cp -R outputs/decision _site/outputs/decision
+          touch _site/.nojekyll
+          python - <<'PY'
+          import hashlib, json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          root=Path('_site'); d=os.environ['SIGNAL_DATE']
+          output=root/'outputs/decision'; jp=output/f'three_rank_top10_{d}.json'; cp=output/f'three_rank_top10_{d}.csv'; fp=output/f'primary_d_runtime_features_{d}.csv'; rp=output/f'primary_d_receipt_{d}.json'
+          import pandas as pd
+          contract=json.loads(jp.read_text(encoding='utf-8')); runtime=pd.read_csv(fp,low_memory=False); receipt=json.loads(rp.read_text(encoding='utf-8')); index=json.loads((output/'three_rank_index.json').read_text(encoding='utf-8'))
+          latest=str(index.get('latest_signal_date') or '')
+          if contract.get('signal_date') != d or latest < d: raise SystemExit('primary Pages date drifted')
+          if os.environ['GENERATION_MODE'] == 'NATURAL' and latest != d: raise SystemExit('natural primary Pages index is not exact-D')
+          models=contract.get('models') or {}; secondary=receipt.get('secondary_outputs_generated') or {}
+          if (
+              receipt.get('action_authorized') is not False
+              or receipt.get('primary_status') != 'READY'
+              or (models.get('promotion') or {}).get('status') != 'READY'
+              or (models.get('big_loss') or {}).get('status') != 'NOT_READY_PRIMARY_ONLY'
+              or (models.get('profit') or {}).get('status') != 'NOT_READY_PRIMARY_ONLY'
+              or contract.get('top10_count') != min(10, int(contract.get('promotion_pool_size') or 0))
+              or any(secondary.get(name) is not False for name in ('action_plan','big_loss','profit','p_fill_shadow','executable_profit'))
+          ): raise SystemExit('primary Pages receipt/model scope drifted')
+          selected=pd.to_numeric(runtime.get('top10_selected'),errors='coerce')
+          identity_rows=[]
+          for row in runtime.sort_values('ts_code',kind='stable').to_dict('records'):
+              identity_rows.append({'identity':str(row.get('identity') or ''),'ts_code':str(row.get('ts_code') or ''),'stage_transition':str(row.get('stage_transition') or ''),'top10_selected':int(float(row.get('top10_selected'))),'promotion_rank':int(float(row.get('promotion_rank')))})
+          identity_sha=hashlib.sha256(json.dumps({'schema':'dc20_primary_d_runtime_identity_v1','signal_date':d,'rows':identity_rows},ensure_ascii=False,allow_nan=False,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
+          bound=receipt['outputs']
+          if (
+              bound['json_sha256'] != hashlib.sha256(jp.read_bytes()).hexdigest()
+              or bound['csv_sha256'] != hashlib.sha256(cp.read_bytes()).hexdigest()
+              or bound.get('runtime_features_path') != f'outputs/decision/primary_d_runtime_features_{d}.csv'
+              or bound.get('runtime_features_sha256') != hashlib.sha256(fp.read_bytes()).hexdigest()
+              or bound.get('runtime_feature_row_count') != len(runtime)
+              or bound.get('runtime_selected_count') != int(selected.fillna(0).sum())
+              or bound.get('runtime_identity_sha256') != identity_sha
+              or len(runtime) != int(contract.get('promotion_pool_size') or 0)
+              or int(selected.fillna(0).sum()) != int(contract.get('top10_count') or 0)
+              or (len(runtime) and not runtime['feature_snapshot_sha256'].astype(str).eq(contract.get('feature_snapshot_sha256')).all())
+          ): raise SystemExit('primary Pages runtime/bundle hash drifted')
+          report_date=''
+          report_index=output/'report_index.json'
+          if report_index.is_file(): report_date=str(json.loads(report_index.read_text(encoding='utf-8')).get('latest_report_date') or '')
+          revision={
+              'schema_version':'decision_pages_revision_v4_primary_first','system_name':'DC2.0','repository':os.environ['GITHUB_REPOSITORY'],'branch':'main','head_sha':os.environ['HEAD_SHA'],'run_id':int(os.environ['GITHUB_RUN_ID']),'run_attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",'workflow':os.environ['GITHUB_WORKFLOW'],'event_name':os.environ['GITHUB_EVENT_NAME'],'signal_date':latest,'primary_d_signal_date':d,'primary_d_status':'READY','primary_d_generation_mode':os.environ['GENERATION_MODE'],'primary_d_bundle_sha256':contract['bundle_sha256'],'primary_d_top10_count':contract['top10_count'],'primary_d_receipt_url':f'outputs/decision/primary_d_receipt_{d}.json','report_date':report_date,'published_at_utc':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
+          }
+          (root/'revision.json').write_text(json.dumps(revision,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _site
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+      - name: Verify exact public primary revision
+        env:
+          EXPECTED_HEAD: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          for attempt in $(seq 1 30); do
+            revision="$(curl -fsSL "${base}/revision.json?run=${GITHUB_RUN_ID}-${attempt}" || true)"
+            actual="$(python -c 'import json,sys; print(json.load(sys.stdin).get("head_sha", ""))' <<<"${revision}" 2>/dev/null || true)"
+            if [ "${actual}" = "${EXPECTED_HEAD}" ]; then break; fi
+            if [ "${attempt}" = 30 ]; then echo 'public primary revision did not converge' >&2; exit 1; fi
+            sleep 10
+          done
+          curl -fsSL "${base}/decision.html?run=${GITHUB_RUN_ID}" >/dev/null
+          curl -fsSL "${base}/outputs/decision/three_rank_index.json?run=${GITHUB_RUN_ID}" >/dev/null
+          curl -fsSL "${base}/outputs/decision/three_rank_top10_${SIGNAL_DATE}.json?run=${GITHUB_RUN_ID}" >/dev/null
+          curl -fsSL "${base}/outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" >/dev/null
+          curl -fsSL "${base}/outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" >/dev/null
+          curl -fsSL "${base}/outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json?run=${GITHUB_RUN_ID}" >/dev/null

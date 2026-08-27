@@ -1,0 +1,80 @@
+{
+  "schema_version": "dc20_primary_profit_research_contract_v1",
+  "contract_id": "dc20_primary_profit_research_20260827_v1",
+  "status": "PUBLIC_CORE_RESEARCH_ALLOWED_NOT_FORMAL",
+  "display_names": {
+    "single_profit": "单一盈利排序",
+    "mixed_profit": "混合盈利排序"
+  },
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "runtime_dependency_on_top10_decision": false
+  },
+  "inputs": {
+    "primary_receipt_pattern": "outputs/decision/primary_d_receipt_<D>.json",
+    "primary_runtime_features_pattern": "outputs/decision/primary_d_runtime_features_<D>.csv",
+    "three_rank_json_pattern": "outputs/decision/three_rank_top10_<D>.json",
+    "three_rank_csv_pattern": "outputs/decision/three_rank_top10_<D>.csv",
+    "exact_file_sha256_required": true,
+    "same_feature_snapshot_required": true,
+    "same_frozen_topn_fingerprint_required": true,
+    "action_input_allowed": false,
+    "auction_prediction_input_allowed": false,
+    "network_input_allowed": false
+  },
+  "generation_modes": {
+    "NATURAL": {
+      "publication_status": "PROSPECTIVE_RESEARCH",
+      "requires_p0_prospective": true,
+      "may_write_forward_selection": false,
+      "may_write_forward_statistics": false
+    },
+    "RETROSPECTIVE_RECOVERY": {
+      "publication_status": "RETROSPECTIVE_NON_FORWARD_RESEARCH",
+      "requires_p0_prospective": false,
+      "may_write_forward_selection": false,
+      "may_write_forward_statistics": false
+    }
+  },
+  "ranking": {
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "candidate_count_rule": "show exactly N for 0<=N<=10 and never pad",
+    "promotion_membership_or_rank_may_change": false,
+    "single_profit_score_kind": "sealed legacy raw relative score not probability",
+    "mixed_profit_score_kind": "uncalibrated fill proxy multiplied by uncalibrated conditional profit proxy",
+    "formal_profit_probability_claim_allowed": false,
+    "formal_profit_rank_claim_allowed": false
+  },
+  "outputs": {
+    "single_projection_json": "outputs/decision/legacy_profit_relative_research/projection_<D>.json",
+    "single_projection_csv": "outputs/decision/legacy_profit_relative_research/projection_<D>.csv",
+    "single_index_json": "outputs/decision/legacy_profit_relative_research/index.json",
+    "mixed_projection_json": "outputs/decision/executable_profit_research/projection_<D>.json",
+    "mixed_projection_csv": "outputs/decision/executable_profit_research/projection_<D>.csv",
+    "mixed_index_json": "outputs/decision/executable_profit_research/index.json",
+    "dated_projection_is_immutable": true,
+    "same_date_different_payload": "REJECT",
+    "out_of_order_pointer": "REJECT",
+    "forward_selection_output_allowed": false,
+    "forward_statistics_output_allowed": false,
+    "action_output_allowed": false
+  },
+  "boundaries": {
+    "research_only": true,
+    "public_research_projection_allowed": true,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "official_trade_action_allowed": false,
+    "may_create_trade_action": false,
+    "broker_or_order_integration_allowed": false,
+    "actual_execution_claimed": false,
+    "human_decision_support_only": true,
+    "proxy_scores_uncalibrated": true,
+    "may_change_promotion_membership_or_rank": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "action_input_consumed": false
+  }
+}

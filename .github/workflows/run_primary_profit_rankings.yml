@@ -1,0 +1,647 @@
+name: DC2.0 · Publish Primary Profit Rankings (P1)
+
+on:
+  schedule:
+    # Beijing 21:35 primary attempt and 22:35 recovery attempt, after P0.
+    - cron: "35 13 * * 1-5"
+    - cron: "35 14 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只读演练；生成并校验但不提交"
+        required: true
+        default: true
+        type: boolean
+      trade_date:
+        description: "D日 YYYYMMDD"
+        required: true
+        type: string
+      generation_mode:
+        description: "必须与同D日P0 receipt一致"
+        required: true
+        default: RETROSPECTIVE_RECOVERY
+        type: choice
+        options:
+          - RETROSPECTIVE_RECOVERY
+          - NATURAL
+      confirm_recovery:
+        description: "确认历史恢复不写前向Shadow/统计/Action"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  LOKY_MAX_CPU_COUNT: "1"
+
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+
+jobs:
+  compute:
+    name: Build atomic P1 single/mixed research candidate
+    if: ${{ github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+      base_head: ${{ steps.mode.outputs.base_head }}
+      signal_date: ${{ steps.target.outputs.signal_date }}
+      generation_mode: ${{ steps.target.outputs.generation_mode }}
+      has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
+    steps:
+      - name: Checkout immutable main base without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve publication mode and immutable base
+        id: mode
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          publish=true
+          if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ] && [ "${INPUT_DRY_RUN:-true}" != false ]; then publish=false; fi
+          base_head="$(git rev-parse HEAD)"
+          printf '%s\n' "${base_head}" > "${RUNNER_TEMP}/base_sha.txt"
+          echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
+          echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"
+
+      - name: Resolve exact P0-owned D and mode
+        id: target
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_TRADE_DATE: ${{ inputs.trade_date }}
+          INPUT_GENERATION_MODE: ${{ inputs.generation_mode }}
+          INPUT_CONFIRM_RECOVERY: ${{ inputs.confirm_recovery }}
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          event=os.environ['GITHUB_EVENT_NAME']; publish=os.environ['PUBLISH']=='true'
+          if event == 'schedule':
+              if os.environ.get('EVENT_SCHEDULE') not in {'35 13 * * 1-5','35 14 * * 1-5'}:
+                  raise SystemExit('P1 schedule contract drifted')
+              d=datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d'); mode='NATURAL'
+          elif event == 'workflow_dispatch':
+              d=str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
+              mode=str(os.environ.get('INPUT_GENERATION_MODE') or '').strip().upper()
+              if re.fullmatch(r'20\d{6}',d) is None: raise SystemExit('manual P1 trade_date must be YYYYMMDD')
+              if mode not in {'NATURAL','RETROSPECTIVE_RECOVERY'}: raise SystemExit('manual P1 mode invalid')
+              if publish:
+                  if mode != 'RETROSPECTIVE_RECOVERY': raise SystemExit('real manual P1 publication is recovery-only')
+                  if os.environ.get('INPUT_CONFIRM_RECOVERY') != 'true': raise SystemExit('real P1 recovery requires explicit confirmation')
+          else: raise SystemExit('unsupported P1 event')
+          receipt_path=Path(f'outputs/decision/primary_d_receipt_{d}.json')
+          runtime_path=Path(f'outputs/decision/primary_d_runtime_features_{d}.csv')
+          three_path=Path(f'outputs/decision/three_rank_top10_{d}.json')
+          if not all(path.is_file() and not path.is_symlink() for path in (receipt_path,runtime_path,three_path)):
+              raise SystemExit('P1 requires the complete same-D P0 bundle already committed on main')
+          receipt=json.loads(receipt_path.read_text(encoding='utf-8'))
+          if receipt.get('generation_mode') != mode: raise SystemExit('P1 mode differs from exact P0 receipt')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
+              out.write(f'signal_date={d}\ngeneration_mode={mode}\n')
+          Path(os.environ['RUNNER_TEMP'],'p1-target.json').write_text(json.dumps({'signal_date':d,'generation_mode':mode},sort_keys=True)+'\n',encoding='utf-8')
+          PY
+
+      - name: Set up pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install exact hash-locked Decision runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+          python -m pip check
+
+      - name: Run P1 contract tests
+        env:
+          PYTHONPATH: src
+        run: python -m pytest -q tests/test_primary_profit_rankings_p1.py
+
+      - name: Snapshot protected P0, Action, and forward-ledger state
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          signal_date="${SIGNAL_DATE}"
+          sha256sum \
+            "outputs/decision/primary_d_receipt_${signal_date}.json" \
+            "outputs/decision/primary_d_runtime_features_${signal_date}.csv" \
+            "outputs/decision/three_rank_top10_${signal_date}.json" \
+            "outputs/decision/three_rank_top10_${signal_date}.csv" \
+            > "${RUNNER_TEMP}/p0-before.sha256"
+          git status --porcelain=v1 -z --untracked-files=all -- \
+            ':(glob,top)outputs/decision/action_plan_*.json' \
+            ':(top)outputs/decision/report_index.json' \
+            ':(top)data/decision_executable_profit/forward' \
+            > "${RUNNER_TEMP}/protected-before.bin"
+          test ! -s "${RUNNER_TEMP}/protected-before.bin"
+
+      - name: Publish P1 into an isolated sidecar scope
+        env:
+          PYTHONPATH: src
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          GENERATION_MODE: ${{ steps.target.outputs.generation_mode }}
+        run: |
+          set -euo pipefail
+          python scripts/publish_primary_profit_rankings.py \
+            --root . --signal-date "${SIGNAL_DATE}" --generation-mode "${GENERATION_MODE}"
+          sha256sum -c "${RUNNER_TEMP}/p0-before.sha256"
+          git status --porcelain=v1 -z --untracked-files=all -- \
+            ':(glob,top)outputs/decision/action_plan_*.json' \
+            ':(top)outputs/decision/report_index.json' \
+            ':(top)data/decision_executable_profit/forward' \
+            > "${RUNNER_TEMP}/protected-after.bin"
+          cmp "${RUNNER_TEMP}/protected-before.bin" "${RUNNER_TEMP}/protected-after.bin"
+
+      - name: Cross-check complete single plus mixed bundle before staging
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          GENERATION_MODE: ${{ steps.target.outputs.generation_mode }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.publish_primary_profit_rankings import validate_mixed_projection, validate_single_projection
+          d=os.environ['SIGNAL_DATE']; mode=os.environ['GENERATION_MODE']
+          roots=('legacy_profit_relative_research','executable_profit_research')
+          single=json.loads(Path(f'outputs/decision/{roots[0]}/projection_{d}.json').read_text(encoding='utf-8'))
+          mixed=json.loads(Path(f'outputs/decision/{roots[1]}/projection_{d}.json').read_text(encoding='utf-8'))
+          validate_single_projection(single); validate_mixed_projection(mixed)
+          indices=[json.loads(Path(f'outputs/decision/{root}/index.json').read_text(encoding='utf-8')) for root in roots]
+          if any(index.get('latest_signal_date') != d or index.get('generation_mode') != mode for index in indices): raise SystemExit('P1 index D/mode mismatch')
+          for field in ('latest_top10_members_sha256','latest_source_bundle_sha256','latest_source_feature_snapshot_sha256'):
+              if indices[0].get(field) != indices[1].get(field): raise SystemExit(f'P1 single/mixed {field} mismatch')
+          if single['source_bindings'] != mixed['source_bindings']: raise SystemExit('P1 single/mixed source bindings differ')
+          if mode == 'RETROSPECTIVE_RECOVERY' and any(not item.get('retrospective_non_forward') for item in (single,mixed,*indices)):
+              raise SystemExit('P1 recovery lost non-forward disclosure')
+          PY
+
+      - name: Build exact atomic P1 candidate patch
+        id: candidate
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          signal_date="${SIGNAL_DATE}"
+          git add -A -- \
+            "outputs/decision/legacy_profit_relative_research/projection_${signal_date}.json" \
+            "outputs/decision/legacy_profit_relative_research/projection_${signal_date}.csv" \
+            outputs/decision/legacy_profit_relative_research/index.json \
+            "outputs/decision/executable_profit_research/projection_${signal_date}.json" \
+            "outputs/decision/executable_profit_research/projection_${signal_date}.csv" \
+            outputs/decision/executable_profit_research/index.json
+          git diff --cached --name-only -z > "${RUNNER_TEMP}/p1-paths.bin"
+          SIGNAL_DATE="${signal_date}" PATHS="${RUNNER_TEMP}/p1-paths.bin" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          d=os.environ['SIGNAL_DATE']; paths=[item.decode() for item in Path(os.environ['PATHS']).read_bytes().split(b'\0') if item]
+          expected={
+              f'outputs/decision/legacy_profit_relative_research/projection_{d}.json',
+              f'outputs/decision/legacy_profit_relative_research/projection_{d}.csv',
+              'outputs/decision/legacy_profit_relative_research/index.json',
+              f'outputs/decision/executable_profit_research/projection_{d}.json',
+              f'outputs/decision/executable_profit_research/projection_{d}.csv',
+              'outputs/decision/executable_profit_research/index.json',
+          }
+          if paths and set(paths) != expected: raise SystemExit(f'P1 patch is not one complete six-file bundle: {paths}')
+          PY
+          git diff --cached --binary --full-index > "${RUNNER_TEMP}/p1.patch"
+          sha256sum "${RUNNER_TEMP}/p1.patch" | cut -d' ' -f1 > "${RUNNER_TEMP}/p1.patch.sha256"
+          cp "${RUNNER_TEMP}/p1-target.json" "${RUNNER_TEMP}/p1-target-envelope.json"
+          if git diff --cached --quiet; then echo 'has_changes=false' >> "${GITHUB_OUTPUT}"; else echo 'has_changes=true' >> "${GITHUB_OUTPUT}"; fi
+
+      - name: Upload immutable P1 candidate
+        if: ${{ steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: primary-profit-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/base_sha.txt
+            ${{ runner.temp }}/p1.patch
+            ${{ runner.temp }}/p1.patch.sha256
+            ${{ runner.temp }}/p1-target-envelope.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: CAS publish one complete P1 commit
+    needs: compute
+    if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      published_head: ${{ steps.publish.outputs.published_head }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        with:
+          name: primary-profit-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - name: Verify envelope and create one exact-base commit
+        run: |
+          set -euo pipefail
+          candidate="${RUNNER_TEMP}/candidate"
+          test "$(find "${candidate}" -type f | wc -l | tr -d ' ')" = 4
+          expected="$(cat "${candidate}/base_sha.txt")"
+          test "$(git rev-parse HEAD)" = "${expected}"
+          test "$(sha256sum "${candidate}/p1.patch" | cut -d' ' -f1)" = "$(cat "${candidate}/p1.patch.sha256")"
+          git apply --index --binary "${candidate}/p1.patch"
+          test -n "$(git diff --cached --name-only)"
+          signal_date="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["signal_date"])' "${candidate}/p1-target-envelope.json")"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m "auto: publish primary profit rankings ${signal_date} [dc20-p1-pages-owned]"
+      - name: Publish exact CAS commit
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${expected}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+  deploy-primary-profit-pages:
+    name: Deploy exact P1 revision
+    needs: [compute, publish]
+    if: >-
+      ${{
+        always() &&
+        needs.compute.result == 'success' &&
+        needs.compute.outputs.publish == 'true' &&
+        (
+          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
+          (needs.compute.outputs.has_changes == 'false' && needs.publish.result == 'skipped')
+        )
+      }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: dc20-pages
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - name: Build exact P1 Decision site
+        env:
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+          GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}
+          HEAD_SHA: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          mkdir -p _site/outputs _site/models
+          cp decision.html _site/index.html
+          cp decision.html _site/decision.html
+          cp -R outputs/decision _site/outputs/decision
+          cp models/decision_primary_profit_research_contract.json _site/models/
+          touch _site/.nojekyll
+          python - <<'PY'
+          import hashlib, json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from scripts.publish_primary_profit_rankings import validate_mixed_projection, validate_single_projection
+          root=Path('_site'); d=os.environ['SIGNAL_DATE']; output=root/'outputs/decision'
+          single_path=output/'legacy_profit_relative_research'/f'projection_{d}.json'
+          mixed_path=output/'executable_profit_research'/f'projection_{d}.json'
+          single=json.loads(single_path.read_text(encoding='utf-8')); mixed=json.loads(mixed_path.read_text(encoding='utf-8'))
+          validate_single_projection(single); validate_mixed_projection(mixed)
+          if single['source_bindings'] != mixed['source_bindings']: raise SystemExit('P1 Pages source binding mismatch')
+          revision={
+              'schema_version':'decision_pages_revision_v5_primary_profit','system_name':'DC2.0','repository':os.environ['GITHUB_REPOSITORY'],'branch':'main','head_sha':os.environ['HEAD_SHA'],'run_id':int(os.environ['GITHUB_RUN_ID']),'run_attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",'workflow':os.environ['GITHUB_WORKFLOW'],'event_name':os.environ['GITHUB_EVENT_NAME'],'signal_date':d,'primary_profit_status':mixed['status'],'primary_profit_generation_mode':os.environ['GENERATION_MODE'],'primary_profit_candidate_count':mixed['candidate_count'],'primary_profit_top10_members_sha256':mixed['top10_members_sha256'],'primary_single_profit_projection_sha256':hashlib.sha256(single_path.read_bytes()).hexdigest(),'primary_mixed_profit_projection_sha256':hashlib.sha256(mixed_path.read_bytes()).hexdigest(),'published_at_utc':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
+          }
+          (root/'revision.json').write_text(json.dumps(revision,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _site
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+      - name: Verify exact public P1 revision and complete SHA-bound bundle
+        env:
+          EXPECTED_HEAD: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+          GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          for attempt in $(seq 1 30); do
+            revision="$(curl -fsSL "${base}/revision.json?run=${GITHUB_RUN_ID}-${attempt}" || true)"
+            actual="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("head_sha", ""))' <<<"${revision}" 2>/dev/null || true)"
+            if [ "${actual}" = "${EXPECTED_HEAD}" ]; then break; fi
+            if [ "${attempt}" = 30 ]; then echo 'public P1 revision did not converge' >&2; exit 1; fi
+            sleep 10
+          done
+          public_root="${RUNNER_TEMP}/public-p1"
+          mkdir -p "${public_root}"
+          fetch_public() {
+            local relative="$1"
+            mkdir -p "${public_root}/$(dirname "${relative}")"
+            curl -fsSL "${base}/${relative}?run=${GITHUB_RUN_ID}" \
+              -o "${public_root}/${relative}"
+          }
+          for relative in \
+            revision.json \
+            decision.html \
+            models/decision_primary_profit_research_contract.json \
+            "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json" \
+            "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv" \
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.json" \
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv" \
+            outputs/decision/legacy_profit_relative_research/index.json \
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.json" \
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.csv" \
+            outputs/decision/executable_profit_research/index.json \
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json" \
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
+          do
+            fetch_public "${relative}"
+          done
+          PUBLIC_ROOT="${public_root}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.publish_primary_profit_rankings import (
+              BOUNDARIES,
+              MIXED_INDEX_SCHEMA,
+              MIXED_ROOT,
+              MIXED_ROW_FIELDS,
+              MODE_STATUS,
+              SINGLE_INDEX_SCHEMA,
+              SINGLE_ROOT,
+              SINGLE_ROW_FIELDS,
+              _csv_bytes,
+              _sha256,
+              load_primary_inputs,
+              validate_mixed_projection,
+              validate_single_projection,
+          )
+
+          root = Path(os.environ['PUBLIC_ROOT']).resolve(strict=True)
+          signal_date = os.environ['SIGNAL_DATE']
+          mode = os.environ['GENERATION_MODE']
+          expected_head = os.environ['EXPECTED_HEAD']
+
+          def read_json(relative: Path) -> dict:
+              value = json.loads((root / relative).read_text(encoding='utf-8'))
+              if not isinstance(value, dict):
+                  raise SystemExit(f'public P1 JSON is not an object: {relative}')
+              return value
+
+          # Re-run the publisher's exact P0 lineage validator against bytes
+          # downloaded from Pages, not against the checkout used to build it.
+          inputs = load_primary_inputs(root, signal_date, mode)
+          specs = (
+              (SINGLE_ROOT, SINGLE_INDEX_SCHEMA, SINGLE_ROW_FIELDS, validate_single_projection),
+              (MIXED_ROOT, MIXED_INDEX_SCHEMA, MIXED_ROW_FIELDS, validate_mixed_projection),
+          )
+          expected_index_keys = {
+              'schema_version', 'index_kind', 'data_alias', 'display_name',
+              'status', 'generation_mode', 'prospective',
+              'retrospective_non_forward', 'latest_signal_date',
+              'latest_exec_date', 'latest_exit_date',
+              'latest_projection_json_url', 'latest_projection_json_sha256',
+              'latest_projection_csv_url', 'latest_projection_csv_sha256',
+              'latest_projection_snapshot_sha256',
+              'latest_top10_members_sha256', 'latest_source_bundle_sha256',
+              'latest_source_feature_snapshot_sha256', 'candidate_count',
+              'source_bindings', 'boundaries',
+          }
+          verified = []
+          for output_root, index_schema, row_fields, validator in specs:
+              index_relative = output_root / 'index.json'
+              json_relative = output_root / f'projection_{signal_date}.json'
+              csv_relative = output_root / f'projection_{signal_date}.csv'
+              index = read_json(index_relative)
+              projection = read_json(json_relative)
+              validator(projection)
+              if set(index) != expected_index_keys:
+                  raise SystemExit(f'public P1 index surface drifted: {index_relative}')
+              if not (
+                  index['schema_version'] == index_schema
+                  and index['index_kind'] == 'dated_primary_profit_research_pointer_only'
+                  and index['data_alias'] is False
+                  and index['status'] == MODE_STATUS[mode]
+                  and index['generation_mode'] == mode
+                  and index['prospective'] is (mode == 'NATURAL')
+                  and index['retrospective_non_forward'] is (mode == 'RETROSPECTIVE_RECOVERY')
+                  and index['latest_signal_date'] == signal_date
+                  and index['latest_exec_date'] == inputs.three_rank['exec_date']
+                  and index['latest_exit_date'] == inputs.three_rank['exit_date']
+                  and index['latest_projection_json_url'] == json_relative.as_posix()
+                  and index['latest_projection_csv_url'] == csv_relative.as_posix()
+                  and index['latest_projection_json_sha256'] == _sha256(root / json_relative)
+                  and index['latest_projection_csv_sha256'] == _sha256(root / csv_relative)
+                  and index['latest_projection_snapshot_sha256'] == projection['snapshot_sha256']
+                  and index['latest_top10_members_sha256'] == projection['top10_members_sha256']
+                  and index['latest_source_bundle_sha256'] == projection['source_bundle_sha256']
+                  and index['latest_source_feature_snapshot_sha256'] == projection['source_feature_snapshot_sha256']
+                  and index['candidate_count'] == projection['candidate_count']
+                  and index['source_bindings'] == projection['source_bindings'] == inputs.source_bindings
+                  and index['boundaries'] == projection['boundaries'] == BOUNDARIES
+                  and (root / csv_relative).read_bytes() == _csv_bytes(projection, row_fields)
+              ):
+                  raise SystemExit(f'public P1 index/projection/CSV binding failed: {output_root}')
+              verified.append((index, projection, _sha256(root / json_relative)))
+
+          (single_index, single, single_sha), (mixed_index, mixed, mixed_sha) = verified
+          if not (
+              single['source_bindings'] == mixed['source_bindings']
+              and single['top10_members_sha256'] == mixed['top10_members_sha256']
+              and single['source_bundle_sha256'] == mixed['source_bundle_sha256']
+              and single['source_feature_snapshot_sha256'] == mixed['source_feature_snapshot_sha256']
+              and single['candidate_count'] == mixed['candidate_count'] == len(inputs.selected_runtime)
+          ):
+              raise SystemExit('public P1 single/mixed exact TopN binding failed')
+
+          revision = read_json(Path('revision.json'))
+          if not (
+              revision.get('schema_version') == 'decision_pages_revision_v5_primary_profit'
+              and revision.get('head_sha') == expected_head
+              and revision.get('signal_date') == signal_date
+              and revision.get('primary_profit_status') == MODE_STATUS[mode]
+              and revision.get('primary_profit_generation_mode') == mode
+              and revision.get('primary_profit_candidate_count') == len(inputs.selected_runtime)
+              and revision.get('primary_profit_top10_members_sha256') == mixed['top10_members_sha256']
+              and revision.get('primary_single_profit_projection_sha256') == single_sha
+              and revision.get('primary_mixed_profit_projection_sha256') == mixed_sha
+          ):
+              raise SystemExit('public P1 revision metadata is not bound to both projections')
+          print(f'public P1 bundle verified: D={signal_date}, N={len(inputs.selected_runtime)}')
+          PY
+
+      - name: Execute public dashboard and verify rendered P1 DOM
+        env:
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          test -n "${chrome}"
+          dom="${RUNNER_TEMP}/public-p1-rendered.html"
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-background-networking \
+            --virtual-time-budget=20000 \
+            --dump-dom "${base}/decision.html?p1-dom=${GITHUB_RUN_ID}" \
+            > "${dom}"
+          DOM_PATH="${dom}" PUBLIC_ROOT="${RUNNER_TEMP}/public-p1" python - <<'PY'
+          import json
+          import os
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          signal_date = os.environ['SIGNAL_DATE']
+          public_root = Path(os.environ['PUBLIC_ROOT'])
+          mixed = json.loads(
+              (public_root / 'outputs/decision/executable_profit_research' / f'projection_{signal_date}.json').read_text(encoding='utf-8')
+          )
+          expected_n = int(mixed['candidate_count'])
+
+          class RenderedDashboardParser(HTMLParser):
+              VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
+
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.stack = []
+                  self.text_by_id = {}
+                  self.stage_hidden = None
+                  self.mixed_hidden = None
+                  self.single_buttons = 0
+                  self.stage_rows = 0
+                  self.mixed_rows = 0
+                  self.stage_headers = []
+                  self.mixed_headers = []
+
+              def _inside_id(self, value):
+                  return any(item['attrs'].get('id') == value for item in self.stack)
+
+              def _inside_attr(self, key, value=None):
+                  return any(key in item['attrs'] and (value is None or item['attrs'][key] == value) for item in self.stack)
+
+              def _inside_class(self, value):
+                  return any(value in item['attrs'].get('class', '').split() for item in self.stack)
+
+              def handle_starttag(self, tag, attrs):
+                  attributes = dict(attrs)
+                  node = {'tag': tag, 'attrs': attributes, 'text': []}
+                  self.stack.append(node)
+                  element_id = attributes.get('id')
+                  if element_id in {'statusTitle', 'stageSignalDate', 'stageCount', 'executableProfitResearchState', 'stageContent', 'executableProfitResearchContent'}:
+                      self.text_by_id.setdefault(element_id, [])
+                  if element_id == 'stagePanel':
+                      self.stage_hidden = 'hidden' in attributes
+                  if element_id == 'executableProfitResearchPanel':
+                      self.mixed_hidden = 'hidden' in attributes
+                  if tag == 'button' and attributes.get('data-three-rank-sort') == 'legacy_profit_relative_rank' and self._inside_id('stageContent'):
+                      self.single_buttons += 1
+                  if tag == 'tr' and self._inside_attr('data-three-rank-body'):
+                      self.stage_rows += 1
+                  if tag == 'tr' and self._inside_class('executable-profit-table') and self._inside_id('executableProfitResearchContent') and any(item['tag'] == 'tbody' for item in self.stack):
+                      self.mixed_rows += 1
+                  if tag in self.VOID:
+                      self.stack.pop()
+
+              def handle_endtag(self, tag):
+                  if not self.stack:
+                      return
+                  position = next((i for i in range(len(self.stack) - 1, -1, -1) if self.stack[i]['tag'] == tag), None)
+                  if position is None:
+                      return
+                  node = self.stack[position]
+                  text = ''.join(node['text']).strip()
+                  if node['tag'] == 'th':
+                      if any(item['attrs'].get('id') == 'stageContent' for item in self.stack[:position]):
+                          self.stage_headers.append(text)
+                      if any('executable-profit-table' in item['attrs'].get('class', '').split() for item in self.stack[:position]):
+                          self.mixed_headers.append(text)
+                  del self.stack[position:]
+
+              def handle_data(self, data):
+                  for item in self.stack:
+                      item['text'].append(data)
+                      element_id = item['attrs'].get('id')
+                      if element_id in self.text_by_id:
+                          self.text_by_id[element_id].append(data)
+
+              def text(self, element_id):
+                  return ' '.join(''.join(self.text_by_id.get(element_id, [])).split())
+
+          parser = RenderedDashboardParser()
+          parser.feed(Path(os.environ['DOM_PATH']).read_text(encoding='utf-8'))
+          status = parser.text('statusTitle')
+          stage_text = parser.text('stageContent')
+          mixed_state = parser.text('executableProfitResearchState')
+          mixed_text = parser.text('executableProfitResearchContent')
+          failures = ('读取失败', '校验失败', '未展示', '等待首个功能完整D日快照', '正在读取')
+          if not (
+              status == '晋级榜、单一盈利与混合盈利排序已生成'
+              and parser.stage_hidden is False
+              and parser.mixed_hidden is False
+              and parser.single_buttons == 1
+              and '单一盈利排序' in parser.stage_headers
+              and '模型分值' in parser.stage_headers
+              and parser.stage_rows == expected_n
+              and '混合盈利排序' in parser.mixed_headers
+              and parser.mixed_rows == expected_n
+              and f'真实候选 {expected_n} 支' in mixed_state
+              and not any(value in stage_text or value in mixed_text or value in mixed_state for value in failures)
+          ):
+              raise SystemExit(
+                  'public rendered P1 DOM failed: '
+                  f'status={status!r}, stage_hidden={parser.stage_hidden}, mixed_hidden={parser.mixed_hidden}, '
+                  f'single_buttons={parser.single_buttons}, stage_rows={parser.stage_rows}/{expected_n}, '
+                  f'mixed_rows={parser.mixed_rows}/{expected_n}, mixed_state={mixed_state!r}'
+              )
+          print(f'public rendered P1 DOM verified: D={signal_date}, N={expected_n}')
+          PY

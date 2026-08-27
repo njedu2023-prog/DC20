@@ -975,7 +975,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v7-legacy-profit-relative";
+    const DASHBOARD_VERSION = "independent-three-rank-v8-primary-profit";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
       root: "outputs/decision/legacy_profit_relative_research",
@@ -989,7 +989,10 @@
       artifactPath: "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
       artifactSha256: "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
       validationPath: "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
-      validationSha256: "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4"
+      validationSha256: "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4",
+      primaryProjectionSchema: "dc20_primary_single_profit_research_v1",
+      primaryProjectionKind: "immutable_d_frozen_primary_single_profit_research",
+      primaryIndexSchema: "dc20_primary_single_profit_research_index_v1"
     });
     const els = Object.fromEntries([
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
@@ -1351,6 +1354,27 @@
     }
 
     function renderStatus(plan) {
+      const primaryContract = state.index === 0
+        ? validatedThreeRankContract(state.currentThreeRank)
+        : null;
+      if (primaryContract && primaryContract !== false) {
+        const profitReady = state.currentLegacyProfitRelativeResearch?.signal_date === primaryContract.signal_date &&
+          state.currentExecutableProfitResearch?.status === "ready" &&
+          state.currentExecutableProfitResearch?.projection?.signal_date === primaryContract.signal_date;
+        els.statusBand.className = "status-band good";
+        els.statusKicker.textContent = "D日核心排名（不依赖历史Action）";
+        els.statusTitle.textContent = profitReady
+          ? "晋级榜、单一盈利与混合盈利排序已生成"
+          : "晋级榜已生成 · 盈利研究排序独立校验中";
+        els.brandDates.textContent = `D:${dateText(primaryContract.signal_date)} · T:${dateText(primaryContract.exec_date)} · T+1:${dateText(primaryContract.exit_date)}`;
+        els.signalDate.textContent = dateText(primaryContract.signal_date);
+        els.execDate.textContent = dateText(primaryContract.exec_date);
+        els.exitDate.textContent = dateText(primaryContract.exit_date);
+        els.stageSignalDate.textContent = `D：${dateText(primaryContract.signal_date)}`;
+        const coreGenerated = beijingDateTimeText(primaryContract.generated_at_utc);
+        els.stageGeneratedTime.textContent = coreGenerated ? `D榜生成时间 ${coreGenerated}` : "";
+        return;
+      }
       const status = String(plan?.status_code || "PENDING_AUCTION_MODEL");
       const tone = status === "ACTIONABLE_BUY" ? "good" : status.startsWith("NO_TRADE") ? "bad" : "warn";
       els.statusBand.className = `status-band ${tone}`;
@@ -1371,16 +1395,18 @@
 
     function renderAuctionOnlyPanels(plan) {
       const available = plan?.daily_research_only !== true || plan?.research_only === true;
+      const primaryContract = state.index === 0
+        ? validatedThreeRankContract(state.currentThreeRank)
+        : null;
       els.sentimentPanel.hidden = !available;
-      els.stagePanel.hidden = !available;
+      els.stagePanel.hidden = !(available || (primaryContract && primaryContract !== false));
       els.auditPanel.hidden = !available;
       if (!available) {
         els.sentimentState.textContent = "同日竞价明细尚未生成";
         els.sentimentMetrics.innerHTML = "";
         els.sentimentIndustries.innerHTML = "";
-        els.stageCount.textContent = "同日竞价明细尚未生成";
-        els.stageContent.innerHTML = "";
         els.auditContent.innerHTML = "";
+        if (primaryContract && primaryContract !== false) renderStageWatchlist(plan);
         return;
       }
       renderSentiment(plan);
@@ -1655,6 +1681,26 @@
 
     const EXECUTABLE_PROFIT_RESEARCH_ROOT = "outputs/decision/executable_profit_research";
     const EXECUTABLE_PROFIT_RESEARCH_DISPLAY_NAME = "可实现盈利概率排序（模型估计·未校准）";
+    const PRIMARY_PROFIT_CONTRACT_ID = "dc20_primary_profit_research_20260827_v1";
+    const PRIMARY_MIXED_PROFIT_SCHEMA = "dc20_primary_mixed_profit_research_projection_v1";
+    const PRIMARY_MIXED_PROFIT_INDEX_SCHEMA = "dc20_primary_mixed_profit_research_index_v1";
+    const PRIMARY_PROFIT_BOUNDARIES = Object.freeze({
+      research_only: true,
+      public_research_projection_allowed: true,
+      estimated_probability_calibrated: false,
+      formal_probability_allowed: false,
+      formal_rank_allowed: false,
+      official_trade_action_allowed: false,
+      may_create_trade_action: false,
+      broker_or_order_integration_allowed: false,
+      actual_execution_claimed: false,
+      human_decision_support_only: true,
+      proxy_scores_uncalibrated: true,
+      may_change_promotion_membership_or_rank: false,
+      forward_selection_created: false,
+      forward_statistics_updated: false,
+      action_input_consumed: false
+    });
     const EXECUTABLE_PROFIT_PUBLIC_BOUNDARIES = Object.freeze({
       public_research_projection_allowed: true,
       estimated_probability_display_allowed: true,
@@ -1684,6 +1730,11 @@
     function exactExecutableProfitBoundaries(value) {
       return exactObjectKeys(value, Object.keys(EXECUTABLE_PROFIT_PUBLIC_BOUNDARIES)) &&
         Object.entries(EXECUTABLE_PROFIT_PUBLIC_BOUNDARIES).every(([key, expected]) => value[key] === expected);
+    }
+
+    function exactPrimaryProfitBoundaries(value) {
+      return exactObjectKeys(value, Object.keys(PRIMARY_PROFIT_BOUNDARIES)) &&
+        Object.entries(PRIMARY_PROFIT_BOUNDARIES).every(([key, expected]) => value[key] === expected);
     }
 
     function executableProfitExpect(condition, message) {
@@ -1723,6 +1774,88 @@
       const payload = strictJsonFromBytes(bytes, label);
       executableProfitExpect(payload && typeof payload === "object" && !Array.isArray(payload), `${label}不是JSON对象`);
       return { bytes, payload };
+    }
+
+    function validatePrimaryProfitIndex(index, expectedSchema, outputRoot, displayName) {
+      const keys = [
+        "schema_version", "index_kind", "data_alias", "display_name", "status",
+        "generation_mode", "prospective", "retrospective_non_forward",
+        "latest_signal_date", "latest_exec_date", "latest_exit_date",
+        "latest_projection_json_url", "latest_projection_json_sha256",
+        "latest_projection_csv_url", "latest_projection_csv_sha256",
+        "latest_projection_snapshot_sha256", "latest_top10_members_sha256",
+        "latest_source_bundle_sha256", "latest_source_feature_snapshot_sha256",
+        "candidate_count", "source_bindings", "boundaries"
+      ];
+      executableProfitExpect(exactObjectKeys(index, keys), "P1盈利研究索引字段面漂移");
+      executableProfitExpect(index.schema_version === expectedSchema, "P1盈利研究索引版本无效");
+      executableProfitExpect(index.index_kind === "dated_primary_profit_research_pointer_only" && index.data_alias === false, "P1盈利研究索引不是dated只读指针");
+      executableProfitExpect(index.display_name === displayName, "P1盈利研究索引名称漂移");
+      const signalDate = canonicalYmd(index.latest_signal_date);
+      const execDate = canonicalYmd(index.latest_exec_date);
+      const exitDate = canonicalYmd(index.latest_exit_date);
+      executableProfitExpect(signalDate && signalDate < execDate && execDate < exitDate, "P1盈利研究索引日期无效");
+      executableProfitExpect(index.latest_signal_date === signalDate && index.latest_exec_date === execDate && index.latest_exit_date === exitDate, "P1盈利研究索引日期未标准化");
+      const expectedStatus = index.generation_mode === "NATURAL" ? "PROSPECTIVE_RESEARCH" : "RETROSPECTIVE_NON_FORWARD_RESEARCH";
+      executableProfitExpect(["NATURAL", "RETROSPECTIVE_RECOVERY"].includes(index.generation_mode) && index.status === expectedStatus, "P1盈利研究索引模式/状态漂移");
+      executableProfitExpect(index.prospective === (index.generation_mode === "NATURAL") && index.retrospective_non_forward === (index.generation_mode === "RETROSPECTIVE_RECOVERY"), "P1盈利研究索引前向披露漂移");
+      const prefix = `${outputRoot}/projection_${signalDate}`;
+      executableProfitExpect(index.latest_projection_json_url === `${prefix}.json` && index.latest_projection_csv_url === `${prefix}.csv`, "P1盈利研究索引未指向同D日投影");
+      for (const field of [
+        "latest_projection_json_sha256", "latest_projection_csv_sha256",
+        "latest_projection_snapshot_sha256", "latest_top10_members_sha256",
+        "latest_source_bundle_sha256", "latest_source_feature_snapshot_sha256"
+      ]) executableProfitExpect(isSha256(index[field]), `P1盈利研究索引${field}无效`);
+      executableProfitExpect(Number.isInteger(index.candidate_count) && index.candidate_count >= 0 && index.candidate_count <= 10, "P1盈利研究索引候选数无效");
+      executableProfitExpect(exactPrimaryProfitBoundaries(index.boundaries), "P1盈利研究索引安全边界漂移");
+      return { signalDate, execDate, exitDate };
+    }
+
+    async function validatePrimaryProfitSourceBindings(projection, index, currentThreeRank) {
+      const bindings = projection.source_bindings;
+      executableProfitExpect(exactObjectKeys(bindings, ["contract", "primary_receipt", "runtime_features", "three_rank"]), "P1盈利研究来源绑定缺失");
+      executableProfitExpect(canonicalJson(bindings) === canonicalJson(index.source_bindings), "P1盈利研究索引/投影来源绑定不一致");
+      executableProfitExpect(exactObjectKeys(bindings.contract, ["path", "sha256", "contract_id"]) && bindings.contract.path === "models/decision_primary_profit_research_contract.json" && bindings.contract.contract_id === PRIMARY_PROFIT_CONTRACT_ID && isSha256(bindings.contract.sha256), "P1盈利研究合同来源无效");
+      executableProfitExpect(exactObjectKeys(bindings.primary_receipt, ["path", "sha256", "generation_mode"]) && bindings.primary_receipt.path === `outputs/decision/primary_d_receipt_${projection.signal_date}.json` && bindings.primary_receipt.generation_mode === projection.generation_mode && isSha256(bindings.primary_receipt.sha256), "P1盈利研究P0 receipt来源无效");
+      executableProfitExpect(exactObjectKeys(bindings.runtime_features, ["path", "sha256", "row_count", "selected_count", "identity_sha256", "feature_snapshot_sha256"]) && bindings.runtime_features.path === `outputs/decision/primary_d_runtime_features_${projection.signal_date}.csv` && isSha256(bindings.runtime_features.sha256) && isSha256(bindings.runtime_features.identity_sha256) && bindings.runtime_features.feature_snapshot_sha256 === projection.source_feature_snapshot_sha256 && bindings.runtime_features.selected_count === projection.candidate_count && Number.isInteger(bindings.runtime_features.row_count) && bindings.runtime_features.row_count >= projection.candidate_count, "P1盈利研究P0 runtime来源无效");
+      executableProfitExpect(exactObjectKeys(bindings.three_rank, ["json_path", "json_sha256", "csv_path", "csv_sha256", "bundle_sha256", "feature_snapshot_sha256", "top10_members_sha256"]) && bindings.three_rank.json_path === `outputs/decision/three_rank_top10_${projection.signal_date}.json` && bindings.three_rank.csv_path === `outputs/decision/three_rank_top10_${projection.signal_date}.csv` && [bindings.three_rank.json_sha256, bindings.three_rank.csv_sha256, bindings.three_rank.bundle_sha256, bindings.three_rank.feature_snapshot_sha256, bindings.three_rank.top10_members_sha256].every(isSha256), "P1盈利研究三排名来源无效");
+      executableProfitExpect(bindings.three_rank.bundle_sha256 === projection.source_bundle_sha256 && bindings.three_rank.feature_snapshot_sha256 === projection.source_feature_snapshot_sha256 && bindings.three_rank.top10_members_sha256 === projection.top10_members_sha256, "P1盈利研究三排名指纹漂移");
+      const currentContract = validatedThreeRankContract(currentThreeRank);
+      executableProfitExpect(currentContract && currentContract !== false, "P1盈利研究缺少有效当前三排名");
+      executableProfitExpect(currentContract.signal_date === projection.signal_date && currentContract.exec_date === projection.exec_date && currentContract.exit_date === projection.exit_date && currentContract.bundle_sha256 === projection.source_bundle_sha256 && currentContract.feature_snapshot_sha256 === projection.source_feature_snapshot_sha256 && currentContract.top10_members_sha256 === projection.top10_members_sha256, "P1盈利研究与当前P0三排名不一致");
+
+      const [contractLoaded, receiptLoaded, runtimeBytes, threeLoaded, threeCsv] = await Promise.all([
+        fetchShaBoundJson(bindings.contract.path, bindings.contract.sha256, "P1盈利研究合同"),
+        fetchShaBoundJson(bindings.primary_receipt.path, bindings.primary_receipt.sha256, "P1 P0 receipt"),
+        fetchPath(bindings.runtime_features.path, "bytes"),
+        fetchShaBoundJson(bindings.three_rank.json_path, bindings.three_rank.json_sha256, "P1三排名JSON"),
+        fetchPath(bindings.three_rank.csv_path, "bytes")
+      ]);
+      executableProfitExpect(await sha256Hex(runtimeBytes) === bindings.runtime_features.sha256 && await sha256Hex(threeCsv) === bindings.three_rank.csv_sha256, "P1盈利研究runtime或三排名CSV字节SHA不一致");
+      const sourceContract = contractLoaded.payload;
+      executableProfitExpect(sourceContract.schema_version === "dc20_primary_profit_research_contract_v1" && sourceContract.contract_id === PRIMARY_PROFIT_CONTRACT_ID && sourceContract.status === "PUBLIC_CORE_RESEARCH_ALLOWED_NOT_FORMAL" && sourceContract.inputs?.action_input_allowed === false && sourceContract.outputs?.forward_selection_output_allowed === false && sourceContract.outputs?.forward_statistics_output_allowed === false && sourceContract.outputs?.action_output_allowed === false, "P1盈利研究合同越权或身份漂移");
+      const receipt = receiptLoaded.payload;
+      executableProfitExpect(receipt.schema_version === "dc20_primary_d_receipt_v1" && receipt.signal_date === projection.signal_date && receipt.exec_date === projection.exec_date && receipt.exit_date === projection.exit_date && receipt.generation_mode === projection.generation_mode && receipt.primary_status === "READY" && receipt.action_authorized === false && receipt.action_input_consumed === false && Number(receipt.formal_trade_count || 0) === 0, "P1盈利研究P0 receipt身份或无Action边界漂移");
+      executableProfitExpect(receipt.outputs?.runtime_features_path === bindings.runtime_features.path && receipt.outputs?.runtime_features_sha256 === bindings.runtime_features.sha256 && receipt.outputs?.runtime_feature_row_count === bindings.runtime_features.row_count && receipt.outputs?.runtime_selected_count === bindings.runtime_features.selected_count && receipt.outputs?.runtime_identity_sha256 === bindings.runtime_features.identity_sha256 && receipt.outputs?.json_sha256 === bindings.three_rank.json_sha256 && receipt.outputs?.csv_sha256 === bindings.three_rank.csv_sha256 && receipt.outputs?.top10_members_sha256 === projection.top10_members_sha256, "P1盈利研究P0 receipt输出绑定漂移");
+      const runtimeRows = parseStrictCsvBytes(runtimeBytes, ["identity", "signal_date", "ts_code", "stage_transition", "feature_snapshot_sha256", "top10_selected", "promotion_rank"], "P1 P0 runtime");
+      executableProfitExpect(runtimeRows.length === bindings.runtime_features.row_count, "P1 P0 runtime行数漂移");
+      const selectedRows = runtimeRows.filter(row => row.top10_selected === "1").sort((left, right) => Number(left.promotion_rank) - Number(right.promotion_rank));
+      executableProfitExpect(selectedRows.length === projection.candidate_count && runtimeRows.every(row => row.signal_date === projection.signal_date && row.feature_snapshot_sha256 === projection.source_feature_snapshot_sha256 && row.identity === `${projection.signal_date}|${row.ts_code}|${row.stage_transition}`), "P1 P0 runtime日期/指纹/选择漂移");
+      const identityPayload = {
+        schema: "dc20_primary_d_runtime_identity_v1",
+        signal_date: projection.signal_date,
+        rows: [...runtimeRows].sort((left, right) => left.ts_code.localeCompare(right.ts_code)).map(row => ({
+          identity: row.identity,
+          ts_code: row.ts_code,
+          stage_transition: row.stage_transition,
+          top10_selected: Number(row.top10_selected),
+          promotion_rank: Number(row.promotion_rank)
+        }))
+      };
+      executableProfitExpect(await sha256Hex(new TextEncoder().encode(canonicalJson(identityPayload))) === bindings.runtime_features.identity_sha256, "P1 P0 runtime identity SHA漂移");
+      const sourceThree = validatedThreeRankContract({ signal_date: projection.signal_date, exec_date: projection.exec_date, exit_date: projection.exit_date, three_rank: threeLoaded.payload });
+      executableProfitExpect(sourceThree && sourceThree !== false && sourceThree.bundle_sha256 === projection.source_bundle_sha256 && sourceThree.top10_members_sha256 === projection.top10_members_sha256, "P1 SHA绑定三排名合同无效");
+      executableProfitExpect(selectedRows.map(row => row.ts_code).join("\n") === currentContract.rows.map(row => row.ts_code).join("\n"), "P1 P0 runtime选中TopN与三排名不一致");
     }
 
     function validateExecutableProfitResearchIndex(index) {
@@ -1842,6 +1975,55 @@
         const promotion = promotionByCode.get(row.ts_code);
         executableProfitExpect(promotion && promotion.promotion_rank === row.promotion_rank && promotion.stage_transition === row.stage_transition && Math.abs(promotion.predicted_promotion_probability - row.predicted_promotion_probability) <= 1e-15, "可实现盈利研究改变了晋级成员或晋级排名");
       }
+      return projection;
+    }
+
+    async function validatePrimaryMixedProfitProjection(projection, index, currentThreeRank) {
+      const keys = [
+        "schema_version", "artifact_kind", "contract_id", "contract_file_sha256",
+        "status", "display_name", "generation_mode", "prospective",
+        "retrospective_non_forward", "research_only", "signal_date", "exec_date",
+        "exit_date", "candidate_count", "top10_members_sha256",
+        "source_bundle_sha256", "source_feature_snapshot_sha256", "source_bindings",
+        "boundaries", "score_semantics", "model", "ranking_contract", "rows",
+        "snapshot_sha256", "downloads"
+      ];
+      executableProfitExpect(exactObjectKeys(projection, keys), "P1混合盈利投影字段面漂移");
+      executableProfitExpect(projection.schema_version === PRIMARY_MIXED_PROFIT_SCHEMA && projection.artifact_kind === "immutable_d_frozen_primary_mixed_profit_research_projection" && projection.contract_id === PRIMARY_PROFIT_CONTRACT_ID, "P1混合盈利投影身份无效");
+      executableProfitExpect(projection.display_name === "混合盈利排序" && projection.research_only === true, "P1混合盈利名称或研究边界漂移");
+      const expectedStatus = projection.generation_mode === "NATURAL" ? "PROSPECTIVE_RESEARCH" : "RETROSPECTIVE_NON_FORWARD_RESEARCH";
+      executableProfitExpect(projection.status === expectedStatus && projection.prospective === (projection.generation_mode === "NATURAL") && projection.retrospective_non_forward === (projection.generation_mode === "RETROSPECTIVE_RECOVERY"), "P1混合盈利生成模式披露漂移");
+      executableProfitExpect(projection.signal_date === index.latest_signal_date && projection.exec_date === index.latest_exec_date && projection.exit_date === index.latest_exit_date && projection.snapshot_sha256 === index.latest_projection_snapshot_sha256 && projection.top10_members_sha256 === index.latest_top10_members_sha256 && projection.source_bundle_sha256 === index.latest_source_bundle_sha256 && projection.source_feature_snapshot_sha256 === index.latest_source_feature_snapshot_sha256, "P1混合盈利与索引日期或指纹不一致");
+      executableProfitExpect(exactPrimaryProfitBoundaries(projection.boundaries), "P1混合盈利安全边界漂移");
+      const rows = projection.rows;
+      const rowKeys = [
+        "ts_code", "name", "industry", "stage_transition", "promotion_rank",
+        "predicted_promotion_probability", "executable_profit_research_rank",
+        "estimated_executable_profit_probability", "research_joint_proxy_score",
+        "research_fill_proxy_score", "research_conditional_profit_score",
+        "rank_tied", "rank_group_size"
+      ];
+      executableProfitExpect(Array.isArray(rows) && rows.length === projection.candidate_count && rows.length <= 10, "P1混合盈利候选数无效");
+      const codes = [];
+      const promotionRanks = [];
+      for (let position = 0; position < rows.length; position += 1) {
+        const row = rows[position];
+        executableProfitExpect(exactObjectKeys(row, rowKeys) && /^\d{6}\.(SH|SZ)$/.test(String(row.ts_code || "")) && ["2→3", "3→4"].includes(row.stage_transition), "P1混合盈利行身份无效");
+        executableProfitExpect(Number.isInteger(row.promotion_rank) && row.executable_profit_research_rank === position + 1, "P1混合盈利排序不连续");
+        for (const field of ["predicted_promotion_probability", "estimated_executable_profit_probability", "research_joint_proxy_score", "research_fill_proxy_score", "research_conditional_profit_score"]) executableProfitExpect(typeof row[field] === "number" && Number.isFinite(row[field]) && row[field] >= 0 && row[field] <= 1, `P1混合盈利${field}无效`);
+        executableProfitExpect(Math.abs(row.research_joint_proxy_score - row.research_fill_proxy_score * row.research_conditional_profit_score) <= 1e-15 && Math.abs(row.estimated_executable_profit_probability - row.research_joint_proxy_score) <= 1e-15, "P1混合盈利联合代理分身份漂移");
+        executableProfitExpect(typeof row.rank_tied === "boolean" && Number.isInteger(row.rank_group_size) && row.rank_group_size >= 1, "P1混合盈利并列披露无效");
+        codes.push(row.ts_code);
+        promotionRanks.push(row.promotion_rank);
+      }
+      executableProfitExpect(new Set(codes).size === codes.length && [...promotionRanks].sort((a, b) => a - b).every((rank, indexValue) => rank === indexValue + 1), "P1混合盈利改变了冻结成员或晋级排名");
+      executableProfitExpect(await executableProfitMembersSha256(projection.signal_date, codes) === projection.top10_members_sha256, "P1混合盈利成员指纹不一致");
+      const downloads = projection.downloads;
+      const prefix = `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/projection_${projection.signal_date}`;
+      executableProfitExpect(exactObjectKeys(downloads, ["json_url", "csv_url", "csv_sha256", "row_count"]) && downloads.json_url === `${prefix}.json` && downloads.csv_url === `${prefix}.csv` && downloads.csv_sha256 === index.latest_projection_csv_sha256 && downloads.row_count === rows.length, "P1混合盈利下载合同漂移");
+      const ranking = projection.ranking_contract;
+      executableProfitExpect(ranking?.candidate_scope === "exact P0 frozen promotion TopN only" && ranking?.candidate_count_rule === "show exactly N for 0<=N<=10; never pad" && ranking?.membership_or_promotion_rank_may_change === false && ranking?.forward_selection_or_statistics_may_change === false && ranking?.trade_or_action_may_change === false, "P1混合盈利排序边界漂移");
+      await validatePrimaryProfitSourceBindings(projection, index, currentThreeRank);
       return projection;
     }
 
@@ -2002,6 +2184,16 @@
         }
         throw error;
       }
+      if (index?.schema_version === PRIMARY_MIXED_PROFIT_INDEX_SCHEMA) {
+        validatePrimaryProfitIndex(index, PRIMARY_MIXED_PROFIT_INDEX_SCHEMA, EXECUTABLE_PROFIT_RESEARCH_ROOT, "混合盈利排序");
+        const [projectionLoaded, projectionCsv] = await Promise.all([
+          fetchShaBoundJson(index.latest_projection_json_url, index.latest_projection_json_sha256, "P1混合盈利投影"),
+          fetchPath(index.latest_projection_csv_url, "bytes")
+        ]);
+        executableProfitExpect(await sha256Hex(projectionCsv) === index.latest_projection_csv_sha256, "P1混合盈利CSV字节SHA256不一致");
+        const projection = await validatePrimaryMixedProfitProjection(projectionLoaded.payload, index, currentThreeRank);
+        return { status: "ready", kind: "primary_core", index, projection, statistics: null };
+      }
       validateExecutableProfitResearchIndex(index);
       const [projectionLoaded, projectionCsv, statisticsLoaded] = await Promise.all([
         fetchShaBoundJson(index.latest_projection_json_url, index.latest_projection_json_sha256, "可实现盈利研究投影"),
@@ -2012,7 +2204,7 @@
       const projection = await validateExecutableProfitProjection(projectionLoaded.payload, index, currentThreeRank);
       const statistics = validateExecutableProfitStatistics(statisticsLoaded.payload, projection, index);
       await validateExecutableProfitSources(projection, statistics, currentThreeRank);
-      return { status: "ready", index, projection, statistics };
+      return { status: "ready", kind: "forward_shadow", index, projection, statistics };
     }
 
     async function refreshCurrentExecutableProfitResearch(currentThreeRank) {
@@ -2099,6 +2291,39 @@
       </tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
+    function renderPrimaryMixedProfitResearch(loaded) {
+      const { index, projection } = loaded;
+      const rows = [...projection.rows].sort((left, right) => left.executable_profit_research_rank - right.executable_profit_research_rank);
+      const modeLabel = projection.retrospective_non_forward
+        ? "历史恢复 · 非前向研究"
+        : "D日准前向研究";
+      els.executableProfitResearchState.textContent = `${modeLabel} · 真实候选 ${rows.length} 支 · 不足10不补票`;
+      const body = rows.map(row => `<tr>
+        <td><span class="truth-badge">${row.executable_profit_research_rank}${row.rank_tied ? "（并列分）" : ""}</span></td>
+        <td><span class="truth-badge">${row.promotion_rank}</span></td>
+        <td class="left">${escapeHtml(row.ts_code)}</td>
+        <td class="left name">${escapeHtml(row.name)}</td>
+        <td class="left">${escapeHtml(row.industry || "未分类")}</td>
+        <td>${escapeHtml(row.stage_transition)}</td>
+        <td><strong>${pct(row.estimated_executable_profit_probability)}</strong></td>
+        <td>${number(row.research_fill_proxy_score, 4)}</td>
+        <td>${number(row.research_conditional_profit_score, 4)}</td>
+      </tr>`).join("");
+      const downloads = `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/index.json`))}" download>下载研究索引</a>
+        <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
+        <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>`;
+      els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
+        ${rows.length ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
+          <th>混合盈利排序</th><th>晋级排序</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>联合代理分（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th>
+        </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
+        <p class="stats-note">${projection.retrospective_non_forward ? "本排序为明确的历史恢复研究，不是当时冻结的前向选择，不进入Shadow选择或累计统计。" : "本排序是D日研究展示；当前合同不写Shadow选择、累计统计或正式行动。"} 联合代理分是可买代理分×条件盈利代理分，未做正式概率校准。</p>`;
+      els.executableProfitShadowPanel.hidden = true;
+      els.executableProfitShadowState.textContent = "P1合同不写前向账本";
+      els.executableProfitShadowMetrics.innerHTML = "";
+      els.executableProfitShadowContent.innerHTML = '<div class="empty"><strong>前向Shadow与统计未被改写</strong>P1只计算当前冻结TopN内的研究排序。</div>';
+      els.executableProfitShadowNote.textContent = "Action、订单、前向选择和累计统计均不属于本P1输出。";
+    }
+
     function renderExecutableProfitResearch(plan) {
       const loaded = state.currentExecutableProfitResearch;
       if (state.index !== 0) {
@@ -2113,6 +2338,16 @@
         resetExecutableProfitResearchView("invalid", loaded.message || "未知错误");
         return;
       }
+      if (loaded.kind === "primary_core") {
+        const projection = loaded.projection;
+        const sidecarSignalDate = canonicalYmd(state.currentThreeRank?.signal_date);
+        if (projection.signal_date !== sidecarSignalDate) {
+          resetExecutableProfitResearchView("invalid", "页面当前D日与P1混合盈利投影D日不一致");
+          return;
+        }
+        renderPrimaryMixedProfitResearch(loaded);
+        return;
+      }
       const { index, projection, statistics } = loaded;
       const planSignalDate = canonicalYmd(plan?.signal_date);
       const sidecarSignalDate = canonicalYmd(state.currentThreeRank?.signal_date);
@@ -2121,6 +2356,7 @@
         return;
       }
       const candidateCount = projection.rows.length;
+      els.executableProfitShadowPanel.hidden = false;
       const shadowCount = Math.min(2, candidateCount);
       els.executableProfitResearchState.textContent = candidateCount === 0
         ? "D日硬范围候选为0 · 不补票 · 当日无Shadow"
@@ -2534,7 +2770,7 @@
         "原盈利实验排序来源三排名绑定无效"
       );
       legacyProfitRelativeExpect(
-        contract.models?.profit?.status === "NOT_READY_VALIDATION_GATE" &&
+        ["NOT_READY_VALIDATION_GATE", "NOT_READY_PRIMARY_ONLY"].includes(contract.models?.profit?.status) &&
         contract.models?.profit?.ranking_ready === false &&
         contract.models?.profit?.probability_ready === false &&
         contract.rows.every(row => row.profit_rank == null && row.predicted_profit_probability == null),
@@ -2657,11 +2893,64 @@
       return projection;
     }
 
+    async function validatePrimarySingleProfitProjection(projection, index, currentThreeRank) {
+      const spec = LEGACY_PROFIT_RELATIVE_RESEARCH;
+      const keys = [
+        "schema_version", "artifact_kind", "contract_id", "contract_file_sha256",
+        "status", "display_name", "generation_mode", "prospective",
+        "retrospective_non_forward", "research_only", "signal_date", "exec_date",
+        "exit_date", "candidate_count", "top10_members_sha256",
+        "source_bundle_sha256", "source_feature_snapshot_sha256", "source_bindings",
+        "boundaries", "score_semantics", "model", "ranking_contract", "rows",
+        "snapshot_sha256", "downloads"
+      ];
+      legacyProfitRelativeExpect(exactObjectKeys(projection, keys) && projection.schema_version === spec.primaryProjectionSchema && projection.artifact_kind === spec.primaryProjectionKind && projection.contract_id === PRIMARY_PROFIT_CONTRACT_ID && projection.display_name === "单一盈利排序" && projection.research_only === true, "P1单一盈利投影身份无效");
+      const expectedStatus = projection.generation_mode === "NATURAL" ? "PROSPECTIVE_RESEARCH" : "RETROSPECTIVE_NON_FORWARD_RESEARCH";
+      legacyProfitRelativeExpect(projection.status === expectedStatus && projection.prospective === (projection.generation_mode === "NATURAL") && projection.retrospective_non_forward === (projection.generation_mode === "RETROSPECTIVE_RECOVERY"), "P1单一盈利模式披露漂移");
+      legacyProfitRelativeExpect(projection.signal_date === index.latest_signal_date && projection.exec_date === index.latest_exec_date && projection.exit_date === index.latest_exit_date && projection.snapshot_sha256 === index.latest_projection_snapshot_sha256 && projection.top10_members_sha256 === index.latest_top10_members_sha256 && projection.source_bundle_sha256 === index.latest_source_bundle_sha256 && projection.source_feature_snapshot_sha256 === index.latest_source_feature_snapshot_sha256, "P1单一盈利与索引日期或指纹不一致");
+      legacyProfitRelativeExpect(exactPrimaryProfitBoundaries(projection.boundaries), "P1单一盈利安全边界漂移");
+      const currentContract = validatedThreeRankContract(currentThreeRank);
+      legacyProfitRelativeExpect(currentContract && currentContract !== false && ["NOT_READY_PRIMARY_ONLY", "NOT_READY_VALIDATION_GATE"].includes(currentContract.models?.profit?.status) && currentContract.models?.profit?.ranking_ready === false && currentContract.models?.profit?.probability_ready === false && currentContract.rows.every(row => row.profit_rank == null && row.predicted_profit_probability == null), "P1单一盈利正式字段不再保持NOT_READY/null");
+      const rows = projection.rows;
+      const expectedFields = [
+        "ts_code", "name", "industry", "stage_transition", "promotion_rank",
+        "legacy_profit_relative_rank", "legacy_profit_raw_score",
+        "legacy_profit_relative_percentile", "rank_tied", "rank_group_size"
+      ];
+      const officialByCode = new Map(currentContract.rows.map(row => [String(row.ts_code), row]));
+      legacyProfitRelativeExpect(Array.isArray(rows) && rows.length === projection.candidate_count && rows.length === officialByCode.size && rows.length <= 10, "P1单一盈利候选数不一致");
+      const seen = new Set();
+      for (const row of rows) {
+        const official = officialByCode.get(String(row?.ts_code || ""));
+        const score = finiteNumber(row?.legacy_profit_raw_score);
+        legacyProfitRelativeExpect(exactObjectKeys(row, expectedFields) && official && !seen.has(row.ts_code) && row.name === official.name && row.industry === official.industry && row.stage_transition === official.stage_transition && row.promotion_rank === official.promotion_rank && Number.isInteger(row.legacy_profit_relative_rank) && score != null && score >= 0 && score <= 1 && typeof row.rank_tied === "boolean" && Number.isInteger(row.rank_group_size) && row.rank_group_size >= 1, "P1单一盈利行合同无效");
+        seen.add(row.ts_code);
+      }
+      legacyProfitRelativeExpect(await executableProfitMembersSha256(projection.signal_date, [...seen]) === projection.top10_members_sha256, "P1单一盈利成员指纹不一致");
+      const ordered = [...rows].sort((left, right) => left.legacy_profit_relative_rank - right.legacy_profit_relative_rank || left.promotion_rank - right.promotion_rank);
+      legacyProfitRelativeExpect(ordered.every((row, position) => row === rows[position]), "P1单一盈利行顺序漂移");
+      const downloads = projection.downloads;
+      const prefix = `${spec.root}/projection_${projection.signal_date}`;
+      legacyProfitRelativeExpect(exactObjectKeys(downloads, ["json_url", "csv_url", "csv_sha256", "row_count"]) && downloads.json_url === `${prefix}.json` && downloads.csv_url === `${prefix}.csv` && downloads.csv_sha256 === index.latest_projection_csv_sha256 && downloads.row_count === rows.length, "P1单一盈利下载合同漂移");
+      await validatePrimaryProfitSourceBindings(projection, index, currentThreeRank);
+      return projection;
+    }
+
     async function loadCurrentLegacyProfitRelativeResearch(currentThreeRank) {
       const spec = LEGACY_PROFIT_RELATIVE_RESEARCH;
       const contract = validatedThreeRankContract(currentThreeRank);
       if (!contract) return null;
       const index = await fetchLegacyProfitRelativePath(`${spec.root}/index.json`);
+      if (index?.schema_version === spec.primaryIndexSchema) {
+        validatePrimaryProfitIndex(index, spec.primaryIndexSchema, spec.root, "单一盈利排序");
+        const [projectionBytes, csvBytes] = await Promise.all([
+          fetchLegacyProfitRelativePath(index.latest_projection_json_url, "bytes"),
+          fetchLegacyProfitRelativePath(index.latest_projection_csv_url, "bytes")
+        ]);
+        legacyProfitRelativeExpect(await sha256Hex(projectionBytes) === index.latest_projection_json_sha256 && await sha256Hex(csvBytes) === index.latest_projection_csv_sha256, "P1单一盈利dated工件SHA256不一致");
+        const projection = strictJsonFromBytes(projectionBytes, "P1单一盈利dated JSON");
+        return validatePrimarySingleProfitProjection(projection, index, currentThreeRank);
+      }
       legacyProfitRelativeExpect(
         exactObjectKeys(index, [
           "schema_version", "index_kind", "status", "research_only", "data_alias", "latest_fallback_allowed",
@@ -3556,24 +3845,63 @@
       els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
     }
 
+    function primaryCoreOnlyPlan() {
+      const contract = validatedThreeRankContract(state.currentThreeRank);
+      if (!contract || contract === false) return null;
+      return {
+        schema_version: "decision_primary_core_view_v1",
+        daily_research_only: true,
+        research_only: false,
+        action_authorized: false,
+        formal_buy_count: 0,
+        status_code: "PRIMARY_D_RANKINGS_READY",
+        status_label: "D日核心排名已生成",
+        signal_date: contract.signal_date,
+        exec_date: contract.exec_date,
+        exit_date: contract.exit_date,
+        generated_at_utc: contract.generated_at_utc,
+        stage_watchlist: [],
+        candidates: []
+      };
+    }
+
+    function renderPrimaryCoreOnly(error) {
+      const plan = primaryCoreOnlyPlan();
+      if (!plan) throw error;
+      state.index = 0;
+      state.current = { info: null, plan, md: "", evaluation: null };
+      renderStatus(plan);
+      renderAuctionOnlyPanels(plan);
+      renderExecutableProfitResearch(plan);
+      els.reportContent.innerHTML = `<div class="empty"><strong>旧报告/Action未参与核心排名</strong>${escapeHtml(String(error?.message || error || "历史报告不可用"))}。当前D榜及两项盈利研究仍按P0/P1独立合同展示。</div>`;
+      els.reportDetails.open = false;
+      els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · P0/P1核心排名独立视图 · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+      setNavigation();
+    }
+
     async function initialize(force = false) {
       els.refreshBtn.disabled = true;
       let targetInfo = null;
       try {
         if (force) state.reports = [];
+        state.currentThreeRank = await loadCurrentThreeRank();
+        await refreshCurrentThreeRankTTruth(state.currentThreeRank);
+        await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
+        await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
         const index = await fetchPath("outputs/decision/report_index.json");
         const reports = Array.isArray(index?.reports) ? index.reports : [];
         state.reportIndex = index;
         state.reports = reports.filter(item => /^decision_report_20\d{6}\.md$/.test(item.report_file || ""));
         if (!state.reports.length) throw new Error("report_index 没有报告记录");
-        state.currentThreeRank = await loadCurrentThreeRank();
-        await refreshCurrentThreeRankTTruth(state.currentThreeRank);
-        await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
-        await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
         state.index = 0;
         targetInfo = state.reports[0];
         await loadReport(0);
       } catch (error) {
+        const coreContract = validatedThreeRankContract(state.currentThreeRank);
+        if (coreContract && coreContract !== false) {
+          renderPrimaryCoreOnly(error);
+          return;
+        }
         const cached = validatedCachedState(loadCache(), targetInfo);
         if (!cached) throw error;
         state.reports = [cached.info];

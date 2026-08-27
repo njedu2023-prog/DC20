@@ -5,7 +5,7 @@
   "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
   "prior_pinned_files_sha256": "f40dc21ccbdd3076c26d74a9e806719e159c483e6252b968c4050440d82e7bce",
   "prior_evidence_sha256": "7d51e950081e3f97aa76f1ff2606db01fa6ffd91903e45c40d400e3e0c0650e3",
-  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, research context, and exact canonical pred_D in the isolated Daily root; validate their exact cross-file hashes, including the pred_D SHA bound by both the frozen selection and public projection; and copy only the 13 allowlisted dated and pointer artifacts into the publication candidate. Revalidate the exact pred_D regular-file mode, twin SHA binding, and zero-formal-action boundary in both candidate and publisher jobs. Fail closed and roll back if the hard-range inference pool is empty or the isolated handoff is incomplete; never pad outside the actual pool. Keep Auction push events code-validation-only so a freeze-only source commit cannot enter the live minute pipeline; leave scheduled and manual Auction execution unchanged. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Bridge the frozen integer Shadow selection flag to the public boolean projection without weakening either contract, and make forward-history tests accept legal appended dates while retaining exact D21 and D25 identity checks. Remove only the user-selected decision-page HTML banner, proof paragraph, research notice, inactive big-loss/profit columns and sort controls, main-table JSON download, manual-operation reference section, executable-profit public banner, and executable-profit toolbar caption; default the market-sentiment panel to the existing unified disclosure style; rename the displayed legacy-relative and executable-profit labels to single-profit and mixed-profit terminology; and preserve all backend fields, contracts, model bytes, ledgers, rankings, research downloads, action_plan data, official membership, and zero formal actions. Bind every persisted Auction action to one SHA-addressed immutable market-input snapshot generated before publication and committed in the same CAS; make Daily replay read only that snapshot so later raw or minute backfills cannot change the frozen action semantics or block the next exchange-day D list.",
+  "reason": "Restore the complete reviewed canonical Auction source preimage and move later three-engine runtime, monotonic calibration research, and D-only feature helpers to the independent three-engine adapter. Bind Daily to one exchange-resolved D, one immutable prediction commit, and an exact-dated 21-session SSE raw context without latest fallback or retrospective actions. Materialize the three-rank bundle, index, research context, and exact canonical pred_D in the isolated Daily root; validate their exact cross-file hashes, including the pred_D SHA bound by both the frozen selection and public projection; and copy only the 13 allowlisted dated and pointer artifacts into the publication candidate. Revalidate the exact pred_D regular-file mode, twin SHA binding, and zero-formal-action boundary in both candidate and publisher jobs. Fail closed and roll back if the hard-range inference pool is empty or the isolated handoff is incomplete; never pad outside the actual pool. Keep Auction push events code-validation-only so a freeze-only source commit cannot enter the live minute pipeline; leave scheduled and manual Auction execution unchanged. Reconstruct only the eight strict-before-D runtime promotion priors from the same hash-bound DC20 ledger when validating the immutable canonical pred_D snapshot, while accepting only exact numeric 2/3 or canonical 2→3/3→4 stage identities. Bind Pages to the canonical DC20-owned research_context_dc20_D path projected by the shared truth validator. Bridge the frozen integer Shadow selection flag to the public boolean projection without weakening either contract, and make forward-history tests accept legal appended dates while retaining exact D21 and D25 identity checks. Remove only the user-selected decision-page HTML banner, proof paragraph, research notice, inactive big-loss/profit columns and sort controls, main-table JSON download, manual-operation reference section, executable-profit public banner, and executable-profit toolbar caption; default the market-sentiment panel to the existing unified disclosure style; rename the displayed legacy-relative and executable-profit labels to single-profit and mixed-profit terminology; and preserve all backend fields, contracts, model bytes, ledgers, rankings, research downloads, action_plan data, official membership, and zero formal actions. Bind every persisted Auction action to one SHA-addressed immutable market-input snapshot generated before publication and committed in the same CAS; make Daily replay read only that snapshot so later raw or minute backfills cannot change the frozen action semantics or block the next exchange-day D list. Elevate same-day Primary D publication to the system P0 path, independent of stale legacy Action state, and bind its complete hard-pool runtime feature export to the immutable promotion-only receipt. Add the P1 single-profit and mixed-profit public research sidecars over exactly that same frozen TopN, with no padding, no promotion mutation, no Action input, and retrospective recovery explicitly barred from forward Shadow or statistics mutation.",
   "protected_model_identity": {
     "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
     "training_cutoff_signal_date": "20260805",
@@ -47,18 +47,32 @@
     "full_frozen_replay_ci_required": true,
     "codex_runtime_dependency": false,
     "external_top10_decision_runtime_dependency": false,
-    "writer_dispatch_performed": false
+    "writer_dispatch_performed": false,
+    "primary_d_publication_priority": "SYSTEM_P0_INDEPENDENT_OF_LEGACY_ACTION",
+    "single_profit_public_label": "UNCALIBRATED_RAW_RELATIVE_SCORE_NOT_PROBABILITY_NOT_FORMAL",
+    "mixed_profit_public_label": "UNCALIBRATED_FILL_X_CONDITIONAL_PROFIT_PROXY_NOT_PROBABILITY_NOT_FORMAL",
+    "primary_profit_candidate_scope": "EXACT_SAME_D_P0_FROZEN_TOPN",
+    "retrospective_profit_recovery": "NON_FORWARD_NO_SHADOW_STATISTICS_NO_ACTION",
+    "legacy_action_may_block_primary_publication": false,
+    "primary_profit_may_change_promotion_membership_or_rank": false
   },
   "added_runtime_pins": {
-    "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a"
+    ".github/workflows/run_primary_d_daily.yml": "6ec21772d9f9dae71abe215cd58f3207462c69bc5bd6babb867c155a3db83b96",
+    ".github/workflows/run_primary_profit_rankings.yml": "6db8fc91afc56fc67cdecb0d0b54c35ae6c4c69681237567fd0fe6c8ab56dc12",
+    "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+    "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
+    "scripts/publish_primary_profit_rankings.py": "e1c8f23ac751ce111de4dc68271790bb21f7e6d40122bfb5abf4414d1a05f94f",
+    "scripts/publish_primary_three_rank.py": "80e0e955b0a9ef0247e3cedda7542c610d9fa994a9cb7bd94dfe4b4dcf0afe18",
+    "tests/test_primary_profit_rankings_p1.py": "9b6457a4d07d081c5da8289b0deb12f5e1d5ac1a0de05bdb46097ce66501efbc",
+    "tests/test_primary_three_rank_p0.py": "6fef5e73fba940115dc0fdf855381b00fcab92730f0d6dce0f56ad57fcaf26d8"
   },
-  "changed_surface_sha256": "38f4c4f976096c3c86d26516465431535bffbfbcf0786daff34c4281631aa122",
+  "changed_surface_sha256": "6aca30cb3ea275527d0003ede2901a4368c5185469e5513c6321973df6028257",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
       "prior_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
-      "current_sha256": "cfaa2683060d424f327b12f26b85f7def607f18c635d23e2db0ecac9c144d06e",
-      "classification": "canonical_dc20_research_context_pages_binding"
+      "current_sha256": "e0a685c9b23a026666518f5c21e0070ca713c0f69940de175f482f80ab5a6c81",
+      "classification": "primary_owned_exact_revision_pages_dispatch_gate"
     },
     {
       "path": ".github/workflows/diagnose_decision_fingerprint.yml",
@@ -69,14 +83,14 @@
     {
       "path": ".github/workflows/run_auction_v3.yml",
       "prior_sha256": "341cd6584a72ad157840416690a6c3e68c9f055ded32bf23cf3022572bafc609",
-      "current_sha256": "d1b6681903dd2204e8b12322d369cdcb40e8934a9ddc914d916e48b2a72a6577",
-      "classification": "push_read_only_auction_pipeline_gate"
+      "current_sha256": "bdb71c0793d3550e50eb61b6237eb8a677dc45c89bd06e01445efd9ab4d43f3f",
+      "classification": "legacy_auction_manual_only_depower"
     },
     {
       "path": ".github/workflows/run_decision_daily.yml",
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-      "current_sha256": "e45cf3bf6681fe66ae488c85f492820c43f6e3ab4890fe41543b82d8f13ff5ba",
-      "classification": "strict_dated_daily_context_workflow"
+      "current_sha256": "f10ffc62a84eb796c5e319b9b60232ef639c08e3c63a78d6f4e348600c8e850d",
+      "classification": "legacy_full_research_manual_only_depower"
     },
     {
       "path": ".github/workflows/test_decision_core.yml",
@@ -87,14 +101,20 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "841e36c8c925f1415609302d06fe11f6213c5a581bb62145c43ecce3253b9319",
-      "classification": "html_only_decision_surface_cleanup"
+      "current_sha256": "079d829bb4dd673ec2b27822a471defc4f456c1ae9627096470e64931e82da71",
+      "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
       "path": "scripts/build_three_engine_five_year_ledger.py",
       "prior_sha256": "9e3539e4df723f363e741acbbaa162149d9cc4ecc006190d21ee5831170ff269",
       "current_sha256": "5fda0491815ea5d75a76969a4d539ef414be67ce53779656401ed66e5a0a61ed",
       "classification": "three_engine_helper_externalization"
+    },
+    {
+      "path": "scripts/decision_pages_truth.py",
+      "prior_sha256": "99cd92b3be892e39b8e471371ac1d29e76eb9ae39c2f64ae7fdaf5c2f0f81bf3",
+      "current_sha256": "00286ead9db97b7b69919ec96bc4bf307a3051440171276a8571071bb2d100a3",
+      "classification": "primary_profit_exact_public_bundle_validation"
     },
     {
       "path": "scripts/migrate_decision_runtime.py",
@@ -153,14 +173,20 @@
     {
       "path": "src/top10decision/decision/model_freeze.py",
       "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
-      "current_sha256": "5d9f227d97d2a1fd08f21e05631c47ac1933ad21ceb3048aaad233b8519ed6cc",
-      "classification": "three_rank_canonical_preimage_runtime_validation"
+      "current_sha256": "b427a3c9c836b1ae79201dfa6bd6059f3c25e40a70c47b5e1fdfdc4bbde285f1",
+      "classification": "primary_p0_p1_active_pin_validation"
     },
     {
       "path": "src/top10decision/decision/observation.py",
       "prior_sha256": "7f8f6d92971995f4eae3e6f7b5f4e1290461f0ecf8f4b05de741b8d2af78c15a",
       "current_sha256": "8f721512a0a6463349f4c7531746ebb009018a703209095c2905d1e952304471",
       "classification": "three_rank_canonical_observation_preimage"
+    },
+    {
+      "path": "src/top10decision/decision/three_engine_models.py",
+      "prior_sha256": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34",
+      "current_sha256": "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c",
+      "classification": "promotion_only_primary_d_loader"
     },
     {
       "path": "src/top10decision/decision/three_rank.py",
@@ -183,8 +209,8 @@
     {
       "path": "tests/test_dashboard_research_projection.py",
       "prior_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
-      "current_sha256": "eedf83eda7bd4485e285256731326641dbbff7918abf9ef509058847a987d853",
-      "classification": "html_only_decision_surface_cleanup_test"
+      "current_sha256": "0abaa80fea83dbfeb1cac23db66fcbd45e1c24adf50a0d4f30b4973dc4956760",
+      "classification": "primary_profit_frontend_contract_test"
     },
     {
       "path": "tests/test_decision_model_freeze.py",
@@ -207,8 +233,8 @@
     {
       "path": "tests/test_decision_three_rank_frontend.py",
       "prior_sha256": "e75f11b84482cf299bc7919f4e5eb0c773d8cae3631369622b02af659f6267ab",
-      "current_sha256": "ace3af9f773509b1dbde230b9446ac440e6b8017c31fbeda4ee57657102e08dd",
-      "classification": "html_only_decision_surface_cleanup_test"
+      "current_sha256": "0affa0ad2545c21761aeaf6a9bcf1a0c80bc3d074b9fbb899abfd821f2f3c747",
+      "classification": "primary_action_independent_three_ranking_frontend_test"
     },
     {
       "path": "tests/test_decision_three_rank_history_projection.py",
@@ -237,8 +263,8 @@
     {
       "path": "tests/test_pages_truthfulness_workflow.py",
       "prior_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
-      "current_sha256": "15490d2f8e62c02334fd3991aa402a4aea73aba0a386fe94b2ba55f7aa4f924c",
-      "classification": "canonical_dc20_research_context_pages_binding_test"
+      "current_sha256": "d1df55d22f518ca581d5f1d0e8a3739aab261075c10d8fb64949dfb13d809b9a",
+      "classification": "primary_owned_pages_public_acceptance_test"
     },
     {
       "path": "tests/test_promotion_model.py",
@@ -267,8 +293,8 @@
     {
       "path": "tests/test_writer_workflow_hardening.py",
       "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
-      "current_sha256": "bfc4e9161616f83d5beebde9021c58c636bc428000a133961f55ba39d7a9035b",
-      "classification": "strict_dated_daily_context_workflow_test"
+      "current_sha256": "f460a9ad5cd243bbcd19f2fe59727db8da06f4076c4c4d5f84edc381cc2d82b4",
+      "classification": "legacy_writer_depower_primary_schedule_contract_test"
     }
   ]
 }

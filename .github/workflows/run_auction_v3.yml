@@ -1,18 +1,8 @@
-name: Run Decision Top10 Trade Selector V12
+name: DC2.0 · Legacy Auction Action (Manual)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "models/decision_model_freeze.json"
-      - "src/top10decision/auction_v3/**"
-      - "src/top10decision/decision/**"
-      - "src/top10decision/data/**"
-      - "scripts/run_auction_v3.py"
-      - "scripts/sync_tushare_minute.py"
-      - "scripts/publish_decision_action.py"
-  schedule:
-    - cron: "35 1 * * 1-5"
+  # Legacy action generation is optional and manual-only.  It must not race,
+  # rewrite, or gate the independently published P0/P1 D-ranking chain.
   workflow_dispatch:
     inputs:
       dry_run:
@@ -61,12 +51,7 @@ concurrency:
 jobs:
   compute:
     name: Read-only compute and validate Auction candidate
-    if: >-
-      ${{
-        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-        (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
-      }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
     runs-on: ubuntu-24.04

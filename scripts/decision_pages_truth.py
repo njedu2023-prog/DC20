@@ -25,6 +25,7 @@ DATED_DC20_RESEARCH_RE = re.compile(r"research_context_dc20_(\d{8})\.json")
 DATED_THREE_RANK_JSON_RE = re.compile(r"three_rank_top10_(\d{8})\.json")
 DATED_THREE_RANK_CSV_RE = re.compile(r"three_rank_top10_(\d{8})\.csv")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
+PRIMARY_CODE_RE = re.compile(r"\d{6}\.(?:SH|SZ)")
 GIT_OBJECT_RE = re.compile(r"[0-9a-f]{40}")
 REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 UTC_TIMESTAMP_RE = re.compile(
@@ -35,6 +36,35 @@ THREE_RANK_SCHEMA = "decision_three_rank_top10_v1"
 THREE_RANK_CONTRACT_VERSION = "decision_three_rank_v1"
 THREE_RANK_INDEX_SCHEMA = "decision_three_rank_index_v1"
 THREE_RANK_INDEX_KIND = "dated_three_rank_pointer_only"
+PRIMARY_SINGLE_PROFIT_INDEX_SCHEMA = (
+    "dc20_primary_single_profit_research_index_v1"
+)
+PRIMARY_MIXED_PROFIT_INDEX_SCHEMA = (
+    "dc20_primary_mixed_profit_research_index_v1"
+)
+PRIMARY_SINGLE_PROFIT_SCHEMA = "dc20_primary_single_profit_research_v1"
+PRIMARY_MIXED_PROFIT_SCHEMA = (
+    "dc20_primary_mixed_profit_research_projection_v1"
+)
+PRIMARY_PROFIT_INDEX_KIND = "dated_primary_profit_research_pointer_only"
+PRIMARY_PROFIT_CONTRACT_ID = "dc20_primary_profit_research_20260827_v1"
+PRIMARY_PROFIT_BOUNDARIES = {
+    "research_only": True,
+    "public_research_projection_allowed": True,
+    "estimated_probability_calibrated": False,
+    "formal_probability_allowed": False,
+    "formal_rank_allowed": False,
+    "official_trade_action_allowed": False,
+    "may_create_trade_action": False,
+    "broker_or_order_integration_allowed": False,
+    "actual_execution_claimed": False,
+    "human_decision_support_only": True,
+    "proxy_scores_uncalibrated": True,
+    "may_change_promotion_membership_or_rank": False,
+    "forward_selection_created": False,
+    "forward_statistics_updated": False,
+    "action_input_consumed": False,
+}
 P_FILL_SHADOW_TOP2_SLOTS = 2
 INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821"
 THREE_RANK_HEAD_FIELDS = {
@@ -125,6 +155,16 @@ class DecisionActionIndexTruth:
     research_dates: tuple[str, ...]
     latest_action_report_date: str
     latest_action_url: str
+
+
+@dataclass(frozen=True)
+class PrimaryProfitResearchTruth:
+    signal_date: str
+    exec_date: str
+    exit_date: str
+    generation_mode: str
+    candidate_count: int
+    top10_members_sha256: str
 
 
 def _strict_date(value: Any, field: str) -> tuple[str, date]:
@@ -1015,6 +1055,501 @@ def validate_three_rank_index_truth(
             "three-rank index differs from its immutable dated contract"
         )
     return contract
+
+
+def _primary_profit_file_sha256(path: Path, label: str) -> str:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size <= 0:
+        raise DecisionPagesTruthError(f"{label} is missing, empty, or a symlink")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _primary_profit_bound_path(
+    site_root: Path,
+    value: Any,
+    expected: str,
+    label: str,
+) -> Path:
+    if value != expected:
+        raise DecisionPagesTruthError(f"{label} path is not the exact dated path")
+    return _site_child(site_root, tuple(expected.split("/")), label)
+
+
+def _validate_primary_profit_index_projection(
+    *,
+    site_root: Path,
+    index: dict[str, Any],
+    output_root: str,
+    index_schema: str,
+    projection_schema: str,
+    display_name: str,
+) -> dict[str, Any]:
+    if (
+        index.get("schema_version") != index_schema
+        or index.get("index_kind") != PRIMARY_PROFIT_INDEX_KIND
+        or index.get("data_alias") is not False
+        or index.get("display_name") != display_name
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} primary-profit index contract is invalid"
+        )
+    signal_date, signal_day = _strict_date(
+        index.get("latest_signal_date"), f"{display_name} index signal date"
+    )
+    exec_date, exec_day = _strict_date(
+        index.get("latest_exec_date"), f"{display_name} index exec date"
+    )
+    exit_date, exit_day = _strict_date(
+        index.get("latest_exit_date"), f"{display_name} index exit date"
+    )
+    if not signal_day < exec_day < exit_day:
+        raise DecisionPagesTruthError(f"{display_name} index dates are invalid")
+    mode = index.get("generation_mode")
+    expected_status = {
+        "NATURAL": "PROSPECTIVE_RESEARCH",
+        "RETROSPECTIVE_RECOVERY": "RETROSPECTIVE_NON_FORWARD_RESEARCH",
+    }.get(mode)
+    if (
+        expected_status is None
+        or index.get("status") != expected_status
+        or index.get("prospective") is not (mode == "NATURAL")
+        or index.get("retrospective_non_forward")
+        is not (mode == "RETROSPECTIVE_RECOVERY")
+        or index.get("boundaries") != PRIMARY_PROFIT_BOUNDARIES
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} index mode or safety boundary is invalid"
+        )
+    candidate_count = index.get("candidate_count")
+    if type(candidate_count) is not int or not 0 <= candidate_count <= 10:
+        raise DecisionPagesTruthError(
+            f"{display_name} index candidate count is invalid"
+        )
+    prefix = f"{output_root}/projection_{signal_date}"
+    json_path = _primary_profit_bound_path(
+        site_root,
+        index.get("latest_projection_json_url"),
+        f"{prefix}.json",
+        f"{display_name} projection JSON",
+    )
+    csv_path = _primary_profit_bound_path(
+        site_root,
+        index.get("latest_projection_csv_url"),
+        f"{prefix}.csv",
+        f"{display_name} projection CSV",
+    )
+    if (
+        index.get("latest_projection_json_sha256")
+        != _primary_profit_file_sha256(json_path, f"{display_name} projection JSON")
+        or index.get("latest_projection_csv_sha256")
+        != _primary_profit_file_sha256(csv_path, f"{display_name} projection CSV")
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} projection download hash drifted"
+        )
+    projection = _load_json_object(json_path, f"{display_name} projection")
+    if (
+        projection.get("schema_version") != projection_schema
+        or projection.get("contract_id") != PRIMARY_PROFIT_CONTRACT_ID
+        or projection.get("display_name") != display_name
+        or projection.get("research_only") is not True
+        or projection.get("generation_mode") != mode
+        or projection.get("status") != expected_status
+        or projection.get("prospective") is not (mode == "NATURAL")
+        or projection.get("retrospective_non_forward")
+        is not (mode == "RETROSPECTIVE_RECOVERY")
+        or projection.get("signal_date") != signal_date
+        or projection.get("exec_date") != exec_date
+        or projection.get("exit_date") != exit_date
+        or projection.get("candidate_count") != candidate_count
+        or projection.get("boundaries") != PRIMARY_PROFIT_BOUNDARIES
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} projection identity or boundary is invalid"
+        )
+    rows = projection.get("rows")
+    if (
+        not isinstance(rows, list)
+        or len(rows) != candidate_count
+        or any(not isinstance(row, dict) for row in rows)
+    ):
+        raise DecisionPagesTruthError(f"{display_name} projection rows are invalid")
+    codes: list[str] = []
+    promotion_ranks: list[int] = []
+    for position, row in enumerate(rows, start=1):
+        code = row.get("ts_code")
+        rank = row.get("promotion_rank")
+        if (
+            type(code) is not str
+            or PRIMARY_CODE_RE.fullmatch(code) is None
+            or type(rank) is not int
+            or isinstance(rank, bool)
+            or row.get("stage_transition") not in {"2→3", "3→4"}
+        ):
+            raise DecisionPagesTruthError(
+                f"{display_name} projection row {position} identity is invalid"
+            )
+        if projection_schema == PRIMARY_SINGLE_PROFIT_SCHEMA:
+            relative_rank = row.get("legacy_profit_relative_rank")
+            raw_score = row.get("legacy_profit_raw_score")
+            if (
+                type(relative_rank) is not int
+                or isinstance(relative_rank, bool)
+                or type(raw_score) not in {int, float}
+                or isinstance(raw_score, bool)
+                or not math.isfinite(float(raw_score))
+                or not 0 <= float(raw_score) <= 1
+            ):
+                raise DecisionPagesTruthError(
+                    f"{display_name} projection row {position} score is invalid"
+                )
+        else:
+            if row.get("executable_profit_research_rank") != position:
+                raise DecisionPagesTruthError(
+                    f"{display_name} projection rank order is invalid"
+                )
+            fill = row.get("research_fill_proxy_score")
+            conditional = row.get("research_conditional_profit_score")
+            joint = row.get("research_joint_proxy_score")
+            alias = row.get("estimated_executable_profit_probability")
+            if any(
+                type(value) not in {int, float}
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not 0 <= float(value) <= 1
+                for value in (fill, conditional, joint, alias)
+            ) or not (
+                math.isclose(float(joint), float(fill) * float(conditional), abs_tol=1e-15)
+                and math.isclose(float(alias), float(joint), abs_tol=1e-15)
+            ):
+                raise DecisionPagesTruthError(
+                    f"{display_name} projection row {position} proxy identity is invalid"
+                )
+        codes.append(code)
+        promotion_ranks.append(rank)
+    if (
+        len(set(codes)) != len(codes)
+        or sorted(promotion_ranks) != list(range(1, candidate_count + 1))
+        or projection.get("top10_members_sha256")
+        != _three_rank_member_hash(signal_date, codes)
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} changed frozen membership or promotion ranks"
+        )
+    for index_field, projection_field in (
+        ("latest_projection_snapshot_sha256", "snapshot_sha256"),
+        ("latest_top10_members_sha256", "top10_members_sha256"),
+        ("latest_source_bundle_sha256", "source_bundle_sha256"),
+        (
+            "latest_source_feature_snapshot_sha256",
+            "source_feature_snapshot_sha256",
+        ),
+    ):
+        value = projection.get(projection_field)
+        if (
+            type(value) is not str
+            or SHA256_RE.fullmatch(value) is None
+            or index.get(index_field) != value
+        ):
+            raise DecisionPagesTruthError(
+                f"{display_name} projection/index fingerprint drifted"
+            )
+    snapshot_payload = dict(projection)
+    snapshot_payload.pop("snapshot_sha256", None)
+    snapshot_payload.pop("downloads", None)
+    expected_snapshot = hashlib.sha256(
+        _canonical_json_bytes(snapshot_payload)
+    ).hexdigest()
+    if projection.get("snapshot_sha256") != expected_snapshot:
+        raise DecisionPagesTruthError(
+            f"{display_name} projection snapshot hash drifted"
+        )
+    downloads = projection.get("downloads")
+    if (
+        not isinstance(downloads, dict)
+        or downloads.get("json_url") != f"{prefix}.json"
+        or downloads.get("csv_url") != f"{prefix}.csv"
+        or downloads.get("csv_sha256")
+        != index.get("latest_projection_csv_sha256")
+        or downloads.get("row_count") != candidate_count
+    ):
+        raise DecisionPagesTruthError(
+            f"{display_name} projection download binding is invalid"
+        )
+    try:
+        csv_rows = list(
+            csv.DictReader(csv_path.read_text(encoding="utf-8-sig").splitlines())
+        )
+    except (UnicodeError, csv.Error) as exc:
+        raise DecisionPagesTruthError(
+            f"{display_name} projection CSV is invalid"
+        ) from exc
+    if len(csv_rows) != candidate_count or {
+        row.get("ts_code") for row in csv_rows
+    } != set(codes):
+        raise DecisionPagesTruthError(
+            f"{display_name} projection CSV membership drifted"
+        )
+    if projection.get("source_bindings") != index.get("source_bindings"):
+        raise DecisionPagesTruthError(
+            f"{display_name} projection/index source bindings drifted"
+        )
+    return projection
+
+
+def validate_primary_profit_research_truth(
+    *, site_root: Path
+) -> PrimaryProfitResearchTruth | None:
+    """Validate the new P0-authority single/mixed pair without Action inputs.
+
+    Archived forward-v2/legacy-v1 contracts remain governed by their existing
+    validators.  Once either primary index is advertised, both rankings must
+    be present and bind the same exact P0 receipt/runtime/three-rank snapshot.
+    """
+
+    site_root, _decision_root = _site_decision_root(Path(site_root))
+    single_index_path = _site_child(
+        site_root,
+        ("outputs", "decision", "legacy_profit_relative_research", "index.json"),
+        "single-profit research index",
+    )
+    mixed_index_path = _site_child(
+        site_root,
+        ("outputs", "decision", "executable_profit_research", "index.json"),
+        "mixed-profit research index",
+    )
+    present = (single_index_path.exists(), mixed_index_path.exists())
+    if not any(present):
+        return None
+    single_index = (
+        _load_json_object(single_index_path, "single-profit research index")
+        if present[0]
+        else None
+    )
+    mixed_index = (
+        _load_json_object(mixed_index_path, "mixed-profit research index")
+        if present[1]
+        else None
+    )
+    new_single = (
+        isinstance(single_index, dict)
+        and single_index.get("schema_version")
+        == PRIMARY_SINGLE_PROFIT_INDEX_SCHEMA
+    )
+    new_mixed = (
+        isinstance(mixed_index, dict)
+        and mixed_index.get("schema_version")
+        == PRIMARY_MIXED_PROFIT_INDEX_SCHEMA
+    )
+    if not new_single and not new_mixed:
+        return None
+    if not new_single or not new_mixed:
+        raise DecisionPagesTruthError(
+            "primary-profit publication is a partial single/mixed chain"
+        )
+    single = _validate_primary_profit_index_projection(
+        site_root=site_root,
+        index=single_index,
+        output_root="outputs/decision/legacy_profit_relative_research",
+        index_schema=PRIMARY_SINGLE_PROFIT_INDEX_SCHEMA,
+        projection_schema=PRIMARY_SINGLE_PROFIT_SCHEMA,
+        display_name="单一盈利排序",
+    )
+    mixed = _validate_primary_profit_index_projection(
+        site_root=site_root,
+        index=mixed_index,
+        output_root="outputs/decision/executable_profit_research",
+        index_schema=PRIMARY_MIXED_PROFIT_INDEX_SCHEMA,
+        projection_schema=PRIMARY_MIXED_PROFIT_SCHEMA,
+        display_name="混合盈利排序",
+    )
+    shared_fields = (
+        "signal_date",
+        "exec_date",
+        "exit_date",
+        "generation_mode",
+        "candidate_count",
+        "top10_members_sha256",
+        "source_bundle_sha256",
+        "source_feature_snapshot_sha256",
+        "source_bindings",
+        "boundaries",
+    )
+    if any(single.get(field) != mixed.get(field) for field in shared_fields):
+        raise DecisionPagesTruthError(
+            "primary-profit single/mixed projections do not share one P0 source"
+        )
+    bindings = mixed.get("source_bindings")
+    if not isinstance(bindings, dict) or set(bindings) != {
+        "contract",
+        "primary_receipt",
+        "runtime_features",
+        "three_rank",
+    }:
+        raise DecisionPagesTruthError("primary-profit source inventory is invalid")
+    date_value = str(mixed["signal_date"])
+    expected_sources = {
+        "contract": "models/decision_primary_profit_research_contract.json",
+        "primary_receipt": f"outputs/decision/primary_d_receipt_{date_value}.json",
+        "runtime_features": f"outputs/decision/primary_d_runtime_features_{date_value}.csv",
+    }
+    source_paths: dict[str, Path] = {}
+    for name, expected in expected_sources.items():
+        binding = bindings.get(name)
+        if not isinstance(binding, dict):
+            raise DecisionPagesTruthError(f"primary-profit {name} binding is invalid")
+        source_paths[name] = _primary_profit_bound_path(
+            site_root, binding.get("path"), expected, f"primary-profit {name}"
+        )
+        if binding.get("sha256") != _primary_profit_file_sha256(
+            source_paths[name], f"primary-profit {name}"
+        ):
+            raise DecisionPagesTruthError(f"primary-profit {name} SHA drifted")
+    contract = _load_json_object(source_paths["contract"], "primary-profit contract")
+    if (
+        contract.get("schema_version")
+        != "dc20_primary_profit_research_contract_v1"
+        or contract.get("contract_id") != PRIMARY_PROFIT_CONTRACT_ID
+        or contract.get("status") != "PUBLIC_CORE_RESEARCH_ALLOWED_NOT_FORMAL"
+        or contract.get("boundaries") != PRIMARY_PROFIT_BOUNDARIES
+        or contract.get("inputs", {}).get("action_input_allowed") is not False
+        or contract.get("outputs", {}).get("forward_selection_output_allowed")
+        is not False
+        or contract.get("outputs", {}).get("forward_statistics_output_allowed")
+        is not False
+        or contract.get("outputs", {}).get("action_output_allowed") is not False
+    ):
+        raise DecisionPagesTruthError("primary-profit contract grants forbidden authority")
+    receipt = _load_json_object(source_paths["primary_receipt"], "P0 receipt")
+    if (
+        receipt.get("schema_version") != "dc20_primary_d_receipt_v1"
+        or receipt.get("signal_date") != date_value
+        or receipt.get("exec_date") != mixed.get("exec_date")
+        or receipt.get("exit_date") != mixed.get("exit_date")
+        or receipt.get("generation_mode") != mixed.get("generation_mode")
+        or receipt.get("action_authorized") is not False
+        or receipt.get("action_input_consumed") is not False
+        or receipt.get("formal_trade_count") != 0
+    ):
+        raise DecisionPagesTruthError("primary-profit P0 receipt authority drifted")
+    three_binding = bindings.get("three_rank")
+    if not isinstance(three_binding, dict):
+        raise DecisionPagesTruthError("primary-profit three-rank binding is invalid")
+    three_json_expected = f"outputs/decision/three_rank_top10_{date_value}.json"
+    three_csv_expected = f"outputs/decision/three_rank_top10_{date_value}.csv"
+    three_json_path = _primary_profit_bound_path(
+        site_root,
+        three_binding.get("json_path"),
+        three_json_expected,
+        "primary-profit three-rank JSON",
+    )
+    three_csv_path = _primary_profit_bound_path(
+        site_root,
+        three_binding.get("csv_path"),
+        three_csv_expected,
+        "primary-profit three-rank CSV",
+    )
+    if (
+        three_binding.get("json_sha256")
+        != _primary_profit_file_sha256(three_json_path, "primary-profit three-rank JSON")
+        or three_binding.get("csv_sha256")
+        != _primary_profit_file_sha256(three_csv_path, "primary-profit three-rank CSV")
+    ):
+        raise DecisionPagesTruthError("primary-profit three-rank SHA drifted")
+    three_rank = _load_json_object(three_json_path, "primary-profit three-rank JSON")
+    validated_three = _validate_three_rank_contract_payload(
+        {
+            "signal_date": date_value,
+            "exec_date": mixed["exec_date"],
+            "exit_date": mixed["exit_date"],
+            "three_rank": three_rank,
+        },
+        label="primary-profit source",
+    )
+    if (
+        validated_three is None
+        or validated_three.get("bundle_sha256") != mixed.get("source_bundle_sha256")
+        or validated_three.get("feature_snapshot_sha256")
+        != mixed.get("source_feature_snapshot_sha256")
+        or validated_three.get("top10_members_sha256")
+        != mixed.get("top10_members_sha256")
+    ):
+        raise DecisionPagesTruthError("primary-profit three-rank fingerprint drifted")
+    outputs = receipt.get("outputs")
+    runtime_binding = bindings.get("runtime_features")
+    if not isinstance(outputs, dict) or not isinstance(runtime_binding, dict):
+        raise DecisionPagesTruthError("primary-profit P0 output bindings are invalid")
+    if any(
+        (
+            outputs.get(receipt_field) != expected
+            or source_binding.get(binding_field) != expected
+        )
+        for receipt_field, source_binding, binding_field, expected in (
+            ("runtime_features_path", runtime_binding, "path", expected_sources["runtime_features"]),
+            ("runtime_features_sha256", runtime_binding, "sha256", _primary_profit_file_sha256(source_paths["runtime_features"], "P0 runtime")),
+            ("json_path", three_binding, "json_path", three_json_expected),
+            ("json_sha256", three_binding, "json_sha256", _primary_profit_file_sha256(three_json_path, "P0 three-rank JSON")),
+            ("csv_path", three_binding, "csv_path", three_csv_expected),
+            ("csv_sha256", three_binding, "csv_sha256", _primary_profit_file_sha256(three_csv_path, "P0 three-rank CSV")),
+        )
+    ):
+        raise DecisionPagesTruthError("primary-profit receipt/source file binding drifted")
+    try:
+        runtime_rows = list(
+            csv.DictReader(
+                source_paths["runtime_features"]
+                .read_text(encoding="utf-8-sig")
+                .splitlines()
+            )
+        )
+    except (UnicodeError, csv.Error) as exc:
+        raise DecisionPagesTruthError("primary-profit P0 runtime CSV is invalid") from exc
+    selected_rows = [row for row in runtime_rows if row.get("top10_selected") == "1"]
+    try:
+        selected_rows.sort(key=lambda row: int(row["promotion_rank"]))
+        identity_rows = [
+            {
+                "identity": row["identity"],
+                "ts_code": row["ts_code"],
+                "stage_transition": row["stage_transition"],
+                "top10_selected": int(row["top10_selected"]),
+                "promotion_rank": int(row["promotion_rank"]),
+            }
+            for row in sorted(runtime_rows, key=lambda row: row["ts_code"])
+        ]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DecisionPagesTruthError("primary-profit P0 runtime identity is invalid") from exc
+    selected_codes = [row.get("ts_code", "") for row in selected_rows]
+    three_codes = [row.get("ts_code", "") for row in validated_three["rows"]]
+    expected_identity = hashlib.sha256(
+        _canonical_json_bytes(
+            {
+                "schema": "dc20_primary_d_runtime_identity_v1",
+                "signal_date": date_value,
+                "rows": identity_rows,
+            }
+        )
+    ).hexdigest()
+    if (
+        len(runtime_rows) != runtime_binding.get("row_count")
+        or len(selected_rows) != runtime_binding.get("selected_count")
+        or len(selected_rows) != mixed.get("candidate_count")
+        or selected_codes != three_codes
+        or runtime_binding.get("identity_sha256") != expected_identity
+        or outputs.get("runtime_identity_sha256") != expected_identity
+        or outputs.get("runtime_feature_row_count") != len(runtime_rows)
+        or outputs.get("runtime_selected_count") != len(selected_rows)
+        or runtime_binding.get("feature_snapshot_sha256")
+        != mixed.get("source_feature_snapshot_sha256")
+    ):
+        raise DecisionPagesTruthError("primary-profit P0 runtime/TopN identity drifted")
+    return PrimaryProfitResearchTruth(
+        signal_date=date_value,
+        exec_date=str(mixed["exec_date"]),
+        exit_date=str(mixed["exit_date"]),
+        generation_mode=str(mixed["generation_mode"]),
+        candidate_count=int(mixed["candidate_count"]),
+        top10_members_sha256=str(mixed["top10_members_sha256"]),
+    )
 
 
 def _project_three_rank_index(site_root: Path, decision_root: Path) -> None:

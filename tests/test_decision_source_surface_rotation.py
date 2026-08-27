@@ -11,7 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
 EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
-    "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json"
+    ".github/workflows/run_primary_d_daily.yml",
+    ".github/workflows/run_primary_profit_rankings.yml",
+    "models/decision_primary_profit_research_contract.json",
+    "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json",
+    "scripts/publish_primary_profit_rankings.py",
+    "scripts/publish_primary_three_rank.py",
+    "tests/test_primary_profit_rankings_p1.py",
+    "tests/test_primary_three_rank_p0.py",
 }
 
 
@@ -77,7 +84,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 36
+    assert len(paths) == len(set(paths)) == 38
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
@@ -86,6 +93,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/test_decision_core.yml",
         "decision.html",
         "scripts/build_three_engine_five_year_ledger.py",
+        "scripts/decision_pages_truth.py",
         "scripts/migrate_decision_runtime.py",
         "scripts/replay_frozen_canonical_v2.py",
         "scripts/run_auction_v3.py",
@@ -97,6 +105,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/decision/executable_profit_shadow.py",
         "src/top10decision/decision/model_freeze.py",
         "src/top10decision/decision/observation.py",
+        "src/top10decision/decision/three_engine_models.py",
         "src/top10decision/decision/three_rank.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
@@ -118,23 +127,26 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     }
     expected_classification = {
         ".github/workflows/deploy_dc20_pages.yml": (
-            "canonical_dc20_research_context_pages_binding"
+            "primary_owned_exact_revision_pages_dispatch_gate"
         ),
         ".github/workflows/diagnose_decision_fingerprint.yml": (
             "frozen_replay_input_snapshot_binding_workflow"
         ),
         ".github/workflows/run_auction_v3.yml": (
-            "push_read_only_auction_pipeline_gate"
+            "legacy_auction_manual_only_depower"
         ),
         ".github/workflows/run_decision_daily.yml": (
-            "strict_dated_daily_context_workflow"
+            "legacy_full_research_manual_only_depower"
         ),
         ".github/workflows/test_decision_core.yml": (
             "frozen_replay_input_snapshot_binding_workflow"
         ),
-        "decision.html": "html_only_decision_surface_cleanup",
+        "decision.html": "primary_action_independent_three_ranking_frontend",
         "scripts/build_three_engine_five_year_ledger.py": (
             "three_engine_helper_externalization"
+        ),
+        "scripts/decision_pages_truth.py": (
+            "primary_profit_exact_public_bundle_validation"
         ),
         "scripts/migrate_decision_runtime.py": (
             "immutable_replay_snapshot_migration_binding"
@@ -160,10 +172,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "strict_canonical_d_stage_normalization_for_internal_profit_shadow"
         ),
         "src/top10decision/decision/model_freeze.py": (
-            "three_rank_canonical_preimage_runtime_validation"
+            "primary_p0_p1_active_pin_validation"
         ),
         "src/top10decision/decision/observation.py": (
             "three_rank_canonical_observation_preimage"
+        ),
+        "src/top10decision/decision/three_engine_models.py": (
+            "promotion_only_primary_d_loader"
         ),
         "src/top10decision/decision/three_rank.py": (
             "three_engine_runtime_adapter"
@@ -173,13 +188,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "tests/test_d_close_features.py": "three_engine_runtime_adapter_test",
         "tests/test_dashboard_research_projection.py": (
-            "html_only_decision_surface_cleanup_test"
+            "primary_profit_frontend_contract_test"
         ),
         "tests/test_decision_three_rank_contract.py": (
             "legacy_action_schema_compatibility_test"
         ),
         "tests/test_decision_three_rank_frontend.py": (
-            "html_only_decision_surface_cleanup_test"
+            "primary_action_independent_three_ranking_frontend_test"
         ),
         "tests/test_decision_three_rank_history_projection.py": (
             "appended_forward_history_contract_test"
@@ -203,7 +218,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "three_engine_helper_externalization_test"
         ),
         "tests/test_pages_truthfulness_workflow.py": (
-            "canonical_dc20_research_context_pages_binding_test"
+            "primary_owned_pages_public_acceptance_test"
         ),
         "tests/test_sync_market_raw.py": (
             "strict_dated_sse_context_sync_test"
@@ -215,7 +230,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "canonical_diagnostic_overlay_isolation_test"
         ),
         "tests/test_writer_workflow_hardening.py": (
-            "strict_dated_daily_context_workflow_test"
+            "legacy_writer_depower_primary_schedule_contract_test"
         ),
     }
     current_surface: dict[str, str] = {}
@@ -262,6 +277,21 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "public_label": (
             "LEGACY_PROFIT_RAW_RELATIVE_SCORE_NOT_PROBABILITY_NOT_FORMAL"
         ),
+        "primary_d_publication_priority": (
+            "SYSTEM_P0_INDEPENDENT_OF_LEGACY_ACTION"
+        ),
+        "single_profit_public_label": (
+            "UNCALIBRATED_RAW_RELATIVE_SCORE_NOT_PROBABILITY_NOT_FORMAL"
+        ),
+        "mixed_profit_public_label": (
+            "UNCALIBRATED_FILL_X_CONDITIONAL_PROFIT_PROXY_NOT_PROBABILITY_NOT_FORMAL"
+        ),
+        "primary_profit_candidate_scope": "EXACT_SAME_D_P0_FROZEN_TOPN",
+        "retrospective_profit_recovery": (
+            "NON_FORWARD_NO_SHADOW_STATISTICS_NO_ACTION"
+        ),
+        "legacy_action_may_block_primary_publication": False,
+        "primary_profit_may_change_promotion_membership_or_rank": False,
         "visible_full_n_relative_ranking": True,
         "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
         "promotion_rank_frozen_and_independent": True,

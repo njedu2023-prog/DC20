@@ -127,8 +127,14 @@ def _assert_auction_trigger_isolated(text: str) -> None:
     compute = text[text.index("  compute:") : text.index("\n  publish:")]
     assert "workflow_run:" not in header
     assert "github.event.workflow_run" not in text
-    assert 'cron: "35 1 * * 1-5"' in header
-    assert "github.event_name == 'schedule' && github.ref == 'refs/heads/main'" in compute
+    assert "schedule:" not in header
+    assert "push:" not in header
+    assert "cron:" not in header
+    assert "workflow_dispatch:" in header
+    assert "Legacy Auction Action (Manual)" in header
+    assert "github.event_name == 'workflow_dispatch'" in compute
+    assert "github.event_name == 'schedule'" not in compute
+    assert "github.event_name == 'push'" not in compute
 
 
 def _assert_publish_hardening(text: str, name: str) -> None:
@@ -243,7 +249,7 @@ def test_daily_uses_one_session_bound_target_for_exact_sources_and_all_computati
     assert 'if [ -n "${TRADE_DATE}" ]' not in after_session
 
 
-def test_daily_has_same_evening_recovery_with_completed_d_noop_preflight() -> None:
+def test_legacy_daily_is_manual_only_and_cannot_compete_with_core_writers() -> None:
     daily = _text("run_decision_daily.yml")
     pages = _text("deploy_dc20_pages.yml")
     header = daily.split("\npermissions:", 1)[0]
@@ -253,9 +259,15 @@ def test_daily_has_same_evening_recovery_with_completed_d_noop_preflight() -> No
         1,
     )[1].split("- name: Require persisted Auction action", 1)[0]
 
-    assert header.count('cron: "15 13 * * 1-5"') == 1
-    assert header.count('cron: "15 14 * * 1-5"') == 1
-    assert pages.count('cron: "30 14 * * 1-5"') == 1
+    assert "schedule:" not in header
+    assert "cron:" not in header
+    assert "workflow_dispatch:" in header
+    assert "Legacy Full Research Replay (Manual)" in header
+    pages_header = pages.split("\npermissions:", 1)[0]
+    assert "schedule:" not in pages_header
+    assert "cron:" not in pages_header
+    assert 'cron: "30 13 * * 1-5"' not in pages
+    assert 'cron: "30 14 * * 1-5"' not in pages
     assert "group: decision-auction-main-writer" in daily
     assert "cancel-in-progress: false" in daily
     assert "actions: read" in compute
@@ -285,9 +297,6 @@ def test_daily_has_same_evening_recovery_with_completed_d_noop_preflight() -> No
         "Daily target has a partial same-D pointer chain",
         "Daily target has orphaned same-D dated artifacts",
         "actions/runs/{run_id}",
-        "Daily schedule run metadata binding drifted",
-        "SCHEDULE_SLOTS_UTC = ((13, 15), (14, 15))",
-        "delayed Daily schedule crossed the T 09:20 safety boundary",
         "already_complete={'true' if already_complete else 'false'}",
     ):
         assert required in target
@@ -2417,10 +2426,14 @@ def test_candidate_patches_enforce_exact_staged_path_allowlists() -> None:
         assert "git add -A ." not in compute, name
 
 
-def test_auction_has_independent_0935_schedule_and_no_daily_workflow_run() -> None:
+def test_legacy_auction_is_manual_only_and_has_no_daily_workflow_run() -> None:
     text = _text("run_auction_v3.yml")
     _assert_auction_trigger_isolated(text)
-    mutated = text.replace('cron: "35 1 * * 1-5"', 'cron: "15 13 * * 1-5"', 1)
+    mutated = text.replace(
+        "  workflow_dispatch:",
+        '  schedule:\n    - cron: "35 1 * * 1-5"\n  workflow_dispatch:',
+        1,
+    )
     with pytest.raises(AssertionError):
         _assert_auction_trigger_isolated(mutated)
 

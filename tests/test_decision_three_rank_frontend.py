@@ -299,7 +299,10 @@ def test_legacy_profit_relative_sidecar_is_same_origin_only() -> None:
 
     # The pointer and both dated artifacts share the isolated reader. A Pages
     # 404 therefore hides only this experiment instead of reading raw/main.
-    assert loader.count("fetchLegacyProfitRelativePath(") == 3
+    # Both the archived sidecar contract and the new P0-authority contract use
+    # this same-origin reader.  The new branch additionally verifies the
+    # immutable JSON/CSV downloads before accepting the pointer.
+    assert loader.count("fetchLegacyProfitRelativePath(") == 5
     assert "fetchPath(" not in loader
 
 

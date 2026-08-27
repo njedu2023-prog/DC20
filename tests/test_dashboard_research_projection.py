@@ -33,7 +33,7 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert 'const CACHE_KEY = "dc20-decision-dashboard-v5-cache"' in text
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' not in text
-    assert text.count("els.reportDetails.open = false;") == 2
+    assert text.count("els.reportDetails.open = false;") == 3
     assert '<details id="reportDetails" class="panel" open>' not in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
     assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url", "research_kind", "research_archive_url"]' in text
@@ -70,18 +70,64 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     assert '<details id="sentimentPanel" class="panel observation-disclosure" open>' not in text
     assert 'const available = plan?.daily_research_only !== true' in text
     assert 'els.sentimentPanel.hidden = !available' in text
-    assert 'els.stagePanel.hidden = !available' in text
+    assert 'els.stagePanel.hidden = !available' not in text
+    assert (
+        'els.stagePanel.hidden = !(available || '
+        '(primaryContract && primaryContract !== false))'
+        in text
+    )
     assert 'els.auditPanel.hidden = !available' in text
     assert 'els.researchPanel.hidden = fullContext' in text
     assert 'if (researchPlan.historical_parity === true)' in text
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "independent-three-rank-v7-legacy-profit-relative"'
+        'const DASHBOARD_VERSION = "independent-three-rank-v8-primary-profit"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text
     assert "validatedResearchContext(info, researchResult.value)" in text
+
+
+def test_current_three_rank_survives_missing_or_stale_action_report() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    status = text.split("function renderStatus(plan)", 1)[1].split(
+        "function renderAuctionOnlyPanels", 1
+    )[0]
+    auction_panels = text.split("function renderAuctionOnlyPanels(plan)", 1)[1].split(
+        "function renderMetrics", 1
+    )[0]
+    initializer = text.split("async function initialize(force = false)", 1)[1].split(
+        'els.refreshBtn.addEventListener("click"', 1
+    )[0]
+    core_only = text.split("function renderPrimaryCoreOnly(error)", 1)[1].split(
+        "async function initialize", 1
+    )[0]
+
+    # The current D/T/T+1 identity comes from the validated three-rank
+    # contract, before any old Action/report dates are considered.
+    assert "validatedThreeRankContract(state.currentThreeRank)" in status
+    assert "primaryContract.signal_date" in status
+    assert "primaryContract.exec_date" in status
+    assert "primaryContract.exit_date" in status
+    assert "D日核心排名（不依赖历史Action）" in status
+
+    # Only Action-owned observation panels are hidden.  A valid P0 contract
+    # keeps the promotion stage panel visible and renders it independently.
+    assert "els.sentimentPanel.hidden = !available" in auction_panels
+    assert "els.auditPanel.hidden = !available" in auction_panels
+    assert "primaryContract && primaryContract !== false" in auction_panels
+    assert "renderStageWatchlist(plan)" in auction_panels
+
+    # P0/P1 loading precedes report_index/Action, and any missing, stale, or
+    # invalid old report chain falls back to the independent core view.
+    assert initializer.index("state.currentThreeRank = await loadCurrentThreeRank()") < initializer.index(
+        'fetchPath("outputs/decision/report_index.json")'
+    )
+    assert "renderPrimaryCoreOnly(error)" in initializer
+    assert "旧报告/Action未参与核心排名" in core_only
+    assert "renderStatus(plan)" in core_only
+    assert "renderAuctionOnlyPanels(plan)" in core_only
 
 
 def test_dashboard_prefers_hash_bound_dc20_cutover_evidence() -> None:

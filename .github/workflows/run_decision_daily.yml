@@ -1,12 +1,9 @@
-name: Run Top10 Decision (Auto Daily)
+name: DC2.0 · Legacy Full Research Replay (Manual)
 
 on:
-  schedule:
-    # Primary D-close publication and one independent same-evening recovery.
-    # A completed immutable D chain is detected before replay or source sync,
-    # so the recovery run is a verified no-op rather than a second writer.
-    - cron: "15 13 * * 1-5"
-    - cron: "15 14 * * 1-5"
+  # Legacy all-in-one research/action replay.  It is intentionally manual-only:
+  # the Action contract must never suppress or overwrite the P0 D list or its
+  # action-free P1 ranking sidecars.
   workflow_dispatch:
     inputs:
       dry_run:
@@ -153,7 +150,7 @@ jobs:
           DATE_RE = re.compile(r'20\d{6}')
           SHANGHAI = ZoneInfo('Asia/Shanghai')
           UTC = ZoneInfo('UTC')
-          SCHEDULE_SLOTS_UTC = ((13, 15), (14, 15))
+          SCHEDULE_SLOTS_UTC = ((13, 45), (14, 45))
 
           def load_json(path: Path, *, label: str) -> dict:
               if (

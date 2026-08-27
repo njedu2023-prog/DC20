@@ -55,13 +55,13 @@ def test_public_verifier_exactly_checks_revision_fields_and_banner() -> None:
     assert "fresh active page unexpectedly contains stale banner" in text
 
 
-def test_schedule_cannot_relabel_an_old_report_as_today() -> None:
+def test_generic_pages_cannot_relabel_an_old_report_as_today() -> None:
     text = _workflow()
     assert 'report_date = str(report_index.get("latest_report_date", "")).strip()' in text
     assert '"report_date": report_date' in text
     assert "report_date = today" not in text
     assert "report_date=today" not in text
-    assert "schedule:" in text
+    assert "schedule:" not in text.split("\npermissions:", 1)[0]
 
 
 def test_freeze_manifest_change_triggers_truthfulness_redeployment() -> None:
@@ -80,10 +80,11 @@ def test_pages_supports_exact_head_reusable_handoff_and_event_commits() -> None:
     assert "type: string" in workflow_call
     assert "workflow_run:" not in header
     assert "github.event.workflow_run" not in text
-    assert "push:" in header and "schedule:" in header and "workflow_dispatch:" in header
+    assert "push:" in header and "workflow_dispatch:" in header
+    assert "schedule:" not in header
     assert "group: dc20-pages" in text
     assert "cancel-in-progress: false" in text
-    assert "if: ${{ github.ref == 'refs/heads/main' }}" in text
+    assert "github.ref == 'refs/heads/main'" in text
     checkout = text.split("actions/checkout@", 1)[1].split("actions/configure-pages@", 1)[0]
     assert "ref: main" not in checkout
     assert "ref: ${{ inputs.expected_head || github.sha }}" in checkout
@@ -91,6 +92,18 @@ def test_pages_supports_exact_head_reusable_handoff_and_event_commits() -> None:
     assert "echo \"${EXPECTED_HEAD}\" | grep -Eq '^[0-9a-f]{40}$'" in checkout
     assert 'test "${actual}" = "${EXPECTED_HEAD}"' in checkout
     assert 'HEAD_SHA="$(git rev-parse HEAD)"' in text
+
+
+def test_primary_owned_commits_skip_only_the_generic_push_deployer() -> None:
+    text = _workflow()
+    job_header = text.split("    environment:", 1)[0]
+    assert "github.ref == 'refs/heads/main'" in job_header
+    assert "github.event_name == 'push'" in job_header
+    for marker in ("[dc20-p0-pages-owned]", "[dc20-p1-pages-owned]"):
+        assert f"contains(github.event.head_commit.message, '{marker}')" in job_header
+    assert "workflow_call:" in text.split("\npermissions:", 1)[0]
+    assert "workflow_dispatch: {}" in text.split("\npermissions:", 1)[0]
+    assert "schedule:" not in text.split("\npermissions:", 1)[0]
 
 
 def test_pages_projects_site_inventory_before_validating_or_selecting_latest() -> None:
