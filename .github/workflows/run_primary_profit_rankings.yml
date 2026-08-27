@@ -195,7 +195,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import json, os, re
-          from datetime import datetime
+          from datetime import datetime, timedelta
           from pathlib import Path
           from urllib.request import Request, urlopen
           from zoneinfo import ZoneInfo
@@ -208,9 +208,12 @@ jobs:
               except (TypeError, ValueError) as exc:
                   raise SystemExit(f'{label} created_at is invalid') from exc
               shanghai=created.astimezone(ZoneInfo('Asia/Shanghai'))
-              if shanghai.hour not in {21,22,23}:
-                  raise SystemExit(f'{label} started outside the same-evening P1 window')
-              return shanghai.strftime('%Y%m%d')
+              if shanghai.hour not in {0,21,22,23}:
+                  raise SystemExit(f'{label} started outside the D recovery P1 window')
+              signal_day=shanghai.date()
+              if shanghai.hour == 0:
+                  signal_day -= timedelta(days=1)
+              return signal_day.strftime('%Y%m%d')
 
           if event == 'workflow_run':
               identities={

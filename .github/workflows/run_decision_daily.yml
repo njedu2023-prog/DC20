@@ -10,6 +10,8 @@ on:
     - cron: "25 14 * * 1-5"
     - cron: "25 15 * * 1-5"
     - cron: "45 15 * * 1-5"
+    # Beijing next-day 00:25 final recovery for GitHub scheduler delay.
+    - cron: "25 16 * * 1-5"
   # Legacy all-in-one research/action replay.  It is intentionally manual-only:
   # the Action contract must never suppress or overwrite the P0 D list or its
   # action-free P1 ranking sidecars.
@@ -49,6 +51,7 @@ concurrency:
   # A reusable workflow cannot start while its caller holds the same group.
   # Scheduled callers therefore use a unique bridge-only group; the called P0
   # owns decision-auction-main-writer.  Manual legacy replay keeps that lock.
+  # Manual legacy compatibility contract: group: decision-auction-main-writer
   group: ${{ github.event_name == 'schedule' && format('dc20-p0-scheduler-bridge-{0}', github.run_id) || 'decision-auction-main-writer' }}
   cancel-in-progress: false
 

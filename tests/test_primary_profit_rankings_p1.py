@@ -448,6 +448,8 @@ def test_p1_source_and_workflow_never_use_action_or_forward_writer_inputs() -> N
     assert "UPSTREAM_CREATED_AT" in workflow
     assert "UPSTREAM_REPOSITORY" in workflow
     assert "UPSTREAM_RUN_ATTEMPT" in workflow
+    assert "shanghai.hour not in {0,21,22,23}" in workflow
+    assert "signal_day -= timedelta(days=1)" in workflow
     assert "str(run.get('run_attempt') or '') == expected['run_attempt']" in workflow
     assert "str((run.get('repository') or {}).get('full_name') or '') == expected['repository']" in workflow
     assert "str((run.get('head_repository') or {}).get('full_name') or '') == expected['head_repository']" in workflow

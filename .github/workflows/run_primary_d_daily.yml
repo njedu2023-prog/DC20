@@ -3,10 +3,11 @@ name: DC2.0 · Publish Primary D List (P0)
 on:
   workflow_call:
   schedule:
-    # Beijing 21:15 primary plus 22:15/23:15 scheduler recovery.
+    # Beijing 21:15 primary plus 22:15/23:15 and next-day 00:15 recovery.
     - cron: "15 13 * * 1-5"
     - cron: "15 14 * * 1-5"
     - cron: "15 15 * * 1-5"
+    - cron: "15 16 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -164,7 +165,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import hashlib, json, os, re
-          from datetime import datetime
+          from datetime import datetime, timedelta
           from pathlib import Path
           from urllib.request import Request, urlopen
           from zoneinfo import ZoneInfo
@@ -202,6 +203,7 @@ jobs:
                           '15 13 * * 1-5',
                           '15 14 * * 1-5',
                           '15 15 * * 1-5',
+                          '15 16 * * 1-5',
                       },
                   },
                   '335484130': {
@@ -212,6 +214,7 @@ jobs:
                           '25 14 * * 1-5',
                           '25 15 * * 1-5',
                           '45 15 * * 1-5',
+                          '25 16 * * 1-5',
                       },
                   },
               }
@@ -233,9 +236,12 @@ jobs:
                   raise SystemExit('P0 scheduled run API identity drifted')
               created = datetime.fromisoformat(str(run['created_at']).replace('Z', '+00:00'))
               shanghai = created.astimezone(ZoneInfo('Asia/Shanghai'))
-              if shanghai.hour not in {21, 22, 23}:
-                  raise SystemExit('P0 scheduled run started outside the same-evening recovery window')
-              signal_date = shanghai.strftime('%Y%m%d')
+              if shanghai.hour not in {0, 21, 22, 23}:
+                  raise SystemExit('P0 scheduled run started outside the D recovery window')
+              signal_day = shanghai.date()
+              if shanghai.hour == 0:
+                  signal_day -= timedelta(days=1)
+              signal_date = signal_day.strftime('%Y%m%d')
               mode = 'NATURAL'
               pred = market = ''
           elif event == 'workflow_dispatch':

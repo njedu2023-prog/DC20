@@ -624,7 +624,7 @@
     "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
     "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "c55170c11f04ad5bf8cc5d29f2929a03aa284df93c969fa5fe4afddb4038aba3"
+    "evidence_sha256": "837375d2b1f5136736ef05ad27c28647fa9e1dabedc5555c03dff4f69d7f7e2d"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -633,9 +633,9 @@
     ".github/workflows/diagnose_decision_fingerprint.yml": "8eb2a976317aa5af1d5a6d9edb0881c34698d9f4695ecb5574c8af17345be782",
     ".github/workflows/migrate_decision_runtime.yml": "18e9e489ea78205528ddbdd9a9068ed85ab64d3a79960ca51192e9469532e545",
     ".github/workflows/run_auction_v3.yml": "bdb71c0793d3550e50eb61b6237eb8a677dc45c89bd06e01445efd9ab4d43f3f",
-    ".github/workflows/run_decision_daily.yml": "0d69f690c71a52e3ddd1d53f0626be9a4362baca6f507252575a2b2227114464",
-    ".github/workflows/run_primary_d_daily.yml": "e8d140c275ec4476f3ce678a92124a25492a054767752b6445dfa0a81094a61e",
-    ".github/workflows/run_primary_profit_rankings.yml": "c368d98d7d0d43e2740f57e9f54ef74e1aa21fd1b548e828604e7928ea61cf85",
+    ".github/workflows/run_decision_daily.yml": "981e0aeaae46c88e1cb697a33e061f9d289a215174d29f12039196079957a75f",
+    ".github/workflows/run_primary_d_daily.yml": "5dcb151282266f17a39cbf2570a0a78ccd6bbec696439a227f0ce6709a8b3e9f",
+    ".github/workflows/run_primary_profit_rankings.yml": "626bbd1f877dee313e33e82f753a6ad4f644c8ddfbaf4b2058d4b2c6a00d2d99",
     ".github/workflows/test_decision_core.yml": "f38b2b0ab78be89dd7992c49582b9991703f7bcb384ff30a90090ab6c9a6fba6",
     ".github/workflows/train_decision_three_engines.yml": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
     ".github/workflows/verify_decision_observations.yml": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
@@ -674,7 +674,7 @@
     "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
-    "models/decision_source_surface_rotation_20260824.json": "c55170c11f04ad5bf8cc5d29f2929a03aa284df93c969fa5fe4afddb4038aba3",
+    "models/decision_source_surface_rotation_20260824.json": "837375d2b1f5136736ef05ad27c28647fa9e1dabedc5555c03dff4f69d7f7e2d",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -821,8 +821,8 @@
     "tests/test_migrate_decision_runtime.py": "8c61e583da2d3011f5d2e2dd7a5b6335309383e581a27e0fff10e563a1ccbc3b",
     "tests/test_pages_truthfulness_workflow.py": "afd47451e27d5b20d5f00cda1940c208cb8c3776948be5d125b31bd651d27bcc",
     "tests/test_pfill_shadow_pages_truth.py": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",
-    "tests/test_primary_profit_rankings_p1.py": "f35c02c9946d7a519fa191aa8e1b668916cfc459dd1bf0e291ddbb30222f96a3",
-    "tests/test_primary_three_rank_p0.py": "fe5e72b9444eacdf230fbe187067a82da1d82f77b360457e10039cdd500f9e9b",
+    "tests/test_primary_profit_rankings_p1.py": "2b8def3df4b093ce8e5dbe23dc54d6ceb51d9242b496e7e409451655e776d50d",
+    "tests/test_primary_three_rank_p0.py": "7b929ab9a63c93da4f2776067a140a19f99a4e520c1a8192e3e67c2f9061f59a",
     "tests/test_promotion_model.py": "b78b313e58c521d97462bdf7120a0d9a07f52ed864f343950f6bf4694a900189",
     "tests/test_recover_decision_action_gaps.py": "ca318a0ff11a209ed4d138e19d1b6ee46da9c44d35bbd9517ea46e0666119fa4",
     "tests/test_sync_market_raw.py": "a0bf085e4742ebe1772a2c7ab171e6ef4e45ae4cd72d05f68eb6e7e75d12f33a",
@@ -834,6 +834,6 @@
     "tests/test_three_rank_freeze.py": "0ca9387ee893f84cbee22c97292ff61788e76d65499928873905c0d99273c7b7",
     "tests/test_tushare_close_truth.py": "bc6bb1d1153160df6b1e5f69d7f8ef0b6eb808b4712dab417709b4c854f00a6e",
     "tests/test_validate_three_engine_five_year_ledger.py": "6d3c4d4cd96dfa4394991dc625c9bea38d43391f950263422589d2ad05e7d998",
-    "tests/test_writer_workflow_hardening.py": "60a41759caabff8dc61b05de82cb71b78f6f00f2c97dd567274362855e124d19"
+    "tests/test_writer_workflow_hardening.py": "8943e05ea8ba88c85c213691d9e2429ddfc86c324d4d47becede9c8f2ffbe310"
   }
 }

@@ -390,6 +390,7 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert header.count('cron: "15 13 * * 1-5"') == 1
     assert header.count('cron: "15 14 * * 1-5"') == 1
     assert header.count('cron: "15 15 * * 1-5"') == 1
+    assert header.count('cron: "15 16 * * 1-5"') == 1
     assert 'cron: "45 15 * * 1-5"' not in header
     assert "workflow_call:" in header
     for cron in (
@@ -397,6 +398,7 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
         'cron: "25 14 * * 1-5"',
         'cron: "25 15 * * 1-5"',
         'cron: "45 15 * * 1-5"',
+        'cron: "25 16 * * 1-5"',
     ):
         assert full_daily_header.count(cron) == 1
     assert "uses: ./.github/workflows/run_primary_d_daily.yml" in full_daily
@@ -426,6 +428,8 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert "runtime_identity_sha256" in workflow
     assert "P0 scheduled run API identity drifted" in workflow
     assert "str(run.get('run_attempt') or '') != '1'" in workflow
+    assert "shanghai.hour not in {0, 21, 22, 23}" in workflow
+    assert "signal_day -= timedelta(days=1)" in workflow
     assert "'343703608'" in workflow and "'335484130'" in workflow
 
 

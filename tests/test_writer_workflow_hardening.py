@@ -265,6 +265,7 @@ def test_established_daily_identity_bridges_schedule_without_running_legacy_comp
         'cron: "25 14 * * 1-5"',
         'cron: "25 15 * * 1-5"',
         'cron: "45 15 * * 1-5"',
+        'cron: "25 16 * * 1-5"',
     ):
         assert header.count(cron) == 1
     assert "workflow_dispatch:" in header
