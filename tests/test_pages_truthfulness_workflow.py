@@ -184,9 +184,15 @@ def test_pages_quarantines_invalid_legacy_profit_research_before_copy() -> None:
     assert "handle.write(f'publish={str(publish).lower()}\\n')" in validation_step
 
     assert (
-        'PUBLISH_LEGACY_PROFIT_RELATIVE="${{ '
-        'steps.legacy_profit_relative.outputs.publish }}"'
+        "PUBLISH_LEGACY_PROFIT_RELATIVE: "
+        "${{ steps.legacy_profit_relative.outputs.publish }}"
     ) in site_step
+    build_step = site_step.split(
+        "      - uses: actions/upload-pages-artifact@", 1
+    )[0]
+    site_run = build_step.split("        run: |\n", 1)[1]
+    assert "${{" not in site_run
+    assert "os.environ.get('PUBLISH_LEGACY_PROFIT_RELATIVE') == 'true'" in site_run
     assert "optional_name = 'legacy_profit_relative_research'" in site_step
     assert "if child.name == optional_name:" in site_step
     assert "if publish_optional:" in site_step

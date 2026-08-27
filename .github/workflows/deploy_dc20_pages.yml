@@ -169,13 +169,13 @@ jobs:
         env:
           DC2_SYSTEM_NAME: DC2.0
           MAX_REPORT_AGE_DAYS: "1"
+          PUBLISH_LEGACY_PROFIT_RELATIVE: ${{ steps.legacy_profit_relative.outputs.publish }}
         run: |
           set -euo pipefail
           mkdir -p _site/outputs
           cp decision.html _site/index.html
           cp decision.html _site/decision.html
-          PUBLISH_LEGACY_PROFIT_RELATIVE="${{ steps.legacy_profit_relative.outputs.publish }}" \
-            python3 - <<'PY'
+          python3 - <<'PY'
           import os
           import shutil
           from pathlib import Path
