@@ -100,6 +100,33 @@ MIXED_KIND = "immutable_d_frozen_primary_mixed_profit_research_projection"
 MIXED_INDEX_SCHEMA = "dc20_primary_mixed_profit_research_index_v1"
 MIXED_ROOT = Path("outputs/decision/executable_profit_research")
 
+PRIMARY_INDEX_KEYS = frozenset(
+    {
+        "schema_version",
+        "index_kind",
+        "data_alias",
+        "display_name",
+        "status",
+        "generation_mode",
+        "prospective",
+        "retrospective_non_forward",
+        "latest_signal_date",
+        "latest_exec_date",
+        "latest_exit_date",
+        "latest_projection_json_url",
+        "latest_projection_json_sha256",
+        "latest_projection_csv_url",
+        "latest_projection_csv_sha256",
+        "latest_projection_snapshot_sha256",
+        "latest_top10_members_sha256",
+        "latest_source_bundle_sha256",
+        "latest_source_feature_snapshot_sha256",
+        "candidate_count",
+        "source_bindings",
+        "boundaries",
+    }
+)
+
 BOUNDARIES = {
     "research_only": True,
     "public_research_projection_allowed": True,
@@ -1030,6 +1057,148 @@ def _csv_bytes(payload: Mapping[str, Any], fields: Sequence[str]) -> bytes:
     writer.writeheader()
     writer.writerows(payload.get("rows") or [])
     return buffer.getvalue().encode("utf-8")
+
+
+def validate_primary_profit_index_chain(
+    root: Path,
+    output_root: Path,
+    *,
+    index_schema: str,
+    row_fields: Sequence[str],
+    validator: Callable[[Mapping[str, Any]], None],
+    expected_signal_date: str | None = None,
+    expected_generation_mode: str | None = None,
+) -> dict[str, Any]:
+    """Validate one complete P1 pointer/projection/CSV/P0-lineage chain.
+
+    This is the shared acceptance contract used by both the P1 owner workflow
+    and the generic Pages deployer.  It deliberately re-runs
+    :func:`load_primary_inputs` against the supplied root so a copied/public
+    projection cannot pass without its exact P0 receipt, runtime CSV,
+    three-rank bundle, contract, and hashes.
+    """
+
+    root = root.resolve(strict=True)
+    index_relative = output_root / "index.json"
+    index_path = _safe_file(root, index_relative, label="P1 research index")
+    index = _read_json(index_path, label="P1 research index")
+    _expect(set(index) == PRIMARY_INDEX_KEYS, "public P1 index surface drifted")
+
+    signal_date = str(index.get("latest_signal_date") or "")
+    generation_mode = str(index.get("generation_mode") or "")
+    if expected_signal_date is not None:
+        _expect(signal_date == expected_signal_date, "public P1 signal date drifted")
+    if expected_generation_mode is not None:
+        _expect(
+            generation_mode == expected_generation_mode,
+            "public P1 generation mode drifted",
+        )
+    inputs = load_primary_inputs(root, signal_date, generation_mode)
+
+    json_relative = output_root / f"projection_{signal_date}.json"
+    csv_relative = output_root / f"projection_{signal_date}.csv"
+    json_path = _safe_file(root, json_relative, label="P1 projection JSON")
+    csv_path = _safe_file(root, csv_relative, label="P1 projection CSV")
+    projection = _read_json(json_path, label="P1 projection JSON")
+    validator(projection)
+
+    expected_display_name = {
+        SINGLE_INDEX_SCHEMA: "单一盈利排序",
+        MIXED_INDEX_SCHEMA: "混合盈利排序",
+    }.get(index_schema)
+    _expect(expected_display_name is not None, "unsupported P1 index schema")
+    _expect(
+        index["schema_version"] == index_schema
+        and index["index_kind"] == "dated_primary_profit_research_pointer_only"
+        and index["data_alias"] is False
+        and index["display_name"] == projection.get("display_name") == expected_display_name
+        and index["status"] == MODE_STATUS[generation_mode]
+        and index["generation_mode"] == generation_mode
+        and index["prospective"] is (generation_mode == "NATURAL")
+        and index["retrospective_non_forward"]
+        is (generation_mode == "RETROSPECTIVE_RECOVERY")
+        and index["latest_signal_date"] == signal_date
+        and index["latest_exec_date"] == inputs.three_rank["exec_date"]
+        and index["latest_exit_date"] == inputs.three_rank["exit_date"]
+        and index["latest_projection_json_url"] == json_relative.as_posix()
+        and index["latest_projection_csv_url"] == csv_relative.as_posix()
+        and index["latest_projection_json_sha256"] == _sha256(json_path)
+        and index["latest_projection_csv_sha256"] == _sha256(csv_path)
+        and index["latest_projection_snapshot_sha256"]
+        == projection["snapshot_sha256"]
+        and index["latest_top10_members_sha256"]
+        == projection["top10_members_sha256"]
+        and index["latest_source_bundle_sha256"]
+        == projection["source_bundle_sha256"]
+        and index["latest_source_feature_snapshot_sha256"]
+        == projection["source_feature_snapshot_sha256"]
+        and index["candidate_count"] == projection["candidate_count"]
+        and index["source_bindings"]
+        == projection["source_bindings"]
+        == inputs.source_bindings
+        and index["boundaries"] == projection["boundaries"] == BOUNDARIES
+        and csv_path.read_bytes() == _csv_bytes(projection, row_fields),
+        f"public P1 index/projection/CSV binding failed: {output_root}",
+    )
+    return {
+        "inputs": inputs,
+        "index": index,
+        "projection": projection,
+        "index_path": index_path,
+        "json_path": json_path,
+        "csv_path": csv_path,
+        "projection_json_sha256": _sha256(json_path),
+    }
+
+
+def validate_primary_profit_bundle(
+    root: Path,
+    *,
+    expected_signal_date: str | None = None,
+    expected_generation_mode: str | None = None,
+) -> dict[str, Any]:
+    """Validate the atomic P1 single+mixed pair over one exact frozen TopN."""
+
+    single = validate_primary_profit_index_chain(
+        root,
+        SINGLE_ROOT,
+        index_schema=SINGLE_INDEX_SCHEMA,
+        row_fields=SINGLE_ROW_FIELDS,
+        validator=validate_single_projection,
+        expected_signal_date=expected_signal_date,
+        expected_generation_mode=expected_generation_mode,
+    )
+    mixed = validate_primary_profit_index_chain(
+        root,
+        MIXED_ROOT,
+        index_schema=MIXED_INDEX_SCHEMA,
+        row_fields=MIXED_ROW_FIELDS,
+        validator=validate_mixed_projection,
+        expected_signal_date=expected_signal_date,
+        expected_generation_mode=expected_generation_mode,
+    )
+    single_projection = single["projection"]
+    mixed_projection = mixed["projection"]
+    single_inputs = single["inputs"]
+    mixed_inputs = mixed["inputs"]
+    _expect(
+        single_projection["source_bindings"]
+        == mixed_projection["source_bindings"]
+        == single_inputs.source_bindings
+        == mixed_inputs.source_bindings
+        and single_projection["top10_members_sha256"]
+        == mixed_projection["top10_members_sha256"]
+        and single_projection["source_bundle_sha256"]
+        == mixed_projection["source_bundle_sha256"]
+        and single_projection["source_feature_snapshot_sha256"]
+        == mixed_projection["source_feature_snapshot_sha256"]
+        and single_projection["candidate_count"]
+        == mixed_projection["candidate_count"]
+        == len(single_inputs.selected_runtime)
+        == len(mixed_inputs.selected_runtime),
+        "public P1 single/mixed exact TopN binding failed",
+    )
+    return {"inputs": single_inputs, "single": single, "mixed": mixed}
 
 
 def _validate_existing_index(existing: Mapping[str, Any], *, expected_schema: str) -> str:

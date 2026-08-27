@@ -15,6 +15,7 @@ from scripts.publish_primary_profit_rankings import (
     SINGLE_SCHEMA,
     PrimaryProfitRankingError,
     publish_primary_profit_rankings,
+    validate_primary_profit_bundle,
 )
 from top10decision.decision.three_rank import (
     build_three_rank_contract,
@@ -340,6 +341,37 @@ def test_natural_p1_is_prospective_research_but_still_not_a_shadow_selection(
     assert not (tmp_path / "data/decision_executable_profit/forward").exists()
 
 
+def test_shared_bundle_validator_accepts_both_modes_and_fails_closed_on_index_drift(
+    tmp_path: Path,
+) -> None:
+    for mode in ("RETROSPECTIVE_RECOVERY", "NATURAL"):
+        root = tmp_path / mode.lower()
+        _write_primary_fixture(root, mode=mode)
+        result = publish_primary_profit_rankings(
+            root,
+            D,
+            generation_mode=mode,
+            single_scorer=_single_stub,
+            mixed_scorer=_mixed_stub,
+        )
+        bundle = validate_primary_profit_bundle(
+            root,
+            expected_signal_date=D,
+            expected_generation_mode=mode,
+        )
+        assert bundle["inputs"].generation_mode == mode
+        assert bundle["mixed"]["projection_json_sha256"] == _sha256(
+            result["mixed"]["json"]
+        )
+
+        mixed_index = result["mixed"]["index"]
+        tampered = json.loads(mixed_index.read_text(encoding="utf-8"))
+        tampered["unexpected"] = True
+        mixed_index.write_text(json.dumps(tampered), encoding="utf-8")
+        with pytest.raises(PrimaryProfitRankingError, match="index surface drifted"):
+            validate_primary_profit_bundle(root)
+
+
 def test_p1_fails_closed_on_runtime_sha_or_membership_drift(tmp_path: Path) -> None:
     runtime, _rows = _write_primary_fixture(tmp_path)
     runtime.write_text(runtime.read_text(encoding="utf-8") + "\n", encoding="utf-8")
@@ -423,17 +455,28 @@ def test_p1_public_acceptance_revalidates_bytes_and_executes_dynamic_dom() -> No
         "outputs/decision/executable_profit_research/index.json",
         'executable_profit_research/projection_${SIGNAL_DATE}.json',
         'executable_profit_research/projection_${SIGNAL_DATE}.csv',
-        "load_primary_inputs(root, signal_date, mode)",
-        "validate_single_projection",
-        "validate_mixed_projection",
-        "index['latest_projection_json_sha256'] == _sha256(root / json_relative)",
-        "index['latest_projection_csv_sha256'] == _sha256(root / csv_relative)",
-        "index['source_bindings'] == projection['source_bindings'] == inputs.source_bindings",
-        "(root / csv_relative).read_bytes() == _csv_bytes(projection, row_fields)",
+        "validate_primary_profit_bundle",
+        "expected_signal_date=signal_date",
+        "expected_generation_mode=mode",
         "primary_single_profit_projection_sha256",
         "primary_mixed_profit_projection_sha256",
     ):
         assert token in public
+    shared = (ROOT / "scripts/publish_primary_profit_rankings.py").read_text(
+        encoding="utf-8"
+    )
+    for token in (
+        "PRIMARY_INDEX_KEYS",
+        "inputs = load_primary_inputs(root, signal_date, generation_mode)",
+        'index["latest_projection_json_sha256"] == _sha256(json_path)',
+        'index["latest_projection_csv_sha256"] == _sha256(csv_path)',
+        '== projection["source_bindings"]',
+        "== inputs.source_bindings",
+        "csv_path.read_bytes() == _csv_bytes(projection, row_fields)",
+        'single_projection["source_bindings"]',
+        '== mixed_projection["source_bindings"]',
+    ):
+        assert token in shared
     assert "curl -fsSL" in public
     assert " >/dev/null" not in public
 

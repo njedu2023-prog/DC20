@@ -422,19 +422,9 @@ jobs:
           from pathlib import Path
 
           from scripts.publish_primary_profit_rankings import (
-              BOUNDARIES,
-              MIXED_INDEX_SCHEMA,
-              MIXED_ROOT,
-              MIXED_ROW_FIELDS,
               MODE_STATUS,
-              SINGLE_INDEX_SCHEMA,
-              SINGLE_ROOT,
-              SINGLE_ROW_FIELDS,
-              _csv_bytes,
-              _sha256,
-              load_primary_inputs,
-              validate_mixed_projection,
-              validate_single_projection,
+              PrimaryProfitRankingError,
+              validate_primary_profit_bundle,
           )
 
           root = Path(os.environ['PUBLIC_ROOT']).resolve(strict=True)
@@ -448,71 +438,22 @@ jobs:
                   raise SystemExit(f'public P1 JSON is not an object: {relative}')
               return value
 
-          # Re-run the publisher's exact P0 lineage validator against bytes
-          # downloaded from Pages, not against the checkout used to build it.
-          inputs = load_primary_inputs(root, signal_date, mode)
-          specs = (
-              (SINGLE_ROOT, SINGLE_INDEX_SCHEMA, SINGLE_ROW_FIELDS, validate_single_projection),
-              (MIXED_ROOT, MIXED_INDEX_SCHEMA, MIXED_ROW_FIELDS, validate_mixed_projection),
-          )
-          expected_index_keys = {
-              'schema_version', 'index_kind', 'data_alias', 'display_name',
-              'status', 'generation_mode', 'prospective',
-              'retrospective_non_forward', 'latest_signal_date',
-              'latest_exec_date', 'latest_exit_date',
-              'latest_projection_json_url', 'latest_projection_json_sha256',
-              'latest_projection_csv_url', 'latest_projection_csv_sha256',
-              'latest_projection_snapshot_sha256',
-              'latest_top10_members_sha256', 'latest_source_bundle_sha256',
-              'latest_source_feature_snapshot_sha256', 'candidate_count',
-              'source_bindings', 'boundaries',
-          }
-          verified = []
-          for output_root, index_schema, row_fields, validator in specs:
-              index_relative = output_root / 'index.json'
-              json_relative = output_root / f'projection_{signal_date}.json'
-              csv_relative = output_root / f'projection_{signal_date}.csv'
-              index = read_json(index_relative)
-              projection = read_json(json_relative)
-              validator(projection)
-              if set(index) != expected_index_keys:
-                  raise SystemExit(f'public P1 index surface drifted: {index_relative}')
-              if not (
-                  index['schema_version'] == index_schema
-                  and index['index_kind'] == 'dated_primary_profit_research_pointer_only'
-                  and index['data_alias'] is False
-                  and index['status'] == MODE_STATUS[mode]
-                  and index['generation_mode'] == mode
-                  and index['prospective'] is (mode == 'NATURAL')
-                  and index['retrospective_non_forward'] is (mode == 'RETROSPECTIVE_RECOVERY')
-                  and index['latest_signal_date'] == signal_date
-                  and index['latest_exec_date'] == inputs.three_rank['exec_date']
-                  and index['latest_exit_date'] == inputs.three_rank['exit_date']
-                  and index['latest_projection_json_url'] == json_relative.as_posix()
-                  and index['latest_projection_csv_url'] == csv_relative.as_posix()
-                  and index['latest_projection_json_sha256'] == _sha256(root / json_relative)
-                  and index['latest_projection_csv_sha256'] == _sha256(root / csv_relative)
-                  and index['latest_projection_snapshot_sha256'] == projection['snapshot_sha256']
-                  and index['latest_top10_members_sha256'] == projection['top10_members_sha256']
-                  and index['latest_source_bundle_sha256'] == projection['source_bundle_sha256']
-                  and index['latest_source_feature_snapshot_sha256'] == projection['source_feature_snapshot_sha256']
-                  and index['candidate_count'] == projection['candidate_count']
-                  and index['source_bindings'] == projection['source_bindings'] == inputs.source_bindings
-                  and index['boundaries'] == projection['boundaries'] == BOUNDARIES
-                  and (root / csv_relative).read_bytes() == _csv_bytes(projection, row_fields)
-              ):
-                  raise SystemExit(f'public P1 index/projection/CSV binding failed: {output_root}')
-              verified.append((index, projection, _sha256(root / json_relative)))
-
-          (single_index, single, single_sha), (mixed_index, mixed, mixed_sha) = verified
-          if not (
-              single['source_bindings'] == mixed['source_bindings']
-              and single['top10_members_sha256'] == mixed['top10_members_sha256']
-              and single['source_bundle_sha256'] == mixed['source_bundle_sha256']
-              and single['source_feature_snapshot_sha256'] == mixed['source_feature_snapshot_sha256']
-              and single['candidate_count'] == mixed['candidate_count'] == len(inputs.selected_runtime)
-          ):
-              raise SystemExit('public P1 single/mixed exact TopN binding failed')
+          # Re-run one shared, exact contract against bytes downloaded from
+          # Pages, not against the checkout used to build it.  This validates
+          # both indexes, both JSON/CSV pairs, and the complete P0 lineage.
+          try:
+              bundle = validate_primary_profit_bundle(
+                  root,
+                  expected_signal_date=signal_date,
+                  expected_generation_mode=mode,
+              )
+          except PrimaryProfitRankingError as exc:
+              raise SystemExit(str(exc)) from exc
+          inputs = bundle['inputs']
+          single = bundle['single']['projection']
+          mixed = bundle['mixed']['projection']
+          single_sha = bundle['single']['projection_json_sha256']
+          mixed_sha = bundle['mixed']['projection_json_sha256']
 
           revision = read_json(Path('revision.json'))
           if not (

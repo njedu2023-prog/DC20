@@ -11,12 +11,14 @@ on:
       - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
       - models/decision_model_freeze.json
+      - models/decision_primary_profit_research_contract.json
       - models/decision_three_engines/validation_latest.json
       - models/decision_three_rank_history_sources.json
       - src/top10decision/decision/legacy_profit_relative_research.py
       - requirements.lock
       - scripts/build_decision_three_rank_history.py
       - scripts/project_decision_legacy_profit_relative_research.py
+      - scripts/publish_primary_profit_rankings.py
       - scripts/validate_decision_model_freeze.py
       - scripts/decision_pages_truth.py
       - .github/workflows/deploy_dc20_pages.yml
@@ -100,6 +102,10 @@ jobs:
           import os
           from pathlib import Path
 
+          from scripts.publish_primary_profit_rankings import (
+              SINGLE_INDEX_SCHEMA,
+              validate_primary_profit_bundle,
+          )
           from top10decision.decision.legacy_profit_relative_research import (
               OUTPUT_ROOT,
               validate_repository_chain,
@@ -108,27 +114,52 @@ jobs:
           root = Path('.').resolve(strict=True)
           source = root / OUTPUT_ROOT
           publish = False
+          contract = 'none'
           if source.exists():
-              try:
-                  evidence = validate_repository_chain(root)
-              except Exception as exc:
-                  # This sidecar is optional human-decision-support research.
-                  # Quarantine it instead of blocking or weakening the official
-                  # promotion/Decision truth deployment.
+              index_path = source / 'index.json'
+              index = {}
+              if index_path.is_file() and not index_path.is_symlink():
+                  try:
+                      import json
+                      index = json.loads(index_path.read_text(encoding='utf-8'))
+                  except (OSError, UnicodeError, json.JSONDecodeError):
+                      index = {}
+              if index.get('schema_version') == SINGLE_INDEX_SCHEMA:
+                  bundle = validate_primary_profit_bundle(root)
+                  evidence = bundle['single']
+                  publish = True
+                  contract = 'primary'
                   print(
-                      '::warning title=Legacy profit research quarantined::'
-                      f'{type(exc).__name__}: {exc}'
+                      'primary single/mixed profit bundle validated: '
+                      f"D={evidence['projection']['signal_date']} "
+                      f"N={evidence['projection']['candidate_count']} "
+                      f"sha256={evidence['projection_json_sha256']}"
                   )
               else:
-                  publish = True
-                  print(
-                      'legacy profit relative research validated: '
-                      f"D={evidence['signal_date']} "
-                      f"N={evidence['candidate_count']} "
-                      f"sha256={evidence['projection_sha256']}"
-                  )
+                  try:
+                      evidence = validate_repository_chain(root)
+                  except Exception as exc:
+                      # The old sidecar is optional human-decision-support
+                      # research. Quarantine it instead of weakening official
+                      # promotion truth. A declared P1 schema never reaches
+                      # this catch: its complete bundle must pass or deploy
+                      # fails closed.
+                      print(
+                          '::warning title=Legacy profit research quarantined::'
+                          f'{type(exc).__name__}: {exc}'
+                      )
+                  else:
+                      publish = True
+                      contract = 'legacy'
+                      print(
+                          'legacy profit relative research validated: '
+                          f"D={evidence['signal_date']} "
+                          f"N={evidence['candidate_count']} "
+                          f"sha256={evidence['projection_sha256']}"
+                      )
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
               handle.write(f'publish={str(publish).lower()}\n')
+              handle.write(f'contract={contract}\n')
           PY
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
@@ -179,8 +210,14 @@ jobs:
           import hashlib
           import json
           import re
+          import shutil
           from pathlib import Path
 
+          from scripts.publish_primary_profit_rankings import (
+              CONTRACT_PATH as PRIMARY_PROFIT_CONTRACT_PATH,
+              MIXED_INDEX_SCHEMA,
+              validate_primary_profit_bundle,
+          )
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain,
           )
@@ -191,6 +228,35 @@ jobs:
               site_root
               / 'outputs/decision/executable_profit_research/index.json'
           )
+          if index_path.exists():
+              if not index_path.is_file() or index_path.is_symlink():
+                  raise SystemExit('Pages executable-profit research index is unsafe')
+              candidate_index = json.loads(index_path.read_text(encoding='utf-8'))
+              if candidate_index.get('schema_version') == MIXED_INDEX_SCHEMA:
+                  bundle = validate_primary_profit_bundle(repo_root)
+                  contract_source = repo_root / PRIMARY_PROFIT_CONTRACT_PATH
+                  contract_target = site_root / PRIMARY_PROFIT_CONTRACT_PATH
+                  contract_target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(contract_source, contract_target)
+                  if contract_target.read_bytes() != contract_source.read_bytes():
+                      raise SystemExit('Pages P1 contract copy drifted')
+                  public_bundle = validate_primary_profit_bundle(
+                      site_root,
+                      expected_signal_date=bundle['inputs'].signal_date,
+                      expected_generation_mode=bundle['inputs'].generation_mode,
+                  )
+                  print(json.dumps({
+                      'status': 'PUBLIC_PRIMARY_PROFIT_CHAIN_VALIDATED',
+                      'signal_date': public_bundle['inputs'].signal_date,
+                      'generation_mode': public_bundle['inputs'].generation_mode,
+                      'candidate_count': len(
+                          public_bundle['inputs'].selected_runtime
+                      ),
+                  }, ensure_ascii=False, sort_keys=True))
+                  # The legacy forward-shadow branch below remains byte-for-byte
+                  # strict. Point it at an absent sentinel only after the P1
+                  # pair has passed its separate complete contract.
+                  index_path = site_root / '.p1-primary-profit-already-validated'
           if index_path.exists():
               if not index_path.is_file() or index_path.is_symlink():
                   raise SystemExit('Pages executable-profit research index is unsafe')
@@ -353,6 +419,13 @@ jobs:
               project_report_index_action_truth,
               validate_report_index_action_truth,
           )
+          from scripts.publish_primary_profit_rankings import (
+              MIXED_INDEX_SCHEMA,
+              validate_primary_profit_bundle,
+          )
+          from top10decision.decision.executable_profit_research_projection import (
+              INDEX_SCHEMA as FORWARD_SHADOW_INDEX_SCHEMA,
+          )
 
           index_path = Path("_site/outputs/decision/report_index.json")
           source_index_path = Path("outputs/decision/report_index.json")
@@ -453,10 +526,53 @@ jobs:
           executable_profit_as_of_date = ''
           executable_profit_projection_url = ''
           executable_profit_statistics_url = ''
+          executable_profit_contract = 'none'
+          primary_profit_status = None
+          primary_profit_generation_mode = None
+          primary_profit_candidate_count = None
+          primary_profit_top10_members_sha256 = None
+          primary_single_profit_projection_sha256 = None
+          primary_mixed_profit_projection_sha256 = None
+          primary_profit_source_bundle_sha256 = None
+          primary_profit_source_feature_snapshot_sha256 = None
           if executable_profit_available:
               executable_profit_index = json.loads(
                   executable_profit_index_path.read_text(encoding='utf-8')
               )
+              executable_profit_schema = executable_profit_index.get(
+                  'schema_version'
+              )
+              if executable_profit_schema == MIXED_INDEX_SCHEMA:
+                  executable_profit_contract = 'primary'
+                  primary_bundle = validate_primary_profit_bundle(Path('_site'))
+                  primary_inputs = primary_bundle['inputs']
+                  primary_mixed = primary_bundle['mixed']['projection']
+                  primary_profit_status = primary_mixed['status']
+                  primary_profit_generation_mode = primary_inputs.generation_mode
+                  primary_profit_candidate_count = len(
+                      primary_inputs.selected_runtime
+                  )
+                  primary_profit_top10_members_sha256 = primary_mixed[
+                      'top10_members_sha256'
+                  ]
+                  primary_single_profit_projection_sha256 = primary_bundle[
+                      'single'
+                  ]['projection_json_sha256']
+                  primary_mixed_profit_projection_sha256 = primary_bundle[
+                      'mixed'
+                  ]['projection_json_sha256']
+                  primary_profit_source_bundle_sha256 = primary_mixed[
+                      'source_bundle_sha256'
+                  ]
+                  primary_profit_source_feature_snapshot_sha256 = primary_mixed[
+                      'source_feature_snapshot_sha256'
+                  ]
+              elif executable_profit_schema == FORWARD_SHADOW_INDEX_SCHEMA:
+                  executable_profit_contract = 'forward_shadow'
+              else:
+                  raise SystemExit(
+                      'unsupported executable-profit research index schema'
+                  )
               executable_profit_signal_date = str(
                   executable_profit_index.get('latest_signal_date') or ''
               )
@@ -529,10 +645,19 @@ jobs:
               "latest_research_available": research_available,
               "latest_research_url": research_url,
               "executable_profit_research_available": executable_profit_available,
+              "executable_profit_contract": executable_profit_contract,
               "executable_profit_signal_date": executable_profit_signal_date,
               "executable_profit_statistics_as_of_date": executable_profit_as_of_date,
               "executable_profit_projection_url": executable_profit_projection_url,
               "executable_profit_statistics_url": executable_profit_statistics_url,
+              "primary_profit_status": primary_profit_status,
+              "primary_profit_generation_mode": primary_profit_generation_mode,
+              "primary_profit_candidate_count": primary_profit_candidate_count,
+              "primary_profit_top10_members_sha256": primary_profit_top10_members_sha256,
+              "primary_single_profit_projection_sha256": primary_single_profit_projection_sha256,
+              "primary_mixed_profit_projection_sha256": primary_mixed_profit_projection_sha256,
+              "primary_profit_source_bundle_sha256": primary_profit_source_bundle_sha256,
+              "primary_profit_source_feature_snapshot_sha256": primary_profit_source_feature_snapshot_sha256,
               # The index timestamp proves index reconstruction, not report
               # generation.  Preserve the legacy key as an explicit null so
               # consumers cannot mistake an Auction/migration time for report
@@ -597,10 +722,22 @@ jobs:
               output.write(f"research_available={str(research_available).lower()}\n")
               output.write(f"research_url={research_url}\n")
               output.write(f"executable_profit_available={str(executable_profit_available).lower()}\n")
+              output.write(f"executable_profit_contract={executable_profit_contract}\n")
               output.write(f"executable_profit_signal_date={executable_profit_signal_date}\n")
               output.write(f"executable_profit_as_of_date={executable_profit_as_of_date}\n")
               output.write(f"executable_profit_projection_url={executable_profit_projection_url}\n")
               output.write(f"executable_profit_statistics_url={executable_profit_statistics_url}\n")
+              output.write(f"primary_profit_status={primary_profit_status or ''}\n")
+              output.write(f"primary_profit_generation_mode={primary_profit_generation_mode or ''}\n")
+              output.write(
+                  'primary_profit_candidate_count='
+                  f"{'' if primary_profit_candidate_count is None else primary_profit_candidate_count}\n"
+              )
+              output.write(f"primary_profit_top10_members_sha256={primary_profit_top10_members_sha256 or ''}\n")
+              output.write(f"primary_single_profit_projection_sha256={primary_single_profit_projection_sha256 or ''}\n")
+              output.write(f"primary_mixed_profit_projection_sha256={primary_mixed_profit_projection_sha256 or ''}\n")
+              output.write(f"primary_profit_source_bundle_sha256={primary_profit_source_bundle_sha256 or ''}\n")
+              output.write(f"primary_profit_source_feature_snapshot_sha256={primary_profit_source_feature_snapshot_sha256 or ''}\n")
               output.write(f"freeze_active={str(freeze_active).lower()}\n")
               output.write(f"report_age_days={report_age_days}\n")
               output.write(f"prospective={str(prospective).lower()}\n")
@@ -619,6 +756,88 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
+      - name: Verify public primary-profit bundle when present
+        if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          SIGNAL_DATE: ${{ steps.site.outputs.executable_profit_signal_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          public_root="${RUNNER_TEMP}/generic-public-primary-profit"
+          files=(
+            revision.json
+            models/decision_primary_profit_research_contract.json
+            "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json"
+            "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv"
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.json"
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv"
+            outputs/decision/legacy_profit_relative_research/index.json
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.json"
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.csv"
+            outputs/decision/executable_profit_research/index.json
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json"
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
+          )
+          for relative in "${files[@]}"; do
+            mkdir -p "${public_root}/$(dirname "${relative}")"
+            curl -fsSL --retry 12 --retry-delay 10 --retry-all-errors \
+              "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}" \
+              -o "${public_root}/${relative}"
+            cmp -s "_site/${relative}" "${public_root}/${relative}"
+          done
+          PUBLIC_ROOT="${public_root}" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.publish_primary_profit_rankings import (
+              validate_primary_profit_bundle,
+          )
+
+          bundle = validate_primary_profit_bundle(
+              Path(os.environ['PUBLIC_ROOT']),
+              expected_signal_date=os.environ['SIGNAL_DATE'],
+          )
+          revision = json.loads(
+              (Path(os.environ['PUBLIC_ROOT']) / 'revision.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          mixed = bundle['mixed']['projection']
+          if not (
+              revision.get('executable_profit_contract') == 'primary'
+              and revision.get('executable_profit_statistics_as_of_date') == ''
+              and revision.get('executable_profit_statistics_url') == ''
+              and revision.get('primary_profit_status') == mixed['status']
+              and revision.get('primary_profit_generation_mode')
+              == bundle['inputs'].generation_mode
+              and revision.get('primary_profit_candidate_count')
+              == len(bundle['inputs'].selected_runtime)
+              and revision.get('primary_profit_top10_members_sha256')
+              == mixed['top10_members_sha256']
+              and revision.get('primary_single_profit_projection_sha256')
+              == bundle['single']['projection_json_sha256']
+              and revision.get('primary_mixed_profit_projection_sha256')
+              == bundle['mixed']['projection_json_sha256']
+              and revision.get('primary_profit_source_bundle_sha256')
+              == mixed['source_bundle_sha256']
+              and revision.get(
+                  'primary_profit_source_feature_snapshot_sha256'
+              )
+              == mixed['source_feature_snapshot_sha256']
+          ):
+              raise SystemExit(
+                  'public generic revision is not bound to the complete P1 bundle'
+              )
+          print(
+              'public primary-profit bundle verified: '
+              f"D={bundle['inputs'].signal_date}, "
+              f"mode={bundle['inputs'].generation_mode}, "
+              f"N={len(bundle['inputs'].selected_runtime)}"
+          )
+          PY
+
       - name: Verify public DC2.0 Pages revision
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
@@ -629,10 +848,19 @@ jobs:
           EXPECTED_RESEARCH_AVAILABLE: ${{ steps.site.outputs.research_available }}
           EXPECTED_RESEARCH_URL: ${{ steps.site.outputs.research_url }}
           EXPECTED_EXECUTABLE_PROFIT_AVAILABLE: ${{ steps.site.outputs.executable_profit_available }}
+          EXPECTED_EXECUTABLE_PROFIT_CONTRACT: ${{ steps.site.outputs.executable_profit_contract }}
           EXPECTED_EXECUTABLE_PROFIT_SIGNAL_DATE: ${{ steps.site.outputs.executable_profit_signal_date }}
           EXPECTED_EXECUTABLE_PROFIT_AS_OF_DATE: ${{ steps.site.outputs.executable_profit_as_of_date }}
           EXPECTED_EXECUTABLE_PROFIT_PROJECTION_URL: ${{ steps.site.outputs.executable_profit_projection_url }}
           EXPECTED_EXECUTABLE_PROFIT_STATISTICS_URL: ${{ steps.site.outputs.executable_profit_statistics_url }}
+          EXPECTED_PRIMARY_PROFIT_STATUS: ${{ steps.site.outputs.primary_profit_status }}
+          EXPECTED_PRIMARY_PROFIT_GENERATION_MODE: ${{ steps.site.outputs.primary_profit_generation_mode }}
+          EXPECTED_PRIMARY_PROFIT_CANDIDATE_COUNT: ${{ steps.site.outputs.primary_profit_candidate_count }}
+          EXPECTED_PRIMARY_PROFIT_TOP10_MEMBERS_SHA256: ${{ steps.site.outputs.primary_profit_top10_members_sha256 }}
+          EXPECTED_PRIMARY_SINGLE_PROFIT_PROJECTION_SHA256: ${{ steps.site.outputs.primary_single_profit_projection_sha256 }}
+          EXPECTED_PRIMARY_MIXED_PROFIT_PROJECTION_SHA256: ${{ steps.site.outputs.primary_mixed_profit_projection_sha256 }}
+          EXPECTED_PRIMARY_PROFIT_SOURCE_BUNDLE_SHA256: ${{ steps.site.outputs.primary_profit_source_bundle_sha256 }}
+          EXPECTED_PRIMARY_PROFIT_SOURCE_FEATURE_SNAPSHOT_SHA256: ${{ steps.site.outputs.primary_profit_source_feature_snapshot_sha256 }}
           EXPECTED_FREEZE_ACTIVE: ${{ steps.site.outputs.freeze_active }}
           EXPECTED_REPORT_AGE_DAYS: ${{ steps.site.outputs.report_age_days }}
           EXPECTED_PROSPECTIVE: ${{ steps.site.outputs.prospective }}
@@ -669,10 +897,36 @@ jobs:
           expected_research_available = os.environ["EXPECTED_RESEARCH_AVAILABLE"] == "true"
           expected_research_url = os.environ["EXPECTED_RESEARCH_URL"]
           expected_executable_profit_available = os.environ["EXPECTED_EXECUTABLE_PROFIT_AVAILABLE"] == "true"
+          expected_executable_profit_contract = os.environ["EXPECTED_EXECUTABLE_PROFIT_CONTRACT"]
           expected_executable_profit_signal_date = os.environ["EXPECTED_EXECUTABLE_PROFIT_SIGNAL_DATE"]
           expected_executable_profit_as_of_date = os.environ["EXPECTED_EXECUTABLE_PROFIT_AS_OF_DATE"]
           expected_executable_profit_projection_url = os.environ["EXPECTED_EXECUTABLE_PROFIT_PROJECTION_URL"]
           expected_executable_profit_statistics_url = os.environ["EXPECTED_EXECUTABLE_PROFIT_STATISTICS_URL"]
+          expected_primary_profit_status = os.environ["EXPECTED_PRIMARY_PROFIT_STATUS"]
+          expected_primary_profit_generation_mode = os.environ["EXPECTED_PRIMARY_PROFIT_GENERATION_MODE"]
+          expected_primary_profit_candidate_count_text = os.environ[
+              "EXPECTED_PRIMARY_PROFIT_CANDIDATE_COUNT"
+          ]
+          expected_primary_profit_candidate_count = (
+              int(expected_primary_profit_candidate_count_text)
+              if expected_primary_profit_candidate_count_text
+              else None
+          )
+          expected_primary_profit_top10_members_sha256 = os.environ[
+              "EXPECTED_PRIMARY_PROFIT_TOP10_MEMBERS_SHA256"
+          ]
+          expected_primary_single_profit_projection_sha256 = os.environ[
+              "EXPECTED_PRIMARY_SINGLE_PROFIT_PROJECTION_SHA256"
+          ]
+          expected_primary_mixed_profit_projection_sha256 = os.environ[
+              "EXPECTED_PRIMARY_MIXED_PROFIT_PROJECTION_SHA256"
+          ]
+          expected_primary_profit_source_bundle_sha256 = os.environ[
+              "EXPECTED_PRIMARY_PROFIT_SOURCE_BUNDLE_SHA256"
+          ]
+          expected_primary_profit_source_feature_snapshot_sha256 = os.environ[
+              "EXPECTED_PRIMARY_PROFIT_SOURCE_FEATURE_SNAPSHOT_SHA256"
+          ]
           expected_freeze_active = os.environ["EXPECTED_FREEZE_ACTIVE"] == "true"
           expected_report_age_days = int(os.environ["EXPECTED_REPORT_AGE_DAYS"])
           expected_prospective = os.environ["EXPECTED_PROSPECTIVE"] == "true"
@@ -716,7 +970,10 @@ jobs:
                       else None
                   )
                   public_executable_profit_index = None
-                  if expected_executable_profit_available:
+                  if (
+                      expected_executable_profit_available
+                      and expected_executable_profit_contract != 'primary'
+                  ):
                       executable_profit_prefix = (
                           'outputs/decision/executable_profit_research/'
                       )
@@ -1121,6 +1378,8 @@ jobs:
                   if (
                       revision.get('executable_profit_research_available')
                       is not expected_executable_profit_available
+                      or str(revision.get('executable_profit_contract') or '')
+                      != expected_executable_profit_contract
                       or str(revision.get('executable_profit_signal_date') or '')
                       != expected_executable_profit_signal_date
                       or str(
@@ -1140,10 +1399,52 @@ jobs:
                       )
                   if (
                       expected_executable_profit_available
+                      and expected_executable_profit_contract != 'primary'
                       and public_executable_profit_index is None
                   ):
                       raise RuntimeError(
                           'revision claims executable-profit data without a public index'
+                      )
+                  if not (
+                      str(revision.get('primary_profit_status') or '')
+                      == expected_primary_profit_status
+                      and str(revision.get('primary_profit_generation_mode') or '')
+                      == expected_primary_profit_generation_mode
+                      and revision.get('primary_profit_candidate_count')
+                      == expected_primary_profit_candidate_count
+                      and str(
+                          revision.get('primary_profit_top10_members_sha256') or ''
+                      )
+                      == expected_primary_profit_top10_members_sha256
+                      and str(
+                          revision.get(
+                              'primary_single_profit_projection_sha256'
+                          )
+                          or ''
+                      )
+                      == expected_primary_single_profit_projection_sha256
+                      and str(
+                          revision.get(
+                              'primary_mixed_profit_projection_sha256'
+                          )
+                          or ''
+                      )
+                      == expected_primary_mixed_profit_projection_sha256
+                      and str(
+                          revision.get('primary_profit_source_bundle_sha256') or ''
+                      )
+                      == expected_primary_profit_source_bundle_sha256
+                      and str(
+                          revision.get(
+                              'primary_profit_source_feature_snapshot_sha256'
+                          )
+                          or ''
+                      )
+                      == expected_primary_profit_source_feature_snapshot_sha256
+                  ):
+                      raise RuntimeError(
+                          'revision primary-profit complete bundle binding differs '
+                          'from build'
                       )
                   if expected_research_available:
                       if not isinstance(public_research, dict):

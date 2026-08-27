@@ -198,6 +198,64 @@ def test_pages_quarantines_invalid_legacy_profit_research_before_copy() -> None:
     assert validation_position < copy_position
 
 
+def test_pages_accepts_primary_profit_only_through_complete_shared_p0_lineage() -> None:
+    text = _workflow()
+    validation_step = text.split(
+        "- name: Validate optional legacy-profit relative research chain", 1
+    )[1].split("- uses: actions/configure-pages@", 1)[0]
+    site_step = text.split("- name: Build isolated DC2.0 Decision site", 1)[1]
+    public_step = text.split(
+        "- name: Verify public primary-profit bundle when present", 1
+    )[1].split("- name: Verify public DC2.0 Pages revision", 1)[0]
+
+    assert "index.get('schema_version') == SINGLE_INDEX_SCHEMA" in validation_step
+    assert "bundle = validate_primary_profit_bundle(root)" in validation_step
+    assert "contract = 'primary'" in validation_step
+    assert "except Exception as exc:" in validation_step
+    assert validation_step.index("validate_primary_profit_bundle(root)") < validation_step.index(
+        "except Exception as exc:"
+    )
+
+    assert "candidate_index.get('schema_version') == MIXED_INDEX_SCHEMA" in site_step
+    assert "bundle = validate_primary_profit_bundle(repo_root)" in site_step
+    assert "PRIMARY_PROFIT_CONTRACT_PATH" in site_step
+    assert "public_bundle = validate_primary_profit_bundle(" in site_step
+    assert "expected_generation_mode=bundle['inputs'].generation_mode" in site_step
+    assert "_validate_existing_index_chain(repo_root, index)" in site_step
+    assert "top10-decision" not in site_step
+
+    for token in (
+        "revision.json",
+        "models/decision_primary_profit_research_contract.json",
+        'primary_d_receipt_${SIGNAL_DATE}.json',
+        'primary_d_runtime_features_${SIGNAL_DATE}.csv',
+        'three_rank_top10_${SIGNAL_DATE}.json',
+        'three_rank_top10_${SIGNAL_DATE}.csv',
+        "outputs/decision/legacy_profit_relative_research/index.json",
+        "outputs/decision/executable_profit_research/index.json",
+        "cmp -s \"_site/${relative}\" \"${public_root}/${relative}\"",
+        "validate_primary_profit_bundle(",
+        "expected_signal_date=os.environ['SIGNAL_DATE']",
+        "public generic revision is not bound to the complete P1 bundle",
+    ):
+        assert token in public_step
+
+    for field in (
+        "primary_profit_status",
+        "primary_profit_generation_mode",
+        "primary_profit_candidate_count",
+        "primary_profit_top10_members_sha256",
+        "primary_single_profit_projection_sha256",
+        "primary_mixed_profit_projection_sha256",
+        "primary_profit_source_bundle_sha256",
+        "primary_profit_source_feature_snapshot_sha256",
+    ):
+        assert f'"{field}":' in site_step
+        assert f"EXPECTED_{field.upper()}" in text
+        assert f"revision.get('{field}')" in text or f"revision.get(\n                              '{field}'" in text
+    assert "unsupported executable-profit research index schema" in site_step
+
+
 def test_legacy_profit_research_code_changes_trigger_pages_validation() -> None:
     text = _workflow()
     push_header = text.split("schedule:", 1)[0]
@@ -209,6 +267,8 @@ def test_legacy_profit_research_code_changes_trigger_pages_validation() -> None:
         "scripts/project_decision_legacy_profit_relative_research.py"
         in push_header
     )
+    assert "scripts/publish_primary_profit_rankings.py" in push_header
+    assert "models/decision_primary_profit_research_contract.json" in push_header
 
 
 def test_dashboard_never_falls_back_to_an_unrelated_latest_action() -> None:
