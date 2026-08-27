@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.validate_decision_executable_profit_shadow_contract import (  # noqa: E402
     ExecutableProfitShadowContractError,
+    _validate_reviewed_rotation_evidence,
     validate_contract,
     validate_payloads,
 )
@@ -100,6 +101,84 @@ def test_promotion_artifact_drift_fails_closed() -> None:
             validation=changed,
             ledger_manifest=manifest,
         )
+
+
+def test_unreviewed_historical_source_rotation_fails_closed() -> None:
+    contract, freeze, validation, manifest = _payloads()
+    changed = copy.deepcopy(freeze)
+    changed["source_surface_rotation"]["rotation_id"] = "unreviewed"
+    with pytest.raises(
+        ExecutableProfitShadowContractError,
+        match="promotion code or runtime pin drifted",
+    ):
+        validate_payloads(
+            contract=contract,
+            freeze=changed,
+            validation=validation,
+            ledger_manifest=manifest,
+        )
+
+
+def _write_rotation_fixture(
+    tmp_path: Path,
+    freeze: dict,
+    evidence: dict,
+) -> tuple[Path, dict]:
+    target = tmp_path / "models/decision_source_surface_rotation_20260824.json"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        json.dumps(evidence, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    changed = copy.deepcopy(freeze)
+    changed["source_surface_rotation"]["evidence_path"] = (
+        "models/decision_source_surface_rotation_20260824.json"
+    )
+    changed["source_surface_rotation"]["evidence_sha256"] = hashlib.sha256(
+        target.read_bytes()
+    ).hexdigest()
+    return tmp_path, changed
+
+
+def test_reviewed_source_rotation_classification_tamper_fails_closed(
+    tmp_path: Path,
+) -> None:
+    _, freeze, _, _ = _payloads()
+    evidence = json.loads(
+        (ROOT / "models/decision_source_surface_rotation_20260824.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    change = next(
+        item
+        for item in evidence["pin_changes"]
+        if item["path"] == "src/top10decision/decision/three_engine_models.py"
+    )
+    change["classification"] = "tampered"
+    root, changed = _write_rotation_fixture(tmp_path, freeze, evidence)
+    with pytest.raises(
+        ExecutableProfitShadowContractError,
+        match="reviewed source rotation details drifted",
+    ):
+        _validate_reviewed_rotation_evidence(root=root, freeze=changed)
+
+
+def test_reviewed_source_rotation_protected_identity_tamper_fails_closed(
+    tmp_path: Path,
+) -> None:
+    _, freeze, _, _ = _payloads()
+    evidence = json.loads(
+        (ROOT / "models/decision_source_surface_rotation_20260824.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    evidence["protected_model_identity"]["model_identity_changed"] = True
+    root, changed = _write_rotation_fixture(tmp_path, freeze, evidence)
+    with pytest.raises(
+        ExecutableProfitShadowContractError,
+        match="changed protected model, ledger, or Action identity",
+    ):
+        _validate_reviewed_rotation_evidence(root=root, freeze=changed)
 
 
 def test_promotion_identity_hash_tamper_fails_closed() -> None:

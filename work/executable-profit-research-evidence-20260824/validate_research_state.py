@@ -69,6 +69,14 @@ EXPECTED_PROMOTION_SOURCE = {
     "path": "src/top10decision/decision/three_engine_models.py",
     "sha256": "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34",
 }
+APPROVED_PROMOTION_SOURCE_ROTATION = {
+    "current_sha256": (
+        "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c"
+    ),
+    "rotation_id": "dc20_restore_canonical_source_external_runtime_20260826",
+    "evidence_path": "models/decision_source_surface_rotation_20260824.json",
+    "classification": "promotion_only_primary_d_loader",
+}
 EXPECTED_CANDIDATE_BINDINGS = {
     "lr_distribution": {
         "validation_report": {
@@ -148,6 +156,75 @@ def _verify_file_binding(repo_root: Path, binding: Mapping[str, Any], name: str)
     actual_sha = sha256_path(path)
     _require(actual_sha == expected_sha, f"{name} hash drifted: {actual_sha}")
     return path
+
+
+def _verify_historical_promotion_source(
+    repo_root: Path,
+    binding: Mapping[str, Any],
+) -> Path:
+    """Verify an immutable old source pin through its exact reviewed rotation."""
+
+    _require(
+        {"path": binding.get("path"), "sha256": binding.get("sha256")}
+        == EXPECTED_PROMOTION_SOURCE,
+        "promotion source authoritative binding drifted",
+    )
+    source_path = _resolve(repo_root, str(binding["path"]))
+    _require(source_path.is_file(), f"promotion source file is missing: {source_path}")
+    actual_sha256 = sha256_path(source_path)
+    if actual_sha256 == binding.get("sha256"):
+        return source_path
+
+    approved = APPROVED_PROMOTION_SOURCE_ROTATION
+    _require(
+        actual_sha256 == approved["current_sha256"],
+        f"promotion.frozen_source_code hash drifted: {actual_sha256}",
+    )
+    freeze_path = _resolve(repo_root, "models/decision_model_freeze.json")
+    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    rotation_ref = _mapping(
+        freeze.get("source_surface_rotation"),
+        "freeze.source_surface_rotation",
+    )
+    _require(
+        rotation_ref.get("schema_version")
+        == "decision_source_surface_rotation_v1"
+        and rotation_ref.get("rotation_id") == approved["rotation_id"]
+        and rotation_ref.get("evidence_path") == approved["evidence_path"],
+        "promotion source rotation reference drifted",
+    )
+    evidence_path = _resolve(repo_root, str(rotation_ref["evidence_path"]))
+    _require(evidence_path.is_file(), "promotion source rotation evidence is missing")
+    _require(
+        sha256_path(evidence_path) == rotation_ref.get("evidence_sha256"),
+        "promotion source rotation evidence hash drifted",
+    )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    _require(
+        evidence.get("rotation_id") == approved["rotation_id"],
+        "promotion source rotation id drifted",
+    )
+    changes = evidence.get("pin_changes")
+    _require(isinstance(changes, list), "promotion source rotation changes are missing")
+    matches = [
+        item
+        for item in changes
+        if isinstance(item, Mapping) and item.get("path") == binding.get("path")
+    ]
+    _require(len(matches) == 1, "promotion source rotation is not unique")
+    change = matches[0]
+    _require(
+        change.get("prior_sha256") == binding.get("sha256")
+        and change.get("current_sha256") == actual_sha256
+        and change.get("classification") == approved["classification"],
+        "promotion source reviewed rotation drifted",
+    )
+    freeze_pins = _mapping(freeze.get("pinned_files"), "freeze.pinned_files")
+    _require(
+        freeze_pins.get(str(binding["path"])) == actual_sha256,
+        "promotion source active freeze pin drifted",
+    )
+    return source_path
 
 
 def _same_number(actual: Any, expected: Any, name: str) -> float:
@@ -498,12 +575,7 @@ def validate_research_state(
     _require(promotion.get("promotion_model_touched") is False, "promotion touched flag drifted")
     _require(promotion.get("promotion_rank_changed") is False, "promotion rank changed flag drifted")
     source_binding = _mapping(promotion.get("frozen_source_code"), "promotion.frozen_source_code")
-    source_path = _verify_file_binding(repo_root, source_binding, "promotion.frozen_source_code")
-    _require(
-        {"path": source_binding.get("path"), "sha256": source_binding.get("sha256")}
-        == EXPECTED_PROMOTION_SOURCE,
-        "promotion source authoritative binding drifted",
-    )
+    source_path = _verify_historical_promotion_source(repo_root, source_binding)
     contract = json.loads(input_paths["design_contract"].read_text(encoding="utf-8"))
     code_pins = _mapping(
         _mapping(contract.get("promotion_identity"), "contract.promotion_identity").get(

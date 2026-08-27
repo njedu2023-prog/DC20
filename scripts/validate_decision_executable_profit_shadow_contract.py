@@ -14,6 +14,26 @@ DEFAULT_CONTRACT_PATH = Path(
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
+# The v1 shadow-design contract is an immutable historical record.  Its
+# promotion source pin therefore remains the exact pre-P0 byte identity, while
+# the active freeze records one reviewed source-only rotation that adds the
+# promotion-only P0 loader.  Accepting this one exact pair keeps the historical
+# contract honest without letting it veto the current primary D path.  Any
+# later source change still fails closed until it receives a new review.
+APPROVED_HISTORICAL_CODE_PIN_ROTATIONS = {
+    "src/top10decision/decision/three_engine_models.py": {
+        "prior_sha256": (
+            "f7358d952fef888d1614672128c1ab524add02d4863bac7e45217550b842fb34"
+        ),
+        "current_sha256": (
+            "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c"
+        ),
+        "rotation_id": "dc20_restore_canonical_source_external_runtime_20260826",
+        "evidence_path": "models/decision_source_surface_rotation_20260824.json",
+        "classification": "promotion_only_primary_d_loader",
+    }
+}
+
 
 class ExecutableProfitShadowContractError(ValueError):
     """Raised when the frozen shadow design is inconsistent with DC20 truth."""
@@ -31,6 +51,14 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _expect(condition: bool, message: str) -> None:
     if not condition:
         raise ExecutableProfitShadowContractError(message)
@@ -39,6 +67,95 @@ def _expect(condition: bool, message: str) -> None:
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
     _expect(isinstance(value, Mapping), f"{label} must be an object")
     return value
+
+
+def _historical_code_pin_is_current_or_reviewed(
+    *,
+    freeze: Mapping[str, Any],
+    path: str,
+    historical_sha256: Any,
+    current_sha256: Any,
+) -> bool:
+    if current_sha256 == historical_sha256:
+        return True
+    approved = APPROVED_HISTORICAL_CODE_PIN_ROTATIONS.get(path)
+    if not isinstance(approved, Mapping):
+        return False
+    rotation = freeze.get("source_surface_rotation")
+    if not isinstance(rotation, Mapping):
+        return False
+    return bool(
+        historical_sha256 == approved.get("prior_sha256")
+        and current_sha256 == approved.get("current_sha256")
+        and rotation.get("schema_version")
+        == "decision_source_surface_rotation_v1"
+        and rotation.get("rotation_id") == approved.get("rotation_id")
+        and rotation.get("evidence_path") == approved.get("evidence_path")
+        and SHA256_RE.fullmatch(str(rotation.get("evidence_sha256", "")))
+        is not None
+    )
+
+
+def _validate_reviewed_rotation_evidence(
+    *,
+    root: Path,
+    freeze: Mapping[str, Any],
+) -> None:
+    rotation = _mapping(
+        freeze.get("source_surface_rotation"),
+        "freeze source_surface_rotation",
+    )
+    evidence_relative = Path(str(rotation.get("evidence_path") or ""))
+    _expect(
+        not evidence_relative.is_absolute(),
+        "source rotation evidence path must be repository-relative",
+    )
+    evidence_path = (root / evidence_relative).resolve()
+    try:
+        evidence_path.relative_to(root)
+    except ValueError as exc:
+        raise ExecutableProfitShadowContractError(
+            "source rotation evidence escaped the repository root"
+        ) from exc
+    _expect(evidence_path.is_file(), "source rotation evidence is missing")
+    _expect(
+        _file_sha256(evidence_path) == rotation.get("evidence_sha256"),
+        "source rotation evidence hash drifted",
+    )
+    evidence = _load_json(evidence_path)
+    _expect(
+        evidence.get("schema_version") == "decision_source_surface_rotation_v1"
+        and evidence.get("rotation_id") == rotation.get("rotation_id"),
+        "source rotation evidence identity drifted",
+    )
+    protected = _mapping(
+        evidence.get("protected_model_identity"),
+        "source rotation protected_model_identity",
+    )
+    _expect(
+        protected.get("model_identity_changed") is False
+        and protected.get("training_ledger_changed") is False
+        and protected.get("action_plan_changed") is False,
+        "source rotation changed protected model, ledger, or Action identity",
+    )
+    changes = evidence.get("pin_changes")
+    _expect(isinstance(changes, list), "source rotation pin changes are missing")
+    freeze_pins = _mapping(freeze.get("pinned_files"), "freeze pinned_files")
+    for path, approved in APPROVED_HISTORICAL_CODE_PIN_ROTATIONS.items():
+        matches = [
+            item
+            for item in changes
+            if isinstance(item, Mapping) and item.get("path") == path
+        ]
+        _expect(len(matches) == 1, "reviewed source rotation is not unique")
+        change = matches[0]
+        _expect(
+            change.get("prior_sha256") == approved.get("prior_sha256")
+            and change.get("current_sha256") == approved.get("current_sha256")
+            and change.get("classification") == approved.get("classification")
+            and freeze_pins.get(path) == approved.get("current_sha256"),
+            "reviewed source rotation details drifted",
+        )
 
 
 def validate_payloads(
@@ -237,7 +354,15 @@ def validate_payloads(
     )
     freeze_pins = _mapping(freeze.get("pinned_files"), "freeze pinned_files")
     _expect(
-        all(freeze_pins.get(path) == sha for path, sha in code_pins.items()),
+        all(
+            _historical_code_pin_is_current_or_reviewed(
+                freeze=freeze,
+                path=str(path),
+                historical_sha256=sha,
+                current_sha256=freeze_pins.get(path),
+            )
+            for path, sha in code_pins.items()
+        ),
         "promotion code or runtime pin drifted",
     )
     candidate_contract = _mapping(
@@ -430,9 +555,11 @@ def validate_payloads(
 def validate_contract(repo_root: Path, contract_path: Path = DEFAULT_CONTRACT_PATH) -> dict[str, Any]:
     root = repo_root.resolve()
     contract = _load_json(root / contract_path)
+    freeze = _load_json(root / "models/decision_model_freeze.json")
+    _validate_reviewed_rotation_evidence(root=root, freeze=freeze)
     result = validate_payloads(
         contract=contract,
-        freeze=_load_json(root / "models/decision_model_freeze.json"),
+        freeze=freeze,
         validation=_load_json(
             root / "models/decision_three_engines/validation_latest.json"
         ),

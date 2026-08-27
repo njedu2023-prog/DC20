@@ -66,7 +66,7 @@
     "tests/test_primary_profit_rankings_p1.py": "9b6457a4d07d081c5da8289b0deb12f5e1d5ac1a0de05bdb46097ce66501efbc",
     "tests/test_primary_three_rank_p0.py": "6fef5e73fba940115dc0fdf855381b00fcab92730f0d6dce0f56ad57fcaf26d8"
   },
-  "changed_surface_sha256": "6aca30cb3ea275527d0003ede2901a4368c5185469e5513c6321973df6028257",
+  "changed_surface_sha256": "69a319ca6ea1bb199c0508d6a1d88572b366d2cf70a7e34830fa4b84df783a7f",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -139,6 +139,12 @@
       "prior_sha256": "cd559b8eaa1feb4ab06e71e0a6803d617b3f256026363983bbe1156b4f91b9fa",
       "current_sha256": "a18c2099133ad3962309891379983945c0e4b00ad069e736243ed5737b30be55",
       "classification": "strict_dated_sse_context_sync"
+    },
+    {
+      "path": "scripts/validate_decision_executable_profit_shadow_contract.py",
+      "prior_sha256": "70ca540b79203742f3afe494a3ffd99994fcfb3dd764acfbb3a6b2d8a71cd881",
+      "current_sha256": "70855e3dc922a9b2275f9b1684254ff454efb3659e13d0a78fe93c782fe0ca16",
+      "classification": "historical_contract_reviewed_source_rotation_bridge"
     },
     {
       "path": "src/top10decision/auction_v3/calibration.py",

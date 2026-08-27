@@ -84,7 +84,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 38
+    assert len(paths) == len(set(paths)) == 39
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
@@ -98,6 +98,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "scripts/replay_frozen_canonical_v2.py",
         "scripts/run_auction_v3.py",
         "scripts/sync_market_raw.py",
+        "scripts/validate_decision_executable_profit_shadow_contract.py",
         "src/top10decision/auction_v3/calibration.py",
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
@@ -156,6 +157,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "scripts/run_auction_v3.py": "three_engine_runtime_adapter",
         "scripts/sync_market_raw.py": "strict_dated_sse_context_sync",
+        "scripts/validate_decision_executable_profit_shadow_contract.py": (
+            "historical_contract_reviewed_source_rotation_bridge"
+        ),
         "src/top10decision/auction_v3/calibration.py": (
             "canonical_source_preimage_restore"
         ),
