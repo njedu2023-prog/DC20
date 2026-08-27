@@ -2,7 +2,11 @@ name: Run Top10 Decision (Auto Daily)
 
 on:
   schedule:
+    # Primary D-close publication and one independent same-evening recovery.
+    # A completed immutable D chain is detected before replay or source sync,
+    # so the recovery run is a verified no-op rather than a second writer.
     - cron: "15 13 * * 1-5"
+    - cron: "15 14 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -44,6 +48,7 @@ jobs:
     name: Read-only build and validate Daily Decision candidate
     if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
     permissions:
+      actions: read
       contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -100,8 +105,564 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${TRADE_DATE}" ]; then echo "${TRADE_DATE}" | grep -Eq '^[0-9]{8}$'; fi
+      - name: Resolve immutable Daily target and completed-D no-op
+        id: target
+        env:
+          EVENT_HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_NAME: ${{ github.repository }}
+          GITHUB_RUN_IDENTIFIER: ${{ github.run_id }}
+          MANUAL_TRADE_DATE: ${{ inputs.trade_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          import re
+          import stat
+          import subprocess
+          import tempfile
+          from datetime import datetime, timedelta
+          from decimal import Decimal, InvalidOperation
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from zoneinfo import ZoneInfo
+
+          from top10decision.decision.executable_profit_research_projection import (
+              _validate_existing_index_chain as validate_profit_research_chain,
+          )
+          from top10decision.decision.executable_profit_shadow import (
+              _validate_existing_pointer_chain as validate_profit_shadow_chain,
+              validate_internal_forward_shadow_index,
+          )
+          from top10decision.decision.legacy_profit_relative_research import (
+              validate_repository_chain as validate_legacy_profit_chain,
+          )
+          from top10decision.decision.research_context import validate_research_context
+          from top10decision.decision.run_receipt import validate_decision_run_receipt
+          from top10decision.decision.three_rank import (
+              _three_rank_index_payload,
+              validate_three_rank_contract,
+              validate_three_rank_index,
+          )
+
+          DATE_RE = re.compile(r'20\d{6}')
+          SHANGHAI = ZoneInfo('Asia/Shanghai')
+          UTC = ZoneInfo('UTC')
+          SCHEDULE_SLOTS_UTC = ((13, 15), (14, 15))
+
+          def load_json(path: Path, *, label: str) -> dict:
+              if (
+                  path.is_symlink()
+                  or not path.is_file()
+                  or not stat.S_ISREG(path.stat().st_mode)
+              ):
+                  raise RuntimeError(f'{label} is missing or unsafe')
+              try:
+                  payload = json.loads(path.read_text(encoding='utf-8'))
+              except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                  raise RuntimeError(f'{label} is invalid JSON') from exc
+              if not isinstance(payload, dict):
+                  raise RuntimeError(f'{label} must be one JSON object')
+              return payload
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def require_file(root: Path, relative: str, *, label: str) -> Path:
+              relative_path = Path(relative)
+              if relative_path.is_absolute() or '..' in relative_path.parts:
+                  raise RuntimeError(f'{label} path escaped the repository')
+              normalized = relative_path.as_posix()
+              path = root / relative_path
+              if (
+                  path.is_symlink()
+                  or not path.is_file()
+                  or not stat.S_ISREG(path.stat().st_mode)
+                  or path.stat().st_size <= 0
+              ):
+                  raise RuntimeError(f'{label} is missing, empty, or unsafe')
+              index = subprocess.run(
+                  [
+                      'git', '-C', str(root), 'ls-files', '--stage', '--',
+                      normalized,
+                  ],
+                  check=True,
+                  capture_output=True,
+              ).stdout.decode('utf-8').strip()
+              try:
+                  metadata, indexed_path = index.split('\t', 1)
+                  mode, _blob, stage = metadata.split()
+              except ValueError as exc:
+                  raise RuntimeError(f'{label} is not one tracked stage-0 file') from exc
+              if (
+                  indexed_path != normalized
+                  or mode != '100644'
+                  or stage != '0'
+              ):
+                  raise RuntimeError(f'{label} is not a tracked regular file')
+              head_bytes = subprocess.run(
+                  ['git', '-C', str(root), 'show', f'HEAD:{normalized}'],
+                  check=True,
+                  capture_output=True,
+              ).stdout
+              if path.read_bytes() != head_bytes:
+                  raise RuntimeError(f'{label} differs from the immutable HEAD blob')
+              dirty = subprocess.run(
+                  [
+                      'git', '-C', str(root), 'status', '--porcelain=v1',
+                      '--untracked-files=all', '--', normalized,
+                  ],
+                  check=True,
+                  capture_output=True,
+              ).stdout
+              if dirty:
+                  raise RuntimeError(f'{label} is dirty in the checkout')
+              return path
+
+          manual = str(os.environ.get('MANUAL_TRADE_DATE') or '').strip()
+          event_name = str(os.environ.get('EVENT_NAME') or '').strip()
+          target = manual
+          if target and DATE_RE.fullmatch(target) is None:
+              raise SystemExit('Daily manual target date must be YYYYMMDD')
+          if not target and event_name == 'schedule':
+              injected_created = str(
+                  os.environ.get('DC20_RUN_CREATED_AT') or ''
+              ).strip()
+              if injected_created:
+                  try:
+                      created_at = datetime.fromisoformat(injected_created)
+                  except ValueError as exc:
+                      raise SystemExit('DC20_RUN_CREATED_AT is invalid') from exc
+              else:
+                  token = str(os.environ.get('GH_API_TOKEN') or '').strip()
+                  repository = str(
+                      os.environ.get('GITHUB_REPOSITORY_NAME') or ''
+                  ).strip()
+                  run_id = str(
+                      os.environ.get('GITHUB_RUN_IDENTIFIER') or ''
+                  ).strip()
+                  event_head = str(
+                      os.environ.get('EVENT_HEAD_SHA') or ''
+                  ).strip().lower()
+                  if (
+                      not token
+                      or re.fullmatch(r'[^/\s]+/[^/\s]+', repository) is None
+                      or re.fullmatch(r'[1-9][0-9]*', run_id) is None
+                      or re.fullmatch(r'[0-9a-f]{40}', event_head) is None
+                  ):
+                      raise SystemExit('Daily schedule run metadata inputs are invalid')
+                  request = Request(
+                      'https://api.github.com/repos/'
+                      f'{repository}/actions/runs/{run_id}',
+                      headers={
+                          'Accept': 'application/vnd.github+json',
+                          'Authorization': f'Bearer {token}',
+                          'X-GitHub-Api-Version': '2022-11-28',
+                      },
+                  )
+                  try:
+                      with urlopen(request, timeout=30) as response:
+                          metadata = json.load(response)
+                  except Exception as exc:
+                      raise SystemExit(
+                          'Daily schedule run metadata lookup failed'
+                      ) from exc
+                  if (
+                      str(metadata.get('id') or '') != run_id
+                      or metadata.get('event') != 'schedule'
+                      or str(metadata.get('head_branch') or '') != 'main'
+                      or str(metadata.get('head_sha') or '').lower() != event_head
+                  ):
+                      raise SystemExit('Daily schedule run metadata binding drifted')
+                  try:
+                      created_at = datetime.fromisoformat(
+                          str(metadata.get('created_at') or '').replace('Z', '+00:00')
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(
+                          'Daily schedule run created_at is invalid'
+                      ) from exc
+              if created_at.tzinfo is None:
+                  raise SystemExit('Daily schedule run created_at lacks timezone')
+              created_at = created_at.astimezone(UTC)
+              slots = []
+              for day_offset in range(0, 8):
+                  day = (created_at - timedelta(days=day_offset)).date()
+                  if day.weekday() >= 5:
+                      continue
+                  for hour, minute in SCHEDULE_SLOTS_UTC:
+                      slot = datetime(
+                          day.year,
+                          day.month,
+                          day.day,
+                          hour,
+                          minute,
+                          tzinfo=UTC,
+                      )
+                      if slot <= created_at:
+                          slots.append(slot)
+              if not slots:
+                  raise SystemExit('Daily schedule has no valid preceding cron slot')
+              scheduled_slot = max(slots)
+              target = scheduled_slot.astimezone(SHANGHAI).strftime('%Y%m%d')
+
+              injected_now = str(os.environ.get('DC20_NOW_BJT') or '').strip()
+              if injected_now:
+                  try:
+                      now = datetime.fromisoformat(injected_now)
+                  except ValueError as exc:
+                      raise SystemExit('DC20_NOW_BJT is invalid') from exc
+                  if now.tzinfo is None:
+                      now = now.replace(tzinfo=SHANGHAI)
+                  else:
+                      now = now.astimezone(SHANGHAI)
+              else:
+                  now = datetime.now(SHANGHAI)
+
+              calendar_path = Path('data/market/trade_cal_sse.csv')
+              if (
+                  calendar_path.is_symlink()
+                  or not calendar_path.is_file()
+                  or calendar_path.stat().st_size <= 0
+              ):
+                  raise SystemExit('Daily committed SSE calendar is missing or unsafe')
+              with calendar_path.open(
+                  'r', encoding='utf-8-sig', newline=''
+              ) as handle:
+                  calendar_rows = list(csv.DictReader(handle))
+              target_rows = [
+                  row for row in calendar_rows
+                  if row.get('exchange') == 'SSE'
+                  and row.get('cal_date') == target
+              ]
+              next_open_dates = sorted(
+                  str(row.get('cal_date') or '')
+                  for row in calendar_rows
+                  if row.get('exchange') == 'SSE'
+                  and row.get('is_open') == '1'
+                  and str(row.get('cal_date') or '') > target
+                  and DATE_RE.fullmatch(str(row.get('cal_date') or ''))
+              )
+              if len(target_rows) != 1 or len(next_open_dates) < 2:
+                  raise SystemExit('Daily scheduled target is absent from SSE calendar')
+              target_is_open = target_rows[0].get('is_open') == '1'
+              next_open = datetime.strptime(
+                  next_open_dates[0] + '0920', '%Y%m%d%H%M'
+              ).replace(tzinfo=SHANGHAI)
+              if now >= next_open:
+                  raise SystemExit(
+                      'delayed Daily schedule crossed the T 09:20 safety boundary'
+                  )
+
+          if target and DATE_RE.fullmatch(target) is None:
+              raise SystemExit('resolved Daily target date must be YYYYMMDD')
+
+          already_complete = False
+          if target and event_name == 'schedule':
+              root_override = str(os.environ.get('DAILY_COMPLETION_ROOT') or '').strip()
+              root = Path(root_override or '.').resolve(strict=True)
+              index_specs = (
+                  (
+                      'three-rank',
+                      root / 'outputs' / 'decision' / 'three_rank_index.json',
+                      'latest_signal_date',
+                  ),
+                  (
+                      'executable-profit Shadow',
+                      root / 'data/decision_executable_profit/forward/selections/index.json',
+                      'latest_signal_date',
+                  ),
+                  (
+                      'mixed-profit research',
+                      root / 'outputs/decision/executable_profit_research/index.json',
+                      'latest_signal_date',
+                  ),
+                  (
+                      'single-profit research',
+                      root
+                      / 'outputs'
+                      / 'decision'
+                      / 'legacy_profit_relative_research'
+                      / 'index.json',
+                      'latest_signal_date',
+                  ),
+              )
+              indexes: dict[str, dict] = {}
+              dates: dict[str, str] = {}
+              for label, path, field in index_specs:
+                  if not path.exists():
+                      dates[label] = ''
+                      continue
+                  payload = load_json(path, label=f'{label} index')
+                  value = str(payload.get(field) or '')
+                  if value and DATE_RE.fullmatch(value) is None:
+                      raise SystemExit(f'{label} index latest date is invalid')
+                  indexes[label] = payload
+                  dates[label] = value
+              if any(value > target for value in dates.values() if value):
+                  raise SystemExit('Daily target would regress an existing later D pointer')
+
+              target_sentinels = (
+                  root / f'outputs/decision/three_rank_top10_{target}.json',
+                  root
+                  / 'data/decision_executable_profit/forward/selections'
+                  / f'shadow_{target}.json',
+                  root
+                  / 'outputs/decision/executable_profit_research'
+                  / f'projection_{target}.json',
+                  root
+                  / 'outputs/decision/legacy_profit_relative_research'
+                  / f'projection_{target}.json',
+              )
+              hits = {label for label, value in dates.items() if value == target}
+              if hits and len(hits) != len(index_specs):
+                  raise SystemExit('Daily target has a partial same-D pointer chain')
+              if any(path.exists() for path in target_sentinels) and not hits:
+                  raise SystemExit('Daily target has orphaned same-D dated artifacts')
+
+              if len(hits) == len(index_specs):
+                  try:
+                      if not target_is_open:
+                          raise RuntimeError('completed D is not an SSE open session')
+                      for relative, label in (
+                          (
+                              'outputs/decision/'
+                              'three_rank_index.json',
+                              'three-rank index',
+                          ),
+                          (
+                              'data/decision_executable_profit/forward/'
+                              'selections/index.json',
+                              'executable-profit Shadow index',
+                          ),
+                          (
+                              'outputs/decision/executable_profit_research/'
+                              'index.json',
+                              'mixed-profit research index',
+                          ),
+                          (
+                              'outputs/decision/legacy_profit_relative_research/'
+                              'index.json',
+                              'single-profit research index',
+                          ),
+                      ):
+                          require_file(root, relative, label=label)
+                      three_index = indexes['three-rank']
+                      validate_three_rank_index(three_index)
+                      three_json = require_file(
+                          root,
+                          f'outputs/decision/three_rank_top10_{target}.json',
+                          label='dated three-rank JSON',
+                      )
+                      three_csv = require_file(
+                          root,
+                          f'outputs/decision/three_rank_top10_{target}.csv',
+                          label='dated three-rank CSV',
+                      )
+                      three_rank = load_json(
+                          three_json,
+                          label='dated three-rank JSON',
+                      )
+                      validate_three_rank_contract(three_rank)
+                      expected_three_index = _three_rank_index_payload(
+                          three_rank,
+                          contract_sha256=sha256(three_json),
+                      )
+                      if (
+                          three_rank.get('signal_date') != target
+                          or three_rank.get('exec_date') != next_open_dates[0]
+                          or three_rank.get('exit_date') != next_open_dates[1]
+                          or three_index != expected_three_index
+                          or sha256(three_csv)
+                          != three_index.get('latest_csv_sha256')
+                      ):
+                          raise RuntimeError('three-rank dated/index chain drifted')
+
+                      shadow_index = indexes['executable-profit Shadow']
+                      validate_internal_forward_shadow_index(shadow_index)
+                      validate_profit_shadow_chain(root, shadow_index)
+                      shadow_json = require_file(
+                          root,
+                          'data/decision_executable_profit/forward/selections/'
+                          f'shadow_{target}.json',
+                          label='dated executable-profit Shadow JSON',
+                      )
+                      shadow = load_json(
+                          shadow_json,
+                          label='dated executable-profit Shadow JSON',
+                      )
+                      prediction = require_file(
+                          root,
+                          f'outputs/auction_v3/predictions/pred_{target}.csv',
+                          label='canonical pred_D feature',
+                      )
+                      source_d = shadow.get('source_d_feature') or {}
+                      if (
+                          shadow.get('signal_date') != target
+                          or source_d.get('file_name') != prediction.name
+                          or source_d.get('file_sha256') != sha256(prediction)
+                      ):
+                          raise RuntimeError('Shadow/pred_D source binding drifted')
+                      with prediction.open(
+                          'r', encoding='utf-8-sig', newline=''
+                      ) as handle:
+                          reader = csv.DictReader(handle)
+                          required_action_columns = {
+                              'action', 'selected', 'first_layer_selected',
+                              'trade_selected', 'guidance_only',
+                              'broker_connected', 'market_order_allowed',
+                              'order_type',
+                          }
+                          if not required_action_columns.issubset(
+                              reader.fieldnames or ()
+                          ):
+                              raise RuntimeError(
+                                  'canonical pred_D action columns are missing'
+                              )
+                          prediction_rows = list(reader)
+                      if not prediction_rows:
+                          raise RuntimeError('canonical pred_D candidate pool is empty')
+
+                      def exact_integer(value, expected):
+                          try:
+                              return Decimal(str(value).strip()) == expected
+                          except (InvalidOperation, ValueError):
+                              return False
+
+                      for row in prediction_rows:
+                          if (
+                              str(row.get('action') or '').strip()
+                              not in {'REJECT', 'SHADOW_ONLY'}
+                              or not all(
+                                  exact_integer(row.get(column), 0)
+                                  for column in (
+                                      'selected', 'first_layer_selected',
+                                      'trade_selected', 'broker_connected',
+                                      'market_order_allowed',
+                                  )
+                              )
+                              or not exact_integer(row.get('guidance_only'), 1)
+                              or str(row.get('order_type') or '').strip()
+                              != 'LIMIT_ONLY_MANUAL'
+                          ):
+                              raise RuntimeError(
+                                  'canonical pred_D action boundary drifted'
+                              )
+
+                      mixed_index = indexes['mixed-profit research']
+                      validate_profit_research_chain(root, mixed_index)
+                      if mixed_index.get('latest_signal_date') != target:
+                          raise RuntimeError('mixed-profit pointer date drifted')
+
+                      legacy = validate_legacy_profit_chain(
+                          root,
+                          deterministic_rebuild=True,
+                      )
+                      if legacy.get('signal_date') != target:
+                          raise RuntimeError('single-profit pointer date drifted')
+
+                      exec_date = str(three_rank.get('exec_date') or '')
+                      if DATE_RE.fullmatch(exec_date) is None:
+                          raise RuntimeError('three-rank exec date is invalid')
+                      context = load_json(
+                          require_file(
+                              root,
+                              'outputs/decision/'
+                              f'research_context_dc20_{exec_date}.json',
+                              label='dated DC20 research context',
+                          ),
+                          label='dated DC20 research context',
+                      )
+                      validate_research_context(
+                          context,
+                          expected_report_date=exec_date,
+                      )
+                      if (
+                          context.get('signal_date') != target
+                          or context.get('three_rank') != three_rank
+                      ):
+                          raise RuntimeError('research context/three-rank binding drifted')
+
+                      report_relative = (
+                          f'outputs/decision/decision_report_{exec_date}.md'
+                      )
+                      eval_relative = f'outputs/decision/eval_{exec_date}.json'
+                      require_file(root, report_relative, label='dated Decision report')
+                      evaluation_path = require_file(
+                          root,
+                          eval_relative,
+                          label='dated Decision evaluation',
+                      )
+                      evaluation = load_json(
+                          evaluation_path,
+                          label='dated Decision evaluation',
+                      )
+                      stop_trading = evaluation.get('stop_trading')
+                      if type(stop_trading) is not bool:
+                          raise RuntimeError(
+                              'dated Decision evaluation stop_trading is invalid'
+                          )
+                      receipt = {
+                          'schema_version': 'decision_run_receipt_v1',
+                          'requested_trade_date': target,
+                          'signal_date': target,
+                          'exec_date': exec_date,
+                          'exit_date': next_open_dates[1],
+                          'report_path': report_relative,
+                          'eval_path': eval_relative,
+                          'stop_trading': stop_trading,
+                      }
+                      with tempfile.TemporaryDirectory(
+                          prefix='dc20-daily-completion-'
+                      ) as temp_dir:
+                          receipt_path = Path(temp_dir) / 'receipt.json'
+                          receipt_path.write_text(
+                              json.dumps(
+                                  receipt,
+                                  ensure_ascii=False,
+                                  allow_nan=False,
+                                  indent=2,
+                              ) + '\n',
+                              encoding='utf-8',
+                          )
+                          validate_decision_run_receipt(
+                              root=root,
+                              receipt_path=receipt_path,
+                              requested_trade_date=target,
+                          )
+
+                      for relative, label in (
+                          (f'data/pred/archive/pred_source_{target}.csv', 'dated prediction source'),
+                          (f'data/market/features_base_{target}.csv', 'dated base features'),
+                          (f'data/market/features_limit_{target}.csv', 'dated limit features'),
+                          (f'data/market/truth_close_{target}.csv', 'dated close truth'),
+                          (f'data/decision/decision_candidates_{target}.csv', 'dated Decision candidates'),
+                          (f'data/decision/decision_execution_{exec_date}.csv', 'dated Decision execution'),
+                          (f'docs/signals/TopEVR_{target}.csv', 'dated TopEVR signal'),
+                          (f'docs/signals/top10_{target}.csv', 'dated Top10 signal'),
+                          (f'docs/weights/weights_{exec_date}.csv', 'dated Decision weights'),
+                      ):
+                          require_file(root, relative, label=label)
+                  except Exception as exc:
+                      raise SystemExit(
+                          f'Daily same-D completion chain is invalid: {exc}'
+                      ) from exc
+                  already_complete = True
+
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
+              output.write(f'target_trade_date={target}\n')
+              output.write(
+                  f"already_complete={'true' if already_complete else 'false'}\n"
+              )
+          PY
       - name: Require persisted Auction action for real Daily publication
         id: persisted_action
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
         env:
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PYTHONPATH: ${{ github.workspace }}/src
@@ -223,6 +784,7 @@ jobs:
           PY
       - name: Rebuild exact-base frozen Auction runtime before live source mutation
         id: frozen_action
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
         env:
           PERSISTED_ACTION_SEMANTIC_SHA256: ${{ steps.persisted_action.outputs.semantic_sha256 }}
           PERSISTED_ACTION_COMPARISON_PROFILE: ${{ steps.persisted_action.outputs.comparison_profile }}
@@ -488,10 +1050,11 @@ jobs:
           test ! -s "${RUNNER_TEMP}/daily-auction-report-dirty.bin"
       - name: Resolve Daily exchange write eligibility
         id: session
+        if: ${{ steps.target.outputs.already_complete != 'true' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-          TRADE_DATE: ${{ inputs.trade_date }}
+          TRADE_DATE: ${{ steps.target.outputs.target_trade_date }}
         run: |
           set -euo pipefail
           args=(--calendar-only)

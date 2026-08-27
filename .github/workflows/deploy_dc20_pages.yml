@@ -23,6 +23,7 @@ on:
   schedule:
     - cron: "30 9 * * 1-5"
     - cron: "30 13 * * 1-5"
+    - cron: "30 14 * * 1-5"
   workflow_dispatch: {}
   workflow_call:
     inputs:

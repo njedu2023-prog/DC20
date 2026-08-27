@@ -52,12 +52,12 @@
   "added_runtime_pins": {
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a"
   },
-  "changed_surface_sha256": "d46b70f96f9d155d203e5b61f4aad3a4d24badc3b2dc8cc90e104bbaa2953b7e",
+  "changed_surface_sha256": "38f4c4f976096c3c86d26516465431535bffbfbcf0786daff34c4281631aa122",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
       "prior_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
-      "current_sha256": "98f56262847358971941b7b7daa10726f8a1a6d388b32f7ca7030d0840831abd",
+      "current_sha256": "cfaa2683060d424f327b12f26b85f7def607f18c635d23e2db0ecac9c144d06e",
       "classification": "canonical_dc20_research_context_pages_binding"
     },
     {
@@ -75,7 +75,7 @@
     {
       "path": ".github/workflows/run_decision_daily.yml",
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-      "current_sha256": "dc4e91bc3f64f34805ae17859a4b8ef1e50acf33bc4bb403e2af408ad51e7ad5",
+      "current_sha256": "e45cf3bf6681fe66ae488c85f492820c43f6e3ab4890fe41543b82d8f13ff5ba",
       "classification": "strict_dated_daily_context_workflow"
     },
     {
@@ -267,7 +267,7 @@
     {
       "path": "tests/test_writer_workflow_hardening.py",
       "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
-      "current_sha256": "a022a36f493e3ca813e8fe916d3375db05694e8eaa9390aa8a5f87ff5b18d710",
+      "current_sha256": "bfc4e9161616f83d5beebde9021c58c636bc428000a133961f55ba39d7a9035b",
       "classification": "strict_dated_daily_context_workflow_test"
     }
   ]

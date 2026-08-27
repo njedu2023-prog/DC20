@@ -243,6 +243,131 @@ def test_daily_uses_one_session_bound_target_for_exact_sources_and_all_computati
     assert 'if [ -n "${TRADE_DATE}" ]' not in after_session
 
 
+def test_daily_has_same_evening_recovery_with_completed_d_noop_preflight() -> None:
+    daily = _text("run_decision_daily.yml")
+    pages = _text("deploy_dc20_pages.yml")
+    header = daily.split("\npermissions:", 1)[0]
+    compute = daily[daily.index("  compute:") : daily.index("\n  publish:")]
+    target = compute.split(
+        "- name: Resolve immutable Daily target and completed-D no-op",
+        1,
+    )[1].split("- name: Require persisted Auction action", 1)[0]
+
+    assert header.count('cron: "15 13 * * 1-5"') == 1
+    assert header.count('cron: "15 14 * * 1-5"') == 1
+    assert pages.count('cron: "30 14 * * 1-5"') == 1
+    assert "group: decision-auction-main-writer" in daily
+    assert "cancel-in-progress: false" in daily
+    assert "actions: read" in compute
+    assert compute.index("Resolve immutable Daily target") < compute.index(
+        "Require persisted Auction action"
+    )
+    assert compute.index("Resolve immutable Daily target") < compute.index(
+        "Rebuild exact-base frozen Auction runtime"
+    )
+    assert compute.index("Resolve immutable Daily target") < compute.index(
+        "Resolve Daily exchange write eligibility"
+    )
+    assert compute.count(
+        "if: ${{ steps.target.outputs.already_complete != 'true' }}"
+    ) == 3
+    for required in (
+        "_three_rank_index_payload",
+        "validate_profit_shadow_chain",
+        "validate_profit_research_chain",
+        "validate_legacy_profit_chain",
+        "canonical pred_D feature",
+        "canonical pred_D action boundary drifted",
+        "completed D is not an SSE open session",
+        "differs from the immutable HEAD blob",
+        "validate_decision_run_receipt",
+        "research context/three-rank binding drifted",
+        "Daily target has a partial same-D pointer chain",
+        "Daily target has orphaned same-D dated artifacts",
+        "actions/runs/{run_id}",
+        "Daily schedule run metadata binding drifted",
+        "SCHEDULE_SLOTS_UTC = ((13, 15), (14, 15))",
+        "delayed Daily schedule crossed the T 09:20 safety boundary",
+        "already_complete={'true' if already_complete else 'false'}",
+    ):
+        assert required in target
+    assert "has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}" in compute
+    assert "needs.compute.outputs.has_changes == 'true'" in daily[daily.index("\n  publish:") :]
+
+
+def test_daily_scheduled_target_is_immutable_across_midnight_before_t0920(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("MANUAL_TRADE_DATE", "")
+    monkeypatch.setenv("DC20_RUN_CREATED_AT", "2026-08-27T16:05:00+00:00")
+    monkeypatch.setenv("DC20_NOW_BJT", "2026-08-28T00:30:00+08:00")
+    monkeypatch.setenv("DAILY_COMPLETION_ROOT", str(ROOT))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(
+        compute,
+        "- name: Resolve immutable Daily target and completed-D no-op",
+    )
+    exec(compile(source, "<daily-scheduled-target-midnight>", "exec"), {})
+    assert output.read_text(encoding="utf-8") == (
+        "target_trade_date=20260827\nalready_complete=false\n"
+    )
+
+
+def test_daily_delayed_schedule_past_t0920_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("MANUAL_TRADE_DATE", "")
+    monkeypatch.setenv("DC20_RUN_CREATED_AT", "2026-08-27T16:05:00+00:00")
+    monkeypatch.setenv("DC20_NOW_BJT", "2026-08-28T09:20:00+08:00")
+    monkeypatch.setenv("DAILY_COMPLETION_ROOT", str(ROOT))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(
+        compute,
+        "- name: Resolve immutable Daily target and completed-D no-op",
+    )
+    with pytest.raises(SystemExit, match="T 09:20 safety boundary"):
+        exec(compile(source, "<daily-scheduled-target-too-late>", "exec"), {})
+
+
+def test_daily_partial_same_d_pointer_chain_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index_dates = {
+        "outputs/decision/three_rank_index.json": "20260827",
+        "data/decision_executable_profit/forward/selections/index.json": "20260825",
+        "outputs/decision/executable_profit_research/index.json": "20260825",
+        "outputs/decision/legacy_profit_relative_research/index.json": "20260825",
+    }
+    for relative, date in index_dates.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"latest_signal_date": date}),
+            encoding="utf-8",
+        )
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("MANUAL_TRADE_DATE", "")
+    monkeypatch.setenv("DC20_RUN_CREATED_AT", "2026-08-27T14:16:00+00:00")
+    monkeypatch.setenv("DC20_NOW_BJT", "2026-08-27T22:15:00+08:00")
+    monkeypatch.setenv("DAILY_COMPLETION_ROOT", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+    compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
+    source = _embedded_python_after(
+        compute,
+        "- name: Resolve immutable Daily target and completed-D no-op",
+    )
+    with pytest.raises(SystemExit, match="partial same-D pointer chain"):
+        exec(compile(source, "<daily-partial-completion>", "exec"), {})
+
+
 def test_every_writer_defaults_manual_dispatch_to_read_only_dry_run() -> None:
     for name in WRITERS:
         text = _text(name)
