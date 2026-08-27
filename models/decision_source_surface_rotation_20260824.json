@@ -59,6 +59,7 @@
   "added_runtime_pins": {
     ".github/workflows/run_primary_d_daily.yml": "6ec21772d9f9dae71abe215cd58f3207462c69bc5bd6babb867c155a3db83b96",
     ".github/workflows/run_primary_profit_rankings.yml": "6db8fc91afc56fc67cdecb0d0b54c35ae6c4c69681237567fd0fe6c8ab56dc12",
+    "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
     "scripts/publish_primary_profit_rankings.py": "e1c8f23ac751ce111de4dc68271790bb21f7e6d40122bfb5abf4414d1a05f94f",
@@ -66,7 +67,7 @@
     "tests/test_primary_profit_rankings_p1.py": "9b6457a4d07d081c5da8289b0deb12f5e1d5ac1a0de05bdb46097ce66501efbc",
     "tests/test_primary_three_rank_p0.py": "6fef5e73fba940115dc0fdf855381b00fcab92730f0d6dce0f56ad57fcaf26d8"
   },
-  "changed_surface_sha256": "69a319ca6ea1bb199c0508d6a1d88572b366d2cf70a7e34830fa4b84df783a7f",
+  "changed_surface_sha256": "35c5c372e0fdbe900b707d07ad02562ef8b7030b6ea88f95210101ba8e1b2562",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -179,7 +180,7 @@
     {
       "path": "src/top10decision/decision/model_freeze.py",
       "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
-      "current_sha256": "b427a3c9c836b1ae79201dfa6bd6059f3c25e40a70c47b5e1fdfdc4bbde285f1",
+      "current_sha256": "a523c4b06e3c89bd7695f0c5122badbd87a8aca982604e5bf4c6330c99079ebb",
       "classification": "primary_p0_p1_active_pin_validation"
     },
     {

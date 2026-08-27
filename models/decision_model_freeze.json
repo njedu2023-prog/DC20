@@ -624,7 +624,7 @@
     "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
     "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "d352380480bb64da4c250407463bac28b9f828d09d92a23356b16a217d7926e4"
+    "evidence_sha256": "3085ff7c0b808ae77597120c7657a70e5d26eba2cbedd20bd1c7861a5a14853e"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -639,6 +639,7 @@
     ".github/workflows/test_decision_core.yml": "f38b2b0ab78be89dd7992c49582b9991703f7bcb384ff30a90090ab6c9a6fba6",
     ".github/workflows/train_decision_three_engines.yml": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
     ".github/workflows/verify_decision_observations.yml": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
+    "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
     "data/auction_v3/promotion_prior/five_year_event_features.csv.gz": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
     "data/decision_three_engines/five_year_ledger_manifest.json": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034",
     "data/decision_three_engines/five_year_supervised_ledger.csv.gz": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
@@ -673,7 +674,7 @@
     "models/decision_executable_profit_shadow_contract.json": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
-    "models/decision_source_surface_rotation_20260824.json": "d352380480bb64da4c250407463bac28b9f828d09d92a23356b16a217d7926e4",
+    "models/decision_source_surface_rotation_20260824.json": "3085ff7c0b808ae77597120c7657a70e5d26eba2cbedd20bd1c7861a5a14853e",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -760,7 +761,7 @@
     "src/top10decision/decision/executable_profit_shadow_settlement.py": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458",
     "src/top10decision/decision/exit_policy.py": "4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f",
     "src/top10decision/decision/legacy_profit_relative_research.py": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2",
-    "src/top10decision/decision/model_freeze.py": "b427a3c9c836b1ae79201dfa6bd6059f3c25e40a70c47b5e1fdfdc4bbde285f1",
+    "src/top10decision/decision/model_freeze.py": "a523c4b06e3c89bd7695f0c5122badbd87a8aca982604e5bf4c6330c99079ebb",
     "src/top10decision/decision/observation.py": "8f721512a0a6463349f4c7531746ebb009018a703209095c2905d1e952304471",
     "src/top10decision/decision/research_context.py": "72da2fee9863ff807e01c067d43b0715a18de94515e4ccbc8d130e366cb9335d",
     "src/top10decision/decision/run_receipt.py": "198211cc88ad1ed932c801c9634b6479ea9ceb9c7de531ead6a5803fb3827777",

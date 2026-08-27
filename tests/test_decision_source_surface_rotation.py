@@ -13,6 +13,7 @@ EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
 EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
     ".github/workflows/run_primary_d_daily.yml",
     ".github/workflows/run_primary_profit_rankings.yml",
+    "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv",
     "models/decision_primary_profit_research_contract.json",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json",
     "scripts/publish_primary_profit_rankings.py",
