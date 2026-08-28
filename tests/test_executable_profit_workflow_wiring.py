@@ -531,6 +531,47 @@ def test_pages_validates_and_publicly_refetches_exact_profit_chain() -> None:
         assert text.count(field) >= 2, field
 
 
+def test_pages_copies_and_refetches_primary_shadow_sidecar_exact_sources() -> None:
+    text = _text("deploy_dc20_pages.yml")
+    for token in (
+        "[dc20-shadow-pages-owned]",
+        "run_primary_profit_forward_shadow.yml",
+        "validate_primary_profit_forward_shadow_repository_chain",
+        "outputs/decision/executable_profit_research/shadow_index.json",
+        "data/decision_executable_profit/forward/selections/primary_mixed_index.json",
+        "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+        "t_verification_{signal_date}.json",
+        "settlement_{signal_date}.json",
+        "shadow_t1",
+        "latest_mixed_projection_sha256",
+        "Pages Shadow sidecar is not bound to same-D P1 bytes",
+        "Pages exact Shadow source copy drifted",
+        "public primary Shadow sidecar is not exact-D/SHA bound",
+    ):
+        assert token in text
+    assert "cp -R data" not in text
+    assert "cp -R models" not in text
+
+
+def test_verify_p1_mode_never_runs_legacy_projector_or_changes_primary_projection() -> None:
+    text = _text("verify_decision_observations.yml")
+    step = _between(
+        text,
+        "- name: Settle immutable executable-profit Shadow truth and project exact as-of",
+        "- name: Build exact allowlisted Verify candidate patch",
+    )
+    assert "MIXED_INDEX_SCHEMA" in step
+    assert "project_primary_profit_forward_shadow_state" in step
+    assert "validate_primary_profit_forward_shadow_repository_chain" in step
+    assert "primary_mixed_index.json" in step
+    assert "shadow_index.json" in step
+    assert "shadow_state_" in step
+    assert "P1 primary projection/index bytes changed during Verify" in step
+    assert "if primary_mode:" in step
+    legacy_branch = step.split("if primary_mode:", 1)[1]
+    assert "project_decision_executable_profit_research.py" not in legacy_branch.split("else", 1)[0]
+
+
 def test_profit_wiring_keeps_shared_non_cancelling_writer_lock() -> None:
     for name in (
         "run_decision_daily.yml",

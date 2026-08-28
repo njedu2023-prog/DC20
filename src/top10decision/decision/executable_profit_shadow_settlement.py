@@ -19,6 +19,7 @@ from typing import Any
 from top10decision.decision.executable_profit_shadow import (
     MINIMUM_SIGNAL_DATE,
     OUTPUT_RELATIVE_ROOT as SELECTION_ROOT,
+    SCHEMA_VERSION as LEGACY_SELECTION_SCHEMA,
     validate_internal_forward_shadow_payload,
 )
 
@@ -42,6 +43,10 @@ STATISTICS_PATH = Path(
 COST_VERSION = "dc20_shadow_cost_v1_45bp"
 COST_RATE = 0.0045
 ENTRY_POLICY_ID = "dc20_public_market_buyable_proxy_v1"
+PRIMARY_MIXED_SELECTION_SCHEMA = "dc20_primary_profit_forward_shadow_selection_v2"
+PRIMARY_MIXED_SELECTION_CONTRACT_ID = (
+    "dc20_primary_profit_forward_shadow_bridge_20260829_v1"
+)
 SHADOW_NOTIONAL_CNY = 100_000.0
 MAX_AUCTION_PARTICIPATION = 0.01
 TARGET_FORWARD_DATES = 180
@@ -271,9 +276,41 @@ def _load_contract(repo_root: Path) -> dict[str, Any]:
         "settlement entry truth contract drifted",
     )
     selection_input = contract.get("selection_input", {})
+    source_variants = selection_input.get("entry_source_variants")
+    required_entry_fields = selection_input.get("required_frozen_entry_fields")
     _expect(
         selection_input.get("selected_slots_rule")
         == "actual_slots = min(2, N); never add a candidate outside the frozen promotion TopN"
+        and selection_input.get("accepted_schema_versions")
+        == [LEGACY_SELECTION_SCHEMA, PRIMARY_MIXED_SELECTION_SCHEMA]
+        and required_entry_fields
+        == {
+            "ranking_contract": ["entry_policy_id"],
+            "selected_row": [
+                "shadow_max_price",
+                "shadow_price_basis",
+                "shadow_price_source_sha256",
+            ],
+            "source_d_feature": ["file_name", "file_sha256"],
+            "source_bindings.runtime_features": ["path", "sha256"],
+        }
+        and source_variants
+        == {
+            LEGACY_SELECTION_SCHEMA: {
+                "binding": "source_d_feature",
+                "path_pattern": "pred_<D>.csv",
+                "legacy_behavior_unchanged": True,
+            },
+            PRIMARY_MIXED_SELECTION_SCHEMA: {
+                "binding": "source_bindings.runtime_features",
+                "path_pattern": (
+                    "outputs/decision/primary_d_runtime_features_<D>.csv"
+                ),
+                "repository_file_sha256_must_match": True,
+                "selected_row_cap_sha256_must_match": True,
+                "contract_id": PRIMARY_MIXED_SELECTION_CONTRACT_ID,
+            },
+        }
         and selection_input.get("historical_backfill_allowed") is False
         and selection_input.get("minimum_signal_date") == MINIMUM_SIGNAL_DATE,
         "settlement selection contract drifted",
@@ -379,6 +416,65 @@ def _selection_path(signal_date: str) -> Path:
     return SELECTION_ROOT / f"shadow_{signal_date}.json"
 
 
+def _validate_primary_mixed_selection(
+    repo_root: Path,
+    payload: Mapping[str, Any],
+    *,
+    require_downloads: bool,
+) -> None:
+    """Delegate the v2 selection contract without coupling the v1 scorer to it."""
+
+    from top10decision.decision.primary_profit_forward_shadow_bridge import (
+        CONTRACT_ID as BRIDGE_CONTRACT_ID,
+        ENTRY_POLICY_ID as BRIDGE_ENTRY_POLICY_ID,
+        SCHEMA_VERSION as BRIDGE_SCHEMA_VERSION,
+        PrimaryProfitForwardShadowError,
+        validate_primary_profit_forward_shadow,
+    )
+
+    _expect(
+        BRIDGE_SCHEMA_VERSION == PRIMARY_MIXED_SELECTION_SCHEMA
+        and BRIDGE_CONTRACT_ID == PRIMARY_MIXED_SELECTION_CONTRACT_ID
+        and BRIDGE_ENTRY_POLICY_ID == ENTRY_POLICY_ID,
+        "primary mixed Shadow bridge identity drifted",
+    )
+    try:
+        validate_primary_profit_forward_shadow(
+            payload,
+            repo_root=repo_root,
+            require_downloads=require_downloads,
+        )
+    except PrimaryProfitForwardShadowError as exc:
+        raise ExecutableProfitSettlementError(
+            f"invalid primary mixed Shadow selection: {exc}"
+        ) from exc
+
+
+def _validate_selection_payload(
+    repo_root: Path,
+    payload: Mapping[str, Any],
+    *,
+    require_downloads: bool,
+) -> str:
+    schema = str(payload.get("schema_version") or "")
+    if schema == LEGACY_SELECTION_SCHEMA:
+        validate_internal_forward_shadow_payload(
+            payload,
+            require_downloads=require_downloads,
+        )
+        return schema
+    if schema == PRIMARY_MIXED_SELECTION_SCHEMA:
+        _validate_primary_mixed_selection(
+            repo_root,
+            payload,
+            require_downloads=require_downloads,
+        )
+        return schema
+    raise ExecutableProfitSettlementError(
+        f"unsupported frozen Shadow selection schema: {schema or 'missing'}"
+    )
+
+
 def _selected_rows(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows = payload.get("rows")
     _expect(isinstance(rows, list), "selection rows missing")
@@ -402,14 +498,79 @@ def _selected_rows(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def load_selection(repo_root: Path, signal_date: str) -> tuple[Path, dict[str, Any], list[dict[str, Any]]]:
+    repo_root = repo_root.resolve(strict=True)
     signal_date = _normal_date(signal_date)
     _expect(signal_date >= MINIMUM_SIGNAL_DATE, "historical Shadow backfill is forbidden")
     path = _safe_existing_file(repo_root, _selection_path(signal_date), label="frozen Shadow selection")
     payload = _read_json(path, label="frozen Shadow selection")
-    validate_internal_forward_shadow_payload(payload, require_downloads=True)
+    _validate_selection_payload(repo_root, payload, require_downloads=True)
     _expect(payload.get("signal_date") == signal_date, "selection filename/date binding drifted")
     selected = _selected_rows(payload)
     return path, payload, selected
+
+
+def _entry_source_binding(
+    repo_root: Path,
+    selection: Mapping[str, Any],
+    signal_date: str,
+) -> tuple[str, str, bool]:
+    """Return the frozen cap source and recheck v2 repository bytes.
+
+    The v1 selection predates the primary P0 runtime bundle and retains its
+    original filename-only contract.  The v2 bridge is stronger: its exact-D
+    runtime CSV remains in the repository, so settlement re-hashes those bytes
+    before any T truth can be materialized.
+    """
+
+    schema = str(selection.get("schema_version") or "")
+    if schema == LEGACY_SELECTION_SCHEMA:
+        source = selection.get("source_d_feature")
+        file_name = (
+            str(source.get("file_name") or "").strip()
+            if isinstance(source, Mapping)
+            else ""
+        )
+        file_sha = (
+            str(source.get("file_sha256") or "").strip()
+            if isinstance(source, Mapping)
+            else ""
+        )
+        return file_name, file_sha, False
+
+    _expect(
+        schema == PRIMARY_MIXED_SELECTION_SCHEMA,
+        "unsupported selection schema for frozen entry source",
+    )
+    source_bindings = selection.get("source_bindings")
+    runtime = (
+        source_bindings.get("runtime_features")
+        if isinstance(source_bindings, Mapping)
+        else None
+    )
+    _expect(
+        isinstance(runtime, Mapping),
+        "primary mixed Shadow runtime feature binding missing",
+    )
+    relative_text = str(runtime.get("path") or "").strip()
+    expected_relative = (
+        f"outputs/decision/primary_d_runtime_features_{signal_date}.csv"
+    )
+    source_sha = str(runtime.get("sha256") or "").strip()
+    _expect(
+        relative_text == expected_relative
+        and SHA256_RE.fullmatch(source_sha) is not None,
+        "primary mixed Shadow runtime feature path/SHA binding invalid",
+    )
+    runtime_path = _safe_existing_file(
+        repo_root,
+        Path(relative_text),
+        label="primary mixed Shadow runtime features",
+    )
+    _expect(
+        _sha256(runtime_path) == source_sha,
+        "primary mixed Shadow runtime feature bytes changed after D freeze",
+    )
+    return relative_text, source_sha, True
 
 
 def _market_relative_candidates(trade_date: str, name: str) -> tuple[Path, ...]:
@@ -602,17 +763,9 @@ def build_t_verification(
         ]
 
     rows: list[dict[str, Any]] = []
-    selection_source = selection.get("source_d_feature")
     selection_ranking = selection.get("ranking_contract")
-    source_file_name = (
-        str(selection_source.get("file_name") or "").strip()
-        if isinstance(selection_source, Mapping)
-        else ""
-    )
-    source_file_sha = (
-        str(selection_source.get("file_sha256") or "").strip()
-        if isinstance(selection_source, Mapping)
-        else ""
+    source_file_name, source_file_sha, strict_repository_source = (
+        _entry_source_binding(repo_root, selection, signal_date)
     )
     entry_policy_id = (
         str(selection_ranking.get("entry_policy_id") or "").strip()
@@ -624,12 +777,20 @@ def build_t_verification(
         cap = _finite(frozen.get("shadow_max_price"))
         cap_basis = str(frozen.get("shadow_price_basis") or "").strip()
         cap_source_sha = str(frozen.get("shadow_price_source_sha256") or "").strip()
+        if strict_repository_source:
+            _expect(
+                cap_source_sha == source_file_sha,
+                f"primary mixed Shadow cap source SHA drifted: {code}",
+            )
         if (
             entry_policy_id != ENTRY_POLICY_ID
             or cap is None
             or cap <= 0
             or not cap_basis
-            or source_file_name != f"pred_{signal_date}.csv"
+            or (
+                not strict_repository_source
+                and source_file_name != f"pred_{signal_date}.csv"
+            )
             or SHA256_RE.fullmatch(cap_source_sha) is None
             or cap_source_sha != source_file_sha
         ):

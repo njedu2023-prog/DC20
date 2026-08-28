@@ -236,9 +236,11 @@ jobs:
           audit_before="${RUNNER_TEMP}/executable-profit-verify-before.json"
           eligible_dates="${RUNNER_TEMP}/executable-profit-eligible-dates.txt"
           latest_date="${RUNNER_TEMP}/executable-profit-latest-date.txt"
+          contract_mode="${RUNNER_TEMP}/executable-profit-contract-mode.txt"
           AUDIT_BEFORE="${audit_before}" \
             ELIGIBLE_DATES="${eligible_dates}" \
             LATEST_DATE="${latest_date}" \
+            CONTRACT_MODE="${contract_mode}" \
             python - <<'PY'
           import hashlib
           import json
@@ -252,6 +254,11 @@ jobs:
           from top10decision.decision.executable_profit_shadow import (
               _validate_existing_pointer_chain,
               validate_internal_forward_shadow_index,
+          )
+          from scripts.publish_primary_profit_rankings import MIXED_INDEX_SCHEMA
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              validate_primary_profit_forward_shadow_index,
+              validate_primary_profit_forward_shadow_repository_chain,
           )
 
           root = Path('.').resolve()
@@ -281,6 +288,14 @@ jobs:
               ),
               'actions': inventory(
                   ['outputs/decision/action_plan_*.json', 'outputs/decision/report_index.json']
+              ),
+              'primary_projection': inventory(
+                  ['outputs/decision/executable_profit_research/index.json',
+                   'outputs/decision/executable_profit_research/projection_20??????.json',
+                   'outputs/decision/executable_profit_research/projection_20??????.csv']
+              ),
+              'public_shadow_states': inventory(
+                  ['outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json']
               ),
           }
           Path(os.environ['AUDIT_BEFORE']).write_text(
@@ -332,13 +347,26 @@ jobs:
           if len(targets) != len(set(targets)):
               raise SystemExit('Verify executable-profit target selection is duplicated')
           latest = ''
+          primary_mode = False
           if all_signal_dates:
-              index_path = selection_root / 'index.json'
+              public_index_path = root / 'outputs/decision/executable_profit_research/index.json'
+              public_index = json.loads(public_index_path.read_text(encoding='utf-8'))
+              primary_mode = public_index.get('schema_version') == MIXED_INDEX_SCHEMA
+              index_path = selection_root / (
+                  'primary_mixed_index.json' if primary_mode else 'index.json'
+              )
               if not index_path.is_file() or index_path.is_symlink():
                   raise SystemExit('Verify executable-profit selection index is unsafe')
               index = json.loads(index_path.read_text(encoding='utf-8'))
-              validate_internal_forward_shadow_index(index)
-              _validate_existing_pointer_chain(root, index)
+              if primary_mode:
+                  validate_primary_profit_forward_shadow_index(index)
+                  validate_primary_profit_forward_shadow_repository_chain(
+                      root,
+                      str(index['latest_signal_date']),
+                  )
+              else:
+                  validate_internal_forward_shadow_index(index)
+                  _validate_existing_pointer_chain(root, index)
               latest = str(index['latest_signal_date'])
               if latest != max(all_signal_dates):
                   raise SystemExit('Verify executable-profit selection index is not latest D')
@@ -352,6 +380,10 @@ jobs:
               (latest + '\n') if latest else '',
               encoding='ascii',
           )
+          Path(os.environ['CONTRACT_MODE']).write_text(
+              ('primary\n' if primary_mode else 'legacy\n'),
+              encoding='ascii',
+          )
           PY
           if [ -s "${latest_date}" ]; then
             if [ -s "${eligible_dates}" ]; then
@@ -363,20 +395,36 @@ jobs:
                   --as-of-date "${AS_OF_DATE}"
               done < "${eligible_dates}"
             fi
-            python scripts/settle_decision_executable_profit_forward_shadow.py \
-              --root "${GITHUB_WORKSPACE}" \
-              --as-of-date "${AS_OF_DATE}" \
-              --statistics-only
             signal_date="$(tr -d '\n' < "${latest_date}")"
             test -n "${signal_date}"
-            python scripts/project_decision_executable_profit_research.py \
-              --root "${GITHUB_WORKSPACE}" \
-              --signal-date "${signal_date}" \
-              --as-of-date "${AS_OF_DATE}"
+            if [ "$(tr -d '\n' < "${contract_mode}")" = primary ]; then
+              SIGNAL_DATE="${signal_date}" PYTHONPATH="${GITHUB_WORKSPACE}/src" python - <<'PY'
+              import os
+              from pathlib import Path
+              from top10decision.decision.primary_profit_forward_shadow_bridge import (
+                  project_primary_profit_forward_shadow_state,
+                  validate_primary_profit_forward_shadow_repository_chain,
+              )
+              root=Path('.').resolve(strict=True)
+              d=os.environ['SIGNAL_DATE']
+              project_primary_profit_forward_shadow_state(root,d,os.environ['AS_OF_DATE'])
+              validate_primary_profit_forward_shadow_repository_chain(root,d)
+              PY
+            else
+              python scripts/settle_decision_executable_profit_forward_shadow.py \
+                --root "${GITHUB_WORKSPACE}" \
+                --as-of-date "${AS_OF_DATE}" \
+                --statistics-only
+              python scripts/project_decision_executable_profit_research.py \
+                --root "${GITHUB_WORKSPACE}" \
+                --signal-date "${signal_date}" \
+                --as-of-date "${AS_OF_DATE}"
+            fi
           fi
           AUDIT_BEFORE="${audit_before}" \
             ELIGIBLE_DATES="${eligible_dates}" \
             LATEST_DATE="${latest_date}" \
+            CONTRACT_MODE="${contract_mode}" \
             python - <<'PY'
           import hashlib
           import json
@@ -393,6 +441,10 @@ jobs:
               validate_t1_settlement,
               validate_t_verification,
           )
+          from scripts.publish_primary_profit_rankings import MIXED_INDEX_SCHEMA
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              validate_primary_profit_forward_shadow_repository_chain,
+          )
 
           root = Path('.').resolve()
           as_of_date = os.environ['AS_OF_DATE']
@@ -403,6 +455,10 @@ jobs:
               if value.strip()
           ]
           latest = Path(os.environ['LATEST_DATE']).read_text(encoding='ascii').strip()
+          primary_mode = (
+              Path(os.environ['CONTRACT_MODE']).read_text(encoding='ascii').strip()
+              == 'primary'
+          )
 
           def inventory(patterns):
               result = {}
@@ -426,6 +482,16 @@ jobs:
           )
           if after_actions != before['actions']:
               raise SystemExit('Verify executable-profit settlement modified formal action ownership')
+          if primary_mode:
+              after_primary = inventory(
+                  ['outputs/decision/executable_profit_research/index.json',
+                   'outputs/decision/executable_profit_research/projection_20??????.json',
+                   'outputs/decision/executable_profit_research/projection_20??????.csv']
+              )
+              if after_primary != before['primary_projection']:
+                  raise SystemExit(
+                      'P1 primary projection/index bytes changed during Verify'
+                  )
 
           after_truth = inventory(
               ['data/decision_executable_profit/forward/verifications/t_verification_20??????.json',
@@ -452,7 +518,41 @@ jobs:
               else:
                   validate_t1_settlement(payload)
 
-          if latest:
+          if latest and primary_mode:
+              validate_primary_profit_forward_shadow_repository_chain(root, latest)
+              public_root = root / 'outputs/decision/executable_profit_research'
+              primary_index = json.loads(
+                  (public_root / 'index.json').read_text(encoding='utf-8')
+              )
+              if primary_index.get('schema_version') != MIXED_INDEX_SCHEMA:
+                  raise SystemExit('Verify primary mode lost P1 main index schema')
+              shadow_index = json.loads(
+                  (public_root / 'shadow_index.json').read_text(encoding='utf-8')
+              )
+              state_path = root / str(shadow_index['latest_state_url'])
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+              if (
+                  shadow_index.get('latest_signal_date') != latest
+                  or shadow_index.get('latest_as_of_date') != as_of_date
+                  or shadow_index.get('latest_mixed_projection_sha256')
+                  != primary_index.get('latest_projection_json_sha256')
+                  or state.get('signal_date') != latest
+                  or state.get('as_of_date') != as_of_date
+              ):
+                  raise SystemExit('Verify P1 Shadow sidecar D/as-of/SHA binding drifted')
+              after_states = inventory(
+                  ['outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json']
+              )
+              for relative, digest in before['public_shadow_states'].items():
+                  if after_states.get(relative) != digest:
+                      raise SystemExit(f'Verify rewrote immutable P1 Shadow state: {relative}')
+              additions = set(after_states) - set(before['public_shadow_states'])
+              expected_addition = {
+                  f'outputs/decision/executable_profit_research/shadow_state_{latest}_asof_{as_of_date}.json'
+              }
+              if not additions.issubset(expected_addition):
+                  raise SystemExit(f'Verify created foreign P1 Shadow state: {sorted(additions)}')
+          elif latest:
               summary = json.loads(
                   (root / 'data/decision_executable_profit/forward/statistics/summary.json').read_text(
                       encoding='utf-8'
@@ -512,7 +612,7 @@ jobs:
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
           def matches(path, pattern):
@@ -653,7 +753,7 @@ jobs:
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
-          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json')
+          allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
           def matches(path, pattern):

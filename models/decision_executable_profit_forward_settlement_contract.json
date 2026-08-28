@@ -10,6 +10,10 @@
   },
   "selection_input": {
     "path_pattern": "data/decision_executable_profit/forward/selections/shadow_<D>.json",
+    "accepted_schema_versions": [
+      "dc20_executable_profit_internal_forward_shadow_v1",
+      "dc20_primary_profit_forward_shadow_selection_v2"
+    ],
     "selection_is_immutable": true,
     "selected_slots_rule": "actual_slots = min(2, N); never add a candidate outside the frozen promotion TopN",
     "selection_snapshot_and_file_sha256_required": true,
@@ -25,7 +29,25 @@
       "source_d_feature": [
         "file_name",
         "file_sha256"
+      ],
+      "source_bindings.runtime_features": [
+        "path",
+        "sha256"
       ]
+    },
+    "entry_source_variants": {
+      "dc20_executable_profit_internal_forward_shadow_v1": {
+        "binding": "source_d_feature",
+        "path_pattern": "pred_<D>.csv",
+        "legacy_behavior_unchanged": true
+      },
+      "dc20_primary_profit_forward_shadow_selection_v2": {
+        "binding": "source_bindings.runtime_features",
+        "path_pattern": "outputs/decision/primary_d_runtime_features_<D>.csv",
+        "repository_file_sha256_must_match": true,
+        "selected_row_cap_sha256_must_match": true,
+        "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1"
+      }
     },
     "post_outcome_reranking_allowed": false,
     "historical_backfill_allowed": false,

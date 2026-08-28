@@ -12,12 +12,21 @@ MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
 EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
     ".github/workflows/run_primary_d_daily.yml",
+    ".github/workflows/run_primary_profit_forward_shadow.yml",
     ".github/workflows/run_primary_profit_rankings.yml",
     "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv",
+    "models/decision_primary_profit_forward_shadow_bridge_contract.json",
     "models/decision_primary_profit_research_contract.json",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json",
+    "scripts/freeze_primary_profit_forward_shadow.py",
     "scripts/publish_primary_profit_rankings.py",
     "scripts/publish_primary_three_rank.py",
+    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
+    "tests/test_decision_executable_profit_frontend.py",
+    "tests/test_decision_executable_profit_shadow_settlement.py",
+    "tests/test_executable_profit_workflow_wiring.py",
+    "tests/test_primary_profit_forward_shadow_bridge.py",
+    "tests/test_primary_profit_forward_shadow_workflow.py",
     "tests/test_primary_profit_rankings_p1.py",
     "tests/test_primary_three_rank_p0.py",
 }
@@ -85,14 +94,16 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 40
+    assert len(paths) == len(set(paths)) == 43
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
         ".github/workflows/run_auction_v3.yml",
         ".github/workflows/run_decision_daily.yml",
         ".github/workflows/test_decision_core.yml",
+        ".github/workflows/verify_decision_observations.yml",
         "decision.html",
+        "models/decision_executable_profit_forward_settlement_contract.json",
         "scripts/build_decision_three_rank_history.py",
         "scripts/build_three_engine_five_year_ledger.py",
         "scripts/decision_pages_truth.py",
@@ -106,6 +117,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/auction_v3/promotion_model.py",
         "src/top10decision/decision/action_plan.py",
         "src/top10decision/decision/executable_profit_shadow.py",
+        "src/top10decision/decision/executable_profit_shadow_settlement.py",
         "src/top10decision/decision/model_freeze.py",
         "src/top10decision/decision/observation.py",
         "src/top10decision/decision/three_engine_models.py",
@@ -144,7 +156,13 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ".github/workflows/test_decision_core.yml": (
             "frozen_replay_input_snapshot_binding_workflow"
         ),
+        ".github/workflows/verify_decision_observations.yml": (
+            "primary_mixed_shadow_forward_verification_workflow"
+        ),
         "decision.html": "primary_action_independent_three_ranking_frontend",
+        "models/decision_executable_profit_forward_settlement_contract.json": (
+            "dual_schema_primary_mixed_shadow_settlement_contract"
+        ),
         "scripts/build_decision_three_rank_history.py": (
             "primary_only_no_shadow_forward_exclusion"
         ),
@@ -179,6 +197,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "src/top10decision/decision/executable_profit_shadow.py": (
             "strict_canonical_d_stage_normalization_for_internal_profit_shadow"
+        ),
+        "src/top10decision/decision/executable_profit_shadow_settlement.py": (
+            "dual_schema_primary_mixed_shadow_settlement_runtime"
         ),
         "src/top10decision/decision/model_freeze.py": (
             "primary_p0_p1_active_pin_validation"
@@ -301,6 +322,16 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "legacy_action_may_block_primary_publication": False,
         "primary_profit_may_change_promotion_membership_or_rank": False,
+        "primary_mixed_forward_shadow_scope": (
+            "EXACT_SAME_D_P1_TOP1_TOP2_MIN_2_OF_N_NO_PADDING"
+        ),
+        "primary_mixed_shadow_entry_source": (
+            "EXACT_D_PRIMARY_RUNTIME_FEATURES_SHA256"
+        ),
+        "legacy_shadow_v1_behavior_changed": False,
+        "primary_mixed_shadow_statistics": "FORWARD_ONLY_UNCALIBRATED",
+        "primary_mixed_shadow_may_create_action_or_order": False,
+        "primary_mixed_shadow_may_change_promotion_membership_or_rank": False,
         "visible_full_n_relative_ranking": True,
         "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
         "promotion_rank_frozen_and_independent": True,

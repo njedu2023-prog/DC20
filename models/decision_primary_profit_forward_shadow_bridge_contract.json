@@ -1,0 +1,79 @@
+{
+  "schema_version": "dc20_primary_profit_forward_shadow_bridge_contract_v1",
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "authority": {
+    "repository": "njedu2023-prog/DC20",
+    "branch": "main",
+    "runtime_dependency_on_codex": false,
+    "runtime_dependency_on_top10_decision": false
+  },
+  "input": {
+    "generation_mode": "NATURAL",
+    "projection_status": "PROSPECTIVE_RESEARCH",
+    "mixed_projection_pattern": "outputs/decision/executable_profit_research/projection_<D>.json",
+    "mixed_index": "outputs/decision/executable_profit_research/index.json",
+    "mixed_index_role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+    "historical_revalidation_requires_current_mixed_index": false,
+    "primary_receipt_pattern": "outputs/decision/primary_d_receipt_<D>.json",
+    "primary_runtime_features_pattern": "outputs/decision/primary_d_runtime_features_<D>.csv",
+    "three_rank_pattern": "outputs/decision/three_rank_top10_<D>.json",
+    "complete_primary_profit_bundle_validation_required": true,
+    "model_rescoring_allowed": false,
+    "action_input_allowed": false,
+    "auction_prediction_input_allowed": false,
+    "network_market_input_allowed": false
+  },
+  "calendar": {
+    "exchange": "SSE",
+    "strict": true,
+    "path": "data/market/trade_cal_sse.csv",
+    "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+    "date_rule": "D, T and T+1 are adjacent pinned SSE open sessions"
+  },
+  "model": {
+    "artifact_path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl",
+    "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+    "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+    "feature_count": 156,
+    "score_kind": "uncalibrated fill proxy multiplied by uncalibrated conditional profit proxy",
+    "training_truth_rule": "maximum used scheduled exit date must be strictly before D",
+    "lagged_prior_rule": "maximum lagged-prior availability date must be strictly before D",
+    "calibrated_probability": false
+  },
+  "selection": {
+    "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+    "artifact_pattern": "data/decision_executable_profit/forward/selections/shadow_<D>.json",
+    "csv_pattern": "data/decision_executable_profit/forward/selections/shadow_<D>.csv",
+    "primary_pointer": "data/decision_executable_profit/forward/selections/primary_mixed_index.json",
+    "statistics_projection": "data/decision_executable_profit/forward/statistics/summary.json",
+    "public_state_pattern": "outputs/decision/executable_profit_research/shadow_state_<D>_asof_<A>.json",
+    "public_pointer": "outputs/decision/executable_profit_research/shadow_index.json",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "selected_slots_rule": "min(2, N); no padding",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_cap_rule": "freeze observation_price_contract from exact P0 D-only runtime row",
+    "same_date_different_payload": "REJECT",
+    "out_of_order_or_backfill": "REJECT"
+  },
+  "timing": {
+    "timezone": "Asia/Shanghai",
+    "selection_window": "strictly after D 15:00 and strictly before T 09:20",
+    "source_generated_no_later_than_selection": true,
+    "post_T_information_allowed": false,
+    "retrospective_recovery_allowed": false
+  },
+  "boundaries": {
+    "research_only": true,
+    "proxy_scores_uncalibrated": true,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "official_trade_action_allowed": false,
+    "may_create_trade_action": false,
+    "broker_or_order_integration_allowed": false,
+    "actual_execution_claimed": false
+  }
+}

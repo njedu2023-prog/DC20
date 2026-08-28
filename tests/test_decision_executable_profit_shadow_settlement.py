@@ -27,6 +27,11 @@ def _selection_validator_stub(monkeypatch: pytest.MonkeyPatch) -> None:
         "validate_internal_forward_shadow_payload",
         lambda payload, require_downloads=False: None,
     )
+    monkeypatch.setattr(
+        settlement,
+        "_validate_primary_mixed_selection",
+        lambda repo_root, payload, require_downloads=False: None,
+    )
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -100,6 +105,7 @@ def _selection_payload(slot_count: int = 2) -> dict:
         for row in all_rows
     ]
     return {
+        "schema_version": shadow.SCHEMA_VERSION,
         "signal_date": "20260824",
         "exec_date": "20260825",
         "exit_date": "20260826",
@@ -139,6 +145,53 @@ def _selection_payload(slot_count: int = 2) -> dict:
         },
         "downloads": {},
     }
+
+
+def _install_primary_mixed_v2_selection(
+    repo: Path,
+    *,
+    slot_count: int = 2,
+) -> tuple[dict, Path]:
+    runtime_path = (
+        repo
+        / "outputs/decision"
+        / "primary_d_runtime_features_20260824.csv"
+    )
+    _write_csv(
+        runtime_path,
+        "signal_date,ts_code,top10_selected,d_close,estimated_up_limit",
+        [
+            "20260824,600001.SH,1,9.50,10.10",
+            "20260824,000002.SZ,1,10.00,11.10",
+        ][:slot_count],
+    )
+    runtime_sha = settlement._sha256(runtime_path)
+    payload = _selection_payload(slot_count)
+    payload["schema_version"] = settlement.PRIMARY_MIXED_SELECTION_SCHEMA
+    payload["contract_id"] = settlement.PRIMARY_MIXED_SELECTION_CONTRACT_ID
+    payload.pop("source_d_feature")
+    payload["source_bindings"] = {
+        "runtime_features": {
+            "path": (
+                "outputs/decision/"
+                "primary_d_runtime_features_20260824.csv"
+            ),
+            "sha256": runtime_sha,
+        }
+    }
+    for row in payload["rows"]:
+        row["shadow_price_source_sha256"] = runtime_sha
+        row["source_executable_profit_research_rank"] = row[
+            "internal_shadow_order"
+        ]
+    for row in payload["shadow_top2"]["rows"]:
+        row["shadow_price_source_sha256"] = runtime_sha
+    payload["snapshot_sha256"] = settlement._payload_snapshot(payload)
+    _write_json(
+        repo / settlement.SELECTION_ROOT / "shadow_20260824.json",
+        payload,
+    )
+    return payload, runtime_path
 
 
 def _real_validated_single_selection() -> dict:
@@ -344,6 +397,140 @@ def _prepare_repo(tmp_path: Path, *, slot_count: int = 2, include_t1: bool = Tru
             ["600001.SH,20260826,11.55,9.45"],
         )
     return tmp_path
+
+
+def test_primary_mixed_v2_uses_exact_runtime_bytes_and_preserves_uncalibrated_statistics(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    selection, _ = _install_primary_mixed_v2_selection(repo)
+
+    path, loaded, selected = settlement.load_selection(repo, "20260824")
+    assert path.name == "shadow_20260824.json"
+    assert loaded["schema_version"] == settlement.PRIMARY_MIXED_SELECTION_SCHEMA
+    assert [(row["shadow_slot"], row["ts_code"]) for row in selected] == [
+        (1, "600001.SH"),
+        (2, "000002.SZ"),
+    ]
+
+    verification, status = settlement.build_t_verification(
+        repo,
+        "20260824",
+        as_of_date=AS_OF_T,
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    assert {
+        row["shadow_price_source_file"] for row in verification["rows"]
+    } == {
+        "outputs/decision/primary_d_runtime_features_20260824.csv"
+    }
+    assert {
+        row["shadow_price_source_sha256"] for row in verification["rows"]
+    } == {
+        selection["source_bindings"]["runtime_features"]["sha256"]
+    }
+
+    result = settlement.settle_signal_date(
+        repo,
+        "20260824",
+        as_of_date=AS_OF_T1,
+    )
+    assert result["official_trade_action_created"] is False
+    stats = json.loads((repo / settlement.STATISTICS_PATH).read_text(encoding="utf-8"))
+    assert stats["cohorts"]["shadow_slot_1"]["selected_slots"] == 1
+    assert stats["cohorts"]["shadow_slot_2"]["selected_slots"] == 1
+    assert stats["probability_diagnostics"] == {
+        "status": "UNCALIBRATED",
+        "brier_score": None,
+        "expected_calibration_error": None,
+        "log_loss": None,
+        "reason": "research_joint_proxy_score is not a calibrated probability",
+    }
+
+
+def test_primary_mixed_v2_rejects_changed_runtime_bytes_before_t_truth(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    _, runtime_path = _install_primary_mixed_v2_selection(repo)
+    runtime_path.write_bytes(runtime_path.read_bytes() + b"tampered\n")
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="runtime feature bytes changed after D freeze",
+    ):
+        settlement.build_t_verification(
+            repo,
+            "20260824",
+            as_of_date=AS_OF_T,
+        )
+
+
+def test_primary_mixed_v2_rejects_wrong_exact_d_runtime_path(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    payload, _ = _install_primary_mixed_v2_selection(repo)
+    payload["source_bindings"]["runtime_features"]["path"] = (
+        "outputs/decision/primary_d_runtime_features_20260825.csv"
+    )
+    payload["snapshot_sha256"] = settlement._payload_snapshot(payload)
+    _write_json(
+        repo / settlement.SELECTION_ROOT / "shadow_20260824.json",
+        payload,
+    )
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="runtime feature path/SHA binding invalid",
+    ):
+        settlement.build_t_verification(
+            repo,
+            "20260824",
+            as_of_date=AS_OF_T,
+        )
+
+
+def test_primary_mixed_v2_rejects_row_cap_sha_drift(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    payload, _ = _install_primary_mixed_v2_selection(repo)
+    payload["rows"][0]["shadow_price_source_sha256"] = "f" * 64
+    payload["shadow_top2"]["rows"][0]["shadow_price_source_sha256"] = "f" * 64
+    payload["snapshot_sha256"] = settlement._payload_snapshot(payload)
+    _write_json(
+        repo / settlement.SELECTION_ROOT / "shadow_20260824.json",
+        payload,
+    )
+
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="cap source SHA drifted",
+    ):
+        settlement.build_t_verification(
+            repo,
+            "20260824",
+            as_of_date=AS_OF_T,
+        )
+
+
+def test_legacy_v1_entry_source_contract_is_unchanged(tmp_path: Path) -> None:
+    repo = _prepare_repo(tmp_path)
+    # The legacy D25-style selection binds the original pred_D filename and
+    # SHA carried inside the immutable selection; settlement does not require
+    # a newly introduced primary runtime file for this schema.
+    verification, status = settlement.build_t_verification(
+        repo,
+        "20260824",
+        as_of_date=AS_OF_T,
+    )
+    assert status == "T_VERIFIED"
+    assert verification is not None
+    assert {
+        row["shadow_price_source_file"] for row in verification["rows"]
+    } == {"pred_20260824.csv"}
 
 
 def test_terminal_proxy_settlement_binds_frozen_selection_and_costs(tmp_path: Path) -> None:
@@ -724,6 +911,25 @@ def test_repository_settlement_contract_has_unique_exact_cohorts(tmp_path: Path)
         "stage_3_to_4",
     ]
     assert len(cohorts) == len(set(cohorts))
+    selection_input = contract["selection_input"]
+    assert selection_input["accepted_schema_versions"] == [
+        shadow.SCHEMA_VERSION,
+        settlement.PRIMARY_MIXED_SELECTION_SCHEMA,
+    ]
+    assert selection_input["entry_source_variants"][
+        shadow.SCHEMA_VERSION
+    ]["legacy_behavior_unchanged"] is True
+    assert selection_input["entry_source_variants"][
+        settlement.PRIMARY_MIXED_SELECTION_SCHEMA
+    ] == {
+        "binding": "source_bindings.runtime_features",
+        "path_pattern": (
+            "outputs/decision/primary_d_runtime_features_<D>.csv"
+        ),
+        "repository_file_sha256_must_match": True,
+        "selected_row_cap_sha256_must_match": True,
+        "contract_id": settlement.PRIMARY_MIXED_SELECTION_CONTRACT_ID,
+    }
 
 
 def test_non_adjacent_selection_dates_fail_strict_sse_calendar(tmp_path: Path) -> None:

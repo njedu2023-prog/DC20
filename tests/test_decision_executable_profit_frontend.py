@@ -297,6 +297,78 @@ def test_shadow_current_slots_join_company_names_from_bound_projection() -> None
     assert 'class="left name"' in renderer
 
 
+def test_primary_mixed_shadow_sidecar_requires_same_d_and_exact_projection_sha() -> None:
+    text = _text()
+    loader = _function(
+        text,
+        "loadPrimaryProfitShadowSidecar",
+        "loadCurrentExecutableProfitResearch",
+    )
+    for token in (
+        "dc20_primary_profit_forward_shadow_public_state_v1",
+        "dc20_primary_profit_forward_shadow_public_index_v1",
+        "shadow_index.json",
+        "shadow_state_${signalDate}_asof_${asOfDate}.json",
+        "shadowIndex.latest_mixed_projection_sha256 === primaryIndex.latest_projection_json_sha256",
+        "shadow.signal_date === signalDate",
+        "sources.mixed_projection?.sha256 === primaryIndex.latest_projection_json_sha256",
+        "data/decision_executable_profit/forward/selections/shadow_${signalDate}.json",
+        "data/decision_executable_profit/forward/statistics/summary.json",
+        "t_verification_${signalDate}.json",
+        "settlement_${signalDate}.json",
+        'exactObjectKeys(sources, ["mixed_projection", "selection", "statistics", "t_verification", "t1_settlement"])',
+        "verified.validation_status === row.t_status",
+        "settled.settlement_status === row.t1_status",
+        "row.name === projected?.name",
+        "row.ts_code === projected?.ts_code",
+        "shadow.selected_slots === Math.min(2, projection.candidate_count)",
+    ):
+        assert token in text or token in loader
+    assert "action_plan" not in loader.lower()
+    assert "top10-decision" not in loader
+
+
+def test_primary_mixed_shadow_sidecar_is_optional_and_cannot_hide_p1_rank() -> None:
+    text = _text()
+    load = _function(
+        text,
+        "loadCurrentExecutableProfitResearch",
+        "refreshCurrentExecutableProfitResearch",
+    )
+    render = _function(
+        text,
+        "renderPrimaryProfitShadowSidecar",
+        "renderPrimaryMixedProfitResearch",
+    )
+    assert "shadow = await loadPrimaryProfitShadowSidecar(projection, index)" in load
+    assert 'return { status: "ready", kind: "primary_core"' in load
+    assert "shadowError" in load
+    assert "Sidecar校验失败 · 已隐藏" in render
+    assert "混合盈利排序保持可见" in render
+    assert "els.executableProfitResearchContent" not in render
+
+
+def test_primary_mixed_shadow_renders_company_names_top2_and_cumulative_statistics() -> None:
+    text = _text()
+    render = _function(
+        text,
+        "renderPrimaryProfitShadowSidecar",
+        "renderPrimaryMixedProfitResearch",
+    )
+    for token in (
+        "当前D日冻结Shadow",
+        "Top1/Top2",
+        "公司名称",
+        "escapeHtml(row.name)",
+        "shadow.latest_selected_rows",
+        "shadow.cohorts.all_selected_slots",
+        "forward_signal_date_progress_180",
+        "Top1、Top2分别统计",
+        "不生成订单或Action",
+    ):
+        assert token in render
+
+
 def test_downloads_are_exact_dated_projection_and_asof_statistics() -> None:
     text = _text()
     for token in (

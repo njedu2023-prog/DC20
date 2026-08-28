@@ -10,7 +10,14 @@ on:
       - data/decision_three_engines/five_year_supervised_ledger.csv.gz
       - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
+      - data/decision_executable_profit/forward/selections/primary_mixed_index.json
+      - data/decision_executable_profit/forward/selections/shadow_20??????.json
+      - data/decision_executable_profit/forward/selections/shadow_20??????.csv
+      - data/decision_executable_profit/forward/verifications/t_verification_20??????.json
+      - data/decision_executable_profit/forward/settlements/settlement_20??????.json
+      - data/decision_executable_profit/forward/statistics/summary.json
       - models/decision_model_freeze.json
+      - models/decision_primary_profit_forward_shadow_bridge_contract.json
       - models/decision_primary_profit_research_contract.json
       - models/decision_three_engines/validation_latest.json
       - models/decision_three_rank_history_sources.json
@@ -19,9 +26,11 @@ on:
       - scripts/build_decision_three_rank_history.py
       - scripts/project_decision_legacy_profit_relative_research.py
       - scripts/publish_primary_profit_rankings.py
+      - scripts/freeze_primary_profit_forward_shadow.py
       - scripts/validate_decision_model_freeze.py
       - scripts/decision_pages_truth.py
       - .github/workflows/deploy_dc20_pages.yml
+      - .github/workflows/run_primary_profit_forward_shadow.yml
   workflow_dispatch: {}
   workflow_call:
     inputs:
@@ -50,7 +59,8 @@ jobs:
           github.event_name == 'push' &&
           (
             contains(github.event.head_commit.message, '[dc20-p0-pages-owned]') ||
-            contains(github.event.head_commit.message, '[dc20-p1-pages-owned]')
+            contains(github.event.head_commit.message, '[dc20-p1-pages-owned]') ||
+            contains(github.event.head_commit.message, '[dc20-shadow-pages-owned]')
           )
         )
       }}
@@ -218,6 +228,12 @@ jobs:
               MIXED_INDEX_SCHEMA,
               validate_primary_profit_bundle,
           )
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              CONTRACT_PATH as PRIMARY_SHADOW_CONTRACT_PATH,
+              PRIMARY_INDEX_PATH as PRIMARY_SHADOW_SELECTION_INDEX_PATH,
+              PUBLIC_INDEX_PATH as PRIMARY_SHADOW_PUBLIC_INDEX_PATH,
+              validate_primary_profit_forward_shadow_repository_chain,
+          )
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain,
           )
@@ -245,6 +261,152 @@ jobs:
                       expected_signal_date=bundle['inputs'].signal_date,
                       expected_generation_mode=bundle['inputs'].generation_mode,
                   )
+                  shadow_index_source = repo_root / PRIMARY_SHADOW_PUBLIC_INDEX_PATH
+                  if shadow_index_source.exists():
+                      signal_date = bundle['inputs'].signal_date
+                      validate_primary_profit_forward_shadow_repository_chain(
+                          repo_root,
+                          signal_date,
+                      )
+                      shadow_index = json.loads(
+                          shadow_index_source.read_text(encoding='utf-8')
+                      )
+                      mixed_sha = bundle['mixed']['projection_json_sha256']
+                      if (
+                          shadow_index.get('latest_signal_date') != signal_date
+                          or shadow_index.get('latest_mixed_projection_sha256')
+                          != mixed_sha
+                      ):
+                          raise SystemExit(
+                              'Pages Shadow sidecar is not bound to same-D P1 bytes'
+                          )
+                      state_relative = Path(str(shadow_index['latest_state_url']))
+                      state_source = repo_root / state_relative
+                      if (
+                          state_relative.is_absolute()
+                          or '..' in state_relative.parts
+                          or not state_source.is_file()
+                          or state_source.is_symlink()
+                          or hashlib.sha256(state_source.read_bytes()).hexdigest()
+                          != shadow_index['latest_state_sha256']
+                      ):
+                          raise SystemExit('Pages Shadow state source is unsafe or SHA-drifted')
+                      shadow_state = json.loads(state_source.read_text(encoding='utf-8'))
+                      sources = shadow_state.get('source_bindings') or {}
+                      mixed = sources.get('mixed_projection') or {}
+                      selection = sources.get('selection') or {}
+                      statistics = sources.get('statistics') or {}
+                      if (
+                          shadow_state.get('signal_date') != signal_date
+                          or mixed.get('path')
+                          != bundle['mixed']['index']['latest_projection_json_url']
+                          or mixed.get('sha256') != mixed_sha
+                      ):
+                          raise SystemExit('Pages Shadow state/P1 binding drifted')
+
+                      selection_relative = Path(str(selection.get('path') or ''))
+                      statistics_relative = Path(str(statistics.get('path') or ''))
+                      selection_source = repo_root / selection_relative
+                      statistics_source = repo_root / statistics_relative
+                      for label, source_path, relative, expected_sha in (
+                          ('selection', selection_source, selection_relative, selection.get('sha256')),
+                          ('statistics', statistics_source, statistics_relative, statistics.get('sha256')),
+                      ):
+                          if (
+                              relative.is_absolute()
+                              or '..' in relative.parts
+                              or not source_path.is_file()
+                              or source_path.is_symlink()
+                              or hashlib.sha256(source_path.read_bytes()).hexdigest()
+                              != expected_sha
+                          ):
+                              raise SystemExit(
+                                  f'Pages Shadow {label} source is unsafe or SHA-drifted'
+                              )
+                      selection_payload = json.loads(
+                          selection_source.read_text(encoding='utf-8')
+                      )
+                      csv_relative = Path(
+                          str((selection_payload.get('downloads') or {}).get('csv_url') or '')
+                      )
+                      csv_source = repo_root / csv_relative
+                      csv_sha = (selection_payload.get('downloads') or {}).get('csv_sha256')
+                      if (
+                          csv_relative.is_absolute()
+                          or '..' in csv_relative.parts
+                          or not csv_source.is_file()
+                          or csv_source.is_symlink()
+                          or hashlib.sha256(csv_source.read_bytes()).hexdigest() != csv_sha
+                      ):
+                          raise SystemExit('Pages Shadow selection CSV is unsafe or SHA-drifted')
+
+                      truth_relatives = []
+                      expected_truth = {
+                          't_verification': (
+                              'data/decision_executable_profit/forward/verifications/'
+                              f't_verification_{signal_date}.json'
+                          ),
+                          't1_settlement': (
+                              'data/decision_executable_profit/forward/settlements/'
+                              f'settlement_{signal_date}.json'
+                          ),
+                      }
+                      for key, expected in expected_truth.items():
+                          binding = sources.get(key)
+                          if binding is None:
+                              continue
+                          relative = Path(str(binding.get('path') or ''))
+                          source_path = repo_root / relative
+                          if (
+                              relative.as_posix() != expected
+                              or relative.is_absolute()
+                              or '..' in relative.parts
+                              or not source_path.is_file()
+                              or source_path.is_symlink()
+                              or hashlib.sha256(source_path.read_bytes()).hexdigest()
+                              != binding.get('sha256')
+                          ):
+                              raise SystemExit(
+                                  f'Pages Shadow {key} source is unsafe or SHA-drifted'
+                              )
+                          truth_relatives.append(relative)
+
+                      exact_sources = (
+                          PRIMARY_SHADOW_CONTRACT_PATH,
+                          PRIMARY_SHADOW_SELECTION_INDEX_PATH,
+                          selection_relative,
+                          csv_relative,
+                          statistics_relative,
+                          *truth_relatives,
+                      )
+                      for relative in exact_sources:
+                          source_path = repo_root / relative
+                          target_path = site_root / relative
+                          if not source_path.is_file() or source_path.is_symlink():
+                              raise SystemExit(
+                                  f'Pages exact Shadow source is missing or unsafe: {relative}'
+                              )
+                          target_path.parent.mkdir(parents=True, exist_ok=True)
+                          shutil.copy2(source_path, target_path)
+                          if target_path.read_bytes() != source_path.read_bytes():
+                              raise SystemExit(
+                                  f'Pages exact Shadow source copy drifted: {relative}'
+                              )
+                      for relative in (
+                          PRIMARY_SHADOW_PUBLIC_INDEX_PATH,
+                          state_relative,
+                      ):
+                          if (site_root / relative).read_bytes() != (repo_root / relative).read_bytes():
+                              raise SystemExit(
+                                  f'Pages public Shadow sidecar bytes drifted: {relative}'
+                              )
+                      print(json.dumps({
+                          'status': 'PUBLIC_PRIMARY_SHADOW_CHAIN_COPIED',
+                          'signal_date': signal_date,
+                          'as_of_date': shadow_state['as_of_date'],
+                          'selected_slots': shadow_state['selected_slots'],
+                          'mixed_projection_sha256': mixed_sha,
+                      }, ensure_ascii=False, sort_keys=True))
                   print(json.dumps({
                       'status': 'PUBLIC_PRIMARY_PROFIT_CHAIN_VALIDATED',
                       'signal_date': public_bundle['inputs'].signal_date,
@@ -779,6 +941,26 @@ jobs:
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json"
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
           )
+          shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
+          if [ -f "${shadow_index}" ]; then
+            shadow_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["latest_state_url"])' "${shadow_index}")"
+            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["selection"]["path"])' "_site/${shadow_state}")"
+            shadow_statistics="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["statistics"]["path"])' "_site/${shadow_state}")"
+            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["downloads"]["csv_url"])' "_site/${shadow_selection}")"
+            shadow_t="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t_verification"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
+            shadow_t1="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t1_settlement"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
+            files+=(
+              models/decision_primary_profit_forward_shadow_bridge_contract.json
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json
+              "${shadow_selection}"
+              "${shadow_csv}"
+              "${shadow_statistics}"
+              outputs/decision/executable_profit_research/shadow_index.json
+              "${shadow_state}"
+            )
+            if [ -n "${shadow_t}" ]; then files+=("${shadow_t}"); fi
+            if [ -n "${shadow_t1}" ]; then files+=("${shadow_t1}"); fi
+          fi
           for relative in "${files[@]}"; do
             mkdir -p "${public_root}/$(dirname "${relative}")"
             curl -fsSL --retry 12 --retry-delay 10 --retry-all-errors \
@@ -805,6 +987,52 @@ jobs:
               )
           )
           mixed = bundle['mixed']['projection']
+          shadow_index_path = (
+              Path(os.environ['PUBLIC_ROOT'])
+              / 'outputs/decision/executable_profit_research/shadow_index.json'
+          )
+          if shadow_index_path.exists():
+              import hashlib
+
+              root = Path(os.environ['PUBLIC_ROOT'])
+              shadow_index = json.loads(shadow_index_path.read_text(encoding='utf-8'))
+              state_path = root / str(shadow_index['latest_state_url'])
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+              selection = state['source_bindings']['selection']
+              statistics = state['source_bindings']['statistics']
+              mixed_binding = state['source_bindings']['mixed_projection']
+              selection_path = root / str(selection['path'])
+              statistics_path = root / str(statistics['path'])
+              truth_ok = True
+              for key in ('t_verification', 't1_settlement'):
+                  binding = state['source_bindings'].get(key)
+                  if binding is None:
+                      continue
+                  truth_path = root / str(binding['path'])
+                  truth_ok = truth_ok and (
+                      truth_path.is_file()
+                      and not truth_path.is_symlink()
+                      and hashlib.sha256(truth_path.read_bytes()).hexdigest()
+                      == binding.get('sha256')
+                  )
+              if not (
+                  shadow_index.get('latest_signal_date') == os.environ['SIGNAL_DATE']
+                  and state.get('signal_date') == os.environ['SIGNAL_DATE']
+                  and shadow_index.get('latest_mixed_projection_sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  and mixed_binding.get('sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  and hashlib.sha256(state_path.read_bytes()).hexdigest()
+                  == shadow_index.get('latest_state_sha256')
+                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
+                  == selection.get('sha256')
+                  and hashlib.sha256(statistics_path.read_bytes()).hexdigest()
+                  == statistics.get('sha256')
+                  and truth_ok
+              ):
+                  raise SystemExit(
+                      'public primary Shadow sidecar is not exact-D/SHA bound'
+                  )
           if not (
               revision.get('executable_profit_contract') == 'primary'
               and revision.get('executable_profit_statistics_as_of_date') == ''
