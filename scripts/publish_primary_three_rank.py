@@ -54,6 +54,33 @@ REQUIRED_MARKET_TABLES = (
     "stock_basic",
 )
 RECEIPT_SCHEMA = "dc20_primary_d_receipt_v1"
+PRIMARY_RUNTIME_INDEX_SCHEMA = "dc20_primary_d_runtime_index_v1"
+PRIMARY_RUNTIME_INDEX_KIND = "dated_primary_d_runtime_pointer_only"
+PRIMARY_RUNTIME_INDEX_RELATIVE = "outputs/decision/primary_d_runtime_index.json"
+PRIMARY_RUNTIME_INDEX_KEYS = frozenset(
+    {
+        "schema_version",
+        "index_kind",
+        "data_alias",
+        "latest_signal_date",
+        "latest_exec_date",
+        "latest_exit_date",
+        "latest_receipt_url",
+        "latest_receipt_sha256",
+        "latest_runtime_features_url",
+        "latest_runtime_features_sha256",
+        "runtime_feature_row_count",
+        "runtime_selected_count",
+        "runtime_identity_sha256",
+        "latest_feature_snapshot_sha256",
+        "latest_top10_members_sha256",
+        "latest_three_rank_json_url",
+        "latest_three_rank_json_sha256",
+        "latest_three_rank_csv_url",
+        "latest_three_rank_csv_sha256",
+        "latest_bundle_sha256",
+    }
+)
 HISTORY_CONTEXT_TABLES = (
     "daily",
     "daily_basic",
@@ -1140,6 +1167,357 @@ def _write_immutable_csv(path: Path, frame: pd.DataFrame) -> None:
             temporary.unlink()
 
 
+def validate_primary_d_runtime_index(index: Mapping[str, Any]) -> None:
+    """Validate the public pointer to one immutable P0 runtime bundle."""
+
+    if not isinstance(index, Mapping) or set(index) != PRIMARY_RUNTIME_INDEX_KEYS:
+        raise PrimaryDGenerationError("primary runtime index field surface drifted")
+    if index.get("schema_version") != PRIMARY_RUNTIME_INDEX_SCHEMA:
+        raise PrimaryDGenerationError("primary runtime index schema is invalid")
+    if index.get("index_kind") != PRIMARY_RUNTIME_INDEX_KIND:
+        raise PrimaryDGenerationError("primary runtime index kind is invalid")
+    if index.get("data_alias") is not False:
+        raise PrimaryDGenerationError("primary runtime index cannot be a data alias")
+
+    signal_date = str(index.get("latest_signal_date") or "")
+    exec_date = str(index.get("latest_exec_date") or "")
+    exit_date = str(index.get("latest_exit_date") or "")
+    if any(DATE_RE.fullmatch(value) is None for value in (signal_date, exec_date, exit_date)):
+        raise PrimaryDGenerationError("primary runtime index dates are invalid")
+    if not signal_date < exec_date < exit_date:
+        raise PrimaryDGenerationError("primary runtime index D/T/T+1 order is invalid")
+
+    expected_paths = {
+        "latest_receipt_url": f"outputs/decision/primary_d_receipt_{signal_date}.json",
+        "latest_runtime_features_url": (
+            f"outputs/decision/primary_d_runtime_features_{signal_date}.csv"
+        ),
+        "latest_three_rank_json_url": (
+            f"outputs/decision/three_rank_top10_{signal_date}.json"
+        ),
+        "latest_three_rank_csv_url": (
+            f"outputs/decision/three_rank_top10_{signal_date}.csv"
+        ),
+    }
+    for field, expected in expected_paths.items():
+        if index.get(field) != expected:
+            raise PrimaryDGenerationError(
+                f"primary runtime index {field} is not the exact dated path"
+            )
+
+    for field in (
+        "latest_receipt_sha256",
+        "latest_runtime_features_sha256",
+        "runtime_identity_sha256",
+        "latest_feature_snapshot_sha256",
+        "latest_top10_members_sha256",
+        "latest_three_rank_json_sha256",
+        "latest_three_rank_csv_sha256",
+        "latest_bundle_sha256",
+    ):
+        if SHA256_RE.fullmatch(str(index.get(field) or "")) is None:
+            raise PrimaryDGenerationError(
+                f"primary runtime index {field} is not SHA256"
+            )
+
+    row_count = index.get("runtime_feature_row_count")
+    selected_count = index.get("runtime_selected_count")
+    if (
+        type(row_count) is not int
+        or row_count < 0
+        or type(selected_count) is not int
+        or selected_count != min(10, row_count)
+    ):
+        raise PrimaryDGenerationError("primary runtime index row counts are invalid")
+
+
+def _regular_output_relative(root: Path, path: Path, *, label: str) -> str:
+    if path.is_symlink():
+        raise PrimaryDGenerationError(f"{label} is missing, empty, or unsafe")
+    resolved = path.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise PrimaryDGenerationError(f"{label} escaped repository root") from exc
+    if not resolved.is_file() or resolved.stat().st_size <= 0:
+        raise PrimaryDGenerationError(f"{label} is missing, empty, or unsafe")
+    return relative.as_posix()
+
+
+def build_primary_d_runtime_index(
+    root: Path,
+    *,
+    receipt_path: Path,
+    runtime_path: Path,
+    three_rank_json_path: Path,
+    three_rank_csv_path: Path,
+) -> dict[str, Any]:
+    """Build a SHA-bound pointer without copying or rewriting dated P0 data."""
+
+    root = root.resolve()
+    receipt_relative = _regular_output_relative(
+        root, receipt_path, label="primary D receipt"
+    )
+    runtime_relative = _regular_output_relative(
+        root, runtime_path, label="primary D runtime snapshot"
+    )
+    three_json_relative = _regular_output_relative(
+        root, three_rank_json_path, label="primary D three-rank JSON"
+    )
+    three_csv_relative = _regular_output_relative(
+        root, three_rank_csv_path, label="primary D three-rank CSV"
+    )
+    receipt = _read_json(receipt_path, label="primary D receipt")
+    contract = _read_json(three_rank_json_path, label="primary D three-rank JSON")
+    try:
+        validate_three_rank_contract(contract)
+    except ThreeRankContractError as exc:
+        raise PrimaryDGenerationError(
+            "primary runtime index source three-rank contract is invalid"
+        ) from exc
+
+    signal_date = str(receipt.get("signal_date") or "")
+    exec_date = str(receipt.get("exec_date") or "")
+    exit_date = str(receipt.get("exit_date") or "")
+    if (
+        receipt.get("schema_version") != RECEIPT_SCHEMA
+        or receipt.get("artifact_kind") != "p0_promotion_only_d_list_receipt"
+        or receipt.get("owner") != "njedu2023-prog/DC20"
+        or receipt.get("runtime_dependency_on_top10_decision") is not False
+        or receipt.get("primary_status") != "READY"
+        or receipt.get("action_authorized") is not False
+        or receipt.get("action_input_consumed") is not False
+        or receipt.get("formal_trade_count") != 0
+        or receipt.get("future_market_data_consumed") is not False
+        or receipt.get("latest_fallback_used") is not False
+        or receipt.get("generation_mode") not in GENERATION_MODES
+        or any(
+            DATE_RE.fullmatch(value) is None
+            for value in (signal_date, exec_date, exit_date)
+        )
+        or not signal_date < exec_date < exit_date
+    ):
+        raise PrimaryDGenerationError("primary runtime index receipt identity is invalid")
+    secondary = receipt.get("secondary_outputs_generated")
+    if not isinstance(secondary, Mapping) or any(
+        secondary.get(name) is not False
+        for name in ("action_plan", "big_loss", "profit", "p_fill_shadow", "executable_profit")
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index receipt secondary boundary is invalid"
+        )
+    if (
+        contract.get("signal_date") != signal_date
+        or contract.get("exec_date") != exec_date
+        or contract.get("exit_date") != exit_date
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index receipt/three-rank dates disagree"
+        )
+
+    expected_paths = {
+        "receipt": f"outputs/decision/primary_d_receipt_{signal_date}.json",
+        "runtime": f"outputs/decision/primary_d_runtime_features_{signal_date}.csv",
+        "three_json": f"outputs/decision/three_rank_top10_{signal_date}.json",
+        "three_csv": f"outputs/decision/three_rank_top10_{signal_date}.csv",
+    }
+    actual_paths = {
+        "receipt": receipt_relative,
+        "runtime": runtime_relative,
+        "three_json": three_json_relative,
+        "three_csv": three_csv_relative,
+    }
+    if actual_paths != expected_paths:
+        raise PrimaryDGenerationError(
+            "primary runtime index sources are not the exact dated files"
+        )
+
+    outputs = receipt.get("outputs")
+    if not isinstance(outputs, Mapping):
+        raise PrimaryDGenerationError("primary runtime index receipt outputs are missing")
+    actual_hashes = {
+        "receipt": _sha256(receipt_path),
+        "runtime": _sha256(runtime_path),
+        "three_json": _sha256(three_rank_json_path),
+        "three_csv": _sha256(three_rank_csv_path),
+    }
+    downloads = contract.get("downloads")
+    if (
+        not isinstance(downloads, Mapping)
+        or downloads.get("json_url") != three_json_relative
+        or downloads.get("csv_url") != three_csv_relative
+        or downloads.get("csv_sha256") != actual_hashes["three_csv"]
+        or downloads.get("row_count") != len(contract.get("rows") or [])
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index three-rank download bindings drifted"
+        )
+    if (
+        outputs.get("runtime_features_path") != runtime_relative
+        or outputs.get("runtime_features_sha256") != actual_hashes["runtime"]
+        or outputs.get("json_path") != three_json_relative
+        or outputs.get("json_sha256") != actual_hashes["three_json"]
+        or outputs.get("csv_path") != three_csv_relative
+        or outputs.get("csv_sha256") != actual_hashes["three_csv"]
+        or outputs.get("bundle_sha256") != contract.get("bundle_sha256")
+        or outputs.get("feature_snapshot_sha256")
+        != contract.get("feature_snapshot_sha256")
+        or outputs.get("top10_members_sha256")
+        != contract.get("top10_members_sha256")
+        or outputs.get("promotion_pool_size") != contract.get("promotion_pool_size")
+        or outputs.get("top10_count") != contract.get("top10_count")
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index receipt output bindings drifted"
+        )
+
+    runtime = _read_csv(runtime_path, label="primary D runtime snapshot")
+    required_runtime = {
+        "identity",
+        "signal_date",
+        "ts_code",
+        "stage_transition",
+        "feature_snapshot_sha256",
+        "top10_selected",
+        "promotion_rank",
+    }
+    if not required_runtime.issubset(runtime.columns):
+        raise PrimaryDGenerationError(
+            "primary runtime index source omitted identity columns"
+        )
+    if not runtime.empty and (
+        not runtime["signal_date"].astype(str).eq(signal_date).all()
+        or not runtime["feature_snapshot_sha256"]
+        .astype(str)
+        .eq(str(contract.get("feature_snapshot_sha256") or ""))
+        .all()
+        or runtime["ts_code"].astype(str).eq("").any()
+        or runtime["ts_code"].astype(str).duplicated().any()
+        or not runtime.apply(
+            lambda row: str(row.get("identity") or "")
+            == (
+                f"{signal_date}|{str(row.get('ts_code') or '')}|"
+                f"{str(row.get('stage_transition') or '')}"
+            ),
+            axis=1,
+        ).all()
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index source identity/date/snapshot drifted"
+        )
+    selected_numeric = pd.to_numeric(runtime["top10_selected"], errors="coerce")
+    rank_numeric = pd.to_numeric(runtime["promotion_rank"], errors="coerce")
+    if (
+        not selected_numeric.isin((0, 1)).all()
+        or (not runtime.empty and not rank_numeric.notna().all())
+        or sorted(rank_numeric.astype(int).tolist()) != list(range(1, len(runtime) + 1))
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index source selection/ranks are invalid"
+        )
+    selected = runtime.loc[selected_numeric.eq(1)].copy()
+    selected["_promotion_rank"] = pd.to_numeric(
+        selected["promotion_rank"], errors="raise"
+    ).astype(int)
+    selected = selected.sort_values("_promotion_rank", kind="stable")
+    contract_rows = contract.get("rows")
+    if not isinstance(contract_rows, list):
+        raise PrimaryDGenerationError("primary runtime index contract rows are invalid")
+    expected_members = [
+        (str(row.get("ts_code") or ""), int(row.get("promotion_rank")))
+        for row in contract_rows
+    ]
+    actual_members = [
+        (str(row["ts_code"]), int(row["_promotion_rank"]))
+        for _, row in selected.iterrows()
+    ]
+    runtime_identity_sha256 = _runtime_identity_sha256(runtime, signal_date)
+    row_count = int(len(runtime))
+    selected_count = int(len(selected))
+    if (
+        row_count != contract.get("promotion_pool_size")
+        or selected_count != contract.get("top10_count")
+        or selected_count != min(10, row_count)
+        or actual_members != expected_members
+        or outputs.get("runtime_feature_row_count") != row_count
+        or outputs.get("runtime_selected_count") != selected_count
+        or outputs.get("runtime_identity_sha256") != runtime_identity_sha256
+    ):
+        raise PrimaryDGenerationError(
+            "primary runtime index source counts/members/identity drifted"
+        )
+
+    index = {
+        "schema_version": PRIMARY_RUNTIME_INDEX_SCHEMA,
+        "index_kind": PRIMARY_RUNTIME_INDEX_KIND,
+        "data_alias": False,
+        "latest_signal_date": signal_date,
+        "latest_exec_date": exec_date,
+        "latest_exit_date": exit_date,
+        "latest_receipt_url": receipt_relative,
+        "latest_receipt_sha256": actual_hashes["receipt"],
+        "latest_runtime_features_url": runtime_relative,
+        "latest_runtime_features_sha256": actual_hashes["runtime"],
+        "runtime_feature_row_count": row_count,
+        "runtime_selected_count": selected_count,
+        "runtime_identity_sha256": runtime_identity_sha256,
+        "latest_feature_snapshot_sha256": contract["feature_snapshot_sha256"],
+        "latest_top10_members_sha256": contract["top10_members_sha256"],
+        "latest_three_rank_json_url": three_json_relative,
+        "latest_three_rank_json_sha256": actual_hashes["three_json"],
+        "latest_three_rank_csv_url": three_csv_relative,
+        "latest_three_rank_csv_sha256": actual_hashes["three_csv"],
+        "latest_bundle_sha256": contract["bundle_sha256"],
+    }
+    validate_primary_d_runtime_index(index)
+    return index
+
+
+def materialize_primary_d_runtime_index(
+    root: Path,
+    index: Mapping[str, Any],
+) -> tuple[Path, dict[str, Any]]:
+    """Advance the mutable latest pointer; never rewrite or regress one date."""
+
+    validate_primary_d_runtime_index(index)
+    root = root.resolve()
+    path = root / PRIMARY_RUNTIME_INDEX_RELATIVE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    candidate = dict(index)
+    payload = _canonical_json_bytes(candidate, pretty=True)
+    if path.exists():
+        if not path.is_file() or path.is_symlink() or path.stat().st_size <= 0:
+            raise PrimaryDGenerationError("existing primary runtime index is unsafe")
+        existing_bytes = path.read_bytes()
+        existing = _read_json(path, label="existing primary runtime index")
+        validate_primary_d_runtime_index(existing)
+        existing_date = str(existing["latest_signal_date"])
+        candidate_date = str(candidate["latest_signal_date"])
+        if existing_date > candidate_date:
+            return path, existing
+        if existing_date == candidate_date:
+            if existing_bytes != payload:
+                raise PrimaryDGenerationError(
+                    "same-date primary runtime index bytes drifted"
+                )
+            return path, existing
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return path, candidate
+
+
 def publish_primary_three_rank(
     root: Path,
     signal_date: str,
@@ -1349,14 +1727,26 @@ def publish_primary_three_rank(
     }
     receipt_path = root / "outputs" / "decision" / f"primary_d_receipt_{signal_date}.json"
     _write_immutable_json(receipt_path, receipt)
+    runtime_index = build_primary_d_runtime_index(
+        root,
+        receipt_path=receipt_path,
+        runtime_path=runtime_path,
+        three_rank_json_path=json_path,
+        three_rank_csv_path=csv_path,
+    )
+    runtime_index_path, materialized_runtime_index = (
+        materialize_primary_d_runtime_index(root, runtime_index)
+    )
     return {
         "contract": materialized,
         "receipt": receipt,
+        "runtime_index": materialized_runtime_index,
         "paths": {
             "json": json_path,
             "csv": csv_path,
             "runtime_features": runtime_path,
             "receipt": receipt_path,
+            "runtime_index": runtime_index_path,
         },
     }
 

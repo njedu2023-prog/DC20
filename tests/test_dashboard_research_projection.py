@@ -82,7 +82,7 @@ def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() 
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "independent-three-rank-v8-primary-profit"'
+        'const DASHBOARD_VERSION = "independent-three-rank-v9-primary-path-truth"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text

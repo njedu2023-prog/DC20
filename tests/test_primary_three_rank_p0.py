@@ -11,11 +11,15 @@ import pytest
 
 from scripts.publish_primary_three_rank import (
     HISTORY_CONTEXT_TABLES,
+    PRIMARY_RUNTIME_INDEX_KEYS,
     PRIMARY_RUNTIME_CODE_PATHS,
     PROMOTION_PRIOR_SOURCE_PATHS,
     PrimaryDGenerationError,
     audit_complete_hard_pool,
+    build_primary_d_runtime_index,
+    materialize_primary_d_runtime_index,
     publish_primary_three_rank,
+    validate_primary_d_runtime_index,
 )
 from top10decision.decision.three_engine_models import (
     ThreeEngineArtifactError,
@@ -327,8 +331,151 @@ def test_primary_publisher_accepts_truthful_zero_candidate_day(tmp_path: Path) -
     assert result["receipt"]["pool_audit"]["hard_to_inference"][
         "all_hard_identities_preserved"
     ] is True
+    runtime_index = result["runtime_index"]
+    validate_primary_d_runtime_index(runtime_index)
+    assert set(runtime_index) == PRIMARY_RUNTIME_INDEX_KEYS == {
+        "schema_version",
+        "index_kind",
+        "data_alias",
+        "latest_signal_date",
+        "latest_exec_date",
+        "latest_exit_date",
+        "latest_receipt_url",
+        "latest_receipt_sha256",
+        "latest_runtime_features_url",
+        "latest_runtime_features_sha256",
+        "runtime_feature_row_count",
+        "runtime_selected_count",
+        "runtime_identity_sha256",
+        "latest_feature_snapshot_sha256",
+        "latest_top10_members_sha256",
+        "latest_three_rank_json_url",
+        "latest_three_rank_json_sha256",
+        "latest_three_rank_csv_url",
+        "latest_three_rank_csv_sha256",
+        "latest_bundle_sha256",
+    }
+    assert runtime_index["schema_version"] == "dc20_primary_d_runtime_index_v1"
+    assert runtime_index["index_kind"] == "dated_primary_d_runtime_pointer_only"
+    assert runtime_index["data_alias"] is False
+    assert runtime_index["latest_signal_date"] == SIGNAL_DATE
+    assert runtime_index["latest_exec_date"] == EXEC_DATE
+    assert runtime_index["latest_exit_date"] == EXIT_DATE
+    assert runtime_index["latest_receipt_url"] == (
+        f"outputs/decision/primary_d_receipt_{SIGNAL_DATE}.json"
+    )
+    assert runtime_index["latest_receipt_sha256"] == _sha256(
+        result["paths"]["receipt"]
+    )
+    assert runtime_index["latest_runtime_features_url"] == (
+        f"outputs/decision/primary_d_runtime_features_{SIGNAL_DATE}.csv"
+    )
+    assert runtime_index["latest_runtime_features_sha256"] == _sha256(runtime_path)
+    assert runtime_index["runtime_feature_row_count"] == 0
+    assert runtime_index["runtime_selected_count"] == 0
+    assert runtime_index["runtime_identity_sha256"] == outputs[
+        "runtime_identity_sha256"
+    ]
+    assert runtime_index["latest_feature_snapshot_sha256"] == contract[
+        "feature_snapshot_sha256"
+    ]
+    assert runtime_index["latest_top10_members_sha256"] == contract[
+        "top10_members_sha256"
+    ]
+    assert runtime_index["latest_three_rank_json_sha256"] == _sha256(
+        result["paths"]["json"]
+    )
+    assert runtime_index["latest_three_rank_csv_sha256"] == _sha256(
+        result["paths"]["csv"]
+    )
+    assert runtime_index["latest_bundle_sha256"] == contract["bundle_sha256"]
     for path in result["paths"].values():
         assert path.is_file()
+    runtime_path.write_bytes(runtime_path.read_bytes() + b"\n")
+    with pytest.raises(
+        PrimaryDGenerationError,
+        match="primary runtime index receipt output bindings drifted",
+    ):
+        build_primary_d_runtime_index(
+            tmp_path,
+            receipt_path=result["paths"]["receipt"],
+            runtime_path=runtime_path,
+            three_rank_json_path=result["paths"]["json"],
+            three_rank_csv_path=result["paths"]["csv"],
+        )
+
+
+def test_primary_runtime_index_is_idempotent_monotonic_and_byte_strict(
+    tmp_path: Path,
+) -> None:
+    def payload(signal_date: str, exec_date: str, exit_date: str, seed: str) -> dict:
+        digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+        return {
+            "schema_version": "dc20_primary_d_runtime_index_v1",
+            "index_kind": "dated_primary_d_runtime_pointer_only",
+            "data_alias": False,
+            "latest_signal_date": signal_date,
+            "latest_exec_date": exec_date,
+            "latest_exit_date": exit_date,
+            "latest_receipt_url": (
+                f"outputs/decision/primary_d_receipt_{signal_date}.json"
+            ),
+            "latest_receipt_sha256": digest,
+            "latest_runtime_features_url": (
+                f"outputs/decision/primary_d_runtime_features_{signal_date}.csv"
+            ),
+            "latest_runtime_features_sha256": digest,
+            "runtime_feature_row_count": 0,
+            "runtime_selected_count": 0,
+            "runtime_identity_sha256": digest,
+            "latest_feature_snapshot_sha256": digest,
+            "latest_top10_members_sha256": digest,
+            "latest_three_rank_json_url": (
+                f"outputs/decision/three_rank_top10_{signal_date}.json"
+            ),
+            "latest_three_rank_json_sha256": digest,
+            "latest_three_rank_csv_url": (
+                f"outputs/decision/three_rank_top10_{signal_date}.csv"
+            ),
+            "latest_three_rank_csv_sha256": digest,
+            "latest_bundle_sha256": digest,
+        }
+
+    first = payload("20260826", "20260827", "20260828", "first")
+    invalid = dict(first)
+    invalid["unexpected"] = True
+    with pytest.raises(
+        PrimaryDGenerationError,
+        match="primary runtime index field surface drifted",
+    ):
+        materialize_primary_d_runtime_index(tmp_path, invalid)
+    path, materialized = materialize_primary_d_runtime_index(tmp_path, first)
+    first_bytes = path.read_bytes()
+    assert materialized == first
+
+    same_path, same = materialize_primary_d_runtime_index(tmp_path, dict(first))
+    assert same_path == path
+    assert same == first
+    assert path.read_bytes() == first_bytes
+
+    drifted = dict(first)
+    drifted["latest_bundle_sha256"] = hashlib.sha256(b"drift").hexdigest()
+    with pytest.raises(
+        PrimaryDGenerationError,
+        match="same-date primary runtime index bytes drifted",
+    ):
+        materialize_primary_d_runtime_index(tmp_path, drifted)
+    assert path.read_bytes() == first_bytes
+
+    newer = payload("20260827", "20260828", "20260831", "newer")
+    _, advanced = materialize_primary_d_runtime_index(tmp_path, newer)
+    advanced_bytes = path.read_bytes()
+    assert advanced == newer
+    assert advanced_bytes != first_bytes
+
+    _, retained = materialize_primary_d_runtime_index(tmp_path, first)
+    assert retained == newer
+    assert path.read_bytes() == advanced_bytes
 
 
 def test_hard_pool_cannot_be_published_as_a_fake_empty_inference() -> None:

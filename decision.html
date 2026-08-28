@@ -975,7 +975,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v8-primary-profit";
+    const DASHBOARD_VERSION = "independent-three-rank-v9-primary-path-truth";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
       root: "outputs/decision/legacy_profit_relative_research",
@@ -1006,11 +1006,38 @@
       index: 0,
       current: null,
       currentThreeRank: null,
+      currentThreeRankPathEvidence: null,
       currentThreeRankTTruth: null,
       publishedRevisionSha: null,
       currentLegacyProfitRelativeResearch: null,
       currentExecutableProfitResearch: null
     };
+
+    const PRIMARY_PATH_LABELS = Object.freeze({
+      WEAK_TO_STRONG: "弱转强",
+      STRONG_TO_WEAK: "强转弱",
+      ACCELERATION_CONSENSUS: "加速一致",
+      DIVERGENCE_RESEAL: "分歧回封",
+      STABLE_STRONG: "持续强势",
+      MIXED: "路径混合",
+      INSUFFICIENT: "路径数据不足"
+    });
+    const PRIMARY_D_RUNTIME_INDEX = Object.freeze({
+      path: "outputs/decision/primary_d_runtime_index.json",
+      schema: "dc20_primary_d_runtime_index_v1",
+      kind: "dated_primary_d_runtime_pointer_only",
+      keys: [
+        "schema_version", "index_kind", "data_alias",
+        "latest_signal_date", "latest_exec_date", "latest_exit_date",
+        "latest_receipt_url", "latest_receipt_sha256",
+        "latest_runtime_features_url", "latest_runtime_features_sha256",
+        "runtime_feature_row_count", "runtime_selected_count", "runtime_identity_sha256",
+        "latest_feature_snapshot_sha256", "latest_top10_members_sha256",
+        "latest_three_rank_json_url", "latest_three_rank_json_sha256",
+        "latest_three_rank_csv_url", "latest_three_rank_csv_sha256",
+        "latest_bundle_sha256"
+      ]
+    });
 
     function escapeHtml(value) {
       return String(value == null ? "" : value)
@@ -1269,6 +1296,221 @@
       const response = await fetch(`${exactRaw}?v=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`exact revision HTTP ${response.status}`);
       return new Uint8Array(await response.arrayBuffer());
+    }
+
+    async function loadCurrentThreeRankPathEvidence(currentThreeRank) {
+      const contract = validatedThreeRankContract(currentThreeRank);
+      if (!contract || contract === false) return null;
+      const signalDate = canonicalYmd(contract.signal_date);
+      const sourceIndex = currentThreeRank?.three_rank_source_index;
+      const indexBytes = await fetchPublishedBytes(PRIMARY_D_RUNTIME_INDEX.path);
+      const runtimeIndex = strictJsonFromBytes(indexBytes, "P0路径索引");
+      const receiptPath = `outputs/decision/primary_d_receipt_${signalDate}.json`;
+      const runtimePath = `outputs/decision/primary_d_runtime_features_${signalDate}.csv`;
+      const threeRankJsonPath = `outputs/decision/three_rank_top10_${signalDate}.json`;
+      const threeRankCsvPath = `outputs/decision/three_rank_top10_${signalDate}.csv`;
+      if (
+        !exactObjectKeys(runtimeIndex, PRIMARY_D_RUNTIME_INDEX.keys) ||
+        runtimeIndex.schema_version !== PRIMARY_D_RUNTIME_INDEX.schema ||
+        runtimeIndex.index_kind !== PRIMARY_D_RUNTIME_INDEX.kind ||
+        runtimeIndex.data_alias !== false ||
+        runtimeIndex.latest_signal_date !== signalDate ||
+        runtimeIndex.latest_exec_date !== contract.exec_date ||
+        runtimeIndex.latest_exit_date !== contract.exit_date ||
+        runtimeIndex.latest_receipt_url !== receiptPath ||
+        runtimeIndex.latest_runtime_features_url !== runtimePath ||
+        runtimeIndex.latest_three_rank_json_url !== threeRankJsonPath ||
+        runtimeIndex.latest_three_rank_csv_url !== threeRankCsvPath ||
+        ![
+          runtimeIndex.latest_receipt_sha256,
+          runtimeIndex.latest_runtime_features_sha256,
+          runtimeIndex.runtime_identity_sha256,
+          runtimeIndex.latest_feature_snapshot_sha256,
+          runtimeIndex.latest_top10_members_sha256,
+          runtimeIndex.latest_three_rank_json_sha256,
+          runtimeIndex.latest_three_rank_csv_sha256,
+          runtimeIndex.latest_bundle_sha256
+        ].every(isSha256) ||
+        !Number.isInteger(runtimeIndex.runtime_feature_row_count) ||
+        !Number.isInteger(runtimeIndex.runtime_selected_count) ||
+        runtimeIndex.runtime_feature_row_count !== contract.promotion_pool_size ||
+        runtimeIndex.runtime_selected_count !== contract.top10_count ||
+        runtimeIndex.latest_feature_snapshot_sha256 !== contract.feature_snapshot_sha256 ||
+        runtimeIndex.latest_top10_members_sha256 !== contract.top10_members_sha256 ||
+        runtimeIndex.latest_bundle_sha256 !== contract.bundle_sha256 ||
+        runtimeIndex.latest_three_rank_json_url !== sourceIndex?.json_path ||
+        runtimeIndex.latest_three_rank_json_sha256 !== sourceIndex?.json_sha256 ||
+        runtimeIndex.latest_three_rank_csv_url !== sourceIndex?.csv_path ||
+        runtimeIndex.latest_three_rank_csv_sha256 !== sourceIndex?.csv_sha256 ||
+        runtimeIndex.latest_three_rank_csv_sha256 !== contract.downloads?.csv_sha256
+      ) throw new Error("P0路径索引没有严格绑定当前D日、三排名与runtime");
+
+      const [receiptBytes, revisionSha] = await Promise.all([
+        fetchPublishedBytes(runtimeIndex.latest_receipt_url),
+        publishedRevisionSha()
+      ]);
+      if (await sha256Hex(receiptBytes) !== runtimeIndex.latest_receipt_sha256) {
+        throw new Error("P0路径receipt字节SHA256与索引不一致");
+      }
+      const receipt = strictJsonFromBytes(receiptBytes, "P0路径receipt");
+      const outputs = receipt?.outputs;
+      const secondary = receipt?.secondary_outputs_generated;
+      if (
+        receipt?.schema_version !== "dc20_primary_d_receipt_v1" ||
+        receipt?.artifact_kind !== "p0_promotion_only_d_list_receipt" ||
+        receipt?.owner !== `${REPO.owner}/${REPO.name}` ||
+        receipt?.runtime_dependency_on_top10_decision !== false ||
+        receipt?.signal_date !== signalDate ||
+        receipt?.exec_date !== contract.exec_date ||
+        receipt?.exit_date !== contract.exit_date ||
+        !["NATURAL", "RETROSPECTIVE_RECOVERY"].includes(receipt?.generation_mode) ||
+        receipt?.primary_status !== "READY" ||
+        receipt?.action_authorized !== false ||
+        receipt?.action_input_consumed !== false ||
+        Number(receipt?.formal_trade_count || 0) !== 0 ||
+        receipt?.future_market_data_consumed !== false ||
+        receipt?.latest_fallback_used !== false ||
+        !outputs || typeof outputs !== "object" || Array.isArray(outputs) ||
+        !secondary || ["action_plan", "big_loss", "profit", "p_fill_shadow", "executable_profit"].some(name => secondary[name] !== false)
+      ) throw new Error("P0路径receipt身份、日期或无Action边界无效");
+      if (
+        sourceIndex?.json_path !== `outputs/decision/three_rank_top10_${signalDate}.json` ||
+        sourceIndex?.csv_path !== `outputs/decision/three_rank_top10_${signalDate}.csv` ||
+        outputs.json_path !== sourceIndex.json_path ||
+        outputs.csv_path !== sourceIndex.csv_path ||
+        outputs.json_sha256 !== sourceIndex.json_sha256 ||
+        outputs.csv_sha256 !== sourceIndex.csv_sha256 ||
+        outputs.csv_sha256 !== contract.downloads?.csv_sha256 ||
+        outputs.bundle_sha256 !== contract.bundle_sha256 ||
+        outputs.feature_snapshot_sha256 !== contract.feature_snapshot_sha256 ||
+        outputs.top10_members_sha256 !== contract.top10_members_sha256 ||
+        outputs.promotion_pool_size !== contract.promotion_pool_size ||
+        outputs.top10_count !== contract.top10_count ||
+        outputs.runtime_features_path !== runtimePath ||
+        outputs.runtime_features_sha256 !== runtimeIndex.latest_runtime_features_sha256 ||
+        outputs.runtime_identity_schema !== "dc20_primary_d_runtime_identity_v1" ||
+        outputs.runtime_identity_sha256 !== runtimeIndex.runtime_identity_sha256 ||
+        outputs.runtime_feature_row_count !== runtimeIndex.runtime_feature_row_count ||
+        outputs.runtime_selected_count !== runtimeIndex.runtime_selected_count
+      ) throw new Error("P0路径receipt没有绑定当前三排名与runtime");
+
+      const runtimeBytes = await fetchPublishedBytes(runtimePath);
+      if (await sha256Hex(runtimeBytes) !== outputs.runtime_features_sha256) {
+        throw new Error("P0路径runtime字节SHA256不一致");
+      }
+      const requiredColumns = [
+        "identity", "signal_date", "ts_code", "stage_transition",
+        "feature_snapshot_sha256", "top10_selected", "promotion_rank",
+        "path_days_observed", "path_data_coverage", "path_strength_latest",
+        "path_strength_delta", "path_label_code", "path_label",
+        "path_explanation"
+      ];
+      const runtimeRows = parseStrictCsvBytes(runtimeBytes, requiredColumns, "P0路径runtime");
+      if (runtimeRows.length !== outputs.runtime_feature_row_count) {
+        throw new Error("P0路径runtime行数与receipt不一致");
+      }
+      const codes = new Set();
+      const identities = new Set();
+      for (const row of runtimeRows) {
+        const code = String(row.ts_code || "");
+        const identity = `${signalDate}|${code}|${row.stage_transition}`;
+        const rank = finiteNumber(row.promotion_rank);
+        const selected = finiteNumber(row.top10_selected);
+        if (
+          !code || codes.has(code) || identities.has(row.identity) ||
+          row.signal_date !== signalDate || row.identity !== identity ||
+          !["2→3", "3→4"].includes(row.stage_transition) ||
+          row.feature_snapshot_sha256 !== contract.feature_snapshot_sha256 ||
+          !Number.isInteger(rank) || rank < 1 || rank > runtimeRows.length ||
+          ![0, 1].includes(selected)
+        ) throw new Error("P0路径runtime日期、身份或晋级字段无效");
+        codes.add(code);
+        identities.add(row.identity);
+      }
+      const ranks = runtimeRows.map(row => Number(row.promotion_rank)).sort((left, right) => left - right);
+      if (ranks.some((rank, index) => rank !== index + 1)) {
+        throw new Error("P0路径runtime晋级排名不是完整1..N");
+      }
+      const identityPayload = {
+        schema: "dc20_primary_d_runtime_identity_v1",
+        signal_date: signalDate,
+        rows: [...runtimeRows].sort((left, right) => left.ts_code.localeCompare(right.ts_code)).map(row => ({
+          identity: row.identity,
+          ts_code: row.ts_code,
+          stage_transition: row.stage_transition,
+          top10_selected: Number(row.top10_selected),
+          promotion_rank: Number(row.promotion_rank)
+        }))
+      };
+      if (await sha256Hex(new TextEncoder().encode(canonicalJson(identityPayload))) !== outputs.runtime_identity_sha256) {
+        throw new Error("P0路径runtime identity SHA256不一致");
+      }
+      const selectedRows = runtimeRows
+        .filter(row => Number(row.top10_selected) === 1)
+        .sort((left, right) => Number(left.promotion_rank) - Number(right.promotion_rank));
+      if (
+        selectedRows.length !== contract.rows.length ||
+        selectedRows.some((row, index) =>
+          row.ts_code !== contract.rows[index].ts_code ||
+          Number(row.promotion_rank) !== contract.rows[index].promotion_rank ||
+          row.stage_transition !== contract.rows[index].stage_transition
+        )
+      ) throw new Error("P0路径runtime与冻结TopN成员或晋级顺序不一致");
+
+      const pathRows = selectedRows.map(row => {
+        const code = String(row.path_label_code || "");
+        const label = String(row.path_label || "");
+        const explanation = String(row.path_explanation || "").trim();
+        const daysObserved = finiteNumber(row.path_days_observed);
+        const coverage = finiteNumber(row.path_data_coverage);
+        const latestStrength = finiteNumber(row.path_strength_latest);
+        const strengthDelta = finiteNumber(row.path_strength_delta);
+        if (!(code in PRIMARY_PATH_LABELS) || label !== PRIMARY_PATH_LABELS[code] || !explanation) {
+          throw new Error(`P0路径runtime标签合同无效：${row.ts_code}`);
+        }
+        if (
+          daysObserved == null || daysObserved < 0 ||
+          coverage == null || coverage < 0 || coverage > 1 ||
+          (code !== "INSUFFICIENT" && (daysObserved < 2 || coverage < 0.35 || latestStrength == null || strengthDelta == null))
+        ) throw new Error(`P0路径runtime观测证据无效：${row.ts_code}`);
+        return {
+          ts_code: row.ts_code,
+          path_label_code: code,
+          path_label: label,
+          path_explanation: explanation,
+          path_days_observed: daysObserved,
+          path_data_coverage: coverage,
+          path_strength_latest: latestStrength,
+          path_strength_delta: strengthDelta
+        };
+      });
+      return {
+        status: "VALID",
+        signal_date: signalDate,
+        pages_revision_sha: revisionSha,
+        runtime_index_path: PRIMARY_D_RUNTIME_INDEX.path,
+        runtime_index_sha256: await sha256Hex(indexBytes),
+        receipt_path: receiptPath,
+        receipt_sha256: runtimeIndex.latest_receipt_sha256,
+        runtime_path: runtimePath,
+        runtime_sha256: outputs.runtime_features_sha256,
+        feature_snapshot_sha256: contract.feature_snapshot_sha256,
+        top10_members_sha256: contract.top10_members_sha256,
+        rows: pathRows
+      };
+    }
+
+    async function refreshCurrentThreeRankPathEvidence(currentThreeRank) {
+      try {
+        state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(currentThreeRank);
+      } catch (error) {
+        const contract = validatedThreeRankContract(currentThreeRank);
+        state.currentThreeRankPathEvidence = {
+          status: "INVALID",
+          signal_date: canonicalYmd(contract?.signal_date),
+          error: String(error?.message || error || "P0路径证据读取失败")
+        };
+      }
     }
 
     async function loadCurrentThreeRankTTruth(currentThreeRank) {
@@ -3013,6 +3255,17 @@
         : "";
       const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
+      const pathEvidence = state.index === 0 &&
+        state.currentThreeRankPathEvidence?.status === "VALID" &&
+        state.currentThreeRankPathEvidence?.signal_date === contract.signal_date &&
+        state.currentThreeRankPathEvidence?.feature_snapshot_sha256 === contract.feature_snapshot_sha256 &&
+        state.currentThreeRankPathEvidence?.top10_members_sha256 === contract.top10_members_sha256
+        ? state.currentThreeRankPathEvidence
+        : null;
+      const pathEvidenceInvalid = state.index === 0 &&
+        state.currentThreeRankPathEvidence?.status === "INVALID" &&
+        state.currentThreeRankPathEvidence?.signal_date === contract.signal_date;
+      const runtimePathByCode = new Map((pathEvidence?.rows || []).map(row => [String(row.ts_code), row]));
       const legacyProjection = state.index === 0 &&
         state.currentLegacyProfitRelativeResearch?.signal_date === contract.signal_date &&
         state.currentLegacyProfitRelativeResearch?.top10_members_sha256 === contract.top10_members_sha256
@@ -3027,15 +3280,16 @@
       const tTruthByCode = new Map((tTruth?.rows || []).map(row => [String(row.ts_code), row]));
       const fixedRows = contract.rows.map(row => {
         const truth = truthByCode.get(String(row.ts_code)) || {};
+        const runtimePath = runtimePathByCode.get(String(row.ts_code));
         const legacy = legacyByCode.get(String(row.ts_code));
         const tCloseTruth = tTruthByCode.get(String(row.ts_code));
         return {
           ...truth,
           ...row,
-          path_label: truth.path_label ?? row.path_label ?? null,
-          path_label_code: truth.path_label_code ?? row.path_label_code ?? null,
-          path_explanation: truth.path_explanation ?? row.path_explanation ?? null,
-          path_strength_delta: truth.path_strength_delta ?? row.path_strength_delta ?? null,
+          path_label: runtimePath?.path_label ?? (pathEvidenceInvalid ? "路径证据校验失败" : truth.path_label ?? row.path_label ?? null),
+          path_label_code: runtimePath?.path_label_code ?? (pathEvidenceInvalid ? "EVIDENCE_INVALID" : truth.path_label_code ?? row.path_label_code ?? null),
+          path_explanation: runtimePath?.path_explanation ?? (pathEvidenceInvalid ? state.currentThreeRankPathEvidence.error : truth.path_explanation ?? row.path_explanation ?? null),
+          path_strength_delta: runtimePath?.path_strength_delta ?? (pathEvidenceInvalid ? null : truth.path_strength_delta ?? row.path_strength_delta ?? null),
           continuation_limit_up_hit: tCloseTruth?.continuation_limit_up_hit ?? truth.continuation_limit_up_hit ?? row.continuation_limit_up_hit ?? null,
           validation_status: tCloseTruth?.validation_status ?? truth.validation_status ?? row.validation_status ?? null,
           validation_status_label: tCloseTruth?.validation_status_label ?? truth.validation_status_label ?? row.validation_status_label ?? null,
@@ -3885,6 +4139,7 @@
       try {
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
+        await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);
         await refreshCurrentThreeRankTTruth(state.currentThreeRank);
         await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
         await refreshCurrentExecutableProfitResearch(state.currentThreeRank);

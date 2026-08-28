@@ -3041,3 +3041,173 @@ def test_backfill_has_no_early_history_commit_before_all_gates() -> None:
     assert "Validate exact Backfill candidate in an isolated frozen runtime" in compute
     assert "Persist immutable history before model rebuild" not in text
     assert "git commit" not in compute
+
+
+def test_primary_d_runtime_display_index_is_optional_but_receipt_bound_end_to_end() -> None:
+    text = _text("run_primary_d_daily.yml")
+    compute = text[text.index("  compute:") : text.index("\n  publish:")]
+    target = compute.split(
+        "- name: Resolve exact D and reject a completed duplicate", 1
+    )[1].split("- name: Resolve immutable upstream commits", 1)[0]
+    qualifier = compute.split(
+        "- name: Qualify optional receipt-bound runtime display index", 1
+    )[1].split("- name: Build exact P0 candidate patch", 1)[0]
+    candidate = compute.split("- name: Build exact P0 candidate patch", 1)[1].split(
+        "- name: Upload immutable P0 candidate", 1
+    )[0]
+
+    # A historical pre-index bundle remains complete on its four immutable core files.
+    assert "for path in (json_path, csv_path, runtime_path, receipt_path)" in target
+    assert "primary_d_runtime_index.json" not in target
+    assert "runtime_index_ready: ${{ steps.runtime_index.outputs.runtime_index_ready || 'false' }}" in compute
+
+    contract_keys = (
+        "schema_version",
+        "index_kind",
+        "data_alias",
+        "latest_signal_date",
+        "latest_exec_date",
+        "latest_exit_date",
+        "latest_receipt_url",
+        "latest_receipt_sha256",
+        "latest_runtime_features_url",
+        "latest_runtime_features_sha256",
+        "runtime_feature_row_count",
+        "runtime_selected_count",
+        "runtime_identity_sha256",
+        "latest_feature_snapshot_sha256",
+        "latest_top10_members_sha256",
+        "latest_three_rank_json_url",
+        "latest_three_rank_json_sha256",
+        "latest_three_rank_csv_url",
+        "latest_three_rank_csv_sha256",
+        "latest_bundle_sha256",
+    )
+    for key in contract_keys:
+        assert f"'{key}'" in qualifier
+    for binding in (
+        "dc20_primary_d_runtime_index_v1",
+        "dated_primary_d_runtime_pointer_only",
+        "historical target cannot replace the latest runtime display pointer",
+        "runtime display index SHA/date/member binding drifted",
+        "runtime_identity_sha256",
+        "top10_members_sha256",
+        "feature_snapshot_sha256",
+        "[row['ts_code'] for row in selected]",
+    ):
+        assert binding in qualifier
+    assert "except Exception as exc:" in qualifier
+    assert "runtime_index_ready={'true' if ready else 'false'}" in qualifier
+    assert "core P0 remains publishable" in qualifier
+
+    assert "if [ \"${RUNTIME_INDEX_READY}\" = true ]" in candidate
+    assert "git add -A -- outputs/decision/primary_d_runtime_index.json" in candidate
+    assert "'outputs/decision/primary_d_runtime_index.json'" in candidate
+    required = candidate.split("required={", 1)[1].split("}", 1)[0]
+    assert "primary_d_runtime_index.json" not in required
+    assert "P0 runtime display index staging contract drifted" in candidate
+
+    pages = text[text.index("  deploy-primary-pages:") :]
+    build = pages.split("- name: Build primary-first Decision site", 1)[1].split(
+        "- uses: actions/upload-pages-artifact", 1
+    )[0]
+    public = pages.split(
+        "- name: Accept optional public receipt-bound runtime display index", 1
+    )[1]
+    for binding in (
+        "runtime display index SHA/date/member binding drifted",
+        "runtime display index member order drifted",
+        "primary_d_runtime_index_status",
+        "UNAVAILABLE_NON_BLOCKING",
+        "runtime_index_ready={'true' if runtime_index_ready else 'false'}",
+    ):
+        assert binding in build
+    assert "ip.unlink()" in build
+    assert "excluded from Pages without blocking core P0" in build
+    assert "continue-on-error: true" in public
+    assert "public runtime display SHA/date/member binding drifted" in public
+    assert "EXPECTED_RUNTIME_INDEX_SHA256" in public
+
+
+def test_primary_d_runtime_display_index_qualifier_accepts_only_exact_bound_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    d = "20260826"
+    output = tmp_path / "outputs" / "decision"
+    output.mkdir(parents=True)
+    names = (
+        f"primary_d_receipt_{d}.json",
+        f"primary_d_runtime_features_{d}.csv",
+        f"three_rank_top10_{d}.json",
+        f"three_rank_top10_{d}.csv",
+        "three_rank_index.json",
+    )
+    for name in names:
+        (output / name).write_bytes((ROOT / "outputs" / "decision" / name).read_bytes())
+    receipt_path = output / f"primary_d_receipt_{d}.json"
+    runtime_path = output / f"primary_d_runtime_features_{d}.csv"
+    json_path = output / f"three_rank_top10_{d}.json"
+    csv_path = output / f"three_rank_top10_{d}.csv"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    contract = json.loads(json_path.read_text(encoding="utf-8"))
+    bound = receipt["outputs"]
+    index = {
+        "schema_version": "dc20_primary_d_runtime_index_v1",
+        "index_kind": "dated_primary_d_runtime_pointer_only",
+        "data_alias": False,
+        "latest_signal_date": d,
+        "latest_exec_date": contract["exec_date"],
+        "latest_exit_date": contract["exit_date"],
+        "latest_receipt_url": f"outputs/decision/primary_d_receipt_{d}.json",
+        "latest_receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        "latest_runtime_features_url": f"outputs/decision/primary_d_runtime_features_{d}.csv",
+        "latest_runtime_features_sha256": bound["runtime_features_sha256"],
+        "runtime_feature_row_count": bound["runtime_feature_row_count"],
+        "runtime_selected_count": bound["runtime_selected_count"],
+        "runtime_identity_sha256": bound["runtime_identity_sha256"],
+        "latest_feature_snapshot_sha256": contract["feature_snapshot_sha256"],
+        "latest_top10_members_sha256": contract["top10_members_sha256"],
+        "latest_three_rank_json_url": f"outputs/decision/three_rank_top10_{d}.json",
+        "latest_three_rank_json_sha256": bound["json_sha256"],
+        "latest_three_rank_csv_url": f"outputs/decision/three_rank_top10_{d}.csv",
+        "latest_three_rank_csv_sha256": bound["csv_sha256"],
+        "latest_bundle_sha256": contract["bundle_sha256"],
+    }
+    index_path = output / "primary_d_runtime_index.json"
+    source = _embedded_python_after(
+        _text("run_primary_d_daily.yml"),
+        "- name: Qualify optional receipt-bound runtime display index",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SIGNAL_DATE", d)
+
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+    valid_output = tmp_path / "valid-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(valid_output))
+    exec(compile(source, "<valid-runtime-display-index>", "exec"), {})
+    assert valid_output.read_text(encoding="utf-8") == "runtime_index_ready=true\n"
+
+    three_rank_index_path = output / "three_rank_index.json"
+    three_rank_index = json.loads(three_rank_index_path.read_text(encoding="utf-8"))
+    three_rank_index["latest_signal_date"] = "20260827"
+    three_rank_index_path.write_text(json.dumps(three_rank_index), encoding="utf-8")
+    historical_output = tmp_path / "historical-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(historical_output))
+    exec(compile(source, "<historical-runtime-display-index>", "exec"), {})
+    assert historical_output.read_text(encoding="utf-8") == "runtime_index_ready=false\n"
+    three_rank_index["latest_signal_date"] = d
+    three_rank_index_path.write_text(json.dumps(three_rank_index), encoding="utf-8")
+
+    index["latest_top10_members_sha256"] = "0" * 64
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+    invalid_output = tmp_path / "invalid-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(invalid_output))
+    exec(compile(source, "<invalid-runtime-display-index>", "exec"), {})
+    assert invalid_output.read_text(encoding="utf-8") == "runtime_index_ready=false\n"
+
+    index_path.unlink()
+    missing_output = tmp_path / "missing-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(missing_output))
+    exec(compile(source, "<missing-runtime-display-index>", "exec"), {})
+    assert missing_output.read_text(encoding="utf-8") == "runtime_index_ready=false\n"

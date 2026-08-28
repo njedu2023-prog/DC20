@@ -138,6 +138,7 @@ jobs:
       already_complete: ${{ steps.target.outputs.already_complete || 'false' }}
       signal_date: ${{ steps.target.outputs.signal_date }}
       generation_mode: ${{ steps.target.outputs.generation_mode }}
+      runtime_index_ready: ${{ steps.runtime_index.outputs.runtime_index_ready || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -656,11 +657,142 @@ jobs:
             > "${RUNNER_TEMP}/protected-after.bin"
           cmp "${RUNNER_TEMP}/protected-before.bin" "${RUNNER_TEMP}/protected-after.bin"
 
+      - name: Qualify optional receipt-bound runtime display index
+        id: runtime_index
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, hashlib, json, os
+          from pathlib import Path
+
+          d = os.environ['SIGNAL_DATE']
+          output = Path('outputs/decision')
+          index_path = output / 'primary_d_runtime_index.json'
+          expected_keys = {
+              'schema_version','index_kind','data_alias','latest_signal_date','latest_exec_date',
+              'latest_exit_date','latest_receipt_url','latest_receipt_sha256',
+              'latest_runtime_features_url','latest_runtime_features_sha256',
+              'runtime_feature_row_count','runtime_selected_count','runtime_identity_sha256',
+              'latest_feature_snapshot_sha256','latest_top10_members_sha256',
+              'latest_three_rank_json_url','latest_three_rank_json_sha256',
+              'latest_three_rank_csv_url','latest_three_rank_csv_sha256','latest_bundle_sha256',
+          }
+
+          def sha(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def fail(message):
+              raise ValueError(message)
+
+          ready = False
+          reason = 'runtime display index was not generated; core P0 remains publishable'
+          try:
+              if index_path.is_symlink() or not index_path.is_file():
+                  fail(reason)
+              index = json.loads(index_path.read_text(encoding='utf-8'))
+              if not isinstance(index, dict) or set(index) != expected_keys:
+                  fail('runtime display index key contract drifted')
+              if index.get('latest_signal_date') != d:
+                  fail('runtime display index is not exact target D')
+              if (
+                  index.get('schema_version') != 'dc20_primary_d_runtime_index_v1'
+                  or index.get('index_kind') != 'dated_primary_d_runtime_pointer_only'
+                  or index.get('data_alias') is not False
+              ):
+                  fail('runtime display index identity drifted')
+
+              receipt_path = output / f'primary_d_receipt_{d}.json'
+              runtime_path = output / f'primary_d_runtime_features_{d}.csv'
+              json_path = output / f'three_rank_top10_{d}.json'
+              csv_path = output / f'three_rank_top10_{d}.csv'
+              three_rank_index_path = output / 'three_rank_index.json'
+              for path in (receipt_path, runtime_path, json_path, csv_path, three_rank_index_path):
+                  if path.is_symlink() or not path.is_file():
+                      fail(f'runtime display binding is missing: {path}')
+              receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+              contract = json.loads(json_path.read_text(encoding='utf-8'))
+              three_rank_index = json.loads(three_rank_index_path.read_text(encoding='utf-8'))
+              if three_rank_index.get('latest_signal_date') != d:
+                  fail('historical target cannot replace the latest runtime display pointer')
+              bound = receipt.get('outputs') or {}
+              with runtime_path.open(encoding='utf-8', newline='') as handle:
+                  runtime = list(csv.DictReader(handle))
+              required_columns = {
+                  'identity','signal_date','ts_code','stage_transition','feature_snapshot_sha256',
+                  'top10_selected','promotion_rank','path_label','path_label_code',
+                  'path_strength_delta','path_explanation',
+              }
+              if not runtime or not required_columns.issubset(runtime[0]):
+                  fail('runtime display columns are incomplete')
+              selected = sorted(
+                  (row for row in runtime if row['top10_selected'] == '1'),
+                  key=lambda row: int(row['promotion_rank']),
+              )
+              identity_rows = [{
+                  'identity': row['identity'],
+                  'ts_code': row['ts_code'],
+                  'stage_transition': row['stage_transition'],
+                  'top10_selected': int(row['top10_selected']),
+                  'promotion_rank': int(row['promotion_rank']),
+              } for row in sorted(runtime, key=lambda row: row['ts_code'])]
+              identity_sha = hashlib.sha256(json.dumps({
+                  'schema':'dc20_primary_d_runtime_identity_v1','signal_date':d,'rows':identity_rows,
+              }, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+              expected_paths = {
+                  'latest_receipt_url': f'outputs/decision/primary_d_receipt_{d}.json',
+                  'latest_runtime_features_url': f'outputs/decision/primary_d_runtime_features_{d}.csv',
+                  'latest_three_rank_json_url': f'outputs/decision/three_rank_top10_{d}.json',
+                  'latest_three_rank_csv_url': f'outputs/decision/three_rank_top10_{d}.csv',
+              }
+              if any(index.get(key) != value for key, value in expected_paths.items()):
+                  fail('runtime display index path binding drifted')
+              if (
+                  receipt.get('signal_date') != d
+                  or contract.get('signal_date') != d
+                  or index.get('latest_exec_date') != contract.get('exec_date')
+                  or index.get('latest_exit_date') != contract.get('exit_date')
+                  or index.get('latest_exec_date') != receipt.get('exec_date')
+                  or index.get('latest_exit_date') != receipt.get('exit_date')
+                  or index.get('latest_receipt_sha256') != sha(receipt_path)
+                  or index.get('latest_runtime_features_sha256') != sha(runtime_path)
+                  or index.get('latest_three_rank_json_sha256') != sha(json_path)
+                  or index.get('latest_three_rank_csv_sha256') != sha(csv_path)
+                  or index.get('runtime_feature_row_count') != len(runtime)
+                  or index.get('runtime_selected_count') != len(selected)
+                  or index.get('runtime_identity_sha256') != identity_sha
+                  or index.get('latest_feature_snapshot_sha256') != contract.get('feature_snapshot_sha256')
+                  or index.get('latest_top10_members_sha256') != contract.get('top10_members_sha256')
+                  or index.get('latest_bundle_sha256') != contract.get('bundle_sha256')
+                  or bound.get('runtime_features_sha256') != index.get('latest_runtime_features_sha256')
+                  or bound.get('runtime_feature_row_count') != len(runtime)
+                  or bound.get('runtime_selected_count') != len(selected)
+                  or bound.get('runtime_identity_sha256') != identity_sha
+                  or bound.get('json_sha256') != index.get('latest_three_rank_json_sha256')
+                  or bound.get('csv_sha256') != index.get('latest_three_rank_csv_sha256')
+                  or bound.get('top10_members_sha256') != index.get('latest_top10_members_sha256')
+                  or [row['ts_code'] for row in selected] != [str(row.get('ts_code') or '') for row in contract.get('rows') or []]
+                  or any(row['signal_date'] != d for row in runtime)
+                  or any(row['feature_snapshot_sha256'] != contract.get('feature_snapshot_sha256') for row in runtime)
+              ):
+                  fail('runtime display index SHA/date/member binding drifted')
+              ready = True
+              reason = 'exact-D receipt-bound runtime display index qualified'
+          except Exception as exc:
+              reason = str(exc)
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+              handle.write(f"runtime_index_ready={'true' if ready else 'false'}\n")
+          level = 'notice' if ready else 'warning'
+          print(f'::{level}::P0 runtime display sidecar: {reason}')
+          PY
+
       - name: Build exact P0 candidate patch
         id: candidate
         if: ${{ steps.target.outputs.already_complete != 'true' }}
         env:
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          RUNTIME_INDEX_READY: ${{ steps.runtime_index.outputs.runtime_index_ready || 'false' }}
         run: |
           set -euo pipefail
           year="${SIGNAL_DATE:0:4}"
@@ -675,6 +807,9 @@ jobs:
             "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv" \
             outputs/decision/three_rank_index.json \
             "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json"
+          if [ "${RUNTIME_INDEX_READY}" = true ]; then
+            git add -A -- outputs/decision/primary_d_runtime_index.json
+          fi
           git diff --cached --name-only -z > "${RUNNER_TEMP}/primary-d-paths.bin"
           SIGNAL_DATE="${SIGNAL_DATE}" PATHS="${RUNNER_TEMP}/primary-d-paths.bin" python - <<'PY'
           import os
@@ -687,7 +822,8 @@ jobs:
               f'data/pred/archive/pred_source_{d}.csv','data/market/trade_cal_sse.csv',
               f'outputs/decision/three_rank_top10_{d}.json',f'outputs/decision/three_rank_top10_{d}.csv',
               f'outputs/decision/primary_d_runtime_features_{d}.csv',
-              'outputs/decision/three_rank_index.json',f'outputs/decision/primary_d_receipt_{d}.json',
+              'outputs/decision/three_rank_index.json','outputs/decision/primary_d_runtime_index.json',
+              f'outputs/decision/primary_d_receipt_{d}.json',
           }
           bad=[p for p in paths if p not in exact and not p.startswith(prefixes)]
           required={
@@ -698,6 +834,9 @@ jobs:
           }
           if bad: raise SystemExit(f'non-P0 path staged: {bad}')
           if not required.issubset(paths): raise SystemExit('P0 candidate lacks the immutable dated bundle')
+          runtime_index_ready=os.environ.get('RUNTIME_INDEX_READY') == 'true'
+          if runtime_index_ready != ('outputs/decision/primary_d_runtime_index.json' in paths):
+              raise SystemExit('P0 runtime display index staging contract drifted')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/primary-d.patch"
           sha256sum "${RUNNER_TEMP}/primary-d.patch" | cut -d' ' -f1 > "${RUNNER_TEMP}/primary-d.patch.sha256"
@@ -810,10 +949,12 @@ jobs:
           python -m pip check
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Build primary-first Decision site
+        id: site
         env:
           SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
           GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}
           HEAD_SHA: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+          RUNTIME_INDEX_EXPECTED: ${{ needs.compute.outputs.runtime_index_ready || 'false' }}
         run: |
           set -euo pipefail
           mkdir -p _site/outputs
@@ -860,13 +1001,80 @@ jobs:
               or int(selected.fillna(0).sum()) != int(contract.get('top10_count') or 0)
               or (len(runtime) and not runtime['feature_snapshot_sha256'].astype(str).eq(contract.get('feature_snapshot_sha256')).all())
           ): raise SystemExit('primary Pages runtime/bundle hash drifted')
+          runtime_index_ready=False
+          runtime_index_sha=''
+          ip=output/'primary_d_runtime_index.json'
+          expected_runtime_index=os.environ.get('RUNTIME_INDEX_EXPECTED') == 'true'
+          preview={}
+          if ip.is_file() and not ip.is_symlink():
+              try:
+                  loaded_preview=json.loads(ip.read_text(encoding='utf-8'))
+                  preview=loaded_preview if isinstance(loaded_preview,dict) else {}
+              except Exception: preview={}
+          if expected_runtime_index or preview.get('latest_signal_date') == d:
+              try:
+                  expected_keys={
+                      'schema_version','index_kind','data_alias','latest_signal_date','latest_exec_date',
+                      'latest_exit_date','latest_receipt_url','latest_receipt_sha256',
+                      'latest_runtime_features_url','latest_runtime_features_sha256',
+                      'runtime_feature_row_count','runtime_selected_count','runtime_identity_sha256',
+                      'latest_feature_snapshot_sha256','latest_top10_members_sha256',
+                      'latest_three_rank_json_url','latest_three_rank_json_sha256',
+                      'latest_three_rank_csv_url','latest_three_rank_csv_sha256','latest_bundle_sha256',
+                  }
+                  if ip.is_symlink() or not ip.is_file(): raise ValueError('runtime display index missing')
+                  runtime_index=json.loads(ip.read_text(encoding='utf-8'))
+                  if set(runtime_index) != expected_keys: raise ValueError('runtime display index keys drifted')
+                  expected_paths={
+                      'latest_receipt_url':f'outputs/decision/primary_d_receipt_{d}.json',
+                      'latest_runtime_features_url':f'outputs/decision/primary_d_runtime_features_{d}.csv',
+                      'latest_three_rank_json_url':f'outputs/decision/three_rank_top10_{d}.json',
+                      'latest_three_rank_csv_url':f'outputs/decision/three_rank_top10_{d}.csv',
+                  }
+                  if any(runtime_index.get(key) != value for key,value in expected_paths.items()): raise ValueError('runtime display index paths drifted')
+                  if (
+                      runtime_index.get('schema_version') != 'dc20_primary_d_runtime_index_v1'
+                      or runtime_index.get('index_kind') != 'dated_primary_d_runtime_pointer_only'
+                      or runtime_index.get('data_alias') is not False
+                      or runtime_index.get('latest_signal_date') != d
+                      or runtime_index.get('latest_exec_date') != contract.get('exec_date')
+                      or runtime_index.get('latest_exit_date') != contract.get('exit_date')
+                      or runtime_index.get('latest_exec_date') != receipt.get('exec_date')
+                      or runtime_index.get('latest_exit_date') != receipt.get('exit_date')
+                      or runtime_index.get('latest_receipt_sha256') != hashlib.sha256(rp.read_bytes()).hexdigest()
+                      or runtime_index.get('latest_runtime_features_sha256') != hashlib.sha256(fp.read_bytes()).hexdigest()
+                      or runtime_index.get('latest_three_rank_json_sha256') != hashlib.sha256(jp.read_bytes()).hexdigest()
+                      or runtime_index.get('latest_three_rank_csv_sha256') != hashlib.sha256(cp.read_bytes()).hexdigest()
+                      or runtime_index.get('runtime_feature_row_count') != len(runtime)
+                      or runtime_index.get('runtime_selected_count') != int(selected.fillna(0).sum())
+                      or runtime_index.get('runtime_identity_sha256') != identity_sha
+                      or runtime_index.get('latest_feature_snapshot_sha256') != contract.get('feature_snapshot_sha256')
+                      or runtime_index.get('latest_top10_members_sha256') != contract.get('top10_members_sha256')
+                      or runtime_index.get('latest_bundle_sha256') != contract.get('bundle_sha256')
+                      or bound.get('runtime_features_sha256') != runtime_index.get('latest_runtime_features_sha256')
+                      or bound.get('runtime_identity_sha256') != runtime_index.get('runtime_identity_sha256')
+                      or bound.get('json_sha256') != runtime_index.get('latest_three_rank_json_sha256')
+                      or bound.get('csv_sha256') != runtime_index.get('latest_three_rank_csv_sha256')
+                      or bound.get('top10_members_sha256') != runtime_index.get('latest_top10_members_sha256')
+                  ): raise ValueError('runtime display index SHA/date/member binding drifted')
+                  selected_order=runtime.loc[selected.eq(1)].sort_values('promotion_rank',kind='stable')['ts_code'].astype(str).tolist()
+                  contract_order=[str(row.get('ts_code') or '') for row in contract.get('rows') or []]
+                  if selected_order != contract_order: raise ValueError('runtime display index member order drifted')
+                  runtime_index_ready=True
+                  runtime_index_sha=hashlib.sha256(ip.read_bytes()).hexdigest()
+              except Exception as exc:
+                  if ip.exists() or ip.is_symlink(): ip.unlink()
+                  print(f'::warning::runtime display index excluded from Pages without blocking core P0: {exc}')
           report_date=''
           report_index=output/'report_index.json'
           if report_index.is_file(): report_date=str(json.loads(report_index.read_text(encoding='utf-8')).get('latest_report_date') or '')
           revision={
-              'schema_version':'decision_pages_revision_v4_primary_first','system_name':'DC2.0','repository':os.environ['GITHUB_REPOSITORY'],'branch':'main','head_sha':os.environ['HEAD_SHA'],'run_id':int(os.environ['GITHUB_RUN_ID']),'run_attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",'workflow':os.environ['GITHUB_WORKFLOW'],'event_name':os.environ['GITHUB_EVENT_NAME'],'signal_date':latest,'primary_d_signal_date':d,'primary_d_status':'READY','primary_d_generation_mode':os.environ['GENERATION_MODE'],'primary_d_bundle_sha256':contract['bundle_sha256'],'primary_d_top10_count':contract['top10_count'],'primary_d_receipt_url':f'outputs/decision/primary_d_receipt_{d}.json','report_date':report_date,'published_at_utc':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
+              'schema_version':'decision_pages_revision_v4_primary_first','system_name':'DC2.0','repository':os.environ['GITHUB_REPOSITORY'],'branch':'main','head_sha':os.environ['HEAD_SHA'],'run_id':int(os.environ['GITHUB_RUN_ID']),'run_attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",'workflow':os.environ['GITHUB_WORKFLOW'],'event_name':os.environ['GITHUB_EVENT_NAME'],'signal_date':latest,'primary_d_signal_date':d,'primary_d_status':'READY','primary_d_generation_mode':os.environ['GENERATION_MODE'],'primary_d_bundle_sha256':contract['bundle_sha256'],'primary_d_top10_count':contract['top10_count'],'primary_d_receipt_url':f'outputs/decision/primary_d_receipt_{d}.json','primary_d_runtime_index_status':'READY' if runtime_index_ready else 'UNAVAILABLE_NON_BLOCKING','primary_d_runtime_index_url':'outputs/decision/primary_d_runtime_index.json' if runtime_index_ready else '','primary_d_runtime_index_sha256':runtime_index_sha,'report_date':report_date,'published_at_utc':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
           }
           (root/'revision.json').write_text(json.dumps(revision,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a',encoding='utf-8') as handle:
+              handle.write(f"runtime_index_ready={'true' if runtime_index_ready else 'false'}\n")
+              handle.write(f'runtime_index_sha256={runtime_index_sha}\n')
           PY
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
@@ -894,3 +1102,93 @@ jobs:
           curl -fsSL "${base}/outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" >/dev/null
           curl -fsSL "${base}/outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" >/dev/null
           curl -fsSL "${base}/outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json?run=${GITHUB_RUN_ID}" >/dev/null
+
+      - name: Accept optional public receipt-bound runtime display index
+        if: ${{ steps.site.outputs.runtime_index_ready == 'true' }}
+        continue-on-error: true
+        env:
+          EXPECTED_RUNTIME_INDEX_SHA256: ${{ steps.site.outputs.runtime_index_sha256 }}
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
+        run: |
+          set -euo pipefail
+          public_dir="$(mktemp -d)"
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          curl -fsSL "${base}/outputs/decision/primary_d_runtime_index.json?run=${GITHUB_RUN_ID}" -o "${public_dir}/index.json"
+          curl -fsSL "${base}/outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json?run=${GITHUB_RUN_ID}" -o "${public_dir}/receipt.json"
+          curl -fsSL "${base}/outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" -o "${public_dir}/runtime.csv"
+          curl -fsSL "${base}/outputs/decision/three_rank_top10_${SIGNAL_DATE}.json?run=${GITHUB_RUN_ID}" -o "${public_dir}/three-rank.json"
+          curl -fsSL "${base}/outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv?run=${GITHUB_RUN_ID}" -o "${public_dir}/three-rank.csv"
+          PUBLIC_DIR="${public_dir}" python - <<'PY'
+          import csv, hashlib, json, os
+          from pathlib import Path
+
+          root=Path(os.environ['PUBLIC_DIR']); d=os.environ['SIGNAL_DATE']
+          ip=root/'index.json'; rp=root/'receipt.json'; fp=root/'runtime.csv'; jp=root/'three-rank.json'; cp=root/'three-rank.csv'
+          sha=lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          index=json.loads(ip.read_text(encoding='utf-8')); receipt=json.loads(rp.read_text(encoding='utf-8')); contract=json.loads(jp.read_text(encoding='utf-8'))
+          expected_keys={
+              'schema_version','index_kind','data_alias','latest_signal_date','latest_exec_date',
+              'latest_exit_date','latest_receipt_url','latest_receipt_sha256',
+              'latest_runtime_features_url','latest_runtime_features_sha256',
+              'runtime_feature_row_count','runtime_selected_count','runtime_identity_sha256',
+              'latest_feature_snapshot_sha256','latest_top10_members_sha256',
+              'latest_three_rank_json_url','latest_three_rank_json_sha256',
+              'latest_three_rank_csv_url','latest_three_rank_csv_sha256','latest_bundle_sha256',
+          }
+          if set(index) != expected_keys or sha(ip) != os.environ['EXPECTED_RUNTIME_INDEX_SHA256']:
+              raise SystemExit('public runtime display index identity or byte SHA drifted')
+          with fp.open(encoding='utf-8',newline='') as handle: runtime=list(csv.DictReader(handle))
+          required={
+              'identity','signal_date','ts_code','stage_transition','feature_snapshot_sha256',
+              'top10_selected','promotion_rank','path_label','path_label_code',
+              'path_strength_delta','path_explanation',
+          }
+          if not runtime or not required.issubset(runtime[0]): raise SystemExit('public runtime display columns are incomplete')
+          selected=sorted((row for row in runtime if row['top10_selected']=='1'),key=lambda row:int(row['promotion_rank']))
+          identity_rows=[{
+              'identity':row['identity'],'ts_code':row['ts_code'],'stage_transition':row['stage_transition'],
+              'top10_selected':int(row['top10_selected']),'promotion_rank':int(row['promotion_rank']),
+          } for row in sorted(runtime,key=lambda row:row['ts_code'])]
+          identity_sha=hashlib.sha256(json.dumps({
+              'schema':'dc20_primary_d_runtime_identity_v1','signal_date':d,'rows':identity_rows,
+          },ensure_ascii=False,allow_nan=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          bound=receipt.get('outputs') or {}
+          expected_paths={
+              'latest_receipt_url':f'outputs/decision/primary_d_receipt_{d}.json',
+              'latest_runtime_features_url':f'outputs/decision/primary_d_runtime_features_{d}.csv',
+              'latest_three_rank_json_url':f'outputs/decision/three_rank_top10_{d}.json',
+              'latest_three_rank_csv_url':f'outputs/decision/three_rank_top10_{d}.csv',
+          }
+          if any(index.get(key) != value for key,value in expected_paths.items()): raise SystemExit('public runtime display paths drifted')
+          if (
+              index.get('schema_version') != 'dc20_primary_d_runtime_index_v1'
+              or index.get('index_kind') != 'dated_primary_d_runtime_pointer_only'
+              or index.get('data_alias') is not False
+              or index.get('latest_signal_date') != d
+              or contract.get('signal_date') != d
+              or receipt.get('signal_date') != d
+              or index.get('latest_exec_date') != contract.get('exec_date')
+              or index.get('latest_exit_date') != contract.get('exit_date')
+              or index.get('latest_exec_date') != receipt.get('exec_date')
+              or index.get('latest_exit_date') != receipt.get('exit_date')
+              or index.get('latest_receipt_sha256') != sha(rp)
+              or index.get('latest_runtime_features_sha256') != sha(fp)
+              or index.get('latest_three_rank_json_sha256') != sha(jp)
+              or index.get('latest_three_rank_csv_sha256') != sha(cp)
+              or index.get('runtime_feature_row_count') != len(runtime)
+              or index.get('runtime_selected_count') != len(selected)
+              or index.get('runtime_identity_sha256') != identity_sha
+              or index.get('latest_feature_snapshot_sha256') != contract.get('feature_snapshot_sha256')
+              or index.get('latest_top10_members_sha256') != contract.get('top10_members_sha256')
+              or index.get('latest_bundle_sha256') != contract.get('bundle_sha256')
+              or bound.get('runtime_features_sha256') != index.get('latest_runtime_features_sha256')
+              or bound.get('runtime_identity_sha256') != identity_sha
+              or bound.get('json_sha256') != index.get('latest_three_rank_json_sha256')
+              or bound.get('csv_sha256') != index.get('latest_three_rank_csv_sha256')
+              or bound.get('top10_members_sha256') != index.get('latest_top10_members_sha256')
+              or [row['ts_code'] for row in selected] != [str(row.get('ts_code') or '') for row in contract.get('rows') or []]
+              or any(row['signal_date'] != d for row in runtime)
+              or any(row['feature_snapshot_sha256'] != contract.get('feature_snapshot_sha256') for row in runtime)
+          ): raise SystemExit('public runtime display SHA/date/member binding drifted')
+          print('public optional runtime display index accepted')
+          PY

@@ -104,6 +104,158 @@ def test_latest_three_rank_t_close_truth_is_exact_date_bound_and_read_only() -> 
     assert "tCloseTruth?.promotion_rank" not in renderer
 
 
+def test_d27_primary_path_evidence_is_runtime_index_and_sha_bound() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+    loader = text.split(
+        "async function loadCurrentThreeRankPathEvidence", 1
+    )[1].split("async function refreshCurrentThreeRankPathEvidence", 1)[0]
+
+    # D27 exposed that the immutable three-rank projection omits the path
+    # annotation even though the P0 runtime snapshot contains it.  The public
+    # page may recover that annotation only through the P0-owned, SHA-bound
+    # runtime pointer; deriving a dated filename or reading an old Action is
+    # not a sufficient source contract.
+    for token in (
+        'path: "outputs/decision/primary_d_runtime_index.json"',
+        'schema: "dc20_primary_d_runtime_index_v1"',
+        'kind: "dated_primary_d_runtime_pointer_only"',
+        "fetchPublishedBytes(PRIMARY_D_RUNTIME_INDEX.path)",
+        "exactObjectKeys(runtimeIndex, PRIMARY_D_RUNTIME_INDEX.keys)",
+        "runtimeIndex.data_alias !== false",
+        "runtimeIndex.latest_signal_date !== signalDate",
+        "runtimeIndex.latest_exec_date !== contract.exec_date",
+        "runtimeIndex.latest_exit_date !== contract.exit_date",
+        "runtimeIndex.latest_receipt_url !== receiptPath",
+        "runtimeIndex.latest_runtime_features_url !== runtimePath",
+        "runtimeIndex.latest_three_rank_json_url !== threeRankJsonPath",
+        "runtimeIndex.latest_three_rank_csv_url !== threeRankCsvPath",
+        "runtimeIndex.latest_feature_snapshot_sha256 !== contract.feature_snapshot_sha256",
+        "runtimeIndex.latest_top10_members_sha256 !== contract.top10_members_sha256",
+        "runtimeIndex.latest_bundle_sha256 !== contract.bundle_sha256",
+        "runtimeIndex.latest_three_rank_json_sha256 !== sourceIndex?.json_sha256",
+        "runtimeIndex.latest_three_rank_csv_sha256 !== sourceIndex?.csv_sha256",
+        "fetchPublishedBytes(runtimeIndex.latest_receipt_url)",
+        "await sha256Hex(receiptBytes) !== runtimeIndex.latest_receipt_sha256",
+        "outputs.runtime_features_sha256 !== runtimeIndex.latest_runtime_features_sha256",
+        "outputs.runtime_identity_sha256 !== runtimeIndex.runtime_identity_sha256",
+        "outputs.runtime_feature_row_count !== runtimeIndex.runtime_feature_row_count",
+        "outputs.runtime_selected_count !== runtimeIndex.runtime_selected_count",
+        "await sha256Hex(runtimeBytes) !== outputs.runtime_features_sha256",
+    ):
+        assert token in text
+
+    # The normal D27 surface requires all path evidence columns and exposes
+    # only the selected rows after label/coverage/delta validation.
+    for token in (
+        '"path_days_observed", "path_data_coverage", "path_strength_latest"',
+        '"path_strength_delta", "path_label_code", "path_label"',
+        '"path_explanation"',
+        'code !== "INSUFFICIENT"',
+        "daysObserved < 2",
+        "coverage < 0.35",
+        "latestStrength == null",
+        "strengthDelta == null",
+        'status: "VALID"',
+        "feature_snapshot_sha256: contract.feature_snapshot_sha256",
+        "top10_members_sha256: contract.top10_members_sha256",
+        "rows: pathRows",
+    ):
+        assert token in loader
+
+
+def test_primary_path_evidence_wrong_date_tamper_and_members_fail_closed() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+    loader = text.split(
+        "async function loadCurrentThreeRankPathEvidence", 1
+    )[1].split("async function refreshCurrentThreeRankPathEvidence", 1)[0]
+    refresh = text.split(
+        "async function refreshCurrentThreeRankPathEvidence", 1
+    )[1].split("async function loadCurrentThreeRankTTruth", 1)[0]
+
+    # Wrong D/T/T+1, a changed receipt/runtime byte stream, a changed runtime
+    # identity, or a different selected member/order must all reject the whole
+    # annotation.  Partial rows must never be rendered as if they were valid.
+    for token in (
+        'throw new Error("P0路径索引没有严格绑定当前D日、三排名与runtime")',
+        'throw new Error("P0路径receipt字节SHA256与索引不一致")',
+        'throw new Error("P0路径receipt身份、日期或无Action边界无效")',
+        'throw new Error("P0路径receipt没有绑定当前三排名与runtime")',
+        'throw new Error("P0路径runtime字节SHA256不一致")',
+        'throw new Error("P0路径runtime行数与receipt不一致")',
+        'throw new Error("P0路径runtime日期、身份或晋级字段无效")',
+        'throw new Error("P0路径runtime晋级排名不是完整1..N")',
+        'throw new Error("P0路径runtime identity SHA256不一致")',
+        'throw new Error("P0路径runtime与冻结TopN成员或晋级顺序不一致")',
+    ):
+        assert token in loader
+    assert "row.signal_date !== signalDate" in loader
+    assert "row.feature_snapshot_sha256 !== contract.feature_snapshot_sha256" in loader
+    assert "selectedRows.length !== contract.rows.length" in loader
+    assert "row.ts_code !== contract.rows[index].ts_code" in loader
+    assert "Number(row.promotion_rank) !== contract.rows[index].promotion_rank" in loader
+    assert "row.stage_transition !== contract.rows[index].stage_transition" in loader
+    assert 'status: "INVALID"' in refresh
+    assert "signal_date: canonicalYmd(contract?.signal_date)" in refresh
+    assert "state.currentThreeRankPathEvidence = {" in refresh
+
+
+def test_d27_valid_runtime_path_precedes_legacy_truth_and_core_fallback() -> None:
+    text = (ROOT / "decision.html").read_text(encoding="utf-8")
+    renderer = text.split("function renderThreeRankWatchlist", 1)[1].split(
+        "function renderStageWatchlist", 1
+    )[0]
+
+    assert 'state.currentThreeRankPathEvidence?.status === "VALID"' in renderer
+    assert (
+        "state.currentThreeRankPathEvidence?.signal_date === contract.signal_date"
+        in renderer
+    )
+    assert (
+        "state.currentThreeRankPathEvidence?.feature_snapshot_sha256 "
+        "=== contract.feature_snapshot_sha256"
+    ) in renderer
+    assert (
+        "state.currentThreeRankPathEvidence?.top10_members_sha256 "
+        "=== contract.top10_members_sha256"
+    ) in renderer
+    assert (
+        "const runtimePathByCode = new Map((pathEvidence?.rows || [])"
+        ".map(row => [String(row.ts_code), row]));"
+    ) in renderer
+    assert "const runtimePath = runtimePathByCode.get(String(row.ts_code));" in renderer
+    assert (
+        'path_label: runtimePath?.path_label ?? (pathEvidenceInvalid ? '
+        '"路径证据校验失败" : truth.path_label ?? row.path_label ?? null)'
+    ) in renderer
+    assert (
+        'path_label_code: runtimePath?.path_label_code ?? (pathEvidenceInvalid ? '
+        '"EVIDENCE_INVALID" : truth.path_label_code ?? row.path_label_code ?? null)'
+    ) in renderer
+    assert (
+        "path_explanation: runtimePath?.path_explanation ?? "
+        "(pathEvidenceInvalid ? state.currentThreeRankPathEvidence.error : "
+        "truth.path_explanation ?? row.path_explanation ?? null)"
+    ) in renderer
+    assert (
+        "path_strength_delta: runtimePath?.path_strength_delta ?? "
+        "(pathEvidenceInvalid ? null : truth.path_strength_delta ?? "
+        "row.path_strength_delta ?? null)"
+    ) in renderer
+
+    # Only the four allowlisted path annotations may have runtime precedence;
+    # D27's immutable membership and model outputs remain authoritative.
+    for forbidden in (
+        "runtimePath?.promotion_rank",
+        "runtimePath?.predicted_promotion_probability",
+        "runtimePath?.legacy_profit_relative_rank",
+        "runtimePath?.continuation_limit_up_hit",
+    ):
+        assert forbidden not in renderer
+    assert 'state.currentThreeRankPathEvidence?.status === "INVALID"' in renderer
+    assert '"路径证据校验失败"' in renderer
+    assert '"EVIDENCE_INVALID"' in renderer
+
+
 def test_daily_and_auction_writers_allow_exact_dated_three_rank_artifacts() -> None:
     daily = (ROOT / ".github/workflows/run_decision_daily.yml").read_text(
         encoding="utf-8"
@@ -262,12 +414,19 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
         in stage_renderer
     )
     assert "renderThreeRankWatchlist(truthPlan, threeRank)" in stage_renderer
-    assert "path_label: truth.path_label ?? row.path_label ?? null" in renderer
-    assert "path_label_code: truth.path_label_code ?? row.path_label_code ?? null" in renderer
-    assert "path_explanation: truth.path_explanation ?? row.path_explanation ?? null" in renderer
+    assert "path_label: runtimePath?.path_label ?? (pathEvidenceInvalid" in renderer
     assert (
-        "path_strength_delta: truth.path_strength_delta "
-        "?? row.path_strength_delta ?? null"
+        "path_label_code: runtimePath?.path_label_code ?? (pathEvidenceInvalid"
+        in renderer
+    )
+    assert (
+        "path_explanation: runtimePath?.path_explanation ?? (pathEvidenceInvalid"
+        in renderer
+    )
+    assert (
+        "path_strength_delta: runtimePath?.path_strength_delta ?? "
+        "(pathEvidenceInvalid ? null : truth.path_strength_delta ?? "
+        "row.path_strength_delta ?? null)"
     ) in renderer
     assert "valueTone(row.path_strength_delta)" in renderer
     assert "signedPct(row.path_strength_delta)" in renderer
