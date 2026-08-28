@@ -11,10 +11,10 @@ on:
       - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
       - data/decision_executable_profit/forward/selections/primary_mixed_index.json
-      - data/decision_executable_profit/forward/selections/shadow_20??????.json
-      - data/decision_executable_profit/forward/selections/shadow_20??????.csv
-      - data/decision_executable_profit/forward/verifications/t_verification_20??????.json
-      - data/decision_executable_profit/forward/settlements/settlement_20??????.json
+      - data/decision_executable_profit/forward/selections/shadow_*.json
+      - data/decision_executable_profit/forward/selections/shadow_*.csv
+      - data/decision_executable_profit/forward/verifications/t_verification_*.json
+      - data/decision_executable_profit/forward/settlements/settlement_*.json
       - data/decision_executable_profit/forward/statistics/summary.json
       - models/decision_model_freeze.json
       - models/decision_primary_profit_forward_shadow_bridge_contract.json

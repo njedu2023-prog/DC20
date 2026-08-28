@@ -188,6 +188,7 @@ def _prepare_repo(
         for row in selection_rows[: min(2, count)]
     ]
     selection: dict = {
+        "schema_version": shadow.SCHEMA_VERSION,
         "signal_date": signal_date,
         "exec_date": exec_date,
         "exit_date": exit_date,

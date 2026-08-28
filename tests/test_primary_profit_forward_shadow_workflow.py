@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/run_primary_profit_forward_shadow.yml"
+PAGES_WORKFLOW = ROOT / ".github/workflows/deploy_dc20_pages.yml"
 
 
 def _text() -> str:
@@ -80,3 +81,16 @@ def test_bridge_accepts_an_already_complete_exact_d_as_a_noop() -> None:
     assert "if paths and not required.issubset(paths):" in text
     assert "if not paths or not paths.issubset(expected):" not in text
     assert "has_changes=false" in text
+
+
+def test_pages_push_filters_use_github_supported_globs() -> None:
+    text = PAGES_WORKFLOW.read_text(encoding="utf-8")
+    push_filters = text.split("  workflow_dispatch:", 1)[0]
+    assert "?" not in push_filters
+    for pattern in (
+        "shadow_*.json",
+        "shadow_*.csv",
+        "t_verification_*.json",
+        "settlement_*.json",
+    ):
+        assert pattern in push_filters
