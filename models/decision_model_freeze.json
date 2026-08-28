@@ -624,7 +624,7 @@
     "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
     "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "34766c8b826b889646042e50443938bfb6abfacdc029831739beba94f96e0a19"
+    "evidence_sha256": "1df5547ec1f776ee670ceee0a8027a6311f0e20ac531050d820d7261660f31ef"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -676,7 +676,7 @@
     "models/decision_primary_profit_forward_shadow_bridge_contract.json": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
-    "models/decision_source_surface_rotation_20260824.json": "34766c8b826b889646042e50443938bfb6abfacdc029831739beba94f96e0a19",
+    "models/decision_source_surface_rotation_20260824.json": "1df5547ec1f776ee670ceee0a8027a6311f0e20ac531050d820d7261660f31ef",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -705,7 +705,7 @@
     "scripts/check_tushare_health.py": "c7348a7abf1f1d97eb8f2aeaf0ca41aee25c01dddb1a10b242be309f08192a78",
     "scripts/decision_pages_truth.py": "00286ead9db97b7b69919ec96bc4bf307a3051440171276a8571071bb2d100a3",
     "scripts/diagnose_decision_fingerprint.py": "06c8586ad2af06e191497274a54058c82c603ba4703dac7590acabcdf311d87d",
-    "scripts/freeze_primary_profit_forward_shadow.py": "95dab409af87197767ee96bb714737b01e9c6ae8f7ab15a7b25f89c7b98f3246",
+    "scripts/freeze_primary_profit_forward_shadow.py": "441a5eda73c89b062ea784d6f2d5e12791df8d07ce892f121e2fbc36c3d92490",
     "scripts/import_legacy_research_context.py": "2bfe16245c0ea0992d4f2e1518506d6be3e64ad847e2211df296ce1394d75221",
     "scripts/merge_feedback_to_learning_table.py": "16030d08d58a63de2836085eb83c8db03d3a165e0271324abcec6a1659e6e4e1",
     "scripts/migrate_decision_runtime.py": "8575fa79d953702fca1590d463df921ad01b6a0375bd77f188b4309538cda221",
@@ -829,7 +829,7 @@
     "tests/test_pages_truthfulness_workflow.py": "afd47451e27d5b20d5f00cda1940c208cb8c3776948be5d125b31bd651d27bcc",
     "tests/test_pfill_shadow_pages_truth.py": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",
     "tests/test_primary_profit_forward_shadow_bridge.py": "7d612de285aabc000007072d748a31861a7353c4ba9668ccc4389be53aa2a05e",
-    "tests/test_primary_profit_forward_shadow_workflow.py": "7f24cd6bc3355bd170e79aa943798f457b933445d12d63cb7df3a5c91e600976",
+    "tests/test_primary_profit_forward_shadow_workflow.py": "ab8ec4a998092cf737373e742a7b8c6e2c05ea7cae65db4ece964fafb33c20ca",
     "tests/test_primary_profit_rankings_p1.py": "b947c994cac90c992bc7a5a209d53ba5c7271f19e3330ef31ccd72bf70dc29d6",
     "tests/test_primary_three_rank_p0.py": "b21772f6103b5b73a4d5f20efe77787fb5dabf73fe0b4757e1afe83f15e8fa15",
     "tests/test_promotion_model.py": "b78b313e58c521d97462bdf7120a0d9a07f52ed864f343950f6bf4694a900189",

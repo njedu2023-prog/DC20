@@ -6,10 +6,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/run_primary_profit_forward_shadow.yml"
 PAGES_WORKFLOW = ROOT / ".github/workflows/deploy_dc20_pages.yml"
+FREEZER = ROOT / "scripts/freeze_primary_profit_forward_shadow.py"
 
 
 def _text() -> str:
     return WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_freezer_exposes_repository_root_before_importing_p1_validator() -> None:
+    text = FREEZER.read_text(encoding="utf-8")
+    root_bootstrap = "if str(ROOT) not in sys.path:"
+    bridge_import = (
+        "from top10decision.decision.primary_profit_forward_shadow_bridge import"
+    )
+    assert root_bootstrap in text
+    assert text.index(root_bootstrap) < text.index(bridge_import)
 
 
 def test_bridge_listens_only_to_successful_exact_p1_and_shares_writer() -> None:
