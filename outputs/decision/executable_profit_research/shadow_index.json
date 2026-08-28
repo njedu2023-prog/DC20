@@ -1,0 +1,25 @@
+{
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "data_alias": false,
+  "index_kind": "primary_profit_forward_shadow_public_pointer",
+  "latest_as_of_date": "20260828",
+  "latest_exec_date": "20260831",
+  "latest_exit_date": "20260901",
+  "latest_mixed_projection_sha256": "1441fba2e686f5137de4eaf89e247888e2aacf828f6759332b5676ef087966c3",
+  "latest_selection_identity_sha256": "5d2b133933e1f66f3006f39c10340faaf90b4f830cfb58f8a5244c9f7fd12fca",
+  "latest_signal_date": "20260828",
+  "latest_state_sha256": "9c990fb5ffbd0a1b803bd16073c287c1d969323d20dde888d3fcb8f0db9530f9",
+  "latest_state_snapshot_sha256": "3cdfc87b8df83facef10f6981245cbb68c7f1880800e840e169a22ba041faced",
+  "latest_state_url": "outputs/decision/executable_profit_research/shadow_state_20260828_asof_20260828.json",
+  "schema_version": "dc20_primary_profit_forward_shadow_public_index_v1"
+}
