@@ -15,7 +15,9 @@ from scripts.publish_primary_profit_rankings import (
     MIXED_SCHEMA,
     SINGLE_SCHEMA,
     PrimaryProfitRankingError,
+    load_primary_inputs,
     publish_primary_profit_rankings,
+    score_single_profit,
     validate_primary_profit_bundle,
 )
 from top10decision.decision.three_rank import (
@@ -463,6 +465,19 @@ def test_natural_p1_is_prospective_research_but_still_not_a_shadow_selection(
     assert mixed["boundaries"]["forward_selection_created"] is False
     assert mixed["boundaries"]["forward_statistics_updated"] is False
     assert not (tmp_path / "data/decision_executable_profit/forward").exists()
+
+
+def test_d28_round_trip_runtime_reproduces_frozen_single_profit_snapshot() -> None:
+    inputs = load_primary_inputs(ROOT, "20260828", "NATURAL")
+    rows, model = score_single_profit(inputs)
+
+    assert len(rows) == 10
+    assert [row["ts_code"] for row in rows[:3]] == [
+        "000712.SZ",
+        "002942.SZ",
+        "600479.SH",
+    ]
+    assert model["official_status"] == "NOT_READY_VALIDATION_GATE"
 
 
 def test_shared_bundle_validator_accepts_both_modes_and_fails_closed_on_index_drift(

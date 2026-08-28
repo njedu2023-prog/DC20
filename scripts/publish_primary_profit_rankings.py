@@ -492,7 +492,11 @@ def load_primary_inputs(root: Path, signal_date: str, generation_mode: str) -> P
     )
 
     try:
-        full_runtime = pd.read_csv(runtime_path, low_memory=False)
+        full_runtime = pd.read_csv(
+            runtime_path,
+            low_memory=False,
+            float_precision="round_trip",
+        )
     except (OSError, UnicodeError, pd.errors.ParserError) as exc:
         raise PrimaryProfitRankingError("P0 runtime feature CSV is invalid") from exc
     required = {
