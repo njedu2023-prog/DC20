@@ -330,7 +330,10 @@ def test_daily_scheduled_target_is_immutable_across_midnight_before_t0920(
     monkeypatch.setenv("MANUAL_TRADE_DATE", "")
     monkeypatch.setenv("DC20_RUN_CREATED_AT", "2026-08-27T16:05:00+00:00")
     monkeypatch.setenv("DC20_NOW_BJT", "2026-08-28T00:30:00+08:00")
-    monkeypatch.setenv("DAILY_COMPLETION_ROOT", str(ROOT))
+    # This test covers schedule-slot date binding only.  Keep it independent
+    # from mutable repository "latest" pointers, which may legitimately be a
+    # partial same-D chain while the P0 bridge is ahead of secondary outputs.
+    monkeypatch.setenv("DAILY_COMPLETION_ROOT", str(tmp_path))
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     compute = _text("run_decision_daily.yml").split("\n  publish:", 1)[0]
     source = _embedded_python_after(
@@ -3145,6 +3148,13 @@ def test_primary_d_runtime_display_index_qualifier_accepts_only_exact_bound_side
     )
     for name in names:
         (output / name).write_bytes((ROOT / "outputs" / "decision" / name).read_bytes())
+    # The repository pointer advances on every accepted P0 D-list.  Pin this
+    # isolated fixture to the dated D26 artifacts under test so a later real D
+    # cannot turn the valid case into the historical-pointer branch.
+    three_rank_index_path = output / "three_rank_index.json"
+    three_rank_index = json.loads(three_rank_index_path.read_text(encoding="utf-8"))
+    three_rank_index["latest_signal_date"] = d
+    three_rank_index_path.write_text(json.dumps(three_rank_index), encoding="utf-8")
     receipt_path = output / f"primary_d_receipt_{d}.json"
     runtime_path = output / f"primary_d_runtime_features_{d}.csv"
     json_path = output / f"three_rank_top10_{d}.json"
@@ -3188,7 +3198,6 @@ def test_primary_d_runtime_display_index_qualifier_accepts_only_exact_bound_side
     exec(compile(source, "<valid-runtime-display-index>", "exec"), {})
     assert valid_output.read_text(encoding="utf-8") == "runtime_index_ready=true\n"
 
-    three_rank_index_path = output / "three_rank_index.json"
     three_rank_index = json.loads(three_rank_index_path.read_text(encoding="utf-8"))
     three_rank_index["latest_signal_date"] = "20260827"
     three_rank_index_path.write_text(json.dumps(three_rank_index), encoding="utf-8")
