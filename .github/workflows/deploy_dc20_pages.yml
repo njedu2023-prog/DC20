@@ -1015,17 +1015,13 @@ jobs:
                   f'以下报告正文是只读历史快照｜禁止据此交易｜{html_module.escape(details)}'
                   '</aside>'
               )
-              report_details = re.search(
-                  r'<details\s+id="reportDetails"\b[^>]*>.*?</summary>',
-                  entry_html,
-                  flags=re.IGNORECASE | re.DOTALL,
-              )
-              if report_details is None:
+              report_summary = '<summary>Decision 报告正文</summary>'
+              if entry_html.count(report_summary) != 1:
                   raise SystemExit("decision.html is missing the report body for stale banner")
-              entry_html = (
-                  entry_html[: report_details.end()]
-                  + banner
-                  + entry_html[report_details.end() :]
+              entry_html = entry_html.replace(
+                  report_summary,
+                  report_summary + banner,
+                  1,
               )
               Path("_site/index.html").write_text(entry_html, encoding="utf-8")
               Path("_site/decision.html").write_text(entry_html, encoding="utf-8")

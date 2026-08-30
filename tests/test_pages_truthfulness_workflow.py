@@ -31,11 +31,13 @@ def test_inactive_expired_and_future_reports_are_explicitly_stale() -> None:
 
 def test_stale_banner_is_identical_at_both_public_entry_points() -> None:
     text = _workflow()
+    report_summary = "<summary>Decision 报告正文</summary>"
     assert 'banner_id = "dc20-truthfulness-banner"' in text
     assert "以下报告正文是只读历史快照｜禁止据此交易" in text
-    assert "report_details.end()" in text
-    assert 'r\'<details\\s+id="reportDetails"\\b[^>]*>.*?</summary>\'' in text
-    assert "flags=re.IGNORECASE | re.DOTALL" in text
+    assert "entry_html.count(report_summary) != 1" in text
+    assert "entry_html.replace(" in text
+    assert "report_summary + banner" in text
+    assert DASHBOARD.read_text(encoding="utf-8").count(report_summary) == 1
     assert 'style="position:sticky' not in text
     assert 'Path("_site/index.html").write_text(entry_html' in text
     assert 'Path("_site/decision.html").write_text(entry_html' in text
