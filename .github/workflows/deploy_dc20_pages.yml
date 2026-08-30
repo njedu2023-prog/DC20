@@ -187,6 +187,7 @@ jobs:
           cp decision.html _site/index.html
           cp decision.html _site/decision.html
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           import shutil
@@ -716,6 +717,9 @@ jobs:
           export HEAD_SHA
 
           python3 - <<'PY'
+          import csv
+          import hashlib
+          import io
           import json
           import os
           import html as html_module
@@ -728,6 +732,7 @@ jobs:
               assess_decision_pages_truth,
               project_report_index_action_truth,
               validate_report_index_action_truth,
+              validate_three_rank_index_truth,
           )
           from scripts.publish_primary_profit_rankings import (
               MIXED_INDEX_SCHEMA,
@@ -736,6 +741,189 @@ jobs:
           from top10decision.decision.executable_profit_research_projection import (
               INDEX_SCHEMA as FORWARD_SHADOW_INDEX_SCHEMA,
           )
+
+          def validate_primary_d_runtime_closure(
+              *,
+              receipt,
+              receipt_bytes,
+              runtime_index,
+              runtime_bytes,
+              contract,
+              contract_bytes,
+              contract_csv_bytes,
+              signal_date,
+              exec_date,
+              exit_date,
+          ):
+              expected_secondary = {
+                  'action_plan': False,
+                  'big_loss': False,
+                  'profit': False,
+                  'p_fill_shadow': False,
+                  'executable_profit': False,
+              }
+              receipt_url = (
+                  f'outputs/decision/primary_d_receipt_{signal_date}.json'
+              )
+              runtime_url = (
+                  f'outputs/decision/primary_d_runtime_features_{signal_date}.csv'
+              )
+              contract_url = (
+                  f'outputs/decision/three_rank_top10_{signal_date}.json'
+              )
+              contract_csv_url = (
+                  f'outputs/decision/three_rank_top10_{signal_date}.csv'
+              )
+              outputs = receipt.get('outputs')
+              if not isinstance(outputs, dict):
+                  raise ValueError('Primary-D receipt outputs are missing')
+              checks = {
+                  'receipt schema': (
+                      receipt.get('schema_version') == 'dc20_primary_d_receipt_v1'
+                  ),
+                  'receipt status': receipt.get('primary_status') == 'READY',
+                  'runtime independence': (
+                      receipt.get('runtime_dependency_on_top10_decision') is False
+                  ),
+                  'future-data boundary': (
+                      receipt.get('future_market_data_consumed') is False
+                  ),
+                  'latest-alias boundary': (
+                      receipt.get('latest_fallback_used') is False
+                  ),
+                  'secondary-output boundary': (
+                      receipt.get('secondary_outputs_generated')
+                      == expected_secondary
+                  ),
+                  'action authorization': receipt.get('action_authorized') is False,
+                  'action input': receipt.get('action_input_consumed') is False,
+                  'formal trade count': receipt.get('formal_trade_count') == 0,
+                  'receipt D/T/T+1': (
+                      receipt.get('signal_date') == signal_date
+                      and receipt.get('exec_date') == exec_date
+                      and receipt.get('exit_date') == exit_date
+                  ),
+                  'runtime index schema': (
+                      runtime_index.get('schema_version')
+                      == 'dc20_primary_d_runtime_index_v1'
+                      and runtime_index.get('index_kind')
+                      == 'dated_primary_d_runtime_pointer_only'
+                      and runtime_index.get('data_alias') is False
+                  ),
+                  'runtime index D/T/T+1': (
+                      runtime_index.get('latest_signal_date') == signal_date
+                      and runtime_index.get('latest_exec_date') == exec_date
+                      and runtime_index.get('latest_exit_date') == exit_date
+                  ),
+                  'runtime index paths': (
+                      runtime_index.get('latest_receipt_url') == receipt_url
+                      and runtime_index.get('latest_runtime_features_url')
+                      == runtime_url
+                      and runtime_index.get('latest_three_rank_json_url')
+                      == contract_url
+                      and runtime_index.get('latest_three_rank_csv_url')
+                      == contract_csv_url
+                  ),
+                  'runtime index byte hashes': (
+                      runtime_index.get('latest_receipt_sha256')
+                      == hashlib.sha256(receipt_bytes).hexdigest()
+                      and runtime_index.get('latest_runtime_features_sha256')
+                      == hashlib.sha256(runtime_bytes).hexdigest()
+                      and runtime_index.get('latest_three_rank_json_sha256')
+                      == hashlib.sha256(contract_bytes).hexdigest()
+                      and runtime_index.get('latest_three_rank_csv_sha256')
+                      == hashlib.sha256(contract_csv_bytes).hexdigest()
+                  ),
+                  'receipt output paths': (
+                      outputs.get('json_path') == contract_url
+                      and outputs.get('csv_path') == contract_csv_url
+                      and outputs.get('runtime_features_path') == runtime_url
+                  ),
+                  'receipt output byte hashes': (
+                      outputs.get('json_sha256')
+                      == hashlib.sha256(contract_bytes).hexdigest()
+                      and outputs.get('csv_sha256')
+                      == hashlib.sha256(contract_csv_bytes).hexdigest()
+                      and outputs.get('runtime_features_sha256')
+                      == hashlib.sha256(runtime_bytes).hexdigest()
+                  ),
+                  'bundle binding': (
+                      outputs.get('bundle_sha256')
+                      == contract.get('bundle_sha256')
+                      == runtime_index.get('latest_bundle_sha256')
+                  ),
+                  'membership binding': (
+                      outputs.get('top10_members_sha256')
+                      == contract.get('top10_members_sha256')
+                      == runtime_index.get('latest_top10_members_sha256')
+                  ),
+                  'feature snapshot binding': (
+                      outputs.get('feature_snapshot_sha256')
+                      == contract.get('feature_snapshot_sha256')
+                      == runtime_index.get('latest_feature_snapshot_sha256')
+                  ),
+              }
+              failed = [label for label, accepted in checks.items() if not accepted]
+              if failed:
+                  raise ValueError(
+                      'Primary-D receipt/runtime closure failed: ' + ', '.join(failed)
+                  )
+
+              try:
+                  runtime_text = runtime_bytes.decode('utf-8-sig')
+                  runtime_rows = list(csv.DictReader(io.StringIO(runtime_text)))
+              except (UnicodeDecodeError, csv.Error) as exc:
+                  raise ValueError('Primary-D runtime CSV is invalid') from exc
+              if not runtime_rows:
+                  raise ValueError('Primary-D READY runtime CSV must not be empty')
+              required_runtime_columns = {
+                  'signal_date',
+                  'ts_code',
+                  'feature_snapshot_sha256',
+                  'top10_selected',
+                  'promotion_rank',
+              }
+              if not required_runtime_columns.issubset(runtime_rows[0]):
+                  raise ValueError('Primary-D runtime CSV columns are incomplete')
+              if any(row.get('signal_date') != signal_date for row in runtime_rows):
+                  raise ValueError('Primary-D runtime CSV contains another D')
+              if any(
+                  row.get('feature_snapshot_sha256')
+                  != contract.get('feature_snapshot_sha256')
+                  for row in runtime_rows
+              ):
+                  raise ValueError('Primary-D runtime CSV feature snapshot drifted')
+              selected_rows = [
+                  row for row in runtime_rows if row.get('top10_selected') == '1'
+              ]
+              try:
+                  selected_rows.sort(key=lambda row: int(row['promotion_rank']))
+              except (KeyError, TypeError, ValueError) as exc:
+                  raise ValueError('Primary-D runtime selected ranks are invalid') from exc
+              selected_codes = [row.get('ts_code') for row in selected_rows]
+              contract_codes = [
+                  str(row.get('ts_code') or '')
+                  for row in (contract.get('rows') or [])
+              ]
+              if selected_codes != contract_codes:
+                  raise ValueError('Primary-D runtime selected membership drifted')
+              row_count = len(runtime_rows)
+              selected_count = len(selected_rows)
+              if not (
+                  outputs.get('runtime_feature_row_count') == row_count
+                  and outputs.get('runtime_selected_count') == selected_count
+                  and runtime_index.get('runtime_feature_row_count') == row_count
+                  and runtime_index.get('runtime_selected_count') == selected_count
+                  and outputs.get('top10_count')
+                  == selected_count
+                  == contract.get('top10_count')
+              ):
+                  raise ValueError('Primary-D runtime row counts drifted')
+              if (
+                  outputs.get('runtime_identity_sha256')
+                  != runtime_index.get('runtime_identity_sha256')
+              ):
+                  raise ValueError('Primary-D runtime identity binding drifted')
 
           index_path = Path("_site/outputs/decision/report_index.json")
           source_index_path = Path("outputs/decision/report_index.json")
@@ -824,7 +1012,75 @@ jobs:
               freeze_active=freeze_active,
               max_report_age_days=max_report_age_days,
           )
-          signal_date = truth.signal_date
+          report_signal_date = truth.signal_date
+          primary_contract = validate_three_rank_index_truth(
+              index_path=Path('_site/outputs/decision/three_rank_index.json'),
+              site_root=Path('_site'),
+          )
+          signal_date = str(primary_contract['signal_date'])
+          primary_exec_date = str(primary_contract['exec_date'])
+          primary_exit_date = str(primary_contract['exit_date'])
+          primary_receipt_url = (
+              f'outputs/decision/primary_d_receipt_{signal_date}.json'
+          )
+          primary_receipt_path = Path('_site') / primary_receipt_url
+          if (
+              primary_receipt_path.is_symlink()
+              or not primary_receipt_path.is_file()
+              or primary_receipt_path.stat().st_size <= 0
+          ):
+              raise SystemExit('primary-D receipt is missing, empty, or unsafe')
+          primary_receipt = json.loads(
+              primary_receipt_path.read_text(encoding='utf-8')
+          )
+          primary_json_url = (
+              f'outputs/decision/three_rank_top10_{signal_date}.json'
+          )
+          primary_csv_url = (
+              f'outputs/decision/three_rank_top10_{signal_date}.csv'
+          )
+          primary_json_path = Path('_site') / primary_json_url
+          primary_csv_path = Path('_site') / primary_csv_url
+          primary_runtime_index_path = Path(
+              '_site/outputs/decision/primary_d_runtime_index.json'
+          )
+          primary_runtime_url = (
+              f'outputs/decision/primary_d_runtime_features_{signal_date}.csv'
+          )
+          primary_runtime_path = Path('_site') / primary_runtime_url
+          for label, path in (
+              ('Primary-D JSON', primary_json_path),
+              ('Primary-D CSV', primary_csv_path),
+              ('Primary-D runtime index', primary_runtime_index_path),
+              ('Primary-D runtime CSV', primary_runtime_path),
+          ):
+              if path.is_symlink() or not path.is_file() or path.stat().st_size <= 0:
+                  raise SystemExit(f'{label} is missing, empty, or unsafe')
+          primary_runtime_index = json.loads(
+              primary_runtime_index_path.read_text(encoding='utf-8')
+          )
+          primary_generation_mode = str(
+              primary_receipt.get('generation_mode') or ''
+          )
+          if primary_generation_mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
+              raise SystemExit('primary-D generation mode is unsupported')
+          try:
+              validate_primary_d_runtime_closure(
+                  receipt=primary_receipt,
+                  receipt_bytes=primary_receipt_path.read_bytes(),
+                  runtime_index=primary_runtime_index,
+                  runtime_bytes=primary_runtime_path.read_bytes(),
+                  contract=primary_contract,
+                  contract_bytes=primary_json_path.read_bytes(),
+                  contract_csv_bytes=primary_csv_path.read_bytes(),
+                  signal_date=signal_date,
+                  exec_date=primary_exec_date,
+                  exit_date=primary_exit_date,
+              )
+          except ValueError as exc:
+              raise SystemExit(
+                  'primary-D receipt does not bind the exact public runtime bundle'
+              ) from exc
           report_age_days = (today - report_day).days
           prospective = truth.prospective
 
@@ -857,6 +1113,14 @@ jobs:
                   primary_bundle = validate_primary_profit_bundle(Path('_site'))
                   primary_inputs = primary_bundle['inputs']
                   primary_mixed = primary_bundle['mixed']['projection']
+                  if primary_inputs.signal_date > signal_date:
+                      raise SystemExit('primary-profit D is newer than the primary-D bundle')
+                  if (
+                      primary_inputs.signal_date == signal_date
+                      and primary_mixed['top10_members_sha256']
+                      != primary_contract['top10_members_sha256']
+                  ):
+                      raise SystemExit('same-D primary-profit membership drifted')
                   primary_profit_status = primary_mixed['status']
                   primary_profit_generation_mode = primary_inputs.generation_mode
                   primary_profit_candidate_count = len(
@@ -937,7 +1201,7 @@ jobs:
           repository = os.environ["GITHUB_REPOSITORY"]
           run_id = int(os.environ["GITHUB_RUN_ID"])
           revision = {
-              "schema_version": "decision_pages_revision_v3",
+              "schema_version": "decision_pages_revision_v4_primary_first",
               "system_name": os.environ["DC2_SYSTEM_NAME"],
               "repository": repository,
               "branch": os.environ.get("GITHUB_REF_NAME", "main"),
@@ -948,6 +1212,15 @@ jobs:
               "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
               "event_name": os.environ.get("GITHUB_EVENT_NAME", ""),
               "signal_date": signal_date,
+              "primary_d_signal_date": signal_date,
+              "primary_d_exec_date": primary_exec_date,
+              "primary_d_exit_date": primary_exit_date,
+              "primary_d_status": "READY",
+              "primary_d_generation_mode": primary_generation_mode,
+              "primary_d_bundle_sha256": primary_contract["bundle_sha256"],
+              "primary_d_top10_count": primary_contract["top10_count"],
+              "primary_d_receipt_url": primary_receipt_url,
+              "report_signal_date": report_signal_date,
               "report_date": report_date,
               "report_file": report_file,
               "latest_action_report_date": action_truth.latest_action_report_date,
@@ -979,9 +1252,13 @@ jobs:
               "freeze_active": freeze_active,
               "report_age_days": report_age_days,
               "prospective": prospective,
+              "freshness_scope": "report_body_only",
               "freshness_state": freshness_state,
               "stale": stale,
               "stale_reason": stale_reason,
+              "report_freshness_state": freshness_state,
+              "report_stale": stale,
+              "report_stale_reason": stale_reason,
               "published_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
           }
 
@@ -1031,6 +1308,13 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"head_sha={head_sha}\n")
               output.write(f"signal_date={signal_date}\n")
+              output.write(f"primary_exec_date={primary_exec_date}\n")
+              output.write(f"primary_exit_date={primary_exit_date}\n")
+              output.write(f"primary_generation_mode={primary_generation_mode}\n")
+              output.write(f"primary_bundle_sha256={primary_contract['bundle_sha256']}\n")
+              output.write(f"primary_top10_count={primary_contract['top10_count']}\n")
+              output.write(f"primary_receipt_url={primary_receipt_url}\n")
+              output.write(f"report_signal_date={report_signal_date}\n")
               output.write(f"report_date={report_date}\n")
               output.write(f"report_file={report_file}\n")
               output.write(f"research_available={str(research_available).lower()}\n")
@@ -1387,6 +1671,13 @@ jobs:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
           EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
           EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
+          EXPECTED_PRIMARY_EXEC_DATE: ${{ steps.site.outputs.primary_exec_date }}
+          EXPECTED_PRIMARY_EXIT_DATE: ${{ steps.site.outputs.primary_exit_date }}
+          EXPECTED_PRIMARY_GENERATION_MODE: ${{ steps.site.outputs.primary_generation_mode }}
+          EXPECTED_PRIMARY_BUNDLE_SHA256: ${{ steps.site.outputs.primary_bundle_sha256 }}
+          EXPECTED_PRIMARY_TOP10_COUNT: ${{ steps.site.outputs.primary_top10_count }}
+          EXPECTED_PRIMARY_RECEIPT_URL: ${{ steps.site.outputs.primary_receipt_url }}
+          EXPECTED_REPORT_SIGNAL_DATE: ${{ steps.site.outputs.report_signal_date }}
           EXPECTED_REPORT_DATE: ${{ steps.site.outputs.report_date }}
           EXPECTED_REPORT_FILE: ${{ steps.site.outputs.report_file }}
           EXPECTED_RESEARCH_AVAILABLE: ${{ steps.site.outputs.research_available }}
@@ -1418,7 +1709,9 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64
+          import csv
           import hashlib
+          import io
           import json
           import os
           import re
@@ -1436,6 +1729,23 @@ jobs:
           base_url = os.environ["PAGE_URL"].rstrip("/") + "/"
           expected_head = os.environ["EXPECTED_HEAD"]
           expected_signal_date = os.environ["EXPECTED_SIGNAL_DATE"]
+          expected_primary_exec_date = os.environ["EXPECTED_PRIMARY_EXEC_DATE"]
+          expected_primary_exit_date = os.environ["EXPECTED_PRIMARY_EXIT_DATE"]
+          expected_primary_generation_mode = os.environ[
+              "EXPECTED_PRIMARY_GENERATION_MODE"
+          ]
+          expected_primary_bundle_sha256 = os.environ[
+              "EXPECTED_PRIMARY_BUNDLE_SHA256"
+          ]
+          expected_primary_top10_count = int(
+              os.environ["EXPECTED_PRIMARY_TOP10_COUNT"]
+          )
+          expected_primary_receipt_url = os.environ[
+              "EXPECTED_PRIMARY_RECEIPT_URL"
+          ]
+          expected_report_signal_date = os.environ[
+              "EXPECTED_REPORT_SIGNAL_DATE"
+          ]
           expected_report_date = os.environ["EXPECTED_REPORT_DATE"]
           expected_report_file = os.environ["EXPECTED_REPORT_FILE"]
           expected_research_available = os.environ["EXPECTED_RESEARCH_AVAILABLE"] == "true"
@@ -1497,6 +1807,158 @@ jobs:
           def fetch_text(path):
               return fetch_bytes(path).decode("utf-8")
 
+          def validate_public_primary_d_runtime_closure(
+              *,
+              receipt,
+              receipt_bytes,
+              runtime_index,
+              runtime_bytes,
+              contract,
+              contract_bytes,
+              contract_csv_bytes,
+              signal_date,
+              exec_date,
+              exit_date,
+          ):
+              expected_secondary = {
+                  "action_plan": False,
+                  "big_loss": False,
+                  "profit": False,
+                  "p_fill_shadow": False,
+                  "executable_profit": False,
+              }
+              receipt_url = (
+                  f"outputs/decision/primary_d_receipt_{signal_date}.json"
+              )
+              runtime_url = (
+                  f"outputs/decision/primary_d_runtime_features_{signal_date}.csv"
+              )
+              contract_url = (
+                  f"outputs/decision/three_rank_top10_{signal_date}.json"
+              )
+              contract_csv_url = (
+                  f"outputs/decision/three_rank_top10_{signal_date}.csv"
+              )
+              outputs = receipt.get("outputs")
+              if not isinstance(outputs, dict):
+                  raise ValueError("public Primary-D receipt outputs are missing")
+              try:
+                  runtime_rows = list(
+                      csv.DictReader(
+                          io.StringIO(runtime_bytes.decode("utf-8-sig"))
+                      )
+                  )
+              except (UnicodeDecodeError, csv.Error) as exc:
+                  raise ValueError("public Primary-D runtime CSV is invalid") from exc
+              required_runtime_columns = {
+                  "signal_date",
+                  "ts_code",
+                  "feature_snapshot_sha256",
+                  "top10_selected",
+                  "promotion_rank",
+              }
+              if (
+                  not runtime_rows
+                  or not required_runtime_columns.issubset(runtime_rows[0])
+              ):
+                  raise ValueError(
+                      "public Primary-D READY runtime CSV is empty or incomplete"
+                  )
+              selected_rows = [
+                  row for row in runtime_rows if row.get("top10_selected") == "1"
+              ]
+              try:
+                  selected_rows.sort(key=lambda row: int(row["promotion_rank"]))
+              except (KeyError, TypeError, ValueError) as exc:
+                  raise ValueError(
+                      "public Primary-D runtime selected ranks are invalid"
+                  ) from exc
+              selected_codes = [row.get("ts_code") for row in selected_rows]
+              contract_codes = [
+                  str(row.get("ts_code") or "")
+                  for row in (contract.get("rows") or [])
+              ]
+              valid = (
+                  receipt.get("schema_version") == "dc20_primary_d_receipt_v1"
+                  and receipt.get("primary_status") == "READY"
+                  and receipt.get("runtime_dependency_on_top10_decision") is False
+                  and receipt.get("future_market_data_consumed") is False
+                  and receipt.get("latest_fallback_used") is False
+                  and receipt.get("secondary_outputs_generated")
+                  == expected_secondary
+                  and receipt.get("action_authorized") is False
+                  and receipt.get("action_input_consumed") is False
+                  and receipt.get("formal_trade_count") == 0
+                  and receipt.get("signal_date") == signal_date
+                  and receipt.get("exec_date") == exec_date
+                  and receipt.get("exit_date") == exit_date
+                  and runtime_index.get("schema_version")
+                  == "dc20_primary_d_runtime_index_v1"
+                  and runtime_index.get("index_kind")
+                  == "dated_primary_d_runtime_pointer_only"
+                  and runtime_index.get("data_alias") is False
+                  and runtime_index.get("latest_signal_date") == signal_date
+                  and runtime_index.get("latest_exec_date") == exec_date
+                  and runtime_index.get("latest_exit_date") == exit_date
+                  and runtime_index.get("latest_receipt_url") == receipt_url
+                  and runtime_index.get("latest_runtime_features_url")
+                  == runtime_url
+                  and runtime_index.get("latest_three_rank_json_url")
+                  == contract_url
+                  and runtime_index.get("latest_three_rank_csv_url")
+                  == contract_csv_url
+                  and runtime_index.get("latest_receipt_sha256")
+                  == hashlib.sha256(receipt_bytes).hexdigest()
+                  and runtime_index.get("latest_runtime_features_sha256")
+                  == hashlib.sha256(runtime_bytes).hexdigest()
+                  and runtime_index.get("latest_three_rank_json_sha256")
+                  == hashlib.sha256(contract_bytes).hexdigest()
+                  and runtime_index.get("latest_three_rank_csv_sha256")
+                  == hashlib.sha256(contract_csv_bytes).hexdigest()
+                  and outputs.get("json_path") == contract_url
+                  and outputs.get("csv_path") == contract_csv_url
+                  and outputs.get("runtime_features_path") == runtime_url
+                  and outputs.get("json_sha256")
+                  == hashlib.sha256(contract_bytes).hexdigest()
+                  and outputs.get("csv_sha256")
+                  == hashlib.sha256(contract_csv_bytes).hexdigest()
+                  and outputs.get("runtime_features_sha256")
+                  == hashlib.sha256(runtime_bytes).hexdigest()
+                  and outputs.get("bundle_sha256")
+                  == contract.get("bundle_sha256")
+                  == runtime_index.get("latest_bundle_sha256")
+                  and outputs.get("top10_members_sha256")
+                  == contract.get("top10_members_sha256")
+                  == runtime_index.get("latest_top10_members_sha256")
+                  and outputs.get("feature_snapshot_sha256")
+                  == contract.get("feature_snapshot_sha256")
+                  == runtime_index.get("latest_feature_snapshot_sha256")
+                  and outputs.get("runtime_feature_row_count")
+                  == len(runtime_rows)
+                  == runtime_index.get("runtime_feature_row_count")
+                  and outputs.get("runtime_selected_count")
+                  == len(selected_rows)
+                  == runtime_index.get("runtime_selected_count")
+                  == outputs.get("top10_count")
+                  == contract.get("top10_count")
+                  and outputs.get("runtime_identity_sha256")
+                  == runtime_index.get("runtime_identity_sha256")
+                  and selected_codes == contract_codes
+                  and all(
+                      row.get("signal_date") == signal_date
+                      for row in runtime_rows
+                  )
+                  and all(
+                      row.get("feature_snapshot_sha256")
+                      == contract.get("feature_snapshot_sha256")
+                      for row in runtime_rows
+                  )
+              )
+              if not valid:
+                  raise ValueError(
+                      "public Primary-D receipt/runtime closure is invalid"
+                  )
+
           last_error = None
           for attempt in range(1, 13):
               try:
@@ -1513,6 +1975,102 @@ jobs:
                       if expected_research_available
                       else None
                   )
+                  primary_index_url = "outputs/decision/three_rank_index.json"
+                  primary_contract_url = (
+                      "outputs/decision/three_rank_top10_"
+                      f"{expected_signal_date}.json"
+                  )
+                  primary_csv_url = (
+                      "outputs/decision/three_rank_top10_"
+                      f"{expected_signal_date}.csv"
+                  )
+                  primary_runtime_index_url = (
+                      "outputs/decision/primary_d_runtime_index.json"
+                  )
+                  primary_runtime_url = (
+                      "outputs/decision/primary_d_runtime_features_"
+                      f"{expected_signal_date}.csv"
+                  )
+                  primary_public_bytes = {}
+                  for primary_url in (
+                      primary_index_url,
+                      expected_primary_receipt_url,
+                      primary_contract_url,
+                      primary_csv_url,
+                      primary_runtime_index_url,
+                      primary_runtime_url,
+                  ):
+                      local_primary_bytes = (Path("_site") / primary_url).read_bytes()
+                      public_primary_bytes = fetch_bytes(primary_url)
+                      if public_primary_bytes != local_primary_bytes:
+                          raise RuntimeError(
+                              f"public Primary-D bytes differ from exact build: {primary_url}"
+                          )
+                      primary_public_bytes[primary_url] = public_primary_bytes
+                  public_primary_index = json.loads(
+                      primary_public_bytes[primary_index_url]
+                  )
+                  public_primary_receipt = json.loads(
+                      primary_public_bytes[expected_primary_receipt_url]
+                  )
+                  public_primary_contract = json.loads(
+                      primary_public_bytes[primary_contract_url]
+                  )
+                  public_primary_runtime_index = json.loads(
+                      primary_public_bytes[primary_runtime_index_url]
+                  )
+                  if not (
+                      public_primary_index.get("latest_signal_date")
+                      == expected_signal_date
+                      and public_primary_index.get("latest_exec_date")
+                      == expected_primary_exec_date
+                      and public_primary_index.get("latest_exit_date")
+                      == expected_primary_exit_date
+                      and public_primary_index.get("latest_contract_url")
+                      == primary_contract_url
+                      and public_primary_index.get("latest_csv_url")
+                      == primary_csv_url
+                      and public_primary_index.get("latest_bundle_sha256")
+                      == expected_primary_bundle_sha256
+                      and public_primary_contract.get("signal_date")
+                      == expected_signal_date
+                      and public_primary_contract.get("exec_date")
+                      == expected_primary_exec_date
+                      and public_primary_contract.get("exit_date")
+                      == expected_primary_exit_date
+                      and public_primary_contract.get("bundle_sha256")
+                      == expected_primary_bundle_sha256
+                      and public_primary_contract.get("top10_count")
+                      == expected_primary_top10_count
+                      and public_primary_receipt.get("generation_mode")
+                      == expected_primary_generation_mode
+                  ):
+                      raise RuntimeError(
+                          "public Primary-D index/receipt/bundle binding is invalid"
+                      )
+                  try:
+                      validate_public_primary_d_runtime_closure(
+                          receipt=public_primary_receipt,
+                          receipt_bytes=primary_public_bytes[
+                              expected_primary_receipt_url
+                          ],
+                          runtime_index=public_primary_runtime_index,
+                          runtime_bytes=primary_public_bytes[primary_runtime_url],
+                          contract=public_primary_contract,
+                          contract_bytes=primary_public_bytes[
+                              primary_contract_url
+                          ],
+                          contract_csv_bytes=primary_public_bytes[
+                              primary_csv_url
+                          ],
+                          signal_date=expected_signal_date,
+                          exec_date=expected_primary_exec_date,
+                          exit_date=expected_primary_exit_date,
+                      )
+                  except ValueError as exc:
+                      raise RuntimeError(
+                          "public Primary-D receipt/runtime closure is invalid"
+                      ) from exc
                   observation_statistics_url = (
                       'outputs/auction_v3/metrics/'
                       'observation_cumulative_latest.json'
@@ -1892,6 +2450,36 @@ jobs:
                       raise RuntimeError("revision branch is not main")
                   if revision.get("signal_date") != expected_signal_date:
                       raise RuntimeError("revision signal_date does not match the build")
+                  if not (
+                      revision.get("schema_version")
+                      == "decision_pages_revision_v4_primary_first"
+                      and revision.get("primary_d_signal_date")
+                      == expected_signal_date
+                      and revision.get("primary_d_exec_date")
+                      == expected_primary_exec_date
+                      and revision.get("primary_d_exit_date")
+                      == expected_primary_exit_date
+                      and revision.get("primary_d_status") == "READY"
+                      and revision.get("primary_d_generation_mode")
+                      == expected_primary_generation_mode
+                      and revision.get("primary_d_bundle_sha256")
+                      == expected_primary_bundle_sha256
+                      and revision.get("primary_d_top10_count")
+                      == expected_primary_top10_count
+                      and revision.get("primary_d_receipt_url")
+                      == expected_primary_receipt_url
+                      and revision.get("report_signal_date")
+                      == expected_report_signal_date
+                      and revision.get("freshness_scope") == "report_body_only"
+                      and revision.get("report_freshness_state")
+                      == expected_freshness_state
+                      and revision.get("report_stale") is expected_stale
+                      and revision.get("report_stale_reason")
+                      == expected_stale_reason
+                  ):
+                      raise RuntimeError(
+                          "revision Primary-D/report-body boundary does not match the build"
+                      )
                   if str(revision.get("report_date")) != expected_report_date:
                       raise RuntimeError(
                           "revision report_date does not match the built report index"
@@ -2029,7 +2617,7 @@ jobs:
                           raise RuntimeError("public latest research context authorizes action")
                       if str(public_research.get("report_date")) != expected_report_date:
                           raise RuntimeError("public latest research context report date is wrong")
-                      if str(public_research.get("signal_date")) != expected_signal_date:
+                      if str(public_research.get("signal_date")) != expected_report_signal_date:
                           raise RuntimeError("public latest research context signal date is wrong")
                       if research_schema == "decision_research_context_v1_daily":
                           if public_research.get("formal_buy_count") != 0:
@@ -2092,19 +2680,19 @@ jobs:
                           legacy = json.loads(decoded["action_plan"].decode("utf-8"))
                           if str(legacy.get("report_date")) != expected_report_date:
                               raise RuntimeError("public historical parity payload report date is wrong")
-                          if str(legacy.get("signal_date")) != expected_signal_date:
+                          if str(legacy.get("signal_date")) != expected_report_signal_date:
                               raise RuntimeError("public historical parity payload signal date is wrong")
                           if str(legacy.get("exec_date")) != expected_report_date:
                               raise RuntimeError("public historical parity payload exec date is wrong")
                           legacy_exit_date = str(legacy.get("exit_date") or "")
-                          if not expected_signal_date < expected_report_date < legacy_exit_date:
+                          if not expected_report_signal_date < expected_report_date < legacy_exit_date:
                               raise RuntimeError("public historical parity payload date order is wrong")
                           legacy_report = decoded["decision_report"].decode("utf-8-sig")
                           legacy_report_lines = legacy_report.splitlines()
                           if legacy_report_lines[:1] != [f"# Decision Report ({expected_report_date})"]:
                               raise RuntimeError("public historical parity report heading is wrong")
                           for field, value in (
-                              ("signal_date", expected_signal_date),
+                              ("signal_date", expected_report_signal_date),
                               ("exec_date", expected_report_date),
                               ("exit_date", legacy_exit_date),
                           ):
@@ -2114,7 +2702,7 @@ jobs:
                                   )
                           legacy_evaluation = json.loads(decoded["evaluation"].decode("utf-8"))
                           for field, value in (
-                              ("signal_date", expected_signal_date),
+                              ("signal_date", expected_report_signal_date),
                               ("exec_date", expected_report_date),
                               ("exit_date", legacy_exit_date),
                           ):
@@ -2148,7 +2736,7 @@ jobs:
                       )
                   if not isinstance(public_eval, dict):
                       raise RuntimeError("public latest eval is not an object")
-                  if str(public_eval.get("signal_date")) != expected_signal_date:
+                  if str(public_eval.get("signal_date")) != expected_report_signal_date:
                       raise RuntimeError(
                           "public latest eval signal_date does not match revision.json"
                       )

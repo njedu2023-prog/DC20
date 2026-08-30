@@ -11,11 +11,30 @@ on:
     types:
       - completed
   schedule:
+    # Each trigger identity encodes one UTC weekday and one exact slot.  Do not
+    # collapse these to 1-5: a delayed Friday run created on Monday must still
+    # resolve to Friday rather than silently becoming a new Monday D.
     # Beijing 21:15 primary plus 22:15/23:15 and next-day 00:15 recovery.
-    - cron: "15 13 * * 1-5"
-    - cron: "15 14 * * 1-5"
-    - cron: "15 15 * * 1-5"
-    - cron: "15 16 * * 1-5"
+    - cron: "15 13 * * 1"
+    - cron: "15 14 * * 1"
+    - cron: "15 15 * * 1"
+    - cron: "15 16 * * 1"
+    - cron: "15 13 * * 2"
+    - cron: "15 14 * * 2"
+    - cron: "15 15 * * 2"
+    - cron: "15 16 * * 2"
+    - cron: "15 13 * * 3"
+    - cron: "15 14 * * 3"
+    - cron: "15 15 * * 3"
+    - cron: "15 16 * * 3"
+    - cron: "15 13 * * 4"
+    - cron: "15 14 * * 4"
+    - cron: "15 15 * * 4"
+    - cron: "15 16 * * 4"
+    - cron: "15 13 * * 5"
+    - cron: "15 14 * * 5"
+    - cron: "15 15 * * 5"
+    - cron: "15 16 * * 5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -246,7 +265,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import hashlib, json, os, re
-          from datetime import datetime, timedelta
+          from datetime import datetime, time, timedelta, timezone
           from pathlib import Path
           from urllib.request import Request, urlopen
           from zoneinfo import ZoneInfo
@@ -263,6 +282,51 @@ jobs:
           market = str(os.environ.get('INPUT_MARKET_COMMIT') or '').strip().lower()
           date_re = re.compile(r'20\d{6}')
           sha_re = re.compile(r'[0-9a-f]{40}')
+
+          def resolve_nominal_schedule_slot(schedule, created_at):
+              match = re.fullmatch(
+                  r'(?P<minute>[0-5]?\d) (?P<hour>(?:[01]?\d|2[0-3])) \* \* (?P<weekday>[1-5])',
+                  str(schedule or '').strip(),
+              )
+              if match is None:
+                  raise SystemExit('P0 scheduled cron cannot be resolved')
+              if created_at.tzinfo is None or created_at.utcoffset() is None:
+                  raise SystemExit('P0 scheduled created_at must be timezone-aware')
+              created_utc = created_at.astimezone(timezone.utc)
+              slot_time = time(
+                  hour=int(match.group('hour')),
+                  minute=int(match.group('minute')),
+                  tzinfo=timezone.utc,
+              )
+              cron_weekday = int(match.group('weekday'))
+              for days_back in range(8):
+                  slot_day = created_utc.date() - timedelta(days=days_back)
+                  if slot_day.weekday() + 1 != cron_weekday:
+                      continue
+                  nominal = datetime.combine(slot_day, slot_time)
+                  if nominal <= created_utc:
+                      return nominal
+              raise SystemExit('P0 scheduled nominal slot cannot be resolved')
+
+          def enforce_pre_t0920(signal_date, open_dates, now):
+              if signal_date not in open_dates:
+                  raise SystemExit(
+                      f'P0 target is not a strict SSE open day: {signal_date}'
+                  )
+              if now.tzinfo is None or now.utcoffset() is None:
+                  raise SystemExit('P0 scheduled execution time must be timezone-aware')
+              future_open_dates = sorted(day for day in open_dates if day > signal_date)
+              if not future_open_dates:
+                  raise SystemExit('P0 scheduled target has no strict SSE T day')
+              t_day = datetime.strptime(future_open_dates[0], '%Y%m%d').date()
+              deadline = datetime.combine(
+                  t_day,
+                  time(hour=9, minute=20),
+                  tzinfo=ZoneInfo('Asia/Shanghai'),
+              )
+              if now.astimezone(ZoneInfo('Asia/Shanghai')) >= deadline:
+                  raise SystemExit('P0 scheduled run crossed the T 09:20 safety boundary')
+
           workflow_run_anchor = ''
           if event == 'schedule':
               schedule = os.environ.get('EVENT_SCHEDULE', '')
@@ -282,21 +346,28 @@ jobs:
                       'name': 'DC2.0 · Publish Primary D List (P0)',
                       'path': '.github/workflows/run_primary_d_daily.yml',
                       'schedules': {
-                          '15 13 * * 1-5',
-                          '15 14 * * 1-5',
-                          '15 15 * * 1-5',
-                          '15 16 * * 1-5',
+                          *{
+                              f'15 {hour} * * {weekday}'
+                              for weekday in range(1, 6)
+                              for hour in (13, 14, 15, 16)
+                          },
                       },
                   },
                   '335484130': {
                       'name': 'DC2.0 · Legacy Full Research Replay (Manual)',
                       'path': '.github/workflows/run_decision_daily.yml',
                       'schedules': {
-                          '25 13 * * 1-5',
-                          '25 14 * * 1-5',
-                          '25 15 * * 1-5',
-                          '45 15 * * 1-5',
-                          '25 16 * * 1-5',
+                          *{
+                              f'{minute} {hour} * * {weekday}'
+                              for weekday in range(1, 6)
+                              for hour, minute in (
+                                  (13, 25),
+                                  (14, 25),
+                                  (15, 25),
+                                  (15, 45),
+                                  (16, 25),
+                              )
+                          },
                       },
                   },
               }
@@ -316,14 +387,13 @@ jobs:
                   or str((run.get('head_repository') or {}).get('full_name') or '') != repository
               ):
                   raise SystemExit('P0 scheduled run API identity drifted')
-              created = datetime.fromisoformat(str(run['created_at']).replace('Z', '+00:00'))
-              shanghai = created.astimezone(ZoneInfo('Asia/Shanghai'))
-              if shanghai.hour not in {0, 21, 22, 23}:
-                  raise SystemExit('P0 scheduled run started outside the D recovery window')
-              signal_day = shanghai.date()
-              if shanghai.hour == 0:
-                  signal_day -= timedelta(days=1)
-              signal_date = signal_day.strftime('%Y%m%d')
+              created = datetime.fromisoformat(
+                  str(run['created_at']).replace('Z', '+00:00')
+              )
+              nominal_slot = resolve_nominal_schedule_slot(schedule, created)
+              # The UTC cron date is the intended D.  This remains stable for
+              # Beijing after-midnight slots and delayed GitHub scheduler runs.
+              signal_date = nominal_slot.strftime('%Y%m%d')
               mode = 'NATURAL'
               pred = market = ''
           elif event == 'workflow_run':
@@ -470,6 +540,8 @@ jobs:
               signal_date = eligible[-1]
           if signal_date not in opened:
               raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')
+          if event in {'schedule', 'workflow_run'}:
+              enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))
 
           output = Path('outputs/decision')
           json_path = output / f'three_rank_top10_{signal_date}.json'
@@ -895,12 +967,55 @@ jobs:
       - name: Publish exact CAS commit
         id: publish
         env:
+          GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
         run: |
           set -euo pipefail
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "${expected}"
+          python - <<'PY'
+          import csv
+          import os
+          import re
+          from datetime import datetime, time, timedelta
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          mode = os.environ['GENERATION_MODE']
+          signal_date = os.environ['SIGNAL_DATE']
+          if mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
+              raise SystemExit('P0 CAS generation mode is invalid')
+          if mode == 'NATURAL':
+              calendar = Path('data/market/trade_cal_sse.csv')
+              with calendar.open(newline='', encoding='utf-8-sig') as handle:
+                  rows = list(csv.DictReader(handle))
+              open_dates = sorted({
+                  str(row.get('cal_date') or '')
+                  for row in rows
+                  if str(row.get('is_open') or '') == '1'
+                  and re.fullmatch(r'20\d{6}', str(row.get('cal_date') or ''))
+              })
+              if signal_date not in open_dates:
+                  raise SystemExit('P0 CAS target is not a strict SSE open day')
+              future = [day for day in open_dates if day > signal_date]
+              if not future:
+                  raise SystemExit('P0 CAS target has no strict SSE T day')
+              t_day = datetime.strptime(future[0], '%Y%m%d').date()
+              deadline = datetime.combine(
+                  t_day,
+                  time(hour=9, minute=20),
+                  tzinfo=ZoneInfo('Asia/Shanghai'),
+              )
+              safety_cutoff = deadline - timedelta(minutes=5)
+              now = datetime.now(ZoneInfo('Asia/Shanghai'))
+              if now >= safety_cutoff:
+                  raise SystemExit(
+                      'P0 CAS publication missed the T 09:15 safety cutoff '
+                      'for the strict T 09:20 boundary'
+                  )
+          PY
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
           echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 

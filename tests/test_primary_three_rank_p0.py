@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import re
 import shutil
 import subprocess
+import textwrap
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -39,6 +44,57 @@ EXIT_DATE = "20260828"
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _workflow_resolver_function(name: str):
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    block = workflow.split(
+        "- name: Resolve exact D and reject a completed duplicate", 1
+    )[1]
+    source = block.split("python - <<'PY'", 1)[1].split("\n          PY", 1)[0]
+    tree = ast.parse(textwrap.dedent(source))
+    matches = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == name
+    ]
+    assert len(matches) == 1
+    namespace = {
+        "datetime": datetime,
+        "time": time,
+        "timedelta": timedelta,
+        "timezone": timezone,
+        "ZoneInfo": ZoneInfo,
+        "re": re,
+    }
+    module = ast.Module(body=matches, type_ignores=[])
+    exec(compile(ast.fix_missing_locations(module), "<p0-schedule-resolver>", "exec"), namespace)
+    return namespace[name]
+
+
+def _workflow_schedule_identities() -> dict[str, dict[str, object]]:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    block = workflow.split(
+        "- name: Resolve exact D and reject a completed duplicate", 1
+    )[1]
+    source = block.split("python - <<'PY'", 1)[1].split("\n          PY", 1)[0]
+    tree = ast.parse(textwrap.dedent(source))
+    matches = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "identities"
+            for target in node.targets
+        )
+    ]
+    assert len(matches) == 1
+    expression = ast.Expression(body=matches[0].value)
+    return eval(
+        compile(ast.fix_missing_locations(expression), "<p0-schedule-identities>", "eval"),
+        {"range": range},
+    )
 
 
 def _copy_model_runtime(target: Path, *, all_models: bool) -> Path:
@@ -534,20 +590,36 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     full_daily = FULL_DAILY_WORKFLOW.read_text(encoding="utf-8")
     header = workflow.split("\npermissions:", 1)[0]
     full_daily_header = full_daily.split("\npermissions:", 1)[0]
-    assert header.count('cron: "15 13 * * 1-5"') == 1
-    assert header.count('cron: "15 14 * * 1-5"') == 1
-    assert header.count('cron: "15 15 * * 1-5"') == 1
-    assert header.count('cron: "15 16 * * 1-5"') == 1
-    assert 'cron: "45 15 * * 1-5"' not in header
+    expected_direct = {
+        f"15 {hour} * * {weekday}"
+        for weekday in range(1, 6)
+        for hour in (13, 14, 15, 16)
+    }
+    expected_bridge = {
+        f"{minute} {hour} * * {weekday}"
+        for weekday in range(1, 6)
+        for hour, minute in (
+            (13, 25),
+            (14, 25),
+            (15, 25),
+            (15, 45),
+            (16, 25),
+        )
+    }
+    assert set(re.findall(r'cron: "([^"]+)"', header)) == expected_direct
+    assert set(re.findall(r'cron: "([^"]+)"', full_daily_header)) == expected_bridge
+    assert len(re.findall(r'cron: "([^"]+)"', header)) == len(expected_direct)
+    assert len(re.findall(r'cron: "([^"]+)"', full_daily_header)) == len(
+        expected_bridge
+    )
+    assert not any("1-5" in cron for cron in expected_direct | expected_bridge)
+    identities = _workflow_schedule_identities()
+    assert identities["343703608"]["schedules"] == expected_direct
+    assert identities["335484130"]["schedules"] == expected_bridge
     assert "workflow_call:" in header
-    for cron in (
-        'cron: "25 13 * * 1-5"',
-        'cron: "25 14 * * 1-5"',
-        'cron: "25 15 * * 1-5"',
-        'cron: "45 15 * * 1-5"',
-        'cron: "25 16 * * 1-5"',
-    ):
-        assert full_daily_header.count(cron) == 1
+    assert "for weekday in range(1, 6)" in workflow
+    assert "for hour in (13, 14, 15, 16)" in workflow
+    assert "for hour, minute in (" in workflow
     assert "uses: ./.github/workflows/run_primary_d_daily.yml" in full_daily
     assert "github.event_name == 'workflow_dispatch'" in full_daily
     assert "dc20-p0-scheduler-bridge-{0}" in full_daily
@@ -575,8 +647,13 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert "runtime_identity_sha256" in workflow
     assert "P0 scheduled run API identity drifted" in workflow
     assert "str(run.get('run_attempt') or '') != '1'" in workflow
-    assert "shanghai.hour not in {0, 21, 22, 23}" in workflow
-    assert "signal_day -= timedelta(days=1)" in workflow
+    assert "resolve_nominal_schedule_slot(schedule, created)" in workflow
+    assert "nominal_slot.strftime('%Y%m%d')" in workflow
+    assert "if event in {'schedule', 'workflow_run'}:" in workflow
+    assert "enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))" in workflow
+    assert "P0 scheduled run crossed the T 09:20 safety boundary" in workflow
+    assert "shanghai.hour not in {0, 21, 22, 23}" not in workflow
+    assert "signal_day -= timedelta(days=1)" not in workflow
     assert "'343703608'" in workflow and "'335484130'" in workflow
     assert "DC2.0 · Test Decision Core" in header
     assert "DC2.0 · Tushare Health Check" in header
@@ -586,6 +663,124 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert "dc20-p0-ignored-{0}" in workflow
     assert "if shanghai.hour < 20:" in workflow
     assert "P0 workflow_run has no preceding strict SSE open day" in workflow
+
+    publish = workflow[workflow.index("  publish:") : workflow.index("\n  deploy-primary-pages:")]
+    assert "GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}" in publish
+    assert "SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}" in publish
+    assert "safety_cutoff = deadline - timedelta(minutes=5)" in publish
+    assert "P0 CAS publication missed the T 09:15 safety cutoff" in publish
+    assert publish.index("safety_cutoff = deadline - timedelta(minutes=5)") < publish.index(
+        'git push "https://x-access-token:${GITHUB_TOKEN}'
+    )
+
+
+@pytest.mark.parametrize("weekday", range(1, 6))
+@pytest.mark.parametrize(
+    ("hour", "minute"),
+    (
+        (13, 15),
+        (14, 15),
+        (15, 15),
+        (16, 15),
+        (13, 25),
+        (14, 25),
+        (15, 25),
+        (15, 45),
+        (16, 25),
+    ),
+)
+def test_primary_schedule_slots_bind_to_their_nominal_utc_d(
+    weekday: int,
+    hour: int,
+    minute: int,
+) -> None:
+    resolve = _workflow_resolver_function("resolve_nominal_schedule_slot")
+    nominal = datetime(2026, 8, 31, hour, minute, tzinfo=timezone.utc) + timedelta(
+        days=weekday - 1
+    )
+    schedule = f"{minute} {hour} * * {weekday}"
+    assert resolve(schedule, nominal + timedelta(hours=7)) == nominal
+
+
+@pytest.mark.parametrize(
+    ("schedule", "created_at"),
+    (
+        ("15 13 * * 5", datetime(2026, 8, 29, 0, 5, tzinfo=timezone.utc)),
+        ("15 15 * * 5", datetime(2026, 8, 29, 0, 5, tzinfo=timezone.utc)),
+        ("15 16 * * 5", datetime(2026, 8, 29, 0, 30, tzinfo=timezone.utc)),
+        ("25 16 * * 5", datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)),
+        ("15 13 * * 5", datetime(2026, 8, 31, 13, 16, tzinfo=timezone.utc)),
+        ("25 13 * * 5", datetime(2026, 8, 31, 13, 26, tzinfo=timezone.utc)),
+    ),
+)
+def test_primary_schedule_delay_keeps_the_latest_provable_nominal_d(
+    schedule: str,
+    created_at: datetime,
+) -> None:
+    resolve = _workflow_resolver_function("resolve_nominal_schedule_slot")
+    assert resolve(schedule, created_at).strftime("%Y%m%d") == "20260828"
+
+
+@pytest.mark.parametrize(
+    ("schedule", "created_at"),
+    (
+        ("15 13 * * 5", datetime(2026, 8, 31, 13, 16, tzinfo=timezone.utc)),
+        ("15 14 * * 5", datetime(2026, 8, 31, 14, 16, tzinfo=timezone.utc)),
+        ("15 15 * * 5", datetime(2026, 8, 31, 15, 16, tzinfo=timezone.utc)),
+        ("15 16 * * 5", datetime(2026, 8, 31, 16, 16, tzinfo=timezone.utc)),
+        ("25 13 * * 5", datetime(2026, 8, 31, 13, 26, tzinfo=timezone.utc)),
+        ("25 14 * * 5", datetime(2026, 8, 31, 14, 26, tzinfo=timezone.utc)),
+        ("25 15 * * 5", datetime(2026, 8, 31, 15, 26, tzinfo=timezone.utc)),
+        ("45 15 * * 5", datetime(2026, 8, 31, 15, 46, tzinfo=timezone.utc)),
+        ("25 16 * * 5", datetime(2026, 8, 31, 16, 26, tzinfo=timezone.utc)),
+    ),
+)
+def test_primary_schedule_identity_does_not_roll_delayed_friday_into_monday(
+    schedule: str,
+    created_at: datetime,
+) -> None:
+    resolve = _workflow_resolver_function("resolve_nominal_schedule_slot")
+    assert resolve(schedule, created_at) == datetime(
+        2026,
+        8,
+        28,
+        int(schedule.split()[1]),
+        int(schedule.split()[0]),
+        tzinfo=timezone.utc,
+    )
+
+
+def test_primary_schedule_rejects_unknown_or_naive_cron_evidence() -> None:
+    resolve = _workflow_resolver_function("resolve_nominal_schedule_slot")
+    aware = datetime(2026, 8, 28, 13, 15, tzinfo=timezone.utc)
+    with pytest.raises(SystemExit, match="cron cannot be resolved"):
+        resolve("30 13 * * *", aware)
+    with pytest.raises(SystemExit, match="cron cannot be resolved"):
+        resolve("15 13 * * 1-5", aware)
+    with pytest.raises(SystemExit, match="timezone-aware"):
+        resolve("15 13 * * 5", aware.replace(tzinfo=None))
+
+
+def test_primary_schedule_must_finish_strictly_before_t0920() -> None:
+    enforce = _workflow_resolver_function("enforce_pre_t0920")
+    opened = {"20260828", "20260831", "20260901"}
+    enforce(
+        "20260828",
+        opened,
+        datetime(2026, 8, 31, 9, 19, tzinfo=ZoneInfo("Asia/Shanghai")),
+    )
+    with pytest.raises(SystemExit, match="T 09:20 safety boundary"):
+        enforce(
+            "20260828",
+            opened,
+            datetime(2026, 8, 31, 9, 20, tzinfo=ZoneInfo("Asia/Shanghai")),
+        )
+    with pytest.raises(SystemExit, match="not a strict SSE open day"):
+        enforce(
+            "20260829",
+            opened,
+            datetime(2026, 8, 31, 9, 19, tzinfo=ZoneInfo("Asia/Shanghai")),
+        )
 
 
 def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:

@@ -5,13 +5,35 @@ on:
   # Action-independent P0 path.  Its legacy replay remains manual-only below.
   schedule:
     # Staggered from direct P0 so each slot is a real recovery, not a
-    # same-minute duplicate competing for the shared writer.
-    - cron: "25 13 * * 1-5"
-    - cron: "25 14 * * 1-5"
-    - cron: "25 15 * * 1-5"
-    - cron: "45 15 * * 1-5"
+    # same-minute duplicate competing for the shared writer.  Each trigger is
+    # one UTC weekday plus one exact slot so a delayed run cannot drift to the
+    # following weekday's D.
+    - cron: "25 13 * * 1"
+    - cron: "25 14 * * 1"
+    - cron: "25 15 * * 1"
+    - cron: "45 15 * * 1"
+    - cron: "25 16 * * 1"
+    - cron: "25 13 * * 2"
+    - cron: "25 14 * * 2"
+    - cron: "25 15 * * 2"
+    - cron: "45 15 * * 2"
+    - cron: "25 16 * * 2"
+    - cron: "25 13 * * 3"
+    - cron: "25 14 * * 3"
+    - cron: "25 15 * * 3"
+    - cron: "45 15 * * 3"
+    - cron: "25 16 * * 3"
+    - cron: "25 13 * * 4"
+    - cron: "25 14 * * 4"
+    - cron: "25 15 * * 4"
+    - cron: "45 15 * * 4"
+    - cron: "25 16 * * 4"
+    - cron: "25 13 * * 5"
+    - cron: "25 14 * * 5"
+    - cron: "25 15 * * 5"
+    - cron: "45 15 * * 5"
     # Beijing next-day 00:25 final recovery for GitHub scheduler delay.
-    - cron: "25 16 * * 1-5"
+    - cron: "25 16 * * 5"
   # Legacy all-in-one research/action replay.  It is intentionally manual-only:
   # the Action contract must never suppress or overwrite the P0 D list or its
   # action-free P1 ranking sidecars.

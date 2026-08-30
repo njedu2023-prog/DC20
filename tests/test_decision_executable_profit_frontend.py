@@ -470,9 +470,76 @@ def test_primary_mixed_shadow_renders_company_names_top2_and_cumulative_statisti
         "forward_signal_date_progress_180",
         "D28起累计摘要",
         "Top1、Top2分别统计",
+        "当前标识仅作当期上下文",
         "不生成订单或Action",
     ):
         assert token in render
+
+
+def test_shadow_tables_show_exact_validated_dates_and_current_identity_context() -> None:
+    text = _text()
+    cohorts = _function(
+        text,
+        "renderExecutableProfitCohorts",
+        "currentCutoverShadowSummary",
+    )
+    primary = _function(
+        text,
+        "renderPrimaryProfitShadowSidecar",
+        "renderPrimaryMixedProfitResearch",
+    )
+    legacy = _function(
+        text,
+        "renderExecutableProfitResearch",
+        "validatedPFillShadowTop2",
+    )
+    loader = _function(
+        text,
+        "loadPrimaryProfitShadowSidecar",
+        "loadCurrentExecutableProfitResearch",
+    )
+
+    for heading in (
+        "当前代码",
+        "当前公司",
+        "D日期",
+        "T日期",
+        "T+1日期",
+    ):
+        assert heading in cohorts
+    assert 'rowsForCohort = key => key === "all_selected_slots"' in cohorts
+    assert 'currentBySlot.get(key === "shadow_slot_1" ? 1 : 2)' in cohorts
+    assert 'identityText(current, "ts_code")' in cohorts
+    assert 'identityText(current, "name")' in cohorts
+    assert "dateText(currentContext.signal_date)" in cohorts
+    assert "dateText(currentContext.exec_date)" in cohorts
+    assert "dateText(currentContext.exit_date)" in cohorts
+
+    for token in (
+        "dateText(shadow.signal_date)",
+        "dateText(shadow.exec_date)",
+        "dateText(shadow.exit_date)",
+        "rows, signal_date: shadow.signal_date",
+        "exec_date: shadow.exec_date",
+        "exit_date: shadow.exit_date",
+    ):
+        assert token in primary
+    for token in (
+        "currentShadowRows",
+        "name: nameByCode.get(row.ts_code)",
+        "dateText(projection.signal_date)",
+        "dateText(projection.exec_date)",
+        "dateText(projection.exit_date)",
+        "rows: currentShadowRows, signal_date: projection.signal_date",
+        "exec_date: projection.exec_date",
+        "exit_date: projection.exit_date",
+    ):
+        assert token in legacy
+
+    assert "selection.signal_date === signalDate" in loader
+    assert "selection.exec_date === projection.exec_date" in loader
+    assert "selection.exit_date === projection.exit_date" in loader
+    assert "P1 Shadow冻结选择来源或D/T/T+1漂移" in loader
 
 
 def test_downloads_are_exact_dated_projection_and_asof_statistics() -> None:

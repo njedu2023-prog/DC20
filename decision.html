@@ -334,7 +334,7 @@
       overflow-wrap: anywhere;
     }
     table.executable-profit-table { min-width: 1460px; }
-    table.executable-profit-shadow-table { min-width: 1120px; font-size: 11px; }
+    table.executable-profit-shadow-table { min-width: 1680px; font-size: 11px; }
     .executable-profit-price small,
     .executable-profit-truth small {
       display: block;
@@ -2742,7 +2742,7 @@
           executableProfitExpect(truthLoaded[name].signal_date === signalDate && truthLoaded[name].exec_date === projection.exec_date && truthLoaded[name].exit_date === projection.exit_date, `P1 Shadow ${name}日期漂移`);
         }
       }
-      executableProfitExpect(selection.schema_version === "dc20_primary_profit_forward_shadow_selection_v2" && selection.signal_date === signalDate && selection.snapshot_sha256 === sources.selection.snapshot_sha256 && selection.selection_identity_sha256 === sources.selection.selection_identity_sha256, "P1 Shadow冻结选择来源漂移");
+      executableProfitExpect(selection.schema_version === "dc20_primary_profit_forward_shadow_selection_v2" && selection.signal_date === signalDate && selection.exec_date === projection.exec_date && selection.exit_date === projection.exit_date && selection.snapshot_sha256 === sources.selection.snapshot_sha256 && selection.selection_identity_sha256 === sources.selection.selection_identity_sha256, "P1 Shadow冻结选择来源或D/T/T+1漂移");
       executableProfitExpect(summary.as_of_date === asOfDate && summary.snapshot_sha256 === sources.statistics.snapshot_sha256, "P1 Shadow累计统计来源漂移");
       executableProfitExpect(
         summary.public_start_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE
@@ -2865,8 +2865,19 @@
       els.executableProfitShadowNote.textContent = "模型 Shadow 与人工作业结果严格隔离；本区不连接券商、不生成订单，也不声称实际成交。";
     }
 
-    function renderExecutableProfitCohorts(summary) {
+    function renderExecutableProfitCohorts(summary, currentContext = {}) {
       if (!summary) return '<div class="empty"><strong>累计统计尚未生成</strong>D日排序保持可见；T/T+1真值成熟后只更新独立as-of统计，不改写D日排序。</div>';
+      const currentRows = Array.isArray(currentContext.rows) ? currentContext.rows : [];
+      const currentBySlot = new Map(currentRows.map(row => [Number(row?.shadow_slot), row]));
+      const rowsForCohort = key => key === "all_selected_slots"
+        ? currentRows
+        : [currentBySlot.get(key === "shadow_slot_1" ? 1 : 2)].filter(Boolean);
+      const identityText = (rows, field) => rows.length
+        ? rows.map(row => escapeHtml(row?.[field] || "-")).join("<br>")
+        : "-";
+      const signalDate = escapeHtml(dateText(currentContext.signal_date));
+      const execDate = escapeHtml(dateText(currentContext.exec_date));
+      const exitDate = escapeHtml(dateText(currentContext.exit_date));
       const order = [
         ["all_selected_slots", "全部Shadow槽位"],
         ["shadow_slot_1", "Shadow Top1"],
@@ -2874,8 +2885,14 @@
       ];
       const body = order.map(([key, label]) => {
         const cohort = summary.cohorts[key];
+        const current = rowsForCohort(key);
         return `<tr>
           <td class="left">${label}</td>
+          <td class="left">${identityText(current, "ts_code")}</td>
+          <td class="left name">${identityText(current, "name")}</td>
+          <td>${signalDate}</td>
+          <td>${execDate}</td>
+          <td>${exitDate}</td>
           <td>${integerText(cohort.selection_dates)}</td>
           <td>${integerText(cohort.selected_slots)}</td>
           <td>${integerText(cohort.t_validated_slots)}</td>
@@ -2888,7 +2905,7 @@
         </tr>`;
       }).join("");
       return `<div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr>
-        <th class="left">累计口径</th><th>D日</th><th>冻结槽位</th><th>T已验证</th><th>T+1已结算</th><th>代理可买率</th><th>盈利率</th><th>平均净收益</th><th>等权累计</th><th>最大回撤</th>
+        <th class="left">累计口径</th><th class="left">当前代码</th><th class="left">当前公司</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>D日</th><th>冻结槽位</th><th>T已验证</th><th>T+1已结算</th><th>代理可买率</th><th>盈利率</th><th>平均净收益</th><th>等权累计</th><th>最大回撤</th>
       </tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
@@ -2984,12 +3001,12 @@
         const t1Status = row.t1_settlement_status ?? row.t1_status ?? "PENDING_T1_NOT_REACHED";
         const tLabel = String(tStatus).startsWith("PENDING") ? "待T验证" : String(tStatus);
         const t1Label = String(t1Status).startsWith("PENDING") ? "待T+1结算" : String(t1Status);
-        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(row.name)}</td><td><span class="truth-badge pending">${escapeHtml(tLabel)}</span></td><td><span class="truth-badge pending">${escapeHtml(t1Label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
+        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(row.name)}</td><td>${escapeHtml(dateText(shadow.signal_date))}</td><td>${escapeHtml(dateText(shadow.exec_date))}</td><td>${escapeHtml(dateText(shadow.exit_date))}</td><td><span class="truth-badge pending">${escapeHtml(tLabel)}</span></td><td><span class="truth-badge pending">${escapeHtml(t1Label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
       }).join("");
       const latestTable = rows.length
-        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>同D同SHA混合盈利Top1/Top2 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
+        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>同D同SHA混合盈利Top1/Top2 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2。</div>';
-      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>D 0828起 · Top1、Top2分别统计 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(displaySummary)}`;
+      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>D 0828起 · Top1、Top2分别统计 · 当前标识仅作当期上下文 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(displaySummary, { rows, signal_date: shadow.signal_date, exec_date: shadow.exec_date, exit_date: shadow.exit_date })}`;
       els.executableProfitShadowNote.textContent = publicWindowReady
         ? `统计从 D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)} 起，截至 ${dateText(shadow.as_of_date)}；只读取SHA绑定的独立Shadow sidecar。该层不改变混合盈利排序、晋级成员或晋级排名，不连接券商、不生成订单或Action。`
         : `D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)} 之前的Shadow已从页面累计中排除；当前仅展示同D同SHA冻结席位，等待下一自然Verify生成新的D28起累计摘要。该层不连接券商、不生成订单或Action。`;
@@ -3095,10 +3112,14 @@
       ${candidateCount ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
         <th>盈利概率排名</th><th>晋级排名</th><th>Shadow</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>模型估计可实现盈利概率（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th><th>D冻结最高研究价</th><th>T验证</th><th>T+1净收益（来源合同成本后）</th>
       </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>当日没有2→3或3→4候选；系统展示真实N=0，不从池外补票，也不生成Shadow Top1/Top2。</div>'}`;
-      const latestBody = statistics.latest_selected_rows.map(row => {
+      const currentShadowRows = statistics.latest_selected_rows.map(row => ({
+        ...row,
+        name: nameByCode.get(row.ts_code) || "-"
+      }));
+      const latestBody = currentShadowRows.map(row => {
         const tState = executableProfitTLabel(row);
         const t1State = executableProfitT1Label(row);
-        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(nameByCode.get(row.ts_code) || "-")}</td><td><span class="truth-badge ${tState.tone}">${escapeHtml(tState.label)}</span></td><td><span class="truth-badge ${t1State.tone}">${escapeHtml(t1State.label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
+        return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(nameByCode.get(row.ts_code) || "-")}</td><td>${escapeHtml(dateText(projection.signal_date))}</td><td>${escapeHtml(dateText(projection.exec_date))}</td><td>${escapeHtml(dateText(projection.exit_date))}</td><td><span class="truth-badge ${tState.tone}">${escapeHtml(tState.label)}</span></td><td><span class="truth-badge ${t1State.tone}">${escapeHtml(t1State.label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
       }).join("");
       const summary = statistics.statistics;
       const progress = summary?.forward_signal_date_progress_180;
@@ -3112,10 +3133,10 @@
         metric("累计盈利率", overall ? pct(overall.win_rate) : "-"),
         metric("等权累计净收益", overall ? signedPct(overall.equal_weight_cumulative_return) : "-", valueTone(overall?.equal_weight_cumulative_return))
       ].join("");
-      const latestTable = statistics.latest_selected_rows.length
-        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
+      const latestTable = currentShadowRows.length
+        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2；零候选日仍可进入D日进度统计。</div>';
-      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>Top1、Top2分别统计 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(summary)}`;
+      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>Top1、Top2分别统计 · 当前标识仅作当期上下文 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(summary, { rows: currentShadowRows, signal_date: projection.signal_date, exec_date: projection.exec_date, exit_date: projection.exit_date })}`;
       els.executableProfitShadowNote.textContent = `统计截至 ${dateText(statistics.as_of_date)}；成本后收益只来自模型冻结Shadow并服从SHA绑定的结算来源合同，代理未成交的条件收益为空、策略槽位收益记0。页面显示的是未校准模型估计概率，正式校准状态仍为false；人工作业结果使用独立账本，不回填模型Shadow。`;
     }
 

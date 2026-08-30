@@ -1,4 +1,12 @@
+import ast
+import copy
+import csv
+import hashlib
+import io
+import json
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,6 +16,68 @@ DASHBOARD = ROOT / "decision.html"
 
 def _workflow() -> str:
     return WORKFLOW.read_text(encoding="utf-8")
+
+
+def _embedded_python_functions(name: str) -> list:
+    lines = _workflow().splitlines()
+    functions = []
+    for index, line in enumerate(lines):
+        if "python3 - <<'PY'" not in line and "python - <<'PY'" not in line:
+            continue
+        indent = len(line) - len(line.lstrip())
+        body = []
+        for raw in lines[index + 1 :]:
+            if raw.strip() == "PY" and len(raw) - len(raw.lstrip()) == indent:
+                break
+            body.append(raw[indent:])
+        module = ast.parse("\n".join(body))
+        for node in module.body:
+            if isinstance(node, ast.FunctionDef) and node.name == name:
+                namespace = {
+                    "csv": csv,
+                    "hashlib": hashlib,
+                    "io": io,
+                }
+                function_module = ast.Module(body=[node], type_ignores=[])
+                exec(compile(function_module, str(WORKFLOW), "exec"), namespace)
+                functions.append(namespace[name])
+    return functions
+
+
+def _primary_runtime_closure_args() -> dict:
+    signal_date = "20260828"
+    receipt_path = (
+        ROOT / "outputs" / "decision" / f"primary_d_receipt_{signal_date}.json"
+    )
+    runtime_index_path = (
+        ROOT / "outputs" / "decision" / "primary_d_runtime_index.json"
+    )
+    runtime_path = (
+        ROOT
+        / "outputs"
+        / "decision"
+        / f"primary_d_runtime_features_{signal_date}.csv"
+    )
+    contract_path = (
+        ROOT / "outputs" / "decision" / f"three_rank_top10_{signal_date}.json"
+    )
+    contract_csv_path = (
+        ROOT / "outputs" / "decision" / f"three_rank_top10_{signal_date}.csv"
+    )
+    return {
+        "receipt": json.loads(receipt_path.read_text(encoding="utf-8")),
+        "receipt_bytes": receipt_path.read_bytes(),
+        "runtime_index": json.loads(
+            runtime_index_path.read_text(encoding="utf-8")
+        ),
+        "runtime_bytes": runtime_path.read_bytes(),
+        "contract": json.loads(contract_path.read_text(encoding="utf-8")),
+        "contract_bytes": contract_path.read_bytes(),
+        "contract_csv_bytes": contract_csv_path.read_bytes(),
+        "signal_date": signal_date,
+        "exec_date": "20260831",
+        "exit_date": "20260901",
+    }
 
 
 def test_pages_revision_exposes_freeze_and_report_freshness_truth() -> None:
@@ -72,6 +142,177 @@ def test_public_verifier_exactly_checks_revision_fields_and_banner() -> None:
     assert 'revision.get("stale_reason") != expected_stale_reason' in text
     assert "public stale banner does not match revision.json" in text
     assert "fresh active page unexpectedly contains stale banner" in text
+
+
+def test_pages_revision_is_primary_d_first_and_keeps_report_body_audit_separate() -> None:
+    text = _workflow()
+    assert "validate_three_rank_index_truth(" in text
+    assert "signal_date = str(primary_contract['signal_date'])" in text
+    assert "report_signal_date = truth.signal_date" in text
+    assert '"schema_version": "decision_pages_revision_v4_primary_first"' in text
+    for field in (
+        "primary_d_signal_date",
+        "primary_d_exec_date",
+        "primary_d_exit_date",
+        "primary_d_status",
+        "primary_d_generation_mode",
+        "primary_d_bundle_sha256",
+        "primary_d_top10_count",
+        "primary_d_receipt_url",
+        "report_signal_date",
+    ):
+        assert f'"{field}":' in text
+    assert '"freshness_scope": "report_body_only"' in text
+    assert '"report_freshness_state": freshness_state' in text
+    assert '"report_stale": stale' in text
+    assert '"report_stale_reason": stale_reason' in text
+    assert "primary_inputs.signal_date > signal_date" in text
+    assert "same-D primary-profit membership drifted" in text
+
+
+def test_public_verifier_checks_exact_primary_d_bytes_and_two_date_domains() -> None:
+    text = _workflow()
+    for name in (
+        "EXPECTED_PRIMARY_EXEC_DATE",
+        "EXPECTED_PRIMARY_EXIT_DATE",
+        "EXPECTED_PRIMARY_GENERATION_MODE",
+        "EXPECTED_PRIMARY_BUNDLE_SHA256",
+        "EXPECTED_PRIMARY_TOP10_COUNT",
+        "EXPECTED_PRIMARY_RECEIPT_URL",
+        "EXPECTED_REPORT_SIGNAL_DATE",
+    ):
+        assert name in text
+    for path in (
+        'primary_index_url = "outputs/decision/three_rank_index.json"',
+        'f"{expected_signal_date}.json"',
+        'f"{expected_signal_date}.csv"',
+        '"outputs/decision/primary_d_runtime_index.json"',
+        '"outputs/decision/primary_d_runtime_features_"',
+    ):
+        assert path in text
+    assert "public Primary-D bytes differ from exact build" in text
+    assert "public Primary-D index/receipt/bundle binding is invalid" in text
+    assert 'revision.get("primary_d_signal_date")' in text
+    assert 'revision.get("report_signal_date")' in text
+    assert (
+        'str(public_research.get("signal_date")) != expected_report_signal_date'
+        in text
+    )
+    assert (
+        'str(public_eval.get("signal_date")) != expected_report_signal_date'
+        in text
+    )
+    assert (
+        'str(legacy.get("signal_date")) != expected_report_signal_date'
+        in text
+    )
+
+
+@pytest.mark.parametrize(
+    "function_name",
+    (
+        "validate_primary_d_runtime_closure",
+        "validate_public_primary_d_runtime_closure",
+    ),
+)
+def test_primary_d_runtime_closure_accepts_exact_d28_release(
+    function_name: str,
+) -> None:
+    functions = _embedded_python_functions(function_name)
+    assert len(functions) == 1
+    functions[0](**_primary_runtime_closure_args())
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value"),
+    (
+        ("runtime_dependency_on_top10_decision", True),
+        ("future_market_data_consumed", True),
+        ("latest_fallback_used", True),
+        (
+            "secondary_outputs_generated",
+            {
+                "action_plan": False,
+                "big_loss": False,
+                "profit": True,
+                "p_fill_shadow": False,
+                "executable_profit": False,
+            },
+        ),
+    ),
+)
+@pytest.mark.parametrize(
+    "function_name",
+    (
+        "validate_primary_d_runtime_closure",
+        "validate_public_primary_d_runtime_closure",
+    ),
+)
+def test_primary_d_runtime_closure_rejects_receipt_semantic_drift(
+    function_name: str,
+    field: str,
+    bad_value: object,
+) -> None:
+    function = _embedded_python_functions(function_name)[0]
+    arguments = _primary_runtime_closure_args()
+    arguments["receipt"] = copy.deepcopy(arguments["receipt"])
+    arguments["receipt"][field] = bad_value
+    with pytest.raises(ValueError):
+        function(**arguments)
+
+
+@pytest.mark.parametrize(
+    "function_name",
+    (
+        "validate_primary_d_runtime_closure",
+        "validate_public_primary_d_runtime_closure",
+    ),
+)
+def test_primary_d_runtime_closure_rejects_runtime_index_or_bytes_drift(
+    function_name: str,
+) -> None:
+    function = _embedded_python_functions(function_name)[0]
+
+    bad_index_arguments = _primary_runtime_closure_args()
+    bad_index_arguments["runtime_index"] = copy.deepcopy(
+        bad_index_arguments["runtime_index"]
+    )
+    bad_index_arguments["runtime_index"]["latest_runtime_features_url"] = (
+        "outputs/decision/primary_d_runtime_features_20260827.csv"
+    )
+    with pytest.raises(ValueError):
+        function(**bad_index_arguments)
+
+    bad_bytes_arguments = _primary_runtime_closure_args()
+    bad_bytes_arguments["runtime_bytes"] += b"\n"
+    with pytest.raises(ValueError):
+        function(**bad_bytes_arguments)
+
+
+@pytest.mark.parametrize(
+    "function_name",
+    (
+        "validate_primary_d_runtime_closure",
+        "validate_public_primary_d_runtime_closure",
+    ),
+)
+def test_primary_d_runtime_closure_rejects_hash_bound_wrong_d_csv(
+    function_name: str,
+) -> None:
+    function = _embedded_python_functions(function_name)[0]
+    arguments = _primary_runtime_closure_args()
+    runtime_text = arguments["runtime_bytes"].decode("utf-8")
+    wrong_d_runtime = runtime_text.replace("20260828,", "20260827,", 1).encode(
+        "utf-8"
+    )
+    wrong_d_sha = hashlib.sha256(wrong_d_runtime).hexdigest()
+    arguments["runtime_bytes"] = wrong_d_runtime
+    arguments["receipt"] = copy.deepcopy(arguments["receipt"])
+    arguments["receipt"]["outputs"]["runtime_features_sha256"] = wrong_d_sha
+    arguments["runtime_index"] = copy.deepcopy(arguments["runtime_index"])
+    arguments["runtime_index"]["latest_runtime_features_sha256"] = wrong_d_sha
+    with pytest.raises(ValueError, match="another D|closure is invalid"):
+        function(**arguments)
 
 
 def test_generic_pages_cannot_relabel_an_old_report_as_today() -> None:

@@ -63,7 +63,7 @@
     "primary_mixed_shadow_may_change_promotion_membership_or_rank": false
   },
   "added_runtime_pins": {
-    ".github/workflows/run_primary_d_daily.yml": "df227b3523fe6436debe12be698d21ae1c84211f39214260427e7c97bfc0d927",
+    ".github/workflows/run_primary_d_daily.yml": "291260c4efc898be78beb2e2f494d1bc48ce0c113c3d1e4beb9fdb570677663d",
     ".github/workflows/run_primary_profit_forward_shadow.yml": "da4d16a7b9731149d5a791d6b89a4b7663c240fdc315ff9694d693275ce0f0e0",
     ".github/workflows/run_primary_profit_rankings.yml": "e51bc2e628ce972bebc6d09acbe2990dd9d314f8a947591652c26e903479ee1a",
     "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
@@ -74,20 +74,20 @@
     "scripts/publish_primary_profit_rankings.py": "563ec0ccca49218740c1cc178c1ab142eaeb3f749a35ad39b5369cbfced60beb",
     "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
     "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "75609cb85520cad1ad392dc0b7a553ee2a2f36eb85c6083518711371ab39b837",
-    "tests/test_decision_executable_profit_frontend.py": "83a2c6a9e701063659a0e247f2e9324607e27cd3615ef9811c23a88da25dfc47",
+    "tests/test_decision_executable_profit_frontend.py": "16832e660effca898fd40d045920f0840d64e927de482cc74678b5a1f30243c7",
     "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
     "tests/test_primary_profit_forward_shadow_bridge.py": "03b443c81c67f537f88a5e99c14635a962d4caaa08766b45492d6678fdbf191c",
     "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
     "tests/test_primary_profit_rankings_p1.py": "bde5c6b09cf10184040ec4c68e84278dee2cfbbb1653c7ab046b5b9d24d27551",
-    "tests/test_primary_three_rank_p0.py": "0de2792b3c0b758b29d07834ae204515d47a4c929e96eb149c2ac228bfbd9aa6"
+    "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf"
   },
-  "changed_surface_sha256": "5392805eea9f2dc6e2af4fddf3ce33dafd2f365a4c9391d12e0ced549c94043f",
+  "changed_surface_sha256": "6bbfe99bb913cfae59d4ec5e5379e2a3d1f1bb061ba0127465fff89466cba56f",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
       "prior_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
-      "current_sha256": "5666c1137bf85884dcf98b4c164dc97b55fd4606539c8d7f0497b101295f38a9",
+      "current_sha256": "90f5586cc3262fc1a11a8d869755faf12ca8045b865abb6a7dd9b00092e7e207",
       "classification": "primary_owned_exact_revision_pages_dispatch_gate"
     },
     {
@@ -105,7 +105,7 @@
     {
       "path": ".github/workflows/run_decision_daily.yml",
       "prior_sha256": "06d23af93c07eb844d7d0b2af832a032aea60a1e17cb3f52582ad5f9599a5a16",
-      "current_sha256": "981e0aeaae46c88e1cb697a33e061f9d289a215174d29f12039196079957a75f",
+      "current_sha256": "2a5f230bf6fc725598d7edc600c11df86815b660f22d90a425ac8ac211e5500c",
       "classification": "legacy_full_research_manual_only_depower"
     },
     {
@@ -123,7 +123,7 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "333c30a583675a7cdcfb15a83f061aa28fad617a6423e001e7afa6831d79432a",
+      "current_sha256": "bb616c2f5f83e2c5805b55d38fab158a0e3f3471b046822104e67ca8c03df8c5",
       "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
@@ -321,7 +321,7 @@
     {
       "path": "tests/test_pages_truthfulness_workflow.py",
       "prior_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
-      "current_sha256": "43eac9e62f14e02e21478e6e9b3b421ca68042f8340f6484019c1de9a1d24fa4",
+      "current_sha256": "3bd5a0a172a362111418635936d58abb52a7a0761e88bdb7adc5fc2cd3d1b4c1",
       "classification": "primary_owned_pages_public_acceptance_test"
     },
     {
@@ -351,7 +351,7 @@
     {
       "path": "tests/test_writer_workflow_hardening.py",
       "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
-      "current_sha256": "1659d0e0494ad9167ef89482e3119d0bfb51027ff0772ca4c9e9971771ea3fa6",
+      "current_sha256": "99278aef10efa8c7570cfbe7ba6662041a135da1d93530a5aff918c6f0606864",
       "classification": "legacy_writer_depower_primary_schedule_contract_test"
     }
   ]

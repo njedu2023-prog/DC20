@@ -260,14 +260,20 @@ def test_established_daily_identity_bridges_schedule_without_running_legacy_comp
     )[1].split("- name: Require persisted Auction action", 1)[0]
 
     assert "schedule:" in header
-    for cron in (
-        'cron: "25 13 * * 1-5"',
-        'cron: "25 14 * * 1-5"',
-        'cron: "25 15 * * 1-5"',
-        'cron: "45 15 * * 1-5"',
-        'cron: "25 16 * * 1-5"',
-    ):
-        assert header.count(cron) == 1
+    expected_bridge = {
+        f"{minute} {hour} * * {weekday}"
+        for weekday in range(1, 6)
+        for hour, minute in (
+            (13, 25),
+            (14, 25),
+            (15, 25),
+            (15, 45),
+            (16, 25),
+        )
+    }
+    scheduled = re.findall(r'cron: "([^"]+)"', header)
+    assert len(scheduled) == 25
+    assert set(scheduled) == expected_bridge
     assert "workflow_dispatch:" in header
     assert "Legacy Full Research Replay (Manual)" in header
     pages_header = pages.split("\npermissions:", 1)[0]
