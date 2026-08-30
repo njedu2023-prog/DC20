@@ -63,9 +63,9 @@
     "primary_mixed_shadow_may_change_promotion_membership_or_rank": false
   },
   "added_runtime_pins": {
-    ".github/workflows/run_primary_d_daily.yml": "3a96649f22130552a77799e78c1107ef4c2541b3215c2fb07901240dc60154d8",
-    ".github/workflows/run_primary_profit_forward_shadow.yml": "1c05a467669af6bc27afd064097601e1b47fbe7d1005a9d9b983a5f1c124d23c",
-    ".github/workflows/run_primary_profit_rankings.yml": "256713a25b4f59d5b3fb41b8b28a12c6b635c6cc9d6071c5dd49a4a897385f54",
+    ".github/workflows/run_primary_d_daily.yml": "df227b3523fe6436debe12be698d21ae1c84211f39214260427e7c97bfc0d927",
+    ".github/workflows/run_primary_profit_forward_shadow.yml": "da4d16a7b9731149d5a791d6b89a4b7663c240fdc315ff9694d693275ce0f0e0",
+    ".github/workflows/run_primary_profit_rankings.yml": "e51bc2e628ce972bebc6d09acbe2990dd9d314f8a947591652c26e903479ee1a",
     "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
     "models/decision_primary_profit_forward_shadow_bridge_contract.json": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
@@ -78,9 +78,9 @@
     "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
     "tests/test_primary_profit_forward_shadow_bridge.py": "03b443c81c67f537f88a5e99c14635a962d4caaa08766b45492d6678fdbf191c",
-    "tests/test_primary_profit_forward_shadow_workflow.py": "ab8ec4a998092cf737373e742a7b8c6e2c05ea7cae65db4ece964fafb33c20ca",
-    "tests/test_primary_profit_rankings_p1.py": "b947c994cac90c992bc7a5a209d53ba5c7271f19e3330ef31ccd72bf70dc29d6",
-    "tests/test_primary_three_rank_p0.py": "b21772f6103b5b73a4d5f20efe77787fb5dabf73fe0b4757e1afe83f15e8fa15"
+    "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
+    "tests/test_primary_profit_rankings_p1.py": "bde5c6b09cf10184040ec4c68e84278dee2cfbbb1653c7ab046b5b9d24d27551",
+    "tests/test_primary_three_rank_p0.py": "0de2792b3c0b758b29d07834ae204515d47a4c929e96eb149c2ac228bfbd9aa6"
   },
   "changed_surface_sha256": "5392805eea9f2dc6e2af4fddf3ce33dafd2f365a4c9391d12e0ced549c94043f",
   "pin_changes": [

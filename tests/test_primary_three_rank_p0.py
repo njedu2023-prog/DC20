@@ -606,9 +606,16 @@ def test_primary_workflow_redeploys_an_already_committed_bundle() -> None:
         "${{ needs.publish.outputs.published_head || "
         "needs.compute.outputs.base_head }}"
     )
-    assert deploy.count(deploy_head) == 3
-    assert "SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}" in deploy
-    assert "GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}" in deploy
+    legacy, canonical = deploy.split("\n  deploy-primary-pages-canonical:", 1)
+    assert legacy.count(deploy_head) == 3
+    assert "name: Deprecated partial primary D deploy (disabled)" in legacy
+    assert "if: ${{ false }}" in legacy
+    assert "SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}" in legacy
+    assert "GENERATION_MODE: ${{ needs.compute.outputs.generation_mode }}" in legacy
+    assert canonical.count(deploy_head) == 1
+    assert "name: Deploy exact primary D revision" in canonical
+    assert "uses: ./.github/workflows/deploy_dc20_pages.yml" in canonical
+    assert "expected_head: " + deploy_head in canonical
 
 
 def test_primary_commit_has_exclusive_pages_owner_marker() -> None:

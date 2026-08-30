@@ -131,7 +131,22 @@ jobs:
                   'CAS publish one complete P1 commit':None,
                   'Deploy exact P1 revision':'success',
               }
-              observed={str(job.get('name') or ''):str(job.get('conclusion') or '') for job in jobs}
+              observed={}
+              for job in jobs:
+                  if not isinstance(job,dict):
+                      raise SystemExit('P1 upstream jobs response is invalid')
+                  raw_name=str(job.get('name') or '')
+                  reusable_suffix=' / deploy'
+                  name=(
+                      raw_name[:-len(reusable_suffix)]
+                      if raw_name.endswith(reusable_suffix)
+                      else raw_name
+                  )
+                  if name not in required:
+                      continue
+                  if name in observed:
+                      raise SystemExit(f'P1 upstream job is duplicated: {name}')
+                  observed[name]=str(job.get('conclusion') or '')
               if any(name not in observed for name in required):
                   raise SystemExit('P1 upstream required jobs are missing')
               if observed['Build atomic P1 single/mixed research candidate'] != 'success' or observed['Deploy exact P1 revision'] != 'success':

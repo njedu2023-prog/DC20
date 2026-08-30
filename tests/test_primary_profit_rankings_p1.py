@@ -62,6 +62,7 @@ def _p0_jobs_payload(
     compute: str = "success",
     publish: str = "success",
     deploy: str = "success",
+    deploy_suffix: str = "",
 ) -> dict[str, object]:
     jobs = [
         {
@@ -75,7 +76,7 @@ def _p0_jobs_payload(
             "conclusion": publish,
         },
         {
-            "name": f"{prefix}Deploy exact primary D revision",
+            "name": f"{prefix}Deploy exact primary D revision{deploy_suffix}",
             "status": "completed",
             "conclusion": deploy,
         },
@@ -88,12 +89,18 @@ def _p0_jobs_payload(
     ["", "Invoke Action-independent primary D publication / "],
 )
 @pytest.mark.parametrize("publish_conclusion", ["success", "skipped"])
+@pytest.mark.parametrize("deploy_suffix", ["", " / deploy"])
 def test_p1_accepts_exact_successful_p0_job_chain(
     prefix: str,
     publish_conclusion: str,
+    deploy_suffix: str,
 ) -> None:
     validate = _load_primary_p0_jobs_validator()
-    payload = _p0_jobs_payload(prefix=prefix, publish=publish_conclusion)
+    payload = _p0_jobs_payload(
+        prefix=prefix,
+        publish=publish_conclusion,
+        deploy_suffix=deploy_suffix,
+    )
     observed = validate(payload, prefix=prefix)
     assert observed[f"{prefix}Build immutable promotion-only D candidate"] == (
         "completed",
@@ -107,6 +114,26 @@ def test_p1_accepts_exact_successful_p0_job_chain(
         "completed",
         "success",
     )
+
+
+def test_p0_and_p1_pages_use_canonical_reusable_deployer() -> None:
+    p0 = (ROOT / ".github/workflows/run_primary_d_daily.yml").read_text(
+        encoding="utf-8"
+    )
+    p1 = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(
+        encoding="utf-8"
+    )
+    for workflow, legacy_name, canonical_job in (
+        (p0, "Deprecated partial primary D deploy (disabled)", "deploy-primary-pages-canonical"),
+        (p1, "Deprecated partial P1 deploy (disabled)", "deploy-primary-profit-pages-canonical"),
+    ):
+        legacy = workflow.split(f"name: {legacy_name}", 1)[1].split("permissions:", 1)[0]
+        assert "if: ${{ false }}" in legacy
+        canonical = workflow.split(f"  {canonical_job}:", 1)[1]
+        assert "uses: ./.github/workflows/deploy_dc20_pages.yml" in canonical
+        assert "expected_head: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}" in canonical
+        assert "actions/upload-pages-artifact" not in canonical
+        assert "actions/deploy-pages" not in canonical
 
 
 @pytest.mark.parametrize(

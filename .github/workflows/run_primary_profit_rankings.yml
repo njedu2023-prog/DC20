@@ -258,7 +258,16 @@ jobs:
               for job in jobs:
                   if not isinstance(job,dict):
                       raise SystemExit('P1 upstream P0 jobs payload is invalid')
-                  name=str(job.get('name') or '')
+                  raw_name=str(job.get('name') or '')
+                  # GitHub appends the called job name to a reusable-workflow
+                  # caller job.  Normalize only the one pinned Pages callee so
+                  # the logical P0 contract remains exact and fail-closed.
+                  reusable_suffix=' / deploy'
+                  name=(
+                      raw_name[:-len(reusable_suffix)]
+                      if raw_name.endswith(reusable_suffix)
+                      else raw_name
+                  )
                   if name not in requirements:
                       continue
                   if name in observed:
@@ -573,18 +582,12 @@ jobs:
           echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
   deploy-primary-profit-pages:
-    name: Deploy exact P1 revision
+    name: Deprecated partial P1 deploy (disabled)
     needs: [compute, publish]
-    if: >-
-      ${{
-        always() &&
-        needs.compute.result == 'success' &&
-        needs.compute.outputs.publish == 'true' &&
-        (
-          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
-          (needs.compute.outputs.has_changes == 'false' && needs.publish.result == 'skipped')
-        )
-      }}
+    # The partial-site publisher omits public observation and Shadow cutover
+    # artifacts. Keep it permanently fail-closed; the canonical reusable
+    # publisher below owns the exact-head Pages contract.
+    if: ${{ false }}
     permissions:
       contents: read
       pages: write
@@ -875,3 +878,24 @@ jobs:
               )
           print(f'public rendered P1 DOM verified: D={signal_date}, N={expected_n}')
           PY
+
+  deploy-primary-profit-pages-canonical:
+    name: Deploy exact P1 revision
+    needs: [compute, publish]
+    if: >-
+      ${{
+        always() &&
+        needs.compute.result == 'success' &&
+        needs.compute.outputs.publish == 'true' &&
+        (
+          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
+          (needs.compute.outputs.has_changes == 'false' && needs.publish.result == 'skipped')
+        )
+      }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}

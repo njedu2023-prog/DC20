@@ -905,18 +905,12 @@ jobs:
           echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
   deploy-primary-pages:
-    name: Deploy exact primary D revision
+    name: Deprecated partial primary D deploy (disabled)
     needs: [compute, publish]
-    if: >-
-      ${{
-        always() &&
-        needs.compute.result == 'success' &&
-        needs.compute.outputs.publish == 'true' &&
-        (
-          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
-          (needs.compute.outputs.already_complete == 'true' && needs.publish.result == 'skipped')
-        )
-      }}
+    # The partial-site publisher omits public observation and Shadow cutover
+    # artifacts. Keep it permanently fail-closed; the canonical reusable
+    # publisher below owns the exact-head Pages contract.
+    if: ${{ false }}
     permissions:
       contents: read
       pages: write
@@ -1192,3 +1186,24 @@ jobs:
           ): raise SystemExit('public runtime display SHA/date/member binding drifted')
           print('public optional runtime display index accepted')
           PY
+
+  deploy-primary-pages-canonical:
+    name: Deploy exact primary D revision
+    needs: [compute, publish]
+    if: >-
+      ${{
+        always() &&
+        needs.compute.result == 'success' &&
+        needs.compute.outputs.publish == 'true' &&
+        (
+          (needs.publish.result == 'success' && needs.publish.outputs.published_head != '') ||
+          (needs.compute.outputs.already_complete == 'true' && needs.publish.result == 'skipped')
+        )
+      }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}

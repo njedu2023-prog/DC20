@@ -34,6 +34,8 @@ def test_bridge_listens_only_to_successful_exact_p1_and_shares_writer() -> None:
     assert "cancel-in-progress: false" in text
     assert "confirm_prospective" in text
     assert "real prospective dispatch requires explicit confirmation" in text
+    assert "reusable_suffix=' / deploy'" in text
+    assert "raw_name.endswith(reusable_suffix)" in text
 
 
 def test_bridge_calls_core_freezer_and_does_not_duplicate_scoring_or_schema() -> None:
