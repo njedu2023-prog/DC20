@@ -7655,73 +7655,17 @@ class AuctionV3Engine:
         return payload
 
     def _observation_metrics(self, ledger: pd.DataFrame) -> dict[str, Any]:
-        public_start_signal_date = _normal_date(
-            self.config.public_statistics_start_signal_date
-        )
-        if not public_start_signal_date:
-            raise ValueError("public statistics signal-D cutoff is invalid")
-        source_rows = int(len(ledger))
-        frame = ledger.copy()
-        if not frame.empty:
-            frame["signal_date"] = frame["signal_date"].map(_normal_date)
-            frame = frame[
-                frame["signal_date"].ge(public_start_signal_date)
-            ].copy()
-        excluded_pre_cutover_rows = source_rows - int(len(frame))
-        if frame.empty:
+        if ledger.empty:
             return {
                 "schema_version": "decision_observation_validation_v4_auction_truth",
                 "status": "no_observation_predictions",
                 "generated_at_utc": _utc_now(),
                 "validation_start_exec_date": self.config.observation_validation_start_date,
-                "public_start_signal_date": public_start_signal_date,
-                "historical_ledger_retained": True,
-                "excluded_pre_cutover_rows": excluded_pre_cutover_rows,
-                "observation_dates": 0,
                 "observation_rows": 0,
-                "t_validated_rows": 0,
-                "t_pending_rows": 0,
-                "premarket_valid_rows": 0,
-                "premarket_validated_rows": 0,
-                "retrospective_truth_rows": 0,
-                "unknown_timing_truth_rows": 0,
-                "official_auction_truth_rows": 0,
-                "minute_proxy_truth_rows": 0,
-                "daily_open_proxy_truth_rows": 0,
-                "final_verified_trades": 0,
-                "matured_portfolio_dates": 0,
-                "stage_2_to_3": {"samples": 0, "hits": 0, "hit_rate": None},
-                "stage_3_to_4": {"samples": 0, "hits": 0, "hit_rate": None},
-                "top1_continuation": {
-                    "start_signal_date": public_start_signal_date,
-                    "rank_field": "promotion_rank",
-                    "rank_value": 1,
-                    "samples": 0,
-                    "hits": 0,
-                    "hit_rate": None,
-                },
-                "top3_continuation": {"samples": 0, "hits": 0, "hit_rate": None},
-                "all_truth_summary": {
-                    "t_validated_rows": 0,
-                    "fillable_rows": 0,
-                    "final_verified_trades": 0,
-                    "final_win_rate": None,
-                    "mean_final_net_return": None,
-                },
-                "daily_portfolio": [],
-                "path_performance": {},
-                "trading_date_windows": {
-                    label: {
-                        "portfolio_dates": 0,
-                        "filled_trades": 0,
-                        "mean_net_return": None,
-                        "win_rate": None,
-                        "equal_slot_cumulative_return": None,
-                    }
-                    for label in ("20", "60", "all")
-                },
-                "forward_shadow": self._forward_shadow_metrics(frame),
+                "forward_shadow": self._forward_shadow_metrics(ledger),
             }
+        frame = ledger.copy()
+        frame["signal_date"] = frame["signal_date"].map(_normal_date)
         frame["expected_buy_date"] = frame["expected_buy_date"].map(_normal_date)
         frame["observation_rank"] = pd.to_numeric(frame.get("observation_rank"), errors="coerce")
         frame["promotion_rank"] = pd.to_numeric(
@@ -7816,9 +7760,6 @@ class AuctionV3Engine:
             "status": "ok",
             "generated_at_utc": _utc_now(),
             "validation_start_exec_date": self.config.observation_validation_start_date,
-            "public_start_signal_date": public_start_signal_date,
-            "historical_ledger_retained": True,
-            "excluded_pre_cutover_rows": excluded_pre_cutover_rows,
             "validation_mode": "market_at_open_proxy",
             "market_open_fill_assumption": True,
             "displayed_limit_affects_fill": False,

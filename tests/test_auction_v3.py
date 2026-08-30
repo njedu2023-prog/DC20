@@ -19,6 +19,7 @@ for path in (ROOT, SRC):
         sys.path.insert(0, str(path))
 
 from scripts import run_auction_v3 as run_auction_script  # noqa: E402
+from scripts import verify_decision_observations as verify_observation_script  # noqa: E402
 from scripts.validate_backfill_artifacts import (  # noqa: E402
     EXPECTED_HISTORY_COLUMNS,
 )
@@ -1185,16 +1186,7 @@ class AuctionV3Test(unittest.TestCase):
         self.assertIn(missing_code, set(candidates["ts_code"]))
 
     def test_true_price_verification_and_reports(self) -> None:
-        # This synthetic fixture predates the production public-statistics
-        # cutover. Override only its reporting window so the test continues to
-        # exercise truth settlement rather than the D28 governance boundary.
-        fixture_config = replace(
-            self.config,
-            public_statistics_start_signal_date=self.dates[0],
-            forward_shadow_start_signal_date=self.dates[0],
-            top1_promotion_start_signal_date=self.dates[0],
-        )
-        engine = AuctionV3Engine(fixture_config)
+        engine = AuctionV3Engine(self.config)
         signal_date = self.dates[1]
         history = engine.build_history()
         oos, metrics = engine.run_backtest(history)
@@ -1254,12 +1246,12 @@ class AuctionV3Test(unittest.TestCase):
         self.assertEqual(late[0:2], ("RETROSPECTIVE_LATE_GENERATION", 0))
         self.assertEqual(valid[2], "2026-07-23T01:25:00+00:00")
 
-    def test_forward_shadow_metrics_start_at_public_d28_cutover(self) -> None:
+    def test_forward_shadow_metrics_start_at_20260728(self) -> None:
         rows = [
             {
-                "signal_date": "20260827",
-                "expected_buy_date": "20260828",
-                "expected_exit_date": "20260831",
+                "signal_date": "20260727",
+                "expected_buy_date": "20260728",
+                "expected_exit_date": "20260729",
                 "ts_code": "600001.SH",
                 "prediction_timing_valid": 1,
                 "trade_shadow_selected": 1,
@@ -1270,9 +1262,9 @@ class AuctionV3Test(unittest.TestCase):
                 "market_buyable_diagnostic": 1,
             },
             {
-                "signal_date": "20260828",
-                "expected_buy_date": "20260831",
-                "expected_exit_date": "20260901",
+                "signal_date": "20260728",
+                "expected_buy_date": "20260729",
+                "expected_exit_date": "20260730",
                 "ts_code": "600002.SH",
                 "name": "甲",
                 "prediction_timing_valid": 1,
@@ -1284,9 +1276,9 @@ class AuctionV3Test(unittest.TestCase):
                 "market_buyable_diagnostic": 1,
             },
             {
-                "signal_date": "20260831",
-                "expected_buy_date": "20260901",
-                "expected_exit_date": "20260902",
+                "signal_date": "20260729",
+                "expected_buy_date": "20260730",
+                "expected_exit_date": "20260731",
                 "ts_code": "600003.SH",
                 "name": "乙",
                 "prediction_timing_valid": 1,
@@ -1298,9 +1290,9 @@ class AuctionV3Test(unittest.TestCase):
                 "market_buyable_diagnostic": 1,
             },
             {
-                "signal_date": "20260831",
-                "expected_buy_date": "20260901",
-                "expected_exit_date": "20260902",
+                "signal_date": "20260729",
+                "expected_buy_date": "20260730",
+                "expected_exit_date": "20260731",
                 "ts_code": "600004.SH",
                 "name": "丙",
                 "prediction_timing_valid": 1,
@@ -1312,18 +1304,18 @@ class AuctionV3Test(unittest.TestCase):
                 "market_buyable_diagnostic": 1,
             },
             {
-                "signal_date": "20260901",
-                "expected_buy_date": "20260902",
-                "expected_exit_date": "20260903",
+                "signal_date": "20260730",
+                "expected_buy_date": "20260731",
+                "expected_exit_date": "20260803",
                 "ts_code": "600005.SH",
                 "prediction_timing_valid": 1,
                 "trade_shadow_selected": 0,
                 "validation_status": "PENDING_T",
             },
             {
-                "signal_date": "20260902",
-                "expected_buy_date": "20260903",
-                "expected_exit_date": "20260904",
+                "signal_date": "20260731",
+                "expected_buy_date": "20260803",
+                "expected_exit_date": "20260804",
                 "ts_code": "600006.SH",
                 "name": "丁",
                 "prediction_timing_valid": 1,
@@ -1334,9 +1326,9 @@ class AuctionV3Test(unittest.TestCase):
                 "market_buyable_diagnostic": 0,
             },
             {
-                "signal_date": "20260903",
-                "expected_buy_date": "20260904",
-                "expected_exit_date": "20260907",
+                "signal_date": "20260803",
+                "expected_buy_date": "20260804",
+                "expected_exit_date": "20260805",
                 "ts_code": "600007.SH",
                 "prediction_timing_valid": 0,
                 "trade_shadow_selected": 1,
@@ -1350,7 +1342,7 @@ class AuctionV3Test(unittest.TestCase):
             pd.DataFrame(rows)
         )
 
-        self.assertEqual(metrics["start_signal_date"], "20260828")
+        self.assertEqual(metrics["start_signal_date"], "20260728")
         self.assertEqual(metrics["observed_signal_dates"], 4)
         self.assertEqual(metrics["shadow_signal_dates"], 3)
         self.assertEqual(metrics["shadow_entries"], 4)
@@ -1363,10 +1355,93 @@ class AuctionV3Test(unittest.TestCase):
         self.assertAlmostEqual(metrics["equal_slot_cumulative_return"], 0.1165)
         self.assertEqual(metrics["equal_slot_max_drawdown"], 0.0)
         self.assertFalse(metrics["sample_sufficient"])
-        self.assertEqual(metrics["latest_signal_date"], "20260902")
-        self.assertEqual(metrics["rows"][0]["signal_date"], "20260902")
+        self.assertEqual(metrics["latest_signal_date"], "20260731")
+        self.assertEqual(metrics["rows"][0]["signal_date"], "20260731")
 
-    def test_public_metrics_exclude_history_before_signal_d28(self) -> None:
+    def test_top1_continuation_uses_promotion_rank_from_20260807(self) -> None:
+        rows = [
+            {
+                "signal_date": "20260806",
+                "expected_buy_date": "20260807",
+                "ts_code": "600001.SH",
+                "observation_rank": 1,
+                "promotion_rank": 1,
+                "prediction_timing_valid": 1,
+                "prediction_timing_status": "PREMARKET_VALID",
+                "validation_status": "T_VERIFIED_FILLED",
+                "continuation_limit_up_hit": 1,
+                "stage_transition": "2→3",
+            },
+            {
+                "signal_date": "20260807",
+                "expected_buy_date": "20260810",
+                "ts_code": "600002.SH",
+                "observation_rank": 2,
+                "promotion_rank": 1,
+                "prediction_timing_valid": 1,
+                "prediction_timing_status": "PREMARKET_VALID",
+                "validation_status": "T_VERIFIED_FILLED",
+                "continuation_limit_up_hit": 1,
+                "stage_transition": "2→3",
+            },
+            {
+                "signal_date": "20260807",
+                "expected_buy_date": "20260810",
+                "ts_code": "600003.SH",
+                "observation_rank": 1,
+                "promotion_rank": 2,
+                "prediction_timing_valid": 1,
+                "prediction_timing_status": "PREMARKET_VALID",
+                "validation_status": "T_VERIFIED_FILLED",
+                "continuation_limit_up_hit": 0,
+                "stage_transition": "2→3",
+            },
+            {
+                "signal_date": "20260810",
+                "expected_buy_date": "20260811",
+                "ts_code": "600004.SH",
+                "observation_rank": 3,
+                "promotion_rank": 1,
+                "prediction_timing_valid": 1,
+                "prediction_timing_status": "PREMARKET_VALID",
+                "validation_status": "T_VERIFIED_FILLED",
+                "continuation_limit_up_hit": 0,
+                "stage_transition": "3→4",
+            },
+            {
+                "signal_date": "20260811",
+                "expected_buy_date": "20260812",
+                "ts_code": "600005.SH",
+                "observation_rank": 1,
+                "promotion_rank": 1,
+                "prediction_timing_valid": 1,
+                "prediction_timing_status": "PREMARKET_VALID",
+                "validation_status": "PENDING_T",
+                "continuation_limit_up_hit": 1,
+                "stage_transition": "2→3",
+            },
+        ]
+
+        ledger = pd.DataFrame(rows).assign(
+            market_daily_return=0.0,
+            observation_fill=1,
+            observation_limit_accept=1,
+            observation_price_vs_cap=0.0,
+            observation_t_return=0.0,
+            actual_net_return=np.nan,
+            truth_source="tushare_stk_auction_o",
+        )
+        metrics = AuctionV3Engine(self.config)._observation_metrics(ledger)
+        top1 = metrics["top1_continuation"]
+
+        self.assertEqual(top1["start_signal_date"], "20260807")
+        self.assertEqual(top1["rank_field"], "promotion_rank")
+        self.assertEqual(top1["rank_value"], 1)
+        self.assertEqual(top1["samples"], 2)
+        self.assertEqual(top1["hits"], 1)
+        self.assertEqual(top1["hit_rate"], 0.5)
+
+    def test_public_projection_excludes_history_before_signal_d28(self) -> None:
         rows = [
             {
                 "signal_date": "20260827",
@@ -1439,9 +1514,21 @@ class AuctionV3Test(unittest.TestCase):
             actual_net_return=np.nan,
             truth_source="tushare_stk_auction_o",
         )
-        metrics = AuctionV3Engine(self.config)._observation_metrics(ledger)
+        class RecordingEngine:
+            def __init__(self) -> None:
+                self.ledger = pd.DataFrame()
+
+            def _observation_metrics(self, projected: pd.DataFrame) -> dict[str, object]:
+                self.ledger = projected.copy()
+                return AuctionV3Engine(self_config)._observation_metrics(projected)
+
+        self_config = self.config
+        engine = RecordingEngine()
+        metrics = verify_observation_script._public_observation_metrics(engine, ledger)
         top1 = metrics["top1_continuation"]
 
+        self.assertEqual(ledger["signal_date"].iloc[0], "20260827")
+        self.assertEqual(engine.ledger["signal_date"].min(), "20260828")
         self.assertEqual(metrics["public_start_signal_date"], "20260828")
         self.assertTrue(metrics["historical_ledger_retained"])
         self.assertEqual(metrics["excluded_pre_cutover_rows"], 1)

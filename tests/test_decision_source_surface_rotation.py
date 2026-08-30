@@ -112,8 +112,8 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "scripts/run_auction_v3.py",
         "scripts/sync_market_raw.py",
         "scripts/validate_decision_executable_profit_shadow_contract.py",
+        "scripts/verify_decision_observations.py",
         "src/top10decision/auction_v3/calibration.py",
-        "src/top10decision/auction_v3/config.py",
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
         "src/top10decision/decision/action_plan.py",
@@ -185,11 +185,11 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "scripts/validate_decision_executable_profit_shadow_contract.py": (
             "historical_contract_reviewed_source_rotation_bridge"
         ),
+        "scripts/verify_decision_observations.py": (
+            "public_observation_cumulative_cutover_projection"
+        ),
         "src/top10decision/auction_v3/calibration.py": (
             "canonical_source_preimage_restore"
-        ),
-        "src/top10decision/auction_v3/config.py": (
-            "public_observation_cumulative_cutover_config"
         ),
         "src/top10decision/auction_v3/engine.py": (
             "canonical_source_preimage_restore"
@@ -219,7 +219,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
             "three_engine_runtime_adapter"
         ),
         "tests/test_auction_v3.py": (
-            "public_observation_cumulative_cutover_test"
+            "public_observation_cumulative_cutover_projection_test"
         ),
         "tests/test_auction_v3_three_engine_runtime.py": (
             "three_engine_runtime_adapter_test"

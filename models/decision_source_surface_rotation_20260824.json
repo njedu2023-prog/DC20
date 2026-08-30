@@ -82,7 +82,7 @@
     "tests/test_primary_profit_rankings_p1.py": "b947c994cac90c992bc7a5a209d53ba5c7271f19e3330ef31ccd72bf70dc29d6",
     "tests/test_primary_three_rank_p0.py": "b21772f6103b5b73a4d5f20efe77787fb5dabf73fe0b4757e1afe83f15e8fa15"
   },
-  "changed_surface_sha256": "ec5b513c581ec2c9120b237cf7868ce11fcf64a4b64b207bccfdb66918845acf",
+  "changed_surface_sha256": "5392805eea9f2dc6e2af4fddf3ce33dafd2f365a4c9391d12e0ced549c94043f",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -181,21 +181,21 @@
       "classification": "historical_contract_reviewed_source_rotation_bridge"
     },
     {
+      "path": "scripts/verify_decision_observations.py",
+      "prior_sha256": "2cefd01b39975233f9c2ad840fc6acca63eef3684a45b6750c31755aacdca712",
+      "current_sha256": "8a589b355ec7333cabb6487d36379dd60c6a933ca292dd16a4b1ef9fba86efb4",
+      "classification": "public_observation_cumulative_cutover_projection"
+    },
+    {
       "path": "src/top10decision/auction_v3/calibration.py",
       "prior_sha256": "ebe50bb3045045b00bd1fd7a5ba4b43a986c4f8e1f0f570041800657b714be3a",
       "current_sha256": "06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9",
       "classification": "canonical_source_preimage_restore"
     },
     {
-      "path": "src/top10decision/auction_v3/config.py",
-      "prior_sha256": "4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2",
-      "current_sha256": "1eeb1da7ca68958bb5657b2498c5f0842a5c0af0acbb97dd7651d7640a35f569",
-      "classification": "public_observation_cumulative_cutover_config"
-    },
-    {
       "path": "src/top10decision/auction_v3/engine.py",
       "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "current_sha256": "d8194f60787de7ddb9382242004c711164a5755d828e9ca2f7b1173df764b203",
+      "current_sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
       "classification": "canonical_source_preimage_restore"
     },
     {
@@ -249,8 +249,8 @@
     {
       "path": "tests/test_auction_v3.py",
       "prior_sha256": "352d89880995b8893e83f232ab00f4a13a4332808c8e7d5d200ee15395713e38",
-      "current_sha256": "79fe5ce3a81ec8893fa9ee4d07ebaf16d4d5e69378ec9f6b6fd7f4a67b45a20f",
-      "classification": "public_observation_cumulative_cutover_test"
+      "current_sha256": "c44e133d4a61b47bfc98dd410154fec8ed589b31dc6c2eb3e64cf173790f17d9",
+      "classification": "public_observation_cumulative_cutover_projection_test"
     },
     {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
