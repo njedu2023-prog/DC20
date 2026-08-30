@@ -977,6 +977,8 @@
     const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
     const DASHBOARD_VERSION = "independent-three-rank-v9-primary-path-truth";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
+    const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
+    const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json";
     const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
       root: "outputs/decision/legacy_profit_relative_research",
       projectionSchema: "dc20_legacy_profit_relative_research_projection_v1",
@@ -1008,10 +1010,73 @@
       currentThreeRank: null,
       currentThreeRankPathEvidence: null,
       currentThreeRankTTruth: null,
+      currentPublicObservationStatistics: null,
       publishedRevisionSha: null,
       currentLegacyProfitRelativeResearch: null,
       currentExecutableProfitResearch: null
     };
+
+    function emptyPublicObservationStatistics() {
+      return {
+        schema_version: "decision_observation_validation_v4_auction_truth",
+        status: "public_window_pending",
+        public_start_signal_date: PUBLIC_STATISTICS_START_SIGNAL_DATE,
+        observation_dates: 0,
+        observation_rows: 0,
+        t_validated_rows: 0,
+        premarket_valid_rows: 0,
+        premarket_validated_rows: 0,
+        final_verified_trades: 0,
+        matured_portfolio_dates: 0,
+        path_performance: {},
+        trading_date_windows: {},
+        forward_shadow: {
+          start_signal_date: PUBLIC_STATISTICS_START_SIGNAL_DATE,
+          observed_signal_dates: 0,
+          shadow_signal_dates: 0,
+          shadow_entries: 0,
+          final_verified_trades: 0,
+          rows: []
+        }
+      };
+    }
+
+    function validatedPublicObservationStatistics(payload) {
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+      if (payload.schema_version !== "decision_observation_validation_v4_auction_truth") return null;
+      if (canonicalYmd(payload.public_start_signal_date) !== PUBLIC_STATISTICS_START_SIGNAL_DATE) return null;
+      const forward = payload.forward_shadow;
+      if (!forward || typeof forward !== "object" || Array.isArray(forward)) return null;
+      if (canonicalYmd(forward.start_signal_date) !== PUBLIC_STATISTICS_START_SIGNAL_DATE) return null;
+      const rows = Array.isArray(forward.rows) ? forward.rows : null;
+      if (!rows || rows.some(row =>
+        !row || canonicalYmd(row.signal_date) < PUBLIC_STATISTICS_START_SIGNAL_DATE
+      )) return null;
+      return payload;
+    }
+
+    async function refreshPublicObservationStatistics() {
+      state.currentPublicObservationStatistics = emptyPublicObservationStatistics();
+      try {
+        const payload = await fetchPath(PUBLIC_OBSERVATION_STATISTICS_PATH);
+        const validated = validatedPublicObservationStatistics(payload);
+        if (validated) state.currentPublicObservationStatistics = validated;
+      } catch (_) {
+        // The D28 public window is fail-closed: never reuse an embedded legacy
+        // cumulative object when the dedicated public artifact is unavailable.
+      }
+    }
+
+    function publicStatisticsPlan(plan) {
+      const statistics = state.currentPublicObservationStatistics
+        || emptyPublicObservationStatistics();
+      const current = plan?.observation_validation;
+      const currentSignalDate = canonicalYmd(current?.signal_date);
+      const observationValidation = currentSignalDate >= PUBLIC_STATISTICS_START_SIGNAL_DATE
+        ? current
+        : {};
+      return { ...(plan || {}), observation_statistics: statistics, observation_validation: observationValidation };
+    }
 
     const PRIMARY_PATH_LABELS = Object.freeze({
       WEAK_TO_STRONG: "弱转强",
@@ -1069,6 +1134,16 @@
         }
       }
       throw lastError || new Error(`无法读取 ${path}`);
+    }
+
+    async function fetchPagesOnlyPath(path, kind = "json") {
+      if (location.protocol === "file:") throw new Error("Pages-only Shadow来源在本地文件模式不可用");
+      const url = new URL(path, location.href);
+      if (url.origin !== location.origin) throw new Error("Pages-only Shadow来源拒绝跨源读取");
+      const response = await fetch(`${url.href}${url.href.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
+      return await response.json();
     }
 
     function finiteNumber(value) {
@@ -1640,7 +1715,9 @@
       const primaryContract = state.index === 0
         ? validatedThreeRankContract(state.currentThreeRank)
         : null;
-      els.sentimentPanel.hidden = !available;
+      const sameDayAuctionContext = !primaryContract || primaryContract === false
+        || canonicalYmd(plan?.signal_date) === canonicalYmd(primaryContract.signal_date);
+      els.sentimentPanel.hidden = !available || !sameDayAuctionContext;
       els.stagePanel.hidden = !(available || (primaryContract && primaryContract !== false));
       els.auditPanel.hidden = !available;
       if (!available) {
@@ -1651,26 +1728,32 @@
         if (primaryContract && primaryContract !== false) renderStageWatchlist(plan);
         return;
       }
-      renderSentiment(plan);
+      if (sameDayAuctionContext) renderSentiment(plan);
       renderStageWatchlist(plan);
       renderAudit(plan);
     }
 
     function renderMetrics(plan) {
+      plan = publicStatisticsPlan(plan);
       const stats = plan?.observation_statistics || {};
       const forward = stats?.forward_shadow || {};
-      const promoted = plan?.model?.promoted === true;
-      const sentiment = plan?.market_sentiment || {};
+      const primaryContract = state.index === 0
+        ? validatedThreeRankContract(state.currentThreeRank)
+        : null;
+      const sameDayAuctionContext = !primaryContract || primaryContract === false
+        || canonicalYmd(plan?.signal_date) === canonicalYmd(primaryContract.signal_date);
+      const promoted = sameDayAuctionContext && plan?.model?.promoted === true;
+      const sentiment = sameDayAuctionContext ? (plan?.market_sentiment || {}) : {};
       const sentimentScore = finiteNumber(sentiment.score);
-      const sentimentRegime = sentiment.regime_label || "数据不足";
+      const sentimentRegime = sentiment.regime_label || (sameDayAuctionContext ? "数据不足" : "等待当前D日同日数据");
       const sentimentRegimeCode = String(sentiment.regime_code || "INSUFFICIENT");
       const sentimentTone = ["EXPANSION", "EUPHORIA"].includes(sentimentRegimeCode)
         ? "positive"
         : ["ICE", "EBB"].includes(sentimentRegimeCode)
           ? "negative"
           : "warn";
-      const liveStartDate = "20260721";
-      const shadowStartDate = forward.start_signal_date || "20260728";
+      const liveStartDate = stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE;
+      const shadowStartDate = forward.start_signal_date || liveStartDate;
       const premarketRows = Number(stats.premarket_valid_rows || 0);
       const premarketValidatedRows = Number(stats.premarket_validated_rows || 0);
       const pendingTRows = Math.max(0, premarketRows - premarketValidatedRows);
@@ -1679,11 +1762,11 @@
       const forwardSampleReady = forward.sample_sufficient === true
         || forwardFinalTrades >= forwardMinimumTrades;
       const rows = [
-        metric("正式模型状态", promoted ? "已晋级" : "未晋级", promoted ? "good" : "bad"),
-        metric("正式人工建议数", String(plan?.formal_buy_count || 0), plan?.formal_buy_count ? "good" : "warn"),
-        metric("风险预算", number(plan?.risk_budget, 2)),
+        metric("正式模型状态", sameDayAuctionContext ? (promoted ? "已晋级" : "未晋级") : "当前D榜独立生成", promoted ? "good" : "warn"),
+        metric("正式人工建议数", String(sameDayAuctionContext ? (plan?.formal_buy_count || 0) : 0), "warn"),
+        metric("风险预算", sameDayAuctionContext ? number(plan?.risk_budget, 2) : "-"),
         metric("市场情绪", sentimentScore == null ? sentimentRegime : `${sentimentRegime} · ${(sentimentScore * 100).toFixed(1)}分`, sentimentTone),
-        metric("模型版本", modelDisplayName(plan?.model?.version)),
+        metric("模型版本", sameDayAuctionContext ? modelDisplayName(plan?.model?.version) : "D榜独立P0/P1"),
         metric("实际统计起点", `D ${dateText(liveStartDate)}`),
         metric("样本口径", "9:25前冻结"),
         metric("冻结预测样本", integerText(premarketRows)),
@@ -1730,10 +1813,11 @@
         )
       ];
       els.metrics.innerHTML = rows.join("");
-      els.metricsCount.textContent = `D 0721起 · ${rows.length} 项`;
+      els.metricsCount.textContent = `D ${String(liveStartDate).slice(4)}起 · ${rows.length} 项`;
     }
 
     function renderTop10Backtest(plan) {
+      plan = publicStatisticsPlan(plan);
       const stats = plan?.observation_statistics?.forward_shadow || {};
       const rows = Array.isArray(stats?.rows) ? stats.rows : [];
       const observedDates = Number(stats?.observed_signal_dates || 0);
@@ -1747,7 +1831,7 @@
         Number(stats?.finalized_entries || 0) - finalTrades
       );
       const minimumFinalTrades = Number(stats?.minimum_final_trades || 20);
-      const startSignalDate = dateText(stats?.start_signal_date || "20260728");
+      const startSignalDate = dateText(stats?.start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE);
       const forwardRows = rows.map(row => `<tr>
         <td>${dateText(row?.signal_date)} / ${dateText(row?.expected_buy_date)}</td>
         <td>${escapeHtml(row?.trade_rank || "-")}</td>
@@ -1792,8 +1876,8 @@
               <thead><tr><th>D / T</th><th>二筛排名</th><th class="left">股票</th><th>晋级</th><th class="left">路径</th><th>T开盘</th><th>T收盘</th><th>T收益</th><th>T晋级</th><th>T+1净收益</th><th>状态</th></tr></thead>
               <tbody>${forwardRows}</tbody>
             </table></div>`
-          : '<div class="empty shadow-empty"><strong>0728起尚无二筛影子记录</strong>二筛允许一天0只，不会为了凑数量降低门槛。</div>'}`;
-      els.top10BacktestCount.textContent = `D 0728起 · ${integerText(shadowEntries)}笔 / ${integerText(finalTrades)}笔已完成`;
+          : `<div class="empty shadow-empty"><strong>${escapeHtml(String(startSignalDate).slice(5).replace("-", ""))}起尚无二筛影子记录</strong>二筛允许一天0只，不会为了凑数量降低门槛。</div>`}`;
+      els.top10BacktestCount.textContent = `D ${String(canonicalYmd(stats?.start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE)).slice(4)}起 · ${integerText(shadowEntries)}笔 / ${integerText(finalTrades)}笔已完成`;
       els.top10BacktestNote.textContent = `只累计D=${startSignalDate}以后9:25前冻结的二筛影子；待验证不进入收益，历史样本外回测不计入本窗口。`;
     }
 
@@ -1928,6 +2012,8 @@
     const PRIMARY_MIXED_PROFIT_INDEX_SCHEMA = "dc20_primary_mixed_profit_research_index_v1";
     const PRIMARY_PROFIT_SHADOW_STATE_SCHEMA = "dc20_primary_profit_forward_shadow_public_state_v1";
     const PRIMARY_PROFIT_SHADOW_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_public_index_v1";
+    const PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_cutover_index_v1";
+    const PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_PATH = `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_cutover_index.json`;
     const PRIMARY_PROFIT_BOUNDARIES = Object.freeze({
       research_only: true,
       public_research_projection_allowed: true,
@@ -2030,6 +2116,15 @@
     async function fetchShaBoundJson(path, expectedSha256, label) {
       executableProfitExpect(isSha256(expectedSha256), `${label}预期SHA256无效`);
       const bytes = await fetchPath(path, "bytes");
+      executableProfitExpect(await sha256Hex(bytes) === expectedSha256, `${label}字节SHA256不一致`);
+      const payload = strictJsonFromBytes(bytes, label);
+      executableProfitExpect(payload && typeof payload === "object" && !Array.isArray(payload), `${label}不是JSON对象`);
+      return { bytes, payload };
+    }
+
+    async function fetchPagesOnlyShaBoundJson(path, expectedSha256, label) {
+      executableProfitExpect(isSha256(expectedSha256), `${label}预期SHA256无效`);
+      const bytes = await fetchPagesOnlyPath(path, "bytes");
       executableProfitExpect(await sha256Hex(bytes) === expectedSha256, `${label}字节SHA256不一致`);
       const payload = strictJsonFromBytes(bytes, label);
       executableProfitExpect(payload && typeof payload === "object" && !Array.isArray(payload), `${label}不是JSON对象`);
@@ -2457,12 +2552,138 @@
       executableProfitExpect(diagnostics && diagnostics.status === "UNCALIBRATED" && diagnostics.brier_score == null && diagnostics.expected_calibration_error == null && diagnostics.log_loss == null, "P1 Shadow未校准代理分被伪装为概率");
     }
 
+    async function loadPrimaryProfitShadowSelectionCutover(projection, primaryIndex) {
+      let cutover;
+      try {
+        cutover = await fetchPagesOnlyPath(PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_PATH);
+      } catch (error) {
+        if (/HTTP 404/.test(String(error?.message || error || ""))) return null;
+        throw error;
+      }
+      const cutoverKeys = [
+        "schema_version", "index_kind", "data_alias", "public_start_signal_date",
+        "signal_date", "exec_date", "exit_date", "candidate_count",
+        "selected_slots", "top10_members_sha256", "mixed_projection_sha256",
+        "selection", "boundaries"
+      ];
+      executableProfitExpect(exactObjectKeys(cutover, cutoverKeys), "P1 Shadow选择切换索引字段面漂移");
+      executableProfitExpect(
+        cutover.schema_version === PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_SCHEMA
+        && cutover.index_kind === "primary_profit_forward_shadow_selection_only_cutover"
+        && cutover.data_alias === false
+        && cutover.public_start_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE
+        && cutover.signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE
+        && cutover.signal_date === projection.signal_date
+        && cutover.exec_date === projection.exec_date
+        && cutover.exit_date === projection.exit_date
+        && cutover.candidate_count === projection.candidate_count
+        && cutover.selected_slots === Math.min(2, projection.candidate_count)
+        && cutover.top10_members_sha256 === projection.top10_members_sha256
+        && cutover.mixed_projection_sha256 === primaryIndex.latest_projection_json_sha256
+        && exactPrimaryProfitShadowBoundaries(cutover.boundaries),
+        "P1 Shadow选择切换索引身份或同D绑定漂移"
+      );
+      const binding = cutover.selection;
+      const expectedJson = `data/decision_executable_profit/forward/selections/shadow_${cutover.signal_date}.json`;
+      const expectedCsv = `data/decision_executable_profit/forward/selections/shadow_${cutover.signal_date}.csv`;
+      executableProfitExpect(
+        exactObjectKeys(binding, [
+          "path", "sha256", "snapshot_sha256", "selection_identity_sha256",
+          "csv_path", "csv_sha256"
+        ])
+        && binding.path === expectedJson
+        && binding.csv_path === expectedCsv
+        && [
+          binding.sha256, binding.snapshot_sha256,
+          binding.selection_identity_sha256, binding.csv_sha256
+        ].every(isSha256),
+        "P1 Shadow选择切换来源绑定无效"
+      );
+      const [selectionLoaded, selectionCsv] = await Promise.all([
+        fetchPagesOnlyShaBoundJson(binding.path, binding.sha256, "P1 Shadow D28冻结选择"),
+        fetchPagesOnlyPath(binding.csv_path, "bytes")
+      ]);
+      executableProfitExpect(await sha256Hex(selectionCsv) === binding.csv_sha256, "P1 Shadow D28冻结选择CSV SHA漂移");
+      const selection = selectionLoaded.payload;
+      executableProfitExpect(
+        selection.schema_version === "dc20_primary_profit_forward_shadow_selection_v2"
+        && selection.signal_date === cutover.signal_date
+        && selection.exec_date === cutover.exec_date
+        && selection.exit_date === cutover.exit_date
+        && selection.top10_count === cutover.candidate_count
+        && selection.top10_members_sha256 === cutover.top10_members_sha256
+        && selection.snapshot_sha256 === binding.snapshot_sha256
+        && selection.selection_identity_sha256 === binding.selection_identity_sha256
+        && selection.downloads?.csv_url === binding.csv_path
+        && selection.downloads?.csv_sha256 === binding.csv_sha256
+        && exactPrimaryProfitShadowBoundaries(selection.boundaries),
+        "P1 Shadow D28冻结选择身份或SHA绑定漂移"
+      );
+      const selected = selection.rows
+        .filter(row => row.internal_shadow_selected === 1)
+        .sort((left, right) => left.shadow_slot - right.shadow_slot);
+      executableProfitExpect(selected.length === cutover.selected_slots, "P1 Shadow D28冻结席位数量漂移");
+      const latestSelectedRows = selected.map((row, position) => {
+        const projected = projection.rows[position];
+        executableProfitExpect(
+          row.shadow_slot === position + 1
+          && row.ts_code === projected?.ts_code
+          && row.name === projected?.name
+          && row.promotion_rank === projected?.promotion_rank
+          && row.source_executable_profit_research_rank === position + 1,
+          "P1 Shadow D28冻结席位不再等于同D混合盈利Top1/Top2"
+        );
+        return {
+          shadow_slot: row.shadow_slot,
+          ts_code: row.ts_code,
+          name: row.name,
+          promotion_rank: row.promotion_rank,
+          t_status: "PENDING_T_NOT_REACHED",
+          t_truth_state: null,
+          proxy_fill: null,
+          t1_status: "PENDING_T1_NOT_REACHED",
+          scheduled_exit_date: selection.exit_date,
+          actual_exit_date: null,
+          net_return_after_cost: null,
+          strategy_slot_return: null
+        };
+      });
+      const cutoverSummary = currentCutoverShadowSummary(latestSelectedRows);
+      return {
+        index: cutover,
+        state: {
+          signal_date: cutover.signal_date,
+          exec_date: cutover.exec_date,
+          exit_date: cutover.exit_date,
+          as_of_date: cutover.signal_date,
+          latest_selected_rows: latestSelectedRows,
+          cohorts: cutoverSummary.cohorts,
+          forward_signal_date_progress_180: {
+            observed_signal_dates: 1,
+            target_signal_dates: 180,
+            remaining_signal_dates: 179,
+            release_sample_reached: false
+          },
+          probability_diagnostics: {
+            status: "UNCALIBRATED",
+            brier_score: null,
+            expected_calibration_error: null,
+            log_loss: null
+          }
+        },
+        publicWindowReady: false,
+        selectionOnlyCutover: true
+      };
+    }
+
     async function loadPrimaryProfitShadowSidecar(projection, primaryIndex) {
       let shadowIndex;
       try {
-        shadowIndex = await fetchPath(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_index.json`);
+        shadowIndex = await fetchPagesOnlyPath(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_index.json`);
       } catch (error) {
-        if (/HTTP 404/.test(String(error?.message || error || ""))) return null;
+        if (/HTTP 404/.test(String(error?.message || error || ""))) {
+          return loadPrimaryProfitShadowSelectionCutover(projection, primaryIndex);
+        }
         throw error;
       }
       const indexKeys = [
@@ -2480,7 +2701,7 @@
       executableProfitExpect(shadowIndex.latest_mixed_projection_sha256 === primaryIndex.latest_projection_json_sha256, "P1 Shadow与当前混合盈利投影字节SHA不一致");
       const expectedStateUrl = `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_state_${signalDate}_asof_${asOfDate}.json`;
       executableProfitExpect(shadowIndex.latest_state_url === expectedStateUrl && [shadowIndex.latest_state_sha256, shadowIndex.latest_state_snapshot_sha256, shadowIndex.latest_selection_identity_sha256].every(isSha256), "P1 Shadow公开索引state绑定无效");
-      const stateLoaded = await fetchShaBoundJson(shadowIndex.latest_state_url, shadowIndex.latest_state_sha256, "P1 Shadow公开状态");
+      const stateLoaded = await fetchPagesOnlyShaBoundJson(shadowIndex.latest_state_url, shadowIndex.latest_state_sha256, "P1 Shadow公开状态");
       const shadow = stateLoaded.payload;
       const stateKeys = [
         "schema_version", "artifact_kind", "status", "signal_date", "exec_date",
@@ -2509,20 +2730,25 @@
         executableProfitExpect(binding == null || (exactObjectKeys(binding, ["path", "sha256"]) && binding.path === expectedTruthPaths[name] && isSha256(binding.sha256)), `P1 Shadow ${name}来源无效`);
       }
       const [selectionLoaded, summaryLoaded] = await Promise.all([
-        fetchShaBoundJson(sources.selection.path, sources.selection.sha256, "P1 Shadow冻结选择"),
-        fetchShaBoundJson(sources.statistics.path, sources.statistics.sha256, "P1 Shadow累计统计")
+        fetchPagesOnlyShaBoundJson(sources.selection.path, sources.selection.sha256, "P1 Shadow冻结选择"),
+        fetchPagesOnlyShaBoundJson(sources.statistics.path, sources.statistics.sha256, "P1 Shadow累计统计")
       ]);
       const selection = selectionLoaded.payload;
       const summary = summaryLoaded.payload;
       const truthLoaded = {};
       for (const name of ["t_verification", "t1_settlement"]) {
         if (sources[name] != null) {
-          truthLoaded[name] = (await fetchShaBoundJson(sources[name].path, sources[name].sha256, `P1 Shadow ${name}来源`)).payload;
+          truthLoaded[name] = (await fetchPagesOnlyShaBoundJson(sources[name].path, sources[name].sha256, `P1 Shadow ${name}来源`)).payload;
           executableProfitExpect(truthLoaded[name].signal_date === signalDate && truthLoaded[name].exec_date === projection.exec_date && truthLoaded[name].exit_date === projection.exit_date, `P1 Shadow ${name}日期漂移`);
         }
       }
       executableProfitExpect(selection.schema_version === "dc20_primary_profit_forward_shadow_selection_v2" && selection.signal_date === signalDate && selection.snapshot_sha256 === sources.selection.snapshot_sha256 && selection.selection_identity_sha256 === sources.selection.selection_identity_sha256, "P1 Shadow冻结选择来源漂移");
       executableProfitExpect(summary.as_of_date === asOfDate && summary.snapshot_sha256 === sources.statistics.snapshot_sha256, "P1 Shadow累计统计来源漂移");
+      executableProfitExpect(
+        summary.public_start_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE
+        && summary.scope?.minimum_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE,
+        "P1 Shadow标准累计链缺少D28公开起点"
+      );
       executableProfitExpect(Array.isArray(shadow.latest_selected_rows) && shadow.latest_selected_rows.length === shadow.selected_slots, "P1 Shadow Top1/Top2数量不等于min(2,N)");
       shadow.latest_selected_rows.forEach((row, position) => {
         const projected = projection.rows[position];
@@ -2534,7 +2760,12 @@
         if (settled) executableProfitExpect(settled.ts_code === row.ts_code && settled.settlement_status === row.t1_status && settled.net_return_after_cost === row.net_return_after_cost && settled.strategy_slot_return === row.strategy_slot_return, "P1 Shadow T+1真值与SHA来源不一致");
       });
       validatePrimaryProfitShadowCohorts(shadow);
-      return { index: shadowIndex, state: shadow };
+      return {
+        index: shadowIndex,
+        state: shadow,
+        publicWindowReady: true,
+        selectionOnlyCutover: false
+      };
     }
 
     async function loadCurrentExecutableProfitResearch(currentThreeRank) {
@@ -2661,6 +2892,57 @@
       </tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
+    function currentCutoverShadowSummary(rows) {
+      const sourceRows = Array.isArray(rows) ? rows : [];
+      const cohort = subset => {
+        const tValidated = subset.filter(row =>
+          !String(row?.t_validation_status ?? row?.t_status ?? "PENDING_T").startsWith("PENDING")
+        );
+        const t1Settled = subset.filter(row =>
+          String(row?.t1_settlement_status ?? row?.t1_status ?? "").startsWith("FINAL_")
+        );
+        const filledReturns = t1Settled
+          .map(row => finiteNumber(row?.net_return_after_cost))
+          .filter(value => value != null);
+        const strategyReturns = t1Settled
+          .map(row => finiteNumber(row?.strategy_slot_return))
+          .filter(value => value != null);
+        const mean = values => values.length
+          ? values.reduce((total, value) => total + value, 0) / values.length
+          : null;
+        const buyable = tValidated.length
+          ? tValidated.filter(row => Number(row?.proxy_fill) === 1).length / tValidated.length
+          : null;
+        return {
+          selection_dates: subset.length ? 1 : 0,
+          effective_dates: t1Settled.length ? 1 : 0,
+          selected_slots: subset.length,
+          t_validated_slots: tValidated.length,
+          t1_settled_slots: t1Settled.length,
+          pending_validation_slots: subset.length - tValidated.length,
+          pending_settlement_slots: Math.max(0, tValidated.length - t1Settled.length),
+          proxy_buyable_rate: buyable,
+          win_rate: filledReturns.length
+            ? filledReturns.filter(value => value > 0).length / filledReturns.length
+            : null,
+          mean_net_return_after_cost: mean(filledReturns),
+          median_net_return_after_cost: null,
+          equal_weight_cumulative_return: strategyReturns.length === subset.length
+            ? mean(strategyReturns)
+            : null,
+          maximum_drawdown: null,
+          worst_trade_net_return: filledReturns.length ? Math.min(...filledReturns) : null
+        };
+      };
+      return {
+        cohorts: {
+          all_selected_slots: cohort(sourceRows),
+          shadow_slot_1: cohort(sourceRows.filter(row => Number(row?.shadow_slot) === 1)),
+          shadow_slot_2: cohort(sourceRows.filter(row => Number(row?.shadow_slot) === 2))
+        }
+      };
+    }
+
     function renderPrimaryProfitShadowSidecar(loaded) {
       const sidecar = loaded.shadow;
       if (!sidecar) {
@@ -2673,8 +2955,20 @@
       }
       const shadow = sidecar.state;
       const rows = shadow.latest_selected_rows;
-      const overall = shadow.cohorts.all_selected_slots;
-      const progress = shadow.forward_signal_date_progress_180;
+      const publicWindowReady = sidecar.publicWindowReady === true;
+      const displaySummary = publicWindowReady
+        ? { cohorts: shadow.cohorts }
+        : currentCutoverShadowSummary(rows);
+      const overall = displaySummary.cohorts.all_selected_slots;
+      const currentDateCounts = canonicalYmd(shadow.signal_date) >= PUBLIC_STATISTICS_START_SIGNAL_DATE ? 1 : 0;
+      const progress = publicWindowReady
+        ? shadow.forward_signal_date_progress_180
+        : {
+            observed_signal_dates: currentDateCounts,
+            target_signal_dates: 180,
+            remaining_signal_dates: 180 - currentDateCounts,
+            release_sample_reached: false
+          };
       els.executableProfitShadowPanel.hidden = false;
       els.executableProfitShadowState.textContent = rows.length === 0 ? "当日0席 · 不补票" : rows.length === 1 ? "仅Top1 · Top2留空" : "Top1 + Top2 已冻结";
       els.executableProfitShadowMetrics.innerHTML = [
@@ -2695,8 +2989,10 @@
       const latestTable = rows.length
         ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>同D同SHA混合盈利Top1/Top2 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2。</div>';
-      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>Top1、Top2分别统计 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts({ cohorts: shadow.cohorts })}`;
-      els.executableProfitShadowNote.textContent = `统计截至 ${dateText(shadow.as_of_date)}；只读取SHA绑定的独立Shadow sidecar。该层不改变混合盈利排序、晋级成员或晋级排名，不连接券商、不生成订单或Action。`;
+      els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>D 0828起 · Top1、Top2分别统计 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(displaySummary)}`;
+      els.executableProfitShadowNote.textContent = publicWindowReady
+        ? `统计从 D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)} 起，截至 ${dateText(shadow.as_of_date)}；只读取SHA绑定的独立Shadow sidecar。该层不改变混合盈利排序、晋级成员或晋级排名，不连接券商、不生成订单或Action。`
+        : `D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)} 之前的Shadow已从页面累计中排除；当前仅展示同D同SHA冻结席位，等待下一自然Verify生成新的D28起累计摘要。该层不连接券商、不生成订单或Action。`;
     }
 
     function renderPrimaryMixedProfitResearch(loaded) {
@@ -3594,6 +3890,7 @@
     }
 
     function renderObservationStatistics(plan) {
+      plan = publicStatisticsPlan(plan);
       const stats = plan?.observation_statistics || {};
       const current = plan?.observation_validation || {};
       const stage23 = stats.stage_2_to_3 || {};
@@ -3640,19 +3937,27 @@
       const currentTValidated = Number(current.t_validated_rows || 0);
       const currentFinal = Number(current.final_rows || 0);
       const currentPending = Number(current.pending_rows || 0);
-      els.observationUpdate.textContent = `${dateText(current.exec_date)} · T ${currentTValidated}/${currentRows}${currentFinal ? ` · T+1最终 ${currentFinal}` : ""}${currentPending ? ` · T+1待 ${currentPending}` : ""}${retrospective ? ` · 回溯 ${retrospective}` : ""}`;
+      const publicStartLabel = String(stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE).slice(4);
+      els.observationUpdate.textContent = currentRows
+        ? `${dateText(current.exec_date)} · T ${currentTValidated}/${currentRows}${currentFinal ? ` · T+1最终 ${currentFinal}` : ""}${currentPending ? ` · T+1待 ${currentPending}` : ""}${retrospective ? ` · 回溯 ${retrospective}` : ""}`
+        : `D ${publicStartLabel}起 · 等待T日与T+1真值`;
       const window20 = stats?.trading_date_windows?.["20"] || {};
       const window60 = stats?.trading_date_windows?.["60"] || {};
-      els.observationNote.textContent = `数据更新时间：${generated}。全部真值从 ${dateText(stats.validation_start_exec_date || "20260721")} 起回补；核心命中率和收益只统计T日9:25前已冻结样本，未成交按空仓0收益计入等权槽位组合。真实竞价真值优先使用 Tushare stk_auction_o，缺失时才使用分钟或日开盘代理。20日累计 ${signedPct(window20.equal_slot_cumulative_return)}，60日累计 ${signedPct(window60.equal_slot_cumulative_return)}。公开行情代理与人工实际成交分开，不把人工回填混入模型晋级。`;
+      els.observationNote.textContent = `数据更新时间：${generated}。公开累计从 D ${dateText(stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE)} 起算；核心命中率和收益只统计T日9:25前已冻结样本，未成交按空仓0收益计入等权槽位组合。真实竞价真值优先使用 Tushare stk_auction_o，缺失时才使用分钟或日开盘代理。20日累计 ${signedPct(window20.equal_slot_cumulative_return)}，60日累计 ${signedPct(window60.equal_slot_cumulative_return)}。公开行情代理与人工实际成交分开，不把人工回填混入模型晋级。`;
     }
 
     function renderPathDiagnostics(plan) {
+      plan = publicStatisticsPlan(plan);
       const pathPerformance = plan?.observation_statistics?.path_performance || {};
       const entries = Object.entries(pathPerformance)
         .sort(([, left], [, right]) => Number(right?.t_validated_rows || 0) - Number(left?.t_validated_rows || 0));
       const minimumSamples = 20;
+      const publicStartLabel = String(
+        plan?.observation_statistics?.public_start_signal_date
+        || PUBLIC_STATISTICS_START_SIGNAL_DATE
+      ).slice(4);
       if (!entries.length) {
-        els.pathDiagnosticsCount.textContent = "0 条";
+        els.pathDiagnosticsCount.textContent = `D ${publicStartLabel}起 · 0 条`;
         els.pathDiagnosticsContent.innerHTML = '<div class="empty"><strong>暂无路径真值</strong>等待T日与T+1验证累计。</div>';
         els.pathDiagnosticsNote.textContent = "";
         return;
@@ -3676,7 +3981,7 @@
           <td><span class="sample-badge ${sufficient ? "ready" : "insufficient"}">${sufficient ? "可观察" : "样本不足"}</span></td>
         </tr>`;
       }).join("");
-      els.pathDiagnosticsCount.textContent = `${entries.length} 条路径 · ${readyCount} 条可观察`;
+      els.pathDiagnosticsCount.textContent = `D ${publicStartLabel}起 · ${entries.length} 条路径 · ${readyCount} 条可观察`;
       els.pathDiagnosticsContent.innerHTML = `<div class="table-wrap"><table class="path-diagnostic-table">
         <thead><tr><th class="left">连板路径</th><th>T验证样本</th><th>晋级率</th><th>T+1完成</th><th>平均净收益</th><th>胜率</th><th>样本判断</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -4287,7 +4592,11 @@
       state.index = 0;
       state.current = { info: null, plan, md: "", evaluation: null };
       renderStatus(plan);
+      renderTop10Backtest(plan);
+      renderMetrics(plan);
       renderAuctionOnlyPanels(plan);
+      renderObservationStatistics(plan);
+      renderPathDiagnostics(plan);
       renderExecutableProfitResearch(plan);
       els.reportContent.innerHTML = `<div class="empty"><strong>旧报告/Action未参与核心排名</strong>${escapeHtml(String(error?.message || error || "历史报告不可用"))}。当前D榜及两项盈利研究仍按P0/P1独立合同展示。</div>`;
       els.reportDetails.open = false;
@@ -4301,6 +4610,7 @@
       try {
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
+        await refreshPublicObservationStatistics();
         await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);
         await refreshCurrentThreeRankTTruth(state.currentThreeRank);
         await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);

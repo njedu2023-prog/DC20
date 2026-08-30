@@ -254,6 +254,47 @@ def test_hash_or_date_failure_hides_only_new_layer() -> None:
     assert "showError" not in refresh
 
 
+def test_public_cumulative_statistics_are_d28_only_and_fail_closed() -> None:
+    text = _text()
+    validator = _function(
+        text,
+        "validatedPublicObservationStatistics",
+        "refreshPublicObservationStatistics",
+    )
+    refresh = _function(
+        text,
+        "refreshPublicObservationStatistics",
+        "publicStatisticsPlan",
+    )
+    for token in (
+        'const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828"',
+        'const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json"',
+        'payload.public_start_signal_date',
+        'forward.start_signal_date',
+        'canonicalYmd(row.signal_date) < PUBLIC_STATISTICS_START_SIGNAL_DATE',
+        'state.currentPublicObservationStatistics = emptyPublicObservationStatistics()',
+        'await refreshPublicObservationStatistics()',
+        '`D ${publicStartLabel}起 · 等待T日与T+1真值`',
+        '`D ${publicStartLabel}起 · 0 条`',
+    ):
+        assert token in text
+    assert "plan?.observation_statistics" not in validator
+    assert "plan?.observation_statistics" not in refresh
+    assert '"20260721"' not in text
+    assert '"20260728"' not in text
+    assert "D 0721起" not in text
+    assert "D 0728起" not in text
+    assert "公开累计从 D" in text
+    primary_only = _function(text, "renderPrimaryCoreOnly", "initialize")
+    for renderer in (
+        "renderTop10Backtest(plan)",
+        "renderMetrics(plan)",
+        "renderObservationStatistics(plan)",
+        "renderPathDiagnostics(plan)",
+    ):
+        assert renderer in primary_only
+
+
 def test_shadow_truth_statistics_and_human_results_are_separate() -> None:
     text = _text()
     for token in (
@@ -328,6 +369,68 @@ def test_primary_mixed_shadow_sidecar_requires_same_d_and_exact_projection_sha()
     assert "top10-decision" not in loader
 
 
+def test_primary_shadow_public_chain_never_uses_raw_repository_fallback() -> None:
+    text = _text()
+    pages_reader = _function(text, "fetchPagesOnlyPath", "finiteNumber")
+    cutover = _function(
+        text,
+        "loadPrimaryProfitShadowSelectionCutover",
+        "loadPrimaryProfitShadowSidecar",
+    )
+    standard = _function(
+        text,
+        "loadPrimaryProfitShadowSidecar",
+        "loadCurrentExecutableProfitResearch",
+    )
+
+    assert "RAW_BASE" not in pages_reader
+    assert 'location.protocol === "file:"' in pages_reader
+    assert "url.origin !== location.origin" in pages_reader
+    assert "const urls" not in pages_reader
+    assert "fetchPagesOnlyPath(PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_PATH)" in cutover
+    assert "fetchPagesOnlyShaBoundJson(binding.path" in cutover
+    assert 'fetchPagesOnlyPath(binding.csv_path, "bytes")' in cutover
+    assert "fetchPagesOnlyPath(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_index.json`)" in standard
+    assert "fetchPagesOnlyShaBoundJson(shadowIndex.latest_state_url" in standard
+    assert "fetchPagesOnlyShaBoundJson(sources.selection.path" in standard
+    assert "fetchPagesOnlyShaBoundJson(sources.statistics.path" in standard
+    assert "fetchPagesOnlyShaBoundJson(sources[name].path" in standard
+    for source in (cutover, standard):
+        assert "RAW_BASE" not in source
+        assert "fetchPath(" not in source
+        assert "fetchShaBoundJson(" not in source
+    assert 'if (/HTTP 404/.test(String(error?.message || error || ""))) {' in standard
+    assert "return loadPrimaryProfitShadowSelectionCutover(projection, primaryIndex);" in standard
+
+
+def test_selection_only_cutover_is_exact_d_sha_bound_and_synthesizes_two_pending_slots() -> None:
+    text = _text()
+    cutover = _function(
+        text,
+        "loadPrimaryProfitShadowSelectionCutover",
+        "loadPrimaryProfitShadowSidecar",
+    )
+    for token in (
+        "dc20_primary_profit_forward_shadow_cutover_index_v1",
+        "primary_profit_forward_shadow_selection_only_cutover",
+        "cutover.public_start_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE",
+        "cutover.signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE",
+        "cutover.mixed_projection_sha256 === primaryIndex.latest_projection_json_sha256",
+        "selection.snapshot_sha256 === binding.snapshot_sha256",
+        "selection.selection_identity_sha256 === binding.selection_identity_sha256",
+        "selection.top10_members_sha256 === cutover.top10_members_sha256",
+        "row.ts_code === projected?.ts_code",
+        "row.name === projected?.name",
+        't_status: "PENDING_T_NOT_REACHED"',
+        't1_status: "PENDING_T1_NOT_REACHED"',
+        "observed_signal_dates: 1",
+        "remaining_signal_dates: 179",
+        "publicWindowReady: false",
+        "selectionOnlyCutover: true",
+    ):
+        assert token in cutover or token in text
+
+
 def test_primary_mixed_shadow_sidecar_is_optional_and_cannot_hide_p1_rank() -> None:
     text = _text()
     load = _function(
@@ -361,8 +464,11 @@ def test_primary_mixed_shadow_renders_company_names_top2_and_cumulative_statisti
         "公司名称",
         "escapeHtml(row.name)",
         "shadow.latest_selected_rows",
-        "shadow.cohorts.all_selected_slots",
+        "publicWindowReady",
+        "currentCutoverShadowSummary(rows)",
+        "displaySummary.cohorts.all_selected_slots",
         "forward_signal_date_progress_180",
+        "D28起累计摘要",
         "Top1、Top2分别统计",
         "不生成订单或Action",
     ):

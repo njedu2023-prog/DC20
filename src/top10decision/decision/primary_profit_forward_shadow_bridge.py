@@ -41,6 +41,17 @@ PUBLIC_ROOT = Path("outputs/decision/executable_profit_research")
 PUBLIC_INDEX_PATH = PUBLIC_ROOT / "shadow_index.json"
 PUBLIC_STATE_SCHEMA = "dc20_primary_profit_forward_shadow_public_state_v1"
 PUBLIC_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_public_index_v1"
+PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE = "20260828"
+GRANDFATHERED_PUBLIC_STATE_IDENTITY = ("20260828", "20260828")
+GRANDFATHERED_PUBLIC_STATE_SNAPSHOT_SHA256 = (
+    "3cdfc87b8df83facef10f6981245cbb68c7f1880800e840e169a22ba041faced"
+)
+GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256 = (
+    "bccea935716fd591264ad16730a315eb5e1907c4e323faaa522629b3ff250a31"
+)
+GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256 = (
+    "9558b9540c82e54ed41ad6410703d44fb30cf0cd568c04b5b0e9715a5e863958"
+)
 
 EXPECTED_CALENDAR_SHA256 = (
     "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
@@ -1253,15 +1264,20 @@ def _rebuild_forward_statistics(repo_root: Path, *, as_of_date: str) -> tuple[Pa
     try:
         from top10decision.decision.executable_profit_shadow_settlement import (
             ExecutableProfitSettlementError,
-            build_statistics,
+            PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE as SETTLEMENT_PUBLIC_START,
+            build_public_statistics,
             materialize_statistics,
             validate_statistics,
         )
     except ImportError as exc:
         raise PrimaryProfitForwardShadowError("Shadow statistics runtime is unavailable") from exc
     try:
-        summary = build_statistics(repo_root, as_of_date=as_of_date)
-        validate_statistics(summary)
+        _expect(
+            SETTLEMENT_PUBLIC_START == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE,
+            "P1 Shadow public cumulative cutover drifted",
+        )
+        summary = build_public_statistics(repo_root, as_of_date=as_of_date)
+        validate_statistics(summary, require_public_cumulative=True)
         path = materialize_statistics(repo_root, summary)
     except (OSError, ValueError, ExecutableProfitSettlementError) as exc:
         raise PrimaryProfitForwardShadowError("P1 Shadow statistics rebuild failed") from exc
@@ -1277,6 +1293,56 @@ def _public_state_snapshot(payload: Mapping[str, Any]) -> str:
     value = copy.deepcopy(dict(payload))
     value.pop("snapshot_sha256", None)
     return _canonical_sha256(value)
+
+
+def _summary_has_public_cumulative_cutover(summary: Mapping[str, Any]) -> bool:
+    scope = summary.get("scope")
+    return bool(
+        summary.get("public_start_signal_date")
+        == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE
+        and isinstance(scope, Mapping)
+        and scope.get("minimum_signal_date")
+        == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE
+    )
+
+
+def _is_grandfathered_public_state(
+    state: Mapping[str, Any],
+    summary: Mapping[str, Any],
+) -> bool:
+    """Recognize only the one immutable pre-cutover D28/as-of-D28 sidecar.
+
+    Its bytes remain audit evidence and may pass repository-chain validation so
+    same-D retries are a true no-op.  It is not a valid D28-start public
+    cumulative summary; the browser therefore hides its cumulative panel until
+    the next natural Verify publishes a cutover-marked state.
+    """
+
+    source_bindings = state.get("source_bindings")
+    statistics_binding = (
+        source_bindings.get("statistics")
+        if isinstance(source_bindings, Mapping)
+        else None
+    )
+    scope = summary.get("scope")
+    return bool(
+        (state.get("signal_date"), state.get("as_of_date"))
+        == GRANDFATHERED_PUBLIC_STATE_IDENTITY
+        and state.get("snapshot_sha256")
+        == GRANDFATHERED_PUBLIC_STATE_SNAPSHOT_SHA256
+        and summary.get("as_of_date") == "20260828"
+        and summary.get("snapshot_sha256")
+        == GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256
+        and summary.get("public_start_signal_date") is None
+        and isinstance(scope, Mapping)
+        and scope.get("minimum_signal_date") == "20260824"
+        and scope.get("selection_dates") == 2
+        and isinstance(statistics_binding, Mapping)
+        and statistics_binding.get("sha256")
+        == GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256
+        and statistics_binding.get("snapshot_sha256")
+        == GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256
+    )
 
 
 def _strict_as_of_date(
@@ -1501,6 +1567,10 @@ def build_primary_profit_shadow_public_state(
     )
     summary_snapshot = str(summary.get("snapshot_sha256") or "")
     _expect(SHA256_RE.fullmatch(summary_snapshot) is not None, "Shadow summary snapshot is invalid")
+    _expect(
+        _summary_has_public_cumulative_cutover(summary),
+        "Shadow public summary is missing the D28 cumulative cutover",
+    )
     selected_rows, truth_bindings = _selected_rows_for_public_state(
         repo_root,
         selection=selection,
@@ -1706,11 +1776,15 @@ def validate_primary_profit_forward_shadow_public_state(
             "public P1 Shadow selection/date binding drifted",
         )
         summary = _read_json(loaded["statistics"], label="public P1 Shadow statistics")
+        grandfathered = _is_grandfathered_public_state(payload, summary)
         try:
             from top10decision.decision.executable_profit_shadow_settlement import (
                 validate_statistics,
             )
-            validate_statistics(summary)
+            validate_statistics(
+                summary,
+                require_public_cumulative=not grandfathered,
+            )
         except (ImportError, RuntimeError, ValueError) as exc:
             raise PrimaryProfitForwardShadowError(
                 "public P1 Shadow statistics are invalid"
@@ -1850,6 +1924,96 @@ def validate_primary_profit_forward_shadow_public_index(
         )
 
 
+def _existing_same_as_of_public_projection(
+    repo_root: Path,
+    *,
+    selection_path: Path,
+    selection: Mapping[str, Any],
+    signal_date: str,
+    as_of_date: str,
+) -> dict[str, Any] | None:
+    """Return an already-published exact pair without rebuilding any pointer.
+
+    This preflight is deliberately before statistics materialization.  It keeps
+    the immutable pre-cutover D28/as-of-D28 state byte-identical and also makes
+    every later exact-pair retry strictly idempotent.
+    """
+
+    index_path = repo_root / PUBLIC_INDEX_PATH
+    if not index_path.exists():
+        return None
+    _expect(
+        index_path.is_file() and not index_path.is_symlink(),
+        "existing public Shadow index is unsafe",
+    )
+    index = _read_json(index_path, label="existing public Shadow index")
+    validate_primary_profit_forward_shadow_public_index(index)
+    existing_pair = (
+        str(index["latest_signal_date"]),
+        str(index["latest_as_of_date"]),
+    )
+    requested_pair = (signal_date, as_of_date)
+    _expect(
+        existing_pair <= requested_pair,
+        "out-of-order public Shadow projection rejected before statistics rebuild",
+    )
+    if existing_pair != requested_pair:
+        return None
+
+    state_path = _safe_file(
+        repo_root,
+        Path(str(index["latest_state_url"])),
+        label="existing exact-pair public Shadow state",
+    )
+    _expect(
+        _sha256(state_path) == index["latest_state_sha256"],
+        "existing exact-pair public Shadow state SHA drifted",
+    )
+    state = _read_json(state_path, label="existing exact-pair public Shadow state")
+    validate_primary_profit_forward_shadow_public_state(
+        state,
+        repo_root=repo_root,
+    )
+    _expect(
+        state.get("signal_date") == signal_date
+        and state.get("as_of_date") == as_of_date
+        and state.get("snapshot_sha256")
+        == index.get("latest_state_snapshot_sha256")
+        and state.get("source_bindings", {}).get("selection", {}).get("sha256")
+        == _sha256(selection_path)
+        and state.get("source_bindings", {}).get("selection", {}).get(
+            "selection_identity_sha256"
+        )
+        == selection.get("selection_identity_sha256")
+        and index.get("latest_selection_identity_sha256")
+        == selection.get("selection_identity_sha256")
+        and index.get("latest_mixed_projection_sha256")
+        == selection.get("source_bindings", {}).get("mixed_projection", {}).get(
+            "sha256"
+        ),
+        "existing exact-pair public Shadow selection binding drifted",
+    )
+    summary_path = _safe_file(
+        repo_root,
+        STATISTICS_PATH,
+        label="existing exact-pair public Shadow statistics",
+    )
+    summary = _read_json(
+        summary_path,
+        label="existing exact-pair public Shadow statistics",
+    )
+    return {
+        "statistics": summary_path,
+        "statistics_payload": summary,
+        "public_state": state_path,
+        "public_state_payload": state,
+        "public_index": index_path,
+        "public_pointer": index,
+        "materialization": "EXACT_PAIR_BYTE_IDENTICAL_NO_OP",
+        "grandfathered_pre_cutover": _is_grandfathered_public_state(state, summary),
+    }
+
+
 def project_primary_profit_forward_shadow_state(
     repo_root: Path,
     signal_date: str,
@@ -1877,6 +2041,15 @@ def project_primary_profit_forward_shadow_state(
         require_downloads=True,
     )
     _expect(selection.get("signal_date") == signal_date, "P1 Shadow selection date drifted")
+    existing = _existing_same_as_of_public_projection(
+        repo_root,
+        selection_path=selection_path,
+        selection=selection,
+        signal_date=signal_date,
+        as_of_date=as_of_date,
+    )
+    if existing is not None:
+        return existing
     summary_path, summary = _rebuild_forward_statistics(
         repo_root,
         as_of_date=as_of_date,
@@ -1899,6 +2072,8 @@ def project_primary_profit_forward_shadow_state(
         "public_state_payload": state,
         "public_index": public_index_path,
         "public_pointer": public_index,
+        "materialization": "NEW_PUBLIC_CUMULATIVE_STATE",
+        "grandfathered_pre_cutover": False,
     }
 
 
@@ -1998,6 +2173,14 @@ def validate_primary_profit_forward_shadow_repository_chain(
         state,
         repo_root=repo_root,
     )
+    grandfathered = _is_grandfathered_public_state(state, summary)
+    if not grandfathered:
+        try:
+            validate_statistics(summary, require_public_cumulative=True)
+        except (RuntimeError, ValueError) as exc:
+            raise PrimaryProfitForwardShadowError(
+                "P1 Shadow public statistics are missing the D28 cumulative cutover"
+            ) from exc
     _expect(
         public_index.get("latest_state_sha256") == _sha256(state_path)
         and public_index.get("latest_state_snapshot_sha256")
@@ -2018,6 +2201,12 @@ def validate_primary_profit_forward_shadow_repository_chain(
         "public_state": state_path,
         "public_index": public_index_path,
         "selected_slots": selection["shadow_top2"]["actual_slots"],
+        "public_start_signal_date": PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE,
+        "public_cumulative_status": (
+            "GRANDFATHERED_PRE_CUTOVER_HIDDEN"
+            if grandfathered
+            else "D28_CUTOVER_VALID"
+        ),
         "official_trade_action_created": False,
     }
 

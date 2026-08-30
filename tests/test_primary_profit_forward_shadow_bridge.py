@@ -553,6 +553,8 @@ def test_public_sidecar_contains_names_pending_truth_and_no_action_boundary(
     summary = {
         "as_of_date": "20260828",
         "snapshot_sha256": "a" * 64,
+        "public_start_signal_date": "20260828",
+        "scope": {"minimum_signal_date": "20260828"},
         "cohorts": {"all_selected_slots": {"selected_slots": 2}},
         "forward_signal_date_progress_180": {
             "observed_signal_dates": 1,
@@ -599,7 +601,7 @@ def test_real_d28_dry_freeze_materializes_and_validates_complete_chain(
     fake_settlement = types.ModuleType(
         "top10decision.decision.executable_profit_shadow_settlement"
     )
-    fake_settlement.validate_statistics = lambda payload: None
+    fake_settlement.validate_statistics = lambda payload, **kwargs: None
     monkeypatch.setitem(
         sys.modules,
         "top10decision.decision.executable_profit_shadow_settlement",
@@ -613,6 +615,8 @@ def test_real_d28_dry_freeze_materializes_and_validates_complete_chain(
         summary = {
             "as_of_date": as_of_date,
             "snapshot_sha256": "a" * 64,
+            "public_start_signal_date": "20260828",
+            "scope": {"minimum_signal_date": "20260828"},
             "cohorts": {"all_selected_slots": {"selected_slots": 2}},
             "forward_signal_date_progress_180": {
                 "observed_signal_dates": 1,
@@ -660,6 +664,113 @@ def test_real_d28_dry_freeze_materializes_and_validates_complete_chain(
         repo
         / "outputs/decision/executable_profit_research/projection_20260828.json"
     ).read_bytes() == mixed_bytes
+    assert not any("action" in path.name.lower() for path in repo.rglob("*"))
+
+
+def test_exact_pair_grandfather_is_strict_byte_identical_no_op(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _, _ = _fixture_bundle(tmp_path, monkeypatch, candidate_count=2)
+    payload = bridge.build_primary_profit_forward_shadow(
+        repo,
+        "20260828",
+        selected_at=D28_SELECTED_AT,
+    )
+    selection_path, _, _, _ = bridge.materialize_primary_profit_forward_shadow(
+        repo,
+        payload,
+        _now=D28_SELECTED_AT + timedelta(minutes=1),
+    )
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    selection_binding = {
+        "path": selection_path.relative_to(repo).as_posix(),
+        "sha256": bridge._sha256(selection_path),
+    }
+    summary = {
+        "as_of_date": "20260828",
+        "snapshot_sha256": "a" * 64,
+        "scope": {
+            "minimum_signal_date": "20260824",
+            "selection_dates": 2,
+        },
+        "cohorts": {"all_selected_slots": {"selected_slots": 2}},
+        "forward_signal_date_progress_180": {
+            "observed_signal_dates": 2,
+            "target_signal_dates": 180,
+            "remaining_signal_dates": 178,
+        },
+        "probability_diagnostics": {"status": "UNCALIBRATED"},
+        "input_files": [selection_binding],
+    }
+    summary_path = _write(
+        repo / bridge.STATISTICS_PATH,
+        json.dumps(summary, sort_keys=True).encode("utf-8"),
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_summary_has_public_cumulative_cutover",
+        lambda candidate: True,
+    )
+    state = bridge.build_primary_profit_shadow_public_state(
+        repo,
+        selection_path=selection_path,
+        selection=selection,
+        summary_path=summary_path,
+        summary=summary,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "GRANDFATHERED_PUBLIC_STATE_SNAPSHOT_SHA256",
+        state["snapshot_sha256"],
+    )
+    monkeypatch.setattr(
+        bridge,
+        "GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256",
+        summary["snapshot_sha256"],
+    )
+    monkeypatch.setattr(
+        bridge,
+        "GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256",
+        bridge._sha256(summary_path),
+    )
+    fake_settlement = types.ModuleType(
+        "top10decision.decision.executable_profit_shadow_settlement"
+    )
+    fake_settlement.validate_statistics = lambda payload, **kwargs: None
+    monkeypatch.setitem(
+        sys.modules,
+        "top10decision.decision.executable_profit_shadow_settlement",
+        fake_settlement,
+    )
+    state_path, index_path, _ = bridge._materialize_public_state(repo, state)
+    protected = [
+        summary_path,
+        state_path,
+        index_path,
+        selection_path,
+        repo / bridge.OUTPUT_ROOT / "shadow_20260828.csv",
+        repo / bridge.PRIMARY_INDEX_PATH,
+    ]
+    before = {path: path.read_bytes() for path in protected}
+
+    def forbidden_rebuild(*args: object, **kwargs: object) -> None:
+        raise AssertionError("same-pair projection attempted to rebuild statistics")
+
+    monkeypatch.setattr(bridge, "_rebuild_forward_statistics", forbidden_rebuild)
+    projected = bridge.project_primary_profit_forward_shadow_state(
+        repo,
+        "20260828",
+        "20260828",
+    )
+    chain = bridge.validate_primary_profit_forward_shadow_repository_chain(
+        repo,
+        "20260828",
+    )
+    assert projected["materialization"] == "EXACT_PAIR_BYTE_IDENTICAL_NO_OP"
+    assert projected["grandfathered_pre_cutover"] is True
+    assert chain["public_cumulative_status"] == "GRANDFATHERED_PRE_CUTOVER_HIDDEN"
+    assert {path: path.read_bytes() for path in protected} == before
     assert not any("action" in path.name.lower() for path in repo.rglob("*"))
 
 

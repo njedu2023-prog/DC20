@@ -50,6 +50,13 @@ PRIMARY_MIXED_SELECTION_CONTRACT_ID = (
 SHADOW_NOTIONAL_CNY = 100_000.0
 MAX_AUCTION_PARTICIPATION = 0.01
 TARGET_FORWARD_DATES = 180
+PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE = "20260828"
+GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256 = (
+    "bccea935716fd591264ad16730a315eb5e1907c4e323faaa522629b3ff250a31"
+)
+GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256 = (
+    "9558b9540c82e54ed41ad6410703d44fb30cf0cd568c04b5b0e9715a5e863958"
+)
 DATE_RE = re.compile(r"20\d{6}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 PRICE_TICK = Decimal("0.01")
@@ -344,6 +351,18 @@ def _load_contract(repo_root: Path) -> dict[str, Any]:
             "official_trade_action_ledger",
         ]
         and statistics_contract.get("as_of_date_required") is True
+        and statistics_contract.get("public_start_signal_date")
+        == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE
+        and statistics_contract.get("pre_public_start_selection_rule")
+        == (
+            "retain immutable selection and truth artifacts for audit; "
+            "exclude them from public cumulative statistics"
+        )
+        and statistics_contract.get("shared_summary_writer_rule")
+        == (
+            "as_of_date before 20260828 uses audit scope; as_of_date on or "
+            "after 20260828 requires public_start_signal_date=20260828"
+        )
         and statistics_contract.get("summary_pointer_rule")
         == "as_of_date may only move forward; same-date deterministic refresh is allowed",
         "settlement statistics contract drifted",
@@ -1640,14 +1659,20 @@ def _cohort_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
+def _build_statistics(
+    repo_root: Path,
+    *,
+    as_of_date: str,
+    minimum_signal_date: str,
+    public_start_signal_date: str | None,
+) -> dict[str, Any]:
     repo_root = repo_root.resolve(strict=True)
     _load_contract(repo_root)
     open_dates = _strict_open_dates(repo_root)
     as_of_date = _strict_as_of_date(
         open_dates,
         as_of_date,
-        signal_date=MINIMUM_SIGNAL_DATE,
+        signal_date=minimum_signal_date,
     )
     selection_directory = repo_root / SELECTION_ROOT
     records: list[dict[str, Any]] = []
@@ -1662,7 +1687,7 @@ def build_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
         if match is None:
             continue
         signal_date = match.group(1)
-        if signal_date > as_of_date:
+        if signal_date < minimum_signal_date or signal_date > as_of_date:
             continue
         selection_path, selection, selected = load_selection(repo_root, signal_date)
         input_files.append({"path": selection_path.relative_to(repo_root).as_posix(), "sha256": _sha256(selection_path)})
@@ -1795,7 +1820,7 @@ def build_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
         "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
         "as_of_date": as_of_date,
         "scope": {
-            "minimum_signal_date": MINIMUM_SIGNAL_DATE,
+            "minimum_signal_date": minimum_signal_date,
             "selection_dates": selection_dates,
             "no_selected_dates": no_selected_dates,
             "historical_backfill_included": False,
@@ -1837,12 +1862,62 @@ def build_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
             "actual_human_trade_statistics_are_separate": True,
         },
     }
+    if public_start_signal_date is not None:
+        payload["public_start_signal_date"] = public_start_signal_date
     payload["snapshot_sha256"] = _payload_snapshot(payload)
-    validate_statistics(payload)
+    validate_statistics(
+        payload,
+        require_public_cumulative=public_start_signal_date is not None,
+    )
     return payload
 
 
-def validate_statistics(payload: Mapping[str, Any]) -> None:
+def build_audit_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
+    """Build the complete immutable Shadow audit ledger.
+
+    This retains the original D24 settlement surface so pre-cutover selections
+    and truth remain independently auditable.  The public P1 sidecar must use
+    :func:`build_public_statistics` instead.
+    """
+
+    return _build_statistics(
+        repo_root,
+        as_of_date=as_of_date,
+        minimum_signal_date=MINIMUM_SIGNAL_DATE,
+        public_start_signal_date=None,
+    )
+
+
+def build_public_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
+    """Build the public cumulative ledger from the frozen D28 cutover only."""
+
+    return _build_statistics(
+        repo_root,
+        as_of_date=as_of_date,
+        minimum_signal_date=PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE,
+        public_start_signal_date=PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE,
+    )
+
+
+def build_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:
+    """Build the payload allowed at the shared statistics pointer.
+
+    Before the cutover this is the complete audit ledger.  From D28 onward the
+    shared writer is sealed to the D28-start public cumulative ledger.  Call
+    :func:`build_audit_statistics` for a read-only historical audit computation.
+    """
+
+    normalized = _normal_date(as_of_date)
+    if normalized >= PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE:
+        return build_public_statistics(repo_root, as_of_date=as_of_date)
+    return build_audit_statistics(repo_root, as_of_date=as_of_date)
+
+
+def validate_statistics(
+    payload: Mapping[str, Any],
+    *,
+    require_public_cumulative: bool = False,
+) -> None:
     _expect(
         payload.get("schema_version") == STATISTICS_SCHEMA
         and payload.get("contract_id") == CONTRACT_ID
@@ -1850,11 +1925,44 @@ def validate_statistics(payload: Mapping[str, Any]) -> None:
         "statistics identity drifted",
     )
     as_of_date = _normal_date(payload.get("as_of_date"))
+    scope = payload.get("scope")
+    _expect(isinstance(scope, Mapping), "statistics scope missing")
+    minimum_signal_date = _normal_date(scope.get("minimum_signal_date"))
+    public_start_signal_date = payload.get("public_start_signal_date")
+    if public_start_signal_date is None:
+        _expect(
+            not require_public_cumulative
+            and minimum_signal_date == MINIMUM_SIGNAL_DATE,
+            "statistics public cumulative cutover missing",
+        )
+    else:
+        _expect(
+            public_start_signal_date == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE
+            and minimum_signal_date == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE,
+            "statistics public cumulative cutover drifted",
+        )
     _expect(
         payload.get("as_of_date") == as_of_date
         and DATE_RE.fullmatch(as_of_date) is not None
-        and as_of_date >= MINIMUM_SIGNAL_DATE,
+        and as_of_date >= minimum_signal_date,
         "statistics as-of date invalid",
+    )
+    _expect(
+        set(scope)
+        == {
+            "minimum_signal_date",
+            "selection_dates",
+            "no_selected_dates",
+            "historical_backfill_included",
+            "human_actual_trade_ledger_included",
+        }
+        and type(scope.get("selection_dates")) is int
+        and scope.get("selection_dates", -1) >= 0
+        and type(scope.get("no_selected_dates")) is int
+        and 0 <= scope.get("no_selected_dates", -1) <= scope.get("selection_dates", -1)
+        and scope.get("historical_backfill_included") is False
+        and scope.get("human_actual_trade_ledger_included") is False,
+        "statistics scope drifted",
     )
     cohorts = payload.get("cohorts")
     _expect(
@@ -1891,8 +1999,54 @@ def validate_statistics(payload: Mapping[str, Any]) -> None:
         ],
         "statistics ledger separation drifted",
     )
+    input_files = payload.get("input_files")
+    _expect(isinstance(input_files, list), "statistics input files missing")
+    input_paths: list[str] = []
+    selection_dates: set[str] = set()
+    for item in input_files:
+        _expect(
+            isinstance(item, Mapping)
+            and set(item) == {"path", "sha256"}
+            and SHA256_RE.fullmatch(str(item.get("sha256") or "")) is not None,
+            "statistics input binding invalid",
+        )
+        relative = str(item.get("path") or "")
+        matched = re.fullmatch(
+            r"data/decision_executable_profit/forward/"
+            r"(?:(selections)/shadow_|(verifications)/t_verification_|"
+            r"(settlements)/settlement_)(20\d{6})\.json",
+            relative,
+        )
+        _expect(matched is not None, "statistics input path invalid")
+        signal_date = matched.group(4)
+        _expect(
+            minimum_signal_date <= signal_date <= as_of_date,
+            "statistics input predates cumulative scope or exceeds as-of",
+        )
+        if matched.group(1) is not None:
+            selection_dates.add(signal_date)
+        input_paths.append(relative)
+    _expect(
+        input_paths == sorted(input_paths)
+        and len(input_paths) == len(set(input_paths))
+        and len(selection_dates) == scope.get("selection_dates")
+        and payload.get("input_files_sha256") == _canonical_sha256(input_files),
+        "statistics input inventory drifted",
+    )
     progress = payload.get("forward_signal_date_progress_180", {})
-    _expect(progress.get("target_signal_dates") == TARGET_FORWARD_DATES, "statistics 180-day target drifted")
+    observed = scope.get("selection_dates")
+    _expect(
+        isinstance(progress, Mapping)
+        and progress.get("observed_signal_dates") == observed
+        and progress.get("target_signal_dates") == TARGET_FORWARD_DATES
+        and progress.get("remaining_signal_dates")
+        == max(0, TARGET_FORWARD_DATES - observed)
+        and progress.get("progress_pct")
+        == _metric(min(1.0, observed / TARGET_FORWARD_DATES) * 100.0)
+        and progress.get("release_sample_reached")
+        is (observed >= TARGET_FORWARD_DATES),
+        "statistics 180-day progress drifted",
+    )
     boundaries = payload.get("boundaries", {})
     _expect(
         boundaries.get("official_trade_action_allowed") is False
@@ -1905,6 +2059,8 @@ def validate_statistics(payload: Mapping[str, Any]) -> None:
 
 def materialize_statistics(repo_root: Path, payload: Mapping[str, Any]) -> Path:
     validate_statistics(payload)
+    if _normal_date(payload.get("as_of_date")) >= PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE:
+        validate_statistics(payload, require_public_cumulative=True)
     repo_root = repo_root.resolve(strict=True)
     output = _ensure_directory(repo_root, STATISTICS_PATH.parent)
     path = output / STATISTICS_PATH.name
@@ -1920,6 +2076,16 @@ def materialize_statistics(repo_root: Path, payload: Mapping[str, Any]) -> Path:
                 str(existing["as_of_date"]) <= str(payload["as_of_date"]),
                 "statistics as-of pointer cannot move backward",
             )
+            if (
+                existing.get("as_of_date")
+                == payload.get("as_of_date")
+                == PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE
+                and existing.get("public_start_signal_date") is None
+                and existing.get("snapshot_sha256")
+                == GRANDFATHERED_PUBLIC_STATISTICS_SNAPSHOT_SHA256
+                and _sha256(path) == GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256
+            ):
+                return path
         return _replace_projection(path, payload)
 
 
@@ -2022,11 +2188,14 @@ __all__ = [
     "CONTRACT_ID",
     "COST_RATE",
     "ExecutableProfitSettlementError",
+    "PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE",
     "SETTLEMENT_ROOT",
     "STATISTICS_PATH",
     "T_VERIFICATION_SCHEMA",
     "VERIFICATION_ROOT",
     "build_statistics",
+    "build_audit_statistics",
+    "build_public_statistics",
     "build_t1_settlement",
     "build_t_verification",
     "load_selection",

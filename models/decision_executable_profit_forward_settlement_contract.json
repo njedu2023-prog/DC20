@@ -103,6 +103,9 @@
     "path": "data/decision_executable_profit/forward/statistics/summary.json",
     "rebuild_rule": "deterministically recompute only from immutable selection and truth observable on or before as_of_date",
     "as_of_date_required": true,
+    "public_start_signal_date": "20260828",
+    "pre_public_start_selection_rule": "retain immutable selection and truth artifacts for audit; exclude them from public cumulative statistics",
+    "shared_summary_writer_rule": "as_of_date before 20260828 uses audit scope; as_of_date on or after 20260828 requires public_start_signal_date=20260828",
     "summary_pointer_rule": "as_of_date may only move forward; same-date deterministic refresh is allowed",
     "cohorts": [
       "all_selected_slots",

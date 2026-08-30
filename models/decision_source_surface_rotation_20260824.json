@@ -73,21 +73,21 @@
     "scripts/freeze_primary_profit_forward_shadow.py": "441a5eda73c89b062ea784d6f2d5e12791df8d07ce892f121e2fbc36c3d92490",
     "scripts/publish_primary_profit_rankings.py": "563ec0ccca49218740c1cc178c1ab142eaeb3f749a35ad39b5369cbfced60beb",
     "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
-    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "11c56bff6f4e3fed385b8f6aaccbf19434a5bf5a924966e9bbf5c920094182f6",
-    "tests/test_decision_executable_profit_frontend.py": "90883289b132853af9caffa74899e6efc7b7645f1c195bd1fb39b533cb6277b6",
-    "tests/test_decision_executable_profit_shadow_settlement.py": "5f10d98e215fbc6b38aed1cc22bab1d798b4fe608933d7adbde751358e62a16b",
+    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "75609cb85520cad1ad392dc0b7a553ee2a2f36eb85c6083518711371ab39b837",
+    "tests/test_decision_executable_profit_frontend.py": "83a2c6a9e701063659a0e247f2e9324607e27cd3615ef9811c23a88da25dfc47",
+    "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
-    "tests/test_primary_profit_forward_shadow_bridge.py": "7d612de285aabc000007072d748a31861a7353c4ba9668ccc4389be53aa2a05e",
+    "tests/test_primary_profit_forward_shadow_bridge.py": "03b443c81c67f537f88a5e99c14635a962d4caaa08766b45492d6678fdbf191c",
     "tests/test_primary_profit_forward_shadow_workflow.py": "ab8ec4a998092cf737373e742a7b8c6e2c05ea7cae65db4ece964fafb33c20ca",
     "tests/test_primary_profit_rankings_p1.py": "b947c994cac90c992bc7a5a209d53ba5c7271f19e3330ef31ccd72bf70dc29d6",
     "tests/test_primary_three_rank_p0.py": "b21772f6103b5b73a4d5f20efe77787fb5dabf73fe0b4757e1afe83f15e8fa15"
   },
-  "changed_surface_sha256": "f68fe5b926b38465bdbaa4c7a1923812abc9992fada997a900e1b5481f68ecf4",
+  "changed_surface_sha256": "ba69cec20f6f1622255e2a268b9c53877190786d0a6cd6bffe25b0fa50cb1cf4",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
       "prior_sha256": "a4c4f0aea67937cb9f5733033a21002f2494eba6c86ea76aa86c6ca5c52505ab",
-      "current_sha256": "3a9eae58acd00263759faa33cddb841b82a5a93ab821417258b6856091aa632b",
+      "current_sha256": "2f6e2db8be492363e106cbf9f80728bafc87dbf23ddd8bcd0a36ba0aafb96a2c",
       "classification": "primary_owned_exact_revision_pages_dispatch_gate"
     },
     {
@@ -123,13 +123,13 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "58ad1176329f735d372f2a4bd3590ad70ef38f4a34da4435a501a909a30352b7",
+      "current_sha256": "333c30a583675a7cdcfb15a83f061aa28fad617a6423e001e7afa6831d79432a",
       "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
       "path": "models/decision_executable_profit_forward_settlement_contract.json",
       "prior_sha256": "6b8027a2f3ecb16c4e2c725869909da288741f8974941d5e0c4be616170a14f7",
-      "current_sha256": "a344e8161d81e52de025b76f28b11996da53da41586e4261f61db08e7a739bcb",
+      "current_sha256": "d5f9e1029a6d9d59e464a32a1e877ce87e0c4c3849c0d95c96d18e3e5e031578",
       "classification": "dual_schema_primary_mixed_shadow_settlement_contract"
     },
     {
@@ -187,9 +187,15 @@
       "classification": "canonical_source_preimage_restore"
     },
     {
+      "path": "src/top10decision/auction_v3/config.py",
+      "prior_sha256": "4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2",
+      "current_sha256": "1eeb1da7ca68958bb5657b2498c5f0842a5c0af0acbb97dd7651d7640a35f569",
+      "classification": "public_observation_cumulative_cutover_config"
+    },
+    {
       "path": "src/top10decision/auction_v3/engine.py",
       "prior_sha256": "3866584681cb816084add0ffa31b7e9eb1a20744cc3db421cbec920b937cc5df",
-      "current_sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
+      "current_sha256": "d8194f60787de7ddb9382242004c711164a5755d828e9ca2f7b1173df764b203",
       "classification": "canonical_source_preimage_restore"
     },
     {
@@ -213,7 +219,7 @@
     {
       "path": "src/top10decision/decision/executable_profit_shadow_settlement.py",
       "prior_sha256": "5b8d50457a0fff811195c4eef475cf9b4c809b29271733e5e94e2355ea803458",
-      "current_sha256": "27771312daaf6932fa139f5822521eeb5574a32af7a5a6a14ca261af442e44a5",
+      "current_sha256": "2ec924f886b8a1665f66898664f5970ce62bd8b96c08ff1a1eb7bad35cd513ec",
       "classification": "dual_schema_primary_mixed_shadow_settlement_runtime"
     },
     {
@@ -225,7 +231,7 @@
     {
       "path": "src/top10decision/decision/observation.py",
       "prior_sha256": "7f8f6d92971995f4eae3e6f7b5f4e1290461f0ecf8f4b05de741b8d2af78c15a",
-      "current_sha256": "8f721512a0a6463349f4c7531746ebb009018a703209095c2905d1e952304471",
+      "current_sha256": "577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713",
       "classification": "three_rank_canonical_observation_preimage"
     },
     {
@@ -239,6 +245,12 @@
       "prior_sha256": "443b9496fd8412b417ae5fbbbcd575c397657fa223f4794fe0c00cbcfb3c7d77",
       "current_sha256": "f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a",
       "classification": "three_engine_runtime_adapter"
+    },
+    {
+      "path": "tests/test_auction_v3.py",
+      "prior_sha256": "352d89880995b8893e83f232ab00f4a13a4332808c8e7d5d200ee15395713e38",
+      "current_sha256": "79fe5ce3a81ec8893fa9ee4d07ebaf16d4d5e69378ec9f6b6fd7f4a67b45a20f",
+      "classification": "public_observation_cumulative_cutover_test"
     },
     {
       "path": "tests/test_auction_v3_three_engine_runtime.py",
@@ -309,7 +321,7 @@
     {
       "path": "tests/test_pages_truthfulness_workflow.py",
       "prior_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
-      "current_sha256": "afd47451e27d5b20d5f00cda1940c208cb8c3776948be5d125b31bd651d27bcc",
+      "current_sha256": "91bb687e8b50193ab122af9cdc30a1e91205220c532a1a7e83043efa80ae1cdd",
       "classification": "primary_owned_pages_public_acceptance_test"
     },
     {

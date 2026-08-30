@@ -7,6 +7,7 @@ on:
       - decision.html
       - outputs/decision/**
       - outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
+      - outputs/auction_v3/metrics/observation_cumulative_latest.json
       - data/decision_three_engines/five_year_supervised_ledger.csv.gz
       - data/decision_three_engines/five_year_ledger_manifest.json
       - data/market/trade_cal_sse.csv
@@ -186,6 +187,7 @@ jobs:
           cp decision.html _site/index.html
           cp decision.html _site/decision.html
           python3 - <<'PY'
+          import json
           import os
           import shutil
           from pathlib import Path
@@ -212,6 +214,24 @@ jobs:
                       'validated legacy-profit research directory is unsafe'
                   )
               shutil.copytree(optional_source, destination / optional_name)
+
+          statistics_relative = Path(
+              'outputs/auction_v3/metrics/observation_cumulative_latest.json'
+          )
+          statistics_source = Path(statistics_relative).resolve(strict=True)
+          if not statistics_source.is_file() or statistics_source.is_symlink():
+              raise SystemExit('public observation statistics source is unsafe')
+          statistics = json.loads(statistics_source.read_text(encoding='utf-8'))
+          if statistics.get('public_start_signal_date') != '20260828':
+              raise SystemExit('public observation statistics must start at D=20260828')
+          forward = statistics.get('forward_shadow')
+          if not isinstance(forward, dict) or forward.get('start_signal_date') != '20260828':
+              raise SystemExit('public forward observation statistics must start at D=20260828')
+          statistics_target = Path('_site') / statistics_relative
+          statistics_target.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(statistics_source, statistics_target)
+          if statistics_target.read_bytes() != statistics_source.read_bytes():
+              raise SystemExit('public observation statistics copy drifted')
           PY
           python3 scripts/build_decision_three_rank_history.py \
             --source-root . \
@@ -264,7 +284,7 @@ jobs:
                   shadow_index_source = repo_root / PRIMARY_SHADOW_PUBLIC_INDEX_PATH
                   if shadow_index_source.exists():
                       signal_date = bundle['inputs'].signal_date
-                      validate_primary_profit_forward_shadow_repository_chain(
+                      shadow_chain = validate_primary_profit_forward_shadow_repository_chain(
                           repo_root,
                           signal_date,
                       )
@@ -400,13 +420,141 @@ jobs:
                               raise SystemExit(
                                   f'Pages public Shadow sidecar bytes drifted: {relative}'
                               )
-                      print(json.dumps({
-                          'status': 'PUBLIC_PRIMARY_SHADOW_CHAIN_COPIED',
-                          'signal_date': signal_date,
-                          'as_of_date': shadow_state['as_of_date'],
-                          'selected_slots': shadow_state['selected_slots'],
-                          'mixed_projection_sha256': mixed_sha,
-                      }, ensure_ascii=False, sort_keys=True))
+                      cutover_relative = (
+                          Path('outputs/decision/executable_profit_research')
+                          / 'shadow_cutover_index.json'
+                      )
+                      cutover_target = site_root / cutover_relative
+                      grandfather_state_relative = (
+                          Path('outputs/decision/executable_profit_research')
+                          / 'shadow_state_20260828_asof_20260828.json'
+                      )
+                      chain_status = shadow_chain.get('public_cumulative_status')
+                      if chain_status == 'GRANDFATHERED_PRE_CUTOVER_HIDDEN':
+                          # Preserve the immutable repository evidence, but never
+                          # publish its D25+D28 cumulative summary as the active
+                          # Pages chain.  The generated selection-only pointer is
+                          # same-D/SHA bound and carries no historical metrics.
+                          for relative in (
+                              PRIMARY_SHADOW_PUBLIC_INDEX_PATH,
+                              state_relative,
+                              statistics_relative,
+                          ):
+                              target = site_root / relative
+                              if target.exists():
+                                  if not target.is_file() or target.is_symlink():
+                                      raise SystemExit(
+                                          f'Pages grandfathered Shadow target is unsafe: {relative}'
+                                      )
+                                  target.unlink()
+                          selected_slots = int(
+                              (selection_payload.get('shadow_top2') or {}).get(
+                                  'actual_slots', -1
+                              )
+                          )
+                          if (
+                              signal_date != '20260828'
+                              or selected_slots != 2
+                              or selection_payload.get('signal_date') != signal_date
+                              or selection_payload.get('snapshot_sha256')
+                              != selection.get('snapshot_sha256')
+                              or selection_payload.get('selection_identity_sha256')
+                              != selection.get('selection_identity_sha256')
+                          ):
+                              raise SystemExit(
+                                  'Pages grandfathered Shadow selection-only cutover drifted'
+                              )
+                          cutover = {
+                              'schema_version': (
+                                  'dc20_primary_profit_forward_shadow_cutover_index_v1'
+                              ),
+                              'index_kind': (
+                                  'primary_profit_forward_shadow_selection_only_cutover'
+                              ),
+                              'data_alias': False,
+                              'public_start_signal_date': '20260828',
+                              'signal_date': signal_date,
+                              'exec_date': selection_payload['exec_date'],
+                              'exit_date': selection_payload['exit_date'],
+                              'candidate_count': selection_payload['top10_count'],
+                              'selected_slots': selected_slots,
+                              'top10_members_sha256': selection_payload[
+                                  'top10_members_sha256'
+                              ],
+                              'mixed_projection_sha256': mixed_sha,
+                              'selection': {
+                                  'path': selection_relative.as_posix(),
+                                  'sha256': selection['sha256'],
+                                  'snapshot_sha256': selection[
+                                      'snapshot_sha256'
+                                  ],
+                                  'selection_identity_sha256': selection[
+                                      'selection_identity_sha256'
+                                  ],
+                                  'csv_path': csv_relative.as_posix(),
+                                  'csv_sha256': csv_sha,
+                              },
+                              'boundaries': shadow_state['boundaries'],
+                          }
+                          cutover_target.parent.mkdir(parents=True, exist_ok=True)
+                          cutover_target.write_text(
+                              json.dumps(
+                                  cutover,
+                                  ensure_ascii=False,
+                                  sort_keys=True,
+                                  indent=2,
+                              ) + '\n',
+                              encoding='utf-8',
+                          )
+                          print(json.dumps({
+                              'status': 'PUBLIC_PRIMARY_SHADOW_SELECTION_ONLY_CUTOVER',
+                              'signal_date': signal_date,
+                              'selected_slots': selected_slots,
+                              'mixed_projection_sha256': mixed_sha,
+                          }, ensure_ascii=False, sort_keys=True))
+                      elif chain_status == 'D28_CUTOVER_VALID':
+                          statistics_source_payload = json.loads(
+                              statistics_source.read_text(encoding='utf-8')
+                          )
+                          if (
+                              statistics_source_payload.get(
+                                  'public_start_signal_date'
+                              ) != '20260828'
+                              or (
+                                  statistics_source_payload.get('scope') or {}
+                              ).get('minimum_signal_date') != '20260828'
+                          ):
+                              raise SystemExit(
+                                  'Pages standard Shadow summary lacks D28 cutover marker'
+                              )
+                          # The repository keeps this immutable pre-cutover pair
+                          # for audit, but the bulk outputs/decision projection
+                          # must never re-publish it beside the new public chain.
+                          grandfather_target = site_root / grandfather_state_relative
+                          if grandfather_target.exists():
+                              if (
+                                  not grandfather_target.is_file()
+                                  or grandfather_target.is_symlink()
+                              ):
+                                  raise SystemExit(
+                                      'Pages grandfathered Shadow state target is unsafe'
+                                  )
+                              grandfather_target.unlink()
+                          if cutover_target.exists():
+                              if not cutover_target.is_file() or cutover_target.is_symlink():
+                                  raise SystemExit('Pages Shadow cutover pointer is unsafe')
+                              cutover_target.unlink()
+                          print(json.dumps({
+                              'status': 'PUBLIC_PRIMARY_SHADOW_CHAIN_COPIED',
+                              'signal_date': signal_date,
+                              'as_of_date': shadow_state['as_of_date'],
+                              'selected_slots': shadow_state['selected_slots'],
+                              'mixed_projection_sha256': mixed_sha,
+                          }, ensure_ascii=False, sort_keys=True))
+                      else:
+                          raise SystemExit(
+                              f'Pages Shadow cumulative chain status is unsupported: {chain_status}'
+                          )
                   print(json.dumps({
                       'status': 'PUBLIC_PRIMARY_PROFIT_CHAIN_VALIDATED',
                       'signal_date': public_bundle['inputs'].signal_date,
@@ -861,16 +1009,24 @@ jobs:
                   f'data-freeze-active="{str(freeze_active).lower()}" '
                   f'data-report-age-days="{report_age_days}" '
                   f'data-stale-reason="{html_module.escape(stale_reason, quote=True)}" '
-                  'style="position:sticky;top:0;z-index:2147483647;padding:16px 20px;'
+                  'style="padding:16px 20px;'
                   'border:4px solid #7f1d1d;background:#fee2e2;color:#450a0a;'
                   'font:800 18px/1.5 system-ui,sans-serif;text-align:center">'
-                  f'只读历史快照｜禁止据此交易｜{html_module.escape(details)}'
+                  f'以下报告正文是只读历史快照｜禁止据此交易｜{html_module.escape(details)}'
                   '</aside>'
               )
-              body = re.search(r"<body\b[^>]*>", entry_html, flags=re.IGNORECASE)
-              if body is None:
-                  raise SystemExit("decision.html is missing a body element for stale banner")
-              entry_html = entry_html[: body.end()] + banner + entry_html[body.end() :]
+              report_details = re.search(
+                  r'<details\s+id="reportDetails"\b[^>]*>.*?</summary>',
+                  entry_html,
+                  flags=re.IGNORECASE | re.DOTALL,
+              )
+              if report_details is None:
+                  raise SystemExit("decision.html is missing the report body for stale banner")
+              entry_html = (
+                  entry_html[: report_details.end()]
+                  + banner
+                  + entry_html[report_details.end() :]
+              )
               Path("_site/index.html").write_text(entry_html, encoding="utf-8")
               Path("_site/decision.html").write_text(entry_html, encoding="utf-8")
           if Path("_site/decision.html").read_bytes() != Path("_site/index.html").read_bytes():
@@ -942,6 +1098,7 @@ jobs:
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
           )
           shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
+          shadow_cutover_index="_site/outputs/decision/executable_profit_research/shadow_cutover_index.json"
           if [ -f "${shadow_index}" ]; then
             shadow_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["latest_state_url"])' "${shadow_index}")"
             shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["selection"]["path"])' "_site/${shadow_state}")"
@@ -960,6 +1117,16 @@ jobs:
             )
             if [ -n "${shadow_t}" ]; then files+=("${shadow_t}"); fi
             if [ -n "${shadow_t1}" ]; then files+=("${shadow_t1}"); fi
+          elif [ -f "${shadow_cutover_index}" ]; then
+            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["path"])' "${shadow_cutover_index}")"
+            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["csv_path"])' "${shadow_cutover_index}")"
+            files+=(
+              models/decision_primary_profit_forward_shadow_bridge_contract.json
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json
+              outputs/decision/executable_profit_research/shadow_cutover_index.json
+              "${shadow_selection}"
+              "${shadow_csv}"
+            )
           fi
           for relative in "${files[@]}"; do
             mkdir -p "${public_root}/$(dirname "${relative}")"
@@ -968,6 +1135,35 @@ jobs:
               -o "${public_root}/${relative}"
             cmp -s "_site/${relative}" "${public_root}/${relative}"
           done
+          if [ -f "${shadow_cutover_index}" ]; then
+            for relative in \
+              outputs/decision/executable_profit_research/shadow_index.json \
+              data/decision_executable_profit/forward/statistics/summary.json; do
+              http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+                "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
+              if [ "${http_code}" != 404 ]; then
+                echo "grandfathered Shadow artifact remained public: ${relative} HTTP ${http_code}" >&2
+                exit 1
+              fi
+            done
+          elif [ -f "${shadow_index}" ]; then
+            http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              "${PAGE_URL%/}/outputs/decision/executable_profit_research/shadow_cutover_index.json?run_id=${GITHUB_RUN_ID}")"
+            if [ "${http_code}" != 404 ]; then
+              echo "selection-only cutover pointer remained beside standard Shadow chain" >&2
+              exit 1
+            fi
+          else
+            echo "public primary Shadow has neither a standard nor cutover pointer" >&2
+            exit 1
+          fi
+          grandfather_state="outputs/decision/executable_profit_research/shadow_state_20260828_asof_20260828.json"
+          http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            "${PAGE_URL%/}/${grandfather_state}?run_id=${GITHUB_RUN_ID}")"
+          if [ "${http_code}" != 404 ]; then
+            echo "grandfathered Shadow state remained public: ${grandfather_state} HTTP ${http_code}" >&2
+            exit 1
+          fi
           PUBLIC_ROOT="${public_root}" python3 - <<'PY'
           import json
           import os
@@ -975,6 +1171,10 @@ jobs:
 
           from scripts.publish_primary_profit_rankings import (
               validate_primary_profit_bundle,
+          )
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              validate_primary_profit_forward_shadow,
+              validate_primary_profit_forward_shadow_index,
           )
 
           bundle = validate_primary_profit_bundle(
@@ -1032,6 +1232,126 @@ jobs:
               ):
                   raise SystemExit(
                       'public primary Shadow sidecar is not exact-D/SHA bound'
+                  )
+              summary = json.loads(statistics_path.read_text(encoding='utf-8'))
+              if (
+                  summary.get('public_start_signal_date') != '20260828'
+                  or (summary.get('scope') or {}).get('minimum_signal_date')
+                  != '20260828'
+              ):
+                  raise SystemExit('public standard Shadow summary lacks D28 cutover')
+          else:
+              import hashlib
+
+              root = Path(os.environ['PUBLIC_ROOT'])
+              cutover_path = (
+                  root
+                  / 'outputs/decision/executable_profit_research/shadow_cutover_index.json'
+              )
+              if not cutover_path.is_file() or cutover_path.is_symlink():
+                  raise SystemExit(
+                      'public primary Shadow has neither a standard nor safe cutover pointer'
+                  )
+              cutover = json.loads(cutover_path.read_text(encoding='utf-8'))
+              selection = cutover.get('selection') or {}
+              signal_date = os.environ['SIGNAL_DATE']
+              expected_selection = (
+                  'data/decision_executable_profit/forward/selections/'
+                  f'shadow_{signal_date}.json'
+              )
+              expected_csv = (
+                  'data/decision_executable_profit/forward/selections/'
+                  f'shadow_{signal_date}.csv'
+              )
+              if (
+                  set(cutover)
+                  != {
+                      'schema_version', 'index_kind', 'data_alias',
+                      'public_start_signal_date', 'signal_date', 'exec_date',
+                      'exit_date', 'candidate_count', 'selected_slots',
+                      'top10_members_sha256', 'mixed_projection_sha256',
+                      'selection', 'boundaries',
+                  }
+                  or set(selection)
+                  != {
+                      'path', 'sha256', 'snapshot_sha256',
+                      'selection_identity_sha256', 'csv_path', 'csv_sha256',
+                  }
+                  or selection.get('path') != expected_selection
+                  or selection.get('csv_path') != expected_csv
+              ):
+                  raise SystemExit('public primary Shadow cutover surface/path drifted')
+              selection_path = root / expected_selection
+              csv_path = root / expected_csv
+              primary_index_path = (
+                  root
+                  / 'data/decision_executable_profit/forward/selections/primary_mixed_index.json'
+              )
+              primary_index = json.loads(
+                  primary_index_path.read_text(encoding='utf-8')
+              )
+              validate_primary_profit_forward_shadow_index(primary_index)
+              selection_payload = json.loads(
+                  selection_path.read_text(encoding='utf-8')
+              )
+              validate_primary_profit_forward_shadow(
+                  selection_payload,
+                  require_downloads=True,
+              )
+              selected_rows = [
+                  row
+                  for row in selection_payload['rows']
+                  if row.get('internal_shadow_selected') == 1
+              ]
+              if not (
+                  cutover.get('schema_version')
+                  == 'dc20_primary_profit_forward_shadow_cutover_index_v1'
+                  and cutover.get('index_kind')
+                  == 'primary_profit_forward_shadow_selection_only_cutover'
+                  and cutover.get('data_alias') is False
+                  and cutover.get('public_start_signal_date') == '20260828'
+                  and cutover.get('signal_date') == signal_date == '20260828'
+                  and cutover.get('exec_date') == mixed.get('exec_date')
+                  and cutover.get('exit_date') == mixed.get('exit_date')
+                  and cutover.get('candidate_count') == mixed.get('candidate_count')
+                  == len(bundle['inputs'].selected_runtime)
+                  and cutover.get('selected_slots') == len(selected_rows) == 2
+                  and [row.get('shadow_slot') for row in selected_rows] == [1, 2]
+                  and cutover.get('top10_members_sha256')
+                  == mixed.get('top10_members_sha256')
+                  == selection_payload.get('top10_members_sha256')
+                  and cutover.get('mixed_projection_sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  == (
+                      selection_payload.get('source_bindings') or {}
+                  ).get('mixed_projection', {}).get('sha256')
+                  and cutover.get('boundaries') == selection_payload.get('boundaries')
+                  and primary_index.get('latest_signal_date') == signal_date
+                  and primary_index.get('latest_exec_date') == mixed.get('exec_date')
+                  and primary_index.get('latest_exit_date') == mixed.get('exit_date')
+                  and primary_index.get('latest_json_sha256')
+                  == selection.get('sha256')
+                  and primary_index.get('latest_csv_sha256')
+                  == selection.get('csv_sha256')
+                  and primary_index.get('latest_snapshot_sha256')
+                  == selection.get('snapshot_sha256')
+                  == selection_payload.get('snapshot_sha256')
+                  and primary_index.get('latest_selection_identity_sha256')
+                  == selection.get('selection_identity_sha256')
+                  == selection_payload.get('selection_identity_sha256')
+                  and primary_index.get('latest_top10_members_sha256')
+                  == cutover.get('top10_members_sha256')
+                  and selection_payload.get('downloads', {}).get('csv_url')
+                  == expected_csv
+                  and selection_payload.get('downloads', {}).get('csv_sha256')
+                  == selection.get('csv_sha256')
+                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
+                  == selection.get('sha256')
+                  and hashlib.sha256(csv_path.read_bytes()).hexdigest()
+                  == selection.get('csv_sha256')
+              ):
+                  raise SystemExit(
+                      'public primary Shadow selection-only cutover is not exact-D/SHA bound'
                   )
           if not (
               revision.get('executable_profit_contract') == 'primary'
@@ -1197,6 +1517,35 @@ jobs:
                       if expected_research_available
                       else None
                   )
+                  observation_statistics_url = (
+                      'outputs/auction_v3/metrics/'
+                      'observation_cumulative_latest.json'
+                  )
+                  local_observation_statistics = (
+                      Path('_site') / observation_statistics_url
+                  ).read_bytes()
+                  public_observation_statistics = fetch_bytes(
+                      observation_statistics_url
+                  )
+                  if public_observation_statistics != local_observation_statistics:
+                      raise RuntimeError(
+                          'public observation statistics differ from exact build'
+                      )
+                  observation_statistics = json.loads(
+                      public_observation_statistics
+                  )
+                  if observation_statistics.get('public_start_signal_date') != '20260828':
+                      raise RuntimeError(
+                          'public observation statistics start date is not D=20260828'
+                      )
+                  forward_observation = observation_statistics.get('forward_shadow')
+                  if (
+                      not isinstance(forward_observation, dict)
+                      or forward_observation.get('start_signal_date') != '20260828'
+                  ):
+                      raise RuntimeError(
+                          'public forward observation start date is not D=20260828'
+                      )
                   public_executable_profit_index = None
                   if (
                       expected_executable_profit_available

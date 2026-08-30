@@ -6,6 +6,11 @@ from typing import Any
 
 
 OBSERVATION_START_EXEC_DATE = "20260721"
+# Preserve the complete observation ledger for model/audit use, while keeping
+# the user-facing forward statistics on a clean, explicitly governed window.
+# This is a signal-D boundary; rows before it remain on disk but must never be
+# aggregated into the public cumulative panels.
+PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828"
 OBSERVATION_TOP_N = 10
 FOCUS_TRANSITIONS = {"2→3", "3→4"}
 THREE_RANK_CONTRACT_FIELD = "three_rank_contract_version"

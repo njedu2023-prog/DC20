@@ -32,10 +32,27 @@ def test_inactive_expired_and_future_reports_are_explicitly_stale() -> None:
 def test_stale_banner_is_identical_at_both_public_entry_points() -> None:
     text = _workflow()
     assert 'banner_id = "dc20-truthfulness-banner"' in text
-    assert "只读历史快照｜禁止据此交易" in text
+    assert "以下报告正文是只读历史快照｜禁止据此交易" in text
+    assert "report_details.end()" in text
+    assert 'r\'<details\\s+id="reportDetails"\\b[^>]*>.*?</summary>\'' in text
+    assert "flags=re.IGNORECASE | re.DOTALL" in text
+    assert 'style="position:sticky' not in text
     assert 'Path("_site/index.html").write_text(entry_html' in text
     assert 'Path("_site/decision.html").write_text(entry_html' in text
     assert 'root_html != decision_html' in text
+
+
+def test_pages_copies_and_publicly_verifies_d28_observation_statistics() -> None:
+    text = _workflow()
+    relative = "outputs/auction_v3/metrics/observation_cumulative_latest.json"
+    assert f"- {relative}" in text.split("\npermissions:", 1)[0]
+    assert f"'{relative}'" in text
+    assert "statistics_target.read_bytes() != statistics_source.read_bytes()" in text
+    assert "public_observation_statistics != local_observation_statistics" in text
+    assert "statistics.get('public_start_signal_date') != '20260828'" in text
+    assert "forward.get('start_signal_date') != '20260828'" in text
+    assert "observation_statistics.get('public_start_signal_date') != '20260828'" in text
+    assert "forward_observation.get('start_signal_date') != '20260828'" in text
 
 
 def test_public_verifier_exactly_checks_revision_fields_and_banner() -> None:
@@ -260,6 +277,57 @@ def test_pages_accepts_primary_profit_only_through_complete_shared_p0_lineage() 
         assert f"EXPECTED_{field.upper()}" in text
         assert f"revision.get('{field}')" in text or f"revision.get(\n                              '{field}'" in text
     assert "unsupported executable-profit research index schema" in site_step
+
+
+def test_pages_hides_grandfathered_shadow_cumulative_chain_but_keeps_exact_d_slots() -> None:
+    text = _workflow()
+    site_step = text.split("- name: Build isolated DC2.0 Decision site", 1)[1]
+    public_step = text.split(
+        "- name: Verify public primary-profit bundle when present", 1
+    )[1].split("- name: Verify public DC2.0 Pages revision", 1)[0]
+    grandfather = site_step.split(
+        "if chain_status == 'GRANDFATHERED_PRE_CUTOVER_HIDDEN':", 1
+    )[1].split("elif chain_status == 'D28_CUTOVER_VALID':", 1)[0]
+    standard = site_step.split(
+        "elif chain_status == 'D28_CUTOVER_VALID':", 1
+    )[1].split("else:", 1)[0]
+
+    assert "PRIMARY_SHADOW_PUBLIC_INDEX_PATH" in grandfather
+    assert "state_relative" in grandfather
+    assert "statistics_relative" in grandfather
+    assert "target.unlink()" in grandfather
+    assert "signal_date != '20260828'" in grandfather
+    assert "selected_slots != 2" in grandfather
+    assert "dc20_primary_profit_forward_shadow_cutover_index_v1" in grandfather
+    assert "primary_profit_forward_shadow_selection_only_cutover" in grandfather
+    for field in (
+        "public_start_signal_date",
+        "mixed_projection_sha256",
+        "snapshot_sha256",
+        "selection_identity_sha256",
+        "csv_sha256",
+        "boundaries",
+    ):
+        assert f"'{field}'" in grandfather
+
+    assert "Pages standard Shadow summary lacks D28 cutover marker" in standard
+    assert "grandfather_target = site_root / grandfather_state_relative" in standard
+    assert "grandfather_target.unlink()" in standard
+    assert "cutover_target.unlink()" in standard
+    assert "shadow_state_20260828_asof_20260828.json" in site_step
+
+    assert "shadow_cutover_index" in public_step
+    assert "grandfathered Shadow artifact remained public" in public_step
+    assert "selection-only cutover pointer remained beside standard Shadow chain" in public_step
+    assert "grandfathered Shadow state remained public" in public_step
+    assert "public primary Shadow has neither a standard nor cutover pointer" in public_step
+    assert "public standard Shadow summary lacks D28 cutover" in public_step
+    assert "public primary Shadow cutover surface/path drifted" in public_step
+    assert "validate_primary_profit_forward_shadow_index(primary_index)" in public_step
+    assert "validate_primary_profit_forward_shadow(" in public_step
+    assert "selection_payload.get('snapshot_sha256')" in public_step
+    assert "selection_payload.get('selection_identity_sha256')" in public_step
+    assert "selection_payload.get('top10_members_sha256')" in public_step
 
 
 def test_legacy_profit_research_code_changes_trigger_pages_validation() -> None:

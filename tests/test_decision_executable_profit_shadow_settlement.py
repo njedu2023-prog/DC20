@@ -613,6 +613,68 @@ def test_statistics_are_deterministic_and_separate_top1_top2(tmp_path: Path) -> 
     assert stats["scope"]["human_actual_trade_ledger_included"] is False
 
 
+def test_public_cumulative_statistics_start_at_d28_and_retain_legacy_bytes(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_repo(tmp_path)
+    legacy_path = repo / settlement.SELECTION_ROOT / "shadow_20260824.json"
+    legacy_bytes = legacy_path.read_bytes()
+    d28 = _selection_payload()
+    d28.update(
+        {
+            "signal_date": "20260828",
+            "exec_date": "20260831",
+            "exit_date": "20260901",
+        }
+    )
+    d28["source_d_feature"]["file_name"] = "pred_20260828.csv"
+    _write_json(
+        repo / settlement.SELECTION_ROOT / "shadow_20260828.json",
+        d28,
+    )
+
+    audit = settlement.build_audit_statistics(repo, as_of_date="20260828")
+    assert audit.get("public_start_signal_date") is None
+    assert audit["scope"]["minimum_signal_date"] == "20260824"
+    assert audit["scope"]["selection_dates"] == 2
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="public cumulative cutover missing",
+    ):
+        settlement.validate_statistics(audit, require_public_cumulative=True)
+
+    stats = settlement.build_public_statistics(repo, as_of_date="20260828")
+    assert settlement.build_statistics(repo, as_of_date="20260828") == stats
+    settlement.validate_statistics(stats, require_public_cumulative=True)
+    assert stats["public_start_signal_date"] == "20260828"
+    assert stats["scope"] == {
+        "minimum_signal_date": "20260828",
+        "selection_dates": 1,
+        "no_selected_dates": 0,
+        "historical_backfill_included": False,
+        "human_actual_trade_ledger_included": False,
+    }
+    assert [item["path"] for item in stats["input_files"]] == [
+        "data/decision_executable_profit/forward/selections/shadow_20260828.json"
+    ]
+    assert stats["cohorts"]["all_selected_slots"]["selected_slots"] == 2
+    assert stats["cohorts"]["all_selected_slots"]["pending_validation_slots"] == 2
+    assert stats["forward_signal_date_progress_180"]["observed_signal_dates"] == 1
+    assert legacy_path.read_bytes() == legacy_bytes
+
+    without_cutover = copy.deepcopy(stats)
+    without_cutover.pop("public_start_signal_date")
+    without_cutover["snapshot_sha256"] = settlement._payload_snapshot(without_cutover)
+    with pytest.raises(
+        settlement.ExecutableProfitSettlementError,
+        match="public cumulative cutover missing",
+    ):
+        settlement.validate_statistics(
+            without_cutover,
+            require_public_cumulative=True,
+        )
+
+
 def test_missing_t1_truth_stays_pending_without_deleting_selection(tmp_path: Path) -> None:
     repo = _prepare_repo(tmp_path, include_t1=False)
     result = settlement.settle_signal_date(
@@ -911,6 +973,15 @@ def test_repository_settlement_contract_has_unique_exact_cohorts(tmp_path: Path)
         "stage_3_to_4",
     ]
     assert len(cohorts) == len(set(cohorts))
+    assert contract["statistics"]["public_start_signal_date"] == "20260828"
+    assert contract["statistics"]["pre_public_start_selection_rule"] == (
+        "retain immutable selection and truth artifacts for audit; "
+        "exclude them from public cumulative statistics"
+    )
+    assert contract["statistics"]["shared_summary_writer_rule"] == (
+        "as_of_date before 20260828 uses audit scope; as_of_date on or "
+        "after 20260828 requires public_start_signal_date=20260828"
+    )
     selection_input = contract["selection_input"]
     assert selection_input["accepted_schema_versions"] == [
         shadow.SCHEMA_VERSION,

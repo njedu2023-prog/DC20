@@ -12,6 +12,7 @@ from top10decision.decision.contracts import (
 from top10decision.decision.observation import (
     OBSERVATION_START_EXEC_DATE,
     OBSERVATION_TOP_N,
+    PUBLIC_STATISTICS_START_SIGNAL_DATE,
 )
 
 
@@ -32,8 +33,9 @@ class AuctionV3Config:
     max_positions: int = 3
     max_observation_candidates: int = OBSERVATION_TOP_N
     observation_validation_start_date: str = OBSERVATION_START_EXEC_DATE
-    forward_shadow_start_signal_date: str = "20260728"
-    top1_promotion_start_signal_date: str = "20260807"
+    public_statistics_start_signal_date: str = PUBLIC_STATISTICS_START_SIGNAL_DATE
+    forward_shadow_start_signal_date: str = PUBLIC_STATISTICS_START_SIGNAL_DATE
+    top1_promotion_start_signal_date: str = PUBLIC_STATISTICS_START_SIGNAL_DATE
     round_trip_cost_bps: float = 35.0
     slippage_bps_each_side: float = 5.0
     order_amount_cny: float = 100_000.0

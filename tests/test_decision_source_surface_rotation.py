@@ -94,7 +94,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     changes = evidence["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(paths)
-    assert len(paths) == len(set(paths)) == 43
+    assert len(paths) == len(set(paths)) == 45
     assert set(paths) == {
         ".github/workflows/deploy_dc20_pages.yml",
         ".github/workflows/diagnose_decision_fingerprint.yml",
@@ -113,6 +113,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "scripts/sync_market_raw.py",
         "scripts/validate_decision_executable_profit_shadow_contract.py",
         "src/top10decision/auction_v3/calibration.py",
+        "src/top10decision/auction_v3/config.py",
         "src/top10decision/auction_v3/engine.py",
         "src/top10decision/auction_v3/promotion_model.py",
         "src/top10decision/decision/action_plan.py",
@@ -122,6 +123,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/decision/observation.py",
         "src/top10decision/decision/three_engine_models.py",
         "src/top10decision/decision/three_rank.py",
+        "tests/test_auction_v3.py",
         "tests/test_auction_v3_three_engine_runtime.py",
         "tests/test_d_close_features.py",
         "tests/test_dashboard_research_projection.py",
@@ -186,6 +188,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "src/top10decision/auction_v3/calibration.py": (
             "canonical_source_preimage_restore"
         ),
+        "src/top10decision/auction_v3/config.py": (
+            "public_observation_cumulative_cutover_config"
+        ),
         "src/top10decision/auction_v3/engine.py": (
             "canonical_source_preimage_restore"
         ),
@@ -212,6 +217,9 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         ),
         "src/top10decision/decision/three_rank.py": (
             "three_engine_runtime_adapter"
+        ),
+        "tests/test_auction_v3.py": (
+            "public_observation_cumulative_cutover_test"
         ),
         "tests/test_auction_v3_three_engine_runtime.py": (
             "three_engine_runtime_adapter_test"
