@@ -240,6 +240,7 @@ jobs:
           PYTHONPATH=src python3 - <<'PY'
           import hashlib
           import json
+          import os
           import re
           import shutil
           from pathlib import Path
@@ -258,6 +259,97 @@ jobs:
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain,
           )
+
+          def resolve_primary_shadow_publication_policy(
+              *,
+              generation_mode,
+              signal_date,
+              public_shadow_pointer_exists,
+              public_shadow_signal_date,
+              selection_index_pointer_exists,
+              selection_index_signal_date,
+              same_d_shadow_json_exists,
+              same_d_shadow_csv_exists,
+          ):
+              if generation_mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
+                  raise ValueError('P1 generation mode is unsupported')
+              if not isinstance(signal_date, str) or not (
+                  len(signal_date) == 8 and signal_date.isdigit()
+              ):
+                  raise ValueError('P1 signal date is invalid')
+              pointer_dates = (
+                  public_shadow_signal_date,
+                  selection_index_signal_date,
+              )
+              pointer_inventory = (
+                  public_shadow_pointer_exists,
+                  selection_index_pointer_exists,
+              )
+              if any(type(value) is not bool for value in pointer_inventory):
+                  raise ValueError('P1 Shadow pointer inventory flags are invalid')
+              if pointer_inventory[0] is not pointer_inventory[1]:
+                  raise ValueError('P1 Shadow pointer inventory is mixed')
+              for exists, pointer_date in zip(pointer_inventory, pointer_dates):
+                  valid_date = (
+                      isinstance(pointer_date, str)
+                      and len(pointer_date) == 8
+                      and pointer_date.isdigit()
+                  )
+                  if exists is not valid_date:
+                      raise ValueError(
+                          'P1 Shadow pointer existence/date binding is invalid'
+                      )
+              if (
+                  pointer_dates[0] is not None
+                  and pointer_dates[0] != pointer_dates[1]
+              ):
+                  raise ValueError('P1 Shadow pointers bind different D dates')
+              pointer_date = pointer_dates[0]
+              if pointer_date is not None and pointer_date > signal_date:
+                  raise ValueError('P1 Shadow pointer is from a future D')
+              if same_d_shadow_json_exists is not same_d_shadow_csv_exists:
+                  raise ValueError('P1 same-D Shadow files are partial')
+              same_d_files_complete = (
+                  same_d_shadow_json_exists and same_d_shadow_csv_exists
+              )
+              pointer_is_same_d = pointer_date == signal_date
+              if pointer_is_same_d is not same_d_files_complete:
+                  raise ValueError('P1 same-D Shadow pointer/files are mixed')
+              if pointer_is_same_d:
+                  if generation_mode == 'RETROSPECTIVE_RECOVERY':
+                      raise ValueError(
+                          'P1 retrospective recovery must not publish same-D Shadow'
+                      )
+                  return 'REQUIRE_SAME_D_SHADOW'
+              if generation_mode == 'RETROSPECTIVE_RECOVERY':
+                  return 'OMIT_RETROSPECTIVE_SHADOW'
+              if pointer_date is not None and pointer_date >= signal_date:
+                  raise ValueError(
+                      'P1 natural pending Shadow pointer is not strictly historical'
+                  )
+              return 'OMIT_NATURAL_PENDING_SHADOW'
+
+          def remove_retrospective_shadow_public_surfaces(site_root):
+              shadow_public_root = (
+                  site_root / 'outputs/decision/executable_profit_research'
+              )
+              targets = [
+                  shadow_public_root / 'shadow_index.json',
+                  shadow_public_root / 'shadow_cutover_index.json',
+                  *shadow_public_root.glob('shadow_state_*.json'),
+                  *shadow_public_root.glob('shadow_statistics_*.json'),
+              ]
+              removed = []
+              for target in targets:
+                  if not target.exists() and not target.is_symlink():
+                      continue
+                  if not target.is_file() or target.is_symlink():
+                      raise ValueError(
+                          f'Pages retrospective Shadow target is unsafe: {target}'
+                      )
+                  target.unlink()
+                  removed.append(target.relative_to(site_root).as_posix())
+              return tuple(sorted(removed))
 
           repo_root = Path('.').resolve(strict=True)
           site_root = Path('_site').resolve(strict=True)
@@ -282,15 +374,78 @@ jobs:
                       expected_signal_date=bundle['inputs'].signal_date,
                       expected_generation_mode=bundle['inputs'].generation_mode,
                   )
+                  signal_date = bundle['inputs'].signal_date
+                  generation_mode = bundle['inputs'].generation_mode
                   shadow_index_source = repo_root / PRIMARY_SHADOW_PUBLIC_INDEX_PATH
-                  if shadow_index_source.exists():
-                      signal_date = bundle['inputs'].signal_date
+                  shadow_index = None
+                  shadow_index_exists = (
+                      shadow_index_source.exists()
+                      or shadow_index_source.is_symlink()
+                  )
+                  if shadow_index_exists:
+                      if (
+                          not shadow_index_source.is_file()
+                          or shadow_index_source.is_symlink()
+                      ):
+                          raise SystemExit('Pages Shadow public index is unsafe')
+                      shadow_index = json.loads(
+                          shadow_index_source.read_text(encoding='utf-8')
+                      )
+                  selection_index_source = (
+                      repo_root / PRIMARY_SHADOW_SELECTION_INDEX_PATH
+                  )
+                  selection_index = None
+                  selection_index_exists = (
+                      selection_index_source.exists()
+                      or selection_index_source.is_symlink()
+                  )
+                  if selection_index_exists:
+                      if (
+                          not selection_index_source.is_file()
+                          or selection_index_source.is_symlink()
+                      ):
+                          raise SystemExit('Pages Shadow selection index is unsafe')
+                      selection_index = json.loads(
+                          selection_index_source.read_text(encoding='utf-8')
+                      )
+                  same_d_selection_json = (
+                      repo_root
+                      / 'data/decision_executable_profit/forward/selections'
+                      / f'shadow_{signal_date}.json'
+                  )
+                  same_d_selection_csv = same_d_selection_json.with_suffix('.csv')
+                  try:
+                      shadow_policy = resolve_primary_shadow_publication_policy(
+                          generation_mode=generation_mode,
+                          signal_date=signal_date,
+                          public_shadow_pointer_exists=shadow_index_exists,
+                          public_shadow_signal_date=(
+                              shadow_index.get('latest_signal_date')
+                              if shadow_index is not None
+                              else None
+                          ),
+                          selection_index_pointer_exists=selection_index_exists,
+                          selection_index_signal_date=(
+                              selection_index.get('latest_signal_date')
+                              if selection_index is not None
+                              else None
+                          ),
+                          same_d_shadow_json_exists=(
+                              same_d_selection_json.exists()
+                              or same_d_selection_json.is_symlink()
+                          ),
+                          same_d_shadow_csv_exists=(
+                              same_d_selection_csv.exists()
+                              or same_d_selection_csv.is_symlink()
+                          ),
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(str(exc)) from exc
+                  removed_shadow_surfaces = ()
+                  if shadow_policy == 'REQUIRE_SAME_D_SHADOW':
                       shadow_chain = validate_primary_profit_forward_shadow_repository_chain(
                           repo_root,
                           signal_date,
-                      )
-                      shadow_index = json.loads(
-                          shadow_index_source.read_text(encoding='utf-8')
                       )
                       mixed_sha = bundle['mixed']['projection_json_sha256']
                       if (
@@ -556,6 +711,66 @@ jobs:
                           raise SystemExit(
                               f'Pages Shadow cumulative chain status is unsupported: {chain_status}'
                           )
+                  else:
+                      mixed_projection = bundle['mixed']['projection']
+                      ranking_boundary = (
+                          mixed_projection.get('ranking_contract') or {}
+                      ).get('forward_selection_or_statistics_may_change')
+                      retrospective_disclosure_ok = (
+                          shadow_policy == 'OMIT_RETROSPECTIVE_SHADOW'
+                          and generation_mode == 'RETROSPECTIVE_RECOVERY'
+                          and mixed_projection.get('prospective') is False
+                          and mixed_projection.get('retrospective_non_forward') is True
+                      )
+                      natural_pending_disclosure_ok = (
+                          shadow_policy == 'OMIT_NATURAL_PENDING_SHADOW'
+                          and generation_mode == 'NATURAL'
+                          and mixed_projection.get('prospective') is True
+                          and mixed_projection.get('retrospective_non_forward') is False
+                      )
+                      if not (
+                          ranking_boundary is False
+                          and (
+                              retrospective_disclosure_ok
+                              or natural_pending_disclosure_ok
+                          )
+                      ):
+                          raise SystemExit(
+                              'Pages P1 pending-Shadow disclosure/boundary drifted'
+                          )
+                      try:
+                          removed_shadow_surfaces = (
+                              remove_retrospective_shadow_public_surfaces(site_root)
+                          )
+                      except ValueError as exc:
+                          raise SystemExit(str(exc)) from exc
+                      print(json.dumps({
+                          'status': (
+                              'PUBLIC_PRIMARY_SHADOW_OMITTED_RETROSPECTIVE'
+                              if shadow_policy == 'OMIT_RETROSPECTIVE_SHADOW'
+                              else 'PUBLIC_PRIMARY_SHADOW_PENDING_NATURAL'
+                          ),
+                          'signal_date': signal_date,
+                          'generation_mode': generation_mode,
+                          'repository_shadow_mutated': False,
+                          'removed_public_surfaces': removed_shadow_surfaces,
+                      }, ensure_ascii=False, sort_keys=True))
+                  with Path(os.environ['GITHUB_OUTPUT']).open(
+                      'a', encoding='utf-8'
+                  ) as output:
+                      output.write(
+                          f'primary_shadow_publication_mode={shadow_policy}\n'
+                      )
+                      output.write(
+                          'primary_shadow_removed_surfaces_json='
+                          + json.dumps(
+                              list(removed_shadow_surfaces),
+                              ensure_ascii=False,
+                              sort_keys=True,
+                              separators=(',', ':'),
+                          )
+                          + '\n'
+                      )
                   print(json.dumps({
                       'status': 'PUBLIC_PRIMARY_PROFIT_CHAIN_VALIDATED',
                       'signal_date': public_bundle['inputs'].signal_date,
@@ -1357,12 +1572,80 @@ jobs:
       - name: Verify public primary-profit bundle when present
         if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}
         env:
+          GENERATION_MODE: ${{ steps.site.outputs.primary_profit_generation_mode }}
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_REMOVED_SHADOW_SURFACES_JSON: ${{ steps.site.outputs.primary_shadow_removed_surfaces_json }}
+          SHADOW_PUBLICATION_MODE: ${{ steps.site.outputs.primary_shadow_publication_mode }}
           SIGNAL_DATE: ${{ steps.site.outputs.executable_profit_signal_date }}
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           set -euo pipefail
           public_root="${RUNNER_TEMP}/generic-public-primary-profit"
+          removed_shadow_surfaces_file="${RUNNER_TEMP}/primary-shadow-removed-surfaces.txt"
+          REMOVED_SHADOW_SURFACES_FILE="${removed_shadow_surfaces_file}" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import PurePosixPath
+
+          def validate_removed_shadow_surface_inventory(values, publication_mode):
+              allowed_modes = {
+                  'REQUIRE_SAME_D_SHADOW',
+                  'OMIT_RETROSPECTIVE_SHADOW',
+                  'OMIT_NATURAL_PENDING_SHADOW',
+              }
+              if publication_mode not in allowed_modes:
+                  raise ValueError(
+                      'Pages removed Shadow inventory publication mode is unsupported'
+                  )
+              if not isinstance(values, list) or any(
+                  type(value) is not str or not value for value in values
+              ):
+                  raise ValueError('Pages removed Shadow inventory is invalid')
+              if values != sorted(set(values)):
+                  raise ValueError(
+                      'Pages removed Shadow inventory is not sorted and unique'
+                  )
+              prefix = 'outputs/decision/executable_profit_research/'
+              dated_name = re.compile(
+                  r'shadow_(?:state|statistics)_20\d{6}_asof_20\d{6}\.json'
+              )
+              for relative in values:
+                  path = PurePosixPath(relative)
+                  if (
+                      path.is_absolute()
+                      or '..' in path.parts
+                      or len(path.parts) != 4
+                      or not relative.startswith(prefix)
+                      or (
+                          path.name
+                          not in {'shadow_index.json', 'shadow_cutover_index.json'}
+                          and dated_name.fullmatch(path.name) is None
+                      )
+                  ):
+                      raise ValueError(
+                          f'Pages removed Shadow inventory path is unsafe: {relative}'
+                      )
+              if publication_mode == 'REQUIRE_SAME_D_SHADOW' and values:
+                  raise ValueError(
+                      'Pages exact same-D Shadow publication removed active surfaces'
+                  )
+              return tuple(values)
+
+          try:
+              removed = validate_removed_shadow_surface_inventory(
+                  json.loads(
+                      os.environ['EXPECTED_REMOVED_SHADOW_SURFACES_JSON']
+                  ),
+                  os.environ['SHADOW_PUBLICATION_MODE'],
+              )
+          except (json.JSONDecodeError, ValueError) as exc:
+              raise SystemExit(str(exc)) from exc
+          output_path = PurePosixPath(os.environ['REMOVED_SHADOW_SURFACES_FILE'])
+          with open(output_path, 'w', encoding='utf-8') as output:
+              for relative in removed:
+                  output.write(relative + '\n')
+          PY
           files=(
             revision.json
             models/decision_primary_profit_research_contract.json
@@ -1379,7 +1662,31 @@ jobs:
           )
           shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
           shadow_cutover_index="_site/outputs/decision/executable_profit_research/shadow_cutover_index.json"
-          if [ -f "${shadow_index}" ]; then
+          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ]; then
+            if [ "${GENERATION_MODE}" != "RETROSPECTIVE_RECOVERY" ]; then
+              echo "retrospective Shadow omission mode/generation mismatch" >&2
+              exit 1
+            fi
+            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
+               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
+              echo "retrospective P1 build unexpectedly contains an active Shadow pointer" >&2
+              exit 1
+            fi
+          elif [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
+            if [ "${GENERATION_MODE}" != "NATURAL" ]; then
+              echo "natural pending Shadow mode/generation mismatch" >&2
+              exit 1
+            fi
+            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
+               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
+              echo "natural pending P1 build unexpectedly contains an active Shadow pointer" >&2
+              exit 1
+            fi
+          elif [ "${SHADOW_PUBLICATION_MODE}" != "REQUIRE_SAME_D_SHADOW" ] || \
+               [ "${GENERATION_MODE}" != "NATURAL" ]; then
+            echo "public P1 Shadow publication mode is unsupported" >&2
+            exit 1
+          elif [ -f "${shadow_index}" ]; then
             shadow_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["latest_state_url"])' "${shadow_index}")"
             shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["selection"]["path"])' "_site/${shadow_state}")"
             shadow_statistics="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["statistics"]["path"])' "_site/${shadow_state}")"
@@ -1415,7 +1722,34 @@ jobs:
               -o "${public_root}/${relative}"
             cmp -s "_site/${relative}" "${public_root}/${relative}"
           done
-          if [ -f "${shadow_cutover_index}" ]; then
+          while IFS= read -r relative; do
+            if [ -e "_site/${relative}" ] || [ -L "_site/${relative}" ]; then
+              echo "removed Shadow surface still exists in Pages build: ${relative}" >&2
+              exit 1
+            fi
+            http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
+            if [ "${http_code}" != 404 ]; then
+              echo "removed Shadow surface remained public: ${relative} HTTP ${http_code}" >&2
+              exit 1
+            fi
+          done < "${removed_shadow_surfaces_file}"
+          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ] || \
+             [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
+            for relative in \
+              outputs/decision/executable_profit_research/shadow_index.json \
+              outputs/decision/executable_profit_research/shadow_cutover_index.json \
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json \
+              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.json" \
+              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.csv"; do
+              http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+                "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
+              if [ "${http_code}" != 404 ]; then
+                echo "P1 pending-Shadow publication exposed a Shadow surface: ${relative} HTTP ${http_code}" >&2
+                exit 1
+              fi
+            done
+          elif [ -f "${shadow_cutover_index}" ]; then
             for relative in \
               outputs/decision/executable_profit_research/shadow_index.json \
               data/decision_executable_profit/forward/statistics/summary.json; do
@@ -1467,14 +1801,54 @@ jobs:
               )
           )
           mixed = bundle['mixed']['projection']
+          shadow_publication_mode = os.environ['SHADOW_PUBLICATION_MODE']
           shadow_index_path = (
               Path(os.environ['PUBLIC_ROOT'])
               / 'outputs/decision/executable_profit_research/shadow_index.json'
           )
-          if shadow_index_path.exists():
+          root = Path(os.environ['PUBLIC_ROOT'])
+          cutover_path = (
+              root
+              / 'outputs/decision/executable_profit_research/shadow_cutover_index.json'
+          )
+          if shadow_publication_mode in {
+              'OMIT_RETROSPECTIVE_SHADOW',
+              'OMIT_NATURAL_PENDING_SHADOW',
+          }:
+              retrospective_omission_ok = (
+                  shadow_publication_mode == 'OMIT_RETROSPECTIVE_SHADOW'
+                  and bundle['inputs'].generation_mode
+                  == 'RETROSPECTIVE_RECOVERY'
+                  and mixed.get('prospective') is False
+                  and mixed.get('retrospective_non_forward') is True
+              )
+              natural_pending_ok = (
+                  shadow_publication_mode == 'OMIT_NATURAL_PENDING_SHADOW'
+                  and bundle['inputs'].generation_mode == 'NATURAL'
+                  and mixed.get('prospective') is True
+                  and mixed.get('retrospective_non_forward') is False
+              )
+              if (
+                  shadow_index_path.exists()
+                  or shadow_index_path.is_symlink()
+                  or cutover_path.exists()
+                  or cutover_path.is_symlink()
+                  or not (retrospective_omission_ok or natural_pending_ok)
+                  or (mixed.get('ranking_contract') or {}).get(
+                      'forward_selection_or_statistics_may_change'
+                  ) is not False
+              ):
+                  raise SystemExit(
+                      'public P1 pending-Shadow state exposed or authorized Shadow'
+                  )
+          elif not (
+              shadow_publication_mode == 'REQUIRE_SAME_D_SHADOW'
+              and bundle['inputs'].generation_mode == 'NATURAL'
+          ):
+              raise SystemExit('public P1 Shadow publication mode is unsupported')
+          elif shadow_index_path.exists():
               import hashlib
 
-              root = Path(os.environ['PUBLIC_ROOT'])
               shadow_index = json.loads(shadow_index_path.read_text(encoding='utf-8'))
               state_path = root / str(shadow_index['latest_state_url'])
               state = json.loads(state_path.read_text(encoding='utf-8'))
@@ -1524,10 +1898,6 @@ jobs:
               import hashlib
 
               root = Path(os.environ['PUBLIC_ROOT'])
-              cutover_path = (
-                  root
-                  / 'outputs/decision/executable_profit_research/shadow_cutover_index.json'
-              )
               if not cutover_path.is_file() or cutover_path.is_symlink():
                   raise SystemExit(
                       'public primary Shadow has neither a standard nor safe cutover pointer'

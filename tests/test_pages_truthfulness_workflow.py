@@ -4,7 +4,8 @@ import csv
 import hashlib
 import io
 import json
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -37,6 +38,8 @@ def _embedded_python_functions(name: str) -> list:
                     "csv": csv,
                     "hashlib": hashlib,
                     "io": io,
+                    "PurePosixPath": PurePosixPath,
+                    "re": re,
                 }
                 function_module = ast.Module(body=[node], type_ignores=[])
                 exec(compile(function_module, str(WORKFLOW), "exec"), namespace)
@@ -571,6 +574,239 @@ def test_pages_hides_grandfathered_shadow_cumulative_chain_but_keeps_exact_d_slo
     assert "selection_payload.get('snapshot_sha256')" in public_step
     assert "selection_payload.get('selection_identity_sha256')" in public_step
     assert "selection_payload.get('top10_members_sha256')" in public_step
+
+
+def test_pages_shadow_policy_allows_recovery_without_shadow_but_keeps_natural_strict() -> None:
+    functions = _embedded_python_functions(
+        "resolve_primary_shadow_publication_policy"
+    )
+    assert len(functions) == 1
+    resolve = functions[0]
+    assert (
+        resolve(
+            generation_mode="RETROSPECTIVE_RECOVERY",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date="20260828",
+            selection_index_pointer_exists=True,
+            selection_index_signal_date="20260828",
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+        == "OMIT_RETROSPECTIVE_SHADOW"
+    )
+    assert (
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date="20260828",
+            selection_index_pointer_exists=True,
+            selection_index_signal_date="20260828",
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+        == "OMIT_NATURAL_PENDING_SHADOW"
+    )
+    assert (
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date="20260831",
+            selection_index_pointer_exists=True,
+            selection_index_signal_date="20260831",
+            same_d_shadow_json_exists=True,
+            same_d_shadow_csv_exists=True,
+        )
+        == "REQUIRE_SAME_D_SHADOW"
+    )
+    with pytest.raises(ValueError, match="must not publish same-D Shadow"):
+        resolve(
+            generation_mode="RETROSPECTIVE_RECOVERY",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date="20260831",
+            selection_index_pointer_exists=True,
+            selection_index_signal_date="20260831",
+            same_d_shadow_json_exists=True,
+            same_d_shadow_csv_exists=True,
+        )
+    invalid_states = (
+        {
+            "public_shadow_signal_date": "20260831",
+            "selection_index_signal_date": "20260828",
+        },
+        {
+            "public_shadow_signal_date": "20260901",
+            "selection_index_signal_date": "20260901",
+        },
+        {"same_d_shadow_json_exists": True},
+        {
+            "same_d_shadow_json_exists": True,
+            "same_d_shadow_csv_exists": True,
+        },
+    )
+    for drift in invalid_states:
+        natural_pending = {
+            "generation_mode": "NATURAL",
+            "signal_date": "20260831",
+            "public_shadow_pointer_exists": True,
+            "public_shadow_signal_date": "20260828",
+            "selection_index_pointer_exists": True,
+            "selection_index_signal_date": "20260828",
+            "same_d_shadow_json_exists": False,
+            "same_d_shadow_csv_exists": False,
+        }
+        natural_pending.update(drift)
+        with pytest.raises(ValueError):
+            resolve(**natural_pending)
+
+    assert (
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=False,
+            public_shadow_signal_date=None,
+            selection_index_pointer_exists=False,
+            selection_index_signal_date=None,
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+        == "OMIT_NATURAL_PENDING_SHADOW"
+    )
+    with pytest.raises(ValueError, match="existence/date binding is invalid"):
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date=None,
+            selection_index_pointer_exists=True,
+            selection_index_signal_date=None,
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+    with pytest.raises(ValueError, match="pointer inventory is mixed"):
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=True,
+            public_shadow_signal_date="20260828",
+            selection_index_pointer_exists=False,
+            selection_index_signal_date=None,
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+    with pytest.raises(ValueError, match="existence/date binding is invalid"):
+        resolve(
+            generation_mode="NATURAL",
+            signal_date="20260831",
+            public_shadow_pointer_exists=False,
+            public_shadow_signal_date="20260828",
+            selection_index_pointer_exists=False,
+            selection_index_signal_date="20260828",
+            same_d_shadow_json_exists=False,
+            same_d_shadow_csv_exists=False,
+        )
+
+
+def test_pages_recovery_removes_only_generated_public_shadow_surfaces(
+    tmp_path: Path,
+) -> None:
+    functions = _embedded_python_functions(
+        "remove_retrospective_shadow_public_surfaces"
+    )
+    assert len(functions) == 1
+    remove = functions[0]
+    shadow_root = (
+        tmp_path / "outputs" / "decision" / "executable_profit_research"
+    )
+    shadow_root.mkdir(parents=True)
+    stale = (
+        "shadow_index.json",
+        "shadow_cutover_index.json",
+        "shadow_state_20260828_asof_20260828.json",
+        "shadow_statistics_20260828_asof_20260828.json",
+        "shadow_state_20260831_asof_20260901.json",
+        "shadow_statistics_20260831_asof_20260901.json",
+    )
+    for name in stale:
+        (shadow_root / name).write_text("{}\n", encoding="utf-8")
+    current_projection = shadow_root / "projection_20260831.json"
+    current_projection.write_text('{"signal_date":"20260831"}\n', encoding="utf-8")
+    unrelated_observation = (
+        tmp_path / "outputs" / "auction_v3" / "metrics" / "observation.json"
+    )
+    unrelated_observation.parent.mkdir(parents=True)
+    unrelated_observation.write_text('{"start":"20260828"}\n', encoding="utf-8")
+
+    removed = remove(tmp_path)
+    assert set(removed) == {
+        f"outputs/decision/executable_profit_research/{name}" for name in stale
+    }
+    assert current_projection.is_file()
+    assert unrelated_observation.is_file()
+    assert not any((shadow_root / name).exists() for name in stale)
+
+
+def test_pages_public_removed_shadow_inventory_is_closed_and_path_safe() -> None:
+    functions = _embedded_python_functions(
+        "validate_removed_shadow_surface_inventory"
+    )
+    assert len(functions) == 1
+    validate = functions[0]
+    inventory = [
+        "outputs/decision/executable_profit_research/shadow_index.json",
+        (
+            "outputs/decision/executable_profit_research/"
+            "shadow_state_20260828_asof_20260828.json"
+        ),
+        (
+            "outputs/decision/executable_profit_research/"
+            "shadow_statistics_20260828_asof_20260828.json"
+        ),
+    ]
+    inventory.sort()
+    assert validate(inventory, "OMIT_NATURAL_PENDING_SHADOW") == tuple(
+        inventory
+    )
+    assert validate([], "REQUIRE_SAME_D_SHADOW") == ()
+    for invalid in (
+        list(reversed(inventory)),
+        inventory + [inventory[-1]],
+        ["outputs/decision/executable_profit_research/projection_20260831.json"],
+        ["outputs/decision/executable_profit_research/../shadow_index.json"],
+    ):
+        with pytest.raises(ValueError):
+            validate(invalid, "OMIT_RETROSPECTIVE_SHADOW")
+    with pytest.raises(ValueError, match="removed active surfaces"):
+        validate(inventory, "REQUIRE_SAME_D_SHADOW")
+
+
+def test_pages_recovery_public_verifier_requires_shadow_surfaces_to_be_absent() -> None:
+    text = _workflow()
+    site_step = text.split("- name: Build isolated DC2.0 Decision site", 1)[1]
+    public_step = text.split(
+        "- name: Verify public primary-profit bundle when present", 1
+    )[1].split("- name: Verify public DC2.0 Pages revision", 1)[0]
+    assert "P1 retrospective recovery must not publish same-D Shadow" in site_step
+    assert "P1 same-D Shadow pointer/files are mixed" in site_step
+    assert "OMIT_NATURAL_PENDING_SHADOW" in site_step
+    assert "PUBLIC_PRIMARY_SHADOW_PENDING_NATURAL" in site_step
+    assert "PUBLIC_PRIMARY_SHADOW_OMITTED_RETROSPECTIVE" in site_step
+    assert "remove_retrospective_shadow_public_surfaces(site_root)" in site_step
+    assert "primary_shadow_removed_surfaces_json=" in site_step
+    assert "GENERATION_MODE: ${{ steps.site.outputs.primary_profit_generation_mode }}" in public_step
+    assert (
+        "EXPECTED_REMOVED_SHADOW_SURFACES_JSON: "
+        "${{ steps.site.outputs.primary_shadow_removed_surfaces_json }}"
+        in public_step
+    )
+    assert "validate_removed_shadow_surface_inventory(" in public_step
+    assert 'done < "${removed_shadow_surfaces_file}"' in public_step
+    assert "removed Shadow surface remained public" in public_step
+    assert "P1 pending-Shadow publication exposed a Shadow surface" in public_step
+    assert "public P1 pending-Shadow state exposed or authorized Shadow" in public_step
 
 
 def test_legacy_profit_research_code_changes_trigger_pages_validation() -> None:
