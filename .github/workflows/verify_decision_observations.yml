@@ -2,7 +2,28 @@ name: Verify Decision Top10 Observations
 
 on:
   schedule:
-    - cron: "15,45 8-9 * * 1-5"
+    # Keep every weekday/slot identity distinct so github.event.schedule
+    # remains unambiguous even when GitHub starts a run on another date.
+    - cron: "15 8 * * 1"
+    - cron: "45 8 * * 1"
+    - cron: "15 9 * * 1"
+    - cron: "45 9 * * 1"
+    - cron: "15 8 * * 2"
+    - cron: "45 8 * * 2"
+    - cron: "15 9 * * 2"
+    - cron: "45 9 * * 2"
+    - cron: "15 8 * * 3"
+    - cron: "45 8 * * 3"
+    - cron: "15 9 * * 3"
+    - cron: "45 9 * * 3"
+    - cron: "15 8 * * 4"
+    - cron: "45 8 * * 4"
+    - cron: "15 9 * * 4"
+    - cron: "45 9 * * 4"
+    - cron: "15 8 * * 5"
+    - cron: "45 8 * * 5"
+    - cron: "15 9 * * 5"
+    - cron: "45 9 * * 5"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -49,12 +70,14 @@ jobs:
     name: Read-only settle and validate observation truth
     if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
     permissions:
+      actions: read
       contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       publish: ${{ steps.mode.outputs.publish }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
+      schedule_deadline_utc: ${{ steps.session.outputs.schedule_deadline_utc }}
     steps:
       - name: Checkout immutable main base without writer credentials
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -103,14 +126,251 @@ jobs:
         id: session
         env:
           PYTHONPATH: ${{ github.workspace }}/src
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           INPUT_DATE: ${{ inputs.as_of_date }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_NAME: ${{ github.repository }}
+          GITHUB_RUN_IDENTIFIER: ${{ github.run_id }}
+          EVENT_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python scripts/sync_tushare_minute.py --calendar-only
-          as_of="${INPUT_DATE:-$(TZ=Asia/Shanghai date +%Y%m%d)}"
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          import re
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from zoneinfo import ZoneInfo
+
+          DATE_RE = re.compile(r'20\d{6}')
+          SHANGHAI = ZoneInfo('Asia/Shanghai')
+          UTC = ZoneInfo('UTC')
+          SCHEDULE_RE = re.compile(r'(15|45) (8|9) \* \* ([1-5])')
+          MAX_SCHEDULE_DELAY = timedelta(hours=12)
+
+          event_name = str(os.environ.get('EVENT_NAME') or '').strip()
+          input_date = str(os.environ.get('INPUT_DATE') or '').strip()
+          schedule_deadline_utc = ''
+          injected_now = str(os.environ.get('DC20_VERIFY_NOW_BJT') or '').strip()
+          if injected_now:
+              try:
+                  now = datetime.fromisoformat(injected_now)
+              except ValueError as exc:
+                  raise SystemExit('DC20_VERIFY_NOW_BJT is invalid') from exc
+              if now.tzinfo is None:
+                  now = now.replace(tzinfo=SHANGHAI)
+              else:
+                  now = now.astimezone(SHANGHAI)
+          else:
+              now = datetime.now(SHANGHAI)
+
+          if event_name == 'schedule':
+              if input_date:
+                  raise SystemExit('Verify schedule cannot accept a manual as-of date')
+              event_schedule = str(
+                  os.environ.get('EVENT_SCHEDULE') or ''
+              ).strip()
+              schedule_match = SCHEDULE_RE.fullmatch(event_schedule)
+              if schedule_match is None:
+                  raise SystemExit('Verify schedule expression is not allowlisted')
+              schedule_minute = int(schedule_match.group(1))
+              schedule_hour = int(schedule_match.group(2))
+              schedule_weekday = int(schedule_match.group(3)) - 1
+
+              injected_created = str(
+                  os.environ.get('DC20_VERIFY_RUN_CREATED_AT') or ''
+              ).strip()
+              if injected_created:
+                  try:
+                      created_at = datetime.fromisoformat(injected_created)
+                  except ValueError as exc:
+                      raise SystemExit(
+                          'DC20_VERIFY_RUN_CREATED_AT is invalid'
+                      ) from exc
+              else:
+                  token = str(os.environ.get('GH_API_TOKEN') or '').strip()
+                  repository = str(
+                      os.environ.get('GITHUB_REPOSITORY_NAME') or ''
+                  ).strip()
+                  run_id = str(
+                      os.environ.get('GITHUB_RUN_IDENTIFIER') or ''
+                  ).strip()
+                  event_head = str(
+                      os.environ.get('EVENT_HEAD_SHA') or ''
+                  ).strip().lower()
+                  if (
+                      not token
+                      or re.fullmatch(r'[^/\s]+/[^/\s]+', repository) is None
+                      or re.fullmatch(r'[1-9][0-9]*', run_id) is None
+                      or re.fullmatch(r'[0-9a-f]{40}', event_head) is None
+                  ):
+                      raise SystemExit(
+                          'Verify schedule run metadata inputs are invalid'
+                      )
+                  request = Request(
+                      'https://api.github.com/repos/'
+                      f'{repository}/actions/runs/{run_id}',
+                      headers={
+                          'Accept': 'application/vnd.github+json',
+                          'Authorization': f'Bearer {token}',
+                          'X-GitHub-Api-Version': '2022-11-28',
+                      },
+                  )
+                  try:
+                      with urlopen(request, timeout=30) as response:
+                          metadata = json.load(response)
+                  except Exception as exc:
+                      raise SystemExit(
+                          'Verify schedule run metadata lookup failed'
+                      ) from exc
+                  if (
+                      str(metadata.get('id') or '') != run_id
+                      or metadata.get('event') != 'schedule'
+                      or metadata.get('workflow_id') != 335484133
+                      or metadata.get('run_attempt') != 1
+                      or metadata.get('name')
+                      != 'Verify Decision Top10 Observations'
+                      or str(metadata.get('head_branch') or '') != 'main'
+                      or str(metadata.get('head_sha') or '').lower() != event_head
+                      or str(
+                          (metadata.get('head_commit') or {}).get('id') or ''
+                      ).lower() != event_head
+                      or metadata.get('path')
+                      != '.github/workflows/verify_decision_observations.yml'
+                      or str(
+                          (metadata.get('repository') or {}).get('full_name')
+                          or ''
+                      ) != repository
+                      or str(
+                          (metadata.get('head_repository') or {}).get(
+                              'full_name'
+                          ) or ''
+                      ) != repository
+                  ):
+                      raise SystemExit(
+                          'Verify schedule run metadata binding drifted'
+                      )
+                  try:
+                      created_at = datetime.fromisoformat(
+                          str(metadata.get('created_at') or '').replace(
+                              'Z', '+00:00'
+                          )
+                      )
+                  except ValueError as exc:
+                      raise SystemExit(
+                          'Verify schedule run created_at is invalid'
+                      ) from exc
+              if created_at.tzinfo is None:
+                  raise SystemExit(
+                      'Verify schedule run created_at lacks timezone'
+                  )
+              created_at = created_at.astimezone(UTC)
+              slots = []
+              for day_offset in range(0, 8):
+                  day = (created_at - timedelta(days=day_offset)).date()
+                  if day.weekday() != schedule_weekday:
+                      continue
+                  slot = datetime(
+                      day.year,
+                      day.month,
+                      day.day,
+                      schedule_hour,
+                      schedule_minute,
+                      tzinfo=UTC,
+                  )
+                  if slot <= created_at:
+                      slots.append(slot)
+              if not slots:
+                  raise SystemExit(
+                      'Verify schedule has no valid preceding cron slot'
+                  )
+              scheduled_slot = max(slots)
+              schedule_delay = created_at - scheduled_slot
+              if (
+                  schedule_delay < timedelta(0)
+                  or schedule_delay >= MAX_SCHEDULE_DELAY
+              ):
+                  raise SystemExit(
+                      'Verify schedule delay is outside the 12-hour window'
+                  )
+              runtime_delay = now.astimezone(UTC) - scheduled_slot
+              if (
+                  runtime_delay < timedelta(0)
+                  or runtime_delay >= MAX_SCHEDULE_DELAY
+              ):
+                  raise SystemExit(
+                      'Verify schedule execution is outside the 12-hour window'
+                  )
+              schedule_deadline_utc = (
+                  scheduled_slot + MAX_SCHEDULE_DELAY
+              ).isoformat()
+              as_of = scheduled_slot.astimezone(SHANGHAI).strftime('%Y%m%d')
+
+              calendar_override = str(
+                  os.environ.get('VERIFY_CALENDAR_PATH') or ''
+              ).strip()
+              calendar_path = Path(
+                  calendar_override or 'data/market/trade_cal_sse.csv'
+              )
+              if (
+                  calendar_path.is_symlink()
+                  or not calendar_path.is_file()
+                  or calendar_path.stat().st_size <= 0
+              ):
+                  raise SystemExit(
+                      'Verify committed SSE calendar is missing or unsafe'
+                  )
+              with calendar_path.open(
+                  'r', encoding='utf-8-sig', newline=''
+              ) as handle:
+                  calendar_rows = list(csv.DictReader(handle))
+              target_rows = [
+                  row for row in calendar_rows
+                  if row.get('exchange') == 'SSE'
+                  and row.get('cal_date') == as_of
+              ]
+              next_open_dates = sorted(
+                  str(row.get('cal_date') or '')
+                  for row in calendar_rows
+                  if row.get('exchange') == 'SSE'
+                  and row.get('is_open') == '1'
+                  and str(row.get('cal_date') or '') > as_of
+                  and DATE_RE.fullmatch(str(row.get('cal_date') or ''))
+              )
+              if len(target_rows) != 1 or not next_open_dates:
+                  raise SystemExit(
+                      'Verify scheduled target is absent from SSE calendar'
+                  )
+              next_open = datetime.strptime(
+                  next_open_dates[0] + '0920', '%Y%m%d%H%M'
+              ).replace(tzinfo=SHANGHAI)
+              if now >= next_open:
+                  raise SystemExit(
+                      'delayed Verify schedule crossed the next open 09:20 '
+                      'safety boundary'
+                  )
+          elif event_name == 'workflow_dispatch':
+              as_of = input_date or now.strftime('%Y%m%d')
+          else:
+              raise SystemExit('Verify event is not allowlisted')
+
+          if DATE_RE.fullmatch(as_of) is None:
+              raise SystemExit('resolved Verify as-of date must be YYYYMMDD')
+          as_of_path = Path(os.environ['RUNNER_TEMP']) / 'verify-as-of-date.txt'
+          as_of_path.write_text(as_of + '\n', encoding='ascii')
+          with Path(os.environ['GITHUB_OUTPUT']).open(
+              'a', encoding='utf-8'
+          ) as output:
+              output.write(f'as_of_date={as_of}\n')
+              output.write(
+                  f'schedule_deadline_utc={schedule_deadline_utc}\n'
+              )
+          PY
+          as_of="$(tr -d '\n' < "${RUNNER_TEMP}/verify-as-of-date.txt")"
           echo "${as_of}" | grep -Eq '^[0-9]{8}$'
-          echo "as_of_date=${as_of}" >> "${GITHUB_OUTPUT}"
           set +e
           python scripts/verify_decision_observations.py --check-trading-date "${as_of}"
           status=$?
@@ -822,12 +1082,59 @@ jobs:
       - name: Publish exact CAS commit with minimally injected token
         id: publish
         env:
+          EVENT_NAME: ${{ github.event_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCHEDULE_DEADLINE_UTC: ${{ needs.compute.outputs.schedule_deadline_utc }}
         run: |
           set -euo pipefail
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "${expected}"
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          UTC = ZoneInfo('UTC')
+          event_name = str(os.environ.get('EVENT_NAME') or '').strip()
+          if event_name == 'workflow_dispatch':
+              raise SystemExit(0)
+          if event_name != 'schedule':
+              raise SystemExit('Verify CAS publish event is not allowlisted')
+          raw_deadline = str(
+              os.environ.get('SCHEDULE_DEADLINE_UTC') or ''
+          ).strip()
+          try:
+              deadline = datetime.fromisoformat(raw_deadline)
+          except ValueError as exc:
+              raise SystemExit(
+                  'Verify publish schedule deadline is invalid'
+              ) from exc
+          if deadline.tzinfo is None:
+              raise SystemExit('Verify publish schedule deadline lacks timezone')
+          deadline = deadline.astimezone(UTC)
+          injected_now = str(
+              os.environ.get('DC20_VERIFY_PUBLISH_NOW_UTC') or ''
+          ).strip()
+          if injected_now:
+              try:
+                  now = datetime.fromisoformat(injected_now)
+              except ValueError as exc:
+                  raise SystemExit(
+                      'DC20_VERIFY_PUBLISH_NOW_UTC is invalid'
+                  ) from exc
+              if now.tzinfo is None:
+                  raise SystemExit(
+                      'DC20_VERIFY_PUBLISH_NOW_UTC lacks timezone'
+                  )
+              now = now.astimezone(UTC)
+          else:
+              now = datetime.now(UTC)
+          if now >= deadline:
+              raise SystemExit(
+                  'Verify CAS publish crossed the 12-hour schedule deadline'
+              )
+          PY
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
           echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 

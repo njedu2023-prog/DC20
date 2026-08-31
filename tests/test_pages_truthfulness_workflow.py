@@ -48,12 +48,13 @@ def _embedded_python_functions(name: str) -> list:
 
 
 def _primary_runtime_closure_args() -> dict:
-    signal_date = "20260828"
-    receipt_path = (
-        ROOT / "outputs" / "decision" / f"primary_d_receipt_{signal_date}.json"
-    )
     runtime_index_path = (
         ROOT / "outputs" / "decision" / "primary_d_runtime_index.json"
+    )
+    runtime_index = json.loads(runtime_index_path.read_text(encoding="utf-8"))
+    signal_date = str(runtime_index["latest_signal_date"])
+    receipt_path = (
+        ROOT / "outputs" / "decision" / f"primary_d_receipt_{signal_date}.json"
     )
     runtime_path = (
         ROOT
@@ -70,16 +71,14 @@ def _primary_runtime_closure_args() -> dict:
     return {
         "receipt": json.loads(receipt_path.read_text(encoding="utf-8")),
         "receipt_bytes": receipt_path.read_bytes(),
-        "runtime_index": json.loads(
-            runtime_index_path.read_text(encoding="utf-8")
-        ),
+        "runtime_index": runtime_index,
         "runtime_bytes": runtime_path.read_bytes(),
         "contract": json.loads(contract_path.read_text(encoding="utf-8")),
         "contract_bytes": contract_path.read_bytes(),
         "contract_csv_bytes": contract_csv_path.read_bytes(),
         "signal_date": signal_date,
-        "exec_date": "20260831",
-        "exit_date": "20260901",
+        "exec_date": str(runtime_index["latest_exec_date"]),
+        "exit_date": str(runtime_index["latest_exit_date"]),
     }
 
 
@@ -218,7 +217,7 @@ def test_public_verifier_checks_exact_primary_d_bytes_and_two_date_domains() -> 
         "validate_public_primary_d_runtime_closure",
     ),
 )
-def test_primary_d_runtime_closure_accepts_exact_d28_release(
+def test_primary_d_runtime_closure_accepts_current_exact_release(
     function_name: str,
 ) -> None:
     functions = _embedded_python_functions(function_name)
@@ -305,16 +304,21 @@ def test_primary_d_runtime_closure_rejects_hash_bound_wrong_d_csv(
     function = _embedded_python_functions(function_name)[0]
     arguments = _primary_runtime_closure_args()
     runtime_text = arguments["runtime_bytes"].decode("utf-8")
-    wrong_d_runtime = runtime_text.replace("20260828,", "20260827,", 1).encode(
-        "utf-8"
-    )
+    signal_date = arguments["signal_date"]
+    wrong_signal_date = "19000101" if signal_date != "19000101" else "19000102"
+    wrong_d_runtime = runtime_text.replace(
+        f"{signal_date},", f"{wrong_signal_date},", 1
+    ).encode("utf-8")
     wrong_d_sha = hashlib.sha256(wrong_d_runtime).hexdigest()
     arguments["runtime_bytes"] = wrong_d_runtime
     arguments["receipt"] = copy.deepcopy(arguments["receipt"])
     arguments["receipt"]["outputs"]["runtime_features_sha256"] = wrong_d_sha
     arguments["runtime_index"] = copy.deepcopy(arguments["runtime_index"])
     arguments["runtime_index"]["latest_runtime_features_sha256"] = wrong_d_sha
-    with pytest.raises(ValueError, match="another D|closure is invalid"):
+    with pytest.raises(
+        ValueError,
+        match="another D|closure (?:is invalid|failed)",
+    ):
         function(**arguments)
 
 

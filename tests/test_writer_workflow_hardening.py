@@ -2383,7 +2383,12 @@ def test_compute_jobs_are_read_only_and_never_publish() -> None:
     for name in WRITERS:
         text = _text(name)
         compute = text[text.index("  compute:") : text.index("\n  publish:")]
-        assert "permissions:\n      contents: read" in compute, name
+        compute_permissions = compute.split("    permissions:\n", 1)[1].split(
+            "    runs-on:", 1
+        )[0]
+        assert "      contents: read\n" in compute_permissions, name
+        if name == "verify_decision_observations.yml":
+            assert "      actions: read\n" in compute_permissions
         assert "persist-credentials: false" in compute, name
         assert "persist-credentials: true" not in text, name
         assert "git commit" not in compute, name
@@ -2804,6 +2809,275 @@ def test_verify_resolves_immutable_market_commit_and_missing_token_fails_before_
     source = _embedded_python_after(text, "- name: Resolve immutable market upstream commit")
     with pytest.raises(SystemExit, match="GITHUB_TOKEN is required"):
         exec(compile(source, "<verify-missing-market-commit>", "exec"), {})
+
+
+def test_verify_scheduled_target_is_bound_to_nominal_slot_across_beijing_midnight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = _text("verify_decision_observations.yml")
+    header = text[: text.index("\njobs:")]
+    scheduled = re.findall(r'cron: "([^"]+)"', header)
+    assert len(scheduled) == 20
+    assert len(scheduled) == len(set(scheduled))
+    assert set(scheduled) == {
+        f"{minute} {hour} * * {weekday}"
+        for weekday in range(1, 6)
+        for hour in (8, 9)
+        for minute in (15, 45)
+    }
+    assert "15,45 8-9 * * 1-5" not in header
+    session = text.split("- name: Resolve strict exchange session", 1)[1].split(
+        "- name: Resolve immutable market upstream commit", 1
+    )[0]
+    assert "sync_tushare_minute.py --calendar-only" not in session
+    assert "Verify committed SSE calendar is missing or unsafe" in session
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("EVENT_SCHEDULE", "45 9 * * 1")
+    monkeypatch.setenv("INPUT_DATE", "")
+    # Reproduce run 33412334856's observed start.  Its immutable workflow
+    # declared a final 09:45 UTC retry, so 16:07 UTC is still owned by D31.
+    monkeypatch.setenv(
+        "DC20_VERIFY_RUN_CREATED_AT", "2026-08-31T16:07:31+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T00:07:31+08:00"
+    )
+    monkeypatch.setenv(
+        "VERIFY_CALENDAR_PATH", str(ROOT / "data/market/trade_cal_sse.csv")
+    )
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    source = _embedded_python_after(text, "- name: Resolve strict exchange session")
+    exec(compile(source, "<verify-scheduled-target-midnight>", "exec"), {})
+    assert output.read_text(encoding="utf-8") == (
+        "as_of_date=20260831\n"
+        "schedule_deadline_utc=2026-08-31T21:45:00+00:00\n"
+    )
+    assert (tmp_path / "verify-as-of-date.txt").read_text(encoding="ascii") == (
+        "20260831\n"
+    )
+
+
+def test_verify_scheduled_run_api_identity_is_fully_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import urllib.request
+
+    text = _text("verify_decision_observations.yml")
+    compute_header = text[text.index("  compute:") :].split("\n    steps:", 1)[0]
+    assert "permissions:\n      actions: read\n      contents: read" in compute_header
+    publish_header = text[text.index("\n  publish:") :].split("\n    steps:", 1)[0]
+    assert "permissions:\n      contents: write" in publish_header
+    assert "actions: read" not in publish_header
+    for token in (
+        "metadata.get('workflow_id') != 335484133",
+        "metadata.get('run_attempt') != 1",
+        "Verify Decision Top10 Observations",
+        ".github/workflows/verify_decision_observations.yml",
+        "metadata.get('head_commit')",
+        "metadata.get('repository')",
+        "metadata.get('head_repository')",
+    ):
+        assert token in text
+    source = _embedded_python_after(text, "- name: Resolve strict exchange session")
+    head = "a" * 40
+    run_id = "33412334856"
+    valid = {
+        "id": int(run_id),
+        "event": "schedule",
+        "workflow_id": 335484133,
+        "run_attempt": 1,
+        "name": "Verify Decision Top10 Observations",
+        "head_branch": "main",
+        "head_sha": head,
+        "head_commit": {"id": head},
+        "path": ".github/workflows/verify_decision_observations.yml",
+        "repository": {"full_name": "njedu2023-prog/DC20"},
+        "head_repository": {"full_name": "njedu2023-prog/DC20"},
+        "created_at": "2026-08-31T16:07:31Z",
+    }
+    state = {"payload": valid}
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self, *_args: object) -> bytes:
+            return json.dumps(state["payload"]).encode("utf-8")
+
+    def fake_urlopen(request: object, timeout: int = 0) -> FakeResponse:
+        assert getattr(request, "full_url", "").endswith(
+            f"/njedu2023-prog/DC20/actions/runs/{run_id}"
+        )
+        assert timeout == 30
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("EVENT_SCHEDULE", "45 9 * * 1")
+    monkeypatch.setenv("INPUT_DATE", "")
+    monkeypatch.delenv("DC20_VERIFY_RUN_CREATED_AT", raising=False)
+    monkeypatch.setenv("GH_API_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_REPOSITORY_NAME", "njedu2023-prog/DC20")
+    monkeypatch.setenv("GITHUB_RUN_IDENTIFIER", run_id)
+    monkeypatch.setenv("EVENT_HEAD_SHA", head)
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T00:07:31+08:00"
+    )
+    monkeypatch.setenv(
+        "VERIFY_CALENDAR_PATH", str(ROOT / "data/market/trade_cal_sse.csv")
+    )
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    output = tmp_path / "api-identity-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    exec(compile(source, "<verify-bound-api-run>", "exec"), {})
+    assert output.read_text(encoding="utf-8").startswith(
+        "as_of_date=20260831\n"
+    )
+
+    invalid_identity = (
+        (("workflow_id",), 0),
+        (("run_attempt",), 2),
+        (("name",), "Other workflow"),
+        (("path",), ".github/workflows/other.yml"),
+        (("head_commit", "id"), "b" * 40),
+        (("repository", "full_name"), "other/repo"),
+        (("head_repository", "full_name"), "other/repo"),
+    )
+    for index, (keys, bad_value) in enumerate(invalid_identity):
+        payload = json.loads(json.dumps(valid))
+        target = payload
+        for key in keys[:-1]:
+            target = target[key]
+        target[keys[-1]] = bad_value
+        state["payload"] = payload
+        bad_output = tmp_path / f"api-identity-bad-{index}"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(bad_output))
+        with pytest.raises(SystemExit, match="metadata binding drifted"):
+            exec(compile(source, f"<verify-unbound-api-run-{index}>", "exec"), {})
+
+
+def test_verify_scheduled_target_fails_closed_outside_delay_or_safety_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = _text("verify_decision_observations.yml")
+    source = _embedded_python_after(text, "- name: Resolve strict exchange session")
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv("EVENT_SCHEDULE", "45 9 * * 1")
+    monkeypatch.setenv("INPUT_DATE", "")
+    monkeypatch.setenv(
+        "VERIFY_CALENDAR_PATH", str(ROOT / "data/market/trade_cal_sse.csv")
+    )
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
+
+    monkeypatch.setenv(
+        "DC20_VERIFY_RUN_CREATED_AT", "2026-08-31T21:45:00+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T05:45:00+08:00"
+    )
+    with pytest.raises(SystemExit, match="outside the 12-hour window"):
+        exec(compile(source, "<verify-schedule-too-delayed>", "exec"), {})
+
+    monkeypatch.setenv(
+        "DC20_VERIFY_RUN_CREATED_AT", "2026-08-31T16:07:31+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T05:45:00+08:00"
+    )
+    with pytest.raises(SystemExit, match="schedule execution is outside"):
+        exec(compile(source, "<verify-runner-wait-too-delayed>", "exec"), {})
+
+    # The weekday encoded by github.event.schedule must not slide forward to
+    # the next weekday when GitHub retains an event for several days.
+    monkeypatch.setenv("EVENT_SCHEDULE", "45 9 * * 5")
+    monkeypatch.setenv(
+        "DC20_VERIFY_RUN_CREATED_AT", "2026-08-31T09:50:00+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-08-31T17:50:00+08:00"
+    )
+    with pytest.raises(SystemExit, match="outside the 12-hour window"):
+        exec(compile(source, "<verify-friday-event-retained-to-monday>", "exec"), {})
+
+    monkeypatch.setenv("EVENT_SCHEDULE", "45 9 * * 1")
+    monkeypatch.setenv(
+        "DC20_VERIFY_RUN_CREATED_AT", "2026-08-31T16:07:31+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T09:20:00+08:00"
+    )
+    assert "next open 09:20" in source
+    assert "safety boundary" in source
+    with pytest.raises(SystemExit, match="schedule execution is outside"):
+        exec(compile(source, "<verify-schedule-after-t-open>", "exec"), {})
+
+    monkeypatch.setenv("EVENT_SCHEDULE", "15,45 8-9 * * 1-5")
+    with pytest.raises(SystemExit, match="schedule expression is not allowlisted"):
+        exec(compile(source, "<verify-ambiguous-schedule>", "exec"), {})
+
+
+def test_verify_workflow_dispatch_keeps_explicit_asof_date(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = _text("verify_decision_observations.yml")
+    source = _embedded_python_after(text, "- name: Resolve strict exchange session")
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
+    monkeypatch.setenv("EVENT_SCHEDULE", "")
+    monkeypatch.setenv("INPUT_DATE", "20260828")
+    monkeypatch.setenv(
+        "DC20_VERIFY_NOW_BJT", "2026-09-01T12:00:00+08:00"
+    )
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    exec(compile(source, "<verify-explicit-dispatch-date>", "exec"), {})
+    assert output.read_text(encoding="utf-8") == (
+        "as_of_date=20260828\nschedule_deadline_utc=\n"
+    )
+
+
+def test_verify_rechecks_schedule_deadline_immediately_before_cas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = _text("verify_decision_observations.yml")
+    assert (
+        "schedule_deadline_utc: ${{ steps.session.outputs.schedule_deadline_utc }}"
+        in text
+    )
+    publish = text[text.index("\n  publish:") :]
+    cas = publish.split(
+        "- name: Publish exact CAS commit with minimally injected token", 1
+    )[1].split("\n  deploy-pages:", 1)[0]
+    assert cas.index("git fetch origin main") < cas.index(
+        'test "$(git rev-parse origin/main)" = "${expected}"'
+    ) < cas.index("python - <<'PY'") < cas.index("git push ")
+    source = _embedded_python_after(
+        publish, "- name: Publish exact CAS commit with minimally injected token"
+    )
+    monkeypatch.setenv("EVENT_NAME", "schedule")
+    monkeypatch.setenv(
+        "SCHEDULE_DEADLINE_UTC", "2026-08-31T21:45:00+00:00"
+    )
+    monkeypatch.setenv(
+        "DC20_VERIFY_PUBLISH_NOW_UTC", "2026-08-31T21:44:59+00:00"
+    )
+    exec(compile(source, "<verify-cas-window-open>", "exec"), {})
+    monkeypatch.setenv(
+        "DC20_VERIFY_PUBLISH_NOW_UTC", "2026-08-31T21:45:00+00:00"
+    )
+    with pytest.raises(SystemExit, match="crossed the 12-hour schedule deadline"):
+        exec(compile(source, "<verify-cas-window-closed>", "exec"), {})
+    monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
+    monkeypatch.setenv("SCHEDULE_DEADLINE_UTC", "")
+    with pytest.raises(SystemExit) as dispatch_exit:
+        exec(compile(source, "<verify-cas-dispatch-no-deadline>", "exec"), {})
+    assert dispatch_exit.value.code == 0
 
 
 def test_verify_prior_date_uses_current_stdout_and_ignores_stale_sync_meta(

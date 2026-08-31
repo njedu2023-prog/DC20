@@ -624,7 +624,7 @@
     "approved_base_commit": "d079e13f4fa90c9079de45578f845b6a5d6a433e",
     "prior_manifest_sha256": "4f41373f5570a584a4c3c62103061e418a43cc57b4568589a105bd0b5ea429ff",
     "evidence_path": "models/decision_source_surface_rotation_20260824.json",
-    "evidence_sha256": "ddda7fc76c2bb63563c73ab2d8e57d3416e74a252dd7ac21c9b92b8287a26c1c"
+    "evidence_sha256": "0edd5c8fef8afe52ad3a2079c925881c0b2dee8e248665aa75d984ebb086d166"
   },
   "pinned_files": {
     ".github/workflows/backfill_decision_v11_history.yml": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
@@ -639,7 +639,7 @@
     ".github/workflows/run_primary_profit_rankings.yml": "e51bc2e628ce972bebc6d09acbe2990dd9d314f8a947591652c26e903479ee1a",
     ".github/workflows/test_decision_core.yml": "f38b2b0ab78be89dd7992c49582b9991703f7bcb384ff30a90090ab6c9a6fba6",
     ".github/workflows/train_decision_three_engines.yml": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
-    ".github/workflows/verify_decision_observations.yml": "f66e0d62890c1f37c6eb46c714c57447a3b0b47b48a3a5a54b80c146f5e85482",
+    ".github/workflows/verify_decision_observations.yml": "12a0cdd1d334edba287399f3e74926ff3c546b224d2628bc3fa88053afde860b",
     "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
     "data/auction_v3/promotion_prior/five_year_event_features.csv.gz": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
     "data/decision_three_engines/five_year_ledger_manifest.json": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034",
@@ -676,7 +676,7 @@
     "models/decision_primary_profit_forward_shadow_bridge_contract.json": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
     "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
-    "models/decision_source_surface_rotation_20260824.json": "ddda7fc76c2bb63563c73ab2d8e57d3416e74a252dd7ac21c9b92b8287a26c1c",
+    "models/decision_source_surface_rotation_20260824.json": "0edd5c8fef8afe52ad3a2079c925881c0b2dee8e248665aa75d984ebb086d166",
     "models/decision_three_engine_data_validation.json": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
     "models/decision_three_engines/big_loss.joblib": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
     "models/decision_three_engines/p_fill_shadow.joblib": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
@@ -826,9 +826,9 @@
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
     "tests/test_frozen_canonical_v2_replay.py": "a3786639ca8b6310a6f67980ce28aa464b0b7cdff23cc86d8aa2daf70effb25e",
     "tests/test_migrate_decision_runtime.py": "8c61e583da2d3011f5d2e2dd7a5b6335309383e581a27e0fff10e563a1ccbc3b",
-    "tests/test_pages_truthfulness_workflow.py": "fbb9eca081d5b86ba3a8aca4818010dddcde9970a52d8e78847938afa278e329",
+    "tests/test_pages_truthfulness_workflow.py": "594831078aa7cbab66bdd44a0bca44ebe32ffc328255f94a9954aca27ef54c44",
     "tests/test_pfill_shadow_pages_truth.py": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",
-    "tests/test_primary_profit_forward_shadow_bridge.py": "03b443c81c67f537f88a5e99c14635a962d4caaa08766b45492d6678fdbf191c",
+    "tests/test_primary_profit_forward_shadow_bridge.py": "65569cab727b69f8ee862850c333c082bce310f1246ddb1a461b782019c319ba",
     "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
     "tests/test_primary_profit_rankings_p1.py": "bde5c6b09cf10184040ec4c68e84278dee2cfbbb1653c7ab046b5b9d24d27551",
     "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf",
@@ -843,6 +843,6 @@
     "tests/test_three_rank_freeze.py": "0ca9387ee893f84cbee22c97292ff61788e76d65499928873905c0d99273c7b7",
     "tests/test_tushare_close_truth.py": "bc6bb1d1153160df6b1e5f69d7f8ef0b6eb808b4712dab417709b4c854f00a6e",
     "tests/test_validate_three_engine_five_year_ledger.py": "6d3c4d4cd96dfa4394991dc625c9bea38d43391f950263422589d2ad05e7d998",
-    "tests/test_writer_workflow_hardening.py": "99278aef10efa8c7570cfbe7ba6662041a135da1d93530a5aff918c6f0606864"
+    "tests/test_writer_workflow_hardening.py": "a9639e490bf618f8358f3407e09afe7b678867069801a2793188fd932bdefc83"
   }
 }

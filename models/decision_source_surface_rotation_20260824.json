@@ -77,12 +77,12 @@
     "tests/test_decision_executable_profit_frontend.py": "16832e660effca898fd40d045920f0840d64e927de482cc74678b5a1f30243c7",
     "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
-    "tests/test_primary_profit_forward_shadow_bridge.py": "03b443c81c67f537f88a5e99c14635a962d4caaa08766b45492d6678fdbf191c",
+    "tests/test_primary_profit_forward_shadow_bridge.py": "65569cab727b69f8ee862850c333c082bce310f1246ddb1a461b782019c319ba",
     "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
     "tests/test_primary_profit_rankings_p1.py": "bde5c6b09cf10184040ec4c68e84278dee2cfbbb1653c7ab046b5b9d24d27551",
     "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf"
   },
-  "changed_surface_sha256": "fc446c55074d0df8f60e324f81208629471e7c3cc4e24f04f80577c7567543f4",
+  "changed_surface_sha256": "2d0e29e83b7e358ff2c1e652da02853df03b8c7c8820e0524bda6a002a9c20a6",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -117,7 +117,7 @@
     {
       "path": ".github/workflows/verify_decision_observations.yml",
       "prior_sha256": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
-      "current_sha256": "f66e0d62890c1f37c6eb46c714c57447a3b0b47b48a3a5a54b80c146f5e85482",
+      "current_sha256": "12a0cdd1d334edba287399f3e74926ff3c546b224d2628bc3fa88053afde860b",
       "classification": "primary_mixed_shadow_forward_verification_workflow"
     },
     {
@@ -321,7 +321,7 @@
     {
       "path": "tests/test_pages_truthfulness_workflow.py",
       "prior_sha256": "e5c779de8bb32fbfdef55a91ab00c6edcfbd617cb028fe112ea2e336302965ba",
-      "current_sha256": "fbb9eca081d5b86ba3a8aca4818010dddcde9970a52d8e78847938afa278e329",
+      "current_sha256": "594831078aa7cbab66bdd44a0bca44ebe32ffc328255f94a9954aca27ef54c44",
       "classification": "primary_owned_pages_public_acceptance_test"
     },
     {
@@ -351,7 +351,7 @@
     {
       "path": "tests/test_writer_workflow_hardening.py",
       "prior_sha256": "21e3f85ede0cb56b55b7d519765c84aa4c4b38584721979a54803ba8a05456fd",
-      "current_sha256": "99278aef10efa8c7570cfbe7ba6662041a135da1d93530a5aff918c6f0606864",
+      "current_sha256": "a9639e490bf618f8358f3407e09afe7b678867069801a2793188fd932bdefc83",
       "classification": "legacy_writer_depower_primary_schedule_contract_test"
     }
   ]

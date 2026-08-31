@@ -336,33 +336,82 @@ def test_real_d28_top1_top2_are_frozen_with_company_names(
         assert D28_PROJECTION.read_bytes() == public_bytes_before
 
 
-def test_real_d28_build_calls_unmocked_primary_bundle_validator() -> None:
+def test_current_committed_bundle_calls_unmocked_primary_bundle_validator() -> None:
+    mixed_index_path = (
+        ROOT / "outputs/decision/executable_profit_research/index.json"
+    )
+    single_index_path = (
+        ROOT / "outputs/decision/legacy_profit_relative_research/index.json"
+    )
+    if not mixed_index_path.is_file() or not single_index_path.is_file():
+        pytest.skip("committed P1 pointer surface is absent in sparse checkout")
+    mixed_index = json.loads(mixed_index_path.read_text(encoding="utf-8"))
+    single_index = json.loads(single_index_path.read_text(encoding="utf-8"))
+    signal_date = str(mixed_index["latest_signal_date"])
+    exec_date = str(mixed_index["latest_exec_date"])
+    exit_date = str(mixed_index["latest_exit_date"])
+    generation_mode = str(mixed_index["generation_mode"])
+    assert single_index["latest_signal_date"] == signal_date
+    assert single_index["latest_exec_date"] == exec_date
+    assert single_index["latest_exit_date"] == exit_date
+    assert single_index["generation_mode"] == generation_mode
     required = [
         ROOT / bridge.CONTRACT_PATH,
         ROOT / bridge.CALENDAR_PATH,
         ROOT / bridge.MODEL_PATH,
-        ROOT / "outputs/decision/executable_profit_research/index.json",
-        ROOT / "outputs/decision/executable_profit_research/projection_20260828.json",
-        ROOT / "outputs/decision/executable_profit_research/projection_20260828.csv",
-        ROOT / "outputs/decision/legacy_profit_relative_research/index.json",
-        ROOT / "outputs/decision/legacy_profit_relative_research/projection_20260828.json",
-        ROOT / "outputs/decision/legacy_profit_relative_research/projection_20260828.csv",
-        ROOT / "outputs/decision/primary_d_receipt_20260828.json",
-        ROOT / "outputs/decision/primary_d_runtime_features_20260828.csv",
-        ROOT / "outputs/decision/three_rank_top10_20260828.json",
-        ROOT / "outputs/decision/three_rank_top10_20260828.csv",
+        mixed_index_path,
+        ROOT
+        / f"outputs/decision/executable_profit_research/projection_{signal_date}.json",
+        ROOT
+        / f"outputs/decision/executable_profit_research/projection_{signal_date}.csv",
+        single_index_path,
+        ROOT
+        / f"outputs/decision/legacy_profit_relative_research/projection_{signal_date}.json",
+        ROOT
+        / f"outputs/decision/legacy_profit_relative_research/projection_{signal_date}.csv",
+        ROOT / f"outputs/decision/primary_d_receipt_{signal_date}.json",
+        ROOT / f"outputs/decision/primary_d_runtime_features_{signal_date}.csv",
+        ROOT / f"outputs/decision/three_rank_top10_{signal_date}.json",
+        ROOT / f"outputs/decision/three_rank_top10_{signal_date}.csv",
     ]
     if not all(path.is_file() for path in required):
-        pytest.skip("full committed D28 repository surface is absent in sparse checkout")
+        pytest.skip("full committed current P1 repository surface is absent in sparse checkout")
     mixed_before = required[4].read_bytes()
     single_before = required[7].read_bytes()
-    payload = bridge.build_primary_profit_forward_shadow(
-        ROOT,
-        "20260828",
-        selected_at=D28_SELECTED_AT,
+    selected_at = datetime.strptime(signal_date, "%Y%m%d").replace(
+        hour=23,
+        tzinfo=D28_SELECTED_AT.tzinfo,
     )
-    assert payload["shadow_top2"]["rows"][0]["ts_code"] == "603269.SH"
-    assert payload["shadow_top2"]["rows"][1]["ts_code"] == "603011.SH"
+    if generation_mode == "NATURAL":
+        payload = bridge.build_primary_profit_forward_shadow(
+            ROOT,
+            signal_date,
+            selected_at=selected_at,
+        )
+        mixed = json.loads(required[4].read_text(encoding="utf-8"))
+        expected = [
+            (row["ts_code"], row["name"], row["promotion_rank"])
+            for row in mixed["rows"][:2]
+        ]
+        assert [
+            (row["ts_code"], row["name"], row["promotion_rank"])
+            for row in payload["shadow_top2"]["rows"]
+        ] == expected
+        assert payload["exec_date"] == exec_date
+        assert payload["exit_date"] == exit_date
+    else:
+        assert generation_mode == "RETROSPECTIVE_RECOVERY"
+        with pytest.raises(
+            bridge.PrimaryProfitForwardShadowError,
+            match="published P1 single/mixed bundle validation failed",
+        ) as raised:
+            bridge.build_primary_profit_forward_shadow(
+                ROOT,
+                signal_date,
+                selected_at=selected_at,
+            )
+        assert raised.value.__cause__ is not None
+        assert "generation mode drifted" in str(raised.value.__cause__)
     assert required[4].read_bytes() == mixed_before
     assert required[7].read_bytes() == single_before
 
