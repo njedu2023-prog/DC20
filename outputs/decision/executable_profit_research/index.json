@@ -21,17 +21,17 @@
   "display_name": "混合盈利排序",
   "generation_mode": "RETROSPECTIVE_RECOVERY",
   "index_kind": "dated_primary_profit_research_pointer_only",
-  "latest_exec_date": "20260901",
-  "latest_exit_date": "20260902",
-  "latest_projection_csv_sha256": "4434857e7dd84d5bd06b9953bf507d675c551b34053747f7bfda42b999e5bb00",
-  "latest_projection_csv_url": "outputs/decision/executable_profit_research/projection_20260831.csv",
-  "latest_projection_json_sha256": "d695c11cd13f38657d4cac402a101f890e5a99bff5a927e0a785115ec9a487cc",
-  "latest_projection_json_url": "outputs/decision/executable_profit_research/projection_20260831.json",
-  "latest_projection_snapshot_sha256": "bc80e3b4c6385a9352044514803dcfa50b0d5fe47e99a59558179785bf675057",
-  "latest_signal_date": "20260831",
-  "latest_source_bundle_sha256": "ed302565dc5af3b1b0d9f2a3d07f65ba8ae3068f8ab4daaed4bf83e3c865ebbc",
-  "latest_source_feature_snapshot_sha256": "40c42de34aaaef80f432ebf06b0679a18c1ba5c8ac27404964c063f66bc11f44",
-  "latest_top10_members_sha256": "6b66fa4de38e6165df71cf2767f0e3515b41bb187658f4189818afee0ab10d5e",
+  "latest_exec_date": "20260902",
+  "latest_exit_date": "20260903",
+  "latest_projection_csv_sha256": "4f35275fff43144887f7b2107dfc12863b58d7a70f879061e37a53bf41200492",
+  "latest_projection_csv_url": "outputs/decision/executable_profit_research/projection_20260901.csv",
+  "latest_projection_json_sha256": "8b1019046fe19bdcf62197cb1268c6abbd0792c503f2d2c9591e569771792e94",
+  "latest_projection_json_url": "outputs/decision/executable_profit_research/projection_20260901.json",
+  "latest_projection_snapshot_sha256": "c63ffffb0a1fcb5f0ad95dff956ab4a382b7212745781d7619200f9a608e3ea8",
+  "latest_signal_date": "20260901",
+  "latest_source_bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
+  "latest_source_feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+  "latest_top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409",
   "prospective": false,
   "retrospective_non_forward": true,
   "schema_version": "dc20_primary_mixed_profit_research_index_v1",
@@ -43,25 +43,25 @@
     },
     "primary_receipt": {
       "generation_mode": "RETROSPECTIVE_RECOVERY",
-      "path": "outputs/decision/primary_d_receipt_20260831.json",
-      "sha256": "e5276b16e8ee34b435c7123d6c40f8a35afb434ae47eb869e108c70cbd5ca598"
+      "path": "outputs/decision/primary_d_receipt_20260901.json",
+      "sha256": "e20d18d48e7a72a491256e85d5689594a5560e83e24aabb9c7e55f1a0a7cdefc"
     },
     "runtime_features": {
-      "feature_snapshot_sha256": "40c42de34aaaef80f432ebf06b0679a18c1ba5c8ac27404964c063f66bc11f44",
-      "identity_sha256": "2eaae592ce8a27abd90338abb26afc35b55bb70d365299c9190a4f2a020eb73c",
-      "path": "outputs/decision/primary_d_runtime_features_20260831.csv",
-      "row_count": 14,
+      "feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+      "identity_sha256": "9ff6910809915e0d4e96bb2ee10efa67b4fa078253a963ea8381512b47b71056",
+      "path": "outputs/decision/primary_d_runtime_features_20260901.csv",
+      "row_count": 13,
       "selected_count": 10,
-      "sha256": "f102a6edd6ccf86fb7d89e0a28a270d60958d13116a38a5050a51761e1e8aacc"
+      "sha256": "fc1b2d70e109a50447a3c8d50cf9521636879204830e4b4229d9647f16968a47"
     },
     "three_rank": {
-      "bundle_sha256": "ed302565dc5af3b1b0d9f2a3d07f65ba8ae3068f8ab4daaed4bf83e3c865ebbc",
-      "csv_path": "outputs/decision/three_rank_top10_20260831.csv",
-      "csv_sha256": "6440d36e3db68b4ba92b1c989f9c4f2317f51d8e3061b0b767d76219baa4aa79",
-      "feature_snapshot_sha256": "40c42de34aaaef80f432ebf06b0679a18c1ba5c8ac27404964c063f66bc11f44",
-      "json_path": "outputs/decision/three_rank_top10_20260831.json",
-      "json_sha256": "0cf4bba95076e4ee91c22cf4f51798f47afabbe14e60f59220d2429fc9f3c9da",
-      "top10_members_sha256": "6b66fa4de38e6165df71cf2767f0e3515b41bb187658f4189818afee0ab10d5e"
+      "bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
+      "csv_path": "outputs/decision/three_rank_top10_20260901.csv",
+      "csv_sha256": "dc13851164862a3615b211ef2adcf8bebe56ce3105deb3566165fd54bd5e8e3d",
+      "feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+      "json_path": "outputs/decision/three_rank_top10_20260901.json",
+      "json_sha256": "ad1d7230d0443c05771d445582f7da2144f722c7759c488c2b25a8763d0ff4b4",
+      "top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409"
     }
   },
   "status": "RETROSPECTIVE_NON_FORWARD_RESEARCH"

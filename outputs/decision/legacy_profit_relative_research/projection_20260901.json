@@ -1,0 +1,222 @@
+{
+  "artifact_kind": "immutable_d_frozen_primary_single_profit_research",
+  "boundaries": {
+    "action_input_consumed": false,
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "human_decision_support_only": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "public_research_projection_allowed": true,
+    "research_only": true
+  },
+  "candidate_count": 10,
+  "contract_file_sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+  "contract_id": "dc20_primary_profit_research_20260827_v1",
+  "display_name": "单一盈利排序",
+  "downloads": {
+    "csv_sha256": "da4d58b4dd5a053ed6b2d5c3810d20ccf73f87bfc2ae8edbb6a73788efa8ec1b",
+    "csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260901.csv",
+    "json_url": "outputs/decision/legacy_profit_relative_research/projection_20260901.json",
+    "row_count": 10
+  },
+  "exec_date": "20260902",
+  "exit_date": "20260903",
+  "generation_mode": "RETROSPECTIVE_RECOVERY",
+  "model": {
+    "display_name": "单一盈利排序",
+    "formal_probability_ready": false,
+    "formal_ranking_ready": false,
+    "head": "profit",
+    "model_as_of_date": "20260814",
+    "official_status": "NOT_READY_VALIDATION_GATE",
+    "probability_claimed": false,
+    "score_semantics": "raw_model_relative_score_not_probability",
+    "sealed_artifact_path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+    "sealed_artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "sealed_validation_path": "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+    "sealed_validation_sha256": "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4",
+    "validation_gate_pass_count": 20,
+    "validation_gate_score_pct": 76.9,
+    "validation_gate_total_count": 26,
+    "version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta"
+  },
+  "prospective": false,
+  "ranking_contract": {
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "formal_profit_fields_may_change": false,
+    "membership_or_promotion_rank_may_change": false,
+    "score_direction": "higher raw score is better relative order",
+    "tie_policy": "equal raw score equal dense rank; promotion rank only orders display inside ties",
+    "trade_or_action_may_change": false
+  },
+  "research_only": true,
+  "retrospective_non_forward": true,
+  "rows": [
+    {
+      "industry": "林业Ⅱ",
+      "legacy_profit_raw_score": 0.4466659720349764,
+      "legacy_profit_relative_percentile": 1.0,
+      "legacy_profit_relative_rank": 1,
+      "name": "福建金森",
+      "promotion_rank": 3,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "002679.SZ"
+    },
+    {
+      "industry": "一般零售",
+      "legacy_profit_raw_score": 0.42942604174786286,
+      "legacy_profit_relative_percentile": 0.9,
+      "legacy_profit_relative_rank": 2,
+      "name": "国芳集团",
+      "promotion_rank": 7,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "601086.SH"
+    },
+    {
+      "industry": "IT服务Ⅱ",
+      "legacy_profit_raw_score": 0.42922141177084333,
+      "legacy_profit_relative_percentile": 0.8,
+      "legacy_profit_relative_rank": 3,
+      "name": "竞业达",
+      "promotion_rank": 4,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "003005.SZ"
+    },
+    {
+      "industry": "房地产服务",
+      "legacy_profit_raw_score": 0.4235762522040362,
+      "legacy_profit_relative_percentile": 0.7,
+      "legacy_profit_relative_rank": 4,
+      "name": "我爱我家",
+      "promotion_rank": 8,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "000560.SZ"
+    },
+    {
+      "industry": "出版",
+      "legacy_profit_raw_score": 0.41053659676537646,
+      "legacy_profit_relative_percentile": 0.6,
+      "legacy_profit_relative_rank": 5,
+      "name": "时代出版",
+      "promotion_rank": 9,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "600551.SH"
+    },
+    {
+      "industry": "煤炭开采",
+      "legacy_profit_raw_score": 0.36752669460903903,
+      "legacy_profit_relative_percentile": 0.5,
+      "legacy_profit_relative_rank": 6,
+      "name": "郑州煤电",
+      "promotion_rank": 10,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "600121.SH"
+    },
+    {
+      "industry": "化学制品",
+      "legacy_profit_raw_score": 0.3659334056695889,
+      "legacy_profit_relative_percentile": 0.4,
+      "legacy_profit_relative_rank": 7,
+      "name": "集泰股份",
+      "promotion_rank": 5,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002909.SZ"
+    },
+    {
+      "industry": "游戏Ⅱ",
+      "legacy_profit_raw_score": 0.3585561141814685,
+      "legacy_profit_relative_percentile": 0.3,
+      "legacy_profit_relative_rank": 8,
+      "name": "大晟文化",
+      "promotion_rank": 1,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "600892.SH"
+    },
+    {
+      "industry": "影视院线",
+      "legacy_profit_raw_score": 0.35232134687989103,
+      "legacy_profit_relative_percentile": 0.2,
+      "legacy_profit_relative_rank": 9,
+      "name": "欢瑞世纪",
+      "promotion_rank": 2,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "000892.SZ"
+    },
+    {
+      "industry": "影视院线",
+      "legacy_profit_raw_score": 0.3458901863454796,
+      "legacy_profit_relative_percentile": 0.1,
+      "legacy_profit_relative_rank": 10,
+      "name": "中广天择",
+      "promotion_rank": 6,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "603721.SH"
+    }
+  ],
+  "schema_version": "dc20_primary_single_profit_research_v1",
+  "score_semantics": "sealed raw model score; relative order only; not probability",
+  "signal_date": "20260901",
+  "snapshot_sha256": "dc27f7dd9fd44d25071ff4f931fea91430f7501a17898adc3a261d94cc47ea24",
+  "source_bindings": {
+    "contract": {
+      "contract_id": "dc20_primary_profit_research_20260827_v1",
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780"
+    },
+    "primary_receipt": {
+      "generation_mode": "RETROSPECTIVE_RECOVERY",
+      "path": "outputs/decision/primary_d_receipt_20260901.json",
+      "sha256": "e20d18d48e7a72a491256e85d5689594a5560e83e24aabb9c7e55f1a0a7cdefc"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+      "identity_sha256": "9ff6910809915e0d4e96bb2ee10efa67b4fa078253a963ea8381512b47b71056",
+      "path": "outputs/decision/primary_d_runtime_features_20260901.csv",
+      "row_count": 13,
+      "selected_count": 10,
+      "sha256": "fc1b2d70e109a50447a3c8d50cf9521636879204830e4b4229d9647f16968a47"
+    },
+    "three_rank": {
+      "bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
+      "csv_path": "outputs/decision/three_rank_top10_20260901.csv",
+      "csv_sha256": "dc13851164862a3615b211ef2adcf8bebe56ce3105deb3566165fd54bd5e8e3d",
+      "feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+      "json_path": "outputs/decision/three_rank_top10_20260901.json",
+      "json_sha256": "ad1d7230d0443c05771d445582f7da2144f722c7759c488c2b25a8763d0ff4b4",
+      "top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409"
+    }
+  },
+  "source_bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
+  "source_feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+  "status": "RETROSPECTIVE_NON_FORWARD_RESEARCH",
+  "top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409"
+}
