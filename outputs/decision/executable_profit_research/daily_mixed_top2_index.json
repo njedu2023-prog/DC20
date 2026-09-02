@@ -134,18 +134,60 @@
       "source_bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
       "source_feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
       "top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "612d6ac439f07bb7e4c3365ac4b598efe4907ac8e41e6626df581f31bd350323",
+      "exec_date": "20260903",
+      "exit_date": "20260904",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "15c043715483b34aa659e27289e8916d430bf79b1dfc38e6af04d5cb492237fc",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260902.csv",
+      "projection_json_sha256": "b667d07bbc18d1acadac7cbf5cb06f2ac66669413f6c429f0fc46edbd18d4662",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260902.json",
+      "projection_snapshot_sha256": "6dae3830d8ca55ddc0f7f6239129c4b407b3e5369f6869768732f16cca5af0db",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "通信设备",
+          "mixed_profit_rank": 1,
+          "name": "恒宝股份",
+          "promotion_rank": 7,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "002104.SZ"
+        },
+        {
+          "industry": "服装家纺",
+          "mixed_profit_rank": 2,
+          "name": "九牧王",
+          "promotion_rank": 8,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "601566.SH"
+        }
+      ],
+      "signal_date": "20260902",
+      "source_bundle_sha256": "d761db9cb9baa5a43ee504ddd227b68939a56ccd2e512d1b2f3911d6075a03c5",
+      "source_feature_snapshot_sha256": "8f966ab91dab7aa4f5af91cbce6c801e3d550bc1e69eac80cea8b70f589b5006",
+      "top10_members_sha256": "fe440f1e6bf584d85bdcbe67813f4c5b609c37d354c321c9bb03c5b12607d67b"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260901",
+  "latest_signal_date": "20260902",
   "public_start_signal_date": "20260828",
-  "recorded_days": 3,
+  "recorded_days": 4,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
-    "20260901"
+    "20260901",
+    "20260902"
   ],
-  "recorded_slots": 6,
+  "recorded_slots": 8,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "44f1f4b921cdd3f2a86c7163883879bfbd6a2836063e913dfb14d44ad6375e0f"
+  "snapshot_sha256": "4d9c53ca36d257956ae18ffc0a40ec17196ac40e78186282362b41921f8cb30e"
 }
