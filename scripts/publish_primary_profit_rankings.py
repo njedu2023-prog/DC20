@@ -5,9 +5,10 @@ The only dated candidate input is ``primary_d_runtime_features_<D>.csv`` and
 its P0 receipt/three-rank bundle.  This command never reads Auction predictions,
 Action plans, forward Shadow selections, settlements, or statistics.
 
-``RETROSPECTIVE_RECOVERY`` is deliberately not routed through the forward
-Shadow writer: it produces a visibly non-forward research projection and does
-not create or update a forward selection/statistics ledger.
+Every complete mixed-profit projection from the public cutover date is also
+catalogued in a daily Top1/Top2 audit ledger.  ``RETROSPECTIVE_RECOVERY`` stays
+visibly non-forward and is excluded from the separate forward performance
+ledger; recording a ranking fact must never masquerade as a prospective freeze.
 """
 
 from __future__ import annotations
@@ -99,6 +100,76 @@ MIXED_SCHEMA = "dc20_primary_mixed_profit_research_projection_v1"
 MIXED_KIND = "immutable_d_frozen_primary_mixed_profit_research_projection"
 MIXED_INDEX_SCHEMA = "dc20_primary_mixed_profit_research_index_v1"
 MIXED_ROOT = Path("outputs/decision/executable_profit_research")
+
+DAILY_MIXED_TOP2_SCHEMA = "dc20_primary_mixed_daily_top2_index_v1"
+DAILY_MIXED_TOP2_KIND = "primary_mixed_top2_daily_audit_index"
+DAILY_MIXED_TOP2_START_DATE = "20260828"
+DAILY_MIXED_TOP2_PATH = MIXED_ROOT / "daily_mixed_top2_index.json"
+DAILY_MIXED_TOP2_DISPLAY_NAME = "混合盈利排序 Top1 / Top2 每日影子记录"
+DAILY_MIXED_TOP2_BOUNDARIES = {
+    "research_only": True,
+    "every_complete_mixed_projection_must_be_recorded": True,
+    "retrospective_records_enter_forward_statistics": False,
+    "forward_statistics_require_separate_prospective_freeze": True,
+    "may_change_promotion_membership_or_rank": False,
+    "may_create_trade_action": False,
+    "broker_or_order_integration_allowed": False,
+    "actual_execution_claimed": False,
+}
+
+DAILY_MIXED_TOP2_ROW_KEYS = frozenset(
+    {
+        "slot",
+        "ts_code",
+        "name",
+        "industry",
+        "stage_transition",
+        "promotion_rank",
+        "mixed_profit_rank",
+    }
+)
+
+DAILY_MIXED_TOP2_ENTRY_KEYS = frozenset(
+    {
+        "signal_date",
+        "exec_date",
+        "exit_date",
+        "generation_mode",
+        "prospective",
+        "retrospective_non_forward",
+        "record_class",
+        "forward_statistics_policy",
+        "candidate_count",
+        "recorded_slots",
+        "projection_json_url",
+        "projection_json_sha256",
+        "projection_csv_url",
+        "projection_csv_sha256",
+        "projection_snapshot_sha256",
+        "top10_members_sha256",
+        "source_bundle_sha256",
+        "source_feature_snapshot_sha256",
+        "rows",
+        "entry_sha256",
+    }
+)
+
+DAILY_MIXED_TOP2_INDEX_KEYS = frozenset(
+    {
+        "schema_version",
+        "index_kind",
+        "data_alias",
+        "display_name",
+        "public_start_signal_date",
+        "latest_signal_date",
+        "recorded_signal_dates",
+        "recorded_days",
+        "recorded_slots",
+        "entries",
+        "boundaries",
+        "snapshot_sha256",
+    }
+)
 
 PRIMARY_INDEX_KEYS = frozenset(
     {
@@ -1063,6 +1134,501 @@ def _csv_bytes(payload: Mapping[str, Any], fields: Sequence[str]) -> bytes:
     return buffer.getvalue().encode("utf-8")
 
 
+def _daily_mixed_top2_entry_snapshot(entry: Mapping[str, Any]) -> str:
+    copied = copy.deepcopy(dict(entry))
+    copied.pop("entry_sha256", None)
+    return _canonical_sha256(copied)
+
+
+def _daily_mixed_top2_mode_fields(mode: str) -> tuple[str, str]:
+    if mode == "NATURAL":
+        return "NATURAL_RANK_SNAPSHOT", "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE"
+    _expect(mode == "RETROSPECTIVE_RECOVERY", "daily mixed Top2 mode is invalid")
+    return "RETROSPECTIVE_RECOVERY_AUDIT_ONLY", "EXCLUDED_RETROSPECTIVE_RECOVERY"
+
+
+def _build_daily_mixed_top2_entry(
+    root: Path,
+    projection: Mapping[str, Any],
+    *,
+    json_path: Path,
+    csv_path: Path,
+) -> dict[str, Any]:
+    validate_mixed_projection(projection)
+    date = str(projection["signal_date"])
+    mode = str(projection["generation_mode"])
+    record_class, statistics_policy = _daily_mixed_top2_mode_fields(mode)
+    candidate_count = int(projection["candidate_count"])
+    selected = list(projection.get("rows") or [])[: min(2, candidate_count)]
+    rows = [
+        {
+            "slot": position,
+            "ts_code": str(row["ts_code"]),
+            "name": str(row["name"]),
+            "industry": str(row["industry"]),
+            "stage_transition": str(row["stage_transition"]),
+            "promotion_rank": int(row["promotion_rank"]),
+            "mixed_profit_rank": int(row["executable_profit_research_rank"]),
+        }
+        for position, row in enumerate(selected, start=1)
+    ]
+    entry = {
+        "signal_date": date,
+        "exec_date": str(projection["exec_date"]),
+        "exit_date": str(projection["exit_date"]),
+        "generation_mode": mode,
+        "prospective": projection["prospective"],
+        "retrospective_non_forward": projection["retrospective_non_forward"],
+        "record_class": record_class,
+        "forward_statistics_policy": statistics_policy,
+        "candidate_count": candidate_count,
+        "recorded_slots": len(rows),
+        "projection_json_url": json_path.relative_to(root).as_posix(),
+        "projection_json_sha256": _sha256(json_path),
+        "projection_csv_url": csv_path.relative_to(root).as_posix(),
+        "projection_csv_sha256": _sha256(csv_path),
+        "projection_snapshot_sha256": str(projection["snapshot_sha256"]),
+        "top10_members_sha256": str(projection["top10_members_sha256"]),
+        "source_bundle_sha256": str(projection["source_bundle_sha256"]),
+        "source_feature_snapshot_sha256": str(
+            projection["source_feature_snapshot_sha256"]
+        ),
+        "rows": rows,
+    }
+    entry["entry_sha256"] = _daily_mixed_top2_entry_snapshot(entry)
+    validate_daily_mixed_top2_entry(entry)
+    return entry
+
+
+def validate_daily_mixed_top2_entry(entry: Mapping[str, Any]) -> None:
+    _expect(
+        isinstance(entry, Mapping) and set(entry) == DAILY_MIXED_TOP2_ENTRY_KEYS,
+        "daily mixed Top2 entry surface drifted",
+    )
+    date = str(entry.get("signal_date") or "")
+    exec_date = str(entry.get("exec_date") or "")
+    exit_date = str(entry.get("exit_date") or "")
+    _expect(
+        DATE_RE.fullmatch(date) is not None
+        and date >= DAILY_MIXED_TOP2_START_DATE
+        and DATE_RE.fullmatch(exec_date) is not None
+        and DATE_RE.fullmatch(exit_date) is not None
+        and date < exec_date < exit_date,
+        "daily mixed Top2 D/T/T+1 is invalid",
+    )
+    mode = str(entry.get("generation_mode") or "")
+    record_class, statistics_policy = _daily_mixed_top2_mode_fields(mode)
+    _expect(
+        entry.get("prospective") is (mode == "NATURAL")
+        and entry.get("retrospective_non_forward")
+        is (mode == "RETROSPECTIVE_RECOVERY")
+        and entry.get("record_class") == record_class
+        and entry.get("forward_statistics_policy") == statistics_policy,
+        "daily mixed Top2 mode disclosure drifted",
+    )
+    candidate_count = entry.get("candidate_count")
+    recorded_slots = entry.get("recorded_slots")
+    rows = entry.get("rows")
+    _expect(
+        type(candidate_count) is int
+        and 0 <= candidate_count <= 10
+        and type(recorded_slots) is int
+        and recorded_slots == min(2, candidate_count)
+        and isinstance(rows, list)
+        and len(rows) == recorded_slots,
+        "daily mixed Top2 row count or no-padding rule drifted",
+    )
+    _expect(
+        entry.get("projection_json_url")
+        == f"{MIXED_ROOT.as_posix()}/projection_{date}.json"
+        and entry.get("projection_csv_url")
+        == f"{MIXED_ROOT.as_posix()}/projection_{date}.csv",
+        "daily mixed Top2 exact-D projection path drifted",
+    )
+    for field in (
+        "projection_json_sha256",
+        "projection_csv_sha256",
+        "projection_snapshot_sha256",
+        "top10_members_sha256",
+        "source_bundle_sha256",
+        "source_feature_snapshot_sha256",
+        "entry_sha256",
+    ):
+        _expect(
+            SHA256_RE.fullmatch(str(entry.get(field) or "")) is not None,
+            f"daily mixed Top2 {field} is invalid",
+        )
+    seen: set[str] = set()
+    for position, row in enumerate(rows, start=1):
+        _expect(
+            isinstance(row, Mapping) and set(row) == DAILY_MIXED_TOP2_ROW_KEYS,
+            "daily mixed Top2 row surface drifted",
+        )
+        code = _normal_code(row.get("ts_code"))
+        _expect(
+            row.get("slot") == position
+            and row.get("mixed_profit_rank") == position
+            and code
+            and code not in seen
+            and isinstance(row.get("name"), str)
+            and bool(str(row.get("name") or "").strip())
+            and isinstance(row.get("industry"), str)
+            and row.get("stage_transition") in {"2→3", "3→4"}
+            and type(row.get("promotion_rank")) is int
+            and 1 <= int(row["promotion_rank"]) <= candidate_count,
+            "daily mixed Top2 row identity or rank drifted",
+        )
+        seen.add(code)
+    _expect(
+        entry.get("entry_sha256") == _daily_mixed_top2_entry_snapshot(entry),
+        "daily mixed Top2 entry SHA drifted",
+    )
+
+
+def _validate_daily_mixed_top2_index_shape(index: Mapping[str, Any]) -> None:
+    _expect(
+        isinstance(index, Mapping) and set(index) == DAILY_MIXED_TOP2_INDEX_KEYS,
+        "daily mixed Top2 index surface drifted",
+    )
+    entries = index.get("entries")
+    dates = index.get("recorded_signal_dates")
+    _expect(
+        index.get("schema_version") == DAILY_MIXED_TOP2_SCHEMA
+        and index.get("index_kind") == DAILY_MIXED_TOP2_KIND
+        and index.get("data_alias") is False
+        and index.get("display_name") == DAILY_MIXED_TOP2_DISPLAY_NAME
+        and index.get("public_start_signal_date") == DAILY_MIXED_TOP2_START_DATE
+        and index.get("boundaries") == DAILY_MIXED_TOP2_BOUNDARIES
+        and isinstance(entries, list)
+        and isinstance(dates, list),
+        "daily mixed Top2 index identity or boundaries drifted",
+    )
+    for entry in entries:
+        validate_daily_mixed_top2_entry(entry)
+    expected_dates = [str(entry["signal_date"]) for entry in entries]
+    _expect(
+        expected_dates == sorted(set(expected_dates))
+        and dates == expected_dates
+        and index.get("recorded_days") == len(entries)
+        and index.get("recorded_slots")
+        == sum(int(entry["recorded_slots"]) for entry in entries)
+        and index.get("latest_signal_date")
+        == (expected_dates[-1] if expected_dates else None),
+        "daily mixed Top2 index ordering or totals drifted",
+    )
+    _expect(
+        SHA256_RE.fullmatch(str(index.get("snapshot_sha256") or "")) is not None
+        and index.get("snapshot_sha256") == _payload_snapshot(index),
+        "daily mixed Top2 index snapshot SHA drifted",
+    )
+
+
+def _validate_daily_mixed_top2_source_bytes(
+    root: Path,
+    projection: Mapping[str, Any],
+) -> None:
+    bindings = projection["source_bindings"]
+    date = str(projection["signal_date"])
+    receipt_binding = bindings["primary_receipt"]
+    runtime_binding = bindings["runtime_features"]
+    three_binding = bindings["three_rank"]
+    receipt_path = _safe_file(
+        root,
+        Path(str(receipt_binding["path"])),
+        label=f"daily mixed Top2 P0 receipt {date}",
+    )
+    runtime_path = _safe_file(
+        root,
+        Path(str(runtime_binding["path"])),
+        label=f"daily mixed Top2 P0 runtime {date}",
+    )
+    three_json_path = _safe_file(
+        root,
+        Path(str(three_binding["json_path"])),
+        label=f"daily mixed Top2 three-rank JSON {date}",
+    )
+    three_csv_path = _safe_file(
+        root,
+        Path(str(three_binding["csv_path"])),
+        label=f"daily mixed Top2 three-rank CSV {date}",
+    )
+    _expect(
+        _sha256(receipt_path) == receipt_binding["sha256"]
+        and _sha256(runtime_path) == runtime_binding["sha256"]
+        and _sha256(three_json_path) == three_binding["json_sha256"]
+        and _sha256(three_csv_path) == three_binding["csv_sha256"],
+        "daily mixed Top2 source bytes drifted",
+    )
+    receipt = _read_json(receipt_path, label=f"daily mixed Top2 P0 receipt {date}")
+    outputs = receipt.get("outputs")
+    _expect(
+        receipt.get("schema_version") == "dc20_primary_d_receipt_v1"
+        and receipt.get("primary_status") == "READY"
+        and receipt.get("signal_date") == date
+        and receipt.get("exec_date") == projection.get("exec_date")
+        and receipt.get("exit_date") == projection.get("exit_date")
+        and receipt.get("generation_mode") == projection.get("generation_mode")
+        and receipt.get("action_authorized") is False
+        and receipt.get("action_input_consumed") is False
+        and int(receipt.get("formal_trade_count") or 0) == 0
+        and isinstance(outputs, Mapping)
+        and outputs.get("runtime_features_path") == runtime_binding["path"]
+        and outputs.get("runtime_features_sha256") == runtime_binding["sha256"]
+        and outputs.get("runtime_feature_row_count") == runtime_binding["row_count"]
+        and outputs.get("runtime_selected_count") == runtime_binding["selected_count"]
+        and outputs.get("runtime_identity_sha256") == runtime_binding["identity_sha256"]
+        and outputs.get("json_sha256") == three_binding["json_sha256"]
+        and outputs.get("csv_sha256") == three_binding["csv_sha256"]
+        and outputs.get("bundle_sha256") == projection.get("source_bundle_sha256")
+        and outputs.get("top10_members_sha256") == projection.get("top10_members_sha256"),
+        "daily mixed Top2 P0 receipt binding drifted",
+    )
+    try:
+        runtime_rows = list(
+            csv.DictReader(io.StringIO(runtime_path.read_text(encoding="utf-8-sig")))
+        )
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise PrimaryProfitRankingError("daily mixed Top2 P0 runtime is invalid") from exc
+    selected_runtime = sorted(
+        (row for row in runtime_rows if row.get("top10_selected") == "1"),
+        key=lambda row: int(row.get("promotion_rank") or 0),
+    )
+    _expect(
+        len(runtime_rows) == runtime_binding["row_count"]
+        and len(selected_runtime) == runtime_binding["selected_count"]
+        == projection.get("candidate_count")
+        and all(
+            row.get("signal_date") == date
+            and row.get("identity")
+            == f"{date}|{row.get('ts_code')}|{row.get('stage_transition')}"
+            and row.get("feature_snapshot_sha256")
+            == projection.get("source_feature_snapshot_sha256")
+            for row in runtime_rows
+        ),
+        "daily mixed Top2 P0 runtime identity drifted",
+    )
+    three_rank = _read_json(
+        three_json_path,
+        label=f"daily mixed Top2 three-rank JSON {date}",
+    )
+    try:
+        validate_three_rank_contract(three_rank)
+    except Exception as exc:
+        raise PrimaryProfitRankingError(
+            "daily mixed Top2 three-rank contract is invalid"
+        ) from exc
+    _expect(
+        three_rank.get("signal_date") == date
+        and three_rank.get("exec_date") == projection.get("exec_date")
+        and three_rank.get("exit_date") == projection.get("exit_date")
+        and three_rank.get("bundle_sha256") == projection.get("source_bundle_sha256")
+        and three_rank.get("feature_snapshot_sha256")
+        == projection.get("source_feature_snapshot_sha256")
+        and three_rank.get("top10_members_sha256")
+        == projection.get("top10_members_sha256"),
+        "daily mixed Top2 three-rank binding drifted",
+    )
+    frozen_by_code = {str(row["ts_code"]): row for row in three_rank["rows"]}
+    _expect(
+        len(frozen_by_code) == projection.get("candidate_count")
+        and set(frozen_by_code) == {str(row["ts_code"]) for row in projection["rows"]}
+        and all(
+            frozen_by_code[str(row["ts_code"])].get("promotion_rank")
+            == row.get("promotion_rank")
+            and frozen_by_code[str(row["ts_code"])].get("stage_transition")
+            == row.get("stage_transition")
+            for row in projection["rows"]
+        ),
+        "daily mixed Top2 projection changed the frozen promotion membership or rank",
+    )
+
+
+def _discover_daily_mixed_top2_projection_paths(
+    root: Path,
+) -> dict[str, tuple[Path, Path]]:
+    root = root.resolve(strict=True)
+    output = root / MIXED_ROOT
+    if not output.exists():
+        return {}
+    _expect(output.is_dir() and not output.is_symlink(), "daily mixed Top2 root is unsafe")
+    json_paths = {
+        match.group(1): path
+        for path in sorted(output.glob("projection_20??????.json"))
+        if (match := re.fullmatch(r"projection_(20\d{6})\.json", path.name))
+        and match.group(1) >= DAILY_MIXED_TOP2_START_DATE
+    }
+    csv_paths = {
+        match.group(1): path
+        for path in sorted(output.glob("projection_20??????.csv"))
+        if (match := re.fullmatch(r"projection_(20\d{6})\.csv", path.name))
+        and match.group(1) >= DAILY_MIXED_TOP2_START_DATE
+    }
+    _expect(
+        set(json_paths) == set(csv_paths),
+        "daily mixed Top2 projection JSON/CSV inventory is partial",
+    )
+    pairs: dict[str, tuple[Path, Path]] = {}
+    for date in sorted(json_paths):
+        json_path = _safe_file(
+            root,
+            MIXED_ROOT / f"projection_{date}.json",
+            label=f"daily mixed Top2 projection JSON {date}",
+        )
+        csv_path = _safe_file(
+            root,
+            MIXED_ROOT / f"projection_{date}.csv",
+            label=f"daily mixed Top2 projection CSV {date}",
+        )
+        _expect(
+            json_path == json_paths[date] and csv_path == csv_paths[date],
+            "daily mixed Top2 projection path identity drifted",
+        )
+        pairs[date] = (json_path, csv_path)
+    return pairs
+
+
+def _build_daily_mixed_top2_entry_from_paths(
+    root: Path,
+    date: str,
+    json_path: Path,
+    csv_path: Path,
+    *,
+    validate_source_chain: bool = True,
+) -> dict[str, Any]:
+    projection = _read_json(json_path, label=f"daily mixed Top2 projection {date}")
+    validate_mixed_projection(projection)
+    _expect(
+        projection.get("signal_date") == date,
+        "daily mixed Top2 projection filename date drifted",
+    )
+    _expect(
+        csv_path.read_bytes() == _csv_bytes(projection, MIXED_ROW_FIELDS),
+        "daily mixed Top2 projection CSV bytes drifted",
+    )
+    if validate_source_chain:
+        _validate_daily_mixed_top2_source_bytes(root, projection)
+    return _build_daily_mixed_top2_entry(
+        root,
+        projection,
+        json_path=json_path,
+        csv_path=csv_path,
+    )
+
+
+def _build_daily_mixed_top2_index(entries: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    copied_entries = [copy.deepcopy(dict(entry)) for entry in entries]
+    dates = [str(entry["signal_date"]) for entry in copied_entries]
+    index = {
+        "schema_version": DAILY_MIXED_TOP2_SCHEMA,
+        "index_kind": DAILY_MIXED_TOP2_KIND,
+        "data_alias": False,
+        "display_name": DAILY_MIXED_TOP2_DISPLAY_NAME,
+        "public_start_signal_date": DAILY_MIXED_TOP2_START_DATE,
+        "latest_signal_date": dates[-1] if dates else None,
+        "recorded_signal_dates": dates,
+        "recorded_days": len(copied_entries),
+        "recorded_slots": sum(int(entry["recorded_slots"]) for entry in copied_entries),
+        "entries": copied_entries,
+        "boundaries": copy.deepcopy(DAILY_MIXED_TOP2_BOUNDARIES),
+    }
+    index["snapshot_sha256"] = _payload_snapshot(index)
+    _validate_daily_mixed_top2_index_shape(index)
+    return index
+
+
+def validate_primary_profit_daily_mixed_top2_index(
+    root: Path,
+    *,
+    expected_signal_date: str | None = None,
+    require_all_projection_sources: bool = True,
+) -> dict[str, Any]:
+    root = root.resolve(strict=True)
+    index_path = _safe_file(root, DAILY_MIXED_TOP2_PATH, label="daily mixed Top2 index")
+    index = _read_json(index_path, label="daily mixed Top2 index")
+    _validate_daily_mixed_top2_index_shape(index)
+    entries_by_date = {str(entry["signal_date"]): entry for entry in index["entries"]}
+    projection_paths = _discover_daily_mixed_top2_projection_paths(root)
+    if require_all_projection_sources:
+        _expect(
+            set(entries_by_date) == set(projection_paths),
+            "daily mixed Top2 ledger/source projection inventory drifted",
+        )
+    for date, (json_path, csv_path) in projection_paths.items():
+        entry = entries_by_date.get(date)
+        _expect(entry is not None, "daily mixed Top2 index missed a dated projection")
+        _expect(
+            entry
+            == _build_daily_mixed_top2_entry_from_paths(
+                root,
+                date,
+                json_path,
+                csv_path,
+                validate_source_chain=False,
+            ),
+            "daily mixed Top2 historical entry drifted from its dated projection",
+        )
+    if expected_signal_date is not None and expected_signal_date >= DAILY_MIXED_TOP2_START_DATE:
+        _expect(
+            index.get("latest_signal_date") == expected_signal_date,
+            "daily mixed Top2 index latest D drifted",
+        )
+        _expect(
+            expected_signal_date in projection_paths,
+            "daily mixed Top2 current D projection is missing",
+        )
+        _expect(
+            entries_by_date[expected_signal_date]
+            == _build_daily_mixed_top2_entry_from_paths(
+                root,
+                expected_signal_date,
+                *projection_paths[expected_signal_date],
+            ),
+            "daily mixed Top2 current D entry is not bound to the complete P0/P1 chain",
+        )
+    return index
+
+
+def materialize_primary_profit_daily_mixed_top2_index(root: Path) -> tuple[Path, dict[str, Any]]:
+    root = root.resolve(strict=True)
+    _ensure_directory(root, MIXED_ROOT)
+    path = root / DAILY_MIXED_TOP2_PATH
+    old_entries: list[dict[str, Any]] = []
+    if path.exists():
+        _expect(path.is_file() and not path.is_symlink(), "daily mixed Top2 index path is unsafe")
+        existing = _read_json(path, label="existing daily mixed Top2 index")
+        _validate_daily_mixed_top2_index_shape(existing)
+        old_entries = copy.deepcopy(list(existing.get("entries") or []))
+    entries_by_date = {str(entry["signal_date"]): entry for entry in old_entries}
+    projection_paths = _discover_daily_mixed_top2_projection_paths(root)
+    for date, paths in projection_paths.items():
+        if date in entries_by_date:
+            entry = entries_by_date[date]
+            _expect(
+                entry["projection_json_sha256"] == _sha256(paths[0])
+                and entry["projection_csv_sha256"] == _sha256(paths[1]),
+                "daily mixed Top2 history rewrite rejected",
+            )
+            continue
+        entries_by_date[date] = _build_daily_mixed_top2_entry_from_paths(
+            root,
+            date,
+            *paths,
+        )
+    entries = [entries_by_date[date] for date in sorted(entries_by_date)]
+    index = _build_daily_mixed_top2_index(entries)
+    rebuilt_by_date = {str(entry["signal_date"]): entry for entry in index["entries"]}
+    _expect(
+        all(rebuilt_by_date.get(str(entry["signal_date"])) == entry for entry in old_entries),
+        "daily mixed Top2 history rewrite rejected",
+    )
+    _atomic_write(path, _pretty_json_bytes(index))
+    validate_primary_profit_daily_mixed_top2_index(
+        root,
+        expected_signal_date=str(index["latest_signal_date"] or ""),
+    )
+    return path, index
+
+
 def validate_primary_profit_index_chain(
     root: Path,
     output_root: Path,
@@ -1312,6 +1878,9 @@ def publish_primary_profit_rankings(
         index_schema=MIXED_INDEX_SCHEMA,
         validator=validate_mixed_projection,
     )
+    daily_top2_path, daily_top2_index = (
+        materialize_primary_profit_daily_mixed_top2_index(inputs.root)
+    )
     return {
         "signal_date": inputs.signal_date,
         "generation_mode": inputs.generation_mode,
@@ -1329,6 +1898,12 @@ def publish_primary_profit_rankings(
             "csv": mixed_paths[1],
             "index": mixed_paths[2],
             "snapshot_sha256": mixed["snapshot_sha256"],
+        },
+        "daily_mixed_top2": {
+            "index": daily_top2_path,
+            "snapshot_sha256": daily_top2_index["snapshot_sha256"],
+            "recorded_days": daily_top2_index["recorded_days"],
+            "recorded_slots": daily_top2_index["recorded_slots"],
         },
         "forward_selection_created": False,
         "forward_statistics_updated": False,
@@ -1359,6 +1934,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for section in ("single", "mixed"):
         for field in ("json", "csv", "index"):
             printable[section][field] = str(printable[section][field])
+    printable["daily_mixed_top2"]["index"] = str(
+        printable["daily_mixed_top2"]["index"]
+    )
     print(json.dumps(printable, ensure_ascii=False, sort_keys=True))
     return 0
 

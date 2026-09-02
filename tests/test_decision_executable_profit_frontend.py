@@ -68,6 +68,37 @@ def test_public_research_layer_is_separate_from_frozen_promotion_panel() -> None
     assert "may_change_promotion_membership_or_rank: false" in text
 
 
+def test_mixed_top2_daily_ledger_is_distinct_from_forward_performance_ledger() -> None:
+    text = _text()
+    for token in (
+        "混合盈利 Shadow · 每日记录",
+        "每日混合盈利 Top1 / Top2 账本",
+        "daily_mixed_top2_index.json",
+        "dc20_primary_mixed_daily_top2_index_v1",
+        "primary_mixed_top2_daily_audit_index",
+        "every_complete_mixed_projection_must_be_recorded: true",
+        "retrospective_records_enter_forward_statistics: false",
+        "forward_statistics_require_separate_prospective_freeze: true",
+        "D</th><th>T</th><th>T+1</th>",
+        "代码</th><th class=\"left\">公司名称",
+        "恢复留档",
+        "不计前向收益",
+        "须独立前向冻结",
+        "同D每日影子席位不等于混合盈利Top1/Top2",
+        "Shadow Top1 / Top2 · 前向验证与累计统计（仅自然冻结）",
+        "publishedRevisionMetadata()",
+        "fetchPublishedBytes(PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH)",
+        "每日混合盈利Top1/Top2账本未绑定Pages精确revision",
+        "canonicalJson(unsignedEntry)",
+        "canonicalJson(unsignedIndex)",
+        "daily.index.latest_signal_date === projection.signal_date",
+    ):
+        assert token in text
+    render = _function(text, "renderTop10Backtest", "renderSentiment")
+    assert "observation_statistics?.forward_shadow" not in render
+    assert "state.currentPrimaryMixedDailyTop2" in render
+
+
 def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() -> None:
     text = _text()
     for token in (

@@ -870,7 +870,7 @@
     <details class="panel top10-backtest-panel">
       <summary class="panel-head">
         <div>
-          <h2>二筛影子 · 前向累计验证</h2>
+          <h2>混合盈利 Shadow · 每日记录</h2>
         </div>
         <span id="top10BacktestCount" class="count">待计算</span>
       </summary>
@@ -920,7 +920,7 @@
       </div>
       <details id="executableProfitShadowPanel" class="executable-profit-shadow-panel" open>
         <summary>
-          <span>Shadow Top1 / Top2 · 前向验证与累计统计</span>
+          <span>Shadow Top1 / Top2 · 前向验证与累计统计（仅自然冻结）</span>
           <span id="executableProfitShadowState" class="count">待读取</span>
         </summary>
         <div id="executableProfitShadowMetrics" class="metrics"></div>
@@ -975,7 +975,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v9-primary-path-truth";
+    const DASHBOARD_VERSION = "independent-three-rank-v10-mixed-top2-daily-ledger";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json";
@@ -1012,8 +1012,10 @@
       currentThreeRankTTruth: null,
       currentPublicObservationStatistics: null,
       publishedRevisionSha: null,
+      publishedRevision: null,
       currentLegacyProfitRelativeResearch: null,
-      currentExecutableProfitResearch: null
+      currentExecutableProfitResearch: null,
+      currentPrimaryMixedDailyTop2: null
     };
 
     function emptyPublicObservationStatistics() {
@@ -1344,9 +1346,9 @@
       return rows;
     }
 
-    async function publishedRevisionSha() {
-      if (location.protocol === "file:") return REPO.branch;
-      if (state.publishedRevisionSha) return state.publishedRevisionSha;
+    async function publishedRevisionMetadata() {
+      if (location.protocol === "file:") return { head_sha: REPO.branch };
+      if (state.publishedRevision) return state.publishedRevision;
       const revisionUrl = new URL("revision.json", location.href).href;
       const response = await fetch(`${revisionUrl}?v=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Pages revision HTTP ${response.status}`);
@@ -1358,7 +1360,13 @@
         throw new Error("Pages revision与DC20部署身份不一致");
       }
       state.publishedRevisionSha = headSha;
-      return headSha;
+      state.publishedRevision = revision;
+      return revision;
+    }
+
+    async function publishedRevisionSha() {
+      if (location.protocol === "file:") return REPO.branch;
+      return (await publishedRevisionMetadata()).head_sha;
     }
 
     async function fetchPublishedBytes(path) {
@@ -1817,68 +1825,68 @@
     }
 
     function renderTop10Backtest(plan) {
-      plan = publicStatisticsPlan(plan);
-      const stats = plan?.observation_statistics?.forward_shadow || {};
-      const rows = Array.isArray(stats?.rows) ? stats.rows : [];
-      const observedDates = Number(stats?.observed_signal_dates || 0);
-      const shadowDates = Number(stats?.shadow_signal_dates || 0);
-      const shadowEntries = Number(stats?.shadow_entries || 0);
-      const finalTrades = Number(stats?.final_verified_trades || 0);
-      const pendingEntries = Number(stats?.pending_t_entries || 0)
-        + Number(stats?.pending_t1_entries || 0);
-      const noFillEntries = Math.max(
-        0,
-        Number(stats?.finalized_entries || 0) - finalTrades
-      );
-      const minimumFinalTrades = Number(stats?.minimum_final_trades || 20);
-      const startSignalDate = dateText(stats?.start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE);
-      const forwardRows = rows.map(row => `<tr>
-        <td>${dateText(row?.signal_date)} / ${dateText(row?.expected_buy_date)}</td>
-        <td>${escapeHtml(row?.trade_rank || "-")}</td>
-        <td class="left"><strong>${escapeHtml(row?.name || "-")}</strong> · ${escapeHtml(row?.ts_code || "-")}</td>
-        <td>${escapeHtml(row?.stage_transition || "-")}</td>
-        <td class="left">${escapeHtml(row?.path_label || "路径数据不足")}</td>
-        <td>${price(row?.actual_open_price)}</td>
-        <td>${price(row?.actual_t_close)}</td>
-        <td class="${valueTone(row?.observation_t_return)}">${signedPct(row?.observation_t_return)}</td>
-        <td class="${finiteNumber(row?.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row?.continuation_limit_up_hit))}</td>
-        <td class="${valueTone(row?.actual_net_return)}">${signedPct(row?.actual_net_return)}</td>
-        <td><span class="truth-badge ${truthClass(row?.validation_status)}">${escapeHtml(row?.validation_status_label || "待验证")}</span></td>
-      </tr>`).join("");
+      void plan;
+      const loaded = state.currentPrimaryMixedDailyTop2;
+      if (loaded?.status !== "ready") {
+        const detail = escapeHtml(loaded?.message || "每日账本尚未公开");
+        els.top10BacktestContent.innerHTML = `<div class="empty shadow-empty"><strong>混合盈利 Top1 / Top2 每日账本不可用</strong>${detail}</div>`;
+        els.top10BacktestCount.textContent = "账本校验失败";
+        els.top10BacktestNote.textContent = "只要2→3→4名单和混合盈利排序完整生成，同D Top1/Top2每日记录就必须存在；缺失时页面明确报错。";
+        return;
+      }
+      const ledger = loaded.index;
+      const entries = [...ledger.entries].reverse();
+      const naturalDays = ledger.entries.filter(entry => entry.generation_mode === "NATURAL").length;
+      const recoveryDays = ledger.recorded_days - naturalDays;
       const summary = [
-        metric("累计D日", integerText(observedDates)),
-        metric("影子入选日", `${integerText(shadowDates)} / ${integerText(observedDates)} · ${pct(stats?.shadow_signal_rate)}`),
-        metric("影子入选", `${integerText(shadowEntries)} 笔`),
-        metric("T+1已完成", `${integerText(finalTrades)} 笔`, finalTrades ? "good" : "warn"),
-        metric("待验证", `${integerText(pendingEntries)} 笔`, pendingEntries ? "warn" : ""),
-        metric("最终无成交", `${integerText(noFillEntries)} 笔`),
-        metric("平均净收益", signedPct(stats?.mean_final_net_return), valueTone(stats?.mean_final_net_return)),
-        metric("胜率", pct(stats?.final_win_rate)),
-        metric("盈亏因子", number(stats?.profit_factor, 2)),
-        metric("等权累计收益", signedPct(stats?.equal_slot_cumulative_return), valueTone(stats?.equal_slot_cumulative_return)),
-        metric("最大回撤", signedPct(stats?.equal_slot_max_drawdown), valueTone(stats?.equal_slot_max_drawdown)),
-        metric("晋级率", pct(stats?.continuation_hit_rate)),
-        metric("最长连续空仓", `${integerText(stats?.longest_no_signal_streak || 0)} 日`),
-        metric(
-          "样本状态",
-          stats?.sample_sufficient === true ? "已达观察门槛" : `${integerText(finalTrades)} / ${integerText(minimumFinalTrades)} · 样本不足`,
-          stats?.sample_sufficient === true ? "good" : "warn"
-        )
+        metric("记录起点", `D ${dateText(ledger.public_start_signal_date)}`),
+        metric("已记录D日", `${integerText(ledger.recorded_days)} 日`, ledger.recorded_days ? "good" : "warn"),
+        metric("已记录席位", `${integerText(ledger.recorded_slots)} 席`),
+        metric("自然生成", `${integerText(naturalDays)} 日`),
+        metric("恢复留档", `${integerText(recoveryDays)} 日`, recoveryDays ? "warn" : ""),
+        metric("最近记录", ledger.latest_signal_date ? `D ${dateText(ledger.latest_signal_date)}` : "-")
       ].join("");
+      const dailyRows = entries.flatMap(entry => {
+        const modeLabel = entry.generation_mode === "NATURAL" ? "自然生成" : "恢复留档";
+        const modeTone = entry.generation_mode === "NATURAL" ? "final" : "pending";
+        const statisticsLabel = entry.generation_mode === "NATURAL"
+          ? "须独立前向冻结"
+          : "不计前向收益";
+        if (!entry.rows.length) {
+          return [`<tr>
+            <td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td>
+            <td colspan="6" class="left"><strong>当日无真实候选</strong> · 仍已记录0席事件，不补Top1/Top2</td>
+            <td><span class="truth-badge ${modeTone}">${modeLabel}</span></td><td>${statisticsLabel}</td>
+          </tr>`];
+        }
+        return entry.rows.map(row => `<tr>
+          <td>${dateText(entry.signal_date)}</td>
+          <td>${dateText(entry.exec_date)}</td>
+          <td>${dateText(entry.exit_date)}</td>
+          <td><strong>Top${integerText(row.slot)}</strong></td>
+          <td>${escapeHtml(row.ts_code)}</td>
+          <td class="left"><strong>${escapeHtml(row.name)}</strong></td>
+          <td>${integerText(row.mixed_profit_rank)}</td>
+          <td>${integerText(row.promotion_rank)}</td>
+          <td>${escapeHtml(row.stage_transition)}</td>
+          <td><span class="truth-badge ${modeTone}">${modeLabel}</span></td>
+          <td>${statisticsLabel}</td>
+        </tr>`);
+      }).join("");
       els.top10BacktestContent.innerHTML = `
         <div class="metrics shadow-summary">${summary}</div>
         <div class="shadow-subhead">
-          <h3>每日影子记录</h3>
-          <span>D ${startSignalDate} 起 · 待验证不进入收益</span>
+          <h3>每日混合盈利 Top1 / Top2 账本</h3>
+          <span>D ${dateText(ledger.public_start_signal_date)} 起 · 代码、公司与D/T/T+1完整留档</span>
         </div>
-        ${forwardRows
+        ${dailyRows
           ? `<div class="table-wrap"><table class="shadow-forward-table">
-              <thead><tr><th>D / T</th><th>二筛排名</th><th class="left">股票</th><th>晋级</th><th class="left">路径</th><th>T开盘</th><th>T收盘</th><th>T收益</th><th>T晋级</th><th>T+1净收益</th><th>状态</th></tr></thead>
-              <tbody>${forwardRows}</tbody>
+              <thead><tr><th>D</th><th>T</th><th>T+1</th><th>席位</th><th>代码</th><th class="left">公司名称</th><th>混合盈利排序</th><th>晋级排序</th><th>晋级</th><th>记录方式</th><th>收益统计口径</th></tr></thead>
+              <tbody>${dailyRows}</tbody>
             </table></div>`
-          : `<div class="empty shadow-empty"><strong>${escapeHtml(String(startSignalDate).slice(5).replace("-", ""))}起尚无二筛影子记录</strong>二筛允许一天0只，不会为了凑数量降低门槛。</div>`}`;
-      els.top10BacktestCount.textContent = `D ${String(canonicalYmd(stats?.start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE)).slice(4)}起 · ${integerText(shadowEntries)}笔 / ${integerText(finalTrades)}笔已完成`;
-      els.top10BacktestNote.textContent = `只累计D=${startSignalDate}以后9:25前冻结的二筛影子；待验证不进入收益，历史样本外回测不计入本窗口。`;
+          : `<div class="empty shadow-empty"><strong>D 0828起尚无完整混合盈利排序</strong>没有候选时也会记录0席事件；不会为了凑数补Top1/Top2。</div>`}`;
+      els.top10BacktestCount.textContent = `D ${String(ledger.public_start_signal_date).slice(4)}起 · ${integerText(ledger.recorded_days)}日 / ${integerText(ledger.recorded_slots)}席已记录`;
+      els.top10BacktestNote.textContent = "硬规则：2→3→4名单与混合盈利排序完整生成，即记录同D Top1/Top2。恢复生成也留档，但不进入前向收益；前向收益仍只认独立、准时的自然冻结账本。";
     }
 
     function renderSentiment(plan) {
@@ -2010,6 +2018,9 @@
     const PRIMARY_PROFIT_CONTRACT_ID = "dc20_primary_profit_research_20260827_v1";
     const PRIMARY_MIXED_PROFIT_SCHEMA = "dc20_primary_mixed_profit_research_projection_v1";
     const PRIMARY_MIXED_PROFIT_INDEX_SCHEMA = "dc20_primary_mixed_profit_research_index_v1";
+    const PRIMARY_MIXED_DAILY_TOP2_INDEX_SCHEMA = "dc20_primary_mixed_daily_top2_index_v1";
+    const PRIMARY_MIXED_DAILY_TOP2_INDEX_KIND = "primary_mixed_top2_daily_audit_index";
+    const PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH = `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/daily_mixed_top2_index.json`;
     const PRIMARY_PROFIT_SHADOW_STATE_SCHEMA = "dc20_primary_profit_forward_shadow_public_state_v1";
     const PRIMARY_PROFIT_SHADOW_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_public_index_v1";
     const PRIMARY_PROFIT_SHADOW_CUTOVER_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_cutover_index_v1";
@@ -2056,6 +2067,16 @@
       broker_or_order_integration_allowed: false,
       actual_execution_claimed: false
     });
+    const PRIMARY_MIXED_DAILY_TOP2_BOUNDARIES = Object.freeze({
+      research_only: true,
+      every_complete_mixed_projection_must_be_recorded: true,
+      retrospective_records_enter_forward_statistics: false,
+      forward_statistics_require_separate_prospective_freeze: true,
+      may_change_promotion_membership_or_rank: false,
+      may_create_trade_action: false,
+      broker_or_order_integration_allowed: false,
+      actual_execution_claimed: false
+    });
     const EXECUTABLE_PROFIT_PRICE_BASES = new Set([
       "D_FROZEN_RECOMMENDED_MAX_PRICE",
       "D_FROZEN_OBSERVATION_MAX_PRICE",
@@ -2081,6 +2102,11 @@
     function exactPrimaryProfitShadowBoundaries(value) {
       return exactObjectKeys(value, Object.keys(PRIMARY_PROFIT_SHADOW_BOUNDARIES)) &&
         Object.entries(PRIMARY_PROFIT_SHADOW_BOUNDARIES).every(([key, expected]) => value[key] === expected);
+    }
+
+    function exactPrimaryMixedDailyTop2Boundaries(value) {
+      return exactObjectKeys(value, Object.keys(PRIMARY_MIXED_DAILY_TOP2_BOUNDARIES)) &&
+        Object.entries(PRIMARY_MIXED_DAILY_TOP2_BOUNDARIES).every(([key, expected]) => value[key] === expected);
     }
 
     function executableProfitExpect(condition, message) {
@@ -2129,6 +2155,155 @@
       const payload = strictJsonFromBytes(bytes, label);
       executableProfitExpect(payload && typeof payload === "object" && !Array.isArray(payload), `${label}不是JSON对象`);
       return { bytes, payload };
+    }
+
+    async function validatePrimaryMixedDailyTop2Index(index) {
+      const indexKeys = [
+        "schema_version", "index_kind", "data_alias", "display_name",
+        "public_start_signal_date", "latest_signal_date",
+        "recorded_signal_dates", "recorded_days", "recorded_slots",
+        "entries", "boundaries", "snapshot_sha256"
+      ];
+      const entryKeys = [
+        "signal_date", "exec_date", "exit_date", "generation_mode",
+        "prospective", "retrospective_non_forward", "record_class",
+        "forward_statistics_policy", "candidate_count", "recorded_slots",
+        "projection_json_url", "projection_json_sha256", "projection_csv_url",
+        "projection_csv_sha256", "projection_snapshot_sha256",
+        "top10_members_sha256", "source_bundle_sha256",
+        "source_feature_snapshot_sha256", "rows", "entry_sha256"
+      ];
+      const rowKeys = [
+        "slot", "ts_code", "name", "industry", "stage_transition",
+        "promotion_rank", "mixed_profit_rank"
+      ];
+      executableProfitExpect(exactObjectKeys(index, indexKeys), "每日混合盈利Top1/Top2账本字段面漂移");
+      executableProfitExpect(
+        index.schema_version === PRIMARY_MIXED_DAILY_TOP2_INDEX_SCHEMA
+        && index.index_kind === PRIMARY_MIXED_DAILY_TOP2_INDEX_KIND
+        && index.data_alias === false
+        && index.display_name === "混合盈利排序 Top1 / Top2 每日影子记录"
+        && index.public_start_signal_date === PUBLIC_STATISTICS_START_SIGNAL_DATE
+        && exactPrimaryMixedDailyTop2Boundaries(index.boundaries),
+        "每日混合盈利Top1/Top2账本身份或安全边界漂移"
+      );
+      executableProfitExpect(Array.isArray(index.entries) && Array.isArray(index.recorded_signal_dates), "每日混合盈利Top1/Top2账本记录无效");
+      const dates = [];
+      let recordedSlots = 0;
+      for (const entry of index.entries) {
+        executableProfitExpect(exactObjectKeys(entry, entryKeys), "每日混合盈利Top1/Top2记录字段面漂移");
+        const signalDate = canonicalYmd(entry.signal_date);
+        const execDate = canonicalYmd(entry.exec_date);
+        const exitDate = canonicalYmd(entry.exit_date);
+        executableProfitExpect(
+          signalDate === entry.signal_date
+          && signalDate >= PUBLIC_STATISTICS_START_SIGNAL_DATE
+          && execDate === entry.exec_date
+          && exitDate === entry.exit_date
+          && signalDate < execDate && execDate < exitDate,
+          "每日混合盈利Top1/Top2记录D/T/T+1无效"
+        );
+        const natural = entry.generation_mode === "NATURAL";
+        const recovery = entry.generation_mode === "RETROSPECTIVE_RECOVERY";
+        executableProfitExpect(
+          (natural || recovery)
+          && entry.prospective === natural
+          && entry.retrospective_non_forward === recovery
+          && entry.record_class === (natural ? "NATURAL_RANK_SNAPSHOT" : "RETROSPECTIVE_RECOVERY_AUDIT_ONLY")
+          && entry.forward_statistics_policy === (natural ? "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE" : "EXCLUDED_RETROSPECTIVE_RECOVERY"),
+          "每日混合盈利Top1/Top2记录生成方式或统计口径漂移"
+        );
+        executableProfitExpect(
+          Number.isInteger(entry.candidate_count) && entry.candidate_count >= 0 && entry.candidate_count <= 10
+          && Number.isInteger(entry.recorded_slots) && entry.recorded_slots === Math.min(2, entry.candidate_count)
+          && Array.isArray(entry.rows) && entry.rows.length === entry.recorded_slots,
+          "每日混合盈利Top1/Top2记录数量或不补票规则漂移"
+        );
+        executableProfitExpect(
+          entry.projection_json_url === `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/projection_${signalDate}.json`
+          && entry.projection_csv_url === `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/projection_${signalDate}.csv`,
+          "每日混合盈利Top1/Top2记录未绑定精确D投影"
+        );
+        for (const field of [
+          "projection_json_sha256", "projection_csv_sha256",
+          "projection_snapshot_sha256", "top10_members_sha256",
+          "source_bundle_sha256", "source_feature_snapshot_sha256",
+          "entry_sha256"
+        ]) executableProfitExpect(isSha256(entry[field]), `每日混合盈利Top1/Top2记录${field}无效`);
+        const seen = new Set();
+        entry.rows.forEach((row, position) => {
+          executableProfitExpect(exactObjectKeys(row, rowKeys), "每日混合盈利Top1/Top2席位字段面漂移");
+          executableProfitExpect(
+            row.slot === position + 1
+            && row.mixed_profit_rank === position + 1
+            && /^\d{6}\.(SH|SZ)$/.test(String(row.ts_code || ""))
+            && !seen.has(row.ts_code)
+            && typeof row.name === "string" && row.name.trim()
+            && typeof row.industry === "string"
+            && ["2→3", "3→4"].includes(row.stage_transition)
+            && Number.isInteger(row.promotion_rank) && row.promotion_rank >= 1 && row.promotion_rank <= entry.candidate_count,
+            "每日混合盈利Top1/Top2席位身份、排名或分值漂移"
+          );
+          seen.add(row.ts_code);
+        });
+        const unsignedEntry = { ...entry };
+        delete unsignedEntry.entry_sha256;
+        executableProfitExpect(
+          await sha256Hex(new TextEncoder().encode(canonicalJson(unsignedEntry))) === entry.entry_sha256,
+          "每日混合盈利Top1/Top2记录SHA漂移"
+        );
+        dates.push(signalDate);
+        recordedSlots += entry.recorded_slots;
+      }
+      executableProfitExpect(
+        dates.join("\n") === [...new Set(dates)].sort().join("\n")
+        && index.recorded_signal_dates.join("\n") === dates.join("\n")
+        && index.recorded_days === index.entries.length
+        && index.recorded_slots === recordedSlots
+        && index.latest_signal_date === (dates.at(-1) || null),
+        "每日混合盈利Top1/Top2账本顺序或汇总漂移"
+      );
+      const unsignedIndex = { ...index };
+      delete unsignedIndex.snapshot_sha256;
+      executableProfitExpect(
+        isSha256(index.snapshot_sha256)
+        && await sha256Hex(new TextEncoder().encode(canonicalJson(unsignedIndex))) === index.snapshot_sha256,
+        "每日混合盈利Top1/Top2账本快照SHA漂移"
+      );
+      return index;
+    }
+
+    async function refreshCurrentPrimaryMixedDailyTop2() {
+      try {
+        const revision = await publishedRevisionMetadata();
+        const bytes = await fetchPublishedBytes(PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH);
+        if (location.protocol !== "file:") {
+          executableProfitExpect(
+            revision.primary_mixed_daily_top2_index_url === PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH
+            && isSha256(revision.primary_mixed_daily_top2_index_sha256)
+            && await sha256Hex(bytes) === revision.primary_mixed_daily_top2_index_sha256,
+            "每日混合盈利Top1/Top2账本未绑定Pages精确revision"
+          );
+        }
+        const index = strictJsonFromBytes(bytes, "每日混合盈利Top1/Top2账本");
+        if (location.protocol !== "file:") {
+          executableProfitExpect(
+            revision.primary_mixed_daily_top2_latest_signal_date === index.latest_signal_date
+            && revision.primary_mixed_daily_top2_recorded_days === index.recorded_days
+            && revision.primary_mixed_daily_top2_recorded_slots === index.recorded_slots,
+            "每日混合盈利Top1/Top2账本汇总与Pages revision不一致"
+          );
+        }
+        state.currentPrimaryMixedDailyTop2 = {
+          status: "ready",
+          index: await validatePrimaryMixedDailyTop2Index(index)
+        };
+      } catch (error) {
+        state.currentPrimaryMixedDailyTop2 = {
+          status: "invalid",
+          message: String(error?.message || error || "未知错误")
+        };
+      }
     }
 
     function validatePrimaryProfitIndex(index, expectedSchema, outputRoot, displayName) {
@@ -2786,6 +2961,39 @@
         ]);
         executableProfitExpect(await sha256Hex(projectionCsv) === index.latest_projection_csv_sha256, "P1混合盈利CSV字节SHA256不一致");
         const projection = await validatePrimaryMixedProfitProjection(projectionLoaded.payload, index, currentThreeRank);
+        if (projection.signal_date >= PUBLIC_STATISTICS_START_SIGNAL_DATE) {
+          const daily = state.currentPrimaryMixedDailyTop2;
+          executableProfitExpect(daily?.status === "ready", "同D混合盈利Top1/Top2每日账本不可用");
+          const entry = daily.index.entries.find(item => item.signal_date === projection.signal_date);
+          executableProfitExpect(
+            daily.index.latest_signal_date === projection.signal_date
+            && entry
+            && entry.exec_date === projection.exec_date
+            && entry.exit_date === projection.exit_date
+            && entry.generation_mode === projection.generation_mode
+            && entry.candidate_count === projection.candidate_count
+            && entry.recorded_slots === Math.min(2, projection.candidate_count)
+            && entry.projection_json_sha256 === index.latest_projection_json_sha256
+            && entry.projection_csv_sha256 === index.latest_projection_csv_sha256
+            && entry.projection_snapshot_sha256 === projection.snapshot_sha256
+            && entry.top10_members_sha256 === projection.top10_members_sha256
+            && entry.source_bundle_sha256 === projection.source_bundle_sha256,
+            "同D混合盈利Top1/Top2每日账本未与完整排名精确绑定"
+          );
+          entry.rows.forEach((row, position) => {
+            const source = projection.rows[position];
+            executableProfitExpect(
+              row.slot === position + 1
+              && row.ts_code === source?.ts_code
+              && row.name === source?.name
+              && row.industry === source?.industry
+              && row.stage_transition === source?.stage_transition
+              && row.promotion_rank === source?.promotion_rank
+              && row.mixed_profit_rank === source?.executable_profit_research_rank,
+              "同D每日影子席位不等于混合盈利Top1/Top2"
+            );
+          });
+        }
         let shadow = null;
         let shadowError = "";
         try {
@@ -4635,6 +4843,7 @@
         await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);
         await refreshCurrentThreeRankTTruth(state.currentThreeRank);
         await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
+        await refreshCurrentPrimaryMixedDailyTop2();
         await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
         const index = await fetchPath("outputs/decision/report_index.json");
         const reports = Array.isArray(index?.reports) ? index.reports : [];

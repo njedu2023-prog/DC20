@@ -471,9 +471,13 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os
+          import hashlib, json, os
           from pathlib import Path
-          from scripts.publish_primary_profit_rankings import validate_mixed_projection, validate_single_projection
+          from scripts.publish_primary_profit_rankings import (
+              validate_mixed_projection,
+              validate_primary_profit_daily_mixed_top2_index,
+              validate_single_projection,
+          )
           d=os.environ['SIGNAL_DATE']; mode=os.environ['GENERATION_MODE']
           roots=('legacy_profit_relative_research','executable_profit_research')
           single=json.loads(Path(f'outputs/decision/{roots[0]}/projection_{d}.json').read_text(encoding='utf-8'))
@@ -486,6 +490,17 @@ jobs:
           if single['source_bindings'] != mixed['source_bindings']: raise SystemExit('P1 single/mixed source bindings differ')
           if mode == 'RETROSPECTIVE_RECOVERY' and any(not item.get('retrospective_non_forward') for item in (single,mixed,*indices)):
               raise SystemExit('P1 recovery lost non-forward disclosure')
+          daily = validate_primary_profit_daily_mixed_top2_index(
+              Path('.'), expected_signal_date=d
+          )
+          entry = next((item for item in daily['entries'] if item['signal_date'] == d), None)
+          if d >= '20260828' and (
+              entry is None
+              or entry['projection_json_sha256'] != hashlib.sha256(
+                  Path(f'outputs/decision/{roots[1]}/projection_{d}.json').read_bytes()
+              ).hexdigest()
+          ):
+              raise SystemExit('P1 daily mixed Top1/Top2 record is missing or not bound to projection bytes')
           PY
 
       - name: Build exact atomic P1 candidate patch
@@ -501,13 +516,14 @@ jobs:
             outputs/decision/legacy_profit_relative_research/index.json \
             "outputs/decision/executable_profit_research/projection_${signal_date}.json" \
             "outputs/decision/executable_profit_research/projection_${signal_date}.csv" \
-            outputs/decision/executable_profit_research/index.json
+            outputs/decision/executable_profit_research/index.json \
+            outputs/decision/executable_profit_research/daily_mixed_top2_index.json
           git diff --cached --name-only -z > "${RUNNER_TEMP}/p1-paths.bin"
           SIGNAL_DATE="${signal_date}" PATHS="${RUNNER_TEMP}/p1-paths.bin" python3 - <<'PY'
           import os
           from pathlib import Path
           d=os.environ['SIGNAL_DATE']; paths=[item.decode() for item in Path(os.environ['PATHS']).read_bytes().split(b'\0') if item]
-          expected={
+          core={
               f'outputs/decision/legacy_profit_relative_research/projection_{d}.json',
               f'outputs/decision/legacy_profit_relative_research/projection_{d}.csv',
               'outputs/decision/legacy_profit_relative_research/index.json',
@@ -515,7 +531,14 @@ jobs:
               f'outputs/decision/executable_profit_research/projection_{d}.csv',
               'outputs/decision/executable_profit_research/index.json',
           }
-          if paths and set(paths) != expected: raise SystemExit(f'P1 patch is not one complete six-file bundle: {paths}')
+          ledger={'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'}
+          changed=set(paths)
+          if not changed.issubset(core | ledger):
+              raise SystemExit(f'P1 patch contains paths outside the core plus daily-ledger contract: {paths}')
+          if changed & core and changed & core != core:
+              raise SystemExit(f'P1 patch contains a partial six-file core bundle: {paths}')
+          if changed & core and not changed & ledger:
+              raise SystemExit('P1 core bundle changed without its mandatory daily mixed Top1/Top2 ledger')
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/p1.patch"
           sha256sum "${RUNNER_TEMP}/p1.patch" | cut -d' ' -f1 > "${RUNNER_TEMP}/p1.patch.sha256"
@@ -692,7 +715,8 @@ jobs:
             "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.csv" \
             outputs/decision/executable_profit_research/index.json \
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json" \
-            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv" \
+            outputs/decision/executable_profit_research/daily_mixed_top2_index.json
           do
             fetch_public "${relative}"
           done
@@ -705,6 +729,7 @@ jobs:
               MODE_STATUS,
               PrimaryProfitRankingError,
               validate_primary_profit_bundle,
+              validate_primary_profit_daily_mixed_top2_index,
           )
 
           root = Path(os.environ['PUBLIC_ROOT']).resolve(strict=True)
@@ -734,6 +759,20 @@ jobs:
           mixed = bundle['mixed']['projection']
           single_sha = bundle['single']['projection_json_sha256']
           mixed_sha = bundle['mixed']['projection_json_sha256']
+          daily = validate_primary_profit_daily_mixed_top2_index(
+              root,
+              expected_signal_date=signal_date,
+              require_all_projection_sources=False,
+          )
+          daily_entry = next(
+              (item for item in daily['entries'] if item['signal_date'] == signal_date),
+              None,
+          )
+          if signal_date >= '20260828' and (
+              daily_entry is None
+              or daily_entry['projection_json_sha256'] != mixed_sha
+          ):
+              raise SystemExit('public daily mixed Top1/Top2 record is missing or not SHA-bound')
 
           revision = read_json(Path('revision.json'))
           if not (

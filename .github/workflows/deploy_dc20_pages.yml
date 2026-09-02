@@ -249,6 +249,7 @@ jobs:
               CONTRACT_PATH as PRIMARY_PROFIT_CONTRACT_PATH,
               MIXED_INDEX_SCHEMA,
               validate_primary_profit_bundle,
+              validate_primary_profit_daily_mixed_top2_index,
           )
           from top10decision.decision.primary_profit_forward_shadow_bridge import (
               CONTRACT_PATH as PRIMARY_SHADOW_CONTRACT_PATH,
@@ -363,6 +364,10 @@ jobs:
               candidate_index = json.loads(index_path.read_text(encoding='utf-8'))
               if candidate_index.get('schema_version') == MIXED_INDEX_SCHEMA:
                   bundle = validate_primary_profit_bundle(repo_root)
+                  daily_ledger = validate_primary_profit_daily_mixed_top2_index(
+                      repo_root,
+                      expected_signal_date=bundle['inputs'].signal_date,
+                  )
                   contract_source = repo_root / PRIMARY_PROFIT_CONTRACT_PATH
                   contract_target = site_root / PRIMARY_PROFIT_CONTRACT_PATH
                   contract_target.parent.mkdir(parents=True, exist_ok=True)
@@ -374,6 +379,12 @@ jobs:
                       expected_signal_date=bundle['inputs'].signal_date,
                       expected_generation_mode=bundle['inputs'].generation_mode,
                   )
+                  public_daily_ledger = validate_primary_profit_daily_mixed_top2_index(
+                      site_root,
+                      expected_signal_date=bundle['inputs'].signal_date,
+                  )
+                  if public_daily_ledger != daily_ledger:
+                      raise SystemExit('Pages daily mixed Top1/Top2 ledger copy drifted')
                   signal_date = bundle['inputs'].signal_date
                   generation_mode = bundle['inputs'].generation_mode
                   shadow_index_source = repo_root / PRIMARY_SHADOW_PUBLIC_INDEX_PATH
@@ -952,6 +963,7 @@ jobs:
           from scripts.publish_primary_profit_rankings import (
               MIXED_INDEX_SCHEMA,
               validate_primary_profit_bundle,
+              validate_primary_profit_daily_mixed_top2_index,
           )
           from top10decision.decision.executable_profit_research_projection import (
               INDEX_SCHEMA as FORWARD_SHADOW_INDEX_SCHEMA,
@@ -1316,6 +1328,11 @@ jobs:
           primary_mixed_profit_projection_sha256 = None
           primary_profit_source_bundle_sha256 = None
           primary_profit_source_feature_snapshot_sha256 = None
+          primary_mixed_daily_top2_index_url = None
+          primary_mixed_daily_top2_index_sha256 = None
+          primary_mixed_daily_top2_latest_signal_date = None
+          primary_mixed_daily_top2_recorded_days = None
+          primary_mixed_daily_top2_recorded_slots = None
           if executable_profit_available:
               executable_profit_index = json.loads(
                   executable_profit_index_path.read_text(encoding='utf-8')
@@ -1355,6 +1372,30 @@ jobs:
                   ]
                   primary_profit_source_feature_snapshot_sha256 = primary_mixed[
                       'source_feature_snapshot_sha256'
+                  ]
+                  daily_top2_path = Path(
+                      '_site/outputs/decision/executable_profit_research/'
+                      'daily_mixed_top2_index.json'
+                  )
+                  daily_top2 = validate_primary_profit_daily_mixed_top2_index(
+                      Path('_site'),
+                      expected_signal_date=primary_inputs.signal_date,
+                  )
+                  primary_mixed_daily_top2_index_url = (
+                      'outputs/decision/executable_profit_research/'
+                      'daily_mixed_top2_index.json'
+                  )
+                  primary_mixed_daily_top2_index_sha256 = hashlib.sha256(
+                      daily_top2_path.read_bytes()
+                  ).hexdigest()
+                  primary_mixed_daily_top2_latest_signal_date = daily_top2[
+                      'latest_signal_date'
+                  ]
+                  primary_mixed_daily_top2_recorded_days = daily_top2[
+                      'recorded_days'
+                  ]
+                  primary_mixed_daily_top2_recorded_slots = daily_top2[
+                      'recorded_slots'
                   ]
               elif executable_profit_schema == FORWARD_SHADOW_INDEX_SCHEMA:
                   executable_profit_contract = 'forward_shadow'
@@ -1456,6 +1497,11 @@ jobs:
               "primary_mixed_profit_projection_sha256": primary_mixed_profit_projection_sha256,
               "primary_profit_source_bundle_sha256": primary_profit_source_bundle_sha256,
               "primary_profit_source_feature_snapshot_sha256": primary_profit_source_feature_snapshot_sha256,
+              "primary_mixed_daily_top2_index_url": primary_mixed_daily_top2_index_url,
+              "primary_mixed_daily_top2_index_sha256": primary_mixed_daily_top2_index_sha256,
+              "primary_mixed_daily_top2_latest_signal_date": primary_mixed_daily_top2_latest_signal_date,
+              "primary_mixed_daily_top2_recorded_days": primary_mixed_daily_top2_recorded_days,
+              "primary_mixed_daily_top2_recorded_slots": primary_mixed_daily_top2_recorded_slots,
               # The index timestamp proves index reconstruction, not report
               # generation.  Preserve the legacy key as an explicit null so
               # consumers cannot mistake an Auction/migration time for report
@@ -1659,6 +1705,7 @@ jobs:
             outputs/decision/executable_profit_research/index.json
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json"
             "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
+            outputs/decision/executable_profit_research/daily_mixed_top2_index.json
           )
           shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
           shadow_cutover_index="_site/outputs/decision/executable_profit_research/shadow_cutover_index.json"
@@ -1779,12 +1826,14 @@ jobs:
             exit 1
           fi
           PUBLIC_ROOT="${public_root}" python3 - <<'PY'
+          import hashlib
           import json
           import os
           from pathlib import Path
 
           from scripts.publish_primary_profit_rankings import (
               validate_primary_profit_bundle,
+              validate_primary_profit_daily_mixed_top2_index,
           )
           from top10decision.decision.primary_profit_forward_shadow_bridge import (
               validate_primary_profit_forward_shadow,
@@ -1795,11 +1844,51 @@ jobs:
               Path(os.environ['PUBLIC_ROOT']),
               expected_signal_date=os.environ['SIGNAL_DATE'],
           )
+          daily_ledger = validate_primary_profit_daily_mixed_top2_index(
+              Path(os.environ['PUBLIC_ROOT']),
+              expected_signal_date=os.environ['SIGNAL_DATE'],
+              require_all_projection_sources=False,
+          )
+          daily_entry = next(
+              (
+                  item
+                  for item in daily_ledger['entries']
+                  if item['signal_date'] == os.environ['SIGNAL_DATE']
+              ),
+              None,
+          )
+          if (
+              daily_entry is None
+              or daily_entry['projection_json_sha256']
+              != bundle['mixed']['projection_json_sha256']
+          ):
+              raise SystemExit(
+                  'public daily mixed Top1/Top2 ledger is missing or not SHA-bound'
+              )
           revision = json.loads(
               (Path(os.environ['PUBLIC_ROOT']) / 'revision.json').read_text(
                   encoding='utf-8'
               )
           )
+          daily_ledger_path = (
+              Path(os.environ['PUBLIC_ROOT'])
+              / 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
+          )
+          if (
+              revision.get('primary_mixed_daily_top2_index_url')
+              != 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
+              or revision.get('primary_mixed_daily_top2_index_sha256')
+              != hashlib.sha256(daily_ledger_path.read_bytes()).hexdigest()
+              or revision.get('primary_mixed_daily_top2_latest_signal_date')
+              != daily_ledger['latest_signal_date']
+              or revision.get('primary_mixed_daily_top2_recorded_days')
+              != daily_ledger['recorded_days']
+              or revision.get('primary_mixed_daily_top2_recorded_slots')
+              != daily_ledger['recorded_slots']
+          ):
+              raise SystemExit(
+                  'public daily mixed Top1/Top2 ledger is not bound to revision.json'
+              )
           mixed = bundle['mixed']['projection']
           shadow_publication_mode = os.environ['SHADOW_PUBLICATION_MODE']
           shadow_index_path = (

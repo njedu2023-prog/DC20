@@ -1,0 +1,151 @@
+{
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "every_complete_mixed_projection_must_be_recorded": true,
+    "forward_statistics_require_separate_prospective_freeze": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "research_only": true,
+    "retrospective_records_enter_forward_statistics": false
+  },
+  "data_alias": false,
+  "display_name": "混合盈利排序 Top1 / Top2 每日影子记录",
+  "entries": [
+    {
+      "candidate_count": 10,
+      "entry_sha256": "d172591535a2df2e884024ada0a1bf2b5b06f63519fab676d6ad5a5b90f0dc0f",
+      "exec_date": "20260831",
+      "exit_date": "20260901",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "84cd9a6a6d050f0c53d6516a26e97606c3317ff6dc0ffb11bfbeee5fb306a3ef",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260828.csv",
+      "projection_json_sha256": "1441fba2e686f5137de4eaf89e247888e2aacf828f6759332b5676ef087966c3",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260828.json",
+      "projection_snapshot_sha256": "a0d55156f7061f32fba74f7221428beb80f955f45f3c9af62dc17bb7b699da7a",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "通用设备",
+          "mixed_profit_rank": 1,
+          "name": "海鸥股份",
+          "promotion_rank": 9,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "603269.SH"
+        },
+        {
+          "industry": "专用设备",
+          "mixed_profit_rank": 2,
+          "name": "合锻智能",
+          "promotion_rank": 10,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "603011.SH"
+        }
+      ],
+      "signal_date": "20260828",
+      "source_bundle_sha256": "d521b1986ee1bef5431f9a1139c09c9dfe47cc6819299b2b9d773125a20d9170",
+      "source_feature_snapshot_sha256": "0bf5c9f5a1ec762d455d77c7c31d6e1d22bc4ade0e5d39c619deee3ad5e438ab",
+      "top10_members_sha256": "2b712df8413633caf4c6736c4fea3a8f01c72b8266ea2e505f7f7c924318d01e"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "3e0279257638b8420f95bec7938cd6965cc9af648fb654077b1deaa605e098ac",
+      "exec_date": "20260901",
+      "exit_date": "20260902",
+      "forward_statistics_policy": "EXCLUDED_RETROSPECTIVE_RECOVERY",
+      "generation_mode": "RETROSPECTIVE_RECOVERY",
+      "projection_csv_sha256": "4434857e7dd84d5bd06b9953bf507d675c551b34053747f7bfda42b999e5bb00",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260831.csv",
+      "projection_json_sha256": "d695c11cd13f38657d4cac402a101f890e5a99bff5a927e0a785115ec9a487cc",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260831.json",
+      "projection_snapshot_sha256": "bc80e3b4c6385a9352044514803dcfa50b0d5fe47e99a59558179785bf675057",
+      "prospective": false,
+      "record_class": "RETROSPECTIVE_RECOVERY_AUDIT_ONLY",
+      "recorded_slots": 2,
+      "retrospective_non_forward": true,
+      "rows": [
+        {
+          "industry": "农化制品",
+          "mixed_profit_rank": 1,
+          "name": "潞化科技",
+          "promotion_rank": 8,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "600691.SH"
+        },
+        {
+          "industry": "农化制品",
+          "mixed_profit_rank": 2,
+          "name": "赤天化",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "600227.SH"
+        }
+      ],
+      "signal_date": "20260831",
+      "source_bundle_sha256": "ed302565dc5af3b1b0d9f2a3d07f65ba8ae3068f8ab4daaed4bf83e3c865ebbc",
+      "source_feature_snapshot_sha256": "40c42de34aaaef80f432ebf06b0679a18c1ba5c8ac27404964c063f66bc11f44",
+      "top10_members_sha256": "6b66fa4de38e6165df71cf2767f0e3515b41bb187658f4189818afee0ab10d5e"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "af8937e01bc2f65fd75613df441561c6ae1f4512092c6d60df2f2beeda11bd85",
+      "exec_date": "20260902",
+      "exit_date": "20260903",
+      "forward_statistics_policy": "EXCLUDED_RETROSPECTIVE_RECOVERY",
+      "generation_mode": "RETROSPECTIVE_RECOVERY",
+      "projection_csv_sha256": "4f35275fff43144887f7b2107dfc12863b58d7a70f879061e37a53bf41200492",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260901.csv",
+      "projection_json_sha256": "8b1019046fe19bdcf62197cb1268c6abbd0792c503f2d2c9591e569771792e94",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260901.json",
+      "projection_snapshot_sha256": "c63ffffb0a1fcb5f0ad95dff956ab4a382b7212745781d7619200f9a608e3ea8",
+      "prospective": false,
+      "record_class": "RETROSPECTIVE_RECOVERY_AUDIT_ONLY",
+      "recorded_slots": 2,
+      "retrospective_non_forward": true,
+      "rows": [
+        {
+          "industry": "煤炭开采",
+          "mixed_profit_rank": 1,
+          "name": "郑州煤电",
+          "promotion_rank": 10,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "600121.SH"
+        },
+        {
+          "industry": "化学制品",
+          "mixed_profit_rank": 2,
+          "name": "集泰股份",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "002909.SZ"
+        }
+      ],
+      "signal_date": "20260901",
+      "source_bundle_sha256": "bbce65b72b3831e05dae05ea62b762128f36dcc5bb96c6ddce09aedbed296715",
+      "source_feature_snapshot_sha256": "654378feb667493ab44e4ed20b8038880f13a9eddad2c2440f94b18951764664",
+      "top10_members_sha256": "7fbed047b80d67dcd0114a0bc2b00bc34635e0ec35ad1eb6a86f19c633c6f409"
+    }
+  ],
+  "index_kind": "primary_mixed_top2_daily_audit_index",
+  "latest_signal_date": "20260901",
+  "public_start_signal_date": "20260828",
+  "recorded_days": 3,
+  "recorded_signal_dates": [
+    "20260828",
+    "20260831",
+    "20260901"
+  ],
+  "recorded_slots": 6,
+  "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
+  "snapshot_sha256": "44f1f4b921cdd3f2a86c7163883879bfbd6a2836063e913dfb14d44ad6375e0f"
+}

@@ -526,6 +526,17 @@ def test_pages_accepts_primary_profit_only_through_complete_shared_p0_lineage() 
         assert f'"{field}":' in site_step
         assert f"EXPECTED_{field.upper()}" in text
         assert f"revision.get('{field}')" in text or f"revision.get(\n                              '{field}'" in text
+    for field in (
+        "primary_mixed_daily_top2_index_url",
+        "primary_mixed_daily_top2_index_sha256",
+        "primary_mixed_daily_top2_latest_signal_date",
+        "primary_mixed_daily_top2_recorded_days",
+        "primary_mixed_daily_top2_recorded_slots",
+    ):
+        assert f'"{field}":' in site_step
+        assert f"revision.get('{field}')" in public_step
+    assert "daily_mixed_top2_index.json" in public_step
+    assert "hashlib.sha256(daily_ledger_path.read_bytes()).hexdigest()" in public_step
     assert "unsupported executable-profit research index schema" in site_step
 
 

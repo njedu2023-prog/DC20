@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from scripts.publish_primary_profit_rankings import (
+    DAILY_MIXED_TOP2_START_DATE,
     MODE_STATUS,
     MIXED_SCHEMA,
     SINGLE_SCHEMA,
@@ -19,6 +20,7 @@ from scripts.publish_primary_profit_rankings import (
     publish_primary_profit_rankings,
     score_single_profit,
     validate_primary_profit_bundle,
+    validate_primary_profit_daily_mixed_top2_index,
 )
 from top10decision.decision.three_rank import (
     build_three_rank_contract,
@@ -234,32 +236,38 @@ def _write_primary_fixture(
     target: Path,
     *,
     mode: str = "RETROSPECTIVE_RECOVERY",
+    signal_date: str = D,
+    exec_date: str = T,
+    exit_date: str = T1,
+    promotion_pool_size: int = 11,
 ) -> tuple[Path, list[dict[str, object]]]:
     contract_target = target / "models/decision_primary_profit_research_contract.json"
-    contract_target.parent.mkdir(parents=True)
+    contract_target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(
         ROOT / "models/decision_primary_profit_research_contract.json",
         contract_target,
     )
     output = target / "outputs/decision"
-    output.mkdir(parents=True)
+    output.mkdir(parents=True, exist_ok=True)
 
     frozen_rows: list[dict[str, object]] = []
     runtime_rows: list[dict[str, object]] = []
+    signal_iso = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:8]}"
     generated = (
-        "2026-08-26T13:35:00+00:00"
+        f"{signal_iso}T13:35:00+00:00"
         if mode == "NATURAL"
-        else "2026-08-27T06:14:05+00:00"
+        else "2026-09-02T06:14:05+00:00"
     )
-    for rank in range(1, 12):
+    selected_count = min(10, promotion_pool_size)
+    for rank in range(1, promotion_pool_size + 1):
         code = f"000{rank:03d}.SZ"
         transition = "3→4" if rank % 3 == 0 else "2→3"
-        selected = int(rank <= 10)
+        selected = int(rank <= selected_count)
         probability = 0.95 - rank * 0.025
         runtime_rows.append(
             {
-                "identity": f"{D}|{code}|{transition}",
-                "signal_date": D,
+                "identity": f"{signal_date}|{code}|{transition}",
+                "signal_date": signal_date,
                 "ts_code": code,
                 "name": f"样本{rank}",
                 "industry": "测试行业",
@@ -282,7 +290,7 @@ def _write_primary_fixture(
                     "industry": "测试行业",
                     "stage_transition": transition,
                     "top10_selected": 1,
-                    "promotion_pool_size": 11,
+                    "promotion_pool_size": promotion_pool_size,
                     "promotion_rank": rank,
                     "predicted_promotion_probability": probability,
                     "big_loss_safety_rank": None,
@@ -296,9 +304,9 @@ def _write_primary_fixture(
             )
     three_rank = build_three_rank_contract(
         {
-            "signal_date": D,
-            "exec_date": T,
-            "exit_date": T1,
+            "signal_date": signal_date,
+            "exec_date": exec_date,
+            "exit_date": exit_date,
             "generated_at_utc": generated,
             "feature_snapshot_sha256": FEATURE_SHA,
             "candidates": frozen_rows,
@@ -309,12 +317,30 @@ def _write_primary_fixture(
         target,
         three_rank,
     )
-    runtime_path = output / f"primary_d_runtime_features_{D}.csv"
-    pd.DataFrame(runtime_rows).to_csv(runtime_path, index=False)
+    runtime_path = output / f"primary_d_runtime_features_{signal_date}.csv"
+    pd.DataFrame(
+        runtime_rows,
+        columns=[
+            "identity",
+            "signal_date",
+            "ts_code",
+            "name",
+            "industry",
+            "stage",
+            "stage_transition",
+            "board",
+            "generated_at_utc",
+            "feature_snapshot_sha256",
+            "top10_selected",
+            "promotion_rank",
+            "predicted_promotion_probability",
+            "fixture_numeric_feature",
+        ],
+    ).to_csv(runtime_path, index=False)
     identity_sha = _canonical_sha(
         {
             "schema": "dc20_primary_d_runtime_identity_v1",
-            "signal_date": D,
+            "signal_date": signal_date,
             "rows": [
                 {
                     "identity": row["identity"],
@@ -334,9 +360,9 @@ def _write_primary_fixture(
         "prospective": mode == "NATURAL",
         "forward_eligible": mode == "NATURAL",
         "not_forward_generated": mode != "NATURAL",
-        "signal_date": D,
-        "exec_date": T,
-        "exit_date": T1,
+        "signal_date": signal_date,
+        "exec_date": exec_date,
+        "exit_date": exit_date,
         "primary_status": "READY",
         "action_authorized": False,
         "action_input_consumed": False,
@@ -356,16 +382,16 @@ def _write_primary_fixture(
             "bundle_sha256": three_rank["bundle_sha256"],
             "feature_snapshot_sha256": FEATURE_SHA,
             "top10_members_sha256": three_rank["top10_members_sha256"],
-            "promotion_pool_size": 11,
-            "top10_count": 10,
+            "promotion_pool_size": promotion_pool_size,
+            "top10_count": selected_count,
             "runtime_features_path": runtime_path.relative_to(target).as_posix(),
             "runtime_features_sha256": _sha256(runtime_path),
-            "runtime_feature_row_count": 11,
-            "runtime_selected_count": 10,
+            "runtime_feature_row_count": promotion_pool_size,
+            "runtime_selected_count": selected_count,
             "runtime_identity_sha256": identity_sha,
         },
     }
-    receipt_path = output / f"primary_d_receipt_{D}.json"
+    receipt_path = output / f"primary_d_receipt_{signal_date}.json"
     receipt_path.write_text(
         json.dumps(receipt, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -492,6 +518,286 @@ def test_natural_p1_is_prospective_research_but_still_not_a_shadow_selection(
     assert mixed["boundaries"]["forward_selection_created"] is False
     assert mixed["boundaries"]["forward_statistics_updated"] is False
     assert not (tmp_path / "data/decision_executable_profit/forward").exists()
+
+
+@pytest.mark.parametrize(
+    ("mode", "record_class", "statistics_policy"),
+    [
+        (
+            "NATURAL",
+            "NATURAL_RANK_SNAPSHOT",
+            "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+        ),
+        (
+            "RETROSPECTIVE_RECOVERY",
+            "RETROSPECTIVE_RECOVERY_AUDIT_ONLY",
+            "EXCLUDED_RETROSPECTIVE_RECOVERY",
+        ),
+    ],
+)
+def test_every_complete_mixed_ranking_writes_top2_daily_audit_record(
+    tmp_path: Path,
+    mode: str,
+    record_class: str,
+    statistics_policy: str,
+) -> None:
+    _write_primary_fixture(
+        tmp_path,
+        mode=mode,
+        signal_date="20260828",
+        exec_date="20260831",
+        exit_date="20260901",
+    )
+    result = publish_primary_profit_rankings(
+        tmp_path,
+        "20260828",
+        generation_mode=mode,
+        single_scorer=_single_stub,
+        mixed_scorer=_mixed_stub,
+    )
+    ledger = validate_primary_profit_daily_mixed_top2_index(
+        tmp_path,
+        expected_signal_date="20260828",
+    )
+    assert result["daily_mixed_top2"]["recorded_days"] == 1
+    assert result["daily_mixed_top2"]["recorded_slots"] == 2
+    assert ledger["public_start_signal_date"] == DAILY_MIXED_TOP2_START_DATE
+    assert ledger["recorded_signal_dates"] == ["20260828"]
+    entry = ledger["entries"][0]
+    assert entry["record_class"] == record_class
+    assert entry["forward_statistics_policy"] == statistics_policy
+    assert [row["slot"] for row in entry["rows"]] == [1, 2]
+    assert [row["mixed_profit_rank"] for row in entry["rows"]] == [1, 2]
+    assert [row["ts_code"] for row in entry["rows"]] == [
+        row["ts_code"] for row in json.loads(
+            result["mixed"]["json"].read_text(encoding="utf-8")
+        )["rows"][:2]
+    ]
+    assert not (tmp_path / "data/decision_executable_profit/forward").exists()
+
+
+@pytest.mark.parametrize(("promotion_pool_size", "recorded_slots"), [(0, 0), (1, 1)])
+def test_daily_mixed_audit_records_real_zero_or_one_slot_without_padding(
+    tmp_path: Path,
+    promotion_pool_size: int,
+    recorded_slots: int,
+) -> None:
+    _write_primary_fixture(
+        tmp_path,
+        mode="NATURAL",
+        signal_date="20260828",
+        exec_date="20260831",
+        exit_date="20260901",
+        promotion_pool_size=promotion_pool_size,
+    )
+    publish_primary_profit_rankings(
+        tmp_path,
+        "20260828",
+        generation_mode="NATURAL",
+        single_scorer=_single_stub,
+        mixed_scorer=_mixed_stub,
+    )
+    ledger = validate_primary_profit_daily_mixed_top2_index(
+        tmp_path,
+        expected_signal_date="20260828",
+    )
+    entry = ledger["entries"][0]
+    assert entry["candidate_count"] == promotion_pool_size
+    assert entry["recorded_slots"] == recorded_slots
+    assert len(entry["rows"]) == recorded_slots
+    assert [row["slot"] for row in entry["rows"]] == list(
+        range(1, recorded_slots + 1)
+    )
+
+
+def test_daily_mixed_audit_appends_new_d_without_replaying_archived_old_p0_sources(
+    tmp_path: Path,
+) -> None:
+    _write_primary_fixture(
+        tmp_path,
+        mode="NATURAL",
+        signal_date="20260828",
+        exec_date="20260831",
+        exit_date="20260901",
+        promotion_pool_size=1,
+    )
+    publish_primary_profit_rankings(
+        tmp_path,
+        "20260828",
+        generation_mode="NATURAL",
+        single_scorer=_single_stub,
+        mixed_scorer=_mixed_stub,
+    )
+    first = validate_primary_profit_daily_mixed_top2_index(
+        tmp_path,
+        expected_signal_date="20260828",
+    )["entries"][0]
+    for relative in (
+        "outputs/decision/primary_d_receipt_20260828.json",
+        "outputs/decision/primary_d_runtime_features_20260828.csv",
+        "outputs/decision/three_rank_top10_20260828.json",
+        "outputs/decision/three_rank_top10_20260828.csv",
+    ):
+        (tmp_path / relative).unlink()
+
+    _write_primary_fixture(
+        tmp_path,
+        mode="RETROSPECTIVE_RECOVERY",
+        signal_date="20260831",
+        exec_date="20260901",
+        exit_date="20260902",
+        promotion_pool_size=1,
+    )
+    publish_primary_profit_rankings(
+        tmp_path,
+        "20260831",
+        generation_mode="RETROSPECTIVE_RECOVERY",
+        single_scorer=_single_stub,
+        mixed_scorer=_mixed_stub,
+    )
+    ledger = validate_primary_profit_daily_mixed_top2_index(
+        tmp_path,
+        expected_signal_date="20260831",
+    )
+    assert ledger["recorded_signal_dates"] == ["20260828", "20260831"]
+    assert ledger["entries"][0] == first
+    assert ledger["entries"][1]["record_class"] == (
+        "RETROSPECTIVE_RECOVERY_AUDIT_ONLY"
+    )
+
+
+def test_daily_mixed_audit_requires_recorded_projection_files_in_full_repository(
+    tmp_path: Path,
+) -> None:
+    for date, exec_date, exit_date in (
+        ("20260828", "20260831", "20260901"),
+        ("20260831", "20260901", "20260902"),
+    ):
+        _write_primary_fixture(
+            tmp_path,
+            mode="NATURAL",
+            signal_date=date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            promotion_pool_size=1,
+        )
+        publish_primary_profit_rankings(
+            tmp_path,
+            date,
+            generation_mode="NATURAL",
+            single_scorer=_single_stub,
+            mixed_scorer=_mixed_stub,
+        )
+
+    old_root = tmp_path / "outputs/decision/executable_profit_research"
+    (old_root / "projection_20260828.json").unlink()
+    (old_root / "projection_20260828.csv").unlink()
+
+    with pytest.raises(
+        PrimaryProfitRankingError,
+        match="ledger/source projection inventory drifted",
+    ):
+        validate_primary_profit_daily_mixed_top2_index(tmp_path)
+
+    partial = validate_primary_profit_daily_mixed_top2_index(
+        tmp_path,
+        expected_signal_date="20260831",
+        require_all_projection_sources=False,
+    )
+    assert partial["recorded_signal_dates"] == ["20260828", "20260831"]
+
+
+def test_daily_mixed_audit_rejects_self_rehashed_historical_row_tamper(
+    tmp_path: Path,
+) -> None:
+    for date, exec_date, exit_date in (
+        ("20260828", "20260831", "20260901"),
+        ("20260831", "20260901", "20260902"),
+    ):
+        _write_primary_fixture(
+            tmp_path,
+            mode="NATURAL",
+            signal_date=date,
+            exec_date=exec_date,
+            exit_date=exit_date,
+            promotion_pool_size=1,
+        )
+        publish_primary_profit_rankings(
+            tmp_path,
+            date,
+            generation_mode="NATURAL",
+            single_scorer=_single_stub,
+            mixed_scorer=_mixed_stub,
+        )
+
+    path = (
+        tmp_path
+        / "outputs/decision/executable_profit_research/daily_mixed_top2_index.json"
+    )
+    ledger = json.loads(path.read_text(encoding="utf-8"))
+    ledger["entries"][0]["rows"][0]["name"] = "篡改名称"
+    entry_without_sha = dict(ledger["entries"][0])
+    entry_without_sha.pop("entry_sha256")
+    ledger["entries"][0]["entry_sha256"] = hashlib.sha256(
+        json.dumps(
+            entry_without_sha,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    index_without_sha = dict(ledger)
+    index_without_sha.pop("snapshot_sha256")
+    ledger["snapshot_sha256"] = hashlib.sha256(
+        json.dumps(
+            index_without_sha,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    path.write_text(
+        json.dumps(ledger, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        PrimaryProfitRankingError,
+        match="historical entry drifted from its dated projection",
+    ):
+        validate_primary_profit_daily_mixed_top2_index(tmp_path)
+
+
+def test_repository_daily_mixed_top2_ledger_starts_at_d28_and_includes_recovery_days() -> None:
+    ledger = validate_primary_profit_daily_mixed_top2_index(ROOT)
+    assert ledger["recorded_signal_dates"][:3] == [
+        "20260828",
+        "20260831",
+        "20260901",
+    ]
+    assert ledger["latest_signal_date"] == ledger["recorded_signal_dates"][-1]
+    assert all(entry["signal_date"] >= "20260828" for entry in ledger["entries"])
+    rows_by_date = {
+        entry["signal_date"]: [
+            (row["ts_code"], row["name"]) for row in entry["rows"]
+        ]
+        for entry in ledger["entries"]
+    }
+    assert rows_by_date["20260828"] == [
+        ("603269.SH", "海鸥股份"),
+        ("603011.SH", "合锻智能"),
+    ]
+    assert rows_by_date["20260901"] == [
+        ("600121.SH", "郑州煤电"),
+        ("002909.SZ", "集泰股份"),
+    ]
+    entries_by_date = {entry["signal_date"]: entry for entry in ledger["entries"]}
+    assert entries_by_date["20260828"]["generation_mode"] == "NATURAL"
+    assert all(
+        entries_by_date[date]["forward_statistics_policy"]
+        == "EXCLUDED_RETROSPECTIVE_RECOVERY"
+        for date in ("20260831", "20260901")
+    )
 
 
 def test_d28_round_trip_runtime_reproduces_frozen_single_profit_snapshot() -> None:
@@ -659,7 +965,9 @@ def test_p1_public_acceptance_revalidates_bytes_and_executes_dynamic_dom() -> No
         "outputs/decision/executable_profit_research/index.json",
         'executable_profit_research/projection_${SIGNAL_DATE}.json',
         'executable_profit_research/projection_${SIGNAL_DATE}.csv',
+        "outputs/decision/executable_profit_research/daily_mixed_top2_index.json",
         "validate_primary_profit_bundle",
+        "validate_primary_profit_daily_mixed_top2_index",
         "expected_signal_date=signal_date",
         "expected_generation_mode=mode",
         "primary_single_profit_projection_sha256",
