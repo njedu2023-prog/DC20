@@ -506,12 +506,29 @@ def test_pages_accepts_primary_profit_only_through_complete_shared_p0_lineage() 
         'three_rank_top10_${SIGNAL_DATE}.csv',
         "outputs/decision/legacy_profit_relative_research/index.json",
         "outputs/decision/executable_profit_research/index.json",
-        "cmp -s \"_site/${relative}\" \"${public_root}/${relative}\"",
+        "fetch_public_exact() {",
+        "expect_public_404() {",
+        "for attempt in {1..12}; do",
+        "verify_attempt=${attempt}",
+        "verify_absence_attempt=${attempt}",
+        "-H 'Cache-Control: no-cache'",
+        'candidate="${destination}.fetch.${attempt}"',
+        'cmp -s "${expected}" "${candidate}"',
+        'mv -f "${candidate}" "${destination}"',
+        'if ! fetch_public_exact "${relative}"; then',
+        'if ! expect_public_404 "${relative}"; then',
+        "public Pages bytes did not converge to exact deployment: ${relative}",
+        "public Pages path did not converge to HTTP 404: ${relative}",
         "validate_primary_profit_bundle(",
         "expected_signal_date=os.environ['SIGNAL_DATE']",
         "public generic revision is not bound to the complete P1 bundle",
     ):
         assert token in public_step
+    assert public_step.index('cmp -s "${expected}" "${candidate}"') < public_step.index(
+        'mv -f "${candidate}" "${destination}"'
+    )
+    assert "while true" not in public_step
+    assert "|| true" not in public_step
 
     for field in (
         "primary_profit_status",

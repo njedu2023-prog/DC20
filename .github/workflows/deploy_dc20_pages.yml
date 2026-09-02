@@ -1628,6 +1628,53 @@ jobs:
           set -euo pipefail
           public_root="${RUNNER_TEMP}/generic-public-primary-profit"
           removed_shadow_surfaces_file="${RUNNER_TEMP}/primary-shadow-removed-surfaces.txt"
+          fetch_public_exact() {
+            local relative="$1"
+            local expected="_site/${relative}"
+            local destination="${public_root}/${relative}"
+            local candidate=""
+            local expected_sha=""
+            local actual_sha="unavailable"
+            mkdir -p "$(dirname "${destination}")"
+            for attempt in {1..12}; do
+              candidate="${destination}.fetch.${attempt}"
+              if curl -fsSL --retry 2 --retry-delay 2 --retry-all-errors \
+                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
+                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_attempt=${attempt}" \
+                   -o "${candidate}" && \
+                 cmp -s "${expected}" "${candidate}"; then
+                mv -f "${candidate}" "${destination}"
+                return 0
+              fi
+              if [ "${attempt}" != 12 ]; then
+                sleep 10
+              fi
+            done
+            expected_sha="$(sha256sum "${expected}" | awk '{print $1}')"
+            if [ -f "${candidate}" ]; then
+              actual_sha="$(sha256sum "${candidate}" | awk '{print $1}')"
+            fi
+            echo "public Pages bytes did not converge to exact deployment: ${relative}; expected_sha256=${expected_sha}; actual_sha256=${actual_sha}" >&2
+            return 1
+          }
+          expect_public_404() {
+            local relative="$1"
+            local http_code="unavailable"
+            for attempt in {1..12}; do
+              if http_code="$(curl -sS -L --retry 2 --retry-delay 2 --retry-all-errors \
+                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
+                   -o /dev/null -w '%{http_code}' \
+                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_absence_attempt=${attempt}")" && \
+                 [ "${http_code}" = 404 ]; then
+                return 0
+              fi
+              if [ "${attempt}" != 12 ]; then
+                sleep 10
+              fi
+            done
+            echo "public Pages path did not converge to HTTP 404: ${relative}; last_http=${http_code}" >&2
+            return 1
+          }
           REMOVED_SHADOW_SURFACES_FILE="${removed_shadow_surfaces_file}" python3 - <<'PY'
           import json
           import os
@@ -1763,21 +1810,17 @@ jobs:
             )
           fi
           for relative in "${files[@]}"; do
-            mkdir -p "${public_root}/$(dirname "${relative}")"
-            curl -fsSL --retry 12 --retry-delay 10 --retry-all-errors \
-              "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}" \
-              -o "${public_root}/${relative}"
-            cmp -s "_site/${relative}" "${public_root}/${relative}"
+            if ! fetch_public_exact "${relative}"; then
+              exit 1
+            fi
           done
           while IFS= read -r relative; do
             if [ -e "_site/${relative}" ] || [ -L "_site/${relative}" ]; then
               echo "removed Shadow surface still exists in Pages build: ${relative}" >&2
               exit 1
             fi
-            http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-              "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
-            if [ "${http_code}" != 404 ]; then
-              echo "removed Shadow surface remained public: ${relative} HTTP ${http_code}" >&2
+            if ! expect_public_404 "${relative}"; then
+              echo "removed Shadow surface remained public: ${relative}" >&2
               exit 1
             fi
           done < "${removed_shadow_surfaces_file}"
@@ -1789,10 +1832,8 @@ jobs:
               data/decision_executable_profit/forward/selections/primary_mixed_index.json \
               "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.json" \
               "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.csv"; do
-              http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-                "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
-              if [ "${http_code}" != 404 ]; then
-                echo "P1 pending-Shadow publication exposed a Shadow surface: ${relative} HTTP ${http_code}" >&2
+              if ! expect_public_404 "${relative}"; then
+                echo "P1 pending-Shadow publication exposed a Shadow surface: ${relative}" >&2
                 exit 1
               fi
             done
@@ -1800,17 +1841,13 @@ jobs:
             for relative in \
               outputs/decision/executable_profit_research/shadow_index.json \
               data/decision_executable_profit/forward/statistics/summary.json; do
-              http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-                "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}")"
-              if [ "${http_code}" != 404 ]; then
-                echo "grandfathered Shadow artifact remained public: ${relative} HTTP ${http_code}" >&2
+              if ! expect_public_404 "${relative}"; then
+                echo "grandfathered Shadow artifact remained public: ${relative}" >&2
                 exit 1
               fi
             done
           elif [ -f "${shadow_index}" ]; then
-            http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-              "${PAGE_URL%/}/outputs/decision/executable_profit_research/shadow_cutover_index.json?run_id=${GITHUB_RUN_ID}")"
-            if [ "${http_code}" != 404 ]; then
+            if ! expect_public_404 outputs/decision/executable_profit_research/shadow_cutover_index.json; then
               echo "selection-only cutover pointer remained beside standard Shadow chain" >&2
               exit 1
             fi
@@ -1819,10 +1856,8 @@ jobs:
             exit 1
           fi
           grandfather_state="outputs/decision/executable_profit_research/shadow_state_20260828_asof_20260828.json"
-          http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-            "${PAGE_URL%/}/${grandfather_state}?run_id=${GITHUB_RUN_ID}")"
-          if [ "${http_code}" != 404 ]; then
-            echo "grandfathered Shadow state remained public: ${grandfather_state} HTTP ${http_code}" >&2
+          if ! expect_public_404 "${grandfather_state}"; then
+            echo "grandfathered Shadow state remained public: ${grandfather_state}" >&2
             exit 1
           fi
           PUBLIC_ROOT="${public_root}" python3 - <<'PY'
