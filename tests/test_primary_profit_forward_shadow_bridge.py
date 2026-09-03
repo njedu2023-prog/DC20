@@ -383,6 +383,19 @@ def test_current_committed_bundle_calls_unmocked_primary_bundle_validator() -> N
         tzinfo=D28_SELECTED_AT.tzinfo,
     )
     if generation_mode == "NATURAL":
+        runtime = pd.read_csv(required[10], usecols=["generated_at_utc"])
+        if not runtime.empty:
+            generated_values = (
+                runtime["generated_at_utc"].fillna("").astype(str).unique().tolist()
+            )
+            assert len(generated_values) == 1 and generated_values[0]
+            generated_at = datetime.fromisoformat(
+                generated_values[0].replace("Z", "+00:00")
+            )
+            assert generated_at.tzinfo is not None
+            selected_at = generated_at.astimezone(
+                D28_SELECTED_AT.tzinfo
+            ) + timedelta(microseconds=1)
         payload = bridge.build_primary_profit_forward_shadow(
             ROOT,
             signal_date,
