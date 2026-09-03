@@ -71,7 +71,7 @@ def test_public_research_layer_is_separate_from_frozen_promotion_panel() -> None
 def test_mixed_top2_daily_ledger_is_distinct_from_forward_performance_ledger() -> None:
     text = _text()
     for token in (
-        "混合盈利 Shadow · 每日记录",
+        "混合盈利 · 每日影子账本",
         "每日混合盈利 Top1 / Top2 账本",
         "daily_mixed_top2_index.json",
         "dc20_primary_mixed_daily_top2_index_v1",
@@ -169,7 +169,7 @@ def test_selected_html_only_blocks_fields_and_action_section_are_not_rendered() 
         '<details id="sentimentPanel" class="panel observation-disclosure">'
         in text
     )
-    assert "<summary class=\"panel-head\">\n        <div>\n          <h2>市场情绪量化</h2>" in text
+    assert '<h2>市场情绪量化</h2>' in text
     assert '<details id="sentimentPanel" class="panel observation-disclosure" open>' not in text
 
 

@@ -30,10 +30,10 @@ def test_dashboard_research_fallback_preserves_dates_gate_and_cache() -> None:
     assert 'exec_date: evaluation?.exec_date || extractField(md, "exec_date")' in text
     assert 'exit_date: evaluation?.exit_date || extractField(md, "exit_date")' in text
     assert 'evaluation?.execution_gate || extractField(md, "execution_gate")' in text
-    assert 'const CACHE_KEY = "dc20-decision-dashboard-v5-cache"' in text
+    assert 'const CACHE_KEY = "dc20-decision-dashboard-v6-cache"' in text
     assert "JSON.stringify({ info, plan, md, evaluation" in text
     assert 'els.reportDetails.open = info.action_available !== true' not in text
-    assert text.count("els.reportDetails.open = false;") == 3
+    assert text.count("els.reportDetails.open = false;") == 4
     assert '<details id="reportDetails" class="panel" open>' not in text
     assert "validatedCachedState(loadCache(), targetInfo)" in text
     assert 'const identityFields = ["report_date", "report_file", "report_url", "eval_url", "action_url", "research_url", "research_kind", "research_archive_url"]' in text
@@ -62,31 +62,90 @@ def test_dashboard_fails_closed_when_same_day_evidence_is_missing() -> None:
     assert "signalDate < execDate && execDate < exitDate" in text
 
 
-def test_dashboard_places_research_first_and_hides_unavailable_auction_panels() -> None:
+def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() -> None:
     text = DASHBOARD.read_text(encoding="utf-8")
-    assert text.index('id="researchContent"') < text.index('id="sentimentPanel"')
-    assert text.index('id="researchContent"') < text.index('id="stagePanel"')
+    assert text.index('id="statusBand"') < text.index('id="stagePanel"')
+    assert text.index('id="stagePanel"') < text.index(
+        'id="executableProfitResearchPanel"'
+    )
+    assert text.index('id="executableProfitResearchPanel"') < text.index(
+        'id="top10BacktestContent"'
+    )
+    assert text.index('id="top10BacktestContent"') < text.index(
+        'id="sentimentPanel"'
+    )
+    assert text.index('id="sentimentPanel"') < text.index('id="researchPanel"')
+    assert text.index('id="researchPanel"') < text.index('id="auditPanel"')
     assert '<details id="sentimentPanel" class="panel observation-disclosure">' in text
     assert '<details id="sentimentPanel" class="panel observation-disclosure" open>' not in text
+    assert '<details id="executableProfitShadowPanel" class="executable-profit-shadow-panel">' in text
+    assert '<details id="executableProfitShadowPanel" class="executable-profit-shadow-panel" open>' not in text
+    assert '<details id="auditPanel" class="panel observation-disclosure">' in text
+    assert '<section id="auditPanel"' not in text
+    assert '<details id="researchPanel" class="panel observation-disclosure">' in text
+    assert 'class="ranking-disclosure"' in text
+    assert 'class="workspace-nav" aria-label="页面主要区域"' in text
     assert 'const available = plan?.daily_research_only !== true' in text
     assert 'els.sentimentPanel.hidden = !available' in text
     assert 'els.stagePanel.hidden = !available' not in text
+    assert 'els.stagePanel.hidden = !(available || primaryReady)' in text
     assert (
-        'els.stagePanel.hidden = !(available || '
-        '(primaryContract && primaryContract !== false))'
+        'els.auditPanel.hidden = !(available && sameDayAuctionContext) '
+        '&& !primaryReady'
         in text
     )
-    assert 'els.auditPanel.hidden = !available' in text
     assert 'els.researchPanel.hidden = fullContext' in text
     assert 'if (researchPlan.historical_parity === true)' in text
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "independent-three-rank-v10-mixed-top2-daily-ledger"'
+        'const DASHBOARD_VERSION = "independent-three-rank-v11-focused-workspace"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text
     assert "validatedResearchContext(info, researchResult.value)" in text
+
+
+def test_dashboard_history_and_failure_views_do_not_reuse_current_dynamic_data() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    status = text.split("function renderStatus(plan)", 1)[1].split(
+        "function renderAuctionOnlyPanels", 1
+    )[0]
+    core_only = text.split("function renderPrimaryCoreOnly(error)", 1)[1].split(
+        "async function initialize", 1
+    )[0]
+    error = text.split("function showError(error)", 1)[1].split(
+        'window.addEventListener("error"', 1
+    )[0]
+    reader = text.split("async function fetchPath(path", 1)[1].split(
+        "async function fetchPagesOnlyPath", 1
+    )[0]
+
+    assert "els.shadowWorkspace.hidden = !currentPage" in status
+    assert "els.reviewWorkspace.hidden = !currentPage" in status
+    assert 'link.hidden = !currentPage' in status
+    assert "els.researchPanel.hidden = true" in core_only
+    for token in (
+        "els.stagePanel.hidden = true",
+        "els.stageContent.innerHTML = \"\"",
+        "els.executableProfitResearchPanel.hidden = true",
+        "els.executableProfitResearchContent.innerHTML = \"\"",
+        "els.shadowWorkspace.hidden = true",
+        "els.auditContent.innerHTML = \"\"",
+        "避免把旧结果误认为当前数据",
+    ):
+        assert token in error
+    assert "await publishedRevisionSha()" in reader
+    assert "${headSha}/${path}" in reader
+    assert "[primary, RAW_BASE + path]" not in reader
+
+
+def test_p0_without_complete_p1_uses_waiting_tone() -> None:
+    text = DASHBOARD.read_text(encoding="utf-8")
+    status = text.split("function renderStatus(plan)", 1)[1].split(
+        "function renderAuctionOnlyPanels", 1
+    )[0]
+    assert 'status-band ${profitReady ? "good" : "warn"}' in status
 
 
 def test_current_three_rank_survives_missing_or_stale_action_report() -> None:
@@ -115,8 +174,9 @@ def test_current_three_rank_survives_missing_or_stale_action_report() -> None:
     # Only Action-owned observation panels are hidden.  A valid P0 contract
     # keeps the promotion stage panel visible and renders it independently.
     assert "els.sentimentPanel.hidden = !available" in auction_panels
-    assert "els.auditPanel.hidden = !available" in auction_panels
+    assert "els.auditPanel.hidden = !(available && sameDayAuctionContext)" in auction_panels
     assert "primaryContract && primaryContract !== false" in auction_panels
+    assert "threeRankAuditSectionHtml(plan)" in auction_panels
     assert "renderStageWatchlist(plan)" in auction_panels
 
     # P0/P1 loading precedes report_index/Action, and any missing, stale, or

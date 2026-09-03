@@ -224,7 +224,7 @@
       gap: 12px;
     }
     .panel-head h2 { margin: 0; font-size: 16px; line-height: 1.3; }
-    #stageSignalDate { color: var(--muted); font-weight: 400; }
+    #stageSignalDate { color: var(--muted); font-weight: 400; white-space: nowrap; }
     .stage-generated-time {
       margin-left: 8px;
       color: #8b9592;
@@ -745,6 +745,336 @@
     }
     footer { padding: 4px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 
+    html { scroll-behavior: smooth; }
+    a:focus-visible {
+      outline: 3px solid var(--blue);
+      outline-offset: 2px;
+    }
+    button:focus-visible,
+    summary:focus-visible {
+      outline-color: var(--blue);
+    }
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 9px 12px;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 700;
+      text-decoration: none;
+      transform: translateY(-150%);
+      transition: transform 120ms ease;
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .status-help {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .workspace-nav {
+      position: sticky;
+      top: 75px;
+      z-index: 12;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 20px;
+      padding: 8px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 5px 18px rgba(24, 33, 31, 0.07);
+      backdrop-filter: blur(10px);
+      scrollbar-width: none;
+    }
+    .workspace-nav::-webkit-scrollbar { display: none; }
+    .workspace-nav-label {
+      padding: 0 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .workspace-nav a {
+      min-height: 34px;
+      padding: 8px 11px;
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 680;
+      line-height: 1.35;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .workspace-nav a:hover,
+    .workspace-nav a.active {
+      background: var(--brand-soft);
+      color: var(--brand);
+    }
+    .workspace-section {
+      scroll-margin-top: 132px;
+      margin: 0 0 28px;
+    }
+    .workspace-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin: 0 2px 10px;
+    }
+    .workspace-heading.compact { margin-top: 4px; }
+    .workspace-kicker {
+      margin: 0 0 3px;
+      color: var(--brand);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+    .workspace-heading h2 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+    .workspace-heading > p {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+      text-align: right;
+    }
+    .panel,
+    .metrics-disclosure {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .primary-panel { border-color: var(--line-strong); }
+    .primary-panel > .panel-head { background: #fff; }
+    #stagePanel,
+    #executableProfitResearchPanel,
+    #auditPanel,
+    #researchPanel { scroll-margin-top: 132px; }
+    .stage-generated-time { color: var(--muted); }
+    .table-wrap {
+      position: relative;
+      overscroll-behavior-inline: contain;
+      scrollbar-width: thin;
+      scrollbar-color: #93a49f #edf1ef;
+    }
+    .table-wrap::-webkit-scrollbar { height: 9px; }
+    .table-wrap::-webkit-scrollbar-track { background: #edf1ef; }
+    .table-wrap::-webkit-scrollbar-thumb {
+      border: 2px solid #edf1ef;
+      border-radius: 999px;
+      background: #93a49f;
+    }
+    .table-wrap:focus-visible {
+      outline: 3px solid var(--blue);
+      outline-offset: -3px;
+    }
+    .table-wrap[data-scroll-hint]::before {
+      content: attr(data-scroll-hint);
+      position: sticky;
+      left: 0;
+      z-index: 9;
+      display: block;
+      width: max-content;
+      margin: 0 8px 0 auto;
+      padding: 5px 8px;
+      border-radius: 0 0 5px 5px;
+      background: #e9eeec;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
+      pointer-events: none;
+    }
+    tbody tr:nth-child(even) td { background: #fbfcfc; }
+    tbody tr:hover td { background: #f3f8f6; }
+    table.three-rank-table th:nth-child(1),
+    table.three-rank-table td:nth-child(1) {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      width: 104px;
+      min-width: 104px;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--line);
+    }
+    table.three-rank-table th:nth-child(2),
+    table.three-rank-table td:nth-child(2) {
+      position: sticky;
+      left: 104px;
+      z-index: 3;
+      width: 116px;
+      min-width: 116px;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--line);
+    }
+    table.three-rank-table th:nth-child(-n+2) { z-index: 7; background: #f2f5f4; }
+    table.three-rank-table tbody tr:nth-child(even) td:nth-child(-n+2) { background: #fbfcfc; }
+    table.three-rank-table tbody tr:hover td:nth-child(-n+2) { background: #f3f8f6; }
+    table.executable-profit-table th:nth-child(3),
+    table.executable-profit-table td:nth-child(3) {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      width: 104px;
+      min-width: 104px;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--line);
+    }
+    table.executable-profit-table th:nth-child(4),
+    table.executable-profit-table td:nth-child(4) {
+      position: sticky;
+      left: 104px;
+      z-index: 3;
+      width: 116px;
+      min-width: 116px;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--line);
+    }
+    table.executable-profit-table th:nth-child(3),
+    table.executable-profit-table th:nth-child(4) { z-index: 7; background: #f2f5f4; }
+    table.executable-profit-table tbody tr:nth-child(even) td:nth-child(3),
+    table.executable-profit-table tbody tr:nth-child(even) td:nth-child(4) { background: #fbfcfc; }
+    table.executable-profit-table tbody tr:hover td:nth-child(3),
+    table.executable-profit-table tbody tr:hover td:nth-child(4) { background: #f3f8f6; }
+    .mixed-profit-highlights {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 16px 14px;
+    }
+    .mixed-profit-card {
+      min-width: 0;
+      border: 1px solid #a9cfc1;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #f2faf7, #fff);
+      padding: 13px 14px;
+    }
+    .mixed-profit-card-head,
+    .mixed-profit-card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .mixed-profit-card-rank {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .mixed-profit-card-score {
+      color: var(--brand);
+      text-align: right;
+    }
+    .mixed-profit-card-score small {
+      display: block;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+    .mixed-profit-card-score strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 17px;
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+    }
+    .mixed-profit-card h3 {
+      margin: 12px 0 3px;
+      font-size: 17px;
+      line-height: 1.25;
+    }
+    .mixed-profit-card-code {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .mixed-profit-card-meta {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(17, 107, 90, .14);
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .ranking-disclosure {
+      margin: 0;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .ranking-disclosure > summary,
+    .executable-profit-shadow-panel > summary {
+      list-style: none;
+      cursor: pointer;
+    }
+    .ranking-disclosure > summary::-webkit-details-marker,
+    .executable-profit-shadow-panel > summary::-webkit-details-marker { display: none; }
+    .ranking-disclosure > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 46px;
+      padding: 10px 16px;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 680;
+    }
+    .ranking-disclosure > summary::before,
+    .executable-profit-shadow-panel > summary::before {
+      content: "";
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background:
+        linear-gradient(#fff, #fff) center / 10px 1.5px no-repeat,
+        linear-gradient(#fff, #fff) center / 1.5px 10px no-repeat,
+        #111715;
+      flex: 0 0 24px;
+    }
+    .ranking-disclosure[open] > summary::before,
+    .executable-profit-shadow-panel[open] > summary::before {
+      background:
+        linear-gradient(#fff, #fff) center / 10px 1.5px no-repeat,
+        #111715;
+    }
+    .ranking-disclosure > summary > :first-child,
+    .executable-profit-shadow-panel > summary > :first-child { margin-right: auto; }
+    .executable-profit-shadow-panel { background: #fff; }
+    .executable-profit-shadow-panel > summary { font-size: 13px; }
+    .three-rank-btn {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     @media (max-width: 1100px) {
       .metrics { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
       .status-band { grid-template-columns: 1fr; }
@@ -752,6 +1082,7 @@
       .audit-grid { grid-template-columns: 1fr; }
       .report-meta { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
       .three-rank-models { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+      .table-wrap[data-scroll-hint]::before { display: block; }
     }
     @media (max-width: 640px) {
       .topbar-inner {
@@ -782,15 +1113,35 @@
       .status-band { margin: 0 12px 10px; padding: 13px; }
       .status-title { font-size: 16px; }
       .date-contract { grid-template-columns: 1fr; }
+      .workspace-nav {
+        top: 88px;
+        margin: 0 12px 18px;
+        border-radius: 7px;
+      }
+      .workspace-nav-label { display: none; }
+      .workspace-nav a { min-height: 40px; padding: 11px 12px; }
+      .workspace-section { scroll-margin-top: 148px; margin-bottom: 24px; }
+      .workspace-heading {
+        display: block;
+        margin: 0 14px 9px;
+      }
+      .workspace-heading h2 { font-size: 18px; }
+      .workspace-heading > p {
+        margin-top: 5px;
+        max-width: none;
+        text-align: left;
+      }
       .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); padding: 0 12px; }
       .metrics-disclosure summary { padding: 11px 12px; }
       .metrics-disclosure .metrics { padding: 0 12px 12px; }
       .metric { min-height: 76px; }
       .metric strong { font-size: 17px; }
-      .panel-head { padding: 11px 12px; }
+      .panel-head { padding: 11px 12px; align-items: flex-start; flex-wrap: wrap; }
+      .panel-head > div { flex: 1 1 100%; }
+      .count { white-space: normal; line-height: 1.4; }
       .shadow-summary { padding: 0 12px 12px; }
-      .shadow-subhead { padding: 10px 12px 7px; align-items: flex-start; }
-      .shadow-subhead span { max-width: 48%; }
+      .shadow-subhead { padding: 10px 12px 7px; align-items: flex-start; flex-direction: column; }
+      .shadow-subhead span { max-width: none; text-align: left; }
       .empty { margin: 0 12px 12px; }
       .panel-metrics { padding: 0 12px; }
       .sentiment-industries { margin: -2px 12px 12px; }
@@ -801,6 +1152,11 @@
       .executable-profit-banner { margin: 0 12px 12px; }
       .executable-profit-proof { padding: 0 12px 10px; }
       .executable-profit-shadow-panel { margin: 12px; }
+      .mixed-profit-highlights { grid-template-columns: 1fr; padding: 0 12px 12px; }
+      .mixed-profit-card { padding: 12px; }
+      .ranking-disclosure > summary { padding: 10px 12px; }
+      .three-rank-btn { min-height: 42px; padding: 9px 11px; }
+      .stage-generated-time { display: block; margin: 4px 0 0; white-space: normal; }
       table.industry-table {
         min-width: 100%;
         table-layout: fixed;
@@ -823,10 +1179,12 @@
       .brand h1 { font-size: 16px; }
       .controls { gap: 6px; }
       .icon-btn { width: 34px; height: 34px; }
+      .report-meta { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#stagePanel">跳到今日三套排序</a>
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
@@ -841,11 +1199,12 @@
     </div>
   </header>
 
-  <main>
-    <section id="statusBand" class="status-band warn">
+  <main id="mainContent" aria-busy="true">
+    <section id="statusBand" class="status-band warn" aria-live="polite">
       <div>
         <p id="statusKicker" class="status-kicker">执行结论</p>
         <h2 id="statusTitle" class="status-title">正在加载</h2>
+        <p class="status-help">“已生成”仅指 D 日排名工件完成；T 与 T+1 是否验证，以名单和 Shadow 状态为准。</p>
       </div>
       <div class="date-contract">
         <div class="date-box"><span><b>D</b>信号日</span><strong id="signalDate">-</strong></div>
@@ -854,119 +1213,168 @@
       </div>
     </section>
 
-    <section id="researchPanel" class="panel">
-      <div class="panel-head">
+    <nav class="workspace-nav" aria-label="页面主要区域">
+      <span class="workspace-nav-label">快速定位</span>
+      <a class="active" href="#rankingWorkspace" aria-current="location">今日三套排序</a>
+      <a href="#shadowWorkspace" data-current-only>Shadow 账本</a>
+      <a href="#reviewWorkspace" data-current-only>研究复盘</a>
+      <a href="#systemWorkspace">系统审计</a>
+    </nav>
+
+    <section id="rankingWorkspace" class="workspace-section" aria-labelledby="rankingWorkspaceTitle">
+      <div class="workspace-heading">
         <div>
-          <h2>日线研究候选（非买入建议）</h2>
-          <p>展示 Daily 报告与评估中已经生成的研究候选；正式行动仍只认同同日 Auction action_plan。</p>
+          <p class="workspace-kicker">今日核心</p>
+          <h2 id="rankingWorkspaceTitle">三套排序</h2>
         </div>
-        <span id="researchCount" class="count" aria-live="polite">待读取</span>
+        <p>先看晋级榜和单一盈利排序，再看混合盈利 Top1 / Top2；三者只切换展示，不改原始排名。</p>
       </div>
-      <div id="researchMetrics" class="metrics panel-metrics"></div>
-      <div id="researchContent"></div>
-      <p id="researchNote" class="stats-note"></p>
+
+      <section id="stagePanel" class="panel primary-panel">
+        <div class="panel-head">
+          <div>
+            <h2>2→3→4 · <span id="stageSignalDate">D：-</span><span id="stageGeneratedTime" class="stage-generated-time"></span></h2>
+          </div>
+          <span id="stageCount" class="count">0 条</span>
+        </div>
+        <div id="stageContent"></div>
+      </section>
+
+      <section id="executableProfitResearchPanel" class="panel primary-panel mixed-profit-panel">
+        <div class="panel-head">
+          <div>
+            <h2>混合盈利排序</h2>
+            <p>在冻结晋级名单内独立排序；晋级成员与晋级排名保持不变。</p>
+          </div>
+          <span id="executableProfitResearchState" class="count" aria-live="polite">待读取</span>
+        </div>
+        <div id="executableProfitResearchContent">
+          <div class="empty"><strong>正在读取独立研究投影</strong>只接受同仓库、同D日、日期与字节SHA256完整绑定的 dated 工件。</div>
+        </div>
+        <details id="executableProfitShadowPanel" class="executable-profit-shadow-panel">
+          <summary>
+            <span>Shadow Top1 / Top2 · 前向验证与累计统计（仅自然冻结）</span>
+            <span id="executableProfitShadowState" class="count">待读取</span>
+          </summary>
+          <div id="executableProfitShadowMetrics" class="metrics"></div>
+          <div id="executableProfitShadowContent"></div>
+          <p id="executableProfitShadowNote" class="executable-profit-shadow-note">模型 Shadow 与人工作业结果严格隔离；本区不连接券商、不生成订单，也不声称实际成交。</p>
+        </details>
+      </section>
     </section>
 
-    <details class="panel top10-backtest-panel">
-      <summary class="panel-head">
+    <section id="shadowWorkspace" class="workspace-section" aria-labelledby="shadowWorkspaceTitle">
+      <div class="workspace-heading compact">
         <div>
-          <h2>混合盈利 Shadow · 每日记录</h2>
+          <p class="workspace-kicker">独立留痕</p>
+          <h2 id="shadowWorkspaceTitle">Shadow 账本</h2>
         </div>
-        <span id="top10BacktestCount" class="count">待计算</span>
-      </summary>
-      <div id="top10BacktestContent"></div>
-      <p id="top10BacktestNote" class="stats-note"></p>
-    </details>
-
-    <details class="metrics-disclosure">
-      <summary>
-        <span class="metrics-disclosure-title">核心指标</span>
-        <span id="metricsCount" class="count">0 项</span>
-      </summary>
-      <section id="metrics" class="metrics" aria-label="核心指标"></section>
-    </details>
-
-    <details id="sentimentPanel" class="panel observation-disclosure">
-      <summary class="panel-head">
-        <div>
-          <h2>市场情绪量化</h2>
-        </div>
-        <span id="sentimentState" class="count">数据不足</span>
-      </summary>
-      <div id="sentimentMetrics" class="metrics panel-metrics"></div>
-      <div id="sentimentIndustries" class="sentiment-industries"></div>
-    </details>
-
-    <section id="stagePanel" class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>2→3→4 · <span id="stageSignalDate">D：-</span><span id="stageGeneratedTime" class="stage-generated-time"></span></h2>
-        </div>
-        <span id="stageCount" class="count">0 条</span>
+        <p>每日账本记录每个完整 D 的混合盈利 Top1 / Top2；自然前向统计另行冻结，恢复留档不进入收益。</p>
       </div>
-      <div id="stageContent"></div>
-    </section>
 
-    <section id="executableProfitResearchPanel" class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>混合盈利排序</h2>
-          <p>在冻结晋级名单内独立排序；晋级成员与晋级排名保持不变。</p>
-        </div>
-        <span id="executableProfitResearchState" class="count" aria-live="polite">待读取</span>
-      </div>
-      <div id="executableProfitResearchContent">
-        <div class="empty"><strong>正在读取独立研究投影</strong>只接受同仓库、同D日、日期与字节SHA256完整绑定的 dated 工件。</div>
-      </div>
-      <details id="executableProfitShadowPanel" class="executable-profit-shadow-panel" open>
-        <summary>
-          <span>Shadow Top1 / Top2 · 前向验证与累计统计（仅自然冻结）</span>
-          <span id="executableProfitShadowState" class="count">待读取</span>
+      <details class="panel top10-backtest-panel">
+        <summary class="panel-head">
+          <div>
+            <h2>混合盈利 · 每日影子账本</h2>
+          </div>
+          <span id="top10BacktestCount" class="count">待计算</span>
         </summary>
-        <div id="executableProfitShadowMetrics" class="metrics"></div>
-        <div id="executableProfitShadowContent"></div>
-        <p id="executableProfitShadowNote" class="executable-profit-shadow-note">模型 Shadow 与人工作业结果严格隔离；本区不连接券商、不生成订单，也不声称实际成交。</p>
+        <div id="top10BacktestContent"></div>
+        <p id="top10BacktestNote" class="stats-note"></p>
       </details>
     </section>
 
-    <details class="panel observation-disclosure">
-      <summary class="panel-head">
+    <section id="reviewWorkspace" class="workspace-section" aria-labelledby="reviewWorkspaceTitle">
+      <div class="workspace-heading compact">
         <div>
-          <h2>观察真值与累计统计</h2>
+          <p class="workspace-kicker">按需展开</p>
+          <h2 id="reviewWorkspaceTitle">研究复盘</h2>
         </div>
-        <span id="observationUpdate" class="count">待验证</span>
-      </summary>
-      <div id="observationMetrics" class="metrics panel-metrics"></div>
-      <p id="observationNote" class="stats-note"></p>
-    </details>
-
-    <details class="panel diagnostic-disclosure">
-      <summary>
-        <span class="diagnostic-title">
-          <strong>连板路径 · 小样本诊断</strong>
-        </span>
-        <span id="pathDiagnosticsCount" class="count">待统计</span>
-      </summary>
-      <div id="pathDiagnosticsContent"></div>
-      <p id="pathDiagnosticsNote" class="stats-note"></p>
-    </details>
-
-    <section id="auditPanel" class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>模型与资格审计</h2>
-          <p>正式状态由严格滚动样本外结果、成本压力测试、退出可执行性和证券资格共同决定。</p>
-        </div>
+        <p>指标、情绪、真值与路径诊断默认收起，避免打断今日名单阅读。</p>
       </div>
-      <div id="auditContent" class="audit-grid"></div>
+
+      <details class="metrics-disclosure">
+        <summary>
+          <span class="metrics-disclosure-title">核心指标</span>
+          <span id="metricsCount" class="count">0 项</span>
+        </summary>
+        <section id="metrics" class="metrics" aria-label="核心指标"></section>
+      </details>
+
+      <details id="sentimentPanel" class="panel observation-disclosure">
+        <summary class="panel-head">
+          <div>
+            <h2>市场情绪量化</h2>
+          </div>
+          <span id="sentimentState" class="count">数据不足</span>
+        </summary>
+        <div id="sentimentMetrics" class="metrics panel-metrics"></div>
+        <div id="sentimentIndustries" class="sentiment-industries"></div>
+      </details>
+
+      <details class="panel observation-disclosure">
+        <summary class="panel-head">
+          <div>
+            <h2>观察真值与累计统计</h2>
+          </div>
+          <span id="observationUpdate" class="count">待验证</span>
+        </summary>
+        <div id="observationMetrics" class="metrics panel-metrics"></div>
+        <p id="observationNote" class="stats-note"></p>
+      </details>
+
+      <details class="panel diagnostic-disclosure">
+        <summary>
+          <span class="diagnostic-title">
+            <strong>连板路径 · 小样本诊断</strong>
+          </span>
+          <span id="pathDiagnosticsCount" class="count">待统计</span>
+        </summary>
+        <div id="pathDiagnosticsContent"></div>
+        <p id="pathDiagnosticsNote" class="stats-note"></p>
+      </details>
+
+      <details id="researchPanel" class="panel observation-disclosure">
+        <summary class="panel-head">
+          <div>
+            <h2>日线研究候选（非买入建议）</h2>
+            <p>Daily 研究后备视图；完整 D 日三套排序存在时自动隐藏。</p>
+          </div>
+          <span id="researchCount" class="count" aria-live="polite">待读取</span>
+        </summary>
+        <div id="researchMetrics" class="metrics panel-metrics"></div>
+        <div id="researchContent"></div>
+        <p id="researchNote" class="stats-note">正式行动仍只认同同日 Auction action_plan。</p>
+      </details>
     </section>
 
-    <details id="reportDetails" class="panel">
-      <summary>Decision 报告正文</summary>
-      <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
-    </details>
+    <section id="systemWorkspace" class="workspace-section" aria-labelledby="systemWorkspaceTitle">
+      <div class="workspace-heading compact">
+        <div>
+          <p class="workspace-kicker">高级信息</p>
+          <h2 id="systemWorkspaceTitle">系统与合规</h2>
+        </div>
+        <p>模型合同、来源校验与历史报告只在排障或审计时展开。</p>
+      </div>
 
-    <footer id="footer">页面版 research-first-v3 · 本页面不自动刷新，不连接券商，不执行订单。研究结果不构成收益保证；没有通过晋级门槛时，系统会明确输出不交易。</footer>
+      <details id="auditPanel" class="panel observation-disclosure">
+        <summary class="panel-head">
+          <div>
+            <h2>模型与数据审计</h2>
+            <p>滚动样本外结果、成本压力测试、退出可执行性与证券资格。</p>
+          </div>
+          <span class="count">技术信息</span>
+        </summary>
+        <div id="auditContent" class="audit-grid"></div>
+      </details>
+
+      <details id="reportDetails" class="panel">
+        <summary>Decision 报告正文</summary>
+        <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
+      </details>
+    </section>
+
+    <footer id="footer">页面版 decision-workspace-v11 · 本页面不自动刷新，不连接券商，不执行订单。研究结果不构成收益保证；没有通过晋级门槛时，系统会明确输出不交易。</footer>
   </main>
 
   <script>
@@ -974,8 +1382,8 @@
 
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
-    const CACHE_KEY = "dc20-decision-dashboard-v5-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v10-mixed-top2-daily-ledger";
+    const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
+    const DASHBOARD_VERSION = "independent-three-rank-v11-focused-workspace";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json";
@@ -997,6 +1405,7 @@
       primaryIndexSchema: "dc20_primary_single_profit_research_index_v1"
     });
     const els = Object.fromEntries([
+      "mainContent", "rankingWorkspace", "shadowWorkspace", "reviewWorkspace", "systemWorkspace",
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
       "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
@@ -1122,20 +1531,27 @@
 
     async function fetchPath(path, kind = "json") {
       const primary = localUrl(path);
-      const urls = primary === RAW_BASE + path ? [primary] : [primary, RAW_BASE + path];
-      let lastError = null;
-      for (const url of urls) {
+      const readUrl = async url => {
+        const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (kind === "text") return await response.text();
+        if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
+        return await response.json();
+      };
+      if (primary === RAW_BASE + path) return readUrl(primary);
+      try {
+        return await readUrl(primary);
+      } catch (pagesError) {
+        // A Pages fallback must stay on the exact deployed revision. Falling
+        // through to a moving main branch can splice artifacts from two runs.
+        const headSha = await publishedRevisionSha();
+        const exactRaw = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${headSha}/${path}`;
         try {
-          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          if (kind === "text") return await response.text();
-          if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
-          return await response.json();
-        } catch (error) {
-          lastError = error;
+          return await readUrl(exactRaw);
+        } catch (exactError) {
+          throw new Error(`Pages与精确revision均无法读取 ${path}: ${String(exactError?.message || pagesError)}`);
         }
       }
-      throw lastError || new Error(`无法读取 ${path}`);
     }
 
     async function fetchPagesOnlyPath(path, kind = "json") {
@@ -1679,6 +2095,12 @@
     }
 
     function renderStatus(plan) {
+      const currentPage = state.index === 0;
+      els.shadowWorkspace.hidden = !currentPage;
+      els.reviewWorkspace.hidden = !currentPage;
+      document.querySelectorAll(".workspace-nav [data-current-only]").forEach(link => {
+        link.hidden = !currentPage;
+      });
       const primaryContract = state.index === 0
         ? validatedThreeRankContract(state.currentThreeRank)
         : null;
@@ -1686,7 +2108,7 @@
         const profitReady = state.currentLegacyProfitRelativeResearch?.signal_date === primaryContract.signal_date &&
           state.currentExecutableProfitResearch?.status === "ready" &&
           state.currentExecutableProfitResearch?.projection?.signal_date === primaryContract.signal_date;
-        els.statusBand.className = "status-band good";
+        els.statusBand.className = `status-band ${profitReady ? "good" : "warn"}`;
         els.statusKicker.textContent = "D日核心排名（不依赖历史Action）";
         els.statusTitle.textContent = profitReady
           ? "晋级榜、单一盈利与混合盈利排序已生成"
@@ -1725,20 +2147,25 @@
         : null;
       const sameDayAuctionContext = !primaryContract || primaryContract === false
         || canonicalYmd(plan?.signal_date) === canonicalYmd(primaryContract.signal_date);
+      const primaryReady = Boolean(primaryContract && primaryContract !== false);
       els.sentimentPanel.hidden = !available || !sameDayAuctionContext;
-      els.stagePanel.hidden = !(available || (primaryContract && primaryContract !== false));
-      els.auditPanel.hidden = !available;
+      els.stagePanel.hidden = !(available || primaryReady);
+      els.auditPanel.hidden = !(available && sameDayAuctionContext) && !primaryReady;
       if (!available) {
         els.sentimentState.textContent = "同日竞价明细尚未生成";
         els.sentimentMetrics.innerHTML = "";
         els.sentimentIndustries.innerHTML = "";
-        els.auditContent.innerHTML = "";
-        if (primaryContract && primaryContract !== false) renderStageWatchlist(plan);
+        els.auditContent.innerHTML = primaryReady ? threeRankAuditSectionHtml(plan) : "";
+        if (primaryReady) renderStageWatchlist(plan);
         return;
       }
-      if (sameDayAuctionContext) renderSentiment(plan);
+      if (sameDayAuctionContext) {
+        renderSentiment(plan);
+        renderAudit(plan);
+      } else {
+        els.auditContent.innerHTML = primaryReady ? threeRankAuditSectionHtml(plan) : "";
+      }
       renderStageWatchlist(plan);
-      renderAudit(plan);
     }
 
     function renderMetrics(plan) {
@@ -1880,7 +2307,7 @@
           <span>D ${dateText(ledger.public_start_signal_date)} 起 · 代码、公司与D/T/T+1完整留档</span>
         </div>
         ${dailyRows
-          ? `<div class="table-wrap"><table class="shadow-forward-table">
+          ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="每日混合盈利Top1与Top2影子账本，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="shadow-forward-table">
               <thead><tr><th>D</th><th>T</th><th>T+1</th><th>席位</th><th>代码</th><th class="left">公司名称</th><th>混合盈利排序</th><th>晋级排序</th><th>晋级</th><th>记录方式</th><th>收益统计口径</th></tr></thead>
               <tbody>${dailyRows}</tbody>
             </table></div>`
@@ -3112,7 +3539,7 @@
           <td class="${valueTone(cohort.maximum_drawdown)}">${signedPct(cohort.maximum_drawdown)}</td>
         </tr>`;
       }).join("");
-      return `<div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr>
+      return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="Shadow累计统计，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-shadow-table"><thead><tr>
         <th class="left">累计口径</th><th class="left">当前代码</th><th class="left">当前公司</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>D日</th><th>冻结槽位</th><th>T已验证</th><th>T+1已结算</th><th>代理可买率</th><th>盈利率</th><th>平均净收益</th><th>等权累计</th><th>最大回撤</th>
       </tr></thead><tbody>${body}</tbody></table></div>`;
     }
@@ -3212,7 +3639,7 @@
         return `<tr><td>Top${row.shadow_slot}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(row.name)}</td><td>${escapeHtml(dateText(shadow.signal_date))}</td><td>${escapeHtml(dateText(shadow.exec_date))}</td><td>${escapeHtml(dateText(shadow.exit_date))}</td><td><span class="truth-badge pending">${escapeHtml(tLabel)}</span></td><td><span class="truth-badge pending">${escapeHtml(t1Label)}</span></td><td class="${valueTone(row.net_return_after_cost)}">${signedPct(row.net_return_after_cost)}</td><td class="${valueTone(row.strategy_slot_return)}">${signedPct(row.strategy_slot_return)}</td></tr>`;
       }).join("");
       const latestTable = rows.length
-        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>同D同SHA混合盈利Top1/Top2 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
+        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>同D同SHA混合盈利Top1/Top2 · 人工作业不纳入</span></div><div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="当前D日冻结Shadow，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2。</div>';
       els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>D 0828起 · Top1、Top2分别统计 · 当前标识仅作当期上下文 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(displaySummary, { rows, signal_date: shadow.signal_date, exec_date: shadow.exec_date, exit_date: shadow.exit_date })}`;
       els.executableProfitShadowNote.textContent = publicWindowReady
@@ -3238,18 +3665,37 @@
         <td>${number(row.research_fill_proxy_score, 4)}</td>
         <td>${number(row.research_conditional_profit_score, 4)}</td>
       </tr>`).join("");
+      const highlights = rows.slice(0, 2).map(row => `<article class="mixed-profit-card" aria-label="混合盈利研究第${integerText(row.executable_profit_research_rank)}名">
+        <div class="mixed-profit-card-head">
+          <span class="mixed-profit-card-rank">研究 Top${integerText(row.executable_profit_research_rank)}</span>
+          <span class="mixed-profit-card-score"><small>未校准联合代理分</small><strong>${pct(row.estimated_executable_profit_probability)}</strong></span>
+        </div>
+        <h3>${escapeHtml(row.name)}</h3>
+        <div class="mixed-profit-card-code">${escapeHtml(row.ts_code)} · ${escapeHtml(row.industry || "未分类")}</div>
+        <div class="mixed-profit-card-meta">
+          <span>${escapeHtml(row.stage_transition)}</span>
+          <span>晋级排序 ${integerText(row.promotion_rank)}</span>
+          <span>D ${dateText(projection.signal_date)}</span>
+        </div>
+      </article>`).join("");
       const downloads = `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/index.json`))}" download>下载研究索引</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>`;
-      els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
-        ${rows.length ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
-          <th>混合盈利排序</th><th>晋级排序</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>联合代理分（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th>
-        </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
+      els.executableProfitResearchContent.innerHTML = `${rows.length ? `<div class="mixed-profit-highlights">${highlights}</div>
+        <details class="ranking-disclosure">
+          <summary><span>完整混合盈利排序</span><span class="count">真实候选 ${integerText(rows.length)} 支 · 展开表格与下载</span></summary>
+          <div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
+          <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="完整混合盈利排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-table">
+            <caption class="sr-only">D ${dateText(projection.signal_date)} 混合盈利完整排序</caption><thead><tr>
+            <th scope="col">混合盈利排序</th><th scope="col">晋级排序</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th><th scope="col">联合代理分（未校准）</th><th scope="col">可买代理分</th><th scope="col">条件盈利代理分</th>
+          </tr></thead><tbody>${body}</tbody></table></div>
+        </details>` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
         <p class="stats-note">${projection.retrospective_non_forward ? "本排序为明确的历史恢复研究，不是当时冻结的前向选择，不进入Shadow选择或累计统计。" : "本排序是D日研究展示；P1主投影本身不写Shadow或正式行动，独立sidecar仅在同D同SHA时展示Top1/Top2与累计统计。"} 联合代理分是可买代理分×条件盈利代理分，未做正式概率校准。</p>`;
       renderPrimaryProfitShadowSidecar(loaded);
     }
 
     function renderExecutableProfitResearch(plan) {
+      els.executableProfitResearchPanel.hidden = false;
       const loaded = state.currentExecutableProfitResearch;
       if (state.index !== 0) {
         resetExecutableProfitResearchView("history");
@@ -3317,7 +3763,7 @@
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_statistics_url))}" download>下载 Shadow 统计</a>`;
       els.executableProfitResearchContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
-      ${candidateCount ? `<div class="table-wrap"><table class="executable-profit-table"><thead><tr>
+      ${candidateCount ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="混合盈利研究排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-table"><thead><tr>
         <th>盈利概率排名</th><th>晋级排名</th><th>Shadow</th><th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th><th>模型估计可实现盈利概率（未校准）</th><th>可买代理分</th><th>条件盈利代理分</th><th>D冻结最高研究价</th><th>T验证</th><th>T+1净收益（来源合同成本后）</th>
       </tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty"><strong>D日硬范围候选为0</strong>当日没有2→3或3→4候选；系统展示真实N=0，不从池外补票，也不生成Shadow Top1/Top2。</div>'}`;
       const currentShadowRows = statistics.latest_selected_rows.map(row => ({
@@ -3342,7 +3788,7 @@
         metric("等权累计净收益", overall ? signedPct(overall.equal_weight_cumulative_return) : "-", valueTone(overall?.equal_weight_cumulative_return))
       ].join("");
       const latestTable = currentShadowRows.length
-        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
+        ? `<div class="shadow-subhead"><h3>当前D日冻结Shadow</h3><span>真实公开市场代理 · 人工作业不纳入</span></div><div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="当前D日冻结Shadow，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-shadow-table"><thead><tr><th>席位</th><th class="left">代码</th><th class="left">公司名称</th><th>D日期</th><th>T日期</th><th>T+1日期</th><th>T验证</th><th>T+1状态</th><th>成交条件净收益</th><th>策略槽位收益</th></tr></thead><tbody>${latestBody}</tbody></table></div>`
         : '<div class="empty"><strong>当日无Shadow</strong>N=0时不生成Top1，也不补Top2；零候选日仍可进入D日进度统计。</div>';
       els.executableProfitShadowContent.innerHTML = `${latestTable}<div class="shadow-subhead"><h3>新账本累计统计</h3><span>Top1、Top2分别统计 · 当前标识仅作当期上下文 · 未成熟保持待验证</span></div>${renderExecutableProfitCohorts(summary, { rows: currentShadowRows, signal_date: projection.signal_date, exec_date: projection.exec_date, exit_date: projection.exit_date })}`;
       els.executableProfitShadowNote.textContent = `统计截至 ${dateText(statistics.as_of_date)}；成本后收益只来自模型冻结Shadow并服从SHA绑定的结算来源合同，代理未成交的条件收益为空、策略槽位收益记0。页面显示的是未校准模型估计概率，正式校准状态仍为false；人工作业结果使用独立账本，不回填模型Shadow。`;
@@ -4022,7 +4468,12 @@
         const table = els.stageContent.querySelector("tbody[data-three-rank-body]");
         if (table) table.innerHTML = body;
         els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
-          button.classList.toggle("active", button.dataset.threeRankSort === sortField);
+          const active = button.dataset.threeRankSort === sortField;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+        els.stageContent.querySelectorAll("th[data-rank-field]").forEach(header => {
+          header.setAttribute("aria-sort", header.dataset.rankField === sortField ? "ascending" : "none");
         });
       };
 
@@ -4032,17 +4483,19 @@
       }
       els.stageContent.innerHTML = `<div class="three-rank-toolbar">
           <div class="three-rank-sort">
-            <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank">按晋级排序</button>
-            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank">单一盈利排序</button>' : ""}
+            <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank" aria-pressed="true">晋级榜</button>
+            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank" aria-pressed="false">单一盈利排序</button>' : ""}
+            <a class="three-rank-btn" href="#executableProfitResearchPanel">混合盈利排序 ↓</a>
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
-        ${fixedRows.length ? `<div class="table-wrap"><table class="three-rank-table"><thead><tr>
-          <th class="left">代码</th><th class="left">股票</th><th class="left">行业板块</th><th>晋级</th>
+        ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4三套排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
+          <caption class="sr-only">D ${dateText(contract.signal_date)} 2进3进4晋级榜与单一盈利排序</caption><thead><tr>
+          <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th>
           <th class="left">连板路径</th><th>路径变化</th>
-          <th>晋级排序</th><th>晋级概率</th>
-          ${legacyVisible ? "<th>单一盈利排序</th><th>模型分值</th>" : ""}
-          <th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th>
+          <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
+          ${legacyVisible ? '<th scope="col" data-rank-field="legacy_profit_relative_rank" aria-sort="none">单一盈利排序</th><th scope="col">模型分值</th>' : ""}
+          <th scope="col">T晋级结果</th><th scope="col">T+1净收益</th><th scope="col">T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));
@@ -4115,7 +4568,7 @@
         <td>${pct(row.predicted_big_loss_probability)}</td>
         <td class="reason">${plan?.historical_parity === true ? "历史记录（只读）" : row.action === "BUY" ? "允许买入" : "禁止买入"}</td>
       </tr>`).join("");
-      els.stageContent.innerHTML = `<div class="table-wrap"><table class="stage-table"><thead><tr>${headers.map((h, i) => `<th class="${[3,5,6,7,9,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
+      els.stageContent.innerHTML = `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="历史阶段观察表，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="stage-table"><thead><tr>${headers.map((h, i) => `<th class="${[3,5,6,7,9,21].includes(i) ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
     }
 
     function renderObservationStatistics(plan) {
@@ -4211,7 +4664,7 @@
         </tr>`;
       }).join("");
       els.pathDiagnosticsCount.textContent = `D ${publicStartLabel}起 · ${entries.length} 条路径 · ${readyCount} 条可观察`;
-      els.pathDiagnosticsContent.innerHTML = `<div class="table-wrap"><table class="path-diagnostic-table">
+      els.pathDiagnosticsContent.innerHTML = `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="连板路径小样本诊断，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="path-diagnostic-table">
         <thead><tr><th class="left">连板路径</th><th>T验证样本</th><th>晋级率</th><th>T+1完成</th><th>平均净收益</th><th>胜率</th><th>样本判断</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
@@ -4404,7 +4857,7 @@
 
     function markdownTableHtml(table) {
       if (!table || !table.rows.length) return '<div class="empty">该表当前为空。</div>';
-      return `<div class="table-wrap"><table><thead><tr>${table.header.map((h, i) => `<th class="${i < 3 ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${table.rows.map(row => `<tr>${table.header.map((_, i) => `<td class="${i < 3 ? "left" : ""}">${escapeHtml(row[i] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+      return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="日线研究候选，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table><thead><tr>${table.header.map((h, i) => `<th class="${i < 3 ? "left" : ""}">${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${table.rows.map(row => `<tr>${table.header.map((_, i) => `<td class="${i < 3 ? "left" : ""}">${escapeHtml(row[i] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     }
 
     function rowCount(...values) {
@@ -4704,6 +5157,7 @@
     }
 
     async function loadReport(index) {
+      els.mainContent.setAttribute("aria-busy", "true");
       state.index = Math.max(0, Math.min(index, state.reports.length - 1));
       setNavigation();
       const info = state.reports[state.index];
@@ -4793,6 +5247,7 @@
       els.reportDetails.open = false;
       cacheCurrent(info, plan, md, evaluation);
       els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+      els.mainContent.setAttribute("aria-busy", "false");
     }
 
     function primaryCoreOnlyPlan() {
@@ -4820,6 +5275,7 @@
       if (!plan) throw error;
       state.index = 0;
       state.current = { info: null, plan, md: "", evaluation: null };
+      els.researchPanel.hidden = true;
       renderStatus(plan);
       renderTop10Backtest(plan);
       renderMetrics(plan);
@@ -4835,6 +5291,7 @@
 
     async function initialize(force = false) {
       els.refreshBtn.disabled = true;
+      els.mainContent.setAttribute("aria-busy", "true");
       let targetInfo = null;
       try {
         if (force) state.reports = [];
@@ -4877,7 +5334,33 @@
         setNavigation();
       } finally {
         els.refreshBtn.disabled = false;
+        els.mainContent.setAttribute("aria-busy", "false");
       }
+    }
+
+    const workspaceLinks = [...document.querySelectorAll(".workspace-nav a[href^='#']")];
+    function setWorkspaceNavActive(activeLink) {
+      workspaceLinks.forEach(link => {
+        const active = link === activeLink;
+        link.classList.toggle("active", active);
+        if (active) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      });
+    }
+    workspaceLinks.forEach(link => link.addEventListener("click", () => setWorkspaceNavActive(link)));
+    if ("IntersectionObserver" in window) {
+      const linkByTarget = new Map(workspaceLinks.map(link => [link.getAttribute("href")?.slice(1), link]));
+      const observer = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting && !entry.target.hidden)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        const link = visible ? linkByTarget.get(visible.target.id) : null;
+        if (link && !link.hidden) setWorkspaceNavActive(link);
+      }, { rootMargin: "-22% 0px -62% 0px", threshold: [0, 0.05, 0.2] });
+      linkByTarget.forEach((_, id) => {
+        const section = document.getElementById(id);
+        if (section) observer.observe(section);
+      });
     }
 
     els.refreshBtn.addEventListener("click", () => {
@@ -4890,13 +5373,42 @@
     els.nextBtn.addEventListener("click", () => loadReport(state.index - 1).catch(showError));
 
     function showError(error) {
+      els.mainContent.setAttribute("aria-busy", "false");
       els.statusBand.className = "status-band bad";
       els.statusKicker.textContent = "读取状态";
       els.statusTitle.textContent = `读取失败：${String(error?.message || error || "未知错误")}`;
+      els.stagePanel.hidden = true;
+      els.stageCount.textContent = "读取失败";
+      els.stageContent.innerHTML = "";
+      els.executableProfitResearchPanel.hidden = true;
+      els.executableProfitResearchState.textContent = "读取失败";
+      els.executableProfitResearchContent.innerHTML = "";
+      els.executableProfitShadowPanel.open = false;
+      els.executableProfitShadowMetrics.innerHTML = "";
+      els.executableProfitShadowContent.innerHTML = "";
+      els.shadowWorkspace.hidden = true;
+      els.reviewWorkspace.hidden = false;
+      els.metrics.innerHTML = "";
+      els.metricsCount.textContent = "读取失败";
+      els.sentimentPanel.hidden = true;
+      els.sentimentMetrics.innerHTML = "";
+      els.sentimentIndustries.innerHTML = "";
+      els.observationMetrics.innerHTML = "";
+      els.observationUpdate.textContent = "读取失败";
+      els.observationNote.textContent = "";
+      els.pathDiagnosticsContent.innerHTML = "";
+      els.pathDiagnosticsCount.textContent = "读取失败";
+      els.pathDiagnosticsNote.textContent = "";
+      els.auditPanel.hidden = true;
+      els.auditContent.innerHTML = "";
       els.researchCount.textContent = "读取失败";
+      els.researchPanel.hidden = false;
+      els.researchPanel.open = true;
       els.researchMetrics.innerHTML = "";
       els.researchContent.innerHTML = '<div class="empty"><strong>未展示任何研究候选</strong>同日报告或评估没有通过读取与日期绑定校验。</div>';
       els.researchNote.textContent = "";
+      els.reportDetails.open = false;
+      els.reportContent.innerHTML = '<div class="empty"><strong>报告读取失败</strong>页面已清空上一次成功渲染，避免把旧结果误认为当前数据。</div>';
     }
 
     window.addEventListener("error", event => showError(event.error || event.message));

@@ -74,7 +74,7 @@
     "scripts/publish_primary_profit_rankings.py": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
     "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
     "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "75609cb85520cad1ad392dc0b7a553ee2a2f36eb85c6083518711371ab39b837",
-    "tests/test_decision_executable_profit_frontend.py": "157c72a815f7b4327c1173d884874a4baf9991764fdfefe21b35e9de8ab80923",
+    "tests/test_decision_executable_profit_frontend.py": "5c4b1d5f17df09dfa348c9d5bd5961d5d924c58583e8f62947a75069919d2317",
     "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
     "tests/test_primary_profit_forward_shadow_bridge.py": "65569cab727b69f8ee862850c333c082bce310f1246ddb1a461b782019c319ba",
@@ -82,7 +82,7 @@
     "tests/test_primary_profit_rankings_p1.py": "c83d741249736b8e6371d1c41f0f301647f24a0324d6683c5fb722cbe9d1c536",
     "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf"
   },
-  "changed_surface_sha256": "6a3be7488da0137b2619812c0232a3ec89ca99a16d33a6b70561723a91b10e4d",
+  "changed_surface_sha256": "e32e05bf74a6d7215ec4251488e8f7a0eddc34ed0cb685c8674b797bfe6eebb6",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -123,7 +123,7 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "252d5f1afc9a7c230b6fb98f7346cb5ece7ee5ab238e651c9e348caf8252f5db",
+      "current_sha256": "a3910c940db924f582c69a4abdbf71f3888b4f8952d1062f9c1448d77d3e67cc",
       "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
@@ -267,7 +267,7 @@
     {
       "path": "tests/test_dashboard_research_projection.py",
       "prior_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
-      "current_sha256": "f1e50af8def2a45aea92e6c48c47e86944dfa2a913618dd04602cfcff7b2072b",
+      "current_sha256": "5eeea66490e824997911ce5730813cc2c1a1b4987d50f5067413d0e5917adbf4",
       "classification": "primary_profit_frontend_contract_test"
     },
     {
