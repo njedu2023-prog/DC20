@@ -216,20 +216,62 @@
       "source_bundle_sha256": "38b2b6260e3f3eb1b66e54391852eb464afee8c77c969c7ca4a1dabb6ee44cae",
       "source_feature_snapshot_sha256": "2a0814b8b28deac7a45913ef93de7c095154364fd2eeb45e2c17ef8943ca47c3",
       "top10_members_sha256": "fd0eea6a268afaea44f2340125387c9901e6618f34d095d6cd446586b958bcd1"
+    },
+    {
+      "candidate_count": 6,
+      "entry_sha256": "16f2551be3715543b60fd57ce95a74ead51fda31cd642b06a08078013ca6acf2",
+      "exec_date": "20260907",
+      "exit_date": "20260908",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "959040bd8c704990632e95eb802f4c06761e2bca819d31cea511bd3027857a63",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260904.csv",
+      "projection_json_sha256": "b8a9016ad711358f3d1a56adf1fc9a89307b5989bd00e65184cf0bbd9d05e5dd",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260904.json",
+      "projection_snapshot_sha256": "b3d72f862a5ecebe958cfe687dda9789286e5dbfe8809f1df00f3b9d3ca925b6",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "航运港口",
+          "mixed_profit_rank": 1,
+          "name": "海通发展",
+          "promotion_rank": 6,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "603162.SH"
+        },
+        {
+          "industry": "种植业",
+          "mixed_profit_rank": 2,
+          "name": "亚盛集团",
+          "promotion_rank": 4,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "600108.SH"
+        }
+      ],
+      "signal_date": "20260904",
+      "source_bundle_sha256": "87297738bb18bad6ded194f4e94eec1f2d51964525a4dd42e203701ea48fe098",
+      "source_feature_snapshot_sha256": "69660cab9af3f840e8e6134f9efbb1035e40c2fb9348a1e867a320a6e277f48f",
+      "top10_members_sha256": "953777f1543514c40fe16d248fb5b5f1956cd142385ac9c1b3a1539156ddaea7"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260903",
+  "latest_signal_date": "20260904",
   "public_start_signal_date": "20260828",
-  "recorded_days": 5,
+  "recorded_days": 6,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
     "20260901",
     "20260902",
-    "20260903"
+    "20260903",
+    "20260904"
   ],
-  "recorded_slots": 10,
+  "recorded_slots": 12,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "bc2144336ffffc3744dc06f3bb45d1ba9c151c40372a2d2ba709a2bce5dd2033"
+  "snapshot_sha256": "deb220803bd5d051cf79a9b5ae643c454be7915127dd044581196fb390975f0d"
 }
