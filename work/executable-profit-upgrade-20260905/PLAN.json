@@ -1,0 +1,17 @@
+{
+  "schema_version": "dc20_offline_return_downside_plan_v1",
+  "status": "RETROSPECTIVE_RESEARCH_ONLY_NO_RELEASE",
+  "fixed_before_new_candidate_results": true,
+  "historical_windows_already_viewed": true,
+  "candidate_universe": "identical frozen historical promotion OOF Top10",
+  "features": "existing 48 D-close features plus 108 full-history strictly lagged priors",
+  "splits": {"development_calendar_dates": 180, "comparison_calendar_dates": 180},
+  "training_label_rule": "scheduled_exit_date strictly before first signal date in split",
+  "model": {"family": "Ridge", "alpha": 1000.0, "imputer": "training median", "scale": "training mean and variance", "fit_intercept": true, "hyperparameter_search": false},
+  "targets": {"mean_return": "strategy_slot_net_return at 45bp round-trip cost; nonbuyable=0", "downside": "max(-strategy_slot_net_return, 0)"},
+  "candidates": {"ridge_expected_net": "rank by expected net return", "ridge_return_downside": "rank by expected net return minus 0.5 times max(predicted downside, 0)"},
+  "selection": {"fixed_slots": 2, "tie_breaker": "ts_code ascending", "policies": ["always_top2", "positive_score_only"], "positive_score_threshold": 0.0, "missing_or_rejected_slot": "cash return 0"},
+  "baselines": ["saved_hgb_full_priors_top2", "promotion_top2", "same_date_pool_equal_weight", "cash"],
+  "evaluation": {"common_complete_dates_only": true, "base_round_trip_cost": 0.0045, "stress_round_trip_cost": 0.009, "paired_bootstrap_samples": 2000, "bootstrap_block_dates": 5, "random_seed": 20260905},
+  "prohibited": ["production_model_change", "remote_write", "workflow_dispatch", "trade_action", "independent_confirmation_claim", "parameter_or_threshold_tuning_after_results"]
+}

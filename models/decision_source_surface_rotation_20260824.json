@@ -73,16 +73,23 @@
     "scripts/freeze_primary_profit_forward_shadow.py": "441a5eda73c89b062ea784d6f2d5e12791df8d07ce892f121e2fbc36c3d92490",
     "scripts/publish_primary_profit_rankings.py": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
     "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
+    "scripts/settle_primary_observations.py": "4bcf6a352a7ceea77f1dc606f620f5622b9d86a56fd473b44a8e491b8af0a7a1",
+    "scripts/sync_frozen_shadow_truth.py": "aa7b99887bc1e49ed2405301114fd0b94443664c95c50798c5dc32715f45c532",
+    "scripts/validate_verify_forecast_inputs.py": "c7e90d66feb844ba14412c9bd683a3a657106d63763d55c4198e87aa34a99f88",
     "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "75609cb85520cad1ad392dc0b7a553ee2a2f36eb85c6083518711371ab39b837",
-    "tests/test_decision_executable_profit_frontend.py": "5c4b1d5f17df09dfa348c9d5bd5961d5d924c58583e8f62947a75069919d2317",
+    "tests/test_decision_executable_profit_frontend.py": "fc956368bcef8a9d833453bf875ce3404628dd1a3e0be59287dfb3d8f0beefc3",
     "tests/test_decision_executable_profit_shadow_settlement.py": "8b7b68c84356bbb8912305166bdee2b065cef9f801bc65435785de8bd055783f",
     "tests/test_executable_profit_workflow_wiring.py": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
+    "tests/test_primary_observation_frontend.py": "aae9550f57ea8104da98bdfcb66e59d81daeffd7f2c70cf377b90e91efaa566a",
+    "tests/test_primary_observation_summary.py": "e3ab600190489cbfbdbf6ecd463ee6fcca8f385c8ac5e2adba99629e3896ce9d",
     "tests/test_primary_profit_forward_shadow_bridge.py": "92c7406332b8754a5fe6de23c564c81023a133b7835e122e942062d8c9c41656",
     "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
     "tests/test_primary_profit_rankings_p1.py": "c83d741249736b8e6371d1c41f0f301647f24a0324d6683c5fb722cbe9d1c536",
-    "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf"
+    "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf",
+    "tests/test_sync_frozen_shadow_truth.py": "d26f75e0cb0926eed0f1920cd9cb786932cda4a726c02684c13bf30ce76eaff6",
+    "tests/test_verify_forecast_inputs.py": "1d750b993c19aa284e44685edf736b6f0c2c27ff7ae990296a84c62a5ea91562"
   },
-  "changed_surface_sha256": "e32e05bf74a6d7215ec4251488e8f7a0eddc34ed0cb685c8674b797bfe6eebb6",
+  "changed_surface_sha256": "905b9a340a188c9265886aff09266eee9196b47ac1706ee3847db2be45603e5e",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -117,13 +124,13 @@
     {
       "path": ".github/workflows/verify_decision_observations.yml",
       "prior_sha256": "14996eddc00b588d68fb3c241bbd55ea764b29ca2620f5ab29fc703ba6f5bcf4",
-      "current_sha256": "12a0cdd1d334edba287399f3e74926ff3c546b224d2628bc3fa88053afde860b",
+      "current_sha256": "4234c731df25d0b82b67a0f8e559e1ab43e5ad20ab5b55ba0e19f41b3c9dc085",
       "classification": "primary_mixed_shadow_forward_verification_workflow"
     },
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "a3910c940db924f582c69a4abdbf71f3888b4f8952d1062f9c1448d77d3e67cc",
+      "current_sha256": "247b0e58da7ba574b4ca7701573e50fe8c44b304906946a86220f1dbbaa10de8",
       "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
@@ -225,7 +232,7 @@
     {
       "path": "src/top10decision/decision/model_freeze.py",
       "prior_sha256": "d5763a71714894e6c5c47517a6e737d76aac0f25474a78fe0f9c349df66eec96",
-      "current_sha256": "40c1130f594ebad2da0b6db6b42ab6fc28218061447ab9c9a95d237f5a74fb8b",
+      "current_sha256": "bde5bda8813f4c76f8cfc1807566aa59dd2d4ead474d463feb412776ca9fc01b",
       "classification": "primary_p0_p1_active_pin_validation"
     },
     {
@@ -354,5 +361,14 @@
       "current_sha256": "a9639e490bf618f8358f3407e09afe7b678867069801a2793188fd932bdefc83",
       "classification": "legacy_writer_depower_primary_schedule_contract_test"
     }
-  ]
+  ],
+  "review_20260905": {
+    "base_commit": "c26405b044cae2e771577f1dfbc9b8f1db073043",
+    "scope": "Action-independent Verify input gate; exact missing mature Shadow truth sync; frozen-P0 observation projection and truthful frontend; offline return-risk challengers only",
+    "prediction_model_bytes_changed": false,
+    "historical_selections_changed": false,
+    "ranking_members_or_order_changed": false,
+    "shadow_auction_truth_requirement_weakened": false,
+    "ordinary_failed_run_rerun_performed": false
+  }
 }

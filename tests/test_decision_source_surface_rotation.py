@@ -21,6 +21,9 @@ EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
     "scripts/freeze_primary_profit_forward_shadow.py",
     "scripts/publish_primary_profit_rankings.py",
     "scripts/publish_primary_three_rank.py",
+    "scripts/settle_primary_observations.py",
+    "scripts/sync_frozen_shadow_truth.py",
+    "scripts/validate_verify_forecast_inputs.py",
     "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
     "tests/test_decision_executable_profit_frontend.py",
     "tests/test_decision_executable_profit_shadow_settlement.py",
@@ -29,6 +32,10 @@ EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
     "tests/test_primary_profit_forward_shadow_workflow.py",
     "tests/test_primary_profit_rankings_p1.py",
     "tests/test_primary_three_rank_p0.py",
+    "tests/test_primary_observation_summary.py",
+    "tests/test_primary_observation_frontend.py",
+    "tests/test_verify_forecast_inputs.py",
+    "tests/test_sync_frozen_shadow_truth.py",
 }
 
 

@@ -1,0 +1,17 @@
+{
+  "schema_version": "dc20_offline_research_packaging_v1",
+  "models_retrained_during_packaging": false,
+  "result_values_changed_during_packaging": false,
+  "production_changed": false,
+  "changes": "CLI defaults now infer repository root from script location; report uses repository-relative reproduction commands; fixed PLAN and generated outputs preserved byte for byte",
+  "original_run_script_sha256": "2a6172d37c082a02ea676e9996842193e072501a895cb9f946a951128e712864",
+  "original_validation_script_sha256": "005698160c0347f6cff1a89ac77a7204396a4def9578e84faa445de05ad08217",
+  "packaged_files_sha256": {
+    "PLAN.json": "7a262fda1e90ca950f20a44af1c4c78f7390bb4c502cb58298616797341cb3d9",
+    "evaluate.py": "05b71ad036f795a7a5b7c38553c2c4870e19f54fa9ab10cc958f5e29bec29d15",
+    "validate.py": "520cf904dc6ba4c024b8923a815cb969f94ee5a6e15a9fba52f87fe920e6c234",
+    "RESEARCH_REPORT.md": "89cdf4b0c2d8ab512c2c88e324fcaed6c8ce29c0ed9e13464bfc63d832319849",
+    "outputs/comparison.json": "544170d3c56837ce1a751d34a1544b7679f724cf1da26f8342f45de48063cb53",
+    "outputs/validation.json": "53ca9b25a1d84cd08dd10919e9c7f968aaddedfad818b48a189de28a0e3a0e9c"
+  }
+}

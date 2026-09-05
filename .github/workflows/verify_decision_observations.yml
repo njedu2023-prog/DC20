@@ -453,28 +453,63 @@ jobs:
                   output.write(f"complete={'true' if complete else 'false'}\n")
           PY
       - name: Validate frozen runtime in an isolated exact-base worktree
+        id: forecast_gate
         if: ${{ steps.session.outputs.is_open == 'true' }}
         env:
           PUBLISH: ${{ steps.mode.outputs.publish }}
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
         run: |
           set -euo pipefail
           runtime_root="${RUNNER_TEMP}/verify-runtime"
           git worktree add --detach "${runtime_root}" "$(cat "${RUNNER_TEMP}/base_sha.txt")" >/dev/null
           cleanup() { git worktree remove --force "${runtime_root}" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
-          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
-            "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
-            --root "${runtime_root}" \
-            --report "${RUNNER_TEMP}/verify-frozen-replay.json" >/dev/null
-          if [ "${PUBLISH}" = "true" ]; then
-            PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
-              --root "${runtime_root}" --runtime
-          else
-            PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
-              --root "${runtime_root}" --runtime --force-inactive
+          gate_args=()
+          if [ "${PUBLISH}" != "true" ]; then gate_args+=(--force-inactive); fi
+          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_verify_forecast_inputs.py" \
+            --root "${runtime_root}" --as-of-date "${AS_OF_DATE}" \
+            --expected-base-sha "$(cat "${RUNNER_TEMP}/base_sha.txt")" \
+            --report "${RUNNER_TEMP}/verify-forecast-inputs.json" "${gate_args[@]}"
+          contract_mode="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "${RUNNER_TEMP}/verify-forecast-inputs.json")"
+          if [ "${contract_mode}" = LEGACY_AUCTION ]; then
+            # Legacy-only audit retains the full frozen runtime gate. A broken
+            # primary chain fails above and is never converted into this mode.
+            PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
+              "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
+              --root "${runtime_root}" \
+              --report "${RUNNER_TEMP}/verify-frozen-replay.json"
+            if [ "${PUBLISH}" = "true" ]; then
+              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
+                --root "${runtime_root}" --runtime
+            else
+              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
+                --root "${runtime_root}" --runtime --force-inactive
+            fi
           fi
+      - name: Retain read-only Verify gate failure evidence
+        if: ${{ failure() && steps.session.outputs.is_open == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verify-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/base_sha.txt
+            ${{ runner.temp }}/verify-forecast-inputs.json
+            ${{ runner.temp }}/verify-frozen-replay.json
+            ${{ runner.temp }}/verify-minute-sync.json
+      - name: Sync missing exact-session truth for existing frozen Shadow slots
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/sync_frozen_shadow_truth.py --root . --as-of-date "${AS_OF_DATE}" \
+            --report "${RUNNER_TEMP}/verify-frozen-shadow-truth-sync.json"
       - name: Settle observation truth without changing action ownership
-        if: ${{ steps.session.outputs.is_open == 'true' }}
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.forecast_gate.outputs.contract_mode == 'LEGACY_AUCTION' }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
           FROM_EXEC_DATE: ${{ inputs.from_exec_date || '20260721' }}
@@ -486,6 +521,15 @@ jobs:
           test -f outputs/auction_v3/metrics/observation_cumulative_latest.json
           python -m json.tool outputs/auction_v3/metrics/observation_cumulative_latest.json >/dev/null
           test -z "$(git status --porcelain=v1 --untracked-files=all -- outputs/decision)"
+      - name: Settle Action-independent primary observation statistics
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+        run: |
+          set -euo pipefail
+          python scripts/settle_primary_observations.py --root . --as-of-date "${AS_OF_DATE}"
+          python scripts/settle_primary_observations.py --root . --as-of-date "${AS_OF_DATE}" --validate-existing
       - name: Settle immutable executable-profit Shadow truth and project exact as-of
         if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' }}
         env:
@@ -659,17 +703,17 @@ jobs:
             test -n "${signal_date}"
             if [ "$(tr -d '\n' < "${contract_mode}")" = primary ]; then
               SIGNAL_DATE="${signal_date}" PYTHONPATH="${GITHUB_WORKSPACE}/src" python - <<'PY'
-              import os
-              from pathlib import Path
-              from top10decision.decision.primary_profit_forward_shadow_bridge import (
-                  project_primary_profit_forward_shadow_state,
-                  validate_primary_profit_forward_shadow_repository_chain,
-              )
-              root=Path('.').resolve(strict=True)
-              d=os.environ['SIGNAL_DATE']
-              project_primary_profit_forward_shadow_state(root,d,os.environ['AS_OF_DATE'])
-              validate_primary_profit_forward_shadow_repository_chain(root,d)
-              PY
+          import os
+          from pathlib import Path
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              project_primary_profit_forward_shadow_state,
+              validate_primary_profit_forward_shadow_repository_chain,
+          )
+          root=Path('.').resolve(strict=True)
+          d=os.environ['SIGNAL_DATE']
+          project_primary_profit_forward_shadow_state(root,d,os.environ['AS_OF_DATE'])
+          validate_primary_profit_forward_shadow_repository_chain(root,d)
+          PY
             else
               python scripts/settle_decision_executable_profit_forward_shadow.py \
                 --root "${GITHUB_WORKSPACE}" \
@@ -841,6 +885,32 @@ jobs:
               ):
                   raise SystemExit('Verify public Shadow D/as-of/count binding drifted')
           PY
+      - name: Stage validated missing frozen-Shadow truth
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
+        env:
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+        run: |
+          set -euo pipefail
+          FROZEN_TRUTH_REPORT="${RUNNER_TEMP}/verify-frozen-shadow-truth-sync.json" python - <<'PY'
+          import hashlib, json, os, re, subprocess
+          from pathlib import Path
+          report_path=Path(os.environ['FROZEN_TRUTH_REPORT'])
+          if report_path.exists():
+              report=json.loads(report_path.read_text(encoding='utf-8'))
+              if report.get('schema_version') != 'dc20_frozen_shadow_truth_sync_v1' or report.get('as_of_date') != os.environ['AS_OF_DATE']:
+                  raise SystemExit('Verify frozen truth sync date/schema drifted')
+              seen=set()
+              for item in report.get('written_paths', []):
+                  relative=item.get('path', '')
+                  match=re.fullmatch(r'data/market/raw/(20\d{2})/(20\d{6})/(daily|stk_limit|stk_auction_o)(\.csv|\.meta\.json)',relative)
+                  if match is None or match[1] != match[2][:4] or match[2] > os.environ['AS_OF_DATE'] or relative in seen:
+                      raise SystemExit('Verify frozen truth sync path/date is not exact and bounded')
+                  seen.add(relative)
+                  path=Path(relative)
+                  if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != item.get('sha256'):
+                      raise SystemExit('Verify frozen truth sync bytes drifted')
+                  subprocess.run(['git','add','--',relative],check=True)
+          PY
       - name: Build exact allowlisted Verify candidate patch
         id: candidate
         if: ${{ steps.session.outputs.is_open == 'true' }}
@@ -866,6 +936,10 @@ jobs:
           done
           git add -A -- data/decision_executable_profit/forward/verifications data/decision_executable_profit/forward/settlements data/decision_executable_profit/forward/statistics
           git add -A -- outputs/decision/executable_profit_research
+          if [ -d outputs/decision/primary_observation ]; then
+            python scripts/settle_primary_observations.py --root . --as-of-date "${AS_OF_DATE}" --validate-existing
+            git add -A -- outputs/decision/primary_observation/summary.json outputs/decision/primary_observation/rows.csv
+          fi
           git diff --cached --no-renames --name-only -z > "${RUNNER_TEMP}/staged_paths.bin"
           git ls-files --stage -z > "${RUNNER_TEMP}/staged_index.bin"
           STAGED_PATHS="${RUNNER_TEMP}/staged_paths.bin" STAGED_INDEX="${RUNNER_TEMP}/staged_index.bin" python - <<'PY'
@@ -875,6 +949,8 @@ jobs:
           allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
+          allowed += ('outputs/decision/primary_observation/summary.json','outputs/decision/primary_observation/rows.csv')
+          allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}.meta.json' for name in ('daily','stk_limit'))
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -905,7 +981,7 @@ jobs:
               if not path.startswith('data/market/raw/'):
                   return True
               parts=path.split('/')
-              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json'}:
+              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json','daily.meta.json','stk_limit.meta.json'}:
                   return False
               year, trade_date=parts[3], parts[4]
               try:
@@ -1016,6 +1092,8 @@ jobs:
           allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
+          allowed += ('outputs/decision/primary_observation/summary.json','outputs/decision/primary_observation/rows.csv')
+          allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}.meta.json' for name in ('daily','stk_limit'))
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -1046,7 +1124,7 @@ jobs:
               if not path.startswith('data/market/raw/'):
                   return True
               parts=path.split('/')
-              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json'}:
+              if len(parts) != 6 or parts[5] not in {'daily.csv','stk_limit.csv','stk_auction_o.csv','stk_auction_o.meta.json','daily.meta.json','stk_limit.meta.json'}:
                   return False
               year, trade_date=parts[3], parts[4]
               try:

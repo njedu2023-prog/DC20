@@ -299,14 +299,15 @@ def test_public_cumulative_statistics_are_d28_only_and_fail_closed() -> None:
     )
     for token in (
         'const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828"',
-        'const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json"',
+        'const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json"',
         'payload.public_start_signal_date',
-        'forward.start_signal_date',
-        'canonicalYmd(row.signal_date) < PUBLIC_STATISTICS_START_SIGNAL_DATE',
-        'state.currentPublicObservationStatistics = emptyPublicObservationStatistics()',
+        'payload.scope !== "frozen_primary_topn"',
+        'signalDate < PUBLIC_STATISTICS_START_SIGNAL_DATE',
+        'state.currentPublicObservationStatistics = null',
         'await refreshPublicObservationStatistics()',
-        '`D ${publicStartLabel}起 · 等待T日与T+1真值`',
-        '`D ${publicStartLabel}起 · 0 条`',
+        '晋级名单统计读取失败',
+        '当前D榜尚未进入验证统计',
+        '`D ${publicStartLabel}起 · 待路径分组统计`',
     ):
         assert token in text
     assert "plan?.observation_statistics" not in validator

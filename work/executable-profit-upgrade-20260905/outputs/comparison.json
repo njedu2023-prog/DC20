@@ -1,0 +1,960 @@
+{
+  "environment": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "python": "3.12.14",
+    "sklearn": "1.9.0"
+  },
+  "independent_unviewed_confirmation": false,
+  "input_audit": {
+    "actual_fill_observed": false,
+    "blocked_limit_down_exit_resolved": false,
+    "causal_entry_or_exit_optimization_claim": false,
+    "dates": 910,
+    "formula_checks_passed": true,
+    "gross_formula": "T1_open/T_open-1",
+    "intraday_overnight_attribution": "T_close/T_open-1 + (T1_open-T_close)/T_open = held gross return; descriptive only",
+    "missing_buyability_rows": 1,
+    "net_formula": "gross-0.0045",
+    "nonfill_policy": "cash=0",
+    "pending_rows": 8,
+    "rows": 6753,
+    "stress_formula": "gross-0.009"
+  },
+  "new_forward_evidence": false,
+  "outputs": {
+    "candidate_scores.csv.gz": "2faee167a94a82d4e4adf9b103dc9d9c815f41888dec7e6cc745b88c8fef2490",
+    "daily_returns.csv.gz": "10c42fdef9537d03005787a247d5a755a69cd18e4072ae9e9ef39cafa316ac85",
+    "selected_records.csv.gz": "e1fa5ce0fabb2af843bdf81f2a027f2f46a8ccf1bedd8306e6a5a9a3b02649b6"
+  },
+  "paired_comparisons": {
+    "confirmation": {
+      "promotion_top2": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": -0.0036968497134938203,
+          "ci95_low": -0.018272438882475896,
+          "estimate": -0.012271227780738758,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.010645784998351025,
+          "ci95_low": -0.012415639619321472,
+          "estimate": -0.0014389965186345484,
+          "samples": 2000
+        }
+      },
+      "ridge_expected_net": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.0013916840573708763,
+          "ci95_low": -0.01860901895494064,
+          "estimate": -0.008919493292839037,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.009785234122449828,
+          "ci95_low": -0.008133750146550836,
+          "estimate": 0.0019127379692651734,
+          "samples": 2000
+        }
+      },
+      "ridge_expected_net_positive_only": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.0028542393460537227,
+          "ci95_low": -0.00605063397698869,
+          "estimate": -0.0013073668467668514,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.019008464345381403,
+          "ci95_low": -0.002403295247171317,
+          "estimate": 0.009524864415337356,
+          "samples": 2000
+        }
+      },
+      "ridge_return_downside": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.002627997972071028,
+          "ci95_low": -0.01587099235141689,
+          "estimate": -0.006756761220237913,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.012126515060585262,
+          "ci95_low": -0.005859122976632226,
+          "estimate": 0.004075470041866297,
+          "samples": 2000
+        }
+      },
+      "ridge_return_downside_positive_only": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.0032477560977151676,
+          "ci95_low": -0.0028836619891188186,
+          "estimate": 0.00023899781857865166,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.020533470493829534,
+          "ci95_low": -0.0005041281334951556,
+          "estimate": 0.011071229080682862,
+          "samples": 2000
+        }
+      }
+    },
+    "development": {
+      "promotion_top2": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": -0.008618670812313083,
+          "ci95_low": -0.02575693818673377,
+          "estimate": -0.017244835756393535,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.006519364224368657,
+          "ci95_low": -0.014895340415860457,
+          "estimate": -0.0033119149186087104,
+          "samples": 2000
+        }
+      },
+      "ridge_expected_net": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.0010486621966345178,
+          "ci95_low": -0.016728907625938594,
+          "estimate": -0.008330343064288478,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.013255008249673846,
+          "ci95_low": -0.0022298507024964406,
+          "estimate": 0.005602577773496349,
+          "samples": 2000
+        }
+      },
+      "ridge_expected_net_positive_only": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.002513725230252809,
+          "ci95_low": 0.0,
+          "estimate": 0.0009499707276685394,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.022583412758906744,
+          "ci95_low": 0.006012279906509528,
+          "estimate": 0.014882891565453365,
+          "samples": 2000
+        }
+      },
+      "ridge_return_downside": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.001978899907656301,
+          "ci95_low": -0.016077304990716725,
+          "estimate": -0.007515342581556734,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.015248229572711568,
+          "ci95_low": -0.001965092820887193,
+          "estimate": 0.006417578256228089,
+          "samples": 2000
+        }
+      },
+      "ridge_return_downside_positive_only": {
+        "absolute_mean_daily_net": {
+          "block_dates": 5,
+          "ci95_high": 0.0025386916796636236,
+          "ci95_low": 0.0,
+          "estimate": 0.0009577428414325842,
+          "samples": 2000
+        },
+        "paired_mean_daily_net_lift_vs_mixed": {
+          "block_dates": 5,
+          "ci95_high": 0.022375329641569453,
+          "ci95_low": 0.006153447803487506,
+          "estimate": 0.014890663679217408,
+          "samples": 2000
+        }
+      }
+    }
+  },
+  "plan_sha256": "7a262fda1e90ca950f20a44af1c4c78f7390bb4c502cb58298616797341cb3d9",
+  "production_changes": false,
+  "provenance": {
+    "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+    "feature_count": 156,
+    "historical_source_truth": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+    "lagged_priors": "c2b8a241a93831ce1a4d83bff5f103a45cbb2928d0c7c6f8b857ba7d292ee195",
+    "ledger": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd",
+    "ledger_builder": "4ec18bd3363faed281c0582d6159a9bdde2bd5b9855db5121f379227725468d9",
+    "ledger_manifest": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5",
+    "prior_manifest": "5b37660b299a1c6eb5c2a0aabd13f4395a269b738dc0032772d30b29b76ecfc0",
+    "saved_baseline_predictions": "9ff2b3558ef4138b5de4015e9fe70cae9b8c2d7aa1eeeb71c1650be705c810f1",
+    "source_benchmark_script": "ebd0abe14d97c3d2f07b030f0d81037b99a58f71f275f899703a238c0f5d5f9e"
+  },
+  "release_allowed": false,
+  "results": {
+    "confirmation": {
+      "cash": {
+        "portfolio": {
+          "cash_slots": 356,
+          "cumulative_reinvested_return": 0.0,
+          "dates": 178,
+          "maximum_drawdown": 0.0,
+          "mean_daily_2x_cost_net": 0.0,
+          "mean_daily_cost_drag": 0.0,
+          "mean_daily_gross": 0.0,
+          "mean_daily_net": 0.0,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0,
+            "ci95_low": 0.0,
+            "estimate": 0.0,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.0,
+          "selected_slots": 0
+        }
+      },
+      "mixed_hgb_baseline": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.9024707357472577,
+          "dates": 178,
+          "maximum_drawdown": -0.9113446563810078,
+          "mean_daily_2x_cost_net": -0.015180545868478213,
+          "mean_daily_cost_drag": 0.0043483146067415735,
+          "mean_daily_gross": -0.006483916655362635,
+          "mean_daily_net": -0.010832231262104211,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0004271244170661495,
+            "ci95_low": -0.02014412243831527,
+            "estimate": -0.010832231262104211,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.398876404494382,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.006439004597054077,
+          "conditional_win_rate": 0.41569767441860467,
+          "fill_rate": 0.9662921348314607,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": -4.4912057941006186e-05,
+          "loss_below_minus_3pct_rate": 0.4691011235955056,
+          "mean_loss": -0.06858091246902484,
+          "mean_net_on_fill": -0.011210099794503192,
+          "mean_win": 0.06942999354520905,
+          "mean_win_to_mean_loss_ratio": 1.0123807200227573,
+          "median_entry_premium_to_D_close": 0.013116300882683007,
+          "rows": 356,
+          "slot_win_rate": 0.40168539325842695,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.010846926834925878,
+              "rows": 255,
+              "win_rate": 0.40784313725490196
+            },
+            "3": {
+              "mean_net": -0.010795128578247519,
+              "rows": 101,
+              "win_rate": 0.38613861386138615
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.14355294077222217
+        }
+      },
+      "promotion_top2": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.9168286616726405,
+          "dates": 178,
+          "maximum_drawdown": -0.9185031060905398,
+          "mean_daily_2x_cost_net": -0.015696789578732537,
+          "mean_daily_cost_drag": 0.0034255617977528097,
+          "mean_daily_gross": -0.008845665982985949,
+          "mean_daily_net": -0.012271227780738758,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": -0.0036968497134938203,
+            "ci95_low": -0.018272438882475896,
+            "estimate": -0.012271227780738758,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.38764044943820225,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.0014624407757982169,
+          "conditional_win_rate": 0.4059040590405904,
+          "fill_rate": 0.7612359550561798,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": -0.00738322520742872,
+          "loss_below_minus_3pct_rate": 0.33707865168539325,
+          "mean_loss": -0.07803166006150307,
+          "mean_net_on_fill": -0.016120136863258295,
+          "mean_win": 0.07449581981780905,
+          "mean_win_to_mean_loss_ratio": 0.9546871072471463,
+          "median_entry_premium_to_D_close": 0.04862579281183943,
+          "rows": 356,
+          "slot_win_rate": 0.3089887640449438,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.010379325811227717,
+              "rows": 202,
+              "win_rate": 0.29207920792079206
+            },
+            "3": {
+              "mean_net": -0.014752813481006488,
+              "rows": 154,
+              "win_rate": 0.33116883116883117
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.16385289616666665
+        }
+      },
+      "ridge_expected_net": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.8654011562609686,
+          "dates": 178,
+          "maximum_drawdown": -0.9067166478651509,
+          "mean_daily_2x_cost_net": -0.013242527000120652,
+          "mean_daily_cost_drag": 0.00432303370786517,
+          "mean_daily_gross": -0.004596459584973868,
+          "mean_daily_net": -0.008919493292839037,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0013916840573708763,
+            "ci95_low": -0.01860901895494064,
+            "estimate": -0.008919493292839037,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.43820224719101125,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.005342460797748646,
+          "conditional_win_rate": 0.41228070175438597,
+          "fill_rate": 0.9606741573033708,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0007460012133583143,
+          "loss_below_minus_3pct_rate": 0.43258426966292135,
+          "mean_loss": -0.06838744002812433,
+          "mean_net_on_fill": -0.009284618749271044,
+          "mean_win": 0.0749683392439879,
+          "mean_win_to_mean_loss_ratio": 1.0962296470398245,
+          "median_entry_premium_to_D_close": 0.011691261870601877,
+          "rows": 356,
+          "slot_win_rate": 0.3960674157303371,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.007126920686002359,
+              "rows": 296,
+              "win_rate": 0.40540540540540543
+            },
+            "3": {
+              "mean_net": -0.017762851486566655,
+              "rows": 60,
+              "win_rate": 0.35
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.15021185375833332
+        }
+      },
+      "ridge_expected_net_positive_only": {
+        "portfolio": {
+          "cash_slots": 295,
+          "cumulative_reinvested_return": -0.2626589428983068,
+          "dates": 178,
+          "maximum_drawdown": -0.32029103178934015,
+          "mean_daily_2x_cost_net": -0.00206579381297809,
+          "mean_daily_cost_drag": 0.000758426966292135,
+          "mean_daily_gross": -0.0005489398804747165,
+          "mean_daily_net": -0.0013073668467668514,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0028542393460537227,
+            "ci95_low": -0.00605063397698869,
+            "estimate": -0.0013073668467668514,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.11797752808988764,
+          "selected_slots": 61
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.002051551358152203,
+          "conditional_win_rate": 0.4,
+          "fill_rate": 0.9836065573770492,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0015026114777583813,
+          "loss_below_minus_3pct_rate": 0.5081967213114754,
+          "mean_loss": -0.06611570355133328,
+          "mean_net_on_fill": -0.007757043290816654,
+          "mean_win": 0.07978094709995831,
+          "mean_win_to_mean_loss_ratio": 1.206686805321751,
+          "median_entry_premium_to_D_close": 0.003128512001159489,
+          "rows": 61,
+          "slot_win_rate": 0.06741573033707865,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.004324058262627444,
+              "rows": 51,
+              "win_rate": 0.4117647058823529
+            },
+            "3": {
+              "mean_net": -0.02448956260549997,
+              "rows": 10,
+              "win_rate": 0.3
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.1364369694142857
+        }
+      },
+      "ridge_return_downside": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.794027012814112,
+          "dates": 178,
+          "maximum_drawdown": -0.8296995141670019,
+          "mean_daily_2x_cost_net": -0.011067154477404483,
+          "mean_daily_cost_drag": 0.004310393258426967,
+          "mean_daily_gross": -0.002446367961810946,
+          "mean_daily_net": -0.006756761220237913,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.002627997972071028,
+            "ci95_low": -0.01587099235141689,
+            "estimate": -0.006756761220237913,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.43820224719101125,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.005213686129350798,
+          "conditional_win_rate": 0.41055718475073316,
+          "fill_rate": 0.9578651685393258,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0027673181688002285,
+          "loss_below_minus_3pct_rate": 0.43820224719101125,
+          "mean_loss": -0.06528746044708951,
+          "mean_net_on_fill": -0.007053979455732251,
+          "mean_win": 0.07655266111043067,
+          "mean_win_to_mean_loss_ratio": 1.1725476927146024,
+          "median_entry_premium_to_D_close": 0.011773362766740236,
+          "rows": 356,
+          "slot_win_rate": 0.39325842696629215,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.005503190201890093,
+              "rows": 303,
+              "win_rate": 0.40264026402640263
+            },
+            "3": {
+              "mean_net": -0.013923403079849043,
+              "rows": 53,
+              "win_rate": 0.33962264150943394
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.14314640707499998
+        }
+      },
+      "ridge_return_downside_positive_only": {
+        "portfolio": {
+          "cash_slots": 339,
+          "cumulative_reinvested_return": 0.009007812334922871,
+          "dates": 178,
+          "maximum_drawdown": -0.1613960149,
+          "mean_daily_2x_cost_net": 2.4110177946956034e-05,
+          "mean_daily_cost_drag": 0.00021488764044943822,
+          "mean_daily_gross": 0.00045388545902808974,
+          "mean_daily_net": 0.00023899781857865166,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0032477560977151676,
+            "ci95_low": -0.0028836619891188186,
+            "estimate": 0.00023899781857865166,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.05056179775280899,
+          "selected_slots": 17
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.00035482896758504845,
+          "conditional_win_rate": 0.5882352941176471,
+          "fill_rate": 1.0,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0008087144264308806,
+          "loss_below_minus_3pct_rate": 0.4117647058823529,
+          "mean_loss": -0.10116452048142853,
+          "mean_net_on_fill": 0.005004895494941172,
+          "mean_win": 0.07932348667839997,
+          "mean_win_to_mean_loss_ratio": 0.7841038172366164,
+          "median_entry_premium_to_D_close": 0.0016286644951140072,
+          "rows": 17,
+          "slot_win_rate": 0.028089887640449437,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": 0.007503188438933322,
+              "rows": 15,
+              "win_rate": 0.6
+            },
+            "3": {
+              "mean_net": -0.013732301584999947,
+              "rows": 2,
+              "win_rate": 0.5
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.16139601489999994
+        }
+      },
+      "same_date_pool_equal_weight": {
+        "note": "each D equal weights over identical candidate universe; synthetic 2-slot exposure equivalent",
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.8590980696146959,
+          "dates": 178,
+          "maximum_drawdown": -0.8628703083778452,
+          "mean_daily_2x_cost_net": -0.014285828832281088,
+          "mean_daily_cost_drag": 0.004052839085072231,
+          "mean_daily_gross": -0.006180150662174176,
+          "mean_daily_net": -0.010232989747246408,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": -0.004196062585192735,
+            "ci95_low": -0.0147617043464881,
+            "estimate": -0.010232989747246408,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.3707865168539326,
+          "selected_slots": 356
+        }
+      }
+    },
+    "development": {
+      "cash": {
+        "portfolio": {
+          "cash_slots": 356,
+          "cumulative_reinvested_return": 0.0,
+          "dates": 178,
+          "maximum_drawdown": 0.0,
+          "mean_daily_2x_cost_net": 0.0,
+          "mean_daily_cost_drag": 0.0,
+          "mean_daily_gross": 0.0,
+          "mean_daily_net": 0.0,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0,
+            "ci95_low": 0.0,
+            "estimate": 0.0,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.0,
+          "selected_slots": 0
+        }
+      },
+      "mixed_hgb_baseline": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.940068871592386,
+          "dates": 178,
+          "maximum_drawdown": -0.9430794798738011,
+          "mean_daily_2x_cost_net": -0.018154830950038375,
+          "mean_daily_cost_drag": 0.004221910112359551,
+          "mean_daily_gross": -0.009711010725425274,
+          "mean_daily_net": -0.013932920837784826,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": -0.0048411569421171795,
+            "ci95_low": -0.02149523228867355,
+            "estimate": -0.013932920837784826,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.4157303370786517,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.00925574109632372,
+          "conditional_win_rate": 0.4101796407185629,
+          "fill_rate": 0.9382022471910112,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": -0.000455269628995571,
+          "loss_below_minus_3pct_rate": 0.4353932584269663,
+          "mean_loss": -0.07235276051176341,
+          "mean_net_on_fill": -0.01485065813847724,
+          "mean_win": 0.06783484673405835,
+          "mean_win_to_mean_loss_ratio": 0.9375571333318993,
+          "median_entry_premium_to_D_close": 0.013034210901826548,
+          "rows": 356,
+          "slot_win_rate": 0.3848314606741573,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.010359346299342407,
+              "rows": 224,
+              "win_rate": 0.39285714285714285
+            },
+            "3": {
+              "mean_net": -0.019997168539384085,
+              "rows": 132,
+              "win_rate": 0.3712121212121212
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.15416145742499998
+        }
+      },
+      "promotion_top2": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.9683692864986404,
+          "dates": 178,
+          "maximum_drawdown": -0.9746231984449578,
+          "mean_daily_2x_cost_net": -0.02035438631884967,
+          "mean_daily_cost_drag": 0.003109550561797754,
+          "mean_daily_gross": -0.014135285194595778,
+          "mean_daily_net": -0.017244835756393535,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": -0.008618670812313083,
+            "ci95_low": -0.02575693818673377,
+            "estimate": -0.017244835756393535,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.33707865168539325,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.006130820694844278,
+          "conditional_win_rate": 0.3902439024390244,
+          "fill_rate": 0.6910112359550562,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": -0.008004464500409909,
+          "loss_below_minus_3pct_rate": 0.3342696629213483,
+          "mean_loss": -0.09450042747268729,
+          "mean_net_on_fill": -0.0249559411759191,
+          "mean_win": 0.08370731866278121,
+          "mean_win_to_mean_loss_ratio": 0.8857877250023496,
+          "median_entry_premium_to_D_close": 0.04726690351172169,
+          "rows": 356,
+          "slot_win_rate": 0.2696629213483146,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.013735302599525497,
+              "rows": 200,
+              "win_rate": 0.25
+            },
+            "3": {
+              "mean_net": -0.021744237239557693,
+              "rows": 156,
+              "win_rate": 0.2948717948717949
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.1855597613555555
+        }
+      },
+      "ridge_expected_net": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.8400479823002296,
+          "dates": 178,
+          "maximum_drawdown": -0.8527186360185367,
+          "mean_daily_2x_cost_net": -0.012539612727478906,
+          "mean_daily_cost_drag": 0.00420926966292135,
+          "mean_daily_gross": -0.004121073401367129,
+          "mean_daily_net": -0.008330343064288478,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0010486621966345178,
+            "ci95_low": -0.016728907625938594,
+            "estimate": -0.008330343064288478,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.46629213483146065,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.006751866749590354,
+          "conditional_win_rate": 0.43243243243243246,
+          "fill_rate": 0.9353932584269663,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0026307933479541292,
+          "loss_below_minus_3pct_rate": 0.42134831460674155,
+          "mean_loss": -0.06802064013018991,
+          "mean_net_on_fill": -0.00890571210476486,
+          "mean_win": 0.06868263092860552,
+          "mean_win_to_mean_loss_ratio": 1.0097322047712074,
+          "median_entry_premium_to_D_close": 0.009302325581395321,
+          "rows": 356,
+          "slot_win_rate": 0.4044943820224719,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.011420457681117593,
+              "rows": 250,
+              "win_rate": 0.38
+            },
+            "3": {
+              "mean_net": -0.0010423368925217007,
+              "rows": 106,
+              "win_rate": 0.46226415094339623
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.1386155988333333
+        }
+      },
+      "ridge_expected_net_positive_only": {
+        "portfolio": {
+          "cash_slots": 350,
+          "cumulative_reinvested_return": 0.1777234256184992,
+          "dates": 178,
+          "maximum_drawdown": -0.03551403326500002,
+          "mean_daily_2x_cost_net": 0.0008741280309673882,
+          "mean_daily_cost_drag": 7.584269662921354e-05,
+          "mean_daily_gross": 0.001025813424297753,
+          "mean_daily_net": 0.0009499707276685394,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.002513725230252809,
+            "ci95_low": 0.0,
+            "estimate": 0.0009499707276685394,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.028089887640449437,
+          "selected_slots": 6
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": 0.00047073897974417864,
+          "conditional_win_rate": 0.8333333333333334,
+          "fill_rate": 1.0,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.0005550744444816378,
+          "loss_below_minus_3pct_rate": 0.16666666666666666,
+          "mean_loss": -0.07102806653,
+          "mean_net_on_fill": 0.05636492984166666,
+          "mean_win": 0.08184352911599999,
+          "mean_win_to_mean_loss_ratio": 1.1522702660283153,
+          "median_entry_premium_to_D_close": 0.03540730425976346,
+          "rows": 6,
+          "slot_win_rate": 0.014044943820224719,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": 0.06861843731666667,
+              "rows": 3,
+              "win_rate": 1.0
+            },
+            "3": {
+              "mean_net": 0.044111422366666674,
+              "rows": 3,
+              "win_rate": 0.6666666666666666
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.07102806653
+        }
+      },
+      "ridge_return_downside": {
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.8152277394463883,
+          "dates": 178,
+          "maximum_drawdown": -0.8664147491326408,
+          "mean_daily_2x_cost_net": -0.01169933134598555,
+          "mean_daily_cost_drag": 0.004183988764044945,
+          "mean_daily_gross": -0.00333135381751179,
+          "mean_daily_net": -0.007515342581556734,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.001978899907656301,
+            "ci95_low": -0.016077304990716725,
+            "estimate": -0.007515342581556734,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.47191011235955055,
+          "selected_slots": 356
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": -0.0060317167323963045,
+          "conditional_win_rate": 0.4380664652567976,
+          "fill_rate": 0.9297752808988764,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.002700362914500626,
+          "loss_below_minus_3pct_rate": 0.3960674157303371,
+          "mean_loss": -0.06594480070922523,
+          "mean_net_on_fill": -0.008082966643607846,
+          "mean_win": 0.0661397998129772,
+          "mean_win_to_mean_loss_ratio": 1.0029570049746876,
+          "median_entry_premium_to_D_close": 0.009302325581395321,
+          "rows": 356,
+          "slot_win_rate": 0.40730337078651685,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": -0.010206448870816403,
+              "rows": 262,
+              "win_rate": 0.37786259541984735
+            },
+            "3": {
+              "mean_net": -1.4599520003188192e-05,
+              "rows": 94,
+              "win_rate": 0.48936170212765956
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": -0.13620729169444445
+        }
+      },
+      "ridge_return_downside_positive_only": {
+        "portfolio": {
+          "cash_slots": 352,
+          "cumulative_reinvested_return": 0.1807882221507513,
+          "dates": 178,
+          "maximum_drawdown": 0.0,
+          "mean_daily_2x_cost_net": 0.0009071810436028255,
+          "mean_daily_cost_drag": 5.056179775280902e-05,
+          "mean_daily_gross": 0.0010083046391853932,
+          "mean_daily_net": 0.0009577428414325842,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": 0.0025386916796636236,
+            "ci95_low": 0.0,
+            "estimate": 0.0009577428414325842,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.02247191011235955,
+          "selected_slots": 4
+        },
+        "selection": {
+          "Tclose_to_T1open_contribution_per_slot": 0.00046789530026960873,
+          "conditional_win_rate": 1.0,
+          "fill_rate": 1.0,
+          "fixed_slots": 356,
+          "held_T_intraday_contribution_per_slot": 0.000540409338838836,
+          "loss_below_minus_3pct_rate": 0.0,
+          "mean_loss": null,
+          "mean_net_on_fill": 0.0852391128875,
+          "mean_win": 0.0852391128875,
+          "mean_win_to_mean_loss_ratio": null,
+          "median_entry_premium_to_D_close": 0.040354215456674614,
+          "rows": 4,
+          "slot_win_rate": 0.011235955056179775,
+          "stage_breakdown": {
+            "2": {
+              "mean_net": 0.06861843731666667,
+              "rows": 3,
+              "win_rate": 1.0
+            },
+            "3": {
+              "mean_net": 0.1351011396,
+              "rows": 1,
+              "win_rate": 1.0
+            }
+          },
+          "t_close_coverage_on_fill": 1.0,
+          "worst_decile_mean": 0.02562048193
+        }
+      },
+      "same_date_pool_equal_weight": {
+        "note": "each D equal weights over identical candidate universe; synthetic 2-slot exposure equivalent",
+        "portfolio": {
+          "cash_slots": 0,
+          "cumulative_reinvested_return": -0.9406088676041813,
+          "dates": 178,
+          "maximum_drawdown": -0.9406088676041813,
+          "mean_daily_2x_cost_net": -0.018966212821123523,
+          "mean_daily_cost_drag": 0.0038562399678972715,
+          "mean_daily_gross": -0.011253732885084525,
+          "mean_daily_net": -0.015109972852981796,
+          "mean_net_95ci": {
+            "block_dates": 5,
+            "ci95_high": -0.010105533768466346,
+            "ci95_low": -0.01968177834781994,
+            "estimate": -0.015109972852981796,
+            "samples": 2000
+          },
+          "positive_day_rate": 0.3202247191011236,
+          "selected_slots": 356
+        }
+      }
+    }
+  },
+  "schema_version": "dc20_offline_return_downside_evaluation_v1",
+  "script_sha256": "2a6172d37c082a02ea676e9996842193e072501a895cb9f946a951128e712864",
+  "splits": {
+    "confirmation": {
+      "calendar_dates": 180,
+      "candidate_keys_sha256": "2b9d7ff05e73630e2da8bb28ba91ca6101cf632320828bd3abdb587dfdee3760",
+      "candidate_rows_before_common_truth_filter": 1488,
+      "complete_candidate_rows": 1474,
+      "complete_dates": 178,
+      "end": "20260814",
+      "evidence_role": "viewed_retrospective_comparison_not_independent_confirmation",
+      "exact_joint_score_ties": 0,
+      "incomplete_dates_excluded_for_all": [
+        "20260703",
+        "20260721"
+      ],
+      "same_candidates_and_outcomes": true,
+      "start": "20251119"
+    },
+    "development": {
+      "calendar_dates": 180,
+      "candidate_keys_sha256": "9f5a8ddecec7e142e01c6db5cdb39ba4a36710eaf5e2ccb4f12b40036c483cf6",
+      "candidate_rows_before_common_truth_filter": 1566,
+      "complete_candidate_rows": 1547,
+      "complete_dates": 178,
+      "end": "20251118",
+      "evidence_role": "viewed_retrospective_comparison_not_independent_confirmation",
+      "exact_joint_score_ties": 0,
+      "incomplete_dates_excluded_for_all": [
+        "20250606",
+        "20251113"
+      ],
+      "same_candidates_and_outcomes": true,
+      "start": "20250225"
+    }
+  },
+  "status": "RETROSPECTIVE_RESEARCH_ONLY_NO_RELEASE",
+  "training_audits": {
+    "confirmation": {
+      "cutoff_exclusive": "20251119",
+      "dates": 728,
+      "max_label_exit_date": "20251118",
+      "rows": 5239,
+      "train_downside_mean": 0.045014643700571046,
+      "train_target_mean": -0.021050076065875195,
+      "training_keys_sha256": "76a1133c9ddd2de13f692a5491c70d5c4835cbd6b34639db7bac21024bcecb90"
+    },
+    "development": {
+      "cutoff_exclusive": "20250225",
+      "dates": 548,
+      "max_label_exit_date": "20250224",
+      "rows": 3675,
+      "train_downside_mean": 0.047475671994465424,
+      "train_target_mean": -0.02367453427058437,
+      "training_keys_sha256": "30c0e9eb42de1291229d70634d26a4a4602c4bf6f1d9baa8c8b199d46c747509"
+    }
+  }
+}

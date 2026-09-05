@@ -1386,7 +1386,7 @@
     const DASHBOARD_VERSION = "independent-three-rank-v11-focused-workspace";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
-    const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/auction_v3/metrics/observation_cumulative_latest.json";
+    const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
     const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
       root: "outputs/decision/legacy_profit_relative_research",
       projectionSchema: "dc20_legacy_profit_relative_research_projection_v1",
@@ -1420,6 +1420,7 @@
       currentThreeRankPathEvidence: null,
       currentThreeRankTTruth: null,
       currentPublicObservationStatistics: null,
+      publicObservationLoad: { status: "loading", message: "正在读取晋级名单验证统计。" },
       publishedRevisionSha: null,
       publishedRevision: null,
       currentLegacyProfitRelativeResearch: null,
@@ -1429,64 +1430,146 @@
 
     function emptyPublicObservationStatistics() {
       return {
-        schema_version: "decision_observation_validation_v4_auction_truth",
-        status: "public_window_pending",
+        status: "not_loaded",
         public_start_signal_date: PUBLIC_STATISTICS_START_SIGNAL_DATE,
-        observation_dates: 0,
-        observation_rows: 0,
-        t_validated_rows: 0,
-        premarket_valid_rows: 0,
-        premarket_validated_rows: 0,
-        final_verified_trades: 0,
-        matured_portfolio_dates: 0,
         path_performance: {},
-        trading_date_windows: {},
-        forward_shadow: {
-          start_signal_date: PUBLIC_STATISTICS_START_SIGNAL_DATE,
-          observed_signal_dates: 0,
-          shadow_signal_dates: 0,
-          shadow_entries: 0,
-          final_verified_trades: 0,
-          rows: []
-        }
+        trading_date_windows: {}
       };
     }
 
     function validatedPublicObservationStatistics(payload) {
       if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-      if (payload.schema_version !== "decision_observation_validation_v4_auction_truth") return null;
+      if (payload.schema_version !== "dc20_primary_observation_summary_v1") return null;
+      if (payload.scope !== "frozen_primary_topn") return null;
       if (canonicalYmd(payload.public_start_signal_date) !== PUBLIC_STATISTICS_START_SIGNAL_DATE) return null;
-      const forward = payload.forward_shadow;
-      if (!forward || typeof forward !== "object" || Array.isArray(forward)) return null;
-      if (canonicalYmd(forward.start_signal_date) !== PUBLIC_STATISTICS_START_SIGNAL_DATE) return null;
-      const rows = Array.isArray(forward.rows) ? forward.rows : null;
-      if (!rows || rows.some(row =>
-        !row || canonicalYmd(row.signal_date) < PUBLIC_STATISTICS_START_SIGNAL_DATE
-      )) return null;
+      if (!["READY", "PARTIAL_TRUTH", "PENDING_DATES"].includes(payload.status)) return null;
+      if (!Number.isFinite(Date.parse(payload.generated_at_utc))) return null;
+      if (!canonicalYmd(payload.as_of_date)) return null;
+      const statistics = payload.statistics;
+      if (!statistics || typeof statistics !== "object" || Array.isArray(statistics)) return null;
+      if ("forward_shadow" in statistics) return null;
+      for (const key of [
+        "observation_dates", "observation_rows", "premarket_valid_rows", "t_validated_rows",
+        "final_verified_trades", "matured_portfolio_dates", "pending_t_rows", "pending_t1_rows",
+        "missing_t_truth_rows", "missing_t1_truth_rows", "unresolved_exit_rows", "excluded_retrospective_rows"
+      ]) {
+        if (!Number.isInteger(statistics[key]) || statistics[key] < 0) return null;
+      }
+      for (const key of ["continuation_hit_rate", "market_positive_rate", "final_win_rate"]) {
+        if (statistics[key] !== null && (!Number.isFinite(statistics[key]) || statistics[key] < 0 || statistics[key] > 1)) return null;
+      }
+      const rows = payload.daily_summaries;
+      if (!Array.isArray(rows) || !Array.isArray(payload.bindings)) return null;
+      const policy = payload.policy;
+      if (!policy || policy.missing_truth_is_zero_return !== false || policy.mixed_shadow_ledger_included !== false || policy.retrospective_recovery_included !== false || policy.official_trade_action_created !== false) return null;
+      if (policy.performance_role !== "historical_reconstruction_of_frozen_P0_predictions" || policy.return_strategy_forward_evidence !== false || !canonicalYmd(policy.policy_definition_date)) return null;
+      const curveReasons = ["UNRESOLVED_OR_MISSING_MATURE_TRUTH", "DELAYED_EXIT_CAPITAL_OVERLAP_NOT_MODELED", "NO_COMPLETE_COHORT", "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV"];
+      if (!curveReasons.includes(statistics.portfolio_curve_reason)) return null;
+      if (statistics.portfolio_curve_reason !== "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV" && (statistics.equal_slot_cumulative_return !== null || statistics.equal_slot_max_drawdown !== null)) return null;
+      let previousDate = "";
+      for (const row of rows) {
+        const signalDate = canonicalYmd(row?.signal_date);
+        const execDate = canonicalYmd(row?.exec_date);
+        const exitDate = canonicalYmd(row?.exit_date);
+        if (!signalDate || signalDate < PUBLIC_STATISTICS_START_SIGNAL_DATE || signalDate <= previousDate) return null;
+        if (!execDate || !exitDate || !(signalDate < execDate && execDate < exitDate)) return null;
+        for (const key of ["rows", "t_validated_rows", "final_verified_trades", "settled_rows", "pending_t_rows", "pending_t1_rows", "missing_t_truth_rows", "missing_t1_truth_rows", "unresolved_exit_rows"]) {
+          if (!Number.isInteger(row[key]) || row[key] < 0) return null;
+        }
+        if (row.rows > 10 || row.final_verified_trades > row.settled_rows || row.settled_rows > row.rows || row.t_validated_rows > row.rows) return null;
+        previousDate = signalDate;
+      }
+      if (statistics.observation_dates !== rows.length || statistics.observation_rows !== rows.reduce((count, row) => count + row.rows, 0)) return null;
+      for (const key of ["t_validated_rows", "final_verified_trades", "pending_t_rows", "pending_t1_rows", "missing_t_truth_rows", "missing_t1_truth_rows", "unresolved_exit_rows"]) {
+        if (statistics[key] !== rows.reduce((count, row) => count + row[key], 0)) return null;
+      }
+      if (rows.length) {
+        const latest = rows.at(-1);
+        if (["signal_date", "exec_date", "exit_date"].some(key => payload[`latest_${key}`] !== latest[key])) return null;
+      } else if (statistics.observation_rows || statistics.observation_dates) return null;
       return payload;
     }
 
     async function refreshPublicObservationStatistics() {
-      state.currentPublicObservationStatistics = emptyPublicObservationStatistics();
+      state.currentPublicObservationStatistics = null;
+      state.publicObservationLoad = { status: "loading", message: "正在读取晋级名单验证统计。" };
       try {
         const payload = await fetchPath(PUBLIC_OBSERVATION_STATISTICS_PATH);
         const validated = validatedPublicObservationStatistics(payload);
-        if (validated) state.currentPublicObservationStatistics = validated;
-      } catch (_) {
-        // The D28 public window is fail-closed: never reuse an embedded legacy
-        // cumulative object when the dedicated public artifact is unavailable.
+        if (!validated) {
+          state.publicObservationLoad = { status: "invalid", message: "晋级名单统计未通过日期、样本范围或数据结构校验。" };
+          return;
+        }
+        state.currentPublicObservationStatistics = validated;
+        state.publicObservationLoad = { status: "ready", message: "" };
+      } catch (error) {
+        const missing = /HTTP 404\b/.test(String(error?.message || error));
+        state.publicObservationLoad = {
+          status: missing ? "missing" : "error",
+          message: missing
+            ? "晋级名单验证统计文件尚未发布。"
+            : "晋级名单验证统计读取失败，请重新加载页面。"
+        };
       }
     }
 
     function publicStatisticsPlan(plan) {
-      const statistics = state.currentPublicObservationStatistics
-        || emptyPublicObservationStatistics();
-      const current = plan?.observation_validation;
-      const currentSignalDate = canonicalYmd(current?.signal_date);
-      const observationValidation = currentSignalDate >= PUBLIC_STATISTICS_START_SIGNAL_DATE
-        ? current
-        : {};
-      return { ...(plan || {}), observation_statistics: statistics, observation_validation: observationValidation };
+      const summary = state.currentPublicObservationStatistics;
+      const primary = state.index === 0 ? validatedThreeRankContract(state.currentThreeRank) : null;
+      const signalDate = canonicalYmd(primary?.signal_date || plan?.signal_date);
+      const current = summary?.daily_summaries?.find(row => row.signal_date === signalDate) || {};
+      const statistics = summary
+        ? { ...summary.statistics, public_start_signal_date: summary.public_start_signal_date }
+        : emptyPublicObservationStatistics();
+      return { ...(plan || {}), observation_statistics: statistics, observation_validation: current };
+    }
+
+    function primaryObservationAvailability() {
+      const load = state.publicObservationLoad || { status: "loading", message: "正在读取晋级名单验证统计。" };
+      const titles = {
+        loading: "正在读取验证统计",
+        missing: "晋级名单验证统计尚未发布",
+        invalid: "晋级名单统计校验失败",
+        error: "晋级名单统计读取失败"
+      };
+      if (load.status !== "ready") return { ready: false, title: titles[load.status] || titles.error, message: load.message };
+      const summary = state.currentPublicObservationStatistics;
+      if (!summary) return { ready: false, title: titles.invalid, message: "没有可用的晋级名单统计。" };
+      const primary = state.index === 0 ? validatedThreeRankContract(state.currentThreeRank) : null;
+      if (primary && !summary.daily_summaries.some(row => row.signal_date === primary.signal_date)) {
+        if (summary.bindings.some(item => item.signal_date === primary.signal_date && item.status === "EXCLUDED_RETROSPECTIVE")) {
+          return { ready: true, title: "当前D为回溯记录", message: `D ${dateText(primary.signal_date)} 已留档，回溯样本不计入前向验证统计。` };
+        }
+        return {
+          ready: false,
+          title: "当前D榜尚未进入验证统计",
+          message: `D ${dateText(primary.signal_date)} 名单已生成；统计仅截至 D ${dateText(summary.latest_signal_date)}。等待验证工作流更新统计文件。`
+        };
+      }
+      const stats = summary.statistics;
+      const missing = stats.missing_t_truth_rows + stats.missing_t1_truth_rows + stats.unresolved_exit_rows;
+      const portfolioCoverage = primaryPortfolioExplanation(stats);
+      return {
+        ready: true,
+        title: missing > 0 ? "已到期真值或退出待核验" : summary.status === "PENDING_DATES" ? "等待验证日期" : "验证统计已接入",
+        message: (missing > 0
+          ? `到期仍待核验：T行情真值 ${stats.missing_t_truth_rows} 条，T+1行情真值 ${stats.missing_t1_truth_rows} 条；T+1退出不可执行 ${stats.unresolved_exit_rows} 条。未完成样本不计作0收益。`
+          : `T 未到期 ${stats.pending_t_rows} 条；T+1 未到期 ${stats.pending_t1_rows} 条。未到期样本不进入胜率与收益。`) + portfolioCoverage
+      };
+    }
+
+    function primaryObservationStatusHtml(view) {
+      return `<div class="empty" style="grid-column:1/-1" role="status"><strong>${escapeHtml(view.title)}</strong>${escapeHtml(view.message || "")}<p>统计范围：D 2026-08-28 起。既有前向P0晋级名单的事后日线代理观察；非混合Shadow、非新策略前向实盘成绩。</p></div>`;
+    }
+
+    function primaryPortfolioExplanation(stats) {
+      const reasons = {
+        UNRESOLVED_OR_MISSING_MATURE_TRUTH: "到期样本尚未全部完成，暂不报告完整窗口累计收益和回撤。",
+        DELAYED_EXIT_CAPITAL_OVERLAP_NOT_MODELED: "顺延退出的资金占用重叠尚未建模，暂不报告完整窗口累计收益和回撤。",
+        NO_COMPLETE_COHORT: "尚无完整结算的D组，暂不报告完整窗口累计收益和回撤。",
+        SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV: "窗口收益按D等权合成，仅作研究观察，不代表可复投资金净值。"
+      };
+      return reasons[stats.portfolio_curve_reason] || "累计收益与回撤口径尚未通过校验。";
     }
 
     const PRIMARY_PATH_LABELS = Object.freeze({
@@ -2170,85 +2253,50 @@
 
     function renderMetrics(plan) {
       plan = publicStatisticsPlan(plan);
-      const stats = plan?.observation_statistics || {};
-      const forward = stats?.forward_shadow || {};
-      const primaryContract = state.index === 0
-        ? validatedThreeRankContract(state.currentThreeRank)
-        : null;
-      const sameDayAuctionContext = !primaryContract || primaryContract === false
-        || canonicalYmd(plan?.signal_date) === canonicalYmd(primaryContract.signal_date);
-      const promoted = sameDayAuctionContext && plan?.model?.promoted === true;
-      const sentiment = sameDayAuctionContext ? (plan?.market_sentiment || {}) : {};
-      const sentimentScore = finiteNumber(sentiment.score);
-      const sentimentRegime = sentiment.regime_label || (sameDayAuctionContext ? "数据不足" : "等待当前D日同日数据");
-      const sentimentRegimeCode = String(sentiment.regime_code || "INSUFFICIENT");
-      const sentimentTone = ["EXPANSION", "EUPHORIA"].includes(sentimentRegimeCode)
-        ? "positive"
-        : ["ICE", "EBB"].includes(sentimentRegimeCode)
-          ? "negative"
-          : "warn";
-      const liveStartDate = stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE;
-      const shadowStartDate = forward.start_signal_date || liveStartDate;
-      const premarketRows = Number(stats.premarket_valid_rows || 0);
-      const premarketValidatedRows = Number(stats.premarket_validated_rows || 0);
-      const pendingTRows = Math.max(0, premarketRows - premarketValidatedRows);
-      const forwardFinalTrades = Number(forward.final_verified_trades || 0);
-      const forwardMinimumTrades = Number(forward.minimum_final_trades || 20);
-      const forwardSampleReady = forward.sample_sufficient === true
-        || forwardFinalTrades >= forwardMinimumTrades;
+      const view = primaryObservationAvailability();
+      if (!view.ready) {
+        els.metrics.innerHTML = primaryObservationStatusHtml(view);
+        els.metricsCount.textContent = view.title;
+        return;
+      }
+      const stats = plan.observation_statistics;
+      const settledSlots = state.currentPublicObservationStatistics.daily_summaries.reduce((sum, day) => sum + day.settled_rows, 0);
+      const curveAvailable = stats.portfolio_curve_reason === "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV";
       const rows = [
-        metric("正式模型状态", sameDayAuctionContext ? (promoted ? "已晋级" : "未晋级") : "当前D榜独立生成", promoted ? "good" : "warn"),
-        metric("正式人工建议数", String(sameDayAuctionContext ? (plan?.formal_buy_count || 0) : 0), "warn"),
-        metric("风险预算", sameDayAuctionContext ? number(plan?.risk_budget, 2) : "-"),
-        metric("市场情绪", sentimentScore == null ? sentimentRegime : `${sentimentRegime} · ${(sentimentScore * 100).toFixed(1)}分`, sentimentTone),
-        metric("模型版本", sameDayAuctionContext ? modelDisplayName(plan?.model?.version) : "D榜独立P0/P1"),
-        metric("实际统计起点", `D ${dateText(liveStartDate)}`),
-        metric("样本口径", "9:25前冻结"),
-        metric("冻结预测样本", integerText(premarketRows)),
-        metric("T日已验证", integerText(premarketValidatedRows)),
-        metric("T日待验证", integerText(pendingTRows), pendingTRows > 0 ? "warn" : ""),
-        metric("T+1已完成", integerText(stats.final_verified_trades)),
-        metric("T+1已完成交易日", integerText(stats.matured_portfolio_dates)),
-        metric("开盘代理成交率", pct(stats.observation_fill_rate)),
-        metric("开盘价≤限价", pct(stats.display_limit_met_rate)),
-        metric("开盘超限样本", integerText(stats.above_display_limit_rows)),
-        metric("平均开盘较限价", signedPct(stats.mean_open_vs_display_limit), valueTone(stats.mean_open_vs_display_limit)),
+        metric("统计起点", `D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}`),
+        metric("已记录出榜日", integerText(stats.observation_dates)),
+        metric("冻结名单样本", integerText(stats.observation_rows)),
+        metric("预测时序合格样本", integerText(stats.premarket_valid_rows)),
+        metric("回溯样本（排除）", integerText(stats.excluded_retrospective_rows)),
+        metric("T日已验证", integerText(stats.t_validated_rows)),
+        metric("T日未到期", integerText(stats.pending_t_rows)),
+        metric("T日真值待更新", integerText(stats.missing_t_truth_rows), stats.missing_t_truth_rows > 0 ? "warn" : ""),
+        metric("T+1已结算槽位", integerText(settledSlots)),
+        metric("T+1代理成交完成", integerText(stats.final_verified_trades)),
+        metric("未买入空槽（0收益）", integerText(settledSlots - stats.final_verified_trades)),
+        metric("T+1未到期", integerText(stats.pending_t1_rows)),
+        metric("T+1真值待更新", integerText(stats.missing_t1_truth_rows), stats.missing_t1_truth_rows > 0 ? "warn" : ""),
+        metric("T+1退出不可执行", integerText(stats.unresolved_exit_rows), stats.unresolved_exit_rows > 0 ? "warn" : ""),
+        metric("成熟组合交易日", integerText(stats.matured_portfolio_dates)),
+        metric("T日晋级率", pct(stats.continuation_hit_rate)),
+        metric("2→3晋级率", pct(stats.stage_2_to_3?.hit_rate)),
+        metric("3→4晋级率", pct(stats.stage_3_to_4?.hit_rate)),
+        metric("晋级Top1命中率", pct(stats.top1_continuation?.hit_rate)),
+        metric("晋级Top3命中率", pct(stats.top3_continuation?.hit_rate)),
         metric("T日上涨率", pct(stats.market_positive_rate)),
         metric("T日平均收盘涨跌", signedPct(stats.mean_market_daily_return), valueTone(stats.mean_market_daily_return)),
-        metric("T日平均观察收益", signedPct(stats.mean_t_observation_return), valueTone(stats.mean_t_observation_return)),
-        metric("T日晋级率", pct(stats.continuation_hit_rate)),
-        metric("2→3晋级率", pct(stats?.stage_2_to_3?.hit_rate)),
-        metric("3→4晋级率", pct(stats?.stage_3_to_4?.hit_rate)),
-        metric(
-          stats?.top1_continuation?.start_signal_date
-            ? `Top1晋级率（D${String(stats.top1_continuation.start_signal_date).slice(4)}起）`
-            : "Top1晋级率",
-          pct(stats?.top1_continuation?.hit_rate)
-        ),
-        metric("Top3晋级率", pct(stats?.top3_continuation?.hit_rate)),
-        metric("T+1胜率", pct(stats.final_win_rate)),
-        metric("T+1平均净收益", signedPct(stats.mean_final_net_return), valueTone(stats.mean_final_net_return)),
-        metric("T+1中位净收益", signedPct(stats.median_final_net_return), valueTone(stats.median_final_net_return)),
-        metric("盈亏因子", number(stats.profit_factor, 2)),
-        metric("尾部10%平均收益", signedPct(stats.tail_10pct_mean_return), valueTone(stats.tail_10pct_mean_return)),
-        metric("最差单笔净收益", signedPct(stats.worst_final_net_return), valueTone(stats.worst_final_net_return)),
-        metric("等权累计收益", signedPct(stats.equal_slot_cumulative_return), valueTone(stats.equal_slot_cumulative_return)),
-        metric("等权最大回撤", signedPct(stats.equal_slot_max_drawdown), valueTone(stats.equal_slot_max_drawdown)),
-        metric("二筛统计起点", `D ${dateText(shadowStartDate)}`),
-        metric("二筛影子入选", integerText(forward.shadow_entries)),
-        metric("二筛T+1完成", integerText(forwardFinalTrades)),
-        metric("二筛平均净收益", signedPct(forward.mean_final_net_return), valueTone(forward.mean_final_net_return)),
-        metric("二筛胜率", pct(forward.final_win_rate)),
-        metric(
-          "二筛样本状态",
-          forwardSampleReady
-            ? `${forwardFinalTrades}/${forwardMinimumTrades} · 已达观察门槛`
-            : `${forwardFinalTrades}/${forwardMinimumTrades} · 累计中`,
-          forwardSampleReady ? "good" : "warn"
-        )
+        metric("T日开盘代理收益", signedPct(stats.mean_t_observation_return), valueTone(stats.mean_t_observation_return)),
+        metric("代理成交样本胜率", pct(stats.final_win_rate)),
+        metric("代理成交平均净收益", signedPct(stats.mean_final_net_return), valueTone(stats.mean_final_net_return)),
+        metric("代理成交中位净收益", signedPct(stats.median_final_net_return), valueTone(stats.median_final_net_return)),
+        metric("完整窗口按D合成累计", curveAvailable ? signedPct(stats.equal_slot_cumulative_return) : "暂不报告", valueTone(stats.equal_slot_cumulative_return)),
+        metric("完整窗口合成回撤", curveAvailable ? signedPct(stats.equal_slot_max_drawdown) : "暂不报告", valueTone(stats.equal_slot_max_drawdown)),
+        metric("尾部10%代理净收益", signedPct(stats.tail_10pct_mean_return), valueTone(stats.tail_10pct_mean_return)),
+        metric("最差单笔代理净收益", signedPct(stats.worst_final_net_return), valueTone(stats.worst_final_net_return)),
+        metric("代理盈亏因子", number(stats.profit_factor, 2))
       ];
-      els.metrics.innerHTML = rows.join("");
-      els.metricsCount.textContent = `D ${String(liveStartDate).slice(4)}起 · ${rows.length} 项`;
+      els.metrics.innerHTML = primaryObservationStatusHtml(view) + rows.join("");
+      els.metricsCount.textContent = `D 0828起 · ${stats.observation_dates}日 / ${stats.observation_rows}条`;
     }
 
     function renderTop10Backtest(plan) {
@@ -4573,63 +4621,53 @@
 
     function renderObservationStatistics(plan) {
       plan = publicStatisticsPlan(plan);
-      const stats = plan?.observation_statistics || {};
-      const current = plan?.observation_validation || {};
-      const stage23 = stats.stage_2_to_3 || {};
-      const stage34 = stats.stage_3_to_4 || {};
-      const top1 = stats.top1_continuation || {};
-      const top3 = stats.top3_continuation || {};
-      const allTruth = stats.all_truth_summary || {};
-      const truthRows = Number(stats.t_validated_rows || 0);
-      const officialAuctionRows = Number(stats.official_auction_truth_rows || 0);
-      const rows = [
-        metric("累计观察交易日", String(stats.observation_dates ?? "-")),
-        metric("T日已验证", `${stats.t_validated_rows ?? 0}/${stats.observation_rows ?? 0}`),
-        metric("9:25前时序合格", String(stats.premarket_validated_rows ?? 0), "good"),
-        metric("真实竞价真值", String(officialAuctionRows), officialAuctionRows ? "good" : "warn"),
-        metric("真实竞价覆盖率", truthRows ? pct(officialAuctionRows / truthRows) : "-", officialAuctionRows === truthRows && truthRows ? "good" : "warn"),
-        metric("分钟 / 日开盘代理", `${stats.minute_proxy_truth_rows ?? 0} / ${stats.daily_open_proxy_truth_rows ?? 0}`),
-        metric("开盘价代理覆盖率", pct(stats.observation_fill_rate)),
-        metric("开盘价≤参考限价", pct(stats.display_limit_met_rate)),
-        metric("开盘超限样本", String(stats.above_display_limit_rows ?? 0)),
-        metric("平均开盘较限价", signedPct(stats.mean_open_vs_display_limit), valueTone(stats.mean_open_vs_display_limit)),
-        metric("观察样本上涨占比", pct(stats.market_positive_rate)),
-        metric("观察样本平均涨跌", signedPct(stats.mean_market_daily_return), valueTone(stats.mean_market_daily_return)),
-        metric("T日平均观察收益", signedPct(stats.mean_t_observation_return), valueTone(stats.mean_t_observation_return)),
-        metric("2进3命中率", pct(stage23.hit_rate)),
-        metric("3进4命中率", pct(stage34.hit_rate)),
-        metric("Top1晋级命中率", pct(top1.hit_rate)),
-        metric("Top3晋级命中率", pct(top3.hit_rate)),
-        metric("正式样本T+1完成", String(stats.final_verified_trades ?? 0)),
-        metric("正式样本T+1胜率", pct(stats.final_win_rate)),
-        metric("正式样本平均净收益", signedPct(stats.mean_final_net_return), valueTone(stats.mean_final_net_return)),
-        metric("成熟组合交易日", String(stats.matured_portfolio_dates ?? 0)),
-        metric("全部回补T+1笔数", String(allTruth.final_verified_trades ?? 0)),
-        metric("全部回补平均净收益", signedPct(allTruth.mean_final_net_return), valueTone(allTruth.mean_final_net_return)),
-        metric("等权槽位累计收益", signedPct(stats.equal_slot_cumulative_return), valueTone(stats.equal_slot_cumulative_return)),
-        metric("等权槽位最大回撤", signedPct(stats.equal_slot_max_drawdown), valueTone(stats.equal_slot_max_drawdown)),
-        metric("最差单笔净收益", signedPct(stats.worst_final_net_return), valueTone(stats.worst_final_net_return)),
-        metric("尾部10%平均收益", signedPct(stats.tail_10pct_mean_return), valueTone(stats.tail_10pct_mean_return)),
-        metric("盈亏比", number(stats.profit_factor, 2))
+      const view = primaryObservationAvailability();
+      if (!view.ready) {
+        els.observationMetrics.innerHTML = primaryObservationStatusHtml(view);
+        els.observationUpdate.textContent = view.title;
+        els.observationNote.textContent = "当前D榜与验证统计分别更新；统计尚未可用时，不展示0笔、0收益或旧策略累计。";
+        return;
+      }
+      const summary = state.currentPublicObservationStatistics;
+      const stats = plan.observation_statistics;
+      const settledSlots = summary.daily_summaries.reduce((sum, day) => sum + day.settled_rows, 0);
+      const counts = [
+        metric("已记录名单", `${stats.observation_dates} 日 / ${stats.observation_rows} 条`),
+        metric("T日已验证", integerText(stats.t_validated_rows)),
+        metric("T+1已结算 / 代理成交", `${settledSlots} / ${stats.final_verified_trades}`),
+        metric("T日未到期 / 真值待更新", `${stats.pending_t_rows} / ${stats.missing_t_truth_rows}`),
+        metric("T+1未到期 / 真值待更新", `${stats.pending_t1_rows} / ${stats.missing_t1_truth_rows}`),
+        metric("T+1退出不可执行", integerText(stats.unresolved_exit_rows), stats.unresolved_exit_rows > 0 ? "warn" : ""),
+        metric("回溯样本（不计前向）", integerText(stats.excluded_retrospective_rows))
       ];
-      els.observationMetrics.innerHTML = rows.join("");
-      const generated = current.generated_at_utc ? new Date(current.generated_at_utc).toLocaleString("zh-CN") : "尚未生成";
-      const retrospective = Number(current.retrospective_rows || 0);
-      const currentRows = Number(current.rows || 0);
-      const currentTValidated = Number(current.t_validated_rows || 0);
-      const currentFinal = Number(current.final_rows || 0);
-      const currentPending = Number(current.pending_rows || 0);
-      const publicStartLabel = String(stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE).slice(4);
-      els.observationUpdate.textContent = currentRows
-        ? `${dateText(current.exec_date)} · T ${currentTValidated}/${currentRows}${currentFinal ? ` · T+1最终 ${currentFinal}` : ""}${currentPending ? ` · T+1待 ${currentPending}` : ""}${retrospective ? ` · 回溯 ${retrospective}` : ""}`
-        : `D ${publicStartLabel}起 · 等待T日与T+1真值`;
-      const window20 = stats?.trading_date_windows?.["20"] || {};
-      const window60 = stats?.trading_date_windows?.["60"] || {};
-      els.observationNote.textContent = `数据更新时间：${generated}。公开累计从 D ${dateText(stats.public_start_signal_date || PUBLIC_STATISTICS_START_SIGNAL_DATE)} 起算；核心命中率和收益只统计T日9:25前已冻结样本，未成交按空仓0收益计入等权槽位组合。真实竞价真值优先使用 Tushare stk_auction_o，缺失时才使用分钟或日开盘代理。20日累计 ${signedPct(window20.equal_slot_cumulative_return)}，60日累计 ${signedPct(window60.equal_slot_cumulative_return)}。公开行情代理与人工实际成交分开，不把人工回填混入模型晋级。`;
+      const days = [...summary.daily_summaries].reverse().map(day => {
+        const missing = day.missing_t_truth_rows + day.missing_t1_truth_rows;
+        const pending = Number(day.pending_t_rows || 0) + Number(day.pending_t1_rows || 0);
+        const status = day.unresolved_exit_rows > 0 ? `退出不可执行 ${day.unresolved_exit_rows} 条` : missing > 0 ? "到期真值待更新" : pending > 0 ? "尚未到验证日期" : "已更新";
+        return `<tr>
+          <td>D ${dateText(day.signal_date)}</td><td>${dateText(day.exec_date)}</td><td>${dateText(day.exit_date)}</td>
+          <td>${integerText(day.rows)}</td><td>${integerText(day.t_validated_rows)}</td><td>${integerText(day.settled_rows)} / ${integerText(day.final_verified_trades)}</td>
+          <td><span class="sample-badge ${missing + day.unresolved_exit_rows > 0 ? "insufficient" : ""}">${status}</span></td>
+        </tr>`;
+      }).join("");
+      const table = days
+        ? `<div class="table-wrap table-scroll-region" style="grid-column:1/-1" tabindex="0" role="region" aria-label="每日晋级名单验证统计，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table"><thead><tr><th>D 信号日</th><th>T 验证日</th><th>T+1 退出日</th><th>冻结样本</th><th>T 已验证</th><th>T+1结算 / 代理成交</th><th>验证状态</th></tr></thead><tbody>${days}</tbody></table></div>`
+        : '<div class="empty" style="grid-column:1/-1">当前统计窗口尚无已发布的晋级名单。</div>';
+      els.observationMetrics.innerHTML = primaryObservationStatusHtml(view) + counts.join("") + table;
+      els.observationUpdate.textContent = `截至 D ${dateText(summary.latest_signal_date)} · T ${stats.t_validated_rows} 条 / T+1结算 ${settledSlots} 条`;
+      const generated = new Date(summary.generated_at_utc).toLocaleString("zh-CN");
+      els.observationNote.textContent = `统计更新时间：${generated}；真值截至 ${dateText(summary.as_of_date)}。公开累计从 D 2026-08-28 起，仅统计晋级榜冻结名单；回溯样本单列排除。本观察口径定义于 ${dateText(summary.policy.policy_definition_date)}，属于既有前向P0晋级名单的事后日线代理观察；非混合Shadow、非新策略前向实盘成绩。收益采用T日可交易开盘买入、从严格T+1起首个可交易日开盘退出的日线代理，并扣除成本；涨停开盘不推定买入，跌停开盘顺延退出，缺失中间日真值时保持待核验。${primaryPortfolioExplanation(stats)}此处不合并混合盈利Top1/Top2、二筛或人工交易记录。`;
     }
 
     function renderPathDiagnostics(plan) {
       plan = publicStatisticsPlan(plan);
+      const view = primaryObservationAvailability();
+      if (!view.ready) {
+        els.pathDiagnosticsCount.textContent = view.title;
+        els.pathDiagnosticsContent.innerHTML = primaryObservationStatusHtml(view);
+        els.pathDiagnosticsNote.textContent = "";
+        return;
+      }
       const pathPerformance = plan?.observation_statistics?.path_performance || {};
       const entries = Object.entries(pathPerformance)
         .sort(([, left], [, right]) => Number(right?.t_validated_rows || 0) - Number(left?.t_validated_rows || 0));
@@ -4639,8 +4677,8 @@
         || PUBLIC_STATISTICS_START_SIGNAL_DATE
       ).slice(4);
       if (!entries.length) {
-        els.pathDiagnosticsCount.textContent = `D ${publicStartLabel}起 · 0 条`;
-        els.pathDiagnosticsContent.innerHTML = '<div class="empty"><strong>暂无路径真值</strong>等待T日与T+1验证累计。</div>';
+        els.pathDiagnosticsCount.textContent = `D ${publicStartLabel}起 · 待路径分组统计`;
+        els.pathDiagnosticsContent.innerHTML = '<div class="empty"><strong>路径分组统计尚未发布</strong>晋级名单验证结果已单独统计；路径分组须由同一批样本的验证结果生成。</div>';
         els.pathDiagnosticsNote.textContent = "";
         return;
       }

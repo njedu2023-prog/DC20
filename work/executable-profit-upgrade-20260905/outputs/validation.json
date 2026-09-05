@@ -1,0 +1,43 @@
+{
+  "all_D_T_T1_adjacent_SSE_dates": true,
+  "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+  "future_label_model_invariance": [
+    {
+      "cutoff": "20250225",
+      "mean_and_downside_predictions_identical": true,
+      "poisoned_future_rows": 3074
+    },
+    {
+      "cutoff": "20251119",
+      "mean_and_downside_predictions_identical": true,
+      "poisoned_future_rows": 1508
+    }
+  ],
+  "future_outcome_feature_invariance": [
+    {
+      "D": "20250225",
+      "changed_future_rows": 3431,
+      "identical_features": true
+    },
+    {
+      "D": "20251119",
+      "changed_future_rows": 1762,
+      "identical_features": true
+    },
+    {
+      "D": "20260814",
+      "changed_future_rows": 30,
+      "identical_features": true
+    }
+  ],
+  "independent_confirmation_claim": false,
+  "lagged_reconstruction_max_abs_delta": 1.7763568394002505e-15,
+  "legacy_baseline_reproduced": {
+    "confirmation": true,
+    "development": true
+  },
+  "passed": true,
+  "reconstructed_lagged_feature_rows": 6753,
+  "release_allowed": false,
+  "schema_version": "dc20_offline_return_downside_validation_v1"
+}
