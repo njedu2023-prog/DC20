@@ -160,7 +160,7 @@ jobs:
       runtime_index_ready: ${{ steps.runtime_index.outputs.runtime_index_ready || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 1
@@ -182,7 +182,7 @@ jobs:
           echo "base_head=${base_head}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up pinned Python runtime
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
         with:
           python-version: "3.12.13"
           cache: pip
@@ -917,7 +917,7 @@ jobs:
 
       - name: Upload immutable P0 candidate
         if: ${{ steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: primary-d-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -941,12 +941,12 @@ jobs:
       signal_date: ${{ needs.compute.outputs.signal_date }}
       generation_mode: ${{ needs.compute.outputs.generation_mode }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v5.0.0
         with:
           name: primary-d-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate
@@ -1039,13 +1039,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
           fetch-depth: 1
           persist-credentials: false
       - name: Set up pinned Python runtime
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
         with:
           python-version: "3.12.13"
           cache: pip
@@ -1056,7 +1056,7 @@ jobs:
           python -m pip install --disable-pip-version-check \
             --only-binary=:all: --require-hashes -r requirements.lock
           python -m pip check
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Build primary-first Decision site
         id: site
         env:
@@ -1185,12 +1185,12 @@ jobs:
               handle.write(f"runtime_index_ready={'true' if runtime_index_ready else 'false'}\n")
               handle.write(f'runtime_index_sha256={runtime_index_sha}\n')
           PY
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
       - name: Verify exact public primary revision
         env:
           EXPECTED_HEAD: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}

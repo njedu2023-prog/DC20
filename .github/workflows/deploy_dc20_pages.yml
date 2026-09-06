@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.expected_head || github.sha }}
           fetch-depth: 1
@@ -87,7 +87,7 @@ jobs:
           test "${actual}" = "${EXPECTED_HEAD}"
 
       - name: Set up pinned Python runtime
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
         with:
           python-version: "3.12.13"
           cache: pip
@@ -173,7 +173,7 @@ jobs:
               handle.write(f'contract={contract}\n')
           PY
 
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Build isolated DC2.0 Decision site
         id: site
@@ -1607,13 +1607,13 @@ jobs:
           print(json.dumps(revision, ensure_ascii=False, sort_keys=True))
           PY
 
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
       - name: Deploy DC2.0 Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
       - name: Verify public primary-profit bundle when present
         if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}
