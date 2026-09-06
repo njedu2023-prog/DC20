@@ -3,6 +3,11 @@
 本包只做回顾性研究，不更新线上模型、晋级排序、连板路径、每日名单或 Shadow，
 不产生订单、仓位、正式 Action。目标是如实检验成本后的 Top1 / Top2，不保证盈利。
 
+## 本轮已完成：不通过上线标准
+
+已完成组合来源核验、标签重建和 5 折 / 10 次拟合。两个新候选的 Top1、Top2
+平均净收益均为负，不替换线上模型。详见 [实测结果](RESULTS.md)。
+
 ## 来源身份和准入
 
 - 原 run `34023469106` 在 90 分钟软期限停止；永久保留失败与原审计三条 issues。
@@ -36,7 +41,8 @@ Top1、Top2 分开报告，已知未成交为现金 0；无第二只时现金占
 目录中复制固定输入并进行标签/拟合。两个不可变来源目录都必须在创建 workspace
 之前通过不重叠检查。结果独占写入本包新 `outputs/research`，不覆盖旧报告。
 
-`outputs/audit` 保存组合来源审计；`outputs/research/run_manifest.json` 才是本次
+仅审计模式使用 `outputs/audit`；本次正式执行的组合审计随结果保存在
+`outputs/research/composite_source_audit.json`。`outputs/research/run_manifest.json` 才是本次
 训练执行状态。源码登记不代表已训练；尚无结果时不能声称 Top1/Top2 已改善。
 本研究始终 `NO_RELEASE`，即使历史结果更好，也必须先对齐执行政策，再单独冻结
 并进行自然前向验证，不能据本回顾性试验自动替换线上模型。

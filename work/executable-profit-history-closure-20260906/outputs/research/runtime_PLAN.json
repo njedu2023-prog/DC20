@@ -1,0 +1,255 @@
+{
+  "schema_version": "dc20_profit_history_closure_plan_v1",
+  "status": "RETROSPECTIVE_COMPOSITE_SOURCES_BOUND_PENDING_INDEPENDENT_ADMISSION",
+  "source_repository": "njedu2023-prog/DC20",
+  "source_commit": "2e81fedcda05d5f7a430b4ca021914f887dcbc3a",
+  "plan_fixed_before_new_label_returns_or_model_fit": true,
+  "as_of_date": "20260904",
+  "source_inputs": {
+    "ledger": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+      "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+    },
+    "calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    }
+  },
+  "label_policy": {
+    "id": "conservative_daily_open_execution_proxy_v2",
+    "scope": "exact historical frozen promotion OOF TopN, unchanged membership and rank",
+    "date_rule": "D/T/T+1 must be adjacent committed SSE open sessions",
+    "entry": "T daily open strictly below official up_limit with positive reported daily volume; this is a conservative daily-open proxy, not an auction fill or capacity claim",
+    "known_no_entry": "existing candidate row with explicitly zero volume, or valid open at official up_limit; cash zero, no transaction cost",
+    "exit": "first strict session from T+1 with positive volume and open strictly above official down_limit; opening at down limit remains blocked even if intraday trading later resumes",
+    "missing_session": "stop unresolved; never skip an unknown intervening session",
+    "corporate_action": "pre_close differing from prior observed close requires separate adjustment/cash-action evidence; keep unresolved without it",
+    "base_all_in_assumed_cost_rate": 0.0045,
+    "stress_all_in_assumed_cost_rate": 0.009,
+    "cost_assumption": "45bp and 90bp are fixed round-trip fee/slippage scenarios, not measured execution costs; charged once on a filled slot only",
+    "label_availability": "known no-entry at T close; resolved exit at its observed session close, not scheduled T+1; training uses this date strictly before cutoff",
+    "unresolved_return": null,
+    "actual_order_fill_observed": false,
+    "auction_capacity_validated": false,
+    "same_policy_as_existing_forward_shadow": false,
+    "return_is_capital_nav": false
+  },
+  "training": {
+    "min_train_complete_dates": 252,
+    "min_train_rows": 1000,
+    "evaluation_complete_dates": 180,
+    "walk_forward_block_dates": 40,
+    "feature_count": 48,
+    "terminal_label_statuses": [
+      "SETTLED_OPEN_PROXY",
+      "NO_FILL_OPEN_LIMIT_UP_PROXY",
+      "NO_FILL_ZERO_VOLUME_PROXY"
+    ],
+    "scores": [
+      "direct_slot_net",
+      "direct_slot_net_downside"
+    ],
+    "downside_penalty": 0.5,
+    "features": "existing 48 D-known columns only; exclude old 108 proxy-outcome priors whose availability did not account for delayed exits",
+    "heads": "direct slot net return and max(-slot net return,0), both on the same mature complete-D training rows",
+    "selection": "min(2,N) fixed daily, code ascending tie-break, absent slot cash zero, no score threshold and no padding",
+    "common_mask": "all original candidates in a D must have terminal labels; report every incomplete D; at fit time all label_available_dates must be strictly before cutoff",
+    "baseline": "same-D frozen promotion Top2, evaluated on the identical new-policy labels and candidate mask",
+    "existing_mixed_comparator": "not available on identical historical fitting cutoffs; do not replay its full-history-trained artifact into earlier dates",
+    "all_existing_evaluation_history_previously_viewed": true,
+    "untouched_confirmation": false,
+    "insufficient_evidence": "write readiness BLOCK and do not fit, serialize a model, or invent performance"
+  },
+  "hgb_parameters": {
+    "max_iter": 200,
+    "learning_rate": 0.05,
+    "max_leaf_nodes": 7,
+    "min_samples_leaf": 40,
+    "l2_regularization": 10,
+    "early_stopping": false,
+    "random_state": 20260906
+  },
+  "future_acceptance": {
+    "promotion_requires_separate_review": true,
+    "new_natural_forward_dates_required": 180,
+    "freeze_before_first_forward_D": true,
+    "Top1_and_Top2_evaluated_separately": true,
+    "requirements": [
+      "same-policy champion comparison",
+      "positive net evidence after costs and stress",
+      "tail and drawdown review",
+      "missingness and capacity review",
+      "explicit entry-exit policy alignment with forward Shadow"
+    ],
+    "this_experiment_can_release": false
+  },
+  "boundaries": {
+    "network_market_fetch": false,
+    "production_model_updated": false,
+    "promotion_or_daily_ranking_updated": false,
+    "shadow_ledger_updated": false,
+    "orders_or_action_created": false,
+    "workflow_dispatch": false,
+    "runtime_dependency_on_top10_decision": false
+  },
+  "original_policy_source_commit": "2e81fedcda05d5f7a430b4ca021914f887dcbc3a",
+  "legacy_reuse": {
+    "package": "work/executable-profit-execution-v2-20260906",
+    "files": {
+      "build_labels.py": "04cd20c97e1aaf1179b5460759bb22fddc84f1106cd802321678c675e6ad174f",
+      "train_candidate.py": "50e01cbcd7da0aea7ec3329b0f980e58fd17d5a350e251452ba2dc26e6eaaaa8",
+      "PLAN.json": "8a6b0614ad5510fb6b0b79cbe5dfd24a30b26e7f273d0c09420e5f8fcfba4629"
+    },
+    "feature_manifest": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json",
+      "sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5"
+    },
+    "execution": "Exact byte copies of original scripts into an isolated external study; unchanged parameters, labels and gates; original source and outputs are read only."
+  },
+  "overlay_policy": {
+    "required_apis": [
+      "daily",
+      "stk_limit"
+    ],
+    "structure": "data/market/raw/YYYY/YYYYMMDD/{daily,stk_limit}.csv",
+    "copy_old_market_partitions": false,
+    "use_adjustment_factor_to_resolve_corporate_actions": false,
+    "output": "Only a new external empty temporary overlay and this new research package outputs; no overwrite of earlier outputs.",
+    "source_identity": "Collection now is retrospective evidence, never availability at historical D or new forward Shadow."
+  },
+  "runner_mode": {
+    "network": false,
+    "workflow_dispatch": false,
+    "production_weight_serialization": false,
+    "default": "audit_only",
+    "training_requires_explicit_cli_flag": "--train-after-gates",
+    "insufficient_data": "Record BLOCK and zero model fits; no performance files",
+    "success": "Still NO_RELEASE; no replacement of live model or P0 rankings."
+  },
+  "source_commit_role": "Original immutable label/training-policy commit; both market collection executions are explicitly identified below, never represented as one successful run.",
+  "composite_source": {
+    "original": {
+      "run_id": "34023469106",
+      "run_sha": "d5f3df57c78b0458d1329034c94ec324827aa390",
+      "run_attempt": "1",
+      "manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
+      "audit_sha256": "0685b96c0657c3c1c528743d0b80dc1adee64673ea89643e71732d0103a04190",
+      "audit_script_sha256": "105b32e9af800c9d556263757300aecb43d56b1b5d4d9d0c077157b5556b56a3",
+      "collection_status": "BLOCKED_COLLECTION",
+      "failure_code": "COLLECTION_SOFT_DEADLINE_EXCEEDED",
+      "verified_required_partitions": 1833,
+      "missing_required_partitions": 19,
+      "source_collector_sha256": "721f3a52e7ff8070c2951528f9d88ae6715d16f61b880a9f47e06ceced40088b"
+    },
+    "tail": {
+      "package": "work/executable-profit-history-tail-20260906",
+      "run_id": "34028882328",
+      "run_sha": "5af7fe93257441aa1826403a9940e0292a82c8c7",
+      "run_attempt": "1",
+      "manifest_sha256": "aab422db860841f5c09e6d278cb2637934c13400b7da336d5ce21241c8e16b95",
+      "plan_sha256": "91877b2eb6a6e85ca9cb34fadc86a02836a57c34b58a603146bc7ae476bcd097",
+      "request_sha256": "8aab13cfcbad67c26cd6057d7764a11acb70c38d44957d159bef2569afd97898",
+      "collector_sha256": "989e59862291b4060ec91d0856b93d80991a9a7c0d59789abf2cb28208806d05",
+      "partition_plan_sha256": "8861ba29a3fbde045302368d30e46b99840e1ebd9dc8f96711664464ec8c4b83",
+      "status": "COLLECTED_TAIL_REQUIRED_PARTITIONS_WITH_GAPS"
+    },
+    "audit_module": {
+      "path": "work/executable-profit-history-analysis-20260906/audit_artifact.py",
+      "sha256": "105b32e9af800c9d556263757300aecb43d56b1b5d4d9d0c077157b5556b56a3"
+    },
+    "training_helpers": {
+      "path": "work/executable-profit-history-retrain-20260906/run_research.py",
+      "sha256": "6510a51a84e51ffdaee8a4a7b6cd9b2f84e3d58acec17b28f6f89893f4abf4fe"
+    },
+    "full_session_plan_sha256": "526c0d07f3a31cb9e8eee864abe6a47321e641c80d716a8e0c90e84201ef0b6e",
+    "total_required_partitions": 1852,
+    "missing_partitions": [
+      {
+        "trade_date": "20260824",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260825",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260825",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260826",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260826",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260827",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260827",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260828",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260828",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260831",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260831",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260901",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260901",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260902",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260902",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260903",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260903",
+        "api": "stk_limit"
+      },
+      {
+        "trade_date": "20260904",
+        "api": "daily"
+      },
+      {
+        "trade_date": "20260904",
+        "api": "stk_limit"
+      }
+    ],
+    "rules": {
+      "original_failed_run_remains_failed": true,
+      "original_audit_issues_never_removed": true,
+      "only_exact_missing_partitions_from_tail": true,
+      "overlap_or_overwrite_between_sources": false,
+      "partial_pages_never_spliced_across_runs": true,
+      "original_29_day_overlap_rechecked_after_closure": true,
+      "missing_or_null_never_zero_or_filled_from_old_data": true,
+      "combined_report_is_not_single_run_publication": true
+    }
+  }
+}
