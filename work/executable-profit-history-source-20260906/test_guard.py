@@ -34,15 +34,16 @@ class GuardTest(unittest.TestCase):
             p.write_text(relative)
             hashes[relative] = hashlib.sha256(p.read_bytes()).hexdigest()
         self.request = {"_activation": {"installation_commit": self.install, "source_commit": guard.BASE,
-                        "request_nonce": "dc20-profit-history-source-20260906-once-v1", "files_sha256": hashes}}
+                        "request_nonce": "dc20-profit-history-source-20260906-once-v2", "files_sha256": hashes,
+                        "supersedes_preflight_run_id": guard.FAILED_PREFLIGHT_RUN, "previous_collection_started": False}}
         self.responses = {
             ("rev-parse", "HEAD"): self.head,
             ("status", "--porcelain=v1"): "",
             ("show", "-s", "--format=%B", self.install): "Install isolated research collector [skip ci]",
             ("rev-list", "--parents", "-n", "1", self.head): self.head + " " + self.install,
-            ("rev-list", "--parents", "-n", "1", self.install): self.install + " " + guard.BASE,
-            ("diff", "--name-status", self.install, self.head): "A\t" + guard.REQUEST,
-            ("diff", "--name-status", guard.BASE, self.install): "\n".join("A\t" + p for p in guard.FILES),
+            ("rev-list", "--parents", "-n", "1", self.install): self.install + " " + guard.INSTALL_BASE,
+            ("diff", "--name-status", self.install, self.head): "M\t" + guard.REQUEST,
+            ("diff", "--name-status", guard.INSTALL_BASE, self.install): "\n".join("M\t" + p for p in guard.INSTALL_UPDATES),
         }
 
     def check(self):
@@ -96,19 +97,20 @@ class GuardTest(unittest.TestCase):
             with self.subTest(value=value), patch.dict(self.request["_activation"]["files_sha256"], {guard.FILES[0]: value}), self.assertRaises(ValueError):
                 self.check()
 
-    def test_activation_cannot_change_other_files_or_reuse_request(self):
+    def test_activation_cannot_change_other_files_or_add_an_unreviewed_request(self):
         key = ("diff", "--name-status", self.install, self.head)
-        for output in ("M\t" + guard.REQUEST, "A\t" + guard.REQUEST + "\nM\tdecision.html"):
+        for output in ("A\t" + guard.REQUEST, "M\t" + guard.REQUEST + "\nM\tdecision.html"):
             with self.subTest(output=output), patch.dict(self.responses, {key: output}), self.assertRaises(ValueError):
                 self.check()
 
     def test_installation_cannot_modify_production(self):
-        key = ("diff", "--name-status", guard.BASE, self.install)
+        key = ("diff", "--name-status", guard.INSTALL_BASE, self.install)
         with patch.dict(self.responses, {key: self.responses[key] + "\nM\tmodels/decision_model_freeze.json"}), self.assertRaises(ValueError):
             self.check()
 
     def test_hash_and_binding_drift(self):
-        for name, value in (("source_commit", "c" * 40), ("request_nonce", "another-run"), ("files_sha256", {})):
+        for name, value in (("source_commit", "c" * 40), ("request_nonce", "another-run"), ("files_sha256", {}),
+                            ("supersedes_preflight_run_id", 0), ("previous_collection_started", True)):
             with self.subTest(name=name), patch.dict(self.request["_activation"], {name: value}), self.assertRaises(ValueError):
                 self.check()
         (self.root / guard.FILES[0]).write_text("modified")

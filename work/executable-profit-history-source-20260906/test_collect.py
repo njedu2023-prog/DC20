@@ -139,7 +139,14 @@ class OutputTests(Base):
 
     def test_reject_repo_nonempty_relative_broad_and_symlink(self):
         self.fail_code("OUTPUT_MUST_BE_OUTSIDE_REPOSITORY", C.prepare_output, self.repo, str(self.repo / "outputs"), environment={})
-        self.fail_code("OUTPUT_MUST_BE_OUTSIDE_REPOSITORY", C.prepare_output, self.repo, str(self.root), environment={})
+        # Linux TemporaryDirectory is commonly /tmp/name (three parts), which
+        # is correctly rejected by the earlier broad-root check. Use an
+        # explicitly deeper ancestor to isolate the repository ancestry guard.
+        ancestor = self.root / "ancestor"
+        nested_repo = ancestor / "repo"
+        nested_repo.mkdir(parents=True)
+        self.assertGreaterEqual(len(ancestor.parts), 4)
+        self.fail_code("OUTPUT_MUST_BE_OUTSIDE_REPOSITORY", C.prepare_output, nested_repo, str(ancestor), environment={})
         (self.output / "existing").write_text("preserve")
         self.fail_code("EXISTING_NONEMPTY_OUTPUT_FORBIDDEN", C.prepare_output, self.repo, str(self.output), environment={})
         self.assertEqual((self.output / "existing").read_text(), "preserve")
@@ -148,6 +155,16 @@ class OutputTests(Base):
         alias = self.root / "alias"
         alias.symlink_to(self.output, target_is_directory=True)
         self.fail_code("SYMLINK_PATH_FORBIDDEN", C.prepare_output, self.repo, str(alias), environment={})
+
+    def test_linux_shallow_tmp_path_is_broad_before_ancestry_or_io(self):
+        # Only bypass the platform's /tmp alias check for this lexical-depth
+        # unit test: macOS aliases /tmp, Linux normally does not. Production
+        # symlink enforcement is unchanged and exercised in separate tests.
+        shallow = Path("/tmp/dc20-shallow-output-fixture")
+        self.assertEqual(len(shallow.parts), 3)
+        with mock.patch.object(C, "no_symlinks"), mock.patch.object(Path, "mkdir") as mkdir:
+            self.fail_code("BROAD_OUTPUT_ROOT_FORBIDDEN", C.prepare_output, self.repo, str(shallow), environment={})
+        mkdir.assert_not_called()
 
     def test_actions_output_cannot_be_redirected(self):
         runner = self.root / "runner"

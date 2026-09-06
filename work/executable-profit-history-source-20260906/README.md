@@ -8,7 +8,7 @@ The preceding execution-v2 study has only 132 terminal candidate labels and 15
 complete D cohorts. The frozen 6,753-candidate / 910-D feature ledger is unchanged.
 This stage acquires additional raw evidence and preserves that earlier study.
 
-## Installation and activation
+## Installation and activation history
 
 1. Locally test and independently review all seven new files. Install them as an
    additions-only commit on base `3e2299a07f7b4430002da0b870c47ecf57c49bb3`.
@@ -26,6 +26,23 @@ This stage acquires additional raw evidence and preserves that earlier study.
    duration is 110 minutes, with a 90-minute collector deadline to leave time for
    failure receipts and artifact upload. There is no cron or production dispatch/retry.
    A single runner/serial request stream limits contention with existing credentials.
+
+### Reviewed preflight-only correction
+
+The first activation `429b751789f88335679d6cf72a9b0986078f819b` created
+[run 34022321843](https://github.com/njedu2023-prog/DC20/actions/runs/34022321843).
+Its authorization guard passed, but a Linux test fixture failed: a shallow
+`/tmp/...` ancestor correctly hit the broad-output-path guard before the test's
+expected repository-ancestor guard. The credential-bearing collection step was
+skipped; no market query was made. Production files remained unchanged.
+
+The fixture correction does not alter `collect.py` or weaken either guard.
+The replacement installation must be a direct child of that exact activation,
+modifying only this README, `guard.py`, `test_guard.py`, and `test_collect.py`.
+The following activation may only modify REQUEST, bind the new installation and
+all seven source hashes, and use nonce `once-v2` with the failed preflight run ID.
+This is a new push run after a reviewed test correction, not an Actions rerun.
+The source ledger, as-of, query scope, time limit, and source permissions are unchanged.
 
 ## Sources and limits
 
