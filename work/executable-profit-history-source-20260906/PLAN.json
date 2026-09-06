@@ -1,0 +1,51 @@
+{
+  "schema_version": "dc20_profit_history_source_v1",
+  "status": "RETROSPECTIVE_RESEARCH_DATA_ONLY",
+  "source_repository": "njedu2023-prog/DC20",
+  "source_commit": "3e2299a07f7b4430002da0b870c47ecf57c49bb3",
+  "as_of_date": "20260904",
+  "source_inputs": {
+    "ledger": {"path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz", "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"},
+    "calendar": {"path": "data/market/trade_cal_sse.csv", "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"}
+  },
+  "tail_sessions": 20,
+  "daily_mode": "full_market_paged",
+  "page_size": 5000,
+  "max_pages": 4,
+  "min_request_interval_seconds": 0.5,
+  "max_requests": 6500,
+  "optional_adj_factor": true,
+  "collection_window_note": "Each original candidate T through T+1 plus 20 strict SSE sessions, capped at the fixed as-of. This is an evidence budget, not a forced-exit rule. Unobserved intervening sessions and any unobserved later exit remain unresolved.",
+  "source_policy": {
+    "endpoint": "https://api.tushare.pro",
+    "required_apis": ["daily", "stk_limit"],
+    "optional_apis": ["adj_factor"],
+    "collection_order": "After endpoint canaries, finish every required daily/stk_limit session before optional adj_factor collection uses the remaining budget.",
+    "daily_prices": "unadjusted official-source daily bars; open-price research proxy, not actual fills",
+    "limits": "provider official dated limit prices, never inferred fixed 10 percent",
+    "adjustment": "diagnostic evidence only; no automatic dividend/share-action reconstruction",
+    "missingness": "unknown, never cash zero or presumed suspension",
+    "raw_response_role": "retrieved now for retrospective labels; not evidence available at historical D and not new forward records",
+    "optional_permission_failure": "record unavailable and continue required sources without upgrading account permissions",
+    "required_source_failure": "stop and publish a failure receipt, never substitute older data"
+  },
+  "isolation": {
+    "single_runner_single_thread": true,
+    "writes": "external temporary artifact directory only",
+    "production_models_changed": false,
+    "daily_rankings_changed": false,
+    "shadow_ledger_changed": false,
+    "orders_or_actions_created": false,
+    "old_v2_research_outputs_changed": false,
+    "train_or_release_in_this_workflow": false,
+    "credentials_in_artifacts": false,
+    "permission_upgrade_or_purchase": false
+  },
+  "next_stage": "Verify artifact/run/source hashes and overlapping official partitions, rebuild labels in a separate research snapshot, then apply the unchanged v2 complete-D and training gates. No automatic production replacement.",
+  "documentation": [
+    "https://tushare.pro/document/1?doc_id=9",
+    "https://tushare.pro/document/2?doc_id=27",
+    "https://tushare.pro/document/2?doc_id=183",
+    "https://tushare.pro/document/2?doc_id=28"
+  ]
+}

@@ -1,0 +1,63 @@
+name: DC2.0 · Profit Historical Evidence (Research Only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/executable-profit-history-source-20260906/REQUEST.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-profit-history-source-20260906-read-only
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+
+jobs:
+  collect:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - name: Checkout exact activation commit without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 3
+          persist-credentials: false
+      - name: Set up Python without package downloads
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Authorize exact one-time research request
+        run: python work/executable-profit-history-source-20260906/guard.py
+      - name: Test research collector and guard without network or credentials
+        run: python -m unittest discover -s work/executable-profit-history-source-20260906 -p 'test_*.py' -v
+      - name: Recheck immutable request and clean checkout before credential use
+        run: python work/executable-profit-history-source-20260906/guard.py
+      - name: Collect bounded official-source research evidence
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: >-
+          python work/executable-profit-history-source-20260906/collect.py
+          --repo "${GITHUB_WORKSPACE}"
+          --output "${RUNNER_TEMP}/dc20-profit-history-source-20260906"
+      - name: Verify no checkout data or model was changed
+        if: always()
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+      - name: Preserve research evidence and failure receipt only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-profit-history-source-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/dc20-profit-history-source-20260906
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
