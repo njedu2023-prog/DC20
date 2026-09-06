@@ -92,7 +92,11 @@ def _historical_pins_after_successor_review(manifest: dict, evidence: dict, revi
     historical_surface = {item["path"]: item["current_sha256"] for item in evidence["pin_changes"]}
     historical_surface.update(evidence["added_runtime_pins"])
     pins = dict(manifest["pinned_files"])
-    assert pins.pop(SUCCESSOR.relative_to(ROOT).as_posix()) == _sha256(SUCCESSOR)
+    # A source-review record is audit evidence, not a new frozen runtime input.
+    # Keep the runtime's exact required pin set and authenticate this record
+    # independently rather than extending the protected model source boundary.
+    assert SUCCESSOR.relative_to(ROOT).as_posix() not in pins
+    assert _sha256(SUCCESSOR) == "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
     changes = review["pin_changes"]
     paths = [item["path"] for item in changes]
     assert paths == sorted(SUCCESSOR_REVIEW_PATHS)
@@ -395,7 +399,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         evidence["prior_pinned_files_sha256"]
     )
     assert len(manifest["pinned_files"]) == (
-        len(reconstructed_prior_pins) + len(added_runtime_pins) + 1
+        len(reconstructed_prior_pins) + len(added_runtime_pins)
     )
 
     assert evidence["release_contract"] == {
