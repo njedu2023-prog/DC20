@@ -1,6 +1,7 @@
 """Offline stdlib tests. No credential, market call, model fit, or production IO."""
 import contextlib
 import copy
+import csv
 import gzip
 import importlib.util
 import io
@@ -239,8 +240,8 @@ class ClientTests(Base):
 
     def test_invalid_candidate_evidence_dates_fields_duplicates(self):
         cases = []
-        missing = row("daily"); missing["open"] = None
-        cases.append((response("daily", [missing]), "CANDIDATE_NUMERIC_EVIDENCE_MISSING"))
+        malformed = row("daily"); malformed["open"] = "10.0"
+        cases.append((response("daily", [malformed]), "CANDIDATE_NUMERIC_EVIDENCE_MISSING"))
         cases.append((response("daily", [row("daily", date="20221115")]), "RESPONSE_DATE_OUT_OF_SCOPE"))
         cases.append((response("daily", [row("daily"), row("daily")]), "RESPONSE_DUPLICATE_CODE"))
         bad = row("daily"); bad["high"] = 5.
@@ -250,6 +251,37 @@ class ClientTests(Base):
             self.fail_code(failure, self.client.query, "daily", params(), {CODE})
         self.transport.return_value = b'{"code":0,"msg":"","data":{"fields":[{}],"items":[]}}'
         self.fail_code("RESPONSE_FIELDS_MISMATCH", self.client.query, "daily", params(), {CODE})
+
+    def test_bulk_explicit_null_is_preserved_but_canary_remains_strict(self):
+        for api in C.FIELDS:
+            field = C.FIELDS[api][2]
+            nullable = row(api)
+            nullable[field] = None
+            self.transport.return_value = response(api, [nullable])
+            values = self.client.query(api, params(), {CODE})
+            self.assertIsNone(values[0][field])
+            raw = gzip.decompress((self.output / f"responses/{self.client.count:06d}.json.gz").read_bytes())
+            self.assertIn(b"null", raw)
+            self.fail_code("CANDIDATE_NUMERIC_EVIDENCE_MISSING", self.client.query, api, params(ts_code=CODE), {CODE}, canary=True)
+
+    def test_nullable_does_not_accept_bool_string_or_nonfinite(self):
+        for value in [False, True, "0", "", "null", float("inf"), float("nan")]:
+            for api in C.FIELDS:
+                bad = row(api)
+                bad[C.FIELDS[api][2]] = value
+                self.fail_code("CANDIDATE_NUMERIC_EVIDENCE_MISSING", C.validate_rows, api, C.FIELDS[api],
+                               [[bad[k] for k in C.FIELDS[api]]], DATE, {CODE})
+
+    def test_valid_nonnull_fields_and_available_pairs_remain_validated(self):
+        bad = row("daily"); bad["open"] = None; bad["high"] = 5.
+        self.fail_code("CANDIDATE_OHLC_INCONSISTENT", C.validate_rows, "daily", C.FIELDS["daily"],
+                       [[bad[k] for k in C.FIELDS["daily"]]], DATE, {CODE})
+        bad = row("daily"); bad["amount"] = None; bad["vol"] = -1.
+        self.fail_code("CANDIDATE_VOLUME_NEGATIVE", C.validate_rows, "daily", C.FIELDS["daily"],
+                       [[bad[k] for k in C.FIELDS["daily"]]], DATE, {CODE})
+        bad = row("stk_limit"); bad["pre_close"] = None; bad["up_limit"] = 8.
+        self.fail_code("CANDIDATE_LIMIT_INVALID", C.validate_rows, "stk_limit", C.FIELDS["stk_limit"],
+                       [[bad[k] for k in C.FIELDS["stk_limit"]]], DATE, {CODE})
 
     def test_non_candidate_fund_can_have_null_numeric_evidence(self):
         fund = {field: None for field in C.FIELDS["daily"]}
@@ -380,6 +412,39 @@ class CollectionTests(Base):
         self.assertEqual(status["status"], "COLLECTED_REQUIRED_SOURCES_WITH_GAPS")
         self.assertFalse(status["required_candidate_coverage_complete"])
         self.assertEqual(len((self.output / ("candidate_sources/" + DATE + "/daily.csv")).read_text().splitlines()), 1)
+
+    def test_bulk_null_fields_continue_other_dates_and_mark_coverage_incomplete(self):
+        later = "20221115"
+        def transport(body):
+            sent = json.loads(body)
+            api, p = sent["api_name"], sent["params"]
+            current = row(api, date=p["trade_date"])
+            if "ts_code" not in p and p["trade_date"] == DATE:
+                if api == "daily":
+                    current["open"], current["vol"] = None, None
+                elif api == "stk_limit":
+                    current["pre_close"] = None
+            return response(api, [current])
+        self.transport.side_effect = transport
+        request = self.request()
+        request["sessions"].append({"trade_date": later, "codes": [CODE]})
+        with contextlib.redirect_stdout(io.StringIO()):
+            result, status = C.perform_collection(self.client, request, self.artifacts, {})
+        self.assertEqual(result, 0)
+        self.assertEqual(status["sessions_completed"], 2)
+        self.assertTrue(status["required_collection_complete"])
+        self.assertFalse(status["required_candidate_coverage_complete"])
+        self.assertEqual(status["status"], "COLLECTED_REQUIRED_SOURCES_WITH_GAPS")
+        info = status["coverage"][0]["apis"]["daily"]
+        self.assertTrue(info["candidate_scope_complete"])
+        self.assertEqual(info["missing_candidate_codes"], [])
+        self.assertEqual(info["incomplete_candidate_fields"], [{"ts_code": CODE, "fields": ["open", "vol"]}])
+        with (self.output / f"candidate_sources/{DATE}/daily.csv").open() as handle:
+            saved = list(csv.DictReader(handle))[0]
+        self.assertEqual(saved["open"], "")
+        self.assertEqual(saved["vol"], "")
+        self.assertEqual(saved["high"], "11.0")
+        self.assertEqual(status["coverage"][1]["apis"]["daily"]["incomplete_candidate_fields"], [])
 
     def test_soft_deadline_still_finalizes_manifest(self):
         self.clock.now = C.SOFT_DEADLINE_SECONDS

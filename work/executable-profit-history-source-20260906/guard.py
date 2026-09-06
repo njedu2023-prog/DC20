@@ -13,10 +13,11 @@ PREFIX = "work/executable-profit-history-source-20260906/"
 WORKFLOW = ".github/workflows/research_profit_history_source.yml"
 REQUEST = PREFIX + "REQUEST.json"
 BASE = "3e2299a07f7b4430002da0b870c47ecf57c49bb3"
-INSTALL_BASE = "429b751789f88335679d6cf72a9b0986078f819b"
-FAILED_PREFLIGHT_RUN = 34022321843
+INSTALL_BASE = "8c12086f24c92463d569861d5637d5de1f55805b"
+FAILED_COLLECTION_RUN = 34022598288
+FAILED_MANIFEST_SHA = "6b6dc4651a73eaeb44e76953266b11a8d2fc71a7a6d38c16eee43cc7b2b523a0"
 INSTALL_UPDATES = sorted(PREFIX + name for name in (
-    "README.md", "guard.py", "test_collect.py", "test_guard.py"
+    "README.md", "collect.py", "guard.py", "test_collect.py", "test_guard.py"
 ))
 FILES = sorted([WORKFLOW] + [PREFIX + name for name in (
     "PLAN.json", "README.md", "collect.py", "guard.py", "test_collect.py", "test_guard.py"
@@ -52,8 +53,14 @@ def validate(root, env, event, now):
     install = activation["installation_commit"]
     require(isinstance(install, str) and re.fullmatch(r"[0-9a-f]{40}", install), "INVALID_INSTALLATION_SHA")
     require(activation.get("source_commit") == BASE, "SOURCE_COMMIT_DRIFT")
-    require(activation.get("request_nonce") == "dc20-profit-history-source-20260906-once-v2", "REQUEST_NONCE_DRIFT")
-    require(activation.get("supersedes_preflight_run_id") == FAILED_PREFLIGHT_RUN and activation.get("previous_collection_started") is False, "UNREVIEWED_PREFLIGHT_REPLACEMENT")
+    require(activation.get("request_nonce") == "dc20-profit-history-source-20260906-null-evidence-v3", "REQUEST_NONCE_DRIFT")
+    require(activation.get("supersedes_collection_run_id") == FAILED_COLLECTION_RUN
+            and activation.get("previous_collection_started") is True
+            and activation.get("previous_manifest_sha256") == FAILED_MANIFEST_SHA
+            and activation.get("previous_requests_attempted") == 83
+            and activation.get("previous_sessions_completed") == 25
+            and activation.get("previous_artifact_reused_for_training") is False,
+            "UNREVIEWED_NULL_EVIDENCE_CORRECTION")
     require(git(root, "rev-list", "--parents", "-n", "1", head).split() == [head, install], "ACTIVATION_NOT_DIRECT_SINGLE_CHILD")
     require(event.get("before") == install, "PUSH_BEFORE_NOT_INSTALLATION")
     require(git(root, "rev-list", "--parents", "-n", "1", install).split() == [install, INSTALL_BASE], "INSTALLATION_NOT_DIRECT_BASE_CHILD")
@@ -68,8 +75,9 @@ def validate(root, env, event, now):
         require(target.is_file() and not any(p.is_symlink() for p in (target, *target.parents)), "UNSAFE_RESEARCH_SOURCE")
         require(hashlib.sha256(target.read_bytes()).hexdigest() == expected, "RESEARCH_SOURCE_HASH_MISMATCH")
     return {"status": "ONE_TIME_RESEARCH_REQUEST_AUTHORIZED", "source_commit": BASE, "installation_commit": install,
-            "execution_commit": head, "supersedes_failed_preflight_run": FAILED_PREFLIGHT_RUN,
-            "previous_collection_started": False, "production_writer_invoked": False, "run_attempt": 1}
+            "execution_commit": head, "supersedes_collection_run": FAILED_COLLECTION_RUN,
+            "previous_collection_started": True, "previous_manifest_sha256": FAILED_MANIFEST_SHA,
+            "previous_artifact_reused_for_training": False, "production_writer_invoked": False, "run_attempt": 1}
 
 
 def main():

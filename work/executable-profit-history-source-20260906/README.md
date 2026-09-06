@@ -44,6 +44,38 @@ all seven source hashes, and use nonce `once-v2` with the failed preflight run I
 This is a new push run after a reviewed test correction, not an Actions rerun.
 The source ledger, as-of, query scope, time limit, and source permissions are unchanged.
 
+### Reviewed separation of collection from numerical completeness
+
+The corrected Linux preflight passed all 45 tests in
+[run 34022598288](https://github.com/njedu2023-prog/DC20/actions/runs/34022598288),
+at commit `8c12086f24c92463d569861d5637d5de1f55805b`. Collection then made 83
+requests and completed 25 of 926 required sessions before a candidate numeric
+field check stopped the `stk_limit` response for 2022-12-19. This was a genuine
+partial collection, not a successful source or a training run. The failed
+response was not retained, so its specific stock and field must not be guessed.
+
+Its artifact ZIP SHA256 is
+`cd66af08bab4ad73304826a94d1356664ce80c510d602586a730b8d11eb5eaab`, and its
+externally logged manifest SHA256 is
+`6b6dc4651a73eaeb44e76953266b11a8d2fc71a7a6d38c16eee43cc7b2b523a0`.
+All 223 manifest file hashes were independently checked after download.
+
+The reviewed correction separates source acquisition from usable-label gates:
+bulk JSON null numerical cells remain null in raw responses and empty in CSV,
+are explicitly listed as incomplete evidence, and cannot claim full candidate
+coverage. They are never converted to zero. Canary checks, malformed types,
+nonfinite values, date/key contracts, and invalid present numerical values still
+fail closed. The unchanged label builder classifies missing execution inputs
+as unresolved, and the unchanged training gates exclude incomplete D cohorts.
+
+This five-file installation may only update README, collector, guard, and their
+tests on the exact failed-run commit. A separate request-only push binds all
+source hashes and nonce `null-evidence-v3`, explicitly acknowledges the 83
+previous requests, and starts a fresh isolated source collection. The partial
+artifact is preserved as failure evidence and is not merged into training.
+No failed Actions run is rerun; no production dates, models, ledgers or workflows
+are changed. This correction does not add new dates or increase the query budget.
+
 ## Sources and limits
 
 Tushare's current [change log](https://tushare.pro/document/1?doc_id=9) cancels

@@ -240,6 +240,13 @@ def numeric(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def incomplete_candidate_fields(api, rows):
+    """Only explicit provider JSON nulls; missing rows are a separate concept."""
+    return [{"ts_code": row["ts_code"], "fields": [field for field in FIELDS[api][2:] if row[field] is None]}
+            for row in sorted(rows, key=lambda row: row["ts_code"])
+            if any(row[field] is None for field in FIELDS[api][2:])]
+
+
 def validate_rows(api, fields, items, date, wanted, *, canary=False):
     require(isinstance(fields, list) and all(isinstance(field, str) for field in fields) and len(fields) == len(set(fields)) and set(fields) == set(FIELDS[api]), "RESPONSE_FIELDS_MISMATCH")
     require(isinstance(items, list) and len(items) <= PAGE_SIZE, "RESPONSE_PAGE_BOUND_EXCEEDED")
@@ -255,15 +262,21 @@ def validate_rows(api, fields, items, date, wanted, *, canary=False):
         require(not canary or code in wanted, "CANARY_CODE_OUT_OF_SCOPE")
         if code in wanted:
             for field in FIELDS[api][2:]:
-                require(numeric(row[field]), "CANDIDATE_NUMERIC_EVIDENCE_MISSING")
+                # Bulk null is observed missingness, not malformed evidence and
+                # never zero. The permission/schema canary remains non-null.
+                require((row[field] is None and not canary) or numeric(row[field]), "CANDIDATE_NUMERIC_EVIDENCE_MISSING")
             if api == "daily":
-                require(all(row[k] > 0 for k in ["open", "high", "low", "close", "pre_close"]), "CANDIDATE_PRICE_NONPOSITIVE")
-                require(row["high"] + .011 >= max(row["open"], row["close"], row["low"]) and row["low"] - .011 <= min(row["open"], row["close"]), "CANDIDATE_OHLC_INCONSISTENT")
-                require(row["vol"] >= 0 and row["amount"] >= 0, "CANDIDATE_VOLUME_NEGATIVE")
+                require(all(row[k] is None or row[k] > 0 for k in ["open", "high", "low", "close", "pre_close"]), "CANDIDATE_PRICE_NONPOSITIVE")
+                for upper, lower in [("high", "open"), ("high", "close"), ("high", "low"), ("open", "low"), ("close", "low")]:
+                    if row[upper] is not None and row[lower] is not None:
+                        require(row[upper] + .011 >= row[lower], "CANDIDATE_OHLC_INCONSISTENT")
+                require(all(row[k] is None or row[k] >= 0 for k in ["vol", "amount"]), "CANDIDATE_VOLUME_NEGATIVE")
             elif api == "stk_limit":
-                require(row["pre_close"] > 0 and row["up_limit"] >= row["down_limit"] > 0, "CANDIDATE_LIMIT_INVALID")
+                require(all(row[k] is None or row[k] > 0 for k in ["pre_close", "up_limit", "down_limit"]), "CANDIDATE_LIMIT_INVALID")
+                if row["up_limit"] is not None and row["down_limit"] is not None:
+                    require(row["up_limit"] >= row["down_limit"], "CANDIDATE_LIMIT_INVALID")
             else:
-                require(row["adj_factor"] > 0, "CANDIDATE_ADJ_FACTOR_INVALID")
+                require(row["adj_factor"] is None or row["adj_factor"] > 0, "CANDIDATE_ADJ_FACTOR_INVALID")
         rows.append(row)
     require(not canary or len(rows) == 1, "CANARY_EMPTY_OR_MULTIPLE_ROWS")
     return rows
@@ -359,7 +372,7 @@ def collect_pages(client, api, date, codes):
         exhausted = len(rows) == 0
         if candidate_complete or exhausted:
             selected = sorted((row for row in all_rows if row["ts_code"] in codes), key=lambda row: row["ts_code"])
-            return selected, {"pages": pages, "queried_market_rows": len(all_rows), "selected_rows": len(selected), "missing_candidate_codes": sorted(set(codes) - {row["ts_code"] for row in selected}), "candidate_scope_complete": candidate_complete, "whole_market_exhaustion_observed": exhausted, "pagination_termination": "ALL_REQUESTED_CANDIDATES_FOUND" if candidate_complete else "EMPTY_PAGE_EXHAUSTED_WITH_MISSING_CANDIDATES", "query_numbers": query_numbers}
+            return selected, {"pages": pages, "queried_market_rows": len(all_rows), "selected_rows": len(selected), "missing_candidate_codes": sorted(set(codes) - {row["ts_code"] for row in selected}), "incomplete_candidate_fields": incomplete_candidate_fields(api, selected), "candidate_scope_complete": candidate_complete, "whole_market_exhaustion_observed": exhausted, "pagination_termination": "ALL_REQUESTED_CANDIDATES_FOUND" if candidate_complete else "EMPTY_PAGE_EXHAUSTED_WITH_MISSING_CANDIDATES", "query_numbers": query_numbers}
         # Provider endpoint caps can differ. A nonempty short page does not
         # establish exhaustion, and its actual length defines the next offset.
         offset += len(rows)
@@ -395,7 +408,7 @@ def perform_collection(client, request, artifacts, provenance):
                 selected, info = collect_pages(client, api, date, codes)
                 artifacts.csv("candidate_sources/" + date + "/" + api + ".csv", FIELDS[api], selected)
                 coverage["apis"][api] = info
-                if info["missing_candidate_codes"]:
+                if info["missing_candidate_codes"] or info["incomplete_candidate_fields"]:
                     required_missing = True
             status["coverage"].append(coverage)
             status["sessions_completed"] += 1

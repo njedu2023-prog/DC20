@@ -34,8 +34,11 @@ class GuardTest(unittest.TestCase):
             p.write_text(relative)
             hashes[relative] = hashlib.sha256(p.read_bytes()).hexdigest()
         self.request = {"_activation": {"installation_commit": self.install, "source_commit": guard.BASE,
-                        "request_nonce": "dc20-profit-history-source-20260906-once-v2", "files_sha256": hashes,
-                        "supersedes_preflight_run_id": guard.FAILED_PREFLIGHT_RUN, "previous_collection_started": False}}
+                        "request_nonce": "dc20-profit-history-source-20260906-null-evidence-v3", "files_sha256": hashes,
+                        "supersedes_collection_run_id": guard.FAILED_COLLECTION_RUN, "previous_collection_started": True,
+                        "previous_manifest_sha256": guard.FAILED_MANIFEST_SHA,
+                        "previous_requests_attempted": 83, "previous_sessions_completed": 25,
+                        "previous_artifact_reused_for_training": False}}
         self.responses = {
             ("rev-parse", "HEAD"): self.head,
             ("status", "--porcelain=v1"): "",
@@ -110,7 +113,9 @@ class GuardTest(unittest.TestCase):
 
     def test_hash_and_binding_drift(self):
         for name, value in (("source_commit", "c" * 40), ("request_nonce", "another-run"), ("files_sha256", {}),
-                            ("supersedes_preflight_run_id", 0), ("previous_collection_started", True)):
+                            ("supersedes_collection_run_id", 0), ("previous_collection_started", False),
+                            ("previous_manifest_sha256", "0" * 64), ("previous_requests_attempted", 0),
+                            ("previous_sessions_completed", 0), ("previous_artifact_reused_for_training", True)):
             with self.subTest(name=name), patch.dict(self.request["_activation"], {name: value}), self.assertRaises(ValueError):
                 self.check()
         (self.root / guard.FILES[0]).write_text("modified")
