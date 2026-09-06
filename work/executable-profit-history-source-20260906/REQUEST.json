@@ -1,0 +1,35 @@
+{
+  "as_of_date": "20260904",
+  "canary": {
+    "trade_date": "20221114",
+    "ts_code": "603778.SH"
+  },
+  "candidate_date_keys": 102935,
+  "session_count": 926,
+  "session_plan_sha256": "526c0d07f3a31cb9e8eee864abe6a47321e641c80d716a8e0c90e84201ef0b6e",
+  "source_inputs": {
+    "calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "ledger": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+      "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+    }
+  },
+  "tail_sessions": 20,
+  "_activation": {
+    "source_commit": "3e2299a07f7b4430002da0b870c47ecf57c49bb3",
+    "installation_commit": "d99241a8206ea7872029ac53dcf3474a795209e6",
+    "request_nonce": "dc20-profit-history-source-20260906-once-v1",
+    "files_sha256": {
+      ".github/workflows/research_profit_history_source.yml": "59578e63fb8b5ce66017eecc0d4918275dcca1012cb4eb3f80636540fa56c231",
+      "work/executable-profit-history-source-20260906/PLAN.json": "e150bdae3d664cdfaea89ef3ada6603db4d1fe1e1c0e70b57e29287592872cdd",
+      "work/executable-profit-history-source-20260906/README.md": "5d20345cb331bd76e8769db841d88df37e4d40dc87163ecacaf503810d03eace",
+      "work/executable-profit-history-source-20260906/collect.py": "1be2a6c9bf1dfa8848e590ce16bef338a8a91c4d8a1db62c5ac3cf8c6e6c91b8",
+      "work/executable-profit-history-source-20260906/guard.py": "5b0d898de3fc566ae9fa35289a56bb928fdc21f9d0bc0c2072d8933b60147f3e",
+      "work/executable-profit-history-source-20260906/test_collect.py": "ca8c0f0ae51d3c1139f78a5a8c25512b4f67b39a4675f1d51051975ced30983a",
+      "work/executable-profit-history-source-20260906/test_guard.py": "69ec8a3735142347aac2eca71beac07a4f47bdfe0b402c7aac47464145cacc97"
+    }
+  }
+}
