@@ -1,0 +1,107 @@
+{
+  "schema_version": "dc20_execution_v2_research_run_manifest_v1",
+  "source_commit": "2e81fedcda05d5f7a430b4ca021914f887dcbc3a",
+  "status": "IMPLEMENTATION_TESTED_FULL_MODEL_TRAINING_BLOCKED_DATA",
+  "source_snapshot_remote_blobs_verified": 1605,
+  "original_tracked_files_changed": 0,
+  "production_freeze_pins_verified": 224,
+  "new_research_prefix": "work/executable-profit-execution-v2-20260906/",
+  "runtime": {
+    "python": "3.12.14",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "production_linux_runtime_qualification_claimed": false
+  },
+  "tests": {
+    "new_research": {
+      "passed": 37,
+      "failed": 0,
+      "seconds": 4.07
+    },
+    "existing_regression": {
+      "passed": 1469,
+      "skipped": 1,
+      "subtests_passed": 400,
+      "failed": 0,
+      "seconds": 638.74,
+      "skipped_reason": "production NumPy dispatch contract is Linux x86_64 only"
+    },
+    "synthetic_model_fit_used_for_tests": true,
+    "real_history_models_fit": 0
+  },
+  "data_result": {
+    "frozen_rows": 6753,
+    "signal_dates": 910,
+    "terminal_rows": 132,
+    "settled_proxy_rows": 98,
+    "no_fill_proxy_rows": 34,
+    "unknown_rows": 6621,
+    "complete_signal_dates": 15,
+    "delayed_exit_rows": 1,
+    "training_status": "BLOCKED_INSUFFICIENT_EXECUTION_LABELS",
+    "release_allowed": false
+  },
+  "boundaries": {
+    "production_model_weights_written": false,
+    "production_d_rankings_changed": false,
+    "forward_shadow_changed": false,
+    "orders_or_action_created": false,
+    "network_market_fetch": false,
+    "workflow_dispatch": false,
+    "github_ci_run_claimed": false,
+    "pages_deployment_expected": false
+  },
+  "files": {
+    "EVIDENCE_AUDIT.md": {
+      "sha256": "3e2f83d25f059651b2458e0fa873fc27e02f6e974874f3492b208bb02f78b22c",
+      "bytes": 7782
+    },
+    "PLAN.json": {
+      "sha256": "8a6b0614ad5510fb6b0b79cbe5dfd24a30b26e7f273d0c09420e5f8fcfba4629",
+      "bytes": 4649
+    },
+    "RESEARCH_REPORT.md": {
+      "sha256": "64ed63d010538ef170faa41ee16323b6f6ca3820759aa330beed19c851d6f848",
+      "bytes": 6631
+    },
+    "audit_sources.py": {
+      "sha256": "14de02ecaa542f7355201cd09c8c64ff638e6b3601d994a3df732be860514da1",
+      "bytes": 19603
+    },
+    "build_labels.py": {
+      "sha256": "04cd20c97e1aaf1179b5460759bb22fddc84f1106cd802321678c675e6ad174f",
+      "bytes": 13447
+    },
+    "outputs/execution_labels.csv.gz": {
+      "sha256": "62ecbe3b4e7cb6ae375d32c2ef6d7652386f81a227ed7b83d0caa533d0ddfc52",
+      "bytes": 93614
+    },
+    "outputs/label_manifest.json": {
+      "sha256": "a292103619467003d0108df5715f81827f438902849624f27fac47e72fa142b2",
+      "bytes": 133917
+    },
+    "outputs/source_coverage.json": {
+      "sha256": "44856d2938b989bcf4aa45c1c5d2f36533093debefce4288fc1d01126a5bfc62",
+      "bytes": 49346
+    },
+    "outputs/training_readiness.json": {
+      "sha256": "66d3d16680f8efb9c37a03609ed1853d9000632f83fb984ae35c0e4dd89b2378",
+      "bytes": 161711
+    },
+    "requirements-research.txt": {
+      "sha256": "75c050a99f4233645a9f6a84882d559b7428569daf06cb258a704421a5b3372c",
+      "bytes": 180
+    },
+    "test_labels.py": {
+      "sha256": "ffadcbb98a9f18d3a5485fa5677ed9f0770c98578fbfc039b3e4345d8d9f59a4",
+      "bytes": 8444
+    },
+    "test_training.py": {
+      "sha256": "3b8fafe9656f844af9f4a842b15bc571af5285bf1c3044bca353ba5b09dd6bea",
+      "bytes": 13350
+    },
+    "train_candidate.py": {
+      "sha256": "50e01cbcd7da0aea7ec3329b0f980e58fd17d5a350e251452ba2dc26e6eaaaa8",
+      "bytes": 28102
+    }
+  }
+}
