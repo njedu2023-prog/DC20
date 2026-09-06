@@ -1,0 +1,62 @@
+{
+  "schema_version": "dc20_profit_history_tail_request_v1",
+  "as_of_date": "20260904",
+  "previous_source": {
+    "run_id": "34023469106",
+    "run_sha": "d5f3df57c78b0458d1329034c94ec324827aa390",
+    "run_attempt": "1",
+    "artifact_id": "9987577487",
+    "zip_sha256": "e56fcaf1ee54bd8ff562d1eae832a2d46397de256588c4aa097556533e0410c7",
+    "manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
+    "audit_sha256": "0685b96c0657c3c1c528743d0b80dc1adee64673ea89643e71732d0103a04190",
+    "audit_script_sha256": "105b32e9af800c9d556263757300aecb43d56b1b5d4d9d0c077157b5556b56a3",
+    "collection_status": "BLOCKED_COLLECTION",
+    "failure_code": "COLLECTION_SOFT_DEADLINE_EXCEEDED",
+    "requests_attempted": 3354,
+    "completed_sessions": 916,
+    "verified_required_partitions": 1833,
+    "expected_required_partitions": 1852,
+    "overlap_compared_fields": 897756,
+    "overlap_conflicts": 0,
+    "old_failure_status_preserved": true
+  },
+  "full_session_plan_sha256": "526c0d07f3a31cb9e8eee864abe6a47321e641c80d716a8e0c90e84201ef0b6e",
+  "source_inputs": {
+    "ledger": {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+      "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+    },
+    "calendar": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    }
+  },
+  "canaries": [
+    {
+      "api": "daily",
+      "trade_date": "20260825",
+      "ts_code": "000009.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260824",
+      "ts_code": "000009.SZ"
+    }
+  ],
+  "max_requests": 78,
+  "max_bulk_requests": 76,
+  "soft_deadline_seconds": 600,
+  "partition_plan_sha256": "8861ba29a3fbde045302368d30e46b99840e1ebd9dc8f96711664464ec8c4b83",
+  "partition_count": 19,
+  "candidate_partition_keys": 1533,
+  "_activation": {
+    "state": "NOT_ACTIVATED",
+    "request_nonce": "dc20-profit-history-tail-20260906-19-partitions-v1",
+    "installation_base": "0904cb6f1fd0bc62a56d47b9a915d8c5374df076",
+    "installation_commit": null,
+    "previous_run_id": "34023469106",
+    "previous_manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
+    "old_failure_status_preserved": true,
+    "files_sha256": {}
+  }
+}
