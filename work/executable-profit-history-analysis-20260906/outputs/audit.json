@@ -1,0 +1,3904 @@
+{
+  "actual_fill_observed": false,
+  "artifact_manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
+  "as_of_date": "20260904",
+  "audit_code_sha256": "105b32e9af800c9d556263757300aecb43d56b1b5d4d9d0c077157b5556b56a3",
+  "audited_at_utc": "2026-09-06T10:37:29+00:00",
+  "collection_status": "BLOCKED_COLLECTION",
+  "evidence_role": "retrieved_now_retrospective_market_evidence_not_historical_availability_or_forward_results",
+  "expected_manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
+  "expected_required_partitions": 1852,
+  "expected_run_attempt": "1",
+  "expected_run_id": "34023469106",
+  "expected_run_sha": "d5f3df57c78b0458d1329034c94ec324827aa390",
+  "historically_available_at_D": false,
+  "incomplete_candidate_fields": [
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221219",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221220",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221221",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221222",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221223",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20221226",
+      "ts_code": "600301.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230103",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230104",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230105",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230106",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230109",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230109",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230110",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230111",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230112",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230113",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230130",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230131",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230201",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230202",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230203",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230621",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230626",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230627",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230628",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230704",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230705",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20230706",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240403",
+      "ts_code": "600165.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240426",
+      "ts_code": "603963.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240429",
+      "ts_code": "600234.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "000506.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "000622.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "600083.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240516",
+      "ts_code": "002748.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000004.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000007.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000010.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000421.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000504.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000679.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000816.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "000868.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "001266.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002094.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002168.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002243.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002248.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002279.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002431.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002535.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002549.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002556.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002571.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002678.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002689.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002713.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002717.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002741.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002793.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002800.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002806.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002819.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002823.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002829.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002857.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002861.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002920.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "002981.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "003004.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "003010.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600076.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600084.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600171.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600185.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600227.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600243.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600476.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600611.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600620.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600624.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600626.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600650.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600676.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600711.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600811.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600817.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600841.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600881.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "600889.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "601929.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603032.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603051.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603079.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603155.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603171.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603188.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603228.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603232.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603336.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603386.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603586.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603607.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603615.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603790.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603825.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603829.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603887.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603900.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "603991.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "605178.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240723",
+      "ts_code": "605376.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240731",
+      "ts_code": "600711.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20240918",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20241031",
+      "ts_code": "600225.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20241112",
+      "ts_code": "002388.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250224",
+      "ts_code": "600539.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250225",
+      "ts_code": "600539.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250317",
+      "ts_code": "600811.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250324",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250325",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250326",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250327",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250328",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250331",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250401",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250402",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250403",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250407",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250422",
+      "ts_code": "600243.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250428",
+      "ts_code": "600753.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250428",
+      "ts_code": "605081.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "000668.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002058.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002693.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002816.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250610",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250611",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250612",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250815",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250818",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250819",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250820",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250821",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250904",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250905",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250908",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250911",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250912",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250915",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250916",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250917",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250924",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250925",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250926",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250929",
+      "ts_code": "600735.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250929",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20250930",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251009",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251010",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251013",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251014",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251015",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251117",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251118",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251118",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251119",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251119",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251120",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251230",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20251231",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260105",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260107",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260108",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260109",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260114",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260115",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260116",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260116",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260119",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260120",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260121",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260122",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260123",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260202",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260202",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260203",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260203",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260204",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260205",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260206",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260209",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260210",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260211",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260212",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260213",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260224",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260225",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260324",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260325",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260326",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260327",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260330",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260331",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260427",
+      "ts_code": "002634.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260428",
+      "ts_code": "603272.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260625",
+      "ts_code": "603001.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260707",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260708",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260709",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260710",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260713",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260723",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260724",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260727",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260728",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260729",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260803",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260804",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260805",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260811",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260811",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260812",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260812",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260813",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260813",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260814",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260814",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260817",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260817",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260818",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260819",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260820",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "stk_limit",
+      "fields": [
+        "pre_close"
+      ],
+      "status": "EXPLICIT_JSON_NULL_UNKNOWN_NOT_ZERO",
+      "trade_date": "20260821",
+      "ts_code": "600984.SH"
+    }
+  ],
+  "incomplete_optional_partitions": [],
+  "incomplete_required_candidate_row_count": 252,
+  "incomplete_required_field_count": 252,
+  "issues": [
+    {
+      "code": "REQUIRED_SOURCE_COLLECTION_INCOMPLETE"
+    },
+    {
+      "code": "COLLECTOR_REPORTED_BLOCK",
+      "failure_code": "COLLECTION_SOFT_DEADLINE_EXCEEDED"
+    },
+    {
+      "code": "OVERLAP_REQUIRES_REVIEW_NO_CHERRY_PICKING"
+    }
+  ],
+  "manifest_file_count": 8548,
+  "missing_candidate_keys": [
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221219",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221220",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221221",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221222",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221223",
+      "ts_code": "000045.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20221226",
+      "ts_code": "600301.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230103",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230104",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230105",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230106",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230109",
+      "ts_code": "002186.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230109",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230110",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230111",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230112",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230113",
+      "ts_code": "002251.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230130",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230131",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230201",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230202",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230203",
+      "ts_code": "002159.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230621",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230626",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230627",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230628",
+      "ts_code": "600719.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230704",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230705",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20230706",
+      "ts_code": "000810.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240403",
+      "ts_code": "600165.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240426",
+      "ts_code": "603963.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240429",
+      "ts_code": "600234.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "000506.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "000622.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240430",
+      "ts_code": "600083.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240516",
+      "ts_code": "002748.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240731",
+      "ts_code": "600711.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20240918",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20241031",
+      "ts_code": "600225.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20241112",
+      "ts_code": "002388.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250224",
+      "ts_code": "600539.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250225",
+      "ts_code": "600539.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250317",
+      "ts_code": "600811.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250324",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250325",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250326",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250327",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250328",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250331",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250401",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250402",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250403",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250407",
+      "ts_code": "600590.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250422",
+      "ts_code": "600243.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250428",
+      "ts_code": "600753.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250428",
+      "ts_code": "605081.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "000668.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002058.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002693.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250429",
+      "ts_code": "002816.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250610",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250611",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250612",
+      "ts_code": "603226.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250815",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250818",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250819",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250820",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250821",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250904",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250905",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250908",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250911",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250912",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250915",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250916",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250917",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250924",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250925",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250926",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250929",
+      "ts_code": "600735.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250929",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20250930",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251009",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251010",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251013",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251014",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251015",
+      "ts_code": "605255.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251117",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251118",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251118",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251119",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251119",
+      "ts_code": "603122.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251120",
+      "ts_code": "000592.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251230",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20251231",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260105",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260107",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260108",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260109",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260114",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260115",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260116",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260116",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260119",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260120",
+      "ts_code": "002131.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260121",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260122",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260123",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260126",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260127",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260128",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260129",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002931.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "002969.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260130",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260202",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260202",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260203",
+      "ts_code": "002462.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260203",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260204",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260205",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260206",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260209",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260210",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260211",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260212",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260213",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260224",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260225",
+      "ts_code": "603056.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260324",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260325",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260326",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260327",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260330",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260331",
+      "ts_code": "603950.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260427",
+      "ts_code": "002634.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260428",
+      "ts_code": "603272.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260625",
+      "ts_code": "603001.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260707",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260708",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260709",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260710",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260713",
+      "ts_code": "603580.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260723",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260724",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260727",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260728",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260729",
+      "ts_code": "002036.SZ"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260803",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260804",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260805",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260811",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260811",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260812",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260812",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260813",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260813",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260814",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260814",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260817",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260817",
+      "ts_code": "603221.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260818",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260819",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260820",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260821",
+      "ts_code": "600984.SH"
+    },
+    {
+      "api": "daily",
+      "status": "UNKNOWN_NOT_ZERO",
+      "trade_date": "20260824",
+      "ts_code": "600984.SH"
+    }
+  ],
+  "missing_required_candidate_key_count": 176,
+  "missing_required_partitions": [
+    {
+      "api": "stk_limit",
+      "trade_date": "20260824"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260825"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260825"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260826"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260826"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260827"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260827"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260828"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260828"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260831"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260831"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260901"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260901"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260902"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260902"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260903"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260903"
+    },
+    {
+      "api": "daily",
+      "trade_date": "20260904"
+    },
+    {
+      "api": "stk_limit",
+      "trade_date": "20260904"
+    }
+  ],
+  "missingness_policy": "unknown_not_zero_not_presumed_suspension; later strict complete-D label mask applies",
+  "optional_adj_factor": "CANARY_AVAILABLE_NOT_CORPORATE_ACTION_RESOLUTION",
+  "overlap": {
+    "candidate_compared_field_values": 19998,
+    "compared_field_values": 897756,
+    "conflicts": [],
+    "days": [
+      "20260728",
+      "20260729",
+      "20260730",
+      "20260731",
+      "20260803",
+      "20260804",
+      "20260805",
+      "20260806",
+      "20260807",
+      "20260810",
+      "20260811",
+      "20260812",
+      "20260813",
+      "20260814",
+      "20260817",
+      "20260818",
+      "20260819",
+      "20260820",
+      "20260821",
+      "20260824",
+      "20260825",
+      "20260826",
+      "20260827",
+      "20260828",
+      "20260831",
+      "20260901",
+      "20260902",
+      "20260903",
+      "20260904"
+    ],
+    "incomplete_fields": [],
+    "price_normalization": "Decimal cent tick ROUND_HALF_UP",
+    "reference_files": [
+      {
+        "bytes": 408719,
+        "path": "data/market/raw/2026/20260728/daily.csv",
+        "sha256": "f5eca16b83f5ccbadf7daafa81d867bd02500aed99c23366505ba9134e82918a"
+      },
+      {
+        "bytes": 233482,
+        "path": "data/market/raw/2026/20260728/stk_limit.csv",
+        "sha256": "6f750ccab436da4ca8f21689248e4bb9d80406b071d649071b6247b2599efd1e"
+      },
+      {
+        "bytes": 408910,
+        "path": "data/market/raw/2026/20260729/daily.csv",
+        "sha256": "0936af266b414de6a390099c6ef87f1bdc4496097f7d11371c4f03a373d32290"
+      },
+      {
+        "bytes": 233473,
+        "path": "data/market/raw/2026/20260729/stk_limit.csv",
+        "sha256": "d5d1ae58f66a02b03e1779a53cc42a4a74ef04449dda86d7473440d195126ccd"
+      },
+      {
+        "bytes": 411826,
+        "path": "data/market/raw/2026/20260730/daily.csv",
+        "sha256": "6441dfe470ae95283380762221bda939d3ef5b405448fdaa479095f529c937a3"
+      },
+      {
+        "bytes": 233639,
+        "path": "data/market/raw/2026/20260730/stk_limit.csv",
+        "sha256": "3edef93e5191710e4ce90123dd3279d83c0914257b1215389ea28c60a34be283"
+      },
+      {
+        "bytes": 409275,
+        "path": "data/market/raw/2026/20260731/daily.csv",
+        "sha256": "442f557eaca733aec89363422daaee58d8d670c9702faec01d8fda83a10a502c"
+      },
+      {
+        "bytes": 233583,
+        "path": "data/market/raw/2026/20260731/stk_limit.csv",
+        "sha256": "49bf2cc024828bb0ac3d44b609a08b05869aacc80e5984bcb9a649490328f60c"
+      },
+      {
+        "bytes": 409601,
+        "path": "data/market/raw/2026/20260803/daily.csv",
+        "sha256": "02381d21a07c974bae29e6be422eb837d2e17b43e5905cfe7fff10700d8e06f6"
+      },
+      {
+        "bytes": 233801,
+        "path": "data/market/raw/2026/20260803/stk_limit.csv",
+        "sha256": "e2aa20f1b5030003155dec932e7d8d690baa77d4dd215c4539a6092044274c50"
+      },
+      {
+        "bytes": 410459,
+        "path": "data/market/raw/2026/20260804/daily.csv",
+        "sha256": "9ee4f133412102fe60f53245b71f6c7c8031bbf996250d1a0ceb30cb5672a519"
+      },
+      {
+        "bytes": 233974,
+        "path": "data/market/raw/2026/20260804/stk_limit.csv",
+        "sha256": "5a165faa453619d62e636b347444c7f6b186160041b821adec8560303f5235a0"
+      },
+      {
+        "bytes": 410713,
+        "path": "data/market/raw/2026/20260805/daily.csv",
+        "sha256": "bc2c2b975f54e98e6a0d7f6761817fe726c12e81bf7f0b0a09f285da692e0ec6"
+      },
+      {
+        "bytes": 234107,
+        "path": "data/market/raw/2026/20260805/stk_limit.csv",
+        "sha256": "14f54d6e5f539ef93990d79eab37e0feaed8de5acf3b416704a0c691aa2956e4"
+      },
+      {
+        "bytes": 411867,
+        "path": "data/market/raw/2026/20260806/daily.csv",
+        "sha256": "3acac545d4a1b22517a08aa6352b004c349d65fa5d080f9bcd0bdb7ba59e6537"
+      },
+      {
+        "bytes": 234228,
+        "path": "data/market/raw/2026/20260806/stk_limit.csv",
+        "sha256": "c05e66ab48f1c2634bce3274ed381240bcbe6c7265d1120db3b460c5c32097e4"
+      },
+      {
+        "bytes": 412388,
+        "path": "data/market/raw/2026/20260807/daily.csv",
+        "sha256": "63c97609bc5cdc090faccb2efcba84122cf4d9eea6224d811339b6ac2098343a"
+      },
+      {
+        "bytes": 234561,
+        "path": "data/market/raw/2026/20260807/stk_limit.csv",
+        "sha256": "1f45e0665d7eec5b1149bb6830a3cecde688436dbee1d178d1d50b438981d90f"
+      },
+      {
+        "bytes": 411839,
+        "path": "data/market/raw/2026/20260810/daily.csv",
+        "sha256": "2bfb445de3f9294190d60898bea9a0697cc580fce0af6abb205cda787368cd82"
+      },
+      {
+        "bytes": 234658,
+        "path": "data/market/raw/2026/20260810/stk_limit.csv",
+        "sha256": "e8be47a5aa3ada80a8c9043bd37eb20012092efea646fd79c735d5419de89463"
+      },
+      {
+        "bytes": 412878,
+        "path": "data/market/raw/2026/20260811/daily.csv",
+        "sha256": "9eb83e54fd50ef512f89d7667f6c1fd13c7e9ce699e98984e3978fc4ed64bdc9"
+      },
+      {
+        "bytes": 234744,
+        "path": "data/market/raw/2026/20260811/stk_limit.csv",
+        "sha256": "a10e48a9ccbb0e11244371735ef9e626731f10ece629750042449ee652ae2b56"
+      },
+      {
+        "bytes": 411390,
+        "path": "data/market/raw/2026/20260812/daily.csv",
+        "sha256": "163b3a56b2cbfeb79d7f4dd4713646bb3f6eb07fed80f2e8732499066132b2f1"
+      },
+      {
+        "bytes": 234744,
+        "path": "data/market/raw/2026/20260812/stk_limit.csv",
+        "sha256": "fd7fad02b0916f2e68b2a60c3ee12ba423b8356a949e040ea12f576fc3c0f407"
+      },
+      {
+        "bytes": 414495,
+        "path": "data/market/raw/2026/20260813/daily.csv",
+        "sha256": "64b3096da35d612e122ea10122b0133ddbfe3c9d959ef21746d3aa9d4e0cd523"
+      },
+      {
+        "bytes": 234874,
+        "path": "data/market/raw/2026/20260813/stk_limit.csv",
+        "sha256": "96edbc8b5567b61fed16de4a1ab528042eeaa6ec1c216681c14d848d27b62292"
+      },
+      {
+        "bytes": 411883,
+        "path": "data/market/raw/2026/20260814/daily.csv",
+        "sha256": "4ad4c0eb7af4b88143e54d3cf91d20d1cf0dad611e8fcf38193968ff76d09e8d"
+      },
+      {
+        "bytes": 234841,
+        "path": "data/market/raw/2026/20260814/stk_limit.csv",
+        "sha256": "8438091faa219c69633c1db21f702189a02713ba7968169de47120c41d79d91e"
+      },
+      {
+        "bytes": 410957,
+        "path": "data/market/raw/2026/20260817/daily.csv",
+        "sha256": "3b769302451569132aeede72dd4538d41eda662ea0124080ddb0c3855f9dba62"
+      },
+      {
+        "bytes": 234853,
+        "path": "data/market/raw/2026/20260817/stk_limit.csv",
+        "sha256": "c318c21fa49fa158085d782fe47438861fbff1cd2ff32f4fb6eba3a01b0209af"
+      },
+      {
+        "bytes": 413297,
+        "path": "data/market/raw/2026/20260818/daily.csv",
+        "sha256": "05447a3a593c1cbed38e996a5ede390a9a60728fd088c1ae1a7ff636cb4e4465"
+      },
+      {
+        "bytes": 234993,
+        "path": "data/market/raw/2026/20260818/stk_limit.csv",
+        "sha256": "32802bf09f4d933ba189f7048392664718a0ade691b8439324ba99c4c68a05c5"
+      },
+      {
+        "bytes": 415394,
+        "path": "data/market/raw/2026/20260819/daily.csv",
+        "sha256": "f5fefef609274b1355239b2c743d456549c07799cf695d59b46082016d9a1134"
+      },
+      {
+        "bytes": 235117,
+        "path": "data/market/raw/2026/20260819/stk_limit.csv",
+        "sha256": "ac940809905eb8ea9a445f69eec5d1ba5457949a3406621f742198535e43a472"
+      },
+      {
+        "bytes": 410504,
+        "path": "data/market/raw/2026/20260820/daily.csv",
+        "sha256": "ca8ba6128d7cd1a7fbdbfd0b59d952efc8fca640052f8e5bb3d11d0896e4a1e3"
+      },
+      {
+        "bytes": 235075,
+        "path": "data/market/raw/2026/20260820/stk_limit.csv",
+        "sha256": "4a0be9c25ce84393bf79fee84bed606776d0e01649425da0aebb3eb39f220a4c"
+      },
+      {
+        "bytes": 412347,
+        "path": "data/market/raw/2026/20260821/daily.csv",
+        "sha256": "2c8bd1bc9f283bcfc2a3f41cc5873da0fbd5e50feb9b6ba10dfcaf80923b9e9a"
+      },
+      {
+        "bytes": 235329,
+        "path": "data/market/raw/2026/20260821/stk_limit.csv",
+        "sha256": "fb317d41f4aee06a29fd16f6e8eccc97ac262aa3e8f84e873b9c756bdabe48b8"
+      },
+      {
+        "bytes": 413227,
+        "path": "data/market/raw/2026/20260824/daily.csv",
+        "sha256": "10a1de44bf35e9845a0c4f61b818cfec720eff02d8d601043a825192760e80f0"
+      },
+      {
+        "bytes": 235359,
+        "path": "data/market/raw/2026/20260824/stk_limit.csv",
+        "sha256": "5675398e360500bcbdc29823cf8a46162c67ff8033c1a4266bed4a2664070d90"
+      },
+      {
+        "bytes": 410775,
+        "path": "data/market/raw/2026/20260825/daily.csv",
+        "sha256": "e231b913a6bdbf4820ddf5cc58f70cf8f2ee64321d005ec95f8313644e7f8528"
+      },
+      {
+        "bytes": 235293,
+        "path": "data/market/raw/2026/20260825/stk_limit.csv",
+        "sha256": "b484566acf8e64376781bead1a8b3d5b516d2725aa06220090b9627af7a92178"
+      },
+      {
+        "bytes": 411691,
+        "path": "data/market/raw/2026/20260826/daily.csv",
+        "sha256": "f1488c94db049c983f94f60da536c6ac5672381a5b4e620a3972e43991cb4672"
+      },
+      {
+        "bytes": 235373,
+        "path": "data/market/raw/2026/20260826/stk_limit.csv",
+        "sha256": "07e00a3224e9e9150213a0a7dc04e00dea8dc054b8d76be5694a47d4af67b398"
+      },
+      {
+        "bytes": 411705,
+        "path": "data/market/raw/2026/20260827/daily.csv",
+        "sha256": "c0ef6547af4b3345b6d8669b6e17d141a548289086f1512dbcb303deda048bb7"
+      },
+      {
+        "bytes": 235522,
+        "path": "data/market/raw/2026/20260827/stk_limit.csv",
+        "sha256": "6a15cc2a3c3058112b39cd5c0ef5a13fa3900255521ea14aaf1201e05a654ef8"
+      },
+      {
+        "bytes": 412389,
+        "path": "data/market/raw/2026/20260828/daily.csv",
+        "sha256": "542d4b3d063df28e5c6ef0e9a6a531bd34f735e3cd4fc98715df0bef870f906b"
+      },
+      {
+        "bytes": 235663,
+        "path": "data/market/raw/2026/20260828/stk_limit.csv",
+        "sha256": "ef77fced67dd72e4b5bc3f334515136e88d9f9eaa513696b349700d11a664bee"
+      },
+      {
+        "bytes": 412385,
+        "path": "data/market/raw/2026/20260831/daily.csv",
+        "sha256": "605577c7a43dbe170adb833a8ad5bf902be4a14de07595fdcc9dda0ea55acb78"
+      },
+      {
+        "bytes": 235747,
+        "path": "data/market/raw/2026/20260831/stk_limit.csv",
+        "sha256": "e8775ceb1c6e4fc4730f41df99e540e5704accd98bc0ee83b2c261296a320a5b"
+      },
+      {
+        "bytes": 413233,
+        "path": "data/market/raw/2026/20260901/daily.csv",
+        "sha256": "28ca6888cdb680cda98729491acce1b04e55934c90a75ff986f4090dbeb5b8c6"
+      },
+      {
+        "bytes": 235845,
+        "path": "data/market/raw/2026/20260901/stk_limit.csv",
+        "sha256": "1fc6e64b9f89376c95360d79e1cc430bfa82233e8b15fe75ca8f2110b8c43d25"
+      },
+      {
+        "bytes": 414400,
+        "path": "data/market/raw/2026/20260902/daily.csv",
+        "sha256": "b63b952a0c5d7fe12760931c9318aa183f66eb346703441d4185b2b7095000da"
+      },
+      {
+        "bytes": 236060,
+        "path": "data/market/raw/2026/20260902/stk_limit.csv",
+        "sha256": "b662eadb98de8b1717973fc85377ae551eefe8dddb519d674066047938bd8535"
+      },
+      {
+        "bytes": 413561,
+        "path": "data/market/raw/2026/20260903/daily.csv",
+        "sha256": "9ebbfb6ac8757a2a58d264386833d1d48a4172e56f7a7f0551f20e091ab342a8"
+      },
+      {
+        "bytes": 236125,
+        "path": "data/market/raw/2026/20260903/stk_limit.csv",
+        "sha256": "1184dda7e3e7af1586f1def8e6990bbe019fe867cae6d8e01e8f3e9cf7928202"
+      },
+      {
+        "bytes": 413688,
+        "path": "data/market/raw/2026/20260904/daily.csv",
+        "sha256": "93d49d2566cb5439e70b34e7765a83f11c9b4695f90ca1160f13b110cbe16f6f"
+      },
+      {
+        "bytes": 236143,
+        "path": "data/market/raw/2026/20260904/stk_limit.csv",
+        "sha256": "e8523b3701dac4c733b17d02fe146cbfdfa4e652d3def52ab1ca064cc1c5a17b"
+      }
+    ],
+    "scope": "shared_queried_SH_SZ_market_rows_plus_requested_code_presence; not_whole_market_completeness",
+    "unverified": [
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260824"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260825"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260825"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260826"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260826"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260827"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260827"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260828"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260828"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260831"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260831"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260901"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260901"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260902"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260902"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260903"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260903"
+      },
+      {
+        "api": "daily",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260904"
+      },
+      {
+        "api": "stk_limit",
+        "reason": "NEW_COMPLETE_PARTITION_UNAVAILABLE",
+        "trade_date": "20260904"
+      }
+    ],
+    "volume_normalization": "exact Decimal"
+  },
+  "production_release_authorized": false,
+  "requested_code_date_keys": 102935,
+  "requested_first_date": "20221114",
+  "requested_last_date": "20260904",
+  "requested_sessions": 926,
+  "requests_attempted": 3354,
+  "retrieved_completed_utc": "2026-09-06T10:31:54+00:00",
+  "retrieved_started_utc": "2026-09-06T09:01:53+00:00",
+  "schema_version": "dc20_profit_history_artifact_audit_v1",
+  "session_plan_sha256": "526c0d07f3a31cb9e8eee864abe6a47321e641c80d716a8e0c90e84201ef0b6e",
+  "source_commit": "3e2299a07f7b4430002da0b870c47ecf57c49bb3",
+  "source_contract": {
+    "collector_sha256": "721f3a52e7ff8070c2951528f9d88ae6715d16f61b880a9f47e06ceced40088b",
+    "plan_sha256": "e150bdae3d664cdfaea89ef3ada6603db4d1fe1e1c0e70b57e29287592872cdd",
+    "request_sha256": "3bd54cb8b18b7d97258b2beeb1043dc7f86dccbba88bc47f97da36c8bf17b94f",
+    "source_inputs": {
+      "calendar": {
+        "path": "data/market/trade_cal_sse.csv",
+        "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+      },
+      "ledger": {
+        "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+        "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+      }
+    }
+  },
+  "source_ready_for_label_rebuild": false,
+  "source_repository": "njedu2023-prog/DC20",
+  "status": "BLOCKED_SOURCE_ADMISSION",
+  "tail_sessions": 20,
+  "tail_window_is_forced_exit": false,
+  "training_authorized": false,
+  "verified_manifest_file_count": 8548,
+  "verified_optional_partitions": 0,
+  "verified_required_partitions": 1833
+}

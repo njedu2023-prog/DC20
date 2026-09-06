@@ -1,0 +1,165 @@
+{
+  "all_scoped_checks_passed": true,
+  "audit_script_sha256": "82d1133ebed8a631bd1bdf5e1380c2d44f60c4d12c8002f06f03bfe791dac1ce",
+  "current_and_future_promotion_truth_poisoning": {
+    "changed_prior_values": 0,
+    "checked_rows": 6347,
+    "checked_signal_dates": "D <= cutoff",
+    "cutoff_D": "20240816",
+    "mutated_signal_dates": "D >= cutoff; flip observed promotion_hit"
+  },
+  "frozen_feature_copy_check": {
+    "feature_count": 48,
+    "mismatches_by_feature": {
+      "atr": 0,
+      "bid_ask_proxy": 0,
+      "board_sh_main": 0,
+      "board_sz_main": 0,
+      "candle_body": 0,
+      "d_close": 0,
+      "d_high": 0,
+      "d_low": 0,
+      "d_open": 0,
+      "d_pct_change": 0,
+      "d_volume": 0,
+      "five_year_board_stage_delta": 0,
+      "five_year_days_since_prior_limit_up": 0,
+      "five_year_pre_streak_1d_return": 0,
+      "five_year_pre_streak_3d_return": 0,
+      "five_year_pre_streak_limit_up_count": 0,
+      "five_year_pre_streak_volatility": 0,
+      "five_year_price_log": 0,
+      "five_year_prior_samples_log": 0,
+      "five_year_recent_20d_rate": 0,
+      "five_year_recent_60d_rate": 0,
+      "five_year_recent_60d_samples_log": 0,
+      "five_year_recent_limit_up_count": 0,
+      "five_year_regime_delta": 0,
+      "five_year_stage_board_prior_rate": 0,
+      "five_year_stage_prior_rate": 0,
+      "five_year_stock_prior_rate": 0,
+      "five_year_stock_prior_samples_log": 0,
+      "five_year_streak_runup": 0,
+      "focus_pool_size": 0,
+      "gap_open": 0,
+      "high_low_range": 0,
+      "mechanism_limit_pct": 0,
+      "ret_10d": 0,
+      "ret_2d": 0,
+      "ret_5d": 0,
+      "returns_1d": 0,
+      "spread_proxy": 0,
+      "stage2_pool_size": 0,
+      "stage3_pool_size": 0,
+      "stage_2": 0,
+      "stage_3": 0,
+      "stage_pool_share": 0,
+      "vol": 0,
+      "volatility_10d": 0,
+      "volatility_20d": 0,
+      "volatility_5d": 0,
+      "volume_ratio": 0
+    },
+    "value_checks": 324144
+  },
+  "frozen_rows": 6753,
+  "limitations": [
+    "Causality result is scoped to the ten promotion-history prior features; the 48-feature copy equality is not a full causal audit of every other feature.",
+    "Prior outcome is earlier-D promotion_hit at its next SSE T close; usable for current D after-close generation, not automatically current-D premarket.",
+    "Old promotion_hit was constructed from Tencent daily bars and rounded pre_close*1.10, not newly audited official dated stk_limit truth.",
+    "This does not verify original historical retrieval timestamps, market-data revisions, historical label accuracy, or untouched forward performance.",
+    "Only in-memory mutation witnesses are used; no current execution labels, new raw collection, frozen features, production rankings, or Shadow records are changed."
+  ],
+  "method": "Two existing pure dataframe functions extracted from AST; only their import replaced with exact local definitions; no model package initialization or fitting",
+  "models_trained": 0,
+  "network_accessed": false,
+  "prior_replay": {
+    "comparison_absolute_tolerance": 1e-12,
+    "feature_count": 10,
+    "mismatches_by_feature": {
+      "five_year_board_stage_delta": 0,
+      "five_year_prior_samples_log": 0,
+      "five_year_recent_20d_rate": 0,
+      "five_year_recent_60d_rate": 0,
+      "five_year_recent_60d_samples_log": 0,
+      "five_year_regime_delta": 0,
+      "five_year_stage_board_prior_rate": 0,
+      "five_year_stage_prior_rate": 0,
+      "five_year_stock_prior_rate": 0,
+      "five_year_stock_prior_samples_log": 0
+    },
+    "source_writer_float_format": "%.10g",
+    "value_checks": 67530
+  },
+  "production_release_authorized": false,
+  "profit_target_independence": {
+    "changed_prior_values": 0,
+    "checked_rows": 12322,
+    "columns_set_to_missing": [
+      "net_return",
+      "profit_hit",
+      "big_loss_hit",
+      "market_fill",
+      "tplus1_open"
+    ]
+  },
+  "recent_window_semantics": {
+    "SSE_session_count_same_range": 1212,
+    "SSE_sessions_absent_from_event_grid": [
+      "20230331",
+      "20230719"
+    ],
+    "event_D_grid_count": 1210,
+    "meaning": "20/60 rolling rows of event-D grid, not explicitly calendar-completed 20/60 SSE sessions"
+  },
+  "runtime": {
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "python": "3.12.14"
+  },
+  "schema_version": "dc20_frozen_promotion_feature_audit_v1",
+  "source_files": {
+    "calendar": {
+      "bytes": 61411,
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "five_year_builder": {
+      "bytes": 53944,
+      "path": "scripts/build_three_engine_five_year_ledger.py",
+      "sha256": "5fda0491815ea5d75a76969a4d539ef414be67ce53779656401ed66e5a0a61ed"
+    },
+    "five_year_source": {
+      "bytes": 4764361,
+      "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
+    },
+    "frozen_feature_ledger": {
+      "bytes": 1848240,
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz",
+      "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"
+    },
+    "frozen_feature_manifest": {
+      "bytes": 12184,
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json",
+      "sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5"
+    },
+    "frozen_training_allowlist": {
+      "bytes": 28102,
+      "path": "work/executable-profit-execution-v2-20260906/train_candidate.py",
+      "sha256": "50e01cbcd7da0aea7ec3329b0f980e58fd17d5a350e251452ba2dc26e6eaaaa8"
+    },
+    "promotion_prior_builder": {
+      "bytes": 28552,
+      "path": "src/top10decision/auction_v3/promotion_model.py",
+      "sha256": "af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170"
+    }
+  },
+  "source_files_changed": false,
+  "source_first_D": "20210813",
+  "source_last_D": "20260814",
+  "source_next_SSE_session_violations": 0,
+  "source_rows": 12322,
+  "status": "CHECKED_PRIOR_TEMPORAL_DIRECTION_AND_FROZEN_VALUE_IDENTITY",
+  "training_authorized": false
+}
