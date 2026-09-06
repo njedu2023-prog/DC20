@@ -96,8 +96,10 @@ def test_latest_three_rank_t_close_truth_is_exact_date_bound_and_read_only() -> 
     assert "state.index === 0" in renderer
     assert "state.currentThreeRankTTruth?.signal_date === contract.signal_date" in renderer
     assert "state.currentThreeRankTTruth?.exec_date === contract.exec_date" in renderer
-    assert "tCloseTruth?.continuation_limit_up_hit" in renderer
-    assert "tCloseTruth?.validation_status_label" in renderer
+    assert "threeRankRowTruth(contract, row.ts_code, tTruth, observation)" in renderer
+    assert "state.currentThreeRankObservationTruth?.bundle_sha256 === contract.bundle_sha256" in renderer
+    assert "state.currentThreeRankObservationTruth?.top10_members_sha256 === contract.top10_members_sha256" in renderer
+    assert "timing.t_status !== \"MATURE\"" in loader
     # This overlay is limited to T-close truth fields; the immutable D rows
     # remain spread last before those explicit, allowlisted fields.
     assert "...truth,\n          ...row," in renderer

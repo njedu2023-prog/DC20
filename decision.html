@@ -1353,6 +1353,7 @@
       currentThreeRank: null,
       currentThreeRankPathEvidence: null,
       currentThreeRankTTruth: null,
+      currentThreeRankObservationTruth: null,
       currentPublicObservationStatistics: null,
       publicObservationLoad: { status: "loading", message: "正在读取晋级名单验证统计。" },
       publishedRevisionSha: null,
@@ -1722,8 +1723,8 @@
 
     function truthClass(status) {
       const value = String(status || "");
-      if (value === "FINAL_VERIFIED") return "final";
-      if (value === "FINAL_NO_FILL" || value === "T_VERIFIED_NO_FILL") return "no-fill";
+      if (value === "FINAL_VERIFIED" || value === "FINAL_VERIFIED_PROXY") return "final";
+      if (value === "FINAL_NO_FILL" || value === "FINAL_NO_FILL_PROXY" || value === "T_VERIFIED_NO_FILL") return "no-fill";
       return "pending";
     }
 
@@ -2030,6 +2031,36 @@
       }
     }
 
+    function threeRankTruthClock(contract, now = Date.now()) {
+      const atClose = date => Date.parse(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T15:00:00+08:00`);
+      const atStart = date => atClose(date) - 15 * 60 * 60 * 1000;
+      const t = canonicalYmd(contract.exec_date), t1 = canonicalYmd(contract.exit_date);
+      return {
+        t_status: now < atStart(t) ? "PENDING_T" : now < atClose(t) ? "PENDING_T_CLOSE" : "MATURE",
+        t1_status: now < atStart(t1) ? "PENDING_T1" : now < atClose(t1) ? "PENDING_T1_CLOSE" : "MATURE"
+      };
+    }
+
+    function threeRankTruthStatusLabel(status, contract) {
+      const labels = {
+        PENDING_T: `等待 T ${dateText(contract.exec_date)} 收盘`,
+        PENDING_T_CLOSE: `T ${dateText(contract.exec_date)} 尚未收盘`,
+        MISSING_T_TRUTH: `T ${dateText(contract.exec_date)} 已到期，行情待更新`,
+        INVALID_T_TRUTH: "T 真值读取或校验失败",
+        PENDING_T1: `等待 T+1 ${dateText(contract.exit_date)}`,
+        PENDING_T1_CLOSE: `T+1 ${dateText(contract.exit_date)} 收盘后核验`,
+        MISSING_T1_TRUTH: "到期退出行情待更新",
+        UNRESOLVED_EXIT_PROXY: "退出不可执行，等待顺延核验",
+        FINAL_VERIFIED_PROXY: "已结算（日开盘代理）",
+        FINAL_NO_FILL_PROXY: "开盘代理未买入（非0成交收益）",
+        OBSERVATION_MISSING: "逐行验证尚未发布",
+        OBSERVATION_INVALID: "逐行验证读取或校验失败",
+        OBSERVATION_STALE: "已到期，等待验证工作流更新",
+        EXCLUDED_RETROSPECTIVE: "回溯记录，不计前向观察"
+      };
+      return labels[status] || "验证结果待更新";
+    }
+
     async function loadCurrentThreeRankTTruth(currentThreeRank) {
       const contract = validatedThreeRankContract(currentThreeRank);
       if (!contract || contract === false) return null;
@@ -2037,6 +2068,10 @@
       const execDate = canonicalYmd(contract.exec_date);
       const codes = contract.rows.map(row => String(row.ts_code || ""));
       if (!signalDate || !execDate || new Set(codes).size !== codes.length || codes.some(code => !code)) return null;
+      const base = { signal_date: signalDate, exec_date: execDate, exit_date: contract.exit_date,
+        bundle_sha256: contract.bundle_sha256, top10_members_sha256: contract.top10_members_sha256 };
+      const timing = threeRankTruthClock(contract);
+      if (timing.t_status !== "MATURE") return { ...base, status: timing.t_status, rows: [] };
       const year = execDate.slice(0, 4);
       const dailyPath = `data/market/raw/${year}/${execDate}/daily.csv`;
       const limitPath = `data/market/raw/${year}/${execDate}/stk_limit.csv`;
@@ -2080,8 +2115,8 @@
         };
       });
       return {
-        signal_date: signalDate,
-        exec_date: execDate,
+        ...base,
+        status: "READY",
         daily_path: dailyPath,
         daily_sha256: await sha256Hex(dailyBytes),
         stk_limit_path: limitPath,
@@ -2090,14 +2125,117 @@
       };
     }
 
+    async function loadCurrentThreeRankObservationTruth(currentThreeRank) {
+      const contract = validatedThreeRankContract(currentThreeRank);
+      if (!contract || contract === false) return null;
+      const base = { signal_date: contract.signal_date, exec_date: contract.exec_date, exit_date: contract.exit_date,
+        bundle_sha256: contract.bundle_sha256, top10_members_sha256: contract.top10_members_sha256 };
+      const summary = state.currentPublicObservationStatistics;
+      if (!summary) return { ...base, status: state.publicObservationLoad?.status === "missing" ? "OBSERVATION_MISSING" : "OBSERVATION_INVALID", rows: [] };
+      const bindings = summary.bindings.filter(item => item.signal_date === contract.signal_date);
+      if (!bindings.length) return { ...base, status: "OBSERVATION_MISSING", rows: [] };
+      if (bindings.length !== 1) throw new Error("逐行观察缺少唯一同D冻结绑定");
+      const binding = bindings[0], p0 = binding.p0;
+      if (!p0 || p0.schema_version !== "dc20_primary_d_runtime_index_v1" || p0.runtime_selected_count !== contract.rows.length ||
+          p0.latest_signal_date !== contract.signal_date || p0.latest_exec_date !== contract.exec_date ||
+          p0.latest_exit_date !== contract.exit_date || p0.latest_bundle_sha256 !== contract.bundle_sha256 ||
+          p0.latest_top10_members_sha256 !== contract.top10_members_sha256 ||
+          p0.latest_feature_snapshot_sha256 !== contract.feature_snapshot_sha256 ||
+          p0.latest_three_rank_json_url !== `outputs/decision/three_rank_top10_${contract.signal_date}.json`) {
+        throw new Error("逐行观察与D/T/T+1或冻结名单SHA不一致");
+      }
+      if (binding.status === "EXCLUDED_RETROSPECTIVE") return { ...base, status: "EXCLUDED_RETROSPECTIVE", rows: [] };
+      if (binding.status !== "PROSPECTIVE" || summary.policy?.id !== "p0_daily_open_observation_proxy_v1" || summary.policy?.round_trip_cost_rate !== 0.0045 ||
+          summary.rows_path !== "outputs/decision/primary_observation/rows.csv" || !isSha256(summary.rows_sha256)) {
+        throw new Error("逐行观察来源合同无效");
+      }
+      const raw = await fetchPublishedBytes(summary.rows_path);
+      if (await sha256Hex(raw) !== summary.rows_sha256) throw new Error("逐行观察CSV SHA256不一致");
+      const all = parseStrictCsvBytes(raw, ["signal_date", "exec_date", "exit_date", "ts_code", "name", "promotion_rank", "continuation_limit_up_hit", "actual_net_return", "slot_net_return", "validation_status", "actual_order_fill_observed", "truth_source"], "晋级名单逐行观察");
+      const selected = all.filter(row => row.signal_date === contract.signal_date);
+      const day = summary.daily_summaries.filter(row => row.signal_date === contract.signal_date);
+      const byCode = new Map(selected.map(row => [row.ts_code, row]));
+      if (day.length !== 1 || day[0].exec_date !== contract.exec_date || day[0].exit_date !== contract.exit_date ||
+          day[0].rows !== contract.rows.length || selected.length !== contract.rows.length || byCode.size !== selected.length) {
+        throw new Error("逐行观察冻结成员缺失、重复或日期不一致");
+      }
+      const numeric = (value, label) => {
+        if (value === "") return null;
+        if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) || !Number.isFinite(Number(value))) throw new Error(`${label}不是有限数值`);
+        return Number(value);
+      };
+      const allowed = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
+      const beijingNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+      if (beijingNow.getUTCHours() < 15) beijingNow.setUTCDate(beijingNow.getUTCDate() - 1);
+      const closedThrough = beijingNow.toISOString().slice(0, 10).replaceAll("-", "");
+      const rows = contract.rows.map(frozen => {
+        const row = byCode.get(frozen.ts_code);
+        if (!row || row.exec_date !== contract.exec_date || row.exit_date !== contract.exit_date || row.name !== frozen.name ||
+            numeric(row.promotion_rank, "晋级名次") !== frozen.promotion_rank || row.actual_order_fill_observed !== "False" ||
+            row.truth_source !== "daily_open_proxy" || !allowed.includes(row.validation_status)) throw new Error("逐行观察证券身份、名次或代理合同不一致");
+        const hit = numeric(row.continuation_limit_up_hit, "T晋级真值"), net = numeric(row.actual_net_return, "代理净收益"), slot = numeric(row.slot_net_return, "槽位收益");
+        const tPending = ["PENDING_T", "MISSING_T_TRUTH"].includes(row.validation_status);
+        if ((tPending ? hit !== null : ![0, 1].includes(hit)) ||
+            (row.validation_status === "FINAL_VERIFIED_PROXY" ? net === null || slot !== net : net !== null) ||
+            (row.validation_status === "FINAL_NO_FILL_PROXY" ? slot !== 0 : row.validation_status !== "FINAL_VERIFIED_PROXY" && slot !== null)) {
+          throw new Error("逐行观察状态与真值/收益不一致，缺失不得按0处理");
+        }
+        if ((!tPending && summary.as_of_date < contract.exec_date) ||
+            (row.validation_status.startsWith("FINAL_") && summary.as_of_date < contract.exit_date)) throw new Error("逐行观察使用未来日期真值");
+        const actualExit = canonicalYmd(row.actual_exit_date);
+        if (row.validation_status === "FINAL_VERIFIED_PROXY" && (!actualExit || actualExit < contract.exit_date || actualExit > summary.as_of_date || actualExit > closedThrough)) throw new Error("代理实际退出日期不在已验证窗口内");
+        return { ts_code: row.ts_code, continuation_limit_up_hit: hit, actual_net_return: net,
+          validation_status: row.validation_status, actual_exit_date: actualExit };
+      });
+      return { ...base, status: "READY", as_of_date: summary.as_of_date, rows };
+    }
+
     async function refreshCurrentThreeRankTTruth(currentThreeRank) {
+      state.currentThreeRankTTruth = null;
+      state.currentThreeRankObservationTruth = null;
+      const contract = validatedThreeRankContract(currentThreeRank);
+      if (!contract || contract === false) return;
+      const failed = (status, error) => ({ signal_date: contract.signal_date, exec_date: contract.exec_date, exit_date: contract.exit_date,
+        bundle_sha256: contract.bundle_sha256, top10_members_sha256: contract.top10_members_sha256, status, error: String(error?.message || error), rows: [] });
       try {
         state.currentThreeRankTTruth = await loadCurrentThreeRankTTruth(currentThreeRank);
-      } catch (_) {
-        // Before T close (or when exact dated truth is incomplete), the D-frozen
-        // rows remain pending. Never use latest files or partial member matches.
-        state.currentThreeRankTTruth = null;
+      } catch (error) {
+        state.currentThreeRankTTruth = failed(/HTTP 404\b|T日真值缺少冻结成员/.test(String(error?.message || error)) ? "MISSING_T_TRUTH" : "INVALID_T_TRUTH", error);
       }
+      try {
+        state.currentThreeRankObservationTruth = await loadCurrentThreeRankObservationTruth(currentThreeRank);
+        const tTruth = state.currentThreeRankTTruth, observed = state.currentThreeRankObservationTruth;
+        if (tTruth?.status === "READY" && observed?.status === "READY") {
+          const hits = new Map(tTruth.rows.map(row => [row.ts_code, row.continuation_limit_up_hit]));
+          if (observed.rows.some(row => row.continuation_limit_up_hit !== null && hits.get(row.ts_code) !== row.continuation_limit_up_hit)) {
+            state.currentThreeRankTTruth = failed("INVALID_T_TRUTH", "T收盘行情与逐行观察真值冲突");
+            throw new Error("T收盘行情与逐行观察真值冲突");
+          }
+        }
+      } catch (error) {
+        state.currentThreeRankObservationTruth = failed(/HTTP 404\b/.test(String(error?.message || error)) ? "OBSERVATION_MISSING" : "OBSERVATION_INVALID", error);
+      }
+    }
+
+    function threeRankRowTruth(contract, code, tTruth, observation) {
+      const clock = threeRankTruthClock(contract);
+      const tRow = tTruth?.status === "READY" ? tTruth.rows.find(row => row.ts_code === code) : null;
+      const observationRow = observation?.status === "READY" ? observation.rows.find(row => row.ts_code === code) : null;
+      const hit = clock.t_status === "MATURE" ? tRow?.continuation_limit_up_hit ?? null : null;
+      const tStatus = clock.t_status !== "MATURE" ? clock.t_status : tTruth?.status === "READY" ? "MISSING_T_TRUTH" : tTruth?.status || "MISSING_T_TRUTH";
+      let status = observationRow?.validation_status || observation?.status || "OBSERVATION_MISSING";
+      let net = observationRow?.actual_net_return ?? null;
+      if (clock.t1_status !== "MATURE") { status = status === "OBSERVATION_INVALID" ? status : clock.t1_status; net = null; }
+      else if (["PENDING_T", "PENDING_T1"].includes(status)) { status = "OBSERVATION_STALE"; net = null; }
+      const exitNote = status === "FINAL_VERIFIED_PROXY" && observationRow?.actual_exit_date
+        ? ` · 退出 ${dateText(observationRow.actual_exit_date)}` : "";
+      return {
+        continuation_limit_up_hit: hit,
+        continuation_status_label: hit == null ? threeRankTruthStatusLabel(tStatus, contract) : continuationLabel(hit),
+        actual_net_return: net,
+        validation_status: status,
+        validation_status_label: threeRankTruthStatusLabel(status, contract) + exitNote
+      };
     }
 
     function timingClass(status) {
@@ -4414,14 +4552,24 @@
       const runtimePathByCode = new Map((pathEvidence?.rows || []).map(row => [String(row.ts_code), row]));
       const tTruth = state.index === 0 &&
         state.currentThreeRankTTruth?.signal_date === contract.signal_date &&
-        state.currentThreeRankTTruth?.exec_date === contract.exec_date
+        state.currentThreeRankTTruth?.exec_date === contract.exec_date &&
+        state.currentThreeRankTTruth?.exit_date === contract.exit_date &&
+        state.currentThreeRankTTruth?.bundle_sha256 === contract.bundle_sha256 &&
+        state.currentThreeRankTTruth?.top10_members_sha256 === contract.top10_members_sha256
         ? state.currentThreeRankTTruth
         : null;
-      const tTruthByCode = new Map((tTruth?.rows || []).map(row => [String(row.ts_code), row]));
+      const observation = state.index === 0 &&
+        state.currentThreeRankObservationTruth?.signal_date === contract.signal_date &&
+        state.currentThreeRankObservationTruth?.exec_date === contract.exec_date &&
+        state.currentThreeRankObservationTruth?.exit_date === contract.exit_date &&
+        state.currentThreeRankObservationTruth?.bundle_sha256 === contract.bundle_sha256 &&
+        state.currentThreeRankObservationTruth?.top10_members_sha256 === contract.top10_members_sha256
+        ? state.currentThreeRankObservationTruth : null;
+      const independentTruth = contract.signal_date >= INDEPENDENCE_CUTOVER_SIGNAL_DATE;
       const fixedRows = contract.rows.map(row => {
         const truth = truthByCode.get(String(row.ts_code)) || {};
         const runtimePath = runtimePathByCode.get(String(row.ts_code));
-        const tCloseTruth = tTruthByCode.get(String(row.ts_code));
+        const verified = independentTruth ? threeRankRowTruth(contract, row.ts_code, tTruth, observation) : null;
         return {
           ...truth,
           ...row,
@@ -4429,9 +4577,11 @@
           path_label_code: runtimePath?.path_label_code ?? (pathEvidenceInvalid ? "EVIDENCE_INVALID" : truth.path_label_code ?? row.path_label_code ?? null),
           path_explanation: runtimePath?.path_explanation ?? (pathEvidenceInvalid ? state.currentThreeRankPathEvidence.error : truth.path_explanation ?? row.path_explanation ?? null),
           path_strength_delta: runtimePath?.path_strength_delta ?? (pathEvidenceInvalid ? null : truth.path_strength_delta ?? row.path_strength_delta ?? null),
-          continuation_limit_up_hit: tCloseTruth?.continuation_limit_up_hit ?? truth.continuation_limit_up_hit ?? row.continuation_limit_up_hit ?? null,
-          validation_status: tCloseTruth?.validation_status ?? truth.validation_status ?? row.validation_status ?? null,
-          validation_status_label: tCloseTruth?.validation_status_label ?? truth.validation_status_label ?? row.validation_status_label ?? null
+          ...(verified || {
+            continuation_limit_up_hit: truth.continuation_limit_up_hit ?? row.continuation_limit_up_hit ?? null,
+            validation_status: truth.validation_status ?? row.validation_status ?? null,
+            validation_status_label: truth.validation_status_label ?? row.validation_status_label ?? null
+          })
         };
       });
       const poolSize = Number(contract.promotion_pool_size || fixedRows.length);
@@ -4457,7 +4607,7 @@
           <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
           <td><span class="truth-badge">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
-          <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
+          <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
           <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
           <td><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></td>
         </tr>`).join("");
@@ -4484,12 +4634,13 @@
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
+        ${independentTruth ? `<p class="stats-note">验证日期：D ${dateText(contract.signal_date)} · T ${dateText(contract.exec_date)}（收盘晋级）· T+1 ${dateText(contract.exit_date)}（收盘后核验退出）。净收益为独立晋级名单的事后日开盘代理观察、扣除45bp（0.45%）成本，非实际成交或混合Shadow成绩；不能退出时顺延，缺失保持待核验，不按0收益。${state.index !== 0 ? "本历史视图未加载独立逐行验证，不借用当前D或旧Action结果。" : ""}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
           <caption class="sr-only">D ${dateText(contract.signal_date)} 2进3进4晋级榜与连板路径</caption><thead><tr>
           <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th>
           <th class="left">连板路径</th><th>路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
-          <th scope="col">T晋级结果</th><th scope="col">T+1净收益</th><th scope="col">T+1验证状态</th>
+          <th scope="col">T晋级结果</th><th scope="col">T+1净收益${independentTruth ? "（开盘代理）" : ""}</th><th scope="col">T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));

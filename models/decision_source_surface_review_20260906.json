@@ -1,0 +1,94 @@
+{
+  "schema_version": "decision_source_surface_successor_review_v1",
+  "review_id": "dc20_primary_t_t1_truth_validation_20260906",
+  "reviewed_on": "2026-09-06",
+  "approved_base_commit": "54e05018ae05980d016195262a1708f7679fcfef",
+  "baseline_manifest_sha256": "7eb10190364ab674c91ce6e2f487336df75cb064d29e3fb066512bcd156e566b",
+  "historical_evidence_path": "models/decision_source_surface_rotation_20260824.json",
+  "historical_evidence_sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b",
+  "scope": "SOURCE_ONLY_SUCCESSOR_REVIEW_NOT_MODEL_RELEASE",
+  "reason": "Record the exact reviewed successor source bytes separately from the historical rotation. Connect frozen primary T/T+1 observations to the main table and separate primary daily-close truth from unrelated legacy minute candidates. The baseline already contained the full-table Top1/Top2 presentation and its dashboard test; baseline hashes distinguish those existing changes from this review. Preserve the historical evidence bytes, frozen model identity, ranking membership and order, production predictions, Shadow selections and formal NO_TRADE boundary. This record is not an assertion that the future natural Verify run has succeeded.",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "boundaries": {
+    "historical_evidence_rewritten": false,
+    "live_model_weights_changed": false,
+    "promotion_members_or_ranks_changed": false,
+    "predictions_or_shadow_selections_recreated": false,
+    "formal_trade_action_created": false,
+    "natural_verify_success_claimed": false
+  },
+  "pin_changes": [
+    {
+      "path": ".github/workflows/verify_decision_observations.yml",
+      "historical_sha256": "4234c731df25d0b82b67a0f8e559e1ab43e5ad20ab5b55ba0e19f41b3c9dc085",
+      "baseline_sha256": "4234c731df25d0b82b67a0f8e559e1ab43e5ad20ab5b55ba0e19f41b3c9dc085",
+      "current_sha256": "69bdfa2845e15fa0f00803db46e19816afd68611d389fa8c14f7ef169b3a4bc5",
+      "changed_in_this_review": true,
+      "reason": "Validate frozen forecast mode before truth sync; require exact daily/limit partitions for primary observations while retaining all legacy minute and independent Shadow auction gates."
+    },
+    {
+      "path": "decision.html",
+      "historical_sha256": "6fdf8318b92ea121dd5686f09eebb2c4a7d9472b62ef6362589c338ff3a92e3c",
+      "baseline_sha256": "37682902ed1bd70a222f399f746a50b556902e5ec7b2287a823b133bd7528a77",
+      "current_sha256": "6f20d69df54a525f523ca50f91400f5f14a78f2ac9c0ff5aa9d1bb1f62c81686",
+      "changed_in_this_review": true,
+      "reason": "Bind main-table T/T+1 result rows to exact primary observation evidence and maturity checks; retain the baseline inline Top1/Top2 full-table presentation."
+    },
+    {
+      "path": "scripts/settle_primary_observations.py",
+      "historical_sha256": "4bcf6a352a7ceea77f1dc606f620f5622b9d86a56fd473b44a8e491b8af0a7a1",
+      "baseline_sha256": "4bcf6a352a7ceea77f1dc606f620f5622b9d86a56fd473b44a8e491b8af0a7a1",
+      "current_sha256": "d2e49ff94a3ad405f2f757173244329951859f05216b8b5c51393bec2b02305b",
+      "changed_in_this_review": true,
+      "reason": "Treat invalid negative volume as missing truth rather than a no-fill zero return or delayed-exit observation."
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "historical_sha256": "29f4a680053bc9fbea3efb923eaa61cdcc22a4b62738b54e09e8c93d7ef2f941",
+      "baseline_sha256": "642bb3bec193f5d122d3563dd3e621d5d7dbbb585c6de287e3ffac97ba003ff2",
+      "current_sha256": "642bb3bec193f5d122d3563dd3e621d5d7dbbb585c6de287e3ffac97ba003ff2",
+      "changed_in_this_review": false,
+      "reason": "Record the existing baseline regression test for the full profitability table with inline Top1/Top2 badges; no change in this review."
+    },
+    {
+      "path": "tests/test_decision_three_rank_frontend.py",
+      "historical_sha256": "0a3c19c4f55692309134d8b9049dffe1ed4bef3279a7979ffaca279593476031",
+      "baseline_sha256": "0a3c19c4f55692309134d8b9049dffe1ed4bef3279a7979ffaca279593476031",
+      "current_sha256": "83e9aaaf63384eb46a9251e2396a617d962c87cc8d20a9b26c8ff56e88d38c37",
+      "changed_in_this_review": true,
+      "reason": "Test exact-D primary observation row binding and T/T+1 table rendering without changing promotion ordering."
+    },
+    {
+      "path": "tests/test_executable_profit_workflow_wiring.py",
+      "historical_sha256": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
+      "baseline_sha256": "d3a620551370a9a4a76dc4ae967857eb79b7ceaae34814f7cbaf9cedbd9de622",
+      "current_sha256": "2204490e3eb0bb4ddacf4599f64a841db92d21ecb59f0e1d471554cd1467dc7b",
+      "changed_in_this_review": true,
+      "reason": "Retain the legacy partial-minute failure assertion after separating primary exact daily truth from legacy minute evidence."
+    },
+    {
+      "path": "tests/test_primary_observation_summary.py",
+      "historical_sha256": "e3ab600190489cbfbdbf6ecd463ee6fcca8f385c8ac5e2adba99629e3896ce9d",
+      "baseline_sha256": "e3ab600190489cbfbdbf6ecd463ee6fcca8f385c8ac5e2adba99629e3896ce9d",
+      "current_sha256": "13400680a187ed746f28b397cfc948d16cf9df23e45249a5b48f19d6a6f40137",
+      "changed_in_this_review": true,
+      "reason": "Test invalid negative T/T+1 volume remains missing with null return."
+    },
+    {
+      "path": "tests/test_verify_forecast_inputs.py",
+      "historical_sha256": "1d750b993c19aa284e44685edf736b6f0c2c27ff7ae990296a84c62a5ea91562",
+      "baseline_sha256": "1d750b993c19aa284e44685edf736b6f0c2c27ff7ae990296a84c62a5ea91562",
+      "current_sha256": "655a34e4afeffb3043fab48f2a12f9622807305eeee15f8a69043081fb1b5e28",
+      "changed_in_this_review": true,
+      "reason": "Execute the primary workflow branch without legacy minute calls and reject wrong-date, duplicate, missing-column, missing-partition and calendar-drift evidence."
+    }
+  ]
+}

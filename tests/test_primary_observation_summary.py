@@ -33,6 +33,22 @@ def test_missing_data_is_not_no_fill_or_zero_return():
     assert row["slot_net_return"] is None
 
 
+@pytest.mark.parametrize("bad_date,expected_status", [
+    ("20260903", "MISSING_T_TRUTH"), ("20260904", "MISSING_T1_TRUTH"),
+])
+def test_negative_volume_is_invalid_truth_not_zero_return_or_blocked_exit(bad_date, expected_status):
+    def negative(date, name):
+        result = tables(date, name)
+        if date == bad_date and name == "daily":
+            result["600001.SH"]["vol"] = -1
+        return result
+    row = observation_row(FROZEN, "20260902", "20260903", "20260904", "20260904", negative)
+    assert row["validation_status"] == expected_status
+    assert row["actual_net_return"] is None
+    assert row["slot_net_return"] is None
+    assert "actual_exit_date" not in row
+
+
 def test_t_verified_before_t1_matures():
     def only_t(date, name):
         assert date == "20260903"

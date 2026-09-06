@@ -413,12 +413,12 @@ def test_verify_continues_all_frozen_forward_dates_to_exact_asof_and_keeps_lates
     assert "codex" not in step.lower()
 
 
-def test_verify_partial_current_truth_cannot_freeze_public_shadow_asof() -> None:
+def test_verify_legacy_partial_current_truth_cannot_freeze_public_shadow_asof() -> None:
     text = _text("verify_decision_observations.yml")
     sync = _between(
         text,
         "- name: Sync all same-date truth without optional bypass",
-        "- name: Validate frozen runtime in an isolated exact-base worktree",
+        "- name: Retain read-only Verify gate failure evidence",
     )
     assert "id: truth_sync" in sync
     assert "('partial_success', 'post_close_truth_partial')" in sync
@@ -427,6 +427,7 @@ def test_verify_partial_current_truth_cannot_freeze_public_shadow_asof() -> None
         "('success', 'post_close_truth_success')"
     ) in sync
     assert "output.write(f\"complete={'true' if complete else 'false'}\\n\")" in sync
+    assert sync.index('if [ "${CONTRACT_MODE}" != LEGACY_AUCTION ]; then') < sync.index('minute_evidence=')
 
 
 def test_verify_candidate_and_publisher_recheck_exact_truth_and_forbid_selection(

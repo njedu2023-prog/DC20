@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 from types import SimpleNamespace
@@ -135,3 +138,90 @@ def test_all_verify_literal_run_blocks_are_valid_bash_without_executing():
     for block in blocks:
         result = subprocess.run(["bash", "-n"], input=textwrap.dedent(block), text=True, capture_output=True)
         assert result.returncode == 0, result.stderr
+
+
+def _truth_sync_script():
+    source = (Path(__file__).resolve().parents[1] / ".github/workflows/verify_decision_observations.yml").read_text()
+    section = source.split("- name: Sync all same-date truth without optional bypass", 1)[1]
+    return textwrap.dedent(re.search(r"(?m)^        run: \|\n((?:          .*\n|\n)*)", section).group(1))
+
+
+def test_verify_selects_validated_forecast_mode_before_fetching_truth():
+    source = (Path(__file__).resolve().parents[1] / ".github/workflows/verify_decision_observations.yml").read_text()
+    assert source.index("id: forecast_gate") < source.index("id: upstream") < source.index("id: truth_sync")
+    assert "CONTRACT_MODE: ${{ steps.forecast_gate.outputs.contract_mode }}" in source
+    assert "continue-on-error" not in _truth_sync_script()
+    assert "--optional" not in _truth_sync_script()
+    # The split must not soften the separate required auction truth contract.
+    assert "python scripts/sync_frozen_shadow_truth.py" in source
+    assert "python scripts/settle_primary_observations.py" in source
+    assert "Verify rewrote immutable Shadow truth" in source
+
+
+@pytest.fixture
+def primary_daily_truth(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    market = tmp_path / "data/market"
+    market.mkdir(parents=True)
+    shutil.copyfile(root / "data/market/trade_cal_sse.csv", market / "trade_cal_sse.csv")
+    partition = market / "raw/2026/20260907"
+    partition.mkdir(parents=True)
+    (partition / "daily.csv").write_text(
+        "ts_code,trade_date,open,close,pre_close,vol\n600001.SH,20260907,10,11,10,100\n")
+    (partition / "stk_limit.csv").write_text(
+        "ts_code,trade_date,up_limit,down_limit\n600001.SH,20260907,11,9\n")
+    return tmp_path, partition
+
+
+def _run_primary_sync(root):
+    env = dict(os.environ, CONTRACT_MODE="PRIMARY_FROZEN_FORECASTS", AS_OF_DATE="20260907",
+               RUNNER_TEMP=str(root), GITHUB_OUTPUT=str(root / "step-output"),
+               PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"), VERIFY_TEST_PYTHON=sys.executable)
+    # No network: test the actual workflow branch with successful upstream
+    # commands replaced by no-ops. Any old minute candidate call is a failure.
+    wrappers = '''
+python() {
+  case "$1" in
+    scripts/sync_market_raw.py|scripts/sync_tushare_daily_close.py) return 0 ;;
+    scripts/sync_tushare_minute.py) echo 'legacy minute dependency reached' >&2; return 91 ;;
+    *) "$VERIFY_TEST_PYTHON" "$@" ;;
+  esac
+}
+'''
+    return subprocess.run(["bash"], input=wrappers + _truth_sync_script(), cwd=root,
+                          env=env, text=True, capture_output=True)
+
+
+def test_primary_daily_truth_does_not_require_old_auction_predictions_or_minutes(primary_daily_truth):
+    root, _ = primary_daily_truth
+    result = _run_primary_sync(root)
+    assert result.returncode == 0, result.stderr
+    assert (root / "step-output").read_text() == "complete=true\n"
+    report = json.loads((root / "verify-primary-daily-truth.json").read_text())
+    assert report["as_of_date"] == "20260907"
+    assert [row["endpoint"] for row in report["source_files"]] == ["daily", "stk_limit"]
+    assert all(len(row["sha256"]) == 64 for row in report["source_files"])
+    assert report["minute_truth_required"] is False
+    assert report["all_frozen_rows_verified"] is False
+    assert report["shadow_auction_requirement_unchanged"] is True
+    assert not (root / "outputs").exists()
+
+
+@pytest.mark.parametrize("bad", ["wrong_date", "duplicate_code", "missing_column", "missing_partition", "wrong_calendar"])
+def test_primary_daily_truth_malformed_or_missing_source_cannot_open_settlement_gate(primary_daily_truth, bad):
+    root, partition = primary_daily_truth
+    path = partition / "daily.csv"
+    if bad == "wrong_date":
+        path.write_text(path.read_text().replace("20260907", "20260904"))
+    elif bad == "duplicate_code":
+        path.write_text(path.read_text() + path.read_text().splitlines()[-1] + "\n")
+    elif bad == "missing_column":
+        path.write_text(path.read_text().replace("pre_close", "not_pre_close"))
+    elif bad == "missing_partition":
+        path.unlink()
+    else:
+        (root / "data/market/trade_cal_sse.csv").write_text("exchange,cal_date,is_open\nSSE,20260907,1\n")
+    result = _run_primary_sync(root)
+    assert result.returncode != 0
+    assert not (root / "step-output").exists()
+    assert not (root / "verify-primary-daily-truth.json").exists()

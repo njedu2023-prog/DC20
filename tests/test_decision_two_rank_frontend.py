@@ -36,7 +36,7 @@ def _run(body: str, count: int = 2):
              "renderPrimaryMixedProfitResearch", "refreshCurrentLegacyProfitRelativeResearch",
              "canonicalYmd", "finiteNumber", "escapeHtml", "integerText", "number", "pct",
              "signedPct", "valueTone", "dateText", "pathClass", "truthClass",
-             "continuationLabel", "beijingDateTimeText")
+             "continuationLabel", "beijingDateTimeText", "threeRankRowTruth", "threeRankTruthClock", "threeRankTruthStatusLabel")
     script = """
 const state = {index:0};
 const bodyNode = {innerHTML:''};
@@ -49,6 +49,7 @@ const validatedThreeRankContract = value=>value;
 const localUrl = value=>value;
 const EXECUTABLE_PROFIT_RESEARCH_ROOT = 'outputs/decision/executable_profit_research';
 const LEGACY_PROFIT_RELATIVE_RESEARCH = {root:'outputs/decision/legacy_profit_relative_research'};
+const INDEPENDENCE_CUTOVER_SIGNAL_DATE = '20260821';
 let shadowProjection = null;
 function renderPrimaryProfitShadowSidecar(loaded) { shadowProjection = loaded.projection; }
 """
@@ -72,6 +73,18 @@ def test_promotion_renderer_preserves_original_rank_and_path_without_legacy_sort
     for label in ("连板路径", "路径变化", "晋级概率", "T晋级结果", "T+1净收益"):
         assert label in output["header"]
     assert output["rows"].index(output["codes"][0]) < output["rows"].index(output["codes"][1])
+
+
+def test_independent_rank_never_borrows_old_action_or_wrong_bundle_returns():
+    output = _run("Date.now=()=>Date.parse('2026-09-09T08:00:00Z');"
+                  "state.currentThreeRankObservationTruth={...contract,bundle_sha256:'wrong',status:'READY',rows:contract.rows.map(r=>({...r,actual_net_return:.99,validation_status:'FINAL_VERIFIED_PROXY'}))};"
+                  "const old={stage_watchlist:contract.rows.map(r=>({...r,actual_net_return:.88,continuation_limit_up_hit:1,validation_status:'FINAL_VERIFIED',validation_status_label:'旧Action已结算'}))};"
+                  "const before=JSON.stringify(contract);renderThreeRankWatchlist(old,contract);"
+                  "console.log(JSON.stringify({rows:bodyNode.innerHTML,unchanged:before===JSON.stringify(contract)}));")
+    assert output["unchanged"]
+    assert "99.00%" not in output["rows"] and "88.00%" not in output["rows"]
+    assert "旧Action已结算" not in output["rows"]
+    assert "逐行验证尚未发布" in output["rows"]
 
 
 def test_single_baseline_missing_does_not_block_two_main_rankings():

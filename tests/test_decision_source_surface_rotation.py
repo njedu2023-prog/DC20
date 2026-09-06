@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
+
+import pytest
 
 from top10decision.decision.model_freeze import REQUIRED_ACTIVE_PIN_PATHS
 
@@ -10,6 +13,17 @@ from top10decision.decision.model_freeze import REQUIRED_ACTIVE_PIN_PATHS
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
+SUCCESSOR = ROOT / "models/decision_source_surface_review_20260906.json"
+SUCCESSOR_REVIEW_PATHS = {
+    ".github/workflows/verify_decision_observations.yml",
+    "decision.html",
+    "scripts/settle_primary_observations.py",
+    "tests/test_dashboard_research_projection.py",
+    "tests/test_decision_three_rank_frontend.py",
+    "tests/test_executable_profit_workflow_wiring.py",
+    "tests/test_primary_observation_summary.py",
+    "tests/test_verify_forecast_inputs.py",
+}
 EXPECTED_ADDED_RUNTIME_PINS: set[str] = {
     ".github/workflows/run_primary_d_daily.yml",
     ".github/workflows/run_primary_profit_forward_shadow.yml",
@@ -54,9 +68,76 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _historical_pins_after_successor_review(manifest: dict, evidence: dict, review: dict) -> dict:
+    """Undo only an explicitly reviewed successor, never rewrite old evidence."""
+    assert review["schema_version"] == "decision_source_surface_successor_review_v1"
+    assert review["review_id"] == "dc20_primary_t_t1_truth_validation_20260906"
+    assert review["reviewed_on"] == "2026-09-06"
+    assert review["approved_base_commit"] == "54e05018ae05980d016195262a1708f7679fcfef"
+    assert review["baseline_manifest_sha256"] == "7eb10190364ab674c91ce6e2f487336df75cb064d29e3fb066512bcd156e566b"
+    assert review["historical_evidence_path"] == EVIDENCE.relative_to(ROOT).as_posix()
+    assert review["historical_evidence_sha256"] == _sha256(EVIDENCE) == (
+        "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    )
+    assert review["scope"] == "SOURCE_ONLY_SUCCESSOR_REVIEW_NOT_MODEL_RELEASE"
+    assert review["protected_model_identity"] == evidence["protected_model_identity"]
+    assert review["boundaries"] == {
+        "historical_evidence_rewritten": False,
+        "live_model_weights_changed": False,
+        "promotion_members_or_ranks_changed": False,
+        "predictions_or_shadow_selections_recreated": False,
+        "formal_trade_action_created": False,
+        "natural_verify_success_claimed": False,
+    }
+    historical_surface = {item["path"]: item["current_sha256"] for item in evidence["pin_changes"]}
+    historical_surface.update(evidence["added_runtime_pins"])
+    pins = dict(manifest["pinned_files"])
+    assert pins.pop(SUCCESSOR.relative_to(ROOT).as_posix()) == _sha256(SUCCESSOR)
+    changes = review["pin_changes"]
+    paths = [item["path"] for item in changes]
+    assert paths == sorted(SUCCESSOR_REVIEW_PATHS)
+    assert {path for path, old_sha in historical_surface.items() if pins[path] != old_sha} == SUCCESSOR_REVIEW_PATHS
+    for item in changes:
+        path = item["path"]
+        assert set(item) == {"path", "historical_sha256", "baseline_sha256", "current_sha256",
+                             "changed_in_this_review", "reason"}
+        assert all(re.fullmatch(r"[0-9a-f]{64}", item[key]) for key in (
+            "historical_sha256", "baseline_sha256", "current_sha256"))
+        assert item["historical_sha256"] == historical_surface[path]
+        assert item["historical_sha256"] != item["current_sha256"]
+        assert item["changed_in_this_review"] is (item["baseline_sha256"] != item["current_sha256"])
+        assert item["reason"]
+        target = ROOT / path
+        assert target.is_file() and not target.is_symlink()
+        assert _sha256(target) == pins[path] == item["current_sha256"]
+        pins[path] = item["historical_sha256"]
+    return pins
+
+
+@pytest.mark.parametrize("mutation", ["extra_path", "current_sha", "historical_sha", "model_identity", "base_commit"])
+def test_successor_review_rejects_unreviewed_surface_or_identity_drift(mutation: str) -> None:
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    review = json.loads(SUCCESSOR.read_text(encoding="utf-8"))
+    if mutation == "extra_path":
+        review["pin_changes"].append(dict(review["pin_changes"][0], path="src/top10decision/auction_v3/engine.py"))
+    elif mutation == "current_sha":
+        review["pin_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "historical_sha":
+        review["pin_changes"][0]["historical_sha256"] = "0" * 64
+    elif mutation == "model_identity":
+        review["protected_model_identity"]["model_identity_changed"] = True
+    else:
+        review["approved_base_commit"] = "0" * 40
+    with pytest.raises(AssertionError):
+        _historical_pins_after_successor_review(manifest, evidence, review)
+
+
 def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    review = json.loads(SUCCESSOR.read_text(encoding="utf-8"))
+    historical_pins = _historical_pins_after_successor_review(manifest, evidence, review)
     rotation = manifest["source_surface_rotation"]
 
     assert evidence["schema_version"] == "decision_source_surface_rotation_v1"
@@ -284,8 +365,8 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         assert item["classification"] == expected_classification[item["path"]]
         target = ROOT / item["path"]
         assert target.is_file() and not target.is_symlink()
-        assert _sha256(target) == item["current_sha256"]
-        assert manifest["pinned_files"][item["path"]] == item["current_sha256"]
+        assert _sha256(target) == manifest["pinned_files"][item["path"]]
+        assert historical_pins[item["path"]] == item["current_sha256"]
         current_surface[item["path"]] = item["current_sha256"]
     assert _canonical_sha256(current_surface) == evidence["changed_surface_sha256"]
 
@@ -295,10 +376,10 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     for path, expected_sha256 in added_runtime_pins.items():
         target = ROOT / path
         assert target.is_file() and not target.is_symlink()
-        assert _sha256(target) == expected_sha256
-        assert manifest["pinned_files"][path] == expected_sha256
+        assert _sha256(target) == manifest["pinned_files"][path]
+        assert historical_pins[path] == expected_sha256
 
-    reconstructed_prior_pins = dict(manifest["pinned_files"])
+    reconstructed_prior_pins = dict(historical_pins)
     assert reconstructed_prior_pins[rotation["evidence_path"]] == (
         rotation["evidence_sha256"]
     )
@@ -314,7 +395,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         evidence["prior_pinned_files_sha256"]
     )
     assert len(manifest["pinned_files"]) == (
-        len(reconstructed_prior_pins) + len(added_runtime_pins)
+        len(reconstructed_prior_pins) + len(added_runtime_pins) + 1
     )
 
     assert evidence["release_contract"] == {

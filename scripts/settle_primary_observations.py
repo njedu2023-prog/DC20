@@ -73,7 +73,7 @@ def observation_row(frozen, d, t, t1, asof, tables, exit_sessions=None):
         return row
     op, close, pre, vol, up = [number(v) for v in (
         daily.get("open"), daily.get("close"), daily.get("pre_close"), daily.get("vol"), limit.get("up_limit"))]
-    if any(v is None or v <= 0 for v in (op, close, pre, up)) or vol is None:
+    if any(v is None or v <= 0 for v in (op, close, pre, up)) or vol is None or vol < 0:
         row["validation_status"] = "MISSING_T_TRUTH"
         return row
     row.update(continuation_limit_up_hit=int(tick(close) == tick(up)),
@@ -98,7 +98,7 @@ def observation_row(frozen, d, t, t1, asof, tables, exit_sessions=None):
         exit_op, exit_pre, exit_vol, down, exit_close = [number(v) for v in (
             exit_daily.get("open"), exit_daily.get("pre_close"), exit_daily.get("vol"),
             exit_limit.get("down_limit"), exit_daily.get("close"))]
-        if any(v is None or v <= 0 for v in (exit_op, exit_pre, down, exit_close)) or exit_vol is None:
+        if any(v is None or v <= 0 for v in (exit_op, exit_pre, down, exit_close)) or exit_vol is None or exit_vol < 0:
             row["validation_status"] = "MISSING_T1_TRUTH"
             return row
         if exit_vol <= 0 or tick(exit_op) <= tick(down):

@@ -376,6 +376,40 @@ jobs:
           status=$?
           set -e
           if [ "${status}" = 0 ]; then echo 'is_open=true' >> "${GITHUB_OUTPUT}"; elif [ "${status}" = 3 ]; then echo 'is_open=false' >> "${GITHUB_OUTPUT}"; else exit "${status}"; fi
+      - name: Validate frozen runtime in an isolated exact-base worktree
+        id: forecast_gate
+        if: ${{ steps.session.outputs.is_open == 'true' }}
+        env:
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+        run: |
+          set -euo pipefail
+          runtime_root="${RUNNER_TEMP}/verify-runtime"
+          git worktree add --detach "${runtime_root}" "$(cat "${RUNNER_TEMP}/base_sha.txt")" >/dev/null
+          cleanup() { git worktree remove --force "${runtime_root}" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          gate_args=()
+          if [ "${PUBLISH}" != "true" ]; then gate_args+=(--force-inactive); fi
+          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_verify_forecast_inputs.py" \
+            --root "${runtime_root}" --as-of-date "${AS_OF_DATE}" \
+            --expected-base-sha "$(cat "${RUNNER_TEMP}/base_sha.txt")" \
+            --report "${RUNNER_TEMP}/verify-forecast-inputs.json" "${gate_args[@]}"
+          contract_mode="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "${RUNNER_TEMP}/verify-forecast-inputs.json")"
+          if [ "${contract_mode}" = LEGACY_AUCTION ]; then
+            # Legacy-only audit retains the full frozen runtime gate. A broken
+            # primary chain fails above and is never converted into this mode.
+            PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
+              "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
+              --root "${runtime_root}" \
+              --report "${RUNNER_TEMP}/verify-frozen-replay.json"
+            if [ "${PUBLISH}" = "true" ]; then
+              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
+                --root "${runtime_root}" --runtime
+            else
+              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
+                --root "${runtime_root}" --runtime --force-inactive
+            fi
+          fi
       - name: Resolve immutable market upstream commit
         id: upstream
         if: ${{ steps.session.outputs.is_open == 'true' }}
@@ -412,10 +446,51 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+          CONTRACT_MODE: ${{ steps.forecast_gate.outputs.contract_mode }}
         run: |
           set -euo pipefail
           python scripts/sync_market_raw.py --trade-date "${AS_OF_DATE}"
           python scripts/sync_tushare_daily_close.py --trade-date "${AS_OF_DATE}"
+          if [ "${CONTRACT_MODE}" = PRIMARY_FROZEN_FORECASTS ]; then
+            # P0 observations consume exact daily/stk_limit, not legacy minute
+            # candidates. complete means valid source partitions, not that all
+            # frozen rows settled: missing rows remain MISSING_* downstream.
+            python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              _find_market_file, _market_rows, _source_binding, _strict_open_dates,
+          )
+          root = Path('.').resolve()
+          as_of = os.environ['AS_OF_DATE']
+          if as_of not in _strict_open_dates(root):
+              raise SystemExit('primary daily truth requires exact committed SSE session')
+          bindings = []
+          for name, required in (
+              ('daily', {'open', 'close', 'pre_close', 'vol'}),
+              ('stk_limit', {'up_limit', 'down_limit'}),
+          ):
+              path = _find_market_file(root, as_of, name)
+              if path is None:
+                  raise SystemExit(f'primary daily truth missing exact {as_of}/{name}')
+              rows = _market_rows(path, as_of)
+              if any(not required.issubset(row) for row in rows.values()):
+                  raise SystemExit(f'primary daily truth missing required columns: {name}')
+              bindings.append(dict(endpoint=name, rows=len(rows), **_source_binding(root, path)))
+          report = dict(schema_version='dc20_primary_verify_daily_truth_v1', as_of_date=as_of,
+                        source_files=bindings, minute_truth_required=False,
+                        all_frozen_rows_verified=False, shadow_auction_requirement_unchanged=True)
+          (Path(os.environ['RUNNER_TEMP']) / 'verify-primary-daily-truth.json').write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
+              output.write('complete=true\n')
+          PY
+            exit 0
+          fi
+          if [ "${CONTRACT_MODE}" != LEGACY_AUCTION ]; then
+            echo 'Verify truth contract mode is invalid' >&2
+            exit 1
+          fi
           minute_evidence="${RUNNER_TEMP}/verify-minute-sync.json"
           minute_args=(--trade-date "${AS_OF_DATE}" --max-codes 120 --timeout-seconds 8 --workers 6)
           if [ "${AS_OF_DATE}" = "$(TZ=Asia/Shanghai date +%Y%m%d)" ]; then minute_args+=(--post-close-truth); fi
@@ -452,40 +527,6 @@ jobs:
               with Path(github_output).open('a', encoding='utf-8') as output:
                   output.write(f"complete={'true' if complete else 'false'}\n")
           PY
-      - name: Validate frozen runtime in an isolated exact-base worktree
-        id: forecast_gate
-        if: ${{ steps.session.outputs.is_open == 'true' }}
-        env:
-          PUBLISH: ${{ steps.mode.outputs.publish }}
-          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
-        run: |
-          set -euo pipefail
-          runtime_root="${RUNNER_TEMP}/verify-runtime"
-          git worktree add --detach "${runtime_root}" "$(cat "${RUNNER_TEMP}/base_sha.txt")" >/dev/null
-          cleanup() { git worktree remove --force "${runtime_root}" >/dev/null 2>&1 || true; }
-          trap cleanup EXIT
-          gate_args=()
-          if [ "${PUBLISH}" != "true" ]; then gate_args+=(--force-inactive); fi
-          PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_verify_forecast_inputs.py" \
-            --root "${runtime_root}" --as-of-date "${AS_OF_DATE}" \
-            --expected-base-sha "$(cat "${RUNNER_TEMP}/base_sha.txt")" \
-            --report "${RUNNER_TEMP}/verify-forecast-inputs.json" "${gate_args[@]}"
-          contract_mode="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "${RUNNER_TEMP}/verify-forecast-inputs.json")"
-          if [ "${contract_mode}" = LEGACY_AUCTION ]; then
-            # Legacy-only audit retains the full frozen runtime gate. A broken
-            # primary chain fails above and is never converted into this mode.
-            PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
-              "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
-              --root "${runtime_root}" \
-              --report "${RUNNER_TEMP}/verify-frozen-replay.json"
-            if [ "${PUBLISH}" = "true" ]; then
-              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
-                --root "${runtime_root}" --runtime
-            else
-              PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/validate_decision_model_freeze.py" \
-                --root "${runtime_root}" --runtime --force-inactive
-            fi
-          fi
       - name: Retain read-only Verify gate failure evidence
         if: ${{ failure() && steps.session.outputs.is_open == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -498,6 +539,7 @@ jobs:
             ${{ runner.temp }}/verify-forecast-inputs.json
             ${{ runner.temp }}/verify-frozen-replay.json
             ${{ runner.temp }}/verify-minute-sync.json
+            ${{ runner.temp }}/verify-primary-daily-truth.json
       - name: Sync missing exact-session truth for existing frozen Shadow slots
         if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
         env:
