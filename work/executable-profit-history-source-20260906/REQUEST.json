@@ -20,16 +20,18 @@
   "tail_sessions": 20,
   "_activation": {
     "source_commit": "3e2299a07f7b4430002da0b870c47ecf57c49bb3",
-    "installation_commit": "d99241a8206ea7872029ac53dcf3474a795209e6",
-    "request_nonce": "dc20-profit-history-source-20260906-once-v1",
+    "installation_commit": "eddfc5158906c58cdf5e39286ea7ae0a3129a23a",
+    "request_nonce": "dc20-profit-history-source-20260906-once-v2",
     "files_sha256": {
       ".github/workflows/research_profit_history_source.yml": "59578e63fb8b5ce66017eecc0d4918275dcca1012cb4eb3f80636540fa56c231",
       "work/executable-profit-history-source-20260906/PLAN.json": "e150bdae3d664cdfaea89ef3ada6603db4d1fe1e1c0e70b57e29287592872cdd",
-      "work/executable-profit-history-source-20260906/README.md": "5d20345cb331bd76e8769db841d88df37e4d40dc87163ecacaf503810d03eace",
+      "work/executable-profit-history-source-20260906/README.md": "f8c55b3e687c803dce81e03e822b8fd7baa6e92bc1f6775600cce890544a8b65",
       "work/executable-profit-history-source-20260906/collect.py": "1be2a6c9bf1dfa8848e590ce16bef338a8a91c4d8a1db62c5ac3cf8c6e6c91b8",
-      "work/executable-profit-history-source-20260906/guard.py": "5b0d898de3fc566ae9fa35289a56bb928fdc21f9d0bc0c2072d8933b60147f3e",
-      "work/executable-profit-history-source-20260906/test_collect.py": "ca8c0f0ae51d3c1139f78a5a8c25512b4f67b39a4675f1d51051975ced30983a",
-      "work/executable-profit-history-source-20260906/test_guard.py": "69ec8a3735142347aac2eca71beac07a4f47bdfe0b402c7aac47464145cacc97"
-    }
+      "work/executable-profit-history-source-20260906/guard.py": "45f00bd2736216a2b8dbadab7de0b14921364ac3e237492bd5bb4c4b2fadfc00",
+      "work/executable-profit-history-source-20260906/test_collect.py": "503568881069c08703f40fb2a8290b4c4efb8532677bb11ea1b3937fefa88dea",
+      "work/executable-profit-history-source-20260906/test_guard.py": "3d9adbd3b3a5062788477fc078c79b046ac6c252fc9f1c342b50be4619a36691"
+    },
+    "supersedes_preflight_run_id": 34022321843,
+    "previous_collection_started": false
   }
 }
