@@ -99,22 +99,56 @@ def test_history_and_mismatched_baseline_clear_previously_visible_data():
     assert result["hidden"] and result["history"] == ""
 
 
-@pytest.mark.parametrize("count", [0, 1, 2])
+@pytest.mark.parametrize("count", [0, 1, 2, 6])
 def test_profit_top2_no_padding_same_frozen_rows_and_explicit_research_engine(count):
     result = _run("const before=JSON.stringify(mixed);renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
                   "console.log(JSON.stringify({html:els.executableProfitResearchContent.innerHTML,unchanged:before===JSON.stringify(mixed),"
                   "sameShadow:shadowProjection===mixed,codes:mixed.rows.map(r=>r.ts_code)}));", count=count)
     assert result["unchanged"] and result["sameShadow"]
-    assert result["html"].count('<article class="mixed-profit-card"') == count
+    assert '<article' not in result["html"]
+    assert '<details' not in result["html"]
+    assert result["html"].count('class="profit-top-badge"') == min(count, 2)
     assert "当前来源：混合盈利研究引擎" in result["html"]
     assert "不是盈利概率或预期收益" in result["html"]
     if count:
         assert "完整盈利排序" in result["html"]
-        assert "联合代理分 · 非胜率" in result["html"]
+        assert "联合代理分（非胜率）" in result["html"]
+        assert result["html"].count('<table ') == 1
+        assert result["html"].count('<td class="left name">') == count
+        for code in result["codes"]:
+            assert result["html"].count(code) == 1
     else:
         assert "真实N=0" in result["html"]
-    if count == 2:
+    if count >= 2:
         assert result["html"].index(result["codes"][0]) < result["html"].index(result["codes"][1])
+
+
+def test_top2_badges_follow_profit_rank_after_company_name_not_promotion_or_input_order():
+    result = _run("mixed.rows.reverse();const before=JSON.stringify(mixed);"
+                  "renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
+                  "console.log(JSON.stringify({html:els.executableProfitResearchContent.innerHTML,"
+                  "unchanged:before===JSON.stringify(mixed),rows:mixed.rows}));", count=6)
+    assert result["unchanged"]
+    body = result["html"].split('<tbody>', 1)[1].split('</tbody>', 1)[0]
+    cells = re.findall(r'<td class="left name">(.*?)</td>', body)
+    ranked = sorted(result["rows"], key=lambda row: row["executable_profit_research_rank"])
+    assert len(cells) == len(ranked) == 6
+    for row, cell in zip(ranked, cells):
+        rank = row["executable_profit_research_rank"]
+        assert cell.startswith(row["name"])
+        if rank in (1, 2):
+            assert f'aria-label="盈利排序第{rank}名">Top{rank}</span>' in cell
+        else:
+            assert 'profit-top-badge' not in cell
+
+
+def test_inline_profit_badge_preserves_name_escaping_and_tied_score_label():
+    html = _run("mixed.rows[0].name='<img src=x onerror=alert(1)>';mixed.rows[0].rank_tied=true;"
+                "renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
+                "console.log(JSON.stringify(els.executableProfitResearchContent.innerHTML));", count=2)
+    assert '<img' not in html
+    assert '&lt;img src=x onerror=alert(1)&gt;<span class="profit-top-badge"' in html
+    assert '1（并列分）' in html
 
 
 def test_optional_baseline_refresh_clears_old_projection_on_error():

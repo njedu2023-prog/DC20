@@ -83,7 +83,9 @@ def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() ->
     assert '<details id="auditPanel" class="panel observation-disclosure">' in text
     assert '<section id="auditPanel"' not in text
     assert '<details id="researchPanel" class="panel observation-disclosure">' in text
-    assert 'class="ranking-disclosure"' in text
+    assert 'class="ranking-disclosure"' not in text
+    assert 'class="mixed-profit-card"' not in text
+    assert 'class="profit-top-badge"' in text
     assert 'class="workspace-nav" aria-label="页面主要区域"' in text
     assert 'const available = plan?.daily_research_only !== true' in text
     assert 'els.sentimentPanel.hidden = !available' in text

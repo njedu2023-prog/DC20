@@ -946,8 +946,8 @@
       position: sticky;
       left: 104px;
       z-index: 3;
-      width: 116px;
-      min-width: 116px;
+      width: 164px;
+      min-width: 164px;
       background: var(--surface);
       box-shadow: 1px 0 0 var(--line);
     }
@@ -957,96 +957,26 @@
     table.executable-profit-table tbody tr:nth-child(even) td:nth-child(4) { background: #fbfcfc; }
     table.executable-profit-table tbody tr:hover td:nth-child(3),
     table.executable-profit-table tbody tr:hover td:nth-child(4) { background: #f3f8f6; }
-    .mixed-profit-highlights {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      padding: 0 16px 14px;
-    }
-    .mixed-profit-card {
-      min-width: 0;
-      border: 1px solid #a9cfc1;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #f2faf7, #fff);
-      padding: 13px 14px;
-    }
-    .mixed-profit-card-head,
-    .mixed-profit-card-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .mixed-profit-card-rank {
+    .profit-top-badge {
       display: inline-flex;
       align-items: center;
-      min-height: 24px;
-      padding: 3px 8px;
+      margin-left: 6px;
+      padding: 2px 6px;
       border-radius: 999px;
-      background: var(--brand);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 800;
-    }
-    .mixed-profit-card-score {
+      border: 1px solid #a9cfc1;
+      background: #edf7f3;
       color: var(--brand);
-      text-align: right;
-    }
-    .mixed-profit-card-score small {
-      display: block;
-      color: var(--muted);
-      font-size: 9px;
-      font-weight: 650;
-      line-height: 1.2;
-    }
-    .mixed-profit-card-score strong {
-      display: block;
-      margin-top: 2px;
-      font-size: 17px;
-      font-weight: 780;
-      font-variant-numeric: tabular-nums;
-    }
-    .mixed-profit-card h3 {
-      margin: 12px 0 3px;
-      font-size: 17px;
-      line-height: 1.25;
-    }
-    .mixed-profit-card-code {
-      color: var(--muted);
       font-size: 12px;
-      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      line-height: 1.2;
+      vertical-align: middle;
+      white-space: nowrap;
     }
-    .mixed-profit-card-meta {
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(17, 107, 90, .14);
-      color: var(--muted);
-      font-size: 11px;
-    }
-    .ranking-disclosure {
-      margin: 0;
-      border-top: 1px solid var(--line);
-      background: var(--surface);
-    }
-    .ranking-disclosure > summary,
     .executable-profit-shadow-panel > summary {
       list-style: none;
       cursor: pointer;
     }
-    .ranking-disclosure > summary::-webkit-details-marker,
     .executable-profit-shadow-panel > summary::-webkit-details-marker { display: none; }
-    .ranking-disclosure > summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      min-height: 46px;
-      padding: 10px 16px;
-      color: var(--ink);
-      font-size: 13px;
-      font-weight: 680;
-    }
-    .ranking-disclosure > summary::before,
     .executable-profit-shadow-panel > summary::before {
       content: "";
       width: 24px;
@@ -1058,13 +988,11 @@
         #111715;
       flex: 0 0 24px;
     }
-    .ranking-disclosure[open] > summary::before,
     .executable-profit-shadow-panel[open] > summary::before {
       background:
         linear-gradient(#fff, #fff) center / 10px 1.5px no-repeat,
         #111715;
     }
-    .ranking-disclosure > summary > :first-child,
     .executable-profit-shadow-panel > summary > :first-child { margin-right: auto; }
     .executable-profit-shadow-panel { background: #fff; }
     .executable-profit-shadow-panel > summary { font-size: 13px; }
@@ -1152,9 +1080,6 @@
       .executable-profit-banner { margin: 0 12px 12px; }
       .executable-profit-proof { padding: 0 12px 10px; }
       .executable-profit-shadow-panel { margin: 12px; }
-      .mixed-profit-highlights { grid-template-columns: 1fr; padding: 0 12px 12px; }
-      .mixed-profit-card { padding: 12px; }
-      .ranking-disclosure > summary { padding: 10px 12px; }
       .three-rank-btn { min-height: 42px; padding: 9px 11px; }
       .stage-generated-time { display: block; margin: 4px 0 0; white-space: normal; }
       table.industry-table {
@@ -3719,38 +3644,23 @@
         <td><span class="truth-badge">${row.executable_profit_research_rank}${row.rank_tied ? "（并列分）" : ""}</span></td>
         <td><span class="truth-badge">${row.promotion_rank}</span></td>
         <td class="left">${escapeHtml(row.ts_code)}</td>
-        <td class="left name">${escapeHtml(row.name)}</td>
+        <td class="left name">${escapeHtml(row.name)}${[1, 2].includes(Number(row.executable_profit_research_rank)) ? `<span class="profit-top-badge" aria-label="盈利排序第${integerText(row.executable_profit_research_rank)}名">Top${integerText(row.executable_profit_research_rank)}</span>` : ""}</td>
         <td class="left">${escapeHtml(row.industry || "未分类")}</td>
         <td>${escapeHtml(row.stage_transition)}</td>
         <td><strong>${number(row.research_joint_proxy_score, 4)}</strong></td>
         <td>${number(row.research_fill_proxy_score, 4)}</td>
         <td>${number(row.research_conditional_profit_score, 4)}</td>
       </tr>`).join("");
-      const highlights = rows.slice(0, 2).map(row => `<article class="mixed-profit-card" aria-label="盈利研究第${integerText(row.executable_profit_research_rank)}名">
-        <div class="mixed-profit-card-head">
-          <span class="mixed-profit-card-rank">研究 Top${integerText(row.executable_profit_research_rank)}</span>
-          <span class="mixed-profit-card-score"><small>联合代理分 · 非胜率</small><strong>${number(row.research_joint_proxy_score, 4)}</strong></span>
-        </div>
-        <h3>${escapeHtml(row.name)}</h3>
-        <div class="mixed-profit-card-code">${escapeHtml(row.ts_code)} · ${escapeHtml(row.industry || "未分类")}</div>
-        <div class="mixed-profit-card-meta">
-          <span>${escapeHtml(row.stage_transition)}</span>
-          <span>晋级排序 ${integerText(row.promotion_rank)}</span>
-          <span>D ${dateText(projection.signal_date)}</span>
-        </div>
-      </article>`).join("");
       const downloads = `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/index.json`))}" download>下载研究索引</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>`;
-      els.executableProfitResearchContent.innerHTML = `<p class="stats-note" data-profit-engine="existing-mixed-research">当前来源：混合盈利研究引擎 · 版本 SHA ${escapeHtml(String(projection.model?.artifact_sha256 || "未提供").slice(0, 12))}。分值用于相对排序，不是盈利概率或预期收益；尚未达到正式使用门槛。</p>${rows.length ? `<div class="mixed-profit-highlights">${highlights}</div>
-        <details class="ranking-disclosure">
-          <summary><span>完整盈利排序</span><span class="count">真实候选 ${integerText(rows.length)} 支 · 展开表格与下载</span></summary>
+      els.executableProfitResearchContent.innerHTML = `<p class="stats-note" data-profit-engine="existing-mixed-research">当前来源：混合盈利研究引擎 · 版本 SHA ${escapeHtml(String(projection.model?.artifact_sha256 || "未提供").slice(0, 12))}。分值用于相对排序，不是盈利概率或预期收益；尚未达到正式使用门槛。</p>${rows.length ? `
           <div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
           <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="完整盈利排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-table">
             <caption class="sr-only">D ${dateText(projection.signal_date)} 盈利完整排序（混合研究引擎）</caption><thead><tr>
             <th scope="col">盈利排序</th><th scope="col">晋级排序</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th><th scope="col">联合代理分（非胜率）</th><th scope="col">可买代理分</th><th scope="col">条件盈利代理分</th>
           </tr></thead><tbody>${body}</tbody></table></div>
-        </details>` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
+        ` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
         <p class="stats-note">${projection.retrospective_non_forward ? "本排序为明确的历史恢复研究，不是当时冻结的前向选择，不进入Shadow选择或累计统计。" : "本排序是D日研究展示；P1主投影本身不写Shadow或正式行动，独立sidecar仅在同D同SHA时展示Top1/Top2与累计统计。"} 联合代理分是可买代理分×条件盈利代理分，未做正式概率校准。</p>`;
       renderPrimaryProfitShadowSidecar(loaded);
     }
