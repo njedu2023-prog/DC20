@@ -50,13 +50,21 @@
   "partition_count": 19,
   "candidate_partition_keys": 1533,
   "_activation": {
-    "state": "NOT_ACTIVATED",
+    "state": "ACTIVATED",
     "request_nonce": "dc20-profit-history-tail-20260906-19-partitions-v1",
     "installation_base": "0904cb6f1fd0bc62a56d47b9a915d8c5374df076",
-    "installation_commit": null,
+    "installation_commit": "92ef95d69db5dbbba3558198cb2f8a7e60014954",
     "previous_run_id": "34023469106",
     "previous_manifest_sha256": "1be7507a8fdea6764c2ce5e9e0e617f38792a5eb41971b5d3d10e1e94c7e6953",
     "old_failure_status_preserved": true,
-    "files_sha256": {}
+    "files_sha256": {
+      ".github/workflows/research_profit_history_tail.yml": "0c5b1ba01a579add00eed952fa9695aa7a716e45939566722febe3f5fc79a911",
+      "work/executable-profit-history-tail-20260906/collect_tail.py": "989e59862291b4060ec91d0856b93d80991a9a7c0d59789abf2cb28208806d05",
+      "work/executable-profit-history-tail-20260906/guard.py": "674b79346c8b442fc0104eb791864e19a2d2a35136e5783d7ccd4996b6aa3f3d",
+      "work/executable-profit-history-tail-20260906/PLAN.json": "91877b2eb6a6e85ca9cb34fadc86a02836a57c34b58a603146bc7ae476bcd097",
+      "work/executable-profit-history-tail-20260906/README.md": "b102faf7bafda86b6aff7ab03f802dc7666b43972e94edda9685c775e870c3c5",
+      "work/executable-profit-history-tail-20260906/test_collect_tail.py": "5df68fd74329c4ececaf3f49a2bf464a92cb19591ec25a0b0d637908a58dd9d1",
+      "work/executable-profit-history-tail-20260906/test_guard.py": "475e226f921a3ad6f54302d6e124689d34a39860c783f6de88eef51438ac5f20"
+    }
   }
 }
