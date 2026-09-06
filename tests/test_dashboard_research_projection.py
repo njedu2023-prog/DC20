@@ -99,7 +99,7 @@ def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() ->
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "independent-three-rank-v11-focused-workspace"'
+        'const DASHBOARD_VERSION = "independent-two-ranks-v12-profit-research"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text
@@ -131,6 +131,8 @@ def test_dashboard_history_and_failure_views_do_not_reuse_current_dynamic_data()
         "els.executableProfitResearchPanel.hidden = true",
         "els.executableProfitResearchContent.innerHTML = \"\"",
         "els.shadowWorkspace.hidden = true",
+        "els.legacyProfitBenchmarkPanel.hidden = true",
+        'els.legacyProfitBenchmarkContent.innerHTML = ""',
         "els.auditContent.innerHTML = \"\"",
         "避免把旧结果误认为当前数据",
     ):

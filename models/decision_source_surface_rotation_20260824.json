@@ -19,11 +19,15 @@
     "candidate_count": "ACTUAL_N_0_TO_10_NO_PADDING",
     "public_label": "LEGACY_PROFIT_RAW_RELATIVE_SCORE_NOT_PROBABILITY_NOT_FORMAL",
     "visible_full_n_relative_ranking": true,
+    "main_visible_rankings": ["promotion_with_path", "profit_research"],
+    "legacy_relative_ranking_location": "DEFAULT_COLLAPSED_RESEARCH_BENCHMARK",
+    "production_profit_engine_replaced": false,
     "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
     "promotion_rank_frozen_and_independent": true,
     "official_action_count": 0,
     "default_collapsed_ui_blocks": [
-      "sentiment_quantification"
+      "sentiment_quantification",
+      "legacy_profit_research_benchmark"
     ],
     "removed_ui_blocks": [
       "executable_profit_proof",
@@ -65,7 +69,7 @@
   "added_runtime_pins": {
     ".github/workflows/run_primary_d_daily.yml": "291260c4efc898be78beb2e2f494d1bc48ce0c113c3d1e4beb9fdb570677663d",
     ".github/workflows/run_primary_profit_forward_shadow.yml": "da4d16a7b9731149d5a791d6b89a4b7663c240fdc315ff9694d693275ce0f0e0",
-    ".github/workflows/run_primary_profit_rankings.yml": "f425ae5845fc68596cac1a65744fd36950bbb61291d91700ba035f7752a34c40",
+    ".github/workflows/run_primary_profit_rankings.yml": "11b810bad765a8c28b2ecbbf73fa03a238c17446556f7b9b51ebcde5082c5311",
     "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
     "models/decision_primary_profit_forward_shadow_bridge_contract.json": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
     "models/decision_primary_profit_research_contract.json": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
@@ -84,12 +88,12 @@
     "tests/test_primary_observation_summary.py": "e3ab600190489cbfbdbf6ecd463ee6fcca8f385c8ac5e2adba99629e3896ce9d",
     "tests/test_primary_profit_forward_shadow_bridge.py": "92c7406332b8754a5fe6de23c564c81023a133b7835e122e942062d8c9c41656",
     "tests/test_primary_profit_forward_shadow_workflow.py": "64eeaac79dc8d6b791552214b83b245da0648391e01666fa3800a3e4fbd4a244",
-    "tests/test_primary_profit_rankings_p1.py": "c83d741249736b8e6371d1c41f0f301647f24a0324d6683c5fb722cbe9d1c536",
+    "tests/test_primary_profit_rankings_p1.py": "ca88c106decdd0157990f2df2949c70ec3291697470d9eb40bdcf5d95675f6f8",
     "tests/test_primary_three_rank_p0.py": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf",
     "tests/test_sync_frozen_shadow_truth.py": "d26f75e0cb0926eed0f1920cd9cb786932cda4a726c02684c13bf30ce76eaff6",
     "tests/test_verify_forecast_inputs.py": "1d750b993c19aa284e44685edf736b6f0c2c27ff7ae990296a84c62a5ea91562"
   },
-  "changed_surface_sha256": "905b9a340a188c9265886aff09266eee9196b47ac1706ee3847db2be45603e5e",
+  "changed_surface_sha256": "9594d175b4e07bfbc2d89eb3c763f65d1bdd694a9b30dc986d7c92a1960f187c",
   "pin_changes": [
     {
       "path": ".github/workflows/deploy_dc20_pages.yml",
@@ -130,7 +134,7 @@
     {
       "path": "decision.html",
       "prior_sha256": "9a748195b9a6b249d8f5e55bacb4ebf48f10cf282c1c4ae92ecd29f61532a245",
-      "current_sha256": "247b0e58da7ba574b4ca7701573e50fe8c44b304906946a86220f1dbbaa10de8",
+      "current_sha256": "6fdf8318b92ea121dd5686f09eebb2c4a7d9472b62ef6362589c338ff3a92e3c",
       "classification": "primary_action_independent_three_ranking_frontend"
     },
     {
@@ -274,7 +278,7 @@
     {
       "path": "tests/test_dashboard_research_projection.py",
       "prior_sha256": "234465e30a2fa68982e398f9bc6ae0fb53867f6ee6c68d54f604934c4545ef47",
-      "current_sha256": "5eeea66490e824997911ce5730813cc2c1a1b4987d50f5067413d0e5917adbf4",
+      "current_sha256": "29f4a680053bc9fbea3efb923eaa61cdcc22a4b62738b54e09e8c93d7ef2f941",
       "classification": "primary_profit_frontend_contract_test"
     },
     {
@@ -298,7 +302,7 @@
     {
       "path": "tests/test_decision_three_rank_frontend.py",
       "prior_sha256": "e75f11b84482cf299bc7919f4e5eb0c773d8cae3631369622b02af659f6267ab",
-      "current_sha256": "de03815ae9b31dd6a5e640706d210c1215f9add7d8c5c19e7b760255fc57852b",
+      "current_sha256": "0a3c19c4f55692309134d8b9049dffe1ed4bef3279a7979ffaca279593476031",
       "classification": "primary_action_independent_three_ranking_frontend_test"
     },
     {

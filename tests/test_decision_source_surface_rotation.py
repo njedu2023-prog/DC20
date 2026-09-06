@@ -348,11 +348,15 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "primary_mixed_shadow_may_create_action_or_order": False,
         "primary_mixed_shadow_may_change_promotion_membership_or_rank": False,
         "visible_full_n_relative_ranking": True,
+        "main_visible_rankings": ["promotion_with_path", "profit_research"],
+        "legacy_relative_ranking_location": "DEFAULT_COLLAPSED_RESEARCH_BENCHMARK",
+        "production_profit_engine_replaced": False,
         "legacy_profit_official_status": "NOT_READY_VALIDATION_GATE",
         "promotion_rank_frozen_and_independent": True,
         "official_action_count": 0,
         "default_collapsed_ui_blocks": [
             "sentiment_quantification",
+            "legacy_profit_research_benchmark",
         ],
         "removed_ui_blocks": [
             "executable_profit_proof",

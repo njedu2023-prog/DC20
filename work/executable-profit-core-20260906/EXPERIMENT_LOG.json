@@ -1,0 +1,48 @@
+{
+  "schema_version": "dc20_fixed_profit_core_experiment_log_v1",
+  "status": "RETROSPECTIVE_RESEARCH_ONLY_NO_RELEASE",
+  "plan_sha256": "5430f9af3c42aff3c27d9106858ef1d8ed5edc7b3d9e76ee09eefe5dc6cc2dec",
+  "experiment_date": "20260906",
+  "entries": [
+    {
+      "sequence": 1,
+      "kind": "environment_preparation_before_any_fit",
+      "detail": "Created isolated venv; initially installed older available packages, then aligned numpy2.5.2 pandas3.0.5 scipy1.18.0 sklearn1.9.0 before any candidate model fit. No candidate results were obtained with the initial versions."
+    },
+    {
+      "sequence": 2,
+      "kind": "fixed_candidate_evaluation",
+      "parameter_sets": 1,
+      "walk_forward_blocks": 9,
+      "heads_per_block": 4,
+      "fixed_score_definitions": 5,
+      "source_truth_changed": false,
+      "plan_changed_after_results": false,
+      "comparison_sha256": "856d892d5f542819c32db124244155c9ad6490e38d206bc967093d03dcbfe7f7"
+    },
+    {
+      "sequence": 3,
+      "kind": "validation_assertion_correction_not_a_new_experiment",
+      "detail": "First validator stopped before poison tests because its 1e-14 cost identity tolerance was tighter than immutable source-label rounding. Observed maximum residual4.989e-11. Validator tolerance corrected to1e-10 and records residual; no input, model, score, evaluation metric or output changed."
+    },
+    {
+      "sequence": 4,
+      "kind": "determinism_and_future_poison_validation",
+      "training_cutoffs": ["20250225", "20260622"],
+      "prior_feature_check_D": ["20250225", "20251119", "20260814"],
+      "maximum_future_poison_effect": 0.0,
+      "new_candidate_search": false,
+      "validation_sha256": "11fa86eab3b9484d4f5c24f143733854381ce0b8176f5954f640d1d77f077802"
+    },
+    {
+      "sequence": 5,
+      "kind": "independent_review_and_fast_tests",
+      "detail": "Independent read-only reviewer recomputed mean, win rate, worst day, worst decile and Top1/Top2 equal split for all3 periods/6 policies/3 slot groups with no discrepancy. Four local pytest tests passed. Test module uses unique evaluator import to avoid whole-repository pytest collisions."
+    }
+  ],
+  "additional_parameter_searches": 0,
+  "positive_score_filter_experiments": 0,
+  "production_model_changes": 0,
+  "remote_writes": 0,
+  "release_allowed": false
+}

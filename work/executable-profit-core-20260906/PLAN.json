@@ -1,0 +1,35 @@
+{
+  "schema_version": "dc20_profit_core_walk_forward_plan_v1",
+  "plan_fixed_before_candidate_calculation": true,
+  "plan_date": "20260906",
+  "source_repository": "njedu2023-prog/DC20",
+  "source_main_reviewed": "059a6709",
+  "status": "RETROSPECTIVE_RESEARCH_ONLY_NO_RELEASE",
+  "source_inputs": {
+    "ledger": {"path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz", "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"},
+    "full_lagged_priors": {"path": "work/executable-profit-lagged-features-20260824/outputs/full_lagged_priors.csv.gz", "sha256": "c2b8a241a93831ce1a4d83bff5f103a45cbb2928d0c7c6f8b857ba7d292ee195"},
+    "calendar": {"path": "data/market/trade_cal_sse.csv", "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"}
+  },
+  "features": {"base_D_known": 48, "strictly_lagged_full_history_priors": 108, "total": 156, "promotion_rank_as_feature": false, "future_or_current_outcomes_as_feature": false},
+  "split": {"last_signal_dates": 360, "walk_forward_block_dates": 40, "expanding": true, "evaluate_recent_signal_dates": 180, "training_label_rule": "scheduled_exit_date strictly less than block first signal D", "all_evaluation_history_previously_viewed": true, "untouched_confirmation": false},
+  "single_fixed_HGB_parameter_set": {"max_iter": 200, "learning_rate": 0.05, "max_leaf_nodes": 7, "min_samples_leaf": 40, "l2_regularization": 10.0, "early_stopping": false, "random_state": 20260906},
+  "preprocessing": "native HGB missing values; no tuning, refit or post-result feature selection",
+  "regression_loss": "squared_error",
+  "classification_loss": "log_loss",
+  "heads": {
+    "direct_slot_net": "all mature rows; strategy_slot_net_return including unbuyable=0",
+    "conditional_net": "mature buyable rows; conditional_net_return_after_cost",
+    "conditional_downside": "same mature buyable rows; max(-conditional_net_return_after_cost,0)",
+    "fill_probability": "all rows with known buyability whose scheduled exit strictly precedes cutoff; public_market_buyable_proxy"
+  },
+  "scores": {
+    "direct_slot_net": "direct_slot_prediction (NEVER multiplied by fill again)",
+    "conditional_net": "conditional_net_prediction",
+    "fill_conditional_net": "fill_probability * conditional_net_prediction",
+    "conditional_net_downside": "conditional_net_prediction - 0.5 * max(conditional_downside_prediction,0)",
+    "fill_conditional_net_downside": "fill_probability * (conditional_net_prediction - 0.5 * max(conditional_downside_prediction,0))"
+  },
+  "selection": {"every_day_fixed_slots": 2, "rank_tie_break": "ts_code ascending", "select": "min(2,N); absent slot cash0, no candidate padding", "score_threshold": null, "positive_score_filter_allowed": false},
+  "evaluation": {"periods": ["all_360_signal_dates", "earlier_180_signal_dates", "recent_180_signal_dates"], "common_dates_rule": "exclude a D from all scores when any frozen candidate has missing strategy return or buyability truth; report every excluded D", "cost_rate": 0.0045, "stress_cost_rate": 0.009, "truth": "T-open to T1-open daily proxy; blocked exits unresolved in source ledger", "actual_execution_claim": false, "metric_groups": ["Top1", "Top2", "equal_Top2"], "bootstrap": {"block_dates": 5, "samples": 2000, "seed": 20260906}, "comparators": ["frozen_promotion_top2_same_candidates"], "primary_paired_tests": [["conditional_net", "direct_slot_net"], ["fill_conditional_net", "conditional_net"], ["conditional_net_downside", "conditional_net"], ["fill_conditional_net_downside", "conditional_net_downside"], ["fill_conditional_net_downside", "direct_slot_net"]]},
+  "boundaries": {"hyperparameter_search": false, "new_data_fetch": false, "production_model_updated": false, "orders_or_action_created": false, "remote_write": false, "release_allowed": false}
+}

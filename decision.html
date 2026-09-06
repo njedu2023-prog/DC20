@@ -1184,7 +1184,7 @@
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#stagePanel">跳到今日三套排序</a>
+  <a class="skip-link" href="#stagePanel">跳到今日晋级榜与盈利排序</a>
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
@@ -1215,7 +1215,7 @@
 
     <nav class="workspace-nav" aria-label="页面主要区域">
       <span class="workspace-nav-label">快速定位</span>
-      <a class="active" href="#rankingWorkspace" aria-current="location">今日三套排序</a>
+      <a class="active" href="#rankingWorkspace" aria-current="location">今日两项排序</a>
       <a href="#shadowWorkspace" data-current-only>Shadow 账本</a>
       <a href="#reviewWorkspace" data-current-only>研究复盘</a>
       <a href="#systemWorkspace">系统审计</a>
@@ -1225,9 +1225,9 @@
       <div class="workspace-heading">
         <div>
           <p class="workspace-kicker">今日核心</p>
-          <h2 id="rankingWorkspaceTitle">三套排序</h2>
+          <h2 id="rankingWorkspaceTitle">晋级榜与盈利排序</h2>
         </div>
-        <p>先看晋级榜和单一盈利排序，再看混合盈利 Top1 / Top2；三者只切换展示，不改原始排名。</p>
+        <p>晋级榜保留连板路径；盈利排序在同一冻结名单内独立比较。两项排序辅助人工判断，不代表买入建议。</p>
       </div>
 
       <section id="stagePanel" class="panel primary-panel">
@@ -1243,7 +1243,7 @@
       <section id="executableProfitResearchPanel" class="panel primary-panel mixed-profit-panel">
         <div class="panel-head">
           <div>
-            <h2>混合盈利排序</h2>
+            <h2>盈利排序（研究）</h2>
             <p>在冻结晋级名单内独立排序；晋级成员与晋级排名保持不变。</p>
           </div>
           <span id="executableProfitResearchState" class="count" aria-live="polite">待读取</span>
@@ -1301,6 +1301,14 @@
         <section id="metrics" class="metrics" aria-label="核心指标"></section>
       </details>
 
+      <details id="legacyProfitBenchmarkPanel" class="panel observation-disclosure">
+        <summary class="panel-head">
+          <div><h2>单一盈利 · 研究基准</h2></div>
+          <span id="legacyProfitBenchmarkState" class="count">待读取</span>
+        </summary>
+        <div id="legacyProfitBenchmarkContent"><div class="empty">正在读取同D研究基准。</div></div>
+      </details>
+
       <details id="sentimentPanel" class="panel observation-disclosure">
         <summary class="panel-head">
           <div>
@@ -1338,7 +1346,7 @@
         <summary class="panel-head">
           <div>
             <h2>日线研究候选（非买入建议）</h2>
-            <p>Daily 研究后备视图；完整 D 日三套排序存在时自动隐藏。</p>
+            <p>Daily 研究后备视图；完整 D 日核心名单存在时自动隐藏。</p>
           </div>
           <span id="researchCount" class="count" aria-live="polite">待读取</span>
         </summary>
@@ -1383,7 +1391,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "independent-three-rank-v11-focused-workspace";
+    const DASHBOARD_VERSION = "independent-two-ranks-v12-profit-research";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
@@ -1406,6 +1414,7 @@
     });
     const els = Object.fromEntries([
       "mainContent", "rankingWorkspace", "shadowWorkspace", "reviewWorkspace", "systemWorkspace",
+      "legacyProfitBenchmarkPanel", "legacyProfitBenchmarkState", "legacyProfitBenchmarkContent",
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
       "observationNote", "pathDiagnosticsCount", "pathDiagnosticsContent", "pathDiagnosticsNote", "researchPanel", "researchCount", "researchMetrics", "researchContent", "researchNote", "executableProfitResearchPanel", "executableProfitResearchState", "executableProfitResearchContent", "executableProfitShadowPanel", "executableProfitShadowState", "executableProfitShadowMetrics", "executableProfitShadowContent", "executableProfitShadowNote", "auditPanel", "auditContent", "reportDetails", "reportContent", "footer"
@@ -1424,6 +1433,7 @@
       publishedRevisionSha: null,
       publishedRevision: null,
       currentLegacyProfitRelativeResearch: null,
+      legacyProfitBenchmarkLoad: { status: "loading", message: "正在读取同D研究基准。" },
       currentExecutableProfitResearch: null,
       currentPrimaryMixedDailyTop2: null
     };
@@ -2187,14 +2197,17 @@
       const primaryContract = state.index === 0
         ? validatedThreeRankContract(state.currentThreeRank)
         : null;
+      renderLegacyProfitBenchmark(primaryContract);
       if (primaryContract && primaryContract !== false) {
-        const profitReady = state.currentLegacyProfitRelativeResearch?.signal_date === primaryContract.signal_date &&
-          state.currentExecutableProfitResearch?.status === "ready" &&
-          state.currentExecutableProfitResearch?.projection?.signal_date === primaryContract.signal_date;
+        const profitProjection = state.currentExecutableProfitResearch?.projection;
+        const profitReady = state.currentExecutableProfitResearch?.status === "ready" &&
+          profitProjection?.signal_date === primaryContract.signal_date &&
+          profitProjection?.top10_members_sha256 === primaryContract.top10_members_sha256 &&
+          profitProjection?.source_bundle_sha256 === primaryContract.bundle_sha256;
         els.statusBand.className = `status-band ${profitReady ? "good" : "warn"}`;
         els.statusKicker.textContent = "D日核心排名（不依赖历史Action）";
         els.statusTitle.textContent = profitReady
-          ? "晋级榜、单一盈利与混合盈利排序已生成"
+          ? "晋级榜与盈利排序已生成"
           : "晋级榜已生成 · 盈利研究排序独立校验中";
         els.brandDates.textContent = `D:${dateText(primaryContract.signal_date)} · T:${dateText(primaryContract.exec_date)} · T+1:${dateText(primaryContract.exit_date)}`;
         els.signalDate.textContent = dateText(primaryContract.signal_date);
@@ -3709,14 +3722,14 @@
         <td class="left name">${escapeHtml(row.name)}</td>
         <td class="left">${escapeHtml(row.industry || "未分类")}</td>
         <td>${escapeHtml(row.stage_transition)}</td>
-        <td><strong>${pct(row.estimated_executable_profit_probability)}</strong></td>
+        <td><strong>${number(row.research_joint_proxy_score, 4)}</strong></td>
         <td>${number(row.research_fill_proxy_score, 4)}</td>
         <td>${number(row.research_conditional_profit_score, 4)}</td>
       </tr>`).join("");
-      const highlights = rows.slice(0, 2).map(row => `<article class="mixed-profit-card" aria-label="混合盈利研究第${integerText(row.executable_profit_research_rank)}名">
+      const highlights = rows.slice(0, 2).map(row => `<article class="mixed-profit-card" aria-label="盈利研究第${integerText(row.executable_profit_research_rank)}名">
         <div class="mixed-profit-card-head">
           <span class="mixed-profit-card-rank">研究 Top${integerText(row.executable_profit_research_rank)}</span>
-          <span class="mixed-profit-card-score"><small>未校准联合代理分</small><strong>${pct(row.estimated_executable_profit_probability)}</strong></span>
+          <span class="mixed-profit-card-score"><small>联合代理分 · 非胜率</small><strong>${number(row.research_joint_proxy_score, 4)}</strong></span>
         </div>
         <h3>${escapeHtml(row.name)}</h3>
         <div class="mixed-profit-card-code">${escapeHtml(row.ts_code)} · ${escapeHtml(row.industry || "未分类")}</div>
@@ -3729,13 +3742,13 @@
       const downloads = `<a class="three-rank-btn" href="${escapeHtml(localUrl(`${EXECUTABLE_PROFIT_RESEARCH_ROOT}/index.json`))}" download>下载研究索引</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_csv_url))}" download>下载研究 CSV</a>
         <a class="three-rank-btn" href="${escapeHtml(localUrl(index.latest_projection_json_url))}" download>下载研究 JSON</a>`;
-      els.executableProfitResearchContent.innerHTML = `${rows.length ? `<div class="mixed-profit-highlights">${highlights}</div>
+      els.executableProfitResearchContent.innerHTML = `<p class="stats-note" data-profit-engine="existing-mixed-research">当前来源：混合盈利研究引擎 · 版本 SHA ${escapeHtml(String(projection.model?.artifact_sha256 || "未提供").slice(0, 12))}。分值用于相对排序，不是盈利概率或预期收益；尚未达到正式使用门槛。</p>${rows.length ? `<div class="mixed-profit-highlights">${highlights}</div>
         <details class="ranking-disclosure">
-          <summary><span>完整混合盈利排序</span><span class="count">真实候选 ${integerText(rows.length)} 支 · 展开表格与下载</span></summary>
+          <summary><span>完整盈利排序</span><span class="count">真实候选 ${integerText(rows.length)} 支 · 展开表格与下载</span></summary>
           <div class="three-rank-toolbar"><div class="three-rank-downloads">${downloads}</div></div>
-          <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="完整混合盈利排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-table">
-            <caption class="sr-only">D ${dateText(projection.signal_date)} 混合盈利完整排序</caption><thead><tr>
-            <th scope="col">混合盈利排序</th><th scope="col">晋级排序</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th><th scope="col">联合代理分（未校准）</th><th scope="col">可买代理分</th><th scope="col">条件盈利代理分</th>
+          <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="完整盈利排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="executable-profit-table">
+            <caption class="sr-only">D ${dateText(projection.signal_date)} 盈利完整排序（混合研究引擎）</caption><thead><tr>
+            <th scope="col">盈利排序</th><th scope="col">晋级排序</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th><th scope="col">联合代理分（非胜率）</th><th scope="col">可买代理分</th><th scope="col">条件盈利代理分</th>
           </tr></thead><tbody>${body}</tbody></table></div>
         </details>` : '<div class="empty"><strong>D日硬范围候选为0</strong>展示真实N=0，不从池外补票。</div>'}
         <p class="stats-note">${projection.retrospective_non_forward ? "本排序为明确的历史恢复研究，不是当时冻结的前向选择，不进入Shadow选择或累计统计。" : "本排序是D日研究展示；P1主投影本身不写Shadow或正式行动，独立sidecar仅在同D同SHA时展示Top1/Top2与累计统计。"} 联合代理分是可买代理分×条件盈利代理分，未做正式概率校准。</p>`;
@@ -4417,13 +4430,55 @@
     }
 
     async function refreshCurrentLegacyProfitRelativeResearch(currentThreeRank) {
+      state.currentLegacyProfitRelativeResearch = null;
+      state.legacyProfitBenchmarkLoad = { status: "loading", message: "正在读取同D研究基准。" };
       try {
         state.currentLegacyProfitRelativeResearch = await loadCurrentLegacyProfitRelativeResearch(currentThreeRank);
-      } catch (_) {
+        state.legacyProfitBenchmarkLoad = state.currentLegacyProfitRelativeResearch
+          ? { status: "ready", message: "" }
+          : { status: "missing", message: "同D研究基准尚未发布。" };
+      } catch (error) {
         // This research-only sidecar is optional. A missing or invalid file
         // hides only the experiment and can never break the official TopN.
         state.currentLegacyProfitRelativeResearch = null;
+        state.legacyProfitBenchmarkLoad = {
+          status: /HTTP 404\b/.test(String(error?.message || error)) ? "missing" : "invalid",
+          message: String(error?.message || error)
+        };
       }
+    }
+
+    function renderLegacyProfitBenchmark(contract) {
+      const current = state.index === 0 && contract && contract !== false;
+      els.legacyProfitBenchmarkPanel.hidden = !current;
+      els.legacyProfitBenchmarkState.textContent = "未展示";
+      els.legacyProfitBenchmarkContent.innerHTML = "";
+      if (!current) return;
+      const projection = state.currentLegacyProfitRelativeResearch;
+      const matches = projection && projection.signal_date === contract.signal_date &&
+        projection.top10_members_sha256 === contract.top10_members_sha256 &&
+        projection.source_bundle_sha256 === contract.bundle_sha256 &&
+        projection.rows.length === contract.rows.length;
+      if (!matches) {
+        const load = state.legacyProfitBenchmarkLoad || { status: "loading" };
+        const label = projection ? "同D研究基准绑定不一致" : ({
+          loading: "正在读取研究基准", missing: "同D研究基准尚未发布", invalid: "研究基准读取或校验失败"
+        }[load.status] || "研究基准不可用");
+        els.legacyProfitBenchmarkState.textContent = label;
+        els.legacyProfitBenchmarkContent.innerHTML = `<div class="empty"><strong>${escapeHtml(label)}</strong>仅影响研究基准；不会用旧日数据补齐，也不会替换盈利排序或改变晋级榜。</div>`;
+        return;
+      }
+      els.legacyProfitBenchmarkState.textContent = `D ${dateText(projection.signal_date)} · ${integerText(projection.rows.length)} 支`;
+      const prefix = `${LEGACY_PROFIT_RELATIVE_RESEARCH.root}/projection_${projection.signal_date}`;
+      const downloads = projection.downloads || {};
+      const links = [["csv", "下载基准 CSV"], ["json", "下载基准 JSON"]]
+        .filter(([kind]) => downloads[`${kind}_url`] === `${prefix}.${kind}`)
+        .map(([kind, label]) => `<a class="three-rank-btn" href="${escapeHtml(localUrl(downloads[`${kind}_url`]))}" download>${label}</a>`).join("");
+      const body = [...projection.rows].sort((a, b) => a.legacy_profit_relative_rank - b.legacy_profit_relative_rank)
+        .map(row => `<tr><td>${integerText(row.legacy_profit_relative_rank)}</td><td class="left">${escapeHtml(row.ts_code)}</td><td class="left name">${escapeHtml(row.name)}</td><td>${integerText(row.promotion_rank)}</td><td>${number(row.legacy_profit_raw_score, 6)}</td></tr>`).join("");
+      els.legacyProfitBenchmarkContent.innerHTML = `<p class="stats-note">单一盈利排序仅作模型升级的研究基准，不再作为主界面的第三项排序。模型分值不是盈利概率；不改变当前盈利Top1/Top2及其账本。版本：${escapeHtml(projection.model?.version || "未提供")}</p>
+        <div class="three-rank-toolbar"><span class="count">D ${dateText(projection.signal_date)} · T ${dateText(projection.exec_date)} · T+1 ${dateText(projection.exit_date)}</span><div class="three-rank-downloads">${links}</div></div>
+        ${projection.rows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="单一盈利研究基准，可横向滚动"><table class="three-rank-table"><thead><tr><th>基准名次</th><th class="left">代码</th><th class="left">公司名称</th><th>晋级排序</th><th>模型分值（非概率）</th></tr></thead><tbody>${body}</tbody></table></div>` : '<div class="empty">同D候选为0，不补票。</div>'}`;
     }
 
     function renderThreeRankWatchlist(plan, contract) {
@@ -4447,12 +4502,6 @@
         state.currentThreeRankPathEvidence?.status === "INVALID" &&
         state.currentThreeRankPathEvidence?.signal_date === contract.signal_date;
       const runtimePathByCode = new Map((pathEvidence?.rows || []).map(row => [String(row.ts_code), row]));
-      const legacyProjection = state.index === 0 &&
-        state.currentLegacyProfitRelativeResearch?.signal_date === contract.signal_date &&
-        state.currentLegacyProfitRelativeResearch?.top10_members_sha256 === contract.top10_members_sha256
-        ? state.currentLegacyProfitRelativeResearch
-        : null;
-      const legacyByCode = new Map((legacyProjection?.rows || []).map(row => [String(row.ts_code), row]));
       const tTruth = state.index === 0 &&
         state.currentThreeRankTTruth?.signal_date === contract.signal_date &&
         state.currentThreeRankTTruth?.exec_date === contract.exec_date
@@ -4462,7 +4511,6 @@
       const fixedRows = contract.rows.map(row => {
         const truth = truthByCode.get(String(row.ts_code)) || {};
         const runtimePath = runtimePathByCode.get(String(row.ts_code));
-        const legacy = legacyByCode.get(String(row.ts_code));
         const tCloseTruth = tTruthByCode.get(String(row.ts_code));
         return {
           ...truth,
@@ -4473,15 +4521,9 @@
           path_strength_delta: runtimePath?.path_strength_delta ?? (pathEvidenceInvalid ? null : truth.path_strength_delta ?? row.path_strength_delta ?? null),
           continuation_limit_up_hit: tCloseTruth?.continuation_limit_up_hit ?? truth.continuation_limit_up_hit ?? row.continuation_limit_up_hit ?? null,
           validation_status: tCloseTruth?.validation_status ?? truth.validation_status ?? row.validation_status ?? null,
-          validation_status_label: tCloseTruth?.validation_status_label ?? truth.validation_status_label ?? row.validation_status_label ?? null,
-          legacy_profit_relative_rank: legacy?.legacy_profit_relative_rank ?? null,
-          legacy_profit_raw_score: legacy?.legacy_profit_raw_score ?? null,
-          legacy_profit_relative_percentile: legacy?.legacy_profit_relative_percentile ?? null,
-          legacy_profit_rank_tied: legacy?.rank_tied === true,
-          legacy_profit_rank_group_size: legacy?.rank_group_size ?? null
+          validation_status_label: tCloseTruth?.validation_status_label ?? truth.validation_status_label ?? row.validation_status_label ?? null
         };
       });
-      const legacyVisible = Boolean(legacyProjection && legacyByCode.size === fixedRows.length);
       const poolSize = Number(contract.promotion_pool_size || fixedRows.length);
       els.stageCount.textContent = `晋级池 ${poolSize} 只 · 官方Top10 ${fixedRows.length} 只`;
       els.stageGeneratedTime.textContent = beijingDateTimeText(contract.generated_at_utc)
@@ -4489,13 +4531,11 @@
         : "";
 
       const renderRows = sortField => {
+        if (sortField !== "promotion_rank") return;
         const sorted = [...fixedRows].sort((left, right) => {
           const leftRank = finiteNumber(left?.[sortField]) ?? Number.POSITIVE_INFINITY;
           const rightRank = finiteNumber(right?.[sortField]) ?? Number.POSITIVE_INFINITY;
           if (leftRank !== rightRank) return leftRank - rightRank;
-          if (sortField === "legacy_profit_relative_rank") {
-            return Number(left?.promotion_rank || Number.POSITIVE_INFINITY) - Number(right?.promotion_rank || Number.POSITIVE_INFINITY);
-          }
           return String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
         });
         const body = sorted.map(row => `<tr>
@@ -4507,8 +4547,6 @@
           <td class="${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</td>
           <td><span class="truth-badge">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
-          ${legacyVisible ? `<td><span class="truth-badge">${escapeHtml(row.legacy_profit_relative_rank)}${row.legacy_profit_rank_tied ? "（并列）" : ""}</span></td>
-          <td class="legacy-profit-relative-score">${finiteNumber(row.legacy_profit_raw_score)?.toFixed(6) || "-"}<small>TopN内相对分位 ${pct(row.legacy_profit_relative_percentile, 1)}</small></td>` : ""}
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(continuationLabel(row.continuation_limit_up_hit))}</td>
           <td class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</td>
           <td><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></td>
@@ -4532,17 +4570,15 @@
       els.stageContent.innerHTML = `<div class="three-rank-toolbar">
           <div class="three-rank-sort">
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank" aria-pressed="true">晋级榜</button>
-            ${legacyVisible ? '<button class="three-rank-btn" type="button" data-three-rank-sort="legacy_profit_relative_rank" aria-pressed="false">单一盈利排序</button>' : ""}
-            <a class="three-rank-btn" href="#executableProfitResearchPanel">混合盈利排序 ↓</a>
+            <a class="three-rank-btn" href="#executableProfitResearchPanel">盈利排序 ↓</a>
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
-        ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4三套排序，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
-          <caption class="sr-only">D ${dateText(contract.signal_date)} 2进3进4晋级榜与单一盈利排序</caption><thead><tr>
+        ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
+          <caption class="sr-only">D ${dateText(contract.signal_date)} 2进3进4晋级榜与连板路径</caption><thead><tr>
           <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业板块</th><th scope="col">晋级</th>
           <th class="left">连板路径</th><th>路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
-          ${legacyVisible ? '<th scope="col" data-rank-field="legacy_profit_relative_rank" aria-sort="none">单一盈利排序</th><th scope="col">模型分值</th>' : ""}
           <th scope="col">T晋级结果</th><th scope="col">T+1净收益</th><th scope="col">T+1验证状态</th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
@@ -5321,7 +5357,7 @@
       renderObservationStatistics(plan);
       renderPathDiagnostics(plan);
       renderExecutableProfitResearch(plan);
-      els.reportContent.innerHTML = `<div class="empty"><strong>旧报告/Action未参与核心排名</strong>${escapeHtml(String(error?.message || error || "历史报告不可用"))}。当前D榜及两项盈利研究仍按P0/P1独立合同展示。</div>`;
+      els.reportContent.innerHTML = `<div class="empty"><strong>旧报告/Action未参与核心排名</strong>${escapeHtml(String(error?.message || error || "历史报告不可用"))}。晋级榜与盈利排序仍按P0/P1独立合同展示，单一盈利仅保留为研究基准。</div>`;
       els.reportDetails.open = false;
       els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · P0/P1核心排名独立视图 · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
       setNavigation();
@@ -5426,6 +5462,9 @@
       els.executableProfitShadowContent.innerHTML = "";
       els.shadowWorkspace.hidden = true;
       els.reviewWorkspace.hidden = false;
+      els.legacyProfitBenchmarkPanel.hidden = true;
+      els.legacyProfitBenchmarkState.textContent = "读取失败";
+      els.legacyProfitBenchmarkContent.innerHTML = "";
       els.metrics.innerHTML = "";
       els.metricsCount.textContent = "读取失败";
       els.sentimentPanel.hidden = true;

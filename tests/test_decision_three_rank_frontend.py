@@ -430,7 +430,16 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     ) in renderer
     assert "valueTone(row.path_strength_delta)" in renderer
     assert "signedPct(row.path_strength_delta)" in renderer
-    assert "单一盈利排序" in renderer
+    assert "单一盈利排序" not in renderer
+    assert "legacy_profit_relative_rank" not in renderer
+    assert "legacy_profit_raw_score" not in renderer
+    assert 'if (sortField !== "promotion_rank") return;' in renderer
+    benchmark = text.split("function renderLegacyProfitBenchmark", 1)[1].split(
+        "function renderThreeRankWatchlist", 1
+    )[0]
+    assert "单一盈利排序仅作模型升级的研究基准" in benchmark
+    assert "projection.source_bundle_sha256 === contract.bundle_sha256" in benchmark
+    assert "state.index === 0" in benchmark
     assert "按原盈利模型实验顺序（未放行）" not in renderer
     assert "原盈利实验名次" not in renderer
     assert "原模型相对分（非概率）" not in renderer

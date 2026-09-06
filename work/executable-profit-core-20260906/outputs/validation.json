@@ -1,0 +1,76 @@
+{
+  "comparison_sha256": "856d892d5f542819c32db124244155c9ad6490e38d206bc967093d03dcbfe7f7",
+  "future_training_label_and_feature_poison": [
+    {
+      "all_four_heads_and_five_scores_unchanged": true,
+      "cutoff": "20250225",
+      "future_rows_poisoned_including_equal_exit_date": 3074,
+      "maximum_absolute_change": 0.0,
+      "maximum_saved_replay_difference": 1.1102230246251565e-16,
+      "training_sets_unchanged": true
+    },
+    {
+      "all_four_heads_and_five_scores_unchanged": true,
+      "cutoff": "20260622",
+      "future_rows_poisoned_including_equal_exit_date": 351,
+      "maximum_absolute_change": 0.0,
+      "maximum_saved_replay_difference": 2.220446049250313e-16,
+      "training_sets_unchanged": true
+    }
+  ],
+  "lagged_feature_rebuild_and_future_poison": [
+    {
+      "D": "20250225",
+      "features": 108,
+      "future_full_source_rows_poisoned": 3841,
+      "maximum_frozen_rebuild_difference": 1.7763568394002505e-15,
+      "maximum_future_poison_change": 0.0,
+      "targets": 10
+    },
+    {
+      "D": "20251119",
+      "features": 108,
+      "future_full_source_rows_poisoned": 1925,
+      "maximum_frozen_rebuild_difference": 1.7763568394002505e-15,
+      "maximum_future_poison_change": 0.0,
+      "targets": 10
+    },
+    {
+      "D": "20260814",
+      "features": 108,
+      "future_full_source_rows_poisoned": 36,
+      "maximum_frozen_rebuild_difference": 1.7763568394002505e-15,
+      "maximum_future_poison_change": 0.0,
+      "targets": 9
+    }
+  ],
+  "limitations": [
+    "This proves tested computational isolation, not live source publication timestamps.",
+    "Research remains viewed retrospective data, not independent forward performance.",
+    "Daily-open execution proxy and blocked exits remain unresolved."
+  ],
+  "output_checks": {
+    "45bp_90bp_cost_identity_passed": true,
+    "complete_dates": 356,
+    "direct_net_no_double_fill": true,
+    "five_score_identities_passed": true,
+    "fixed_Top1_Top2_no_positive_filter": true,
+    "frozen_promotion_train_end_precedes_D": true,
+    "identical_common_truth_dates": true,
+    "identical_frozen_candidate_panel": true,
+    "maximum_source_rounding_cost_residual": 4.989270541849722e-11,
+    "missing_truth_dates": [
+      "20250606",
+      "20251113",
+      "20260703",
+      "20260721"
+    ],
+    "no_production_release": true,
+    "source_rounding_tolerance": 1e-10
+  },
+  "plan_sha256": "5430f9af3c42aff3c27d9106858ef1d8ed5edc7b3d9e76ee09eefe5dc6cc2dec",
+  "release_allowed": false,
+  "schema_version": "dc20_profit_core_research_validation_v1",
+  "status": "PASS_RESEARCH_VALIDATION_ONLY",
+  "validate_script_sha256": "c054885facd1a393f8ab13fb3ca900b9d05e2508a50a0db40220accaa19128a4"
+}

@@ -1,0 +1,10 @@
+# Model-library versions fixed before candidate calculation.
+# macOS ARM wheels were used for this run; the repository's Linux wheel hashes
+# are not portable. Full runtime versions are recorded in outputs/comparison.json.
+numpy==2.5.2
+pandas==3.0.5
+scipy==1.18.0
+scikit-learn==1.9.0
+joblib==1.5.3
+threadpoolctl==3.6.0
+pytest==9.1.1

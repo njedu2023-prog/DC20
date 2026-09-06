@@ -897,14 +897,15 @@ jobs:
           mixed_text = parser.text('executableProfitResearchContent')
           failures = ('读取失败', '校验失败', '未展示', '等待首个功能完整D日快照', '正在读取')
           if not (
-              status == '晋级榜、单一盈利与混合盈利排序已生成'
+              status == '晋级榜与盈利排序已生成'
               and parser.stage_hidden is False
               and parser.mixed_hidden is False
-              and parser.single_buttons == 1
-              and '单一盈利排序' in parser.stage_headers
-              and '模型分值' in parser.stage_headers
+              and parser.single_buttons == 0
+              and '单一盈利排序' not in parser.stage_headers
+              and '模型分值' not in parser.stage_headers
+              and (expected_n == 0 or {'晋级排序', '晋级概率', '连板路径', '路径变化', 'T晋级结果', 'T+1净收益', 'T+1验证状态'}.issubset(parser.stage_headers))
               and parser.stage_rows == expected_n
-              and '混合盈利排序' in parser.mixed_headers
+              and (expected_n == 0 or {'盈利排序', '晋级排序', '联合代理分（非胜率）'}.issubset(parser.mixed_headers))
               and parser.mixed_rows == expected_n
               and f'真实候选 {expected_n} 支' in mixed_state
               and not any(value in stage_text or value in mixed_text or value in mixed_state for value in failures)

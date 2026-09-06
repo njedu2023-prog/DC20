@@ -1000,12 +1000,13 @@ def test_p1_public_acceptance_revalidates_bytes_and_executes_dynamic_dom() -> No
         "RenderedDashboardParser",
         "data-three-rank-sort",
         "legacy_profit_relative_rank",
-        "status == '晋级榜、单一盈利与混合盈利排序已生成'",
-        "parser.single_buttons == 1",
+        "status == '晋级榜与盈利排序已生成'",
+        "parser.single_buttons == 0",
         "parser.stage_rows == expected_n",
         "parser.mixed_rows == expected_n",
-        "'单一盈利排序' in parser.stage_headers",
-        "'混合盈利排序' in parser.mixed_headers",
+        "'单一盈利排序' not in parser.stage_headers",
+        "'模型分值' not in parser.stage_headers",
+        "'盈利排序', '晋级排序', '联合代理分（非胜率）'",
         "f'真实候选 {expected_n} 支' in mixed_state",
     ):
         assert token in dom
@@ -1075,14 +1076,14 @@ def test_p1_public_acceptance_embedded_scripts_run_against_real_fixture(
     stage_rows = "".join("<tr><td>row</td></tr>" for _ in range(n))
     mixed_rows = "".join("<tr><td>row</td></tr>" for _ in range(n))
     rendered = f"""<!doctype html><html><body>
-    <h2 id="statusTitle">晋级榜、单一盈利与混合盈利排序已生成</h2>
+    <h2 id="statusTitle">晋级榜与盈利排序已生成</h2>
     <section id="stagePanel"><span id="stageSignalDate">D：2026-08-26</span><span id="stageCount">{n}</span>
-      <div id="stageContent"><button data-three-rank-sort="legacy_profit_relative_rank">单一盈利排序</button>
-        <table><thead><tr><th>单一盈利排序</th><th>模型分值</th></tr></thead>
+      <div id="stageContent"><button data-three-rank-sort="promotion_rank">晋级榜</button>
+        <table><thead><tr><th>晋级排序</th><th>晋级概率</th><th>连板路径</th><th>路径变化</th><th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th></tr></thead>
         <tbody data-three-rank-body>{stage_rows}</tbody></table></div></section>
     <section id="executableProfitResearchPanel"><span id="executableProfitResearchState">历史恢复 · 非前向研究 · 真实候选 {n} 支 · 不足10不补票</span>
       <div id="executableProfitResearchContent"><table class="executable-profit-table">
-        <thead><tr><th>混合盈利排序</th></tr></thead><tbody>{mixed_rows}</tbody>
+        <thead><tr><th>盈利排序</th><th>晋级排序</th><th>联合代理分（非胜率）</th></tr></thead><tbody>{mixed_rows}</tbody>
       </table></div></section></body></html>"""
     dom_path = tmp_path / "rendered.html"
     dom_path.write_text(rendered, encoding="utf-8")
@@ -1097,6 +1098,18 @@ def test_p1_public_acceptance_embedded_scripts_run_against_real_fixture(
     )
     monkeypatch.setenv("DOM_PATH", str(dom_path))
     exec(compile(dom_python, "<p1-dom-fixture>", "exec"), {})
+
+    for broken in (
+        rendered.replace("晋级榜与盈利排序已生成", "晋级榜、单一盈利与混合盈利排序已生成"),
+        rendered.replace('data-three-rank-sort="promotion_rank"', 'data-three-rank-sort="legacy_profit_relative_rank"'),
+        rendered.replace("<th>连板路径</th>", "<th>缺失</th>"),
+        rendered.replace("<th>盈利排序</th>", "<th>混合盈利排序</th>"),
+        rendered.replace("<th>晋级概率</th>", "<th>模型分值</th>"),
+        rendered.replace("<tr><td>row</td></tr>", "", 1),
+    ):
+        dom_path.write_text(broken, encoding="utf-8")
+        with pytest.raises(SystemExit, match="public rendered P1 DOM failed"):
+            exec(compile(dom_python, "<p1-dom-rejected>", "exec"), {})
 
     result["mixed"]["csv"].write_bytes(result["mixed"]["csv"].read_bytes() + b"\n")
     with pytest.raises(SystemExit, match="index/projection/CSV binding failed"):
