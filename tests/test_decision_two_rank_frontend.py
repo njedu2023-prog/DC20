@@ -80,6 +80,23 @@ def test_promotion_renderer_preserves_original_rank_and_path_without_legacy_sort
     assert output["rows"].index(output["codes"][0]) < output["rows"].index(output["codes"][1])
 
 
+def test_stock_code_industry_are_separate_and_ready_legend_is_removed():
+    output = _run("renderThreeRankWatchlist({},contract);console.log(JSON.stringify({header:els.stageContent.innerHTML,html:bodyNode.innerHTML,rows:contract.rows}));", count=6)
+    for label in ("股票", "代码", "行业"):
+        assert f'<th scope="col" class="left">{label}</th>' in output["header"]
+    for removed in ("股票 / 代码 / 行业", "rank-legend", "晋1–3", "盈1–2", "同D盈利已校验"):
+        assert removed not in output["header"]
+    for row in output["rows"]:
+        rendered = re.search(rf'<tr data-code="{re.escape(row["ts_code"])}".*?</tr>', output["html"], re.S).group()
+        cells = re.findall(r'<td\b[^>]*>(.*?)</td>', rendered, re.S)
+        assert len(cells) == 11
+        assert row["name"] in cells[0] and row["ts_code"] not in cells[0]
+        assert cells[1] == row["ts_code"] and cells[2] == row["industry"]
+        assert "company-line" in cells[0]
+    assert output["html"].count('aria-label="晋级排序第') == 3
+    assert output["html"].count('aria-label="盈利排序第') == 2
+
+
 def test_independent_rank_never_borrows_old_action_or_wrong_bundle_returns():
     output = _run("Date.now=()=>Date.parse('2026-09-09T08:00:00Z');"
                   "state.currentThreeRankObservationTruth={...contract,bundle_sha256:'wrong',status:'READY',rows:contract.rows.map(r=>({...r,actual_net_return:.99,validation_status:'FINAL_VERIFIED_PROXY'}))};"
@@ -132,7 +149,7 @@ def test_profit_top2_no_padding_same_frozen_rows_and_explicit_research_engine(co
         assert "完整盈利排序" in result["html"]
         assert "联合代理分（非胜率）" in result["html"]
         assert result["html"].count('<table ') == 0
-        assert result["rows"].count('<td class="left name">') == count
+        assert result["rows"].count('<td class="left name" data-field="stock">') == count
         for code in result["codes"]:
             assert result["rows"].count(f'data-code="{code}"') == 1
     else:
@@ -146,7 +163,7 @@ def test_top2_badges_follow_profit_rank_after_company_name_not_promotion_or_inpu
                   "unchanged:before===JSON.stringify(mixed),rows:mixed.rows}));", count=6)
     assert result["unchanged"]
     body = result["html"]
-    cells = re.findall(r'<td class="left name">(.*?)</td>', body)
+    cells = re.findall(r'<td class="left name" data-field="stock">(.*?)</td>', body)
     ranked = sorted(result["rows"], key=lambda row: row["executable_profit_research_rank"])
     assert len(cells) == len(ranked) == 6
     for row, cell in zip(ranked, cells):
@@ -217,7 +234,7 @@ def test_sort_toggle_preserves_both_frozen_orders_and_member_identity():
 
 def test_compact_home_has_one_main_table_and_no_duplicate_profit_table():
     source = (ROOT / "decision.html").read_text()
-    assert 'compact-two-ranks-v15-five-slots' in source
+    assert 'compact-two-ranks-v16-promotion-success' in source
     assert '<table class="executable-profit-table">' not in source
     assert 'font-size: 16px' in source
     for name in ('profitDetails', 'historicalResearchDetails', 'technicalDetails'):

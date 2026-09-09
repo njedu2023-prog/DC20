@@ -127,11 +127,19 @@ def test_bad_binding_only_closes_auxiliary_statistics(mutation):
     assert result["rows"] is None and result["error"] and result["primary"]["signal_date"] == "20260908"
 
 
-def test_compact_view_has_exactly_five_cohorts_and_archive_does_not_delete_data():
+def test_compact_view_has_only_three_promotion_success_results():
     result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))")
-    assert result["html"].count("晋级第") == 3 and result["html"].count("盈利第") == 2
+    assert [result["html"].count(f"<dt>Top{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
+    assert result["html"].count('class="success-rate">33.33%') == 2
+    assert result["html"].count('class="success-rate">66.67%') == 1
+    assert result["html"].count("1 / 3 成功 / 已验证") == 2
+    assert "2 / 3 成功 / 已验证" in result["html"]
+    for removed in ("<table", "盈利第", "T+1结算", "代理可买率", "成交胜率", "净收益", "合成累计", "最大回撤"):
+        assert removed not in result["html"]
     assert "尚未覆盖当前 D 2026-09-08" in result["html"]
-    assert "非重建新账本的前向实盘成绩" in result["html"]
+    assert "数据截至 2026-09-04" in result["html"]
+    assert "晋级不代表盈利" in result["html"]
+    assert '<h2 id="compactStatisticsTitle">晋级成功率</h2>' in (ROOT / "decision.html").read_text()
     assert result["hidden"]["shadowWorkspace"] and result["hidden"]["historicalResearchDetails"]
     archive = run("location.search='?view=research';renderCompactDashboard();console.log(JSON.stringify(Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))))")
     assert archive["compactStatistics"] and not archive["historicalResearchDetails"]
@@ -140,8 +148,24 @@ def test_compact_view_has_exactly_five_cohorts_and_archive_does_not_delete_data(
 def test_unavailable_statistics_are_not_fake_zero_and_do_not_borrow_shadow():
     result = run("state.promotionSlotError='SHA校验失败';renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
     assert result.count("SHA校验失败") == 3
-    assert "独立自然冻结累计尚未通过校验" in result
+    assert 'class="success-rate">0.00%' not in result
+    assert "盈利第" not in result
     assert "<td>0</td>" not in result
+
+
+def test_success_results_distinguish_no_rank_pending_and_verified_zero():
+    result = run("state.promotionSlotStatistics=[{rank:1,count:0,verified:0,hitRate:null},{rank:2,count:2,verified:0,hitRate:null},{rank:3,count:2,verified:2,hitRate:0}];renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
+    assert "暂无该名次样本" in result and "暂无已验证样本" in result
+    assert result.count('class="success-rate">0.00%') == 1
+    assert "0 / 2 成功 / 已验证" in result
+    assert "数据截至" not in result
+
+
+@pytest.mark.parametrize("n", [0, 1, 2])
+def test_absent_promotion_ranks_do_not_gain_synthetic_success_samples(n):
+    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))",small_fixture(n))
+    assert result.count("暂无该名次样本") == 3 - n
+    assert result.count("成功 / 已验证") == n
 
 
 def test_archive_history_does_not_reexpose_latest_shadow_and_fatal_error_cannot_refill():

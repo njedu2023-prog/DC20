@@ -4,9 +4,9 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260909_statistics.json",
-    "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97",
-    "approved_base_commit": "a9f5869f1e11794d2840da263d577b1ad74c605c",
+    "path": "models/decision_source_surface_review_20260909_success_rate.json",
+    "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b",
+    "approved_base_commit": "f45d63307e3dd6c539c0560c7cacb762612c067e",
     "scope": "Only the non-model freeze-manifest dependency tracks reviewed UI source pins; all other retained assets and the inactive epoch remain unchanged."
   },
   "active_source_models": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "fd939c5f8288bf8821cf2442714e5987a2926b70404923f68a3c806ea272b7c5",
+      "sha256": "8e2b7dac19428b36f3ba14853abe656c40dc8a4a531e4e13e0f3c6b8d958c50e",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

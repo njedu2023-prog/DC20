@@ -1,0 +1,91 @@
+{
+  "schema_version": "decision_ui_success_rate_successor_review_v1",
+  "review_id": "dc20_promotion_success_and_identity_columns_20260909",
+  "approved_base_commit": "f45d63307e3dd6c539c0560c7cacb762612c067e",
+  "scope": "READ_ONLY_FRONTEND_SUCCESS_SUMMARY_AND_IDENTITY_COLUMNS_NOT_MODEL_RELEASE",
+  "baseline_manifest_sha256": "fd939c5f8288bf8821cf2442714e5987a2926b70404923f68a3c806ea272b7c5",
+  "baseline_manifest_canonical_sha256": "36dee02abe9a351812a0139689466fe9070ba966756de553a88c2e8c173cc45d",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260909_statistics.json",
+  "predecessor_evidence_sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "boundaries": {
+    "rankings_or_data_changed": false,
+    "model_weights_changed": false,
+    "workflows_changed": false,
+    "historical_evidence_rewritten": false,
+    "forward_epoch_activated": false,
+    "ledger_written": false
+  },
+  "pin_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "729f68e02506adbaf546cd6a8b84d10b304589d8fb48adae3cbfe9c2d181cf3a",
+      "current_sha256": "141eed71286663520605d2f734606b55f7515a79feb5768cb7b0a9310b94c9c1"
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "baseline_sha256": "2f861994fe7c4247b4419b359e6d98d465658927d6a5ad634ffc08bf2852cedb",
+      "current_sha256": "f687856cf54c364f2d3fdf844f7e99fba632a4a308e6cf0629edebc0c5304d51"
+    }
+  ],
+  "preserved_runtime_functions": {
+    "validatedThreeRankContract": "7435d5cb666704680bbd4a98f54cbb09492f8f2fdab0c13c4bcefc6e0f167527",
+    "loadCurrentThreeRankTTruth": "db2230857acc0144a9682a067f260dad3bb4a9c52f62578e8e3283526b63cdf3",
+    "loadCurrentThreeRankObservationTruth": "f4b914ef321afe89da065b94653d12639b41ea53fbe9c917eee328a966b4d017",
+    "loadCurrentExecutableProfitResearch": "3341f99cfbc05df9712cb0e1f5fc5da5880f05043fdde830215e82d5039adbb1",
+    "loadPrimaryProfitShadowSidecar": "4eaa4645708267f397ac22d92f6010b277f0b8460c6ae4138b8d1d9935f5d853",
+    "unifiedProfitView": "7c0d1d1d8a7d81ac29981277226ac3a3135ea99ac55cdcc100d8c3b12acb94b6",
+    "threeRankRowTruth": "faffdfb7f9a230bbb7518ce787c6c92b47f8cd427d73ec3d94377708b9632da5",
+    "promotionSlotStatistics": "7b73a38fb8189b0ae36c281ba650c4ffa8cf6d800c03777ab320b26a4a2ddf9f",
+    "refreshPromotionSlotStatistics": "a676de2666f2ff25cfd93839e6ce81f30750b052955155ffa2b417898af43e70"
+  },
+  "presentation_function_changes": [
+    {
+      "name": "renderThreeRankWatchlist",
+      "baseline_sha256": "d4f249f9f9d39ff50b65eef0a6eb7c31b658107ca2a0d3707c3d4d952e0abf47",
+      "current_sha256": "6d4289f8c3aff3058bd21f653c1e6a53ac5bb8a7779a2ad199a8234c2ff29551",
+      "replacements": [
+        {
+          "before": "          <td class=\"left name\"><span class=\"company-line\">${escapeHtml(row.name || \"-\")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class=\"rank-mark rank-promotion\" aria-label=\"晋级排序第${row.promotion_rank}名\">晋${row.promotion_rank}</span>` : \"\"}${[1, 2].includes(row.mixed_profit_rank) ? `<span class=\"rank-mark rank-profit\" aria-label=\"盈利排序第${row.mixed_profit_rank}名\">盈${row.mixed_profit_rank}</span>` : \"\"}</span><small class=\"row-meta\">${escapeHtml(row.ts_code || \"-\")} · ${escapeHtml(row.industry || \"未分类\")}</small></td>",
+          "after": "          <td class=\"left name\" data-field=\"stock\"><span class=\"company-line\">${escapeHtml(row.name || \"-\")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class=\"rank-mark rank-promotion\" aria-label=\"晋级排序第${row.promotion_rank}名\">晋${row.promotion_rank}</span>` : \"\"}${[1, 2].includes(row.mixed_profit_rank) ? `<span class=\"rank-mark rank-profit\" aria-label=\"盈利排序第${row.mixed_profit_rank}名\">盈${row.mixed_profit_rank}</span>` : \"\"}</span></td>\n          <td class=\"left\" data-field=\"code\">${escapeHtml(row.ts_code || \"-\")}</td>\n          <td class=\"left\" data-field=\"industry\">${escapeHtml(row.industry || \"未分类\")}</td>"
+        },
+        {
+          "before": "        <div class=\"rank-legend\"><span class=\"rank-mark rank-promotion\">晋1–3</span>晋级前三 <span class=\"rank-mark rank-profit\">盈1–2</span>盈利前二 <span aria-live=\"polite\">${escapeHtml(profitView.message)}</span></div>",
+          "after": "        ${!profitView.ready || profitView.message === \"历史恢复研究 · 不计前向收益\" ? `<p class=\"stats-note warn\" role=\"status\">${escapeHtml(profitView.message)}</p>` : \"\"}"
+        },
+        {
+          "before": "          <th scope=\"col\" class=\"left\">股票 / 代码 / 行业</th><th scope=\"col\">晋级</th>",
+          "after": "          <th scope=\"col\" class=\"left\">股票</th><th scope=\"col\" class=\"left\">代码</th><th scope=\"col\" class=\"left\">行业</th><th scope=\"col\">晋级</th>"
+        }
+      ]
+    }
+  ],
+  "statistics_display": {
+    "ranks": [
+      1,
+      2,
+      3
+    ],
+    "numerator": "T_verified_continuation_limit_up_hits",
+    "denominator": "T_verified_rows_of_that_exact_promotion_rank",
+    "record_level_display": false,
+    "profit_metrics_display": false,
+    "unchanged_underlying_statistics": true,
+    "missing_is_zero": false
+  },
+  "forward_inventory_dependency_update": {
+    "path": "models/decision_model_freeze.json",
+    "baseline_sha256": "fd939c5f8288bf8821cf2442714e5987a2926b70404923f68a3c806ea272b7c5",
+    "current_sha256": "8e2b7dac19428b36f3ba14853abe656c40dc8a4a531e4e13e0f3c6b8d958c50e",
+    "bytes": 51529,
+    "all_other_41_assets_unchanged": true
+  }
+}

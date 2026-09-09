@@ -1171,8 +1171,15 @@
     }
     [hidden] { display: none !important; }
     #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
-    #compactLedger table, #compactStatistics table { min-width: 1080px; }
-    #compactStatistics .score-secondary { max-width: 230px; white-space: normal; }
+    #compactLedger table { min-width: 1080px; }
+    .promotion-success-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+    .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
+    .promotion-success-summary > div:last-child { border-right: 0; }
+    .promotion-success-summary dt { font-size: 14px; font-weight: 700; }
+    .promotion-success-summary dd { margin: 4px 0 0; }
+    .promotion-success-summary .success-rate { font-size: 22px; font-weight: 700; }
+    .promotion-success-summary .success-sample { font-size: 12px; color: var(--muted); }
+    @media(max-width:480px) { .promotion-success-summary { grid-template-columns: 1fr; } .promotion-success-summary > div { border-right: 0; border-bottom: 1px solid var(--line); } .promotion-success-summary > div:last-child { border-bottom: 0; } }
   </style>
 </head>
 <body class="compact-dashboard">
@@ -1209,7 +1216,7 @@
       <span class="workspace-nav-label">快速定位</span>
       <a class="active" href="#rankingWorkspace" aria-current="location">名单与两项排序</a>
       <a href="#compactLedger" data-current-only>盈利前二每日账本</a>
-      <a href="#compactStatistics" data-current-only>分排名累计</a>
+      <a href="#compactStatistics" data-current-only>晋级成功率</a>
       <a href="?view=research">研究归档</a>
     </nav>
 
@@ -1254,8 +1261,8 @@
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
-      <div class="panel-head"><h2 id="compactStatisticsTitle">分排名累计成绩</h2><span class="count">晋级第1 / 2 / 3名 · 盈利第1 / 2名</span></div>
-      <div id="compactStatisticsContent"><div class="empty">正在校验累计数据，缺失不显示为0。</div></div>
+      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率</h2><span class="count">Top1 / Top2 / Top3</span></div>
+      <div id="compactStatisticsContent"><div class="empty">正在校验晋级结果。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
 
@@ -1398,7 +1405,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v15-five-slots";
+    const DASHBOARD_VERSION = "compact-two-ranks-v16-promotion-success";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
@@ -1686,21 +1693,19 @@
       }
       const summary = state.currentPublicObservationStatistics;
       const promotion = state.promotionSlotStatistics;
-      const header = '<thead><tr><th class="left">排名</th><th>记录</th><th>T已验</th><th>T+1结算</th><th>待验 / 异常</th><th>T晋级率</th><th>代理可买率</th><th>成交胜率</th><th>成交平均净收益</th><th>合成累计</th><th>最大回撤</th><th class="left">截至 / 口径</th></tr></thead>';
       const pRows = [1,2,3].map(rank => {
         const c = promotion?.find(item => item.rank === rank);
-        if (!c) return `<tr><td class="left">晋级第${rank}名</td><td colspan="11" class="left">${escapeHtml(state.promotionSlotError || "分席统计尚未发布")}</td></tr>`;
-        return `<tr><td class="left"><strong>晋级第${rank}名</strong></td><td>${c.count}</td><td>${c.verified}</td><td>${c.settled}<div class="score-secondary">成交${c.filled} / 空槽${c.noFill}</div></td><td>${c.pending} / ${c.missing}</td><td>${pct(c.hitRate)}</td><td>${pct(c.buyable)}</td><td>${pct(c.winRate)}</td><td>${signedPct(c.meanNet)}</td><td>${signedPct(c.cumulative)}</td><td>${signedPct(c.drawdown)}</td><td class="left">${dateText(summary.as_of_date)}<div class="score-secondary">${escapeHtml(c.reason)}</div></td></tr>`;
-      });
-      const sRows = [1,2].map(slot => {
-        const c = source?.shadow.cohorts[`shadow_slot_${slot}`];
-        if (!c) return `<tr><td class="left">盈利第${slot}名</td><td colspan="11" class="left">独立自然冻结累计尚未通过校验；每日留档仍保留。</td></tr>`;
-        return `<tr><td class="left"><strong>盈利第${slot}名</strong></td><td>${c.selected_slots}</td><td>${c.t_validated_slots}</td><td>${c.t1_settled_slots}</td><td>${c.selected_slots-c.t1_settled_slots} 待结算</td><td>—</td><td>${pct(c.proxy_buyable_rate)}</td><td>${pct(c.win_rate)}</td><td>${signedPct(c.mean_net_return_after_cost)}</td><td>${signedPct(c.equal_weight_cumulative_return)}</td><td>${signedPct(c.maximum_drawdown)}</td><td class="left">${dateText(source.shadow.as_of_date)}<div class="score-secondary">独立Shadow代理口径</div></td></tr>`;
+        const sample = !c ? state.promotionSlotError || "统计暂不可用"
+          : !c.count ? "暂无该名次样本"
+          : !c.verified ? "暂无已验证样本"
+          : `${Math.round(c.hitRate * c.verified)} / ${c.verified} 成功 / 已验证`;
+        return `<div><dt>Top${rank}</dt><dd class="success-rate">${c ? pct(c.hitRate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
       });
       const currentD = state.currentThreeRank?.signal_date;
       const stale = summary && currentD && summary.latest_signal_date < currentD
         ? `晋级累计尚未覆盖当前 D ${dateText(currentD)}，目前仅到 D ${dateText(summary.latest_signal_date)}。` : "";
-      els.compactStatisticsContent.innerHTML = `${stale ? `<p class="stats-note warn">${escapeHtml(stale)}</p>` : ""}<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="晋级前三和盈利前二分别累计"><table class="three-rank-table">${header}<tbody>${pRows.join("")}${sRows.join("")}</tbody></table></div><p class="stats-note">统计起点 D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}；各名次独立统计，缺席不补。晋级收益为既有冻结预测的日开盘代理观察，扣费45bp，非重建新账本的前向实盘成绩；盈利收益仅取独立Shadow。成交胜率与均值不含未成交，槽位累计含已确认空槽0收益；未完成不当0，合成累计不代表真实资金净值。</p>`;
+      const asOf = promotion && summary?.as_of_date ? ` · 数据截至 ${dateText(summary.as_of_date)}` : "";
+      els.compactStatisticsContent.innerHTML = `${stale ? `<p class="stats-note warn">${escapeHtml(stale)}</p>` : ""}<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起${asOf}；各名次按T日已验证结果独立统计，未验证不计入。晋级不代表盈利。</p>`;
     }
 
     function publicStatisticsPlan(plan) {
@@ -4863,7 +4868,9 @@
           return String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
         });
         const body = sorted.map(row => `<tr data-code="${escapeHtml(row.ts_code)}" data-promotion-rank="${row.promotion_rank}" data-profit-rank="${row.mixed_profit_rank ?? ""}">
-          <td class="left name"><span class="company-line">${escapeHtml(row.name || "-")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class="rank-mark rank-promotion" aria-label="晋级排序第${row.promotion_rank}名">晋${row.promotion_rank}</span>` : ""}${[1, 2].includes(row.mixed_profit_rank) ? `<span class="rank-mark rank-profit" aria-label="盈利排序第${row.mixed_profit_rank}名">盈${row.mixed_profit_rank}</span>` : ""}</span><small class="row-meta">${escapeHtml(row.ts_code || "-")} · ${escapeHtml(row.industry || "未分类")}</small></td>
+          <td class="left name" data-field="stock"><span class="company-line">${escapeHtml(row.name || "-")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class="rank-mark rank-promotion" aria-label="晋级排序第${row.promotion_rank}名">晋${row.promotion_rank}</span>` : ""}${[1, 2].includes(row.mixed_profit_rank) ? `<span class="rank-mark rank-profit" aria-label="盈利排序第${row.mixed_profit_rank}名">盈${row.mixed_profit_rank}</span>` : ""}</span></td>
+          <td class="left" data-field="code">${escapeHtml(row.ts_code || "-")}</td>
+          <td class="left" data-field="industry">${escapeHtml(row.industry || "未分类")}</td>
           <td>${escapeHtml(row.stage_transition || "-")}</td>
           <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span><small class="row-meta ${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</small></td>
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
@@ -4896,10 +4903,10 @@
           </div>
           <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
-        <div class="rank-legend"><span class="rank-mark rank-promotion">晋1–3</span>晋级前三 <span class="rank-mark rank-profit">盈1–2</span>盈利前二 <span aria-live="polite">${escapeHtml(profitView.message)}</span></div>
+        ${!profitView.ready || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
           <caption class="sr-only">D ${dateText(contract.signal_date)} 晋级与盈利同表；排序切换不改变冻结名次</caption><thead><tr>
-          <th scope="col" class="left">股票 / 代码 / 行业</th><th scope="col">晋级</th>
+          <th scope="col" class="left">股票</th><th scope="col" class="left">代码</th><th scope="col" class="left">行业</th><th scope="col">晋级</th>
           <th scope="col" class="left">连板路径<small class="row-meta">路径变化</small></th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
           <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
