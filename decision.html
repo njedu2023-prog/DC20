@@ -1169,6 +1169,10 @@
       .compact-dashboard .workspace-heading > p { display: none; }
       .compact-dashboard table.three-rank-table th:first-child, .compact-dashboard table.three-rank-table td:first-child { min-width: 200px; }
     }
+    [hidden] { display: none !important; }
+    #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
+    #compactLedger table, #compactStatistics table { min-width: 1080px; }
+    #compactStatistics .score-secondary { max-width: 230px; white-space: normal; }
   </style>
 </head>
 <body class="compact-dashboard">
@@ -1204,7 +1208,9 @@
     <nav class="workspace-nav" aria-label="页面主要区域">
       <span class="workspace-nav-label">快速定位</span>
       <a class="active" href="#rankingWorkspace" aria-current="location">名单与两项排序</a>
-      <a href="#shadowWorkspace" data-current-only>影子账本与累计</a>
+      <a href="#compactLedger" data-current-only>盈利前二每日账本</a>
+      <a href="#compactStatistics" data-current-only>分排名累计</a>
+      <a href="?view=research">研究归档</a>
     </nav>
 
     <section id="rankingWorkspace" class="workspace-section" aria-labelledby="rankingWorkspaceTitle">
@@ -1243,7 +1249,17 @@
       </details>
     </section>
 
-    <section id="shadowWorkspace" class="workspace-section" aria-labelledby="shadowWorkspaceTitle">
+    <section id="compactLedger" class="panel" aria-labelledby="compactLedgerTitle">
+      <div class="panel-head"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 每日记录与验证</h2><span id="compactLedgerState" class="count">待读取</span></div>
+      <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
+    </section>
+    <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
+      <div class="panel-head"><h2 id="compactStatisticsTitle">分排名累计成绩</h2><span class="count">晋级第1 / 2 / 3名 · 盈利第1 / 2名</span></div>
+      <div id="compactStatisticsContent"><div class="empty">正在校验累计数据，缺失不显示为0。</div></div>
+    </section>
+    <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
+
+    <section id="shadowWorkspace" class="workspace-section" aria-labelledby="shadowWorkspaceTitle" hidden>
       <div class="workspace-heading compact">
         <h2 id="shadowWorkspaceTitle">影子账本与累计</h2>
         <p>每日入选留档与已验证收益分开计数；不把未验证当成零收益。</p>
@@ -1269,7 +1285,7 @@
       </details>
     </section>
 
-    <details class="compact-disclosure" id="historicalResearchDetails">
+    <details class="compact-disclosure" id="historicalResearchDetails" hidden>
       <summary>历史研究与诊断 · 不迁入重建后的新账本</summary>
     <section id="reviewWorkspace" class="workspace-section" aria-labelledby="reviewWorkspaceTitle">
       <div class="workspace-heading compact">
@@ -1344,7 +1360,7 @@
     </section>
 
     </details>
-    <details class="compact-disclosure" id="technicalDetails">
+    <details class="compact-disclosure" id="technicalDetails" hidden>
       <summary>数据来源、模型审计与历史报告</summary>
     <section id="systemWorkspace" class="workspace-section" aria-labelledby="systemWorkspaceTitle">
       <div class="workspace-heading compact">
@@ -1382,7 +1398,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v13-unified";
+    const DASHBOARD_VERSION = "compact-two-ranks-v15-five-slots";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
@@ -1405,6 +1421,7 @@
     });
     const els = Object.fromEntries([
       "mainContent", "rankingWorkspace", "shadowWorkspace", "reviewWorkspace", "systemWorkspace",
+      "compactLedger", "compactLedgerState", "compactLedgerContent", "compactStatistics", "compactStatisticsContent",
       "legacyProfitBenchmarkPanel", "legacyProfitBenchmarkState", "legacyProfitBenchmarkContent",
       "prevBtn", "refreshBtn", "nextBtn", "statusBand", "statusKicker", "statusTitle", "brandDates",
       "signalDate", "execDate", "exitDate", "top10BacktestCount", "top10BacktestContent", "top10BacktestNote", "metrics", "metricsCount", "sentimentPanel", "sentimentState", "sentimentMetrics", "sentimentIndustries", "stagePanel", "stageSignalDate", "stageGeneratedTime", "stageCount", "stageContent", "observationUpdate", "observationMetrics",
@@ -1513,6 +1530,177 @@
             : "晋级名单验证统计读取失败，请重新加载页面。"
         };
       }
+    }
+
+    // Read-only display projection. Never writes a ledger or activates the new epoch.
+    async function refreshPromotionSlotStatistics() {
+      const loadSequence = state.compactLoadSequence;
+      const summary = state.currentPublicObservationStatistics;
+      state.promotionSlotStatistics = null;
+      state.promotionSlotError = "晋级分席统计尚未发布";
+      try {
+        if (!summary || summary.policy?.id !== "p0_daily_open_observation_proxy_v1" ||
+            summary.policy.round_trip_cost_rate !== 0.0045 ||
+            summary.rows_path !== "outputs/decision/primary_observation/rows.csv" || !isSha256(summary.rows_sha256)) throw new Error("晋级分席来源或扣费口径未通过校验");
+        const bytes = await fetchPublishedBytes(summary.rows_path);
+        if (await sha256Hex(bytes) !== summary.rows_sha256) throw new Error("晋级逐行数据SHA校验失败");
+        const all = parseStrictCsvBytes(bytes, ["signal_date", "exec_date", "exit_date", "ts_code", "name", "promotion_rank", "proxy_fill", "continuation_limit_up_hit", "actual_net_return", "slot_net_return", "validation_status", "actual_order_fill_observed", "truth_source"], "晋级分席逐行数据");
+        const contracts = await Promise.all(summary.daily_summaries.map(async day => {
+          const bindings = summary.bindings.filter(item => item.signal_date === day.signal_date);
+          const p0 = bindings[0]?.p0;
+          if (bindings.length !== 1 || bindings[0].status !== "PROSPECTIVE" || !p0 ||
+              p0.latest_three_rank_json_url !== `outputs/decision/three_rank_top10_${day.signal_date}.json` ||
+              !isSha256(p0.latest_three_rank_json_sha256) || p0.latest_receipt_url !== `outputs/decision/primary_d_receipt_${day.signal_date}.json` ||
+              !isSha256(p0.latest_receipt_sha256)) throw new Error("分席累计缺少唯一自然冻结来源");
+          const [frozenBytes, receiptBytes] = await Promise.all([fetchPublishedBytes(p0.latest_three_rank_json_url), fetchPublishedBytes(p0.latest_receipt_url)]);
+          if (await sha256Hex(frozenBytes) !== p0.latest_three_rank_json_sha256 || await sha256Hex(receiptBytes) !== p0.latest_receipt_sha256) throw new Error("分席累计冻结名单或回执SHA不一致");
+          const frozen = JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(frozenBytes));
+          const receipt = JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(receiptBytes));
+          const deadline = Date.parse(`${dateText(day.exec_date)}T09:25:00+08:00`);
+          if (receipt.schema_version !== "dc20_primary_d_receipt_v1" || receipt.generation_mode !== "NATURAL" ||
+              receipt.prospective !== true || receipt.forward_eligible !== true || receipt.not_forward_generated !== false ||
+              receipt.signal_date !== day.signal_date || receipt.exec_date !== day.exec_date || receipt.exit_date !== day.exit_date ||
+              !Number.isFinite(Date.parse(frozen.generated_at_utc)) || Date.parse(frozen.generated_at_utc) >= deadline) throw new Error("非自然准时冻结记录不得进入分席累计");
+          const contract = validatedThreeRankContract({signal_date:day.signal_date,exec_date:day.exec_date,exit_date:day.exit_date,three_rank:frozen});
+          if (!contract || contract === false || contract.signal_date !== day.signal_date || contract.exec_date !== day.exec_date ||
+              contract.exit_date !== day.exit_date || contract.bundle_sha256 !== p0.latest_bundle_sha256 ||
+              contract.top10_members_sha256 !== p0.latest_top10_members_sha256 || contract.rows.length !== day.rows) throw new Error("分席累计与冻结名单日期或成员不一致");
+          if (receipt.outputs?.json_path !== p0.latest_three_rank_json_url || receipt.outputs?.json_sha256 !== p0.latest_three_rank_json_sha256 ||
+              receipt.outputs?.bundle_sha256 !== contract.bundle_sha256 || receipt.outputs?.top10_members_sha256 !== contract.top10_members_sha256 ||
+              receipt.outputs?.top10_count !== contract.rows.length) throw new Error("自然回执没有绑定实际冻结名单");
+          return contract;
+        }));
+        const statistics = promotionSlotStatistics(summary, all, contracts);
+        if (state.currentPublicObservationStatistics !== summary || state.compactLoadSequence !== loadSequence || state.compactFatalError) return;
+        state.promotionSlotStatistics = statistics;
+        state.promotionSlotError = "";
+      } catch (error) {
+        if (state.currentPublicObservationStatistics !== summary || state.compactLoadSequence !== loadSequence || state.compactFatalError) return;
+        state.promotionSlotError = String(error?.message || error);
+      }
+    }
+
+    function promotionSlotStatistics(summary, all, contracts) {
+      const clock = new Date(Date.now() + 8 * 60 * 60 * 1000);
+      if (clock.getUTCHours() < 15) clock.setUTCDate(clock.getUTCDate() - 1);
+      const closedThrough = clock.toISOString().slice(0,10).replaceAll("-", "");
+      if (!canonicalYmd(summary.as_of_date) || summary.as_of_date > closedThrough) throw new Error("分席真值尚未到实际收盘时间");
+      const numeric = value => {
+        if (value === "" || value == null) return null;
+        const n = Number(value);
+        if (!Number.isFinite(n)) throw new Error("分席数据包含无效数值");
+        return n;
+      };
+      const verifiedRows = [];
+      if (all.length !== summary.statistics.observation_rows || contracts.length !== summary.daily_summaries.length) throw new Error("分席样本数量不一致");
+      for (const [index, day] of summary.daily_summaries.entries()) {
+        const frozen = contracts[index];
+        const rows = all.filter(row => row.signal_date === day.signal_date);
+        if (rows.length !== day.rows || new Set(rows.map(row => row.ts_code)).size !== rows.length || new Set(rows.map(row => row.promotion_rank)).size !== rows.length) throw new Error("分席样本重复或缺失");
+        const clean = rows.map(row => {
+          const rank = numeric(row.promotion_rank), hit = numeric(row.continuation_limit_up_hit);
+          const net = numeric(row.actual_net_return), slot = numeric(row.slot_net_return), fill = numeric(row.proxy_fill);
+          const identity = frozen.rows.find(item => item.ts_code === row.ts_code);
+          const status = row.validation_status;
+          const tPending = ["PENDING_T", "MISSING_T_TRUTH"].includes(status);
+          const statuses = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
+          if (!identity || identity.name !== row.name || identity.promotion_rank !== rank ||
+              row.exec_date !== day.exec_date || row.exit_date !== day.exit_date || row.truth_source !== "daily_open_proxy" ||
+              row.actual_order_fill_observed !== "False" || !statuses.includes(status) ||
+              (tPending ? hit !== null || fill !== null : ![0,1].includes(hit) || ![0,1].includes(fill)) ||
+              (status === "FINAL_VERIFIED_PROXY" ? net === null || slot !== net || fill !== 1 : net !== null) ||
+              (status === "FINAL_NO_FILL_PROXY" ? slot !== 0 || fill !== 0 : status !== "FINAL_VERIFIED_PROXY" && slot !== null)) throw new Error("分席身份、验证状态或收益不一致");
+          if ((!tPending && summary.as_of_date < day.exec_date) || (status.startsWith("FINAL_") && summary.as_of_date < day.exit_date) ||
+              (status === "MISSING_T_TRUTH" && summary.as_of_date < day.exec_date) ||
+              (["MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY"].includes(status) && summary.as_of_date < day.exit_date) ||
+              (status === "PENDING_T" && summary.as_of_date >= day.exec_date) || (status === "PENDING_T1" && summary.as_of_date >= day.exit_date)) throw new Error("分席验证日期不一致");
+          const actualExit = canonicalYmd(row.actual_exit_date), blocked = numeric(row.blocked_exit_sessions) || 0;
+          if (!Number.isInteger(blocked) || blocked < 0 || (status === "FINAL_VERIFIED_PROXY" && (!actualExit || actualExit < day.exit_date || actualExit > summary.as_of_date))) throw new Error("分席实际退出日期无效");
+          return {...row, rank, hit, net, slot, fill, blocked, actualExit};
+        });
+        const counts = {
+          t_validated_rows: clean.filter(r => r.hit !== null).length,
+          final_verified_trades: clean.filter(r => r.net !== null).length,
+          settled_rows: clean.filter(r => r.slot !== null).length,
+          pending_t_rows: clean.filter(r => r.validation_status === "PENDING_T").length,
+          pending_t1_rows: clean.filter(r => r.validation_status === "PENDING_T1").length,
+          missing_t_truth_rows: clean.filter(r => r.validation_status === "MISSING_T_TRUTH").length,
+          missing_t1_truth_rows: clean.filter(r => r.validation_status === "MISSING_T1_TRUTH").length,
+          unresolved_exit_rows: clean.filter(r => r.validation_status === "UNRESOLVED_EXIT_PROXY").length
+        };
+        if (Object.entries(counts).some(([key, value]) => value !== day[key])) throw new Error("分席计数与已发布摘要不一致");
+        verifiedRows.push(...clean);
+      }
+      const mean = values => values.length ? values.reduce((a,b) => a+b,0) / values.length : null;
+      return [1,2,3].map(rank => {
+        const rows = verifiedRows.filter(r => r.rank === rank).sort((a,b) => a.signal_date.localeCompare(b.signal_date));
+        const t = rows.filter(r => r.hit !== null), settled = rows.filter(r => r.slot !== null), filled = settled.filter(r => r.net !== null);
+        const missing = rows.filter(r => r.validation_status.startsWith("MISSING_") || r.validation_status === "UNRESOLVED_EXIT_PROXY").length;
+        const delayed = rows.some(r => r.blocked > 0 || r.actualExit && r.actualExit > r.exit_date);
+        const reason = missing ? "缺真值或退出受阻，暂不累计" : delayed ? "顺延退出资金重叠，暂不累计" : !settled.length ? "尚无已结算样本" : "按D合成观察，非实盘净值";
+        let nav = 1, peak = 1, drawdown = 0;
+        for (const row of settled) { nav *= 1 + row.slot; peak = Math.max(peak,nav); drawdown = Math.min(drawdown,nav/peak-1); }
+        const available = settled.length > 0 && !missing && !delayed;
+        return {rank, count:rows.length, verified:t.length, settled:settled.length, filled:filled.length,
+          noFill:settled.length-filled.length, pending:rows.length-settled.length-missing, missing,
+          hitRate:mean(t.map(r=>r.hit)), buyable:mean(t.map(r=>r.fill)), winRate:mean(filled.map(r=>Number(r.net>0))),
+          meanNet:mean(filled.map(r=>r.net)), cumulative:available ? nav-1 : null, drawdown:available ? drawdown : null, reason};
+      });
+    }
+
+    function compactShadowSource() {
+      const loaded = state.currentExecutableProfitResearch;
+      const shadow = loaded?.status === "ready" && loaded.kind === "primary_core" && loaded.shadow?.publicWindowReady === true ? loaded.shadow.state : null;
+      return shadow ? {loaded, shadow} : null;
+    }
+
+    function renderCompactDashboard() {
+      if (!els.compactLedgerContent || state.compactFatalError) return;
+      const research = new URLSearchParams(location.search).get("view") === "research";
+      for (const id of ["shadowWorkspace", "historicalResearchDetails", "technicalDetails", "researchReturn"]) document.getElementById(id).hidden = !research;
+      for (const id of ["shadowWorkspace", "historicalResearchDetails"]) document.getElementById(id).hidden = !research || state.index !== 0;
+      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research || (id !== "rankingWorkspace" && state.index !== 0);
+      if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
+      const source = compactShadowSource();
+      const daily = state.currentPrimaryMixedDailyTop2;
+      if (daily?.status !== "ready") {
+        els.compactLedgerState.textContent = "每日账本未通过校验";
+        els.compactLedgerContent.innerHTML = `<div class="empty">${escapeHtml(daily?.message || "每日记录尚未公开；缺失不等于0席。")}</div>`;
+      } else {
+        const ledger = daily.index;
+        els.compactLedgerState.textContent = `D ${dateText(ledger.public_start_signal_date)}起 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席`;
+        const body = [...ledger.entries].reverse().flatMap(entry => {
+          if (!entry.rows.length) return [`<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td colspan="6" class="left">当日无真实候选，已记录0席，不补票</td></tr>`];
+          return entry.rows.map(row => {
+            const bound = entry.generation_mode === "NATURAL" && source && entry.signal_date === source.shadow.signal_date &&
+              entry.exec_date === source.shadow.exec_date && entry.exit_date === source.shadow.exit_date &&
+              entry.projection_json_sha256 === source.loaded.index.latest_projection_json_sha256;
+            const truth = bound && source.shadow.latest_selected_rows.find(item => item.shadow_slot === row.slot && item.ts_code === row.ts_code && item.name === row.name && item.promotion_rank === row.promotion_rank);
+            const recovery = entry.generation_mode !== "NATURAL";
+            const t = truth ? primaryShadowStatus(truth.t_status, "t").label : recovery ? "恢复留档" : "未绑定该日验证";
+            const t1 = truth ? primaryShadowStatus(truth.t1_status, "t1").label : recovery ? "不计前向收益" : "未绑定该日验证";
+            return `<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td class="left"><strong>${escapeHtml(row.name)}</strong> <span class="rank-badge">盈${row.slot}</span><div class="score-secondary">${escapeHtml(row.ts_code)}</div></td><td>${escapeHtml(t)}</td><td>${escapeHtml(t1)}</td><td>${signedPct(truth ? truth.net_return_after_cost : null)}</td><td>${signedPct(truth ? truth.strategy_slot_return : null)}</td><td>${truth ? "自然冻结" : recovery ? "仅留档" : "须独立冻结"}</td></tr>`;
+          });
+        }).join("");
+        els.compactLedgerContent.innerHTML = `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利前二每日记录与验证"><table class="three-rank-table"><thead><tr><th>D</th><th>T</th><th>T+1</th><th class="left">股票 / 盈利名次</th><th>T验证</th><th>T+1验证</th><th>成交净收益</th><th>槽位收益</th><th>统计资格</th></tr></thead><tbody>${body}</tbody></table></div><p class="stats-note">每日入选必留档；只有同D同来源的自然冻结进入前向收益。未绑定验证的历史行不填0，也不拿晋级观察收益代填。</p>`;
+      }
+      const summary = state.currentPublicObservationStatistics;
+      const promotion = state.promotionSlotStatistics;
+      const header = '<thead><tr><th class="left">排名</th><th>记录</th><th>T已验</th><th>T+1结算</th><th>待验 / 异常</th><th>T晋级率</th><th>代理可买率</th><th>成交胜率</th><th>成交平均净收益</th><th>合成累计</th><th>最大回撤</th><th class="left">截至 / 口径</th></tr></thead>';
+      const pRows = [1,2,3].map(rank => {
+        const c = promotion?.find(item => item.rank === rank);
+        if (!c) return `<tr><td class="left">晋级第${rank}名</td><td colspan="11" class="left">${escapeHtml(state.promotionSlotError || "分席统计尚未发布")}</td></tr>`;
+        return `<tr><td class="left"><strong>晋级第${rank}名</strong></td><td>${c.count}</td><td>${c.verified}</td><td>${c.settled}<div class="score-secondary">成交${c.filled} / 空槽${c.noFill}</div></td><td>${c.pending} / ${c.missing}</td><td>${pct(c.hitRate)}</td><td>${pct(c.buyable)}</td><td>${pct(c.winRate)}</td><td>${signedPct(c.meanNet)}</td><td>${signedPct(c.cumulative)}</td><td>${signedPct(c.drawdown)}</td><td class="left">${dateText(summary.as_of_date)}<div class="score-secondary">${escapeHtml(c.reason)}</div></td></tr>`;
+      });
+      const sRows = [1,2].map(slot => {
+        const c = source?.shadow.cohorts[`shadow_slot_${slot}`];
+        if (!c) return `<tr><td class="left">盈利第${slot}名</td><td colspan="11" class="left">独立自然冻结累计尚未通过校验；每日留档仍保留。</td></tr>`;
+        return `<tr><td class="left"><strong>盈利第${slot}名</strong></td><td>${c.selected_slots}</td><td>${c.t_validated_slots}</td><td>${c.t1_settled_slots}</td><td>${c.selected_slots-c.t1_settled_slots} 待结算</td><td>—</td><td>${pct(c.proxy_buyable_rate)}</td><td>${pct(c.win_rate)}</td><td>${signedPct(c.mean_net_return_after_cost)}</td><td>${signedPct(c.equal_weight_cumulative_return)}</td><td>${signedPct(c.maximum_drawdown)}</td><td class="left">${dateText(source.shadow.as_of_date)}<div class="score-secondary">独立Shadow代理口径</div></td></tr>`;
+      });
+      const currentD = state.currentThreeRank?.signal_date;
+      const stale = summary && currentD && summary.latest_signal_date < currentD
+        ? `晋级累计尚未覆盖当前 D ${dateText(currentD)}，目前仅到 D ${dateText(summary.latest_signal_date)}。` : "";
+      els.compactStatisticsContent.innerHTML = `${stale ? `<p class="stats-note warn">${escapeHtml(stale)}</p>` : ""}<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="晋级前三和盈利前二分别累计"><table class="three-rank-table">${header}<tbody>${pRows.join("")}${sRows.join("")}</tbody></table></div><p class="stats-note">统计起点 D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}；各名次独立统计，缺席不补。晋级收益为既有冻结预测的日开盘代理观察，扣费45bp，非重建新账本的前向实盘成绩；盈利收益仅取独立Shadow。成交胜率与均值不含未成交，槽位累计含已确认空槽0收益；未完成不当0，合成累计不代表真实资金净值。</p>`;
     }
 
     function publicStatisticsPlan(plan) {
@@ -5446,6 +5634,7 @@
         plan = researchOnlyPlan(info, evaluation, md);
       }
       state.current = { info, plan, md, evaluation };
+      state.compactFatalError = false;
       renderStatus(plan);
       renderTop10Backtest(plan);
       renderMetrics(plan);
@@ -5458,6 +5647,7 @@
       els.reportDetails.open = false;
       cacheCurrent(info, plan, md, evaluation);
       els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${info.report_file} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+      if (els.compactLedgerContent) renderCompactDashboard();
       els.mainContent.setAttribute("aria-busy", "false");
     }
 
@@ -5486,6 +5676,7 @@
       if (!plan) throw error;
       state.index = 0;
       state.current = { info: null, plan, md: "", evaluation: null };
+      state.compactFatalError = false;
       els.researchPanel.hidden = true;
       renderStatus(plan);
       renderTop10Backtest(plan);
@@ -5501,6 +5692,9 @@
     }
 
     async function initialize(force = false) {
+      const compactLoadSequence = (state.compactLoadSequence || 0) + 1;
+      state.compactLoadSequence = compactLoadSequence;
+      state.compactFatalError = false;
       els.refreshBtn.disabled = true;
       els.mainContent.setAttribute("aria-busy", "true");
       let targetInfo = null;
@@ -5508,6 +5702,10 @@
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
         await refreshPublicObservationStatistics();
+        // Auxiliary history aggregation must not delay the current D list.
+        void refreshPromotionSlotStatistics().then(() => {
+          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+        });
         await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);
         await refreshCurrentThreeRankTTruth(state.currentThreeRank);
         await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
@@ -5544,6 +5742,7 @@
         els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · ${cached.info?.report_file || "cached_report"} · 已验证同日缓存 · 本次网络读取失败`;
         setNavigation();
       } finally {
+        renderCompactDashboard();
         els.refreshBtn.disabled = false;
         els.mainContent.setAttribute("aria-busy", "false");
       }
@@ -5584,6 +5783,11 @@
     els.nextBtn.addEventListener("click", () => loadReport(state.index - 1).catch(showError));
 
     function showError(error) {
+      state.compactFatalError = true;
+      if (els.compactLedgerContent) {
+        els.compactLedgerContent.innerHTML = '<div class="empty">读取失败，已清空旧账本展示。</div>';
+        els.compactStatisticsContent.innerHTML = '<div class="empty">读取失败，已清空旧累计展示。</div>';
+      }
       els.mainContent.setAttribute("aria-busy", "false");
       els.statusBand.className = "status-band bad";
       els.statusKicker.textContent = "读取状态";

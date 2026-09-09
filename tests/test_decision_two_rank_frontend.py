@@ -217,7 +217,7 @@ def test_sort_toggle_preserves_both_frozen_orders_and_member_identity():
 
 def test_compact_home_has_one_main_table_and_no_duplicate_profit_table():
     source = (ROOT / "decision.html").read_text()
-    assert 'compact-two-ranks-v13-unified' in source
+    assert 'compact-two-ranks-v15-five-slots' in source
     assert '<table class="executable-profit-table">' not in source
     assert 'font-size: 16px' in source
     for name in ('profitDetails', 'historicalResearchDetails', 'technicalDetails'):

@@ -1,0 +1,73 @@
+{
+  "schema_version": "decision_ui_statistics_successor_review_v1",
+  "review_id": "dc20_compact_five_slots_20260909",
+  "approved_base_commit": "a9f5869f1e11794d2840da263d577b1ad74c605c",
+  "scope": "READ_ONLY_FRONTEND_STATISTICS_PROJECTION_NOT_MODEL_RELEASE",
+  "baseline_manifest_sha256": "14767ab5f5de199b5737f4ced58458396ccf3d58b40bdcaed1ec62de8c04ed41",
+  "baseline_manifest_canonical_sha256": "4d91693fcc7776e16ae5d2a20b289ecd601d7f040059631754b23f9cd4a87cb8",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260909_density.json",
+  "predecessor_evidence_sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "boundaries": {
+    "rankings_or_data_changed": false,
+    "model_weights_changed": false,
+    "workflows_changed": false,
+    "historical_evidence_rewritten": false,
+    "forward_epoch_activated": false,
+    "ledger_written": false
+  },
+  "pin_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "a92cd37d563c75d3e3bd6a69a2732f7719ee50a8d85b5c6469a5a87faed93a76",
+      "current_sha256": "729f68e02506adbaf546cd6a8b84d10b304589d8fb48adae3cbfe9c2d181cf3a"
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "baseline_sha256": "e97245ab7bd61afaa829f6ecb89c89d10aef33aacd5b87c8c8d354f5d6c8409e",
+      "current_sha256": "2f861994fe7c4247b4419b359e6d98d465658927d6a5ad634ffc08bf2852cedb"
+    }
+  ],
+  "preserved_runtime_functions": {
+    "validatedThreeRankContract": "7435d5cb666704680bbd4a98f54cbb09492f8f2fdab0c13c4bcefc6e0f167527",
+    "renderThreeRankWatchlist": "d4f249f9f9d39ff50b65eef0a6eb7c31b658107ca2a0d3707c3d4d952e0abf47",
+    "loadCurrentThreeRankTTruth": "db2230857acc0144a9682a067f260dad3bb4a9c52f62578e8e3283526b63cdf3",
+    "loadCurrentThreeRankObservationTruth": "f4b914ef321afe89da065b94653d12639b41ea53fbe9c917eee328a966b4d017",
+    "loadCurrentExecutableProfitResearch": "3341f99cfbc05df9712cb0e1f5fc5da5880f05043fdde830215e82d5039adbb1",
+    "loadPrimaryProfitShadowSidecar": "4eaa4645708267f397ac22d92f6010b277f0b8460c6ae4138b8d1d9935f5d853"
+  },
+  "statistics_contract": {
+    "source": "existing_SHA_bound_P0_observation_rows_and_natural_receipts",
+    "minimum_signal_date": "20260828",
+    "promotion_ranks": [
+      1,
+      2,
+      3
+    ],
+    "profit_ranks": [
+      1,
+      2
+    ],
+    "fee_rate": 0.0045,
+    "fee_already_in_source": true,
+    "p0_proxy_returns_are_new_forward_performance": false,
+    "shadow_recovery_included_in_performance": false,
+    "missing_is_zero": false,
+    "failed_or_delayed_mature_cohorts_have_null_curve": true
+  },
+  "forward_inventory_dependency_update": {
+    "path": "models/decision_model_freeze.json",
+    "baseline_sha256": "14767ab5f5de199b5737f4ced58458396ccf3d58b40bdcaed1ec62de8c04ed41",
+    "current_sha256": "fd939c5f8288bf8821cf2442714e5987a2926b70404923f68a3c806ea272b7c5",
+    "bytes": 51529,
+    "all_other_41_assets_unchanged": true
+  }
+}

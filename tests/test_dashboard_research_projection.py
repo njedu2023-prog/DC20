@@ -101,7 +101,7 @@ def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() ->
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "compact-two-ranks-v13-unified"'
+        'const DASHBOARD_VERSION = "compact-two-ranks-v15-five-slots"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text
