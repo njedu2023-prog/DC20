@@ -96,7 +96,9 @@ def test_observation_bad_date_sha_or_missing_member_is_explicit_and_not_zero(mut
 
 
 def test_mature_missing_t_csv_is_not_pending_and_stale_t1_cannot_be_zero():
-    out = run("await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));", date="20260904", now="2026-09-08T08:00:00Z")
+    # Explicitly simulate HTTP 404: committed market history grows over time,
+    # so a fixed historical date must not implicitly serve as a missing fixture.
+    out = run("for(const path of Object.keys(files)){if(path.startsWith('data/market/raw/'))delete files[path];}await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));", date="20260904", now="2026-09-08T08:00:00Z")
     assert out["t"]["status"] == "MISSING_T_TRUTH"
     assert "已到期" in out["row"]["continuation_status_label"]
     assert out["row"]["validation_status"] == "OBSERVATION_STALE"
