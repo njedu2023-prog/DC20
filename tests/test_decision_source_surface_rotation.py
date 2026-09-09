@@ -17,6 +17,8 @@ EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
 SUCCESSOR = ROOT / "models/decision_source_surface_review_20260906.json"
 COMPACT_REVIEW = ROOT / "models/decision_source_surface_review_20260909.json"
 COMPACT_REVIEW_SHA = "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+DENSITY_REVIEW = ROOT / "models/decision_source_surface_review_20260909_density.json"
+DENSITY_REVIEW_SHA = "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
 COMPACT_REVIEW_PATHS = {
     ".github/workflows/run_primary_profit_rankings.yml", "decision.html",
     "tests/test_dashboard_research_projection.py",
@@ -77,6 +79,90 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _manifest_before_density_review(manifest: dict, review: dict) -> dict:
+    """Check real current bytes, then rewind the CSS-only single-pin successor."""
+    assert _sha256(DENSITY_REVIEW) == DENSITY_REVIEW_SHA
+    assert review["schema_version"] == "decision_ui_density_successor_review_v1"
+    assert review["review_id"] == "dc20_compact_density_20260909"
+    assert review["approved_base_commit"] == "42364ebddd89c02ab684fe2586bc04b0cb9a5aec"
+    assert review["scope"] == "CSS_ONLY_DENSITY_CHANGE_NOT_MODEL_RELEASE"
+    assert review["baseline_manifest_sha256"] == "fbf2f92dec22604e402e73628a70bc287ea3cd16b0c1b6511fc0eb0a14211cae"
+    assert review["baseline_manifest_canonical_sha256"] == "3360aee5605b90c76b056659f26dcc79701b95a4aa7d028c711249ebbfee21b9"
+    assert review["predecessor_evidence_path"] == COMPACT_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(COMPACT_REVIEW) == COMPACT_REVIEW_SHA
+    assert review["protected_model_identity"] == json.loads(COMPACT_REVIEW.read_text())["protected_model_identity"]
+    assert review["boundaries"] == {key: False for key in (
+        "dom_changed", "javascript_changed", "rankings_or_data_changed", "model_weights_changed",
+        "workflows_changed", "historical_evidence_rewritten", "forward_epoch_activated",
+    )}
+    restored = copy.deepcopy(manifest)
+    pins = restored["pinned_files"]
+    assert len(pins) == 224 and DENSITY_REVIEW.relative_to(ROOT).as_posix() not in pins
+    for path, expected in pins.items():
+        target = ROOT / path
+        assert target.is_file() and not target.is_symlink()
+        assert _sha256(target) == expected
+    assert review["pin_changes"] == [{
+        "path": "decision.html", "baseline_sha256": "337e892ffa5ef081185a92d2ad3914913306dbcd8d1b9638f7066a40b852a228",
+        "current_sha256": pins["decision.html"],
+    }]
+    source = (ROOT / "decision.html").read_text()
+    styles = re.findall(r"<style(?:\s[^>]*)?>.*?</style>", source, re.S)
+    assert len(styles) == 1
+    non_style = source.replace(styles[0], "")
+    assert hashlib.sha256(non_style.encode()).hexdigest() == review["preserved_non_style_html_sha256"] == (
+        "c4ac73502cf2f9f7de34756bcfde4a97632962b83debd2992067a10d45889186"
+    )
+    pins["decision.html"] = review["pin_changes"][0]["baseline_sha256"]
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    dep = review["forward_inventory_dependency_update"]
+    assert dep == {
+        "path": "models/decision_model_freeze.json", "baseline_sha256": review["baseline_manifest_sha256"],
+        "current_sha256": _sha256(MANIFEST), "bytes": MANIFEST.stat().st_size,
+        "all_other_41_assets_unchanged": True,
+    }
+    inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
+    assert inventory["dependency_successor_review"]["path"] == DENSITY_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == DENSITY_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["approved_base_commit"] == review["approved_base_commit"]
+    freeze = next(item for item in inventory["assets"] if item["path"] == dep["path"])
+    assert freeze["sha256"] == dep["current_sha256"] and freeze["bytes"] == dep["bytes"]
+    assert freeze["verify_for_replay"] is False
+    return restored
+
+
+@pytest.mark.parametrize("mutation", ["extra_path", "current_sha", "base_commit", "javascript", "model_policy", "non_style"])
+def test_density_review_rejects_non_css_and_unreviewed_changes(mutation):
+    manifest, review = json.loads(MANIFEST.read_text()), json.loads(DENSITY_REVIEW.read_text())
+    if mutation == "extra_path":
+        review["pin_changes"].append(dict(review["pin_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "current_sha":
+        review["pin_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "base_commit":
+        review["approved_base_commit"] = "0" * 40
+    elif mutation == "javascript":
+        review["boundaries"]["javascript_changed"] = True
+    elif mutation == "non_style":
+        review["preserved_non_style_html_sha256"] = "0" * 64
+    else:
+        manifest["training_cutoff_signal_date"] = "20260909"
+    with pytest.raises(AssertionError):
+        _manifest_before_density_review(manifest, review)
+
+
+def test_requested_dense_table_typography_and_spacing():
+    source = (ROOT / "decision.html").read_text()
+    css = re.findall(r"<style(?:\s[^>]*)?>(.*?)</style>", source, re.S)[0]
+    assert 'body.compact-dashboard { font-size: 14px; }' in css
+    cells = re.search(r'\.compact-dashboard table\.three-rank-table th, \.compact-dashboard table\.three-rank-table td \{([^}]+)}', css).group(1)
+    assert 'font-size: 14px' in cells and 'padding: 5px 8px' in cells and 'line-height: 1.25' in cells
+    for selector in ('row-meta', 'rank-mark', 'truth-badge'):
+        rule = re.search(rf'\.compact-dashboard \.{selector} \{{([^}}]+)}}', css).group(1)
+        assert 'font-size: 12px' in rule
+    assert '.truth-badge { min-height: 20px;' in css
+    assert 'text-overflow: ellipsis' not in css.split('/* Compact density v14:', 1)[1]
+
+
 def _pins_before_compact_ui_review(manifest: dict, review: dict) -> dict:
     """Verify current disk bytes first, then rewind only six reviewed UI pins."""
     assert _sha256(COMPACT_REVIEW) == COMPACT_REVIEW_SHA
@@ -94,13 +180,15 @@ def _pins_before_compact_ui_review(manifest: dict, review: dict) -> dict:
     assert review["boundaries"] == {
         **predecessor["boundaries"], "production_schedule_changed": False, "forward_epoch_activated": False,
     }
+    manifest = _manifest_before_density_review(manifest, json.loads(DENSITY_REVIEW.read_text()))
     restored = copy.deepcopy(manifest)
     pins = restored["pinned_files"]
     assert len(pins) == 224 and COMPACT_REVIEW.relative_to(ROOT).as_posix() not in pins
     for path, expected in pins.items():
         target = ROOT / path
         assert target.is_file() and not target.is_symlink()
-        assert _sha256(target) == expected
+        # Current disk hashes were already verified before the density rewind.
+        assert re.fullmatch(r"[0-9a-f]{64}", expected)
     changes = review["pin_changes"]
     assert [item["path"] for item in changes] == sorted(COMPACT_REVIEW_PATHS)
     for item in changes:
@@ -112,18 +200,12 @@ def _pins_before_compact_ui_review(manifest: dict, review: dict) -> dict:
     # Bind every untouched pin AND the complete non-pin model/contract policy.
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
     dep = review["forward_inventory_dependency_update"]
+    previous_manifest_bytes = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
     assert dep == {
         "path": "models/decision_model_freeze.json", "baseline_sha256": review["baseline_manifest_sha256"],
-        "current_sha256": _sha256(MANIFEST), "bytes": MANIFEST.stat().st_size,
+        "current_sha256": hashlib.sha256(previous_manifest_bytes).hexdigest(), "bytes": len(previous_manifest_bytes),
         "all_other_41_assets_unchanged": True,
     }
-    inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
-    assert inventory["dependency_successor_review"]["path"] == COMPACT_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == COMPACT_REVIEW_SHA
-    assert inventory["dependency_successor_review"]["approved_base_commit"] == review["approved_base_commit"]
-    freeze = next(item for item in inventory["assets"] if item["path"] == dep["path"])
-    assert freeze["sha256"] == dep["current_sha256"] and freeze["bytes"] == dep["bytes"]
-    assert freeze["verify_for_replay"] is False
     return pins
 
 

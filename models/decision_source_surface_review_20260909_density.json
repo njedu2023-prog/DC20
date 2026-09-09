@@ -1,0 +1,44 @@
+{
+  "schema_version": "decision_ui_density_successor_review_v1",
+  "review_id": "dc20_compact_density_20260909",
+  "approved_base_commit": "42364ebddd89c02ab684fe2586bc04b0cb9a5aec",
+  "baseline_manifest_sha256": "fbf2f92dec22604e402e73628a70bc287ea3cd16b0c1b6511fc0eb0a14211cae",
+  "baseline_manifest_canonical_sha256": "3360aee5605b90c76b056659f26dcc79701b95a4aa7d028c711249ebbfee21b9",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260909.json",
+  "predecessor_evidence_sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28",
+  "scope": "CSS_ONLY_DENSITY_CHANGE_NOT_MODEL_RELEASE",
+  "reason": "User requested smaller fonts and tighter layout. Main type 16px to 14px, metadata/badges 12px and cell vertical padding 9px to 5px. Preserve the exact HTML outside the single style block.",
+  "preserved_non_style_html_sha256": "c4ac73502cf2f9f7de34756bcfde4a97632962b83debd2992067a10d45889186",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "boundaries": {
+    "dom_changed": false,
+    "javascript_changed": false,
+    "rankings_or_data_changed": false,
+    "model_weights_changed": false,
+    "workflows_changed": false,
+    "historical_evidence_rewritten": false,
+    "forward_epoch_activated": false
+  },
+  "pin_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "337e892ffa5ef081185a92d2ad3914913306dbcd8d1b9638f7066a40b852a228",
+      "current_sha256": "a92cd37d563c75d3e3bd6a69a2732f7719ee50a8d85b5c6469a5a87faed93a76"
+    }
+  ],
+  "forward_inventory_dependency_update": {
+    "path": "models/decision_model_freeze.json",
+    "baseline_sha256": "fbf2f92dec22604e402e73628a70bc287ea3cd16b0c1b6511fc0eb0a14211cae",
+    "current_sha256": "14767ab5f5de199b5737f4ced58458396ccf3d58b40bdcaed1ec62de8c04ed41",
+    "bytes": 51529,
+    "all_other_41_assets_unchanged": true
+  }
+}
