@@ -1,0 +1,18 @@
+{
+  "schema_version": "decision_ui_hidden_disclosure_review_v1",
+  "approved_base_commit": "8a63cc27e847c951597878c9fc27e788eaaab8aa",
+  "scope": "HIDE_UNUSED_PROFIT_DISCLOSURE_ONLY_NOT_MODEL_RELEASE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260909_success_rate.json",
+  "predecessor_evidence_sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b",
+  "baseline_manifest_sha256": "8e2b7dac19428b36f3ba14853abe656c40dc8a4a531e4e13e0f3c6b8d958c50e",
+  "baseline_manifest_canonical_sha256": "cf08a3fdfc1fe2015d1f0af46cec9a4e568f8934a9b7595fad0d4c72f04ec8f1",
+  "current_manifest_sha256": "4f07b67fc680470dff2b70ba1cc12e93e3c57682621f428cfc6eac29a5bcdf86",
+  "baseline_html_sha256": "141eed71286663520605d2f734606b55f7515a79feb5768cb7b0a9310b94c9c1",
+  "current_html_sha256": "86f2ca2017aea8b66f80fc9ed6005c507b8b433b6572906cb9bb2bc5581cb70c",
+  "replacement": {
+    "before": "      <details class=\"compact-disclosure\" id=\"profitDetails\">",
+    "after": "      <details class=\"compact-disclosure\" id=\"profitDetails\" hidden>"
+  },
+  "javascript_changed": false,
+  "model_or_ranking_or_ledger_changed": false
+}

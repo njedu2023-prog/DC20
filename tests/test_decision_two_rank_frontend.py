@@ -240,6 +240,9 @@ def test_compact_home_has_one_main_table_and_no_duplicate_profit_table():
     for name in ('profitDetails', 'historicalResearchDetails', 'technicalDetails'):
         tag = re.search(rf'<details[^>]*id="{name}"[^>]*>', source).group()
         assert ' open' not in tag
+        if name == 'profitDetails':
+            assert ' hidden' in tag
+    assert '[hidden] { display: none !important; }' in source
     assert source.index('id="executableProfitShadowPanel"') > source.index('id="shadowWorkspace"')
 
 
