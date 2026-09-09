@@ -339,12 +339,53 @@
       "source_bundle_sha256": "531171521a730c59ab0a637032888c81b17c3bbff9d1c9e9f4053a7f9e7334af",
       "source_feature_snapshot_sha256": "f241fcc1f5d3d82891e5fa7d3b31901788bd92b8e810741ff596f7de20bb600a",
       "top10_members_sha256": "73fc67de4fa522383b2c32a11274e91d5844e6d5bca50455842bac107552962e"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "3e5be91ef0dddbbbc4c031258c749e0a5f44bbf8773235bc21b1c079d5b81825",
+      "exec_date": "20260910",
+      "exit_date": "20260911",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "1e7fd189743043c78961064c3be3aa2ad2c3701845ec3bbbd9e726c087f0dab1",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260909.csv",
+      "projection_json_sha256": "babf122ff1d5dad5da0b355558b5eb75551c5468da2d0a64616b4399e7185279",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260909.json",
+      "projection_snapshot_sha256": "2a58f942fc665a9d221e04f2fd8fccab5ce3be44da245d1b776ea6faef1c015b",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "农产品加",
+          "mixed_profit_rank": 1,
+          "name": "中粮科技",
+          "promotion_rank": 8,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "000930.SZ"
+        },
+        {
+          "industry": "农化制品",
+          "mixed_profit_rank": 2,
+          "name": "泸天化",
+          "promotion_rank": 10,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "000912.SZ"
+        }
+      ],
+      "signal_date": "20260909",
+      "source_bundle_sha256": "e6a39d660117a6a32dc1706cee2a9e1c2088799389053f77c1a2111c6d35a887",
+      "source_feature_snapshot_sha256": "0343b6988884522c08699a625c17df33b8bc5397538be998a540ca1a90152a41",
+      "top10_members_sha256": "70d73d82ec90ed7cc8faa836c10b8bfe16852eb3f0aa0cd1a81ce66add94932a"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260908",
+  "latest_signal_date": "20260909",
   "public_start_signal_date": "20260828",
-  "recorded_days": 8,
+  "recorded_days": 9,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -353,9 +394,10 @@
     "20260903",
     "20260904",
     "20260907",
-    "20260908"
+    "20260908",
+    "20260909"
   ],
-  "recorded_slots": 16,
+  "recorded_slots": 18,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "78bb401b3e5cd2324ad7e76379758e70452f32ceff733414d02d6fc97d2f8804"
+  "snapshot_sha256": "99f2bada1c887f921876cc3a3a9a7ed88c55260e3d435f0c096b76a4cbc9022a"
 }
