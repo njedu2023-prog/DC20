@@ -48,7 +48,7 @@ const crypto=require('crypto').webcrypto;
     script = prelude + "\n".join(function(n) for n in names)
     script += "\nconst input=" + json.dumps(data or fixture(), ensure_ascii=False) + ";\n"
     script += extra + "\n(async()=>{" + body + "})().catch(e=>{console.error(e);process.exit(1)});"
-    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True)
+    result = subprocess.run([NODE, "-"], input=script, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
@@ -183,7 +183,8 @@ def test_real_daily_ledger_unifies_identity_and_only_joins_exact_current_shadow(
 def test_complete_script_parses_and_main_has_no_duplicate_statistic_cards():
     source = (ROOT / "decision.html").read_text()
     script = re.search(r"<script>(.*?)</script>",source,re.S).group(1)
-    result = subprocess.run([NODE,"-e","new (require('vm').Script)("+json.dumps(script)+");"],capture_output=True,text=True)
+    # Linux limits each command-line argument; send full HTML scripts over stdin.
+    result = subprocess.run([NODE,"-e","new (require('vm').Script)(require('fs').readFileSync(0,'utf8'));"],input=script,capture_output=True,text=True)
     assert result.returncode == 0, result.stderr
     assert 'id="historicalResearchDetails" hidden' in source
     assert 'id="technicalDetails" hidden' in source
