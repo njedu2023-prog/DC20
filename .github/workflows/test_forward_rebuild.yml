@@ -1,0 +1,44 @@
+name: DC20 · Forward rebuild acceptance (read only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'forward/**'
+      - '.github/workflows/test_forward_rebuild.yml'
+  pull_request:
+    paths:
+      - 'forward/**'
+      - '.github/workflows/test_forward_rebuild.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migration-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install existing locked test environment
+        run: python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - name: New forward contracts and regressions
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          python -m pytest forward/tests -q
+          node --check forward/web/app.js
+          node forward/tests/test_web.cjs
+      - name: Historical replay stays outside new forward ledger
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          python -m forward.cli --root . preview --signal-date 20260908 --revision "$SOURCE_REVISION" --output "$RUNNER_TEMP/dc20-forward-preview"
+          python -c 'import json, os; from pathlib import Path; p=Path(os.environ["RUNNER_TEMP"])/"dc20-forward-preview"/"ledger.json"; v=json.loads(p.read_text()); assert not v["days"] and v["activated_at_utc"] is None'

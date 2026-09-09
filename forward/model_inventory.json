@@ -1,0 +1,329 @@
+{
+  "schema_version": "dc20_forward_model_inventory_v1",
+  "source_repository": "njedu2023-prog/DC20",
+  "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
+  "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
+  "active_source_models": {
+    "promotion": {
+      "path": "models/decision_three_engines/promotion.joblib",
+      "sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c",
+      "role": "promotion_hgb_with_frozen_preprocessing_and_platt_calibration",
+      "feature_columns_sha256": "9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425"
+    },
+    "profit": {
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl",
+      "sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "role": "uncalibrated_fill_and_conditional_profit_research_heads",
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "release_status": "INTERNAL_CHALLENGER_NOT_READY"
+    }
+  },
+  "assets": [
+    {
+      "path": "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv",
+      "sha256": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
+      "bytes": 104013,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+      "sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
+      "bytes": 627667,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json",
+      "sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5",
+      "bytes": 12184,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/five_year_ledger_manifest.json",
+      "sha256": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034",
+      "bytes": 7564,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+      "bytes": 4764361,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib",
+      "sha256": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6",
+      "bytes": 7703,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib",
+      "sha256": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
+      "bytes": 3413205,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+      "sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+      "bytes": 3423122,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib",
+      "sha256": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b",
+      "bytes": 178906,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+      "bytes": 61411,
+      "role": "retained_feature_history_or_calendar_not_performance_statistics",
+      "verify_for_replay": true
+    },
+    {
+      "path": "models/decision_executable_profit_internal_forward_challenger.json",
+      "sha256": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
+      "bytes": 6878,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "sha256": "16f80f0b7bc45957dce4239e295abe849ec7fbae519b10b88e759b49e401593a",
+      "bytes": 51529,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
+      "bytes": 4023,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+      "bytes": 3470,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": true
+    },
+    {
+      "path": "models/decision_three_engines/big_loss.joblib",
+      "sha256": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
+      "bytes": 8998,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_three_engines/p_fill_shadow.joblib",
+      "sha256": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
+      "bytes": 9435,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_three_engines/profit.joblib",
+      "sha256": "d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291",
+      "bytes": 5127,
+      "role": "retained_legacy_not_selected_for_new_primary_runtime",
+      "verify_for_replay": false
+    },
+    {
+      "path": "models/decision_three_engines/promotion.joblib",
+      "sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c",
+      "bytes": 179221,
+      "role": "active_source_model_retained_unchanged",
+      "verify_for_replay": true
+    },
+    {
+      "path": "models/decision_three_engines/validation_latest.json",
+      "sha256": "de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73",
+      "bytes": 192258,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03",
+      "bytes": 142,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "scripts/publish_primary_profit_rankings.py",
+      "sha256": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
+      "bytes": 81784,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "scripts/publish_primary_three_rank.py",
+      "sha256": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
+      "bytes": 72320,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/auction_v3/__init__.py",
+      "sha256": "1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8",
+      "bytes": 224,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/auction_v3/calibration.py",
+      "sha256": "06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9",
+      "bytes": 6128,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/auction_v3/config.py",
+      "sha256": "4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2",
+      "bytes": 5987,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/auction_v3/engine.py",
+      "sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
+      "bytes": 360360,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/auction_v3/promotion_model.py",
+      "sha256": "af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170",
+      "bytes": 28552,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/data/tushare_minute.py",
+      "sha256": "30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785",
+      "bytes": 23208,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/canonical_fingerprint.py",
+      "sha256": "61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b",
+      "bytes": 14617,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/contracts.py",
+      "sha256": "50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917",
+      "bytes": 2634,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/d_close_features.py",
+      "sha256": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e",
+      "bytes": 4983,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/eligibility.py",
+      "sha256": "31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7",
+      "bytes": 7767,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/executable_profit_shadow.py",
+      "sha256": "872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c",
+      "bytes": 110633,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/exit_policy.py",
+      "sha256": "4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f",
+      "bytes": 5040,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/legacy_profit_relative_research.py",
+      "sha256": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2",
+      "bytes": 45098,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/observation.py",
+      "sha256": "577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713",
+      "bytes": 7270,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/three_engine_models.py",
+      "sha256": "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c",
+      "bytes": 148112,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/three_rank.py",
+      "sha256": "f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a",
+      "bytes": 80531,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/decision/trade_selector.py",
+      "sha256": "7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858",
+      "bytes": 77709,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/probability_calibration.py",
+      "sha256": "058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c",
+      "bytes": 10693,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "src/top10decision/writers/io_contract.py",
+      "sha256": "80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97",
+      "bytes": 9897,
+      "role": "migration_bridge_feature_or_contract_dependency",
+      "verify_for_replay": false
+    },
+    {
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl",
+      "sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "bytes": 981025,
+      "role": "active_source_model_retained_unchanged",
+      "verify_for_replay": true
+    }
+  ],
+  "limitations": [
+    "The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.",
+    "No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.",
+    "P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.",
+    "P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.",
+    "Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.",
+    "Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.",
+    "Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.",
+    "Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.",
+    "Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores."
+  ]
+}

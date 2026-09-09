@@ -1,0 +1,18 @@
+{
+  "schema_version": "dc20_forward_config_v1",
+  "epoch_id": "dc20-forward-v1",
+  "phase": "MIGRATION_ACCEPTANCE",
+  "production_enabled": false,
+  "activated_at_utc": null,
+  "start_signal_date": null,
+  "legacy_statistics_import_allowed": false,
+  "formal_trade_actions_allowed": false,
+  "calendar_path": "data/market/trade_cal_sse.csv",
+  "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+  "generation_slot_bj": "21:15",
+  "publish_deadline_bj": "21:35",
+  "verification_price_basis": "daily_open_proxy",
+  "round_trip_cost_bps": 45.0,
+  "model_migration_base": "15423ced302ab19b17f459fb3006e0af2b764f24",
+  "archive_ref": "archive/pre-rebuild-20260909-15423ced"
+}

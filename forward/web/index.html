@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DC20 · 向前验证</title>
+  <meta name="description" content="每日晋级与盈利排序、冻结记录及交易日验证。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead"><div class="brand">DC20 <span>向前验证</span></div><span id="phase" class="phase">加载中</span></header>
+  <main>
+    <div id="notice" class="notice" role="status">正在读取同一版本的名单与账本。</div>
+    <section class="day-head" aria-label="当前名单日期">
+      <div><p class="eyebrow">2 → 3 → 4</p><h1 id="day-title">每日名单</h1><p id="day-meta" class="muted"></p></div>
+      <div class="dates"><div><span>D 信号日</span><strong id="d-date">—</strong></div><div><span>T 验证日</span><strong id="t-date">—</strong></div><div><span>T+1 退出日</span><strong id="exit-date">—</strong></div></div>
+    </section>
+    <nav class="tabs" aria-label="报告内容">
+      <button data-tab="promotion" aria-selected="true">晋级排序 <span id="candidate-count"></span></button>
+      <button data-tab="profit" aria-selected="false">盈利排序</button>
+      <button data-tab="verification" aria-selected="false">每日验证</button>
+      <button data-tab="statistics" aria-selected="false">新账本累计</button>
+    </nav>
+    <section id="promotion" class="panel">
+      <div class="panel-head"><div><h2>晋级排序 · 连板路径</h2><p>冻结成员与晋级名次不随盈利排序改变。</p></div><a href="promotion.csv" download>下载名单 CSV ↗</a></div>
+      <div class="table-wrap"><table id="promotion-table"><caption class="sr-only">晋级排序和连板路径</caption><thead><tr><th>晋级名次</th><th>公司 / 代码</th><th>行业</th><th>晋级</th><th>连板路径</th><th class="number">路径变化</th><th class="number">晋级概率</th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section id="profit" class="panel" hidden>
+      <div class="panel-head"><div><h2>盈利排序</h2><p>同一冻结名单内排序；分值不是盈利概率或收益承诺。</p></div><a href="profit.csv" download>下载盈利 CSV ↗</a></div>
+      <div class="table-wrap"><table id="profit-table"><caption class="sr-only">盈利排序，前二标记在公司名称后</caption><thead><tr><th>盈利名次</th><th>公司 / 代码</th><th>行业</th><th>晋级</th><th>晋级名次</th><th class="number">盈利排序分</th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section id="verification" class="panel" hidden>
+      <div class="panel-head"><div><h2>每日冻结与验证</h2><p id="verification-note">记录先冻结，真值到期后追加；不会倒改当日选择。</p></div></div>
+      <div class="table-wrap"><table id="verification-table"><caption class="sr-only">每日所有候选的晋级和净收益验证</caption><thead><tr><th>公司 / 代码</th><th>入选席位</th><th>D</th><th>T</th><th>T+1</th><th>T 晋级结果</th><th>T+1 状态</th><th class="number">扣费净收益</th><th>实际退出日</th></tr></thead><tbody></tbody></table></div>
+      <p class="footnote" id="cost-note"></p>
+    </section>
+    <section id="statistics" class="panel" hidden>
+      <div class="panel-head"><div><h2>新账本累计</h2><p id="epoch-note">新系统启用后起算，不导入旧统计。</p></div><a href="ledger.json" download>下载新账本 JSON ↗</a></div>
+      <div id="statistics-note" class="empty compact"></div>
+      <div class="table-wrap"><table id="statistics-table"><caption class="sr-only">晋级前三与盈利前二分别累计</caption><thead><tr><th>统计口径</th><th class="number">冻结席位</th><th class="number">T 已验证</th><th class="number">晋级命中率</th><th class="number">已结算成交</th><th class="number">未解决席位</th><th class="number">成交胜率</th><th class="number">平均净收益</th><th class="number">已结算组累计参考</th><th class="number">参考回撤</th></tr></thead><tbody></tbody></table></div>
+      <p class="footnote">晋级与盈利口径独立。未到期、缺真值、退出受阻不按零收益处理；明确未买入仅在到期后按空仓计入槽位收益。累计只纳入已完整解决的组内 D 日，是样本组合参考，不代表真实账户资金曲线；延期退出可能与后续持仓重叠。</p>
+    </section>
+    <footer><span id="version"></span><span>辅助人工判断 · 不连接券商 · 不生成订单</span></footer>
+  </main>
+  <script id="snapshot" type="application/json">__FORWARD_SNAPSHOT_JSON__</script>
+  <script src="app.js"></script>
+</body>
+</html>
