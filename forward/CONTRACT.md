@@ -10,7 +10,51 @@ strict SSE calendar and necessary market history unchanged.
 Python standard-library `forward/` package. Public JSON uses decimal returns:
 0.01 = 1%. All timestamps must be timezone-aware. No orders or real Action.
 
-## Frozen day
+## Phase 2 independent path (production still inactive)
+
+`promotion.compute_promotion_bundle(root, D, generated_at_utc=..., generation_mode='REPLAY')`
+recomputes the frozen promotion model from exact-D candidate/market data and
+hash-bound committed feature history. It does not read existing daily rankings,
+profit projections, Action or performance statistics. The returned bundle has a
+promotion-only `day`, complete hard-range `runtime_rows`/`runtime_columns`,
+`runtime_sha256` and `feature_snapshot_sha256`. The historical inference is not
+a newly admitted forward selection. Existing pure feature code is retained for
+numerical compatibility; complete separation from that source package is not
+claimed.
+
+`profit.infer_profit(root, promotion_bundle)` independently recomputes the
+existing research heads and ranks the exact frozen promotion members. Runtime
+features, model and retained historical feature priors are hash-bound. This
+stage cannot modify promotion. Its actual generation timestamp is distinct
+from promotion generation; it is not backdated to make delayed profit eligible.
+
+`python -m forward.rehearsal ... promotion` saves an isolated promotion artifact
+and final receipt before `... profit` runs in a different process. Outputs must
+be outside the repository, config inactive, mode REPLAY. No automatic activation,
+ledger admission, Git push, order or production page write is provided by these
+commands. In CI, the P0 job has no dependency on P1 or aggregate acceptance;
+the P1 job consumes the completed hash-checked P0 artifact of the same revision.
+
+### Per-D daybook v2 (future production contract)
+
+`daybook.new_epoch(...)` requires explicit immutable activation. `Daybook`
+persists separate `promotion/D.json`, `profit/D.json`, `truth/D.json` with local
+file CAS. `freeze_promotion_day` freezes only promotion/path rows and Top1/2/3.
+`attach_profit_day` requires the same D/T/T+1 and promotion freeze SHA, a complete
+profit permutation, and freezes Top1/2 atomically with that attachment.
+`record_day_verification` appends evidence-bound truth without requiring profit.
+First admissions must be prospective, after epoch activation and D close but
+before T 09:25. REPLAY cannot be admitted. Missing profit is absent, never a
+fabricated successful zero-candidate result. A legitimate N=0 is separately
+represented by a valid complete promotion/attachment contract.
+
+P0 reads only the epoch and its target-D promotion file: corrupt auxiliary
+files, older D files and global latest pointers cannot block it. This is a
+local isolation guarantee, **not** a completed remote writer or Pages guarantee.
+The v1 bundle ledger and preview below remain compatibility/acceptance readers;
+they must not be put back onto the production P0 critical path.
+
+## Frozen day v1 (migration compatibility only)
 
 `day` has `signal_date`, `exec_date`, `exit_date` (YYYYMMDD),
 `generated_at_utc`, `generation_mode` (NATURAL or REPLAY),

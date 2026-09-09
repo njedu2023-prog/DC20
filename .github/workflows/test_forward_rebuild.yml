@@ -14,6 +14,14 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONHASHSEED: '0'
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+  LOKY_MAX_CPU_COUNT: '1'
+
 jobs:
   migration-acceptance:
     runs-on: ubuntu-24.04
@@ -53,3 +61,72 @@ jobs:
         run: |
           python -m forward.cli --root . preview --signal-date 20260908 --revision "$SOURCE_REVISION" --output "$RUNNER_TEMP/dc20-forward-preview"
           python -c 'import json, os; from pathlib import Path; p=Path(os.environ["RUNNER_TEMP"])/"dc20-forward-preview"/"ledger.json"; v=json.loads(p.read_text()); assert not v["days"] and v["activated_at_utc"] is None'
+
+  promotion-inference:
+    # Intentionally no `needs`: profit, truth and aggregate tests cannot prevent
+    # the isolated P0 inference artifact from being produced and retained.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install frozen inference environment
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - name: Independently recompute promotion from exact-D inputs
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          python -m forward.rehearsal --root . promotion --signal-date 20260908 --output "$RUNNER_TEMP/forward-primary"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+      - name: Preserve promotion before any profit work
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: forward-promotion-rehearsal
+          path: ${{ runner.temp }}/forward-primary/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  profit-inference:
+    needs: [promotion-inference]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install frozen inference environment
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: forward-promotion-rehearsal
+          path: ${{ runner.temp }}/forward-primary
+      - name: Append independently recomputed profit research
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          python -m forward.rehearsal --root . profit --primary "$RUNNER_TEMP/forward-primary" --output "$RUNNER_TEMP/forward-profit"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: forward-profit-rehearsal
+          path: ${{ runner.temp }}/forward-profit/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Compare completed recomputation against frozen historical evidence
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          python -m forward.rehearsal --root . compare --primary "$RUNNER_TEMP/forward-primary" --profit "$RUNNER_TEMP/forward-profit"
