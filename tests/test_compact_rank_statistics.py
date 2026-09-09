@@ -31,7 +31,7 @@ def fixture():
 
 
 def run(body, data=None, extra=""):
-    names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "renderCompactDashboard",
+    names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus",
              "sha256Hex", "isSha256", "parseStrictCsvBytes"]
     prelude = """
@@ -204,6 +204,98 @@ def test_real_daily_ledger_unifies_identity_and_only_joins_exact_current_shadow(
     assert "<td>自然冻结</td>" not in mismatch
 
 
+def profit_fixture():
+    data = fixture()
+    base = ROOT / "outputs/decision/executable_profit_research"
+    data["daily"] = json.loads((base / "daily_mixed_top2_index.json").read_text())
+    index = json.loads((base / "index.json").read_text())
+    shadow_index = json.loads((base / "shadow_index.json").read_text())
+    shadow = json.loads((ROOT / shadow_index["latest_state_url"]).read_text())
+    data["profit"] = dict(status="ready", kind="primary_core", index=index, shadow=dict(publicWindowReady=True, selectionOnlyCutover=False, state=shadow))
+    return data
+
+
+def profit_html(data, before=""):
+    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;renderCompactDashboard();console.log(JSON.stringify(els.compactLedgerContent.innerHTML))", data)
+
+
+def test_profit_summary_uses_natural_cohorts_not_sixteen_daily_archive_seats():
+    data = profit_fixture()
+    original = copy.deepcopy(data)
+    result = profit_html(data)
+    summary, details = result.split('<details class="compact-disclosure" id="compactProfitDailyDetails">')
+    assert summary.count('class="rank-mark rank-profit"') == 2
+    assert summary.count('<td>6</td><td>6 / 0</td><td>0 / 0</td><td>待验证</td>') == 2
+    assert "0.00%" not in summary
+    assert "验证快照截至 2026-09-08" in summary
+    assert "8日 / 16席" in details
+    assert details.count('data-field="code"') == 16
+    assert details.count('data-field="stock"') == 16
+    assert details.count('data-field="profit-rank"') == 16
+    assert "股票 / 盈利名次" not in details
+    assert '<th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col">盈利名次</th>' in details
+    assert data == original
+
+
+def test_profit_wins_use_filled_settled_denominator_not_no_fill_or_pending():
+    data = profit_fixture()
+    for slot, wins, mean in ((1, 1, 0.02), (2, 0, -0.01)):
+        data["profit"]["shadow"]["state"]["cohorts"][f"shadow_slot_{slot}"].update(
+            t_validated_slots=4, proxy_fill_slots=2, proxy_no_fill_slots=2, terminal_slots=4,
+            t1_settled_slots=2, wins_after_cost=wins, win_rate=wins / 2, mean_net_return_after_cost=mean,
+            pending_validation_slots=2, pending_settlement_slots=0, pending_slots=2,
+            effective_dates=4, equal_weight_cumulative_return=0.039, maximum_drawdown=-0.02)
+    summary = profit_html(data).split('<details')[0]
+    assert '<td>1 / 2</td><td>50.00%</td>' in summary
+    assert '<td>0 / 2</td><td>0.00%</td>' in summary
+    assert '+2.00%' in summary and '-1.00%' in summary  # already charged; never charge again
+    assert "4 个完整日" in summary
+    assert "校验失败" not in summary
+
+
+@pytest.mark.parametrize("field", ["pending_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"])
+def test_unresolved_or_delayed_exits_do_not_show_synthetic_nav_as_account_return(field):
+    data = profit_fixture()
+    data["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"][field] = 1
+    summary = profit_html(data).split('<details')[0]
+    assert summary.count("暂不累计") == 2
+
+
+@pytest.mark.parametrize("mutation", ["c.wins_after_cost=1", "c.win_rate=0", "c.terminal_slots=1", "c.t_validated_slots=7"])
+def test_corrupt_profit_cohort_fails_closed_without_clearing_daily_list(mutation):
+    result = profit_html(profit_fixture(), "const c=input.profit.shadow.state.cohorts.shadow_slot_1;" + mutation)
+    assert "盈利累计统计校验失败" in result
+    assert 'id="compactProfitDailyDetails"' in result
+    assert result.count('data-field="code"') == 16
+
+
+@pytest.mark.parametrize("mutation", ["input.profit.shadow.publicWindowReady=false", "input.profit.shadow.selectionOnlyCutover=true"])
+def test_missing_or_selection_only_sidecar_never_fabricates_cumulative_zero(mutation):
+    result = profit_html(profit_fixture(), mutation)
+    assert "盈利累计统计尚未通过独立账本校验" in result
+    assert 'class="three-rank-table profit-summary-table"' not in result
+    assert result.count('data-field="code"') == 16
+
+
+def test_zero_candidate_day_has_correct_eleven_column_span():
+    data = profit_fixture()
+    data["daily"]["entries"][0]["rows"] = []
+    result = profit_html(data)
+    assert 'colspan="8"' in result and "已记录0席，不补票" in result
+
+
+def test_all_verified_no_fill_is_not_pending_or_fake_win_rate():
+    data = profit_fixture()
+    for slot in (1, 2):
+        data["profit"]["shadow"]["state"]["cohorts"][f"shadow_slot_{slot}"].update(
+            t_validated_slots=6, proxy_no_fill_slots=6, terminal_slots=6, pending_validation_slots=0,
+            pending_slots=0, effective_dates=6, equal_weight_cumulative_return=0, maximum_drawdown=0)
+    summary = profit_html(data).split('<details')[0]
+    assert summary.count("暂无成交结算") == 4
+    assert "待验证" not in summary
+    assert summary.count('0.00%') == 4  # known no-fill slots produce zero cumulative/dd, not a zero win rate
+
+
 def test_complete_script_parses_and_main_has_no_duplicate_statistic_cards():
     source = (ROOT / "decision.html").read_text()
     script = re.search(r"<script>(.*?)</script>",source,re.S).group(1)
@@ -233,3 +325,29 @@ const window={location,addEventListener(){}};
     assert result.returncode == 0,result.stderr
     payload=json.loads(result.stdout)
     assert payload["error"] == "" and len(payload["result"]) == 3
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_full_shadow_loader_binds_summary_cohorts_before_display(drift):
+    source = (ROOT / "decision.html").read_text()
+    script = re.search(r"<script>(.*?)</script>", source, re.S).group(1).replace("initialize(false).catch(showError);", "")
+    prelude = """
+const fs=require('fs'),crypto=require('crypto').webcrypto;
+const element=()=>({innerHTML:'',textContent:'',hidden:false,open:false,setAttribute(){},addEventListener(){},querySelectorAll(){return []},classList:{toggle(){},add(){},remove(){}}});
+const document={getElementById:()=>element(),querySelectorAll:()=>[],addEventListener(){}};
+const location={search:'',protocol:'https:',href:'https://njedu2023-prog.github.io/DC20/'};
+const window={location,addEventListener(){}};
+"""
+    tail = "\nconst root=" + json.dumps(str(ROOT)) + ";\n"
+    tail += "fetchPagesOnlyPath=async (path,type)=>{const bytes=new Uint8Array(fs.readFileSync(root+'/'+path));return type==='bytes'?bytes:JSON.parse(new TextDecoder().decode(bytes))};\n"
+    if drift:
+        # Corruption introduced after the real SHA reader: exercise equality guard rather than a hash stub.
+        tail += "const originalReader=fetchPagesOnlyShaBoundJson;fetchPagesOnlyShaBoundJson=async (...args)=>{const r=await originalReader(...args);if(args[0].endsWith('/statistics/summary.json'))r.payload.cohorts.shadow_slot_1.selected_slots+=1;return r};\n"
+    tail += "(async()=>{try{const index=await fetchPagesOnlyPath(EXECUTABLE_PROFIT_RESEARCH_ROOT+'/index.json');const projection=await fetchPagesOnlyPath(index.latest_projection_json_url);const result=await loadPrimaryProfitShadowSidecar(projection,index);console.log(JSON.stringify({ready:result.publicWindowReady,selected:result.state.cohorts.shadow_slot_1.selected_slots}));}catch(error){console.log(JSON.stringify({error:error.message}));}})();"
+    result = subprocess.run([NODE, "-"], input=prelude + script + tail, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    if drift:
+        assert "summary分组不一致" in payload["error"]
+    else:
+        assert payload == {"ready": True, "selected": 6}

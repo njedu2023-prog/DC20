@@ -25,6 +25,8 @@ SUCCESS_RATE_REVIEW = ROOT / "models/decision_source_surface_review_20260909_suc
 SUCCESS_RATE_REVIEW_SHA = "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
 PROFIT_DETAILS_REVIEW = ROOT / "models/decision_source_surface_review_20260909_hide_profit_details.json"
 PROFIT_DETAILS_REVIEW_SHA = "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+PROFIT_SUMMARY_REVIEW = ROOT / "models/decision_source_surface_review_20260909_profit_summary.json"
+PROFIT_SUMMARY_REVIEW_SHA = "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
 COMPACT_REVIEW_PATHS = {
     ".github/workflows/run_primary_profit_rankings.yml", "decision.html",
     "tests/test_dashboard_research_projection.py",
@@ -85,6 +87,51 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _source_before_profit_summary(review: dict | None = None) -> str:
+    assert _sha256(PROFIT_SUMMARY_REVIEW) == PROFIT_SUMMARY_REVIEW_SHA
+    review = review if review is not None else json.loads(PROFIT_SUMMARY_REVIEW.read_text())
+    source = (ROOT / "decision.html").read_text()
+    assert hashlib.sha256(source.encode()).hexdigest() == review["current_html_sha256"]
+    assert len(review["replacements"]) == 5
+    for replacement in review["replacements"]:
+        assert source.count(replacement["after"]) == 1
+        source = source.replace(replacement["after"], replacement["before"])
+    assert hashlib.sha256(source.encode()).hexdigest() == review["baseline_html_sha256"] == "86f2ca2017aea8b66f80fc9ed6005c507b8b433b6572906cb9bb2bc5581cb70c"
+    return source
+
+
+def _manifest_before_profit_summary_review(manifest: dict, review: dict) -> dict:
+    _source_before_profit_summary(review)
+    assert review["schema_version"] == "decision_profit_summary_ui_review_v1"
+    assert review["approved_base_commit"] == "c831522293da5f4a1c259f75279b62287afa1801"
+    assert review["scope"] == "READ_ONLY_PROFIT_COHORT_SUMMARY_AND_DAILY_IDENTITY_COLUMNS"
+    assert review["predecessor_evidence_path"] == PROFIT_DETAILS_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(PROFIT_DETAILS_REVIEW) == PROFIT_DETAILS_REVIEW_SHA
+    assert review["boundaries"] == {key: False for key in ("models_changed", "workflows_changed", "frozen_ledger_or_truth_changed", "entry_or_settlement_policy_changed", "ranking_algorithm_changed")}
+    assert _sha256(MANIFEST) == review["current_manifest_sha256"]
+    assert len(manifest["pinned_files"]) == 224
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    restored = copy.deepcopy(manifest)
+    assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
+    restored["pinned_files"]["decision.html"] = review["baseline_html_sha256"]
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"] == "75941016905e7756322610ff63b6c5ebd603fb6e1c911908adbd2181596fb94c"
+    assert hashlib.sha256((json.dumps(restored, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["baseline_manifest_sha256"] == "4f07b67fc680470dff2b70ba1cc12e93e3c57682621f428cfc6eac29a5bcdf86"
+    return restored
+
+
+@pytest.mark.parametrize("mutation", ["base", "baseline", "policy", "replacement", "model"])
+def test_profit_summary_review_rejects_unreviewed_changes(mutation):
+    manifest, review = json.loads(MANIFEST.read_text()), json.loads(PROFIT_SUMMARY_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "baseline": review["baseline_html_sha256"] = "0" * 64
+    elif mutation == "policy": review["boundaries"]["entry_or_settlement_policy_changed"] = True
+    elif mutation == "replacement": review["replacements"][0]["before"] = "anything"
+    else: manifest["training_cutoff_signal_date"] = "20260909"
+    with pytest.raises(AssertionError):
+        _manifest_before_profit_summary_review(manifest, review)
+
+
 def _manifest_before_profit_details_review(manifest: dict, review: dict) -> dict:
     """Only one hidden attribute may differ from the reviewed source."""
     assert _sha256(PROFIT_DETAILS_REVIEW) == PROFIT_DETAILS_REVIEW_SHA
@@ -94,17 +141,16 @@ def _manifest_before_profit_details_review(manifest: dict, review: dict) -> dict
     assert review["predecessor_evidence_path"] == SUCCESS_RATE_REVIEW.relative_to(ROOT).as_posix()
     assert review["predecessor_evidence_sha256"] == _sha256(SUCCESS_RATE_REVIEW) == SUCCESS_RATE_REVIEW_SHA
     assert review["javascript_changed"] is False and review["model_or_ranking_or_ledger_changed"] is False
-    source = (ROOT / "decision.html").read_text()
+    manifest = _manifest_before_profit_summary_review(manifest, json.loads(PROFIT_SUMMARY_REVIEW.read_text()))
+    source = _source_before_profit_summary()
     before = '      <details class="compact-disclosure" id="profitDetails">'
     after = '      <details class="compact-disclosure" id="profitDetails" hidden>'
     assert review["replacement"] == {"before": before, "after": after}
     assert source.count(after) == 1 and before not in source
     assert hashlib.sha256(source.replace(after, before).encode()).hexdigest() == review["baseline_html_sha256"]
-    assert _sha256(ROOT / "decision.html") == review["current_html_sha256"]
-    assert _sha256(MANIFEST) == review["current_manifest_sha256"]
+    assert hashlib.sha256(source.encode()).hexdigest() == review["current_html_sha256"]
+    assert hashlib.sha256((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["current_manifest_sha256"]
     assert len(manifest["pinned_files"]) == 224
-    for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
     restored = copy.deepcopy(manifest)
     assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
     restored["pinned_files"]["decision.html"] = review["baseline_html_sha256"]
@@ -148,7 +194,7 @@ def _manifest_before_success_rate_review(manifest: dict, review: dict) -> dict:
         restored["pinned_files"][item["path"]] = item["baseline_sha256"]
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"] == "36dee02abe9a351812a0139689466fe9070ba966756de553a88c2e8c173cc45d"
     assert hashlib.sha256((json.dumps(restored, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["baseline_manifest_sha256"] == "fd939c5f8288bf8821cf2442714e5987a2926b70404923f68a3c806ea272b7c5"
-    source = (ROOT / "decision.html").read_text()
+    source = _source_before_profit_summary()
     for name, expected in review["preserved_runtime_functions"].items():
         function = re.search(rf"^    (?:async )?function {name}\(.*?^    }}", source, re.M | re.S)
         assert function and hashlib.sha256(function.group().encode()).hexdigest() == expected
@@ -168,8 +214,8 @@ def _manifest_before_success_rate_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == PROFIT_DETAILS_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_DETAILS_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == PROFIT_SUMMARY_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_SUMMARY_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]
@@ -212,7 +258,7 @@ def _manifest_before_statistics_review(manifest: dict, review: dict) -> dict:
         restored["pinned_files"][item["path"]] = item["baseline_sha256"]
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"] == "4d91693fcc7776e16ae5d2a20b289ecd601d7f040059631754b23f9cd4a87cb8"
     assert hashlib.sha256((json.dumps(restored, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["baseline_manifest_sha256"] == "14767ab5f5de199b5737f4ced58458396ccf3d58b40bdcaed1ec62de8c04ed41"
-    source = (ROOT / "decision.html").read_text()
+    source = _source_before_profit_summary()
     assert len(review["preserved_runtime_functions"]) >= 5
     for name, expected in review["preserved_runtime_functions"].items():
         function = re.search(rf"^    (?:async )?function {name}\(.*?^    }}", source, re.M | re.S)
@@ -227,8 +273,8 @@ def _manifest_before_statistics_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == PROFIT_DETAILS_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_DETAILS_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == PROFIT_SUMMARY_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_SUMMARY_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]

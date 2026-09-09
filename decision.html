@@ -1172,6 +1172,8 @@
     [hidden] { display: none !important; }
     #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
     #compactLedger table { min-width: 1080px; }
+    #compactLedger .profit-summary-table { min-width: 780px; }
+    #compactLedger .profit-summary-table th:first-child, #compactLedger .profit-summary-table td:first-child { min-width: 72px; }
     .promotion-success-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
     .promotion-success-summary > div:last-child { border-right: 0; }
@@ -1215,7 +1217,7 @@
     <nav class="workspace-nav" aria-label="页面主要区域">
       <span class="workspace-nav-label">快速定位</span>
       <a class="active" href="#rankingWorkspace" aria-current="location">名单与两项排序</a>
-      <a href="#compactLedger" data-current-only>盈利前二每日账本</a>
+      <a href="#compactLedger" data-current-only>盈利前二累计统计</a>
       <a href="#compactStatistics" data-current-only>晋级成功率</a>
       <a href="?view=research">研究归档</a>
     </nav>
@@ -1257,7 +1259,7 @@
     </section>
 
     <section id="compactLedger" class="panel" aria-labelledby="compactLedgerTitle">
-      <div class="panel-head"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 每日记录与验证</h2><span id="compactLedgerState" class="count">待读取</span></div>
+      <div class="panel-head"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 累计统计</h2><span id="compactLedgerState" class="count">待读取</span></div>
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
@@ -1661,6 +1663,31 @@
       return shadow ? {loaded, shadow} : null;
     }
 
+    function renderCompactProfitStatistics(source) {
+      if (!source || source.loaded.shadow.selectionOnlyCutover) return '<p class="stats-note warn">盈利累计统计尚未通过独立账本校验，胜率和收益暂不可用。</p>';
+      try {
+        validatePrimaryProfitShadowCohorts(source.shadow);
+        const rows = [1, 2].map(slot => {
+          const c = source.shadow.cohorts[`shadow_slot_${slot}`];
+          for (const key of ["wins_after_cost", "terminal_slots", "pending_slots", "proxy_fill_slots", "proxy_no_fill_slots", "pending_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"]) {
+            executableProfitExpect(Number.isInteger(c[key]) && c[key] >= 0, "盈利累计计数无效");
+          }
+          executableProfitExpect(c.wins_after_cost <= c.t1_settled_slots && c.t1_settled_slots <= c.proxy_fill_slots && c.proxy_fill_slots + c.proxy_no_fill_slots === c.t_validated_slots && c.t_validated_slots <= c.selected_slots, "盈利累计分母不一致");
+          executableProfitExpect(c.terminal_slots + c.pending_slots === c.selected_slots && c.pending_validation_slots + c.pending_settlement_slots === c.pending_slots && c.effective_dates <= c.selection_dates, "盈利累计待验证计数不一致");
+          executableProfitExpect(c.t1_settled_slots ? c.win_rate != null && Math.abs(c.win_rate - c.wins_after_cost / c.t1_settled_slots) < 0.000001 && c.mean_net_return_after_cost != null : c.win_rate == null && c.mean_net_return_after_cost == null, "盈利胜率与结算样本不一致");
+          const pending = `${c.pending_validation_slots} / ${c.pending_settlement_slots}`;
+          const noSettled = c.pending_slots ? "待验证" : c.selected_slots ? "暂无成交结算" : "暂无入选";
+          const blocked = c.pending_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0;
+          const cumulative = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.equal_weight_cumulative_return);
+          const drawdown = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.maximum_drawdown);
+          return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td>${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td>${cumulative}<div class="score-secondary">${c.effective_dates} 个完整日</div></td><td>${drawdown}</td></tr>`;
+        }).join("");
+        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 已成交结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起 · 验证快照截至 ${dateText(source.shadow.as_of_date)}。胜率＝盈利笔数÷代理买入且已结算笔数；收益已扣45bp。未成交、未验证不进入胜率；累计仅含完整结算日，未完成日期不计入；已确认未成交槽位记0，不代表实盘净值。恢复留档不计入。</p>`;
+      } catch (error) {
+        return `<p class="stats-note warn">盈利累计统计校验失败：${escapeHtml(error.message || error)}；不显示未核实的胜率或收益。</p>`;
+      }
+    }
+
     function renderCompactDashboard() {
       if (!els.compactLedgerContent || state.compactFatalError) return;
       const research = new URLSearchParams(location.search).get("view") === "research";
@@ -1672,12 +1699,12 @@
       const daily = state.currentPrimaryMixedDailyTop2;
       if (daily?.status !== "ready") {
         els.compactLedgerState.textContent = "每日账本未通过校验";
-        els.compactLedgerContent.innerHTML = `<div class="empty">${escapeHtml(daily?.message || "每日记录尚未公开；缺失不等于0席。")}</div>`;
+        els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<div class="empty">${escapeHtml(daily?.message || "每日记录尚未公开；缺失不等于0席。")}</div>`;
       } else {
         const ledger = daily.index;
         els.compactLedgerState.textContent = `D ${dateText(ledger.public_start_signal_date)}起 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席`;
         const body = [...ledger.entries].reverse().flatMap(entry => {
-          if (!entry.rows.length) return [`<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td colspan="6" class="left">当日无真实候选，已记录0席，不补票</td></tr>`];
+          if (!entry.rows.length) return [`<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td colspan="8" class="left">当日无真实候选，已记录0席，不补票</td></tr>`];
           return entry.rows.map(row => {
             const bound = entry.generation_mode === "NATURAL" && source && entry.signal_date === source.shadow.signal_date &&
               entry.exec_date === source.shadow.exec_date && entry.exit_date === source.shadow.exit_date &&
@@ -1686,10 +1713,10 @@
             const recovery = entry.generation_mode !== "NATURAL";
             const t = truth ? primaryShadowStatus(truth.t_status, "t").label : recovery ? "恢复留档" : "未绑定该日验证";
             const t1 = truth ? primaryShadowStatus(truth.t1_status, "t1").label : recovery ? "不计前向收益" : "未绑定该日验证";
-            return `<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td class="left"><strong>${escapeHtml(row.name)}</strong> <span class="rank-badge">盈${row.slot}</span><div class="score-secondary">${escapeHtml(row.ts_code)}</div></td><td>${escapeHtml(t)}</td><td>${escapeHtml(t1)}</td><td>${signedPct(truth ? truth.net_return_after_cost : null)}</td><td>${signedPct(truth ? truth.strategy_slot_return : null)}</td><td>${truth ? "自然冻结" : recovery ? "仅留档" : "须独立冻结"}</td></tr>`;
+            return `<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td class="left" data-field="code">${escapeHtml(row.ts_code)}</td><td class="left" data-field="stock"><strong>${escapeHtml(row.name)}</strong></td><td data-field="profit-rank"><span class="rank-mark rank-profit" aria-label="盈利排序第${row.slot}名">盈${row.slot}</span></td><td>${escapeHtml(t)}</td><td>${escapeHtml(t1)}</td><td>${signedPct(truth ? truth.net_return_after_cost : null)}</td><td>${signedPct(truth ? truth.strategy_slot_return : null)}</td><td>${truth ? "自然冻结" : recovery ? "仅留档" : "须独立冻结"}</td></tr>`;
           });
         }).join("");
-        els.compactLedgerContent.innerHTML = `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利前二每日记录与验证"><table class="three-rank-table"><thead><tr><th>D</th><th>T</th><th>T+1</th><th class="left">股票 / 盈利名次</th><th>T验证</th><th>T+1验证</th><th>成交净收益</th><th>槽位收益</th><th>统计资格</th></tr></thead><tbody>${body}</tbody></table></div><p class="stats-note">每日入选必留档；只有同D同来源的自然冻结进入前向收益。未绑定验证的历史行不填0，也不拿晋级观察收益代填。</p>`;
+        els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<details class="compact-disclosure" id="compactProfitDailyDetails"><summary>每日记录与验证 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席</summary><div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利前二每日记录与验证"><table class="three-rank-table"><thead><tr><th scope="col">D</th><th scope="col">T</th><th scope="col">T+1</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col">盈利名次</th><th scope="col">T验证</th><th scope="col">T+1验证</th><th scope="col">成交净收益</th><th scope="col">槽位收益</th><th scope="col">统计资格</th></tr></thead><tbody>${body}</tbody></table></div><p class="stats-note">每日入选必留档；只有同D同来源的自然冻结进入前向收益。未绑定验证的历史行不填0，也不拿晋级观察收益代填。</p></details>`;
       }
       const summary = state.currentPublicObservationStatistics;
       const promotion = state.promotionSlotStatistics;
@@ -3740,6 +3767,7 @@
         if (verified) executableProfitExpect(verified.ts_code === row.ts_code && verified.validation_status === row.t_status && verified.truth_state === row.t_truth_state && verified.proxy_fill === row.proxy_fill, "P1 Shadow T真值与SHA来源不一致");
         if (settled) executableProfitExpect(settled.ts_code === row.ts_code && settled.settlement_status === row.t1_status && settled.net_return_after_cost === row.net_return_after_cost && settled.strategy_slot_return === row.strategy_slot_return, "P1 Shadow T+1真值与SHA来源不一致");
       });
+      executableProfitExpect(canonicalJson(shadow.cohorts) === canonicalJson(summary.cohorts), "P1 Shadow累计统计与SHA绑定summary分组不一致");
       validatePrimaryProfitShadowCohorts(shadow);
       return {
         index: shadowIndex,
