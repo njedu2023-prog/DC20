@@ -28,7 +28,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.lock
       - name: Install existing locked test environment
-        run: python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
       - name: New forward contracts and regressions
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src

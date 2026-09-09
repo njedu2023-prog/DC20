@@ -30,6 +30,13 @@ class PreviewTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["activate"])
 
+    def test_ci_is_read_only_and_pip_colons_are_block_quoted(self):
+        workflow = (ROOT / ".github/workflows/test_forward_rebuild.yml").read_text()
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertIn("run: |\n          python -m pip install", workflow)
+        self.assertNotIn("run: python -m pip install", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
