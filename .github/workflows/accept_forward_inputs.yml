@@ -1,4 +1,4 @@
-name: DC20 · Natural forward input acceptance (read only)
+name: DC20 · Natural forward input and inference rehearsal (read only)
 
 on:
   schedule:
@@ -17,9 +17,18 @@ permissions:
   contents: read
   actions: read
 
-# This reader never acquires a production writer group or changes main/Pages.
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONHASHSEED: '0'
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+  LOKY_MAX_CPU_COUNT: '1'
+
+# Read-only runs are independent: an earlier slow P1 must not delay a new P0.
+# This workflow never acquires a production writer group or changes main/Pages.
 concurrency:
-  group: dc20-forward-inputs-readonly-${{ github.ref }}
+  group: dc20-forward-inputs-readonly-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -27,8 +36,10 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      PYTHONDONTWRITEBYTECODE: '1'
+    outputs:
+      status: ${{ steps.collect.outputs.status }}
+      bundle_sha256: ${{ steps.collect.outputs.bundle_sha256 }}
+      receipt_sha256: ${{ steps.collect.outputs.receipt_sha256 }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
@@ -38,6 +49,7 @@ jobs:
         with:
           python-version: '3.12.13'
       - name: Verify original natural slot and read exact-D upstream inputs
+        id: collect
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FORWARD_SCHEDULE: ${{ github.event.schedule }}
@@ -51,5 +63,83 @@ jobs:
         with:
           name: forward-input-acceptance-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-input-acceptance/
+          if-no-files-found: error
+          retention-days: 14
+
+  promotion-inference:
+    # CLOSED finishes in the stdlib reader; it never installs ML or starts P0.
+    needs: [input-acceptance]
+    if: ${{ needs.input-acceptance.outputs.status == 'INPUTS_VALIDATED_NOT_PRODUCTION' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      receipt_sha256: ${{ steps.infer.outputs.receipt_sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install frozen inference environment
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: forward-input-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/forward-input-acceptance
+      - name: Recompute promotion from this run's accepted independent bundle
+        id: infer
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          INPUT_MANIFEST_SHA256: ${{ needs.input-acceptance.outputs.bundle_sha256 }}
+          ACCEPTANCE_RECEIPT_SHA256: ${{ needs.input-acceptance.outputs.receipt_sha256 }}
+        run: |
+          python -m forward.bundle_rehearsal --root . promotion --bundle "$RUNNER_TEMP/forward-input-acceptance/bundle" --manifest-sha256 "$INPUT_MANIFEST_SHA256" --acceptance "$RUNNER_TEMP/forward-input-acceptance" --acceptance-receipt-sha256 "$ACCEPTANCE_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-primary"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+      - name: Preserve promotion before any profit work
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: forward-promotion-rehearsal-${{ github.run_id }}
+          path: ${{ runner.temp }}/forward-primary/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  profit-inference:
+    # P1 consumes only the completed P0 artifact; its failure cannot erase P0.
+    needs: [promotion-inference]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+      - name: Install frozen inference environment
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: forward-promotion-rehearsal-${{ github.run_id }}
+          path: ${{ runner.temp }}/forward-primary
+      - name: Recompute profit research without production or ledger writes
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          PRIMARY_RECEIPT_SHA256: ${{ needs.promotion-inference.outputs.receipt_sha256 }}
+        run: |
+          python -m forward.bundle_rehearsal --root . profit --primary "$RUNNER_TEMP/forward-primary" --primary-receipt-sha256 "$PRIMARY_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-profit"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: forward-profit-rehearsal-${{ github.run_id }}
+          path: ${{ runner.temp }}/forward-profit/*.json
           if-no-files-found: error
           retention-days: 14

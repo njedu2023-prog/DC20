@@ -69,6 +69,8 @@ jobs:
     # the isolated P0 inference artifact from being produced and retained.
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      receipt_sha256: ${{ steps.infer.outputs.receipt_sha256 }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
@@ -81,11 +83,17 @@ jobs:
       - name: Install frozen inference environment
         run: |
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - name: Independently recompute promotion from exact-D inputs
+      - name: Collect a fixed immutable upstream bundle outside the repository
+        id: collect
+        run: |
+          python -m forward.bundle_rehearsal --root . collect --signal-date 20260908 --pred-commit 1615abe7600d518dd04fcbbf5b159aad8ce95bf7 --market-commit ff7a16b1d37b7f6befca5e4180ade7051fcd1df1 --output "$RUNNER_TEMP/forward-input-bundle"
+      - name: Independently recompute promotion from the accepted bundle
+        id: infer
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          INPUT_MANIFEST_SHA256: ${{ steps.collect.outputs.manifest_sha256 }}
         run: |
-          python -m forward.rehearsal --root . promotion --signal-date 20260908 --output "$RUNNER_TEMP/forward-primary"
+          python -m forward.bundle_rehearsal --root . promotion --bundle "$RUNNER_TEMP/forward-input-bundle" --manifest-sha256 "$INPUT_MANIFEST_SHA256" --output "$RUNNER_TEMP/forward-primary"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
       - name: Preserve promotion before any profit work
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -118,8 +126,9 @@ jobs:
       - name: Append independently recomputed profit research
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          PRIMARY_RECEIPT_SHA256: ${{ needs.promotion-inference.outputs.receipt_sha256 }}
         run: |
-          python -m forward.rehearsal --root . profit --primary "$RUNNER_TEMP/forward-primary" --output "$RUNNER_TEMP/forward-profit"
+          python -m forward.bundle_rehearsal --root . profit --primary "$RUNNER_TEMP/forward-primary" --primary-receipt-sha256 "$PRIMARY_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-profit"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

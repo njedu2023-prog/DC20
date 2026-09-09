@@ -1,4 +1,4 @@
-"""Static stdlib-only checks for the non-producing natural input reader."""
+"""Static stdlib-only checks for the natural reader's isolated first job."""
 from pathlib import Path
 import re
 import unittest
@@ -18,9 +18,18 @@ def top_block(text, key):
     return match.group(1)
 
 
+def job_block(text, key):
+    jobs = top_block(text, "jobs")
+    match = re.search(rf"^  {re.escape(key)}:\n(.*?)(?=^  [a-z][a-z-]*:\n|\Z)", jobs, re.M | re.S)
+    if match is None:
+        raise AssertionError(f"missing job {key}")
+    return match.group(1)
+
+
 class InputWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.text = WORKFLOW.read_text(encoding="utf-8")
+        self.reader = job_block(self.text, "input-acceptance")
 
     def test_only_ten_independent_natural_schedule_slots(self):
         events = top_block(self.text, "on")
@@ -39,13 +48,14 @@ class InputWorkflowTests(unittest.TestCase):
 
     def test_reader_has_own_non_cancelling_concurrency(self):
         concurrency = top_block(self.text, "concurrency")
-        self.assertIn("group: dc20-forward-inputs-readonly-${{ github.ref }}", concurrency)
+        self.assertIn("group: dc20-forward-inputs-readonly-${{ github.run_id }}", concurrency)
+        self.assertNotIn("github.ref", concurrency)
         self.assertIn("cancel-in-progress: false", concurrency)
         self.assertNotIn("decision-auction-main-writer", self.text)
-        self.assertNotRegex(self.text, r"(?m)^\s*needs:")
+        self.assertNotRegex(self.reader, r"(?m)^\s*needs:")
 
     def test_pinned_actions_and_checkout_event_sha_without_credentials(self):
-        uses = re.findall(r"uses: ([^\s]+)", self.text)
+        uses = re.findall(r"uses: ([^\s]+)", self.reader)
         self.assertEqual(uses, [
             "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
             "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
@@ -55,14 +65,14 @@ class InputWorkflowTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", self.text)
         self.assertIn("python-version: '3.12.13'", self.text)
 
-    def test_runtime_is_one_stdlib_reader_not_model_or_production_jobs(self):
-        commands = re.findall(r"^        run: \|\n((?:          [^\n]*\n)+)", self.text, re.M)
+    def test_input_runtime_is_one_stdlib_reader_not_model_or_production_job(self):
+        commands = re.findall(r"^        run: \|\n((?:          [^\n]*\n)+)", self.reader, re.M)
         self.assertEqual(len(commands), 1)
         self.assertEqual(commands[0].strip(),
                          'python -m forward.input_acceptance --root . --output "$RUNNER_TEMP/forward-input-acceptance"')
-        self.assertNotRegex(self.text.lower(), r"\b(pip|conda|uv|npm|apt-get)\s+(install|sync|ci)\b")
-        self.assertNotIn("requirements-dev.lock", self.text)
-        self.assertNotRegex(self.text, r"forward\.(rehearsal|promotion|profit|daybook|ledger|cli)\b")
+        self.assertNotRegex(self.reader.lower(), r"\b(pip|conda|uv|npm|apt-get)\s+(install|sync|ci)\b")
+        self.assertNotIn("requirements-dev.lock", self.reader)
+        self.assertNotRegex(self.reader, r"forward\.(rehearsal|bundle_rehearsal|promotion|profit|daybook|ledger|cli)\b")
         self.assertNotIn("git push", self.text)
         self.assertNotIn("gh workflow", self.text)
         self.assertNotIn("deploy-pages", self.text)
@@ -75,12 +85,21 @@ class InputWorkflowTests(unittest.TestCase):
         self.assertEqual(self.text.count("GITHUB_TOKEN:"), 1)
         self.assertEqual(self.text.count("FORWARD_SCHEDULE:"), 1)
         self.assertNotIn("secrets.", self.text)
-        before_steps = self.text.split("    steps:", 1)[0]
+        before_steps = self.reader.split("    steps:", 1)[0]
         self.assertNotIn("github.token", before_steps)
-        self.assertIn("PYTHONDONTWRITEBYTECODE: '1'", before_steps)
+        self.assertIn("PYTHONDONTWRITEBYTECODE: '1'", top_block(self.text, "env"))
+
+    def test_reader_exports_only_hash_and_status_pins(self):
+        self.assertIn("        id: collect", self.reader)
+        self.assertIn("      status: ${{ steps.collect.outputs.status }}", self.reader)
+        self.assertIn("      bundle_sha256: ${{ steps.collect.outputs.bundle_sha256 }}", self.reader)
+        self.assertIn("      receipt_sha256: ${{ steps.collect.outputs.receipt_sha256 }}", self.reader)
+        output = self.reader.split("    outputs:\n", 1)[1].split("    steps:\n", 1)[0]
+        self.assertEqual(re.findall(r"^      ([a-z_0-9]+):", output, re.M),
+                         ["status", "bundle_sha256", "receipt_sha256"])
 
     def test_upload_only_successful_whole_external_directory(self):
-        upload = self.text.split("      - name: Preserve successful read-only acceptance evidence", 1)[1]
+        upload = self.reader.split("      - name: Preserve successful read-only acceptance evidence", 1)[1]
         self.assertIn("if: ${{ success() }}", upload)
         self.assertIn("name: forward-input-acceptance-${{ github.run_id }}", upload)
         self.assertIn("path: ${{ runner.temp }}/forward-input-acceptance/", upload)
@@ -90,12 +109,13 @@ class InputWorkflowTests(unittest.TestCase):
         self.assertNotIn("github.workspace", upload)
         self.assertNotIn("*.json", upload)
 
-    def test_natural_only_job_time_limit_and_no_extra_jobs(self):
+    def test_natural_input_job_is_first_and_has_own_time_limit(self):
         jobs = top_block(self.text, "jobs")
-        self.assertEqual(re.findall(r"^  ([a-z-]+):$", jobs, re.M), ["input-acceptance"])
-        self.assertIn("if: ${{ github.event_name == 'schedule' }}", jobs)
-        self.assertIn("timeout-minutes: 20", jobs)
-        self.assertIn("runs-on: ubuntu-24.04", jobs)
+        self.assertEqual(re.findall(r"^  ([a-z-]+):$", jobs, re.M),
+                         ["input-acceptance", "promotion-inference", "profit-inference"])
+        self.assertIn("if: ${{ github.event_name == 'schedule' }}", self.reader)
+        self.assertIn("timeout-minutes: 20", self.reader)
+        self.assertIn("runs-on: ubuntu-24.04", self.reader)
 
     def test_both_push_and_pr_acceptance_watch_new_workflow(self):
         acceptance = ACCEPTANCE.read_text(encoding="utf-8")

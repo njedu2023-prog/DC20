@@ -58,9 +58,9 @@ REPLAY，不计入新统计。独立 CI 将晋级产物先保存为 artifact，�
 不是补造名单或补记前向记录。该回归不读取会随下一交易日改变的 `latest` 元数据。
 其他日期必须先具备明确的同日来源合同，不能把 D0908 的固定演练入口当成自动生产。
 
-## 当前一步：独立输入与自然时段只读验收
+## 独立输入、模型适配与自然时段只读验收
 
-`accept_forward_inputs.yml` 是独立的**只读输入验收**，不是新的每日榜单生产入口。
+`accept_forward_inputs.yml` 是独立的**只读取数及推理验收**，不是每日榜单生产发布入口。
 它在每个工作日北京时间 21:15 / 22:15 使用各自独立的 cron 身份运行，无手动
 dispatch 入口；不依赖盈利、旧 Action、旧统计或生产 writer，不发布 Pages。
 
@@ -74,17 +74,42 @@ dispatch 入口；不依赖盈利、旧 Action、旧统计或生产 writer，不
 - `inputs.py` 采集同 D 候选、当 D 及前 20 个交易日的必需行情表和声明成功的
   路径相关可选表，逐文件保存原字节 SHA256、日期、行数及来源证据。静态
   `stock_basic` 明确标注非日期字段表；缺失可选数据不伪装为齐全。
-- 结果仅保存为 Actions artifact。末尾的 `receipt.json` 才表示本次输入验收完成；
+- 取数结果先独立保存为 Actions artifact。末尾的 `receipt.json` 才表示本次输入验收完成；
   晚到保持晚到，截止时间后不写成功回执，缺 exact-D 文件明确失败。
 - `INPUTS_VALIDATED_NOT_PRODUCTION` **不等于**模型已计算、榜单已发布、
-  Shadow 已记录或新统计已启用。模型输入适配与数值等价仍需下一步验收。
+  Shadow 已记录或新统计已启用。
+
+输入通过后，`bundle.py` 按调用者提供的外部 manifest SHA 重新核验文件、日期、
+来源与 CSV 内容，再把原字节固定在内存中。`compute_promotion_from_inputs`
+只从该包读取候选与行情；不读旧 raw/pred/输出，不伪造 `_sync_meta` 或 Git 绑定。
+保留模型及训练所需历史特征仍从原固定 SHA 资产读取，**不重训、不改特征数学**。
+分钟数据未列入当前输入包，明确作为缺失，不到旧目录寻找替代。
+
+`bundle_rehearsal.py` 先输出并保存晋级及路径，再独立计算盈利。P1 使用外部
+P0 回执 SHA，并核验同源成员，不改变晋级顺序。自然工作流三段单向依赖，
+不同 run 不串行等待旧 P1；休市不会安装 ML 或运行模型。推理开始、完成、写完
+数据文件后都复核原时段，只有最后回执才表示本段成功。盈利失败不删除已存的 P0。
+
+即使来自自然 schedule，当前结果仍是 `NATURAL_SCHEDULE_STAGING` 来源下的
+`REPLAY` 推理验收，不能写入前向账本。它不证明公开名单已发布、真实首次自然
+运行已成功或新统计已激活。固定历史输入的 CI 会在模型计算后单独比较原冻结结果。
+
+从可信输入回执取得 manifest 原字节 SHA 后，可在隔离目录运行：
+
+```bash
+python -m forward.bundle_rehearsal --root . promotion --bundle /absolute/input-bundle --manifest-sha256 <trusted-manifest-sha256> --output /absolute/new-primary
+python -m forward.bundle_rehearsal --root . profit --primary /absolute/new-primary --primary-receipt-sha256 <trusted-primary-receipt-sha256> --output /absolute/new-profit
+```
+
+自然工作流额外传入同 run 的取数回执及其外部 SHA；不能省略后降级为历史模式。
+上述 CLI 与自然工作流均不发布页面、不生成订单或 Action、不迁移旧累计统计。
 
 当前只读入口要求 `production_enabled=false`。历史固定提交取数可以用于检验
 适配兼容性，但不得写入前向账本，也不得被称为首次自然 schedule 成功。
 
 ## 切换前还必须完成
 
-1. 验收新只读入口的首次自然取数，再将独立输入包适配到已验证的独立推理入口；当前重算入口只做 REPLAY。
+1. 验收独立取数→晋级→盈利的首次真实自然运行；当前全部推理入口仍只做 REPLAY/staging。
    晋级 D 名单必须先独立可发布；盈利、真值、统计失败不能挡住真实晋级名单。
 2. 保持 exact-D 来源 SHA、候选门禁、模型字节及排序数值等价；新阶段的逐日账本还需接入累计指标与前台读取。
 3. 新生产单写入入口、GitHub 原子发布和共享 writer 锁、准确 Pages revision。

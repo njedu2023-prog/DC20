@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib
+import io
 import json
 import math
 import re
@@ -292,6 +293,197 @@ def compute_promotion_bundle(root, signal_date, *, generated_at_utc, generation_
         raise PromotionError(f"P0 computation blocked: {exc}") from exc
 
 
+def compute_promotion_from_inputs(root, bundle_dir, *, expected_manifest_sha256,
+        generated_at_utc, generation_mode="REPLAY"):
+    """Run retained P0 from independently verified, in-memory upstream bytes.
+
+    Unlike the dated legacy replay route, no root market/candidate metadata or
+    history is consulted. The manifest's externally supplied SHA is mandatory;
+    its collector revision is not confused with the current inference HEAD.
+    This is still REPLAY, not an admission, publication or point-in-time claim.
+    """
+    if generation_mode != "REPLAY":
+        raise PromotionError("bundle computation accepts REPLAY only")
+    timestamp = _aware(generated_at_utc)
+    if timestamp > datetime.now(timezone.utc):
+        raise PromotionError("generation timestamp is in the future")
+    root = Path(root).resolve(strict=True)
+    for path, expected in FIXED_INPUTS.items():
+        if _sha(_safe_file(root, path)) != expected:
+            raise PromotionError(f"retained model/input bytes changed: {path}")
+    source_commit, code_bindings = _preflight_code(root)
+    from .bundle import VerifiedInputBundle
+    try:
+        verified = VerifiedInputBundle(root, bundle_dir, expected_manifest_sha256)
+        manifest = verified.manifest
+        if timestamp < _aware(manifest["collected_at_utc"]):
+            raise PromotionError("inference timestamp precedes verified input collection")
+        legacy = _import_p0(root)
+        try:
+            return _compute_from_inputs(root, verified, timestamp.isoformat(), legacy,
+                source_commit, code_bindings)
+        except (legacy.PrimaryDGenerationError, legacy.ThreeEngineArtifactError,
+                legacy.ThreeRankContractError) as exc:
+            raise PromotionError(f"bundle P0 computation blocked: {exc}") from exc
+    except PromotionError:
+        raise
+    except (ValueError, TypeError, KeyError, OSError) as exc:
+        raise PromotionError(f"bundle P0 computation blocked: {exc}") from exc
+
+
+def _input_binding(verified, relative):
+    binding = verified.file_record(relative)
+    # Bundle-relative identity is deliberate: never pretend the byte source is
+    # a committed DC20 file or synthesize the old _sync_meta contract.
+    return dict(binding, path=relative,
+        binding_basis="verified_input_manifest", input_manifest_sha256=verified.manifest_sha256)
+
+
+def _input_frame(legacy, body, *, date, table):
+    if body is None:
+        raise PromotionError(f"required bundle table unavailable: {date}/{table}")
+    frame = legacy.pd.read_csv(io.BytesIO(body), encoding="utf-8-sig", low_memory=False)
+    if table != "stock_basic":
+        legacy._validate_exact_dates(frame, date, label=f"bundle {date}/{table}")
+    if table in {"daily", "daily_basic", "stk_limit", "stock_basic"} and frame.empty:
+        raise PromotionError(f"required bundle table empty: {date}/{table}")
+    return frame
+
+
+def _bundle_engine(legacy, verified, root, calendar, verifier):
+    """Keep retained mathematical methods but replace their complete I/O edge.
+
+    CSV parsing/index normalization matches AuctionV3Engine.market_table.
+    Minute bytes are not in this bundle contract: missing means unavailable,
+    never root fallback or fabricated zero-price observations.
+    """
+    manifest, pd = verified.manifest, legacy.pd
+    retained_engine = sys.modules[legacy.PrimaryDReadOnlyEngine.__mro__[1].__module__]
+
+    class ReadOnlyConfig(legacy.AuctionV3Config):
+        def ensure_directories(self):
+            return None
+
+    class BundleEngine(legacy.PrimaryDReadOnlyEngine):
+        def _check_date(self, date):
+            if date not in self._primary_context_dates:
+                raise PromotionError("feature requested data outside verified D-close history")
+
+        def _market_path(self, trade_date, name):
+            self._check_date(trade_date)
+            raise PromotionError("bundle market data must be consumed as verified bytes")
+
+        def _record_path(self, trade_date, name, path):
+            self._check_date(trade_date)
+            relative = str(path)
+            binding = _input_binding(verified, relative)
+            if binding.get("snapshot_date") != trade_date or binding.get("table") != name:
+                raise PromotionError("bundle consumed-file identity mismatch")
+            self._primary_consumed[relative] = dict(binding, trade_date=trade_date)
+
+        def market_table(self, trade_date, name):
+            self._check_date(trade_date)
+            key = (trade_date, name)
+            if key in self._market_cache:
+                return self._market_cache[key]
+            body = verified.read_market_bytes(trade_date, name)
+            frame = pd.DataFrame() if body is None else _input_frame(
+                legacy, body, date=trade_date, table=name)
+            if body is not None:
+                inventory = manifest["market"][trade_date]
+                relative = (inventory["required_tables"].get(name)
+                    or inventory["optional_tables"][name]["path"])
+                self._record_path(trade_date, name, relative)
+            if not frame.empty and "trade_date" in frame.columns:
+                source_dates = frame["trade_date"].map(retained_engine._normal_date)
+                frame = frame[source_dates.eq(trade_date)].copy()
+                if not frame.empty:
+                    frame["trade_date"] = trade_date
+            if not frame.empty and "ts_code" in frame.columns:
+                frame = frame.copy()
+                frame["ts_code"] = frame["ts_code"].map(retained_engine._normal_code)
+                frame = frame.drop_duplicates("ts_code", keep="last").set_index("ts_code", drop=False)
+            self._market_cache[key] = frame
+            return frame
+
+        def _minute_path(self, trade_date, code):
+            self._check_date(trade_date)
+            raise PromotionError("minute paths are not part of the verified input bundle")
+
+        def minute_table(self, trade_date, code):
+            self._check_date(trade_date)
+            return pd.DataFrame()
+
+    return BundleEngine(ReadOnlyConfig(root=root), signal_date=verified.signal_date,
+        context_dates=list(calendar["runtime_context_dates"]), verifier=verifier,
+        exact_d_inventory={})
+
+
+def _compute_from_inputs(root, verified, generated, legacy, preflight_commit, code_bindings):
+    manifest, date = verified.manifest, verified.signal_date
+
+    class SafeHeadVerifier(legacy.GitHeadInputVerifier):
+        def bind(self, relative, *, label):
+            _safe_file(self.root, Path(relative).as_posix())
+            return super().bind(relative, label=label)
+
+    verifier = SafeHeadVerifier(root)
+    if verifier.head != preflight_commit:
+        raise PromotionError("Git HEAD changed between import and bundle computation")
+    for path in legacy.PRIMARY_RUNTIME_CODE_PATHS:
+        _safe_file(root, path)
+        verifier.bind(path, label="retained P0 runtime source")
+    exec_date, exit_date, calendar = legacy.load_strict_sse_dates(root, date, verifier=verifier)
+    if (exec_date, exit_date) != (verified.exec_date, verified.exit_date) or \
+            calendar["runtime_context_dates"] != manifest["market_sessions"] or \
+            calendar["historical_dates"] != manifest["history_sessions"]:
+        raise PromotionError("bundle dates disagree with retained strict SSE calendar")
+    if _sha(_safe_file(root, calendar["path"])) != hashlib.sha256(verified.read_calendar_bytes()).hexdigest():
+        raise PromotionError("bundle calendar differs from retained strict SSE bytes")
+    candidates = _input_frame(legacy, verified.read_candidate_bytes(), date=date, table="candidate")
+    candidate_binding = _input_binding(verified, manifest["candidate_path"])
+    candidate_binding["resolved_commit"] = manifest["pred_commit"]
+    market, market_bindings, history_files = {}, {}, []
+    for session in manifest["market_sessions"]:
+        inventory = manifest["market"][session]
+        for name, relative in inventory["required_tables"].items():
+            frame = _input_frame(legacy, verified.read_market_bytes(session, name), date=session, table=name)
+            binding = dict(_input_binding(verified, relative), trade_date=session)
+            if session == date:
+                market[name], market_bindings[name] = frame, binding
+            else:
+                history_files.append(binding)
+        if session == date:
+            for name, entry in inventory["optional_tables"].items():
+                if entry["status"] == "PRESENT":
+                    market_bindings[name] = dict(_input_binding(verified, entry["path"]), trade_date=date)
+    history = dict(read_only=True, network_fetch_allowed=False,
+        binding_basis="verified_input_manifest", source_repository="njedu2023-prog/a-share-top3-data",
+        source_commit=manifest["market_commit"], input_manifest_sha256=verified.manifest_sha256,
+        session_count=len(manifest["history_sessions"]), dates=manifest["history_sessions"],
+        tables=list(legacy.HISTORY_CONTEXT_TABLES), file_count=len(history_files), files=history_files)
+    metadata_path = manifest["market"][date]["metadata_path"]
+    market_binding = dict(source_repository="njedu2023-prog/a-share-top3-data",
+        resolved_commit=manifest["market_commit"], meta_path=metadata_path,
+        meta_sha256=verified.file_record(metadata_path)["sha256"], tables=market_bindings,
+        binding_basis="verified_input_manifest", input_manifest_sha256=verified.manifest_sha256,
+        optional_gaps=manifest["optional_gaps"])
+    pool, pool_audit = legacy.build_exact_primary_pool(candidates, market, date)
+    validation_relative = "models/decision_three_engines/validation_latest.json"
+    for relative in legacy.PROMOTION_PRIOR_SOURCE_PATHS:
+        _safe_file(root, relative)
+    loaded = legacy.load_promotion_only_artifacts(root / validation_relative, root=root)
+    if any(payload.get("bundle") is not None for head, payload in loaded.payloads.items() if head != "promotion"):
+        raise PromotionError("secondary model loaded into promotion-only computation")
+    static = legacy.bind_committed_static_inputs(root, verifier,
+        validation_relative=validation_relative, loaded=loaded)
+    engine = _bundle_engine(legacy, verified, root, calendar, verifier)
+    return _complete_promotion(root, date, generated, legacy, verifier, code_bindings,
+        exec_date, exit_date, calendar, history, candidate_binding, market_binding,
+        pool, pool_audit, loaded, static, engine, input_manifest=manifest,
+        input_manifest_sha256=verified.manifest_sha256)
+
+
 def _compute(root, date, generated, legacy, preflight_commit, code_bindings):
     pd = legacy.pd
 
@@ -351,6 +543,17 @@ def _compute(root, date, generated, legacy, preflight_commit, code_bindings):
     engine = ExactReadOnlyEngine(ReadOnlyConfig(root=root), signal_date=date,
         context_dates=list(calendar["runtime_context_dates"]), verifier=verifier,
         exact_d_inventory=market_binding["tables"])
+    return _complete_promotion(root, date, generated, legacy, verifier,
+        code_bindings, exec_date, exit_date, calendar, history, candidate_binding,
+        market_binding, pool, pool_audit, loaded, static, engine)
+
+
+def _complete_promotion(root, date, generated, legacy, verifier, code_bindings,
+        exec_date, exit_date, calendar, history, candidate_binding, market_binding,
+        pool, pool_audit, loaded, static, engine, *, input_manifest=None,
+        input_manifest_sha256=None):
+    """Shared retained feature/scoring math for the two read-only input routes."""
+    pd = legacy.pd
     base = engine._current_base(date, pool) if not pool.empty else pool
     inference = legacy.augment_three_engine_runtime_base(engine, date, base)
     pool_audit["hard_to_inference"] = legacy.audit_complete_hard_pool(
@@ -384,14 +587,18 @@ def _compute(root, date, generated, legacy, preflight_commit, code_bindings):
             path_change_pct=delta))
     consumed = engine.consumed_bindings()
     # Detect source mutation during computation, including the metadata files.
-    observed = [calendar, candidate_binding, *market_binding["tables"].values(), *history["files"], *consumed, *code_bindings]
+    observed = [calendar, *code_bindings]
+    if input_manifest is None:
+        observed += [candidate_binding, *market_binding["tables"].values(), *history["files"], *consumed]
     observed += [item for group in ("runtime_code", "promotion_prior_sources", "model") for item in static[group]]
     for binding in observed:
         if _sha(_safe_file(root, binding["path"])) != binding["sha256"]:
             raise PromotionError("input changed during promotion computation")
-    for binding in (candidate_binding, market_binding):
+    for binding in (() if input_manifest is not None else (candidate_binding, market_binding)):
         if _sha(_safe_file(root, binding["meta_path"])) != binding["meta_sha256"]:
             raise PromotionError("input metadata changed during promotion computation")
+    if legacy.GitHeadInputVerifier(root).head != verifier.head:
+        raise PromotionError("Git HEAD changed during promotion computation")
     source = dict(schema_version="dc20_forward_promotion_source_v1", repository="njedu2023-prog/DC20",
         source_commit=verifier.head, model_sha256=FIXED_INPUTS["models/decision_three_engines/promotion.joblib"],
         model_version=contract["models"]["promotion"]["version"],
@@ -406,6 +613,14 @@ def _compute(root, date, generated, legacy, preflight_commit, code_bindings):
         production_enabled=False, forward_ledger_eligible=False,
         time_semantics="isolated_replay_recomputation_not_original_freeze",
         runtime_role="promotion_only_computation_reusing_retained_feature_functions")
+    if input_manifest is not None:
+        source.update(input_manifest_sha256=input_manifest_sha256,
+            input_bundle_sha256=input_manifest["bundle_sha256"],
+            input_collector_commit=input_manifest["source_commit"],
+            input_collected_at_utc=input_manifest["collected_at_utc"],
+            input_binding_basis="verified_manifest_and_immutable_upstream_bytes",
+            root_market_or_candidate_read=False,
+            minute_input_status="NOT_IN_INPUT_BUNDLE_NO_ROOT_FALLBACK")
     day = dict(signal_date=date, exec_date=exec_date, exit_date=exit_date,
         generated_at_utc=generated, generation_mode="REPLAY", source=source, rows=rows)
     receipt = dict(schema_version="dc20_forward_promotion_compute_receipt_v1", signal_date=date,

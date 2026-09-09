@@ -202,6 +202,25 @@ def accept_inputs(root, output, *, env=None, get=None, clock=_utc, collector=Non
     return result
 
 
+def emit_job_outputs(values, env=None):
+    """Publish bounded evidence scalars, never untrusted multiline output."""
+    env = os.environ if env is None else env
+    if env.get("GITHUB_ACTIONS") != "true" or not env.get("GITHUB_OUTPUT"):
+        return
+    allowed = {"status", "manifest_sha256", "bundle_sha256", "receipt_sha256"}
+    if set(values) - allowed or any(not isinstance(v, str) or not re.fullmatch(r"[A-Za-z0-9_]*", v) for v in values.values()):
+        raise ValueError("unsafe job output value")
+    for key, value in values.items():
+        if key == "status":
+            if not 1 <= len(value) <= 64:
+                raise ValueError("job output status length invalid")
+        elif not re.fullmatch(r"[0-9a-f]{64}", value) and not (key == "bundle_sha256" and value == ""):
+            raise ValueError("job output digest invalid")
+    descriptor = os.open(env["GITHUB_OUTPUT"], os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(descriptor, "a") as handle:
+        handle.write("".join(f"{key}={value}\n" for key, value in values.items()))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path)
@@ -211,6 +230,8 @@ def main(argv=None):
         receipt = accept_inputs(args.root, args.output)
     except (ValueError, OSError, KeyError, TypeError) as exc:
         parser.exit(1, f"BLOCK: {exc}\n")
+    emit_job_outputs({"status": receipt["status"], "bundle_sha256": receipt["bundle_sha256"] or "",
+                      "receipt_sha256": hashlib.sha256((args.output / "receipt.json").read_bytes()).hexdigest()})
     print(json.dumps({"status": receipt["status"], "signal_date": receipt["gate"]["signal_date"],
                       "late": receipt["gate"]["late"],
                       "primary_deadline_missed": receipt["gate"]["primary_deadline_missed"],
