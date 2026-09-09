@@ -54,6 +54,34 @@ local isolation guarantee, **not** a completed remote writer or Pages guarantee.
 The v1 bundle ledger and preview below remain compatibility/acceptance readers;
 they must not be put back onto the production P0 critical path.
 
+### Unpublished release candidates and v2 statistics
+
+`release_evidence.read_promotion` and `read_profit` require external job-output
+receipt SHA256 pins. They consume the exact bytes that were hash-verified and
+check current source HEAD, complete member/rank/model bindings and the original
+same-run schedule evidence. No model or old ledger is read by these adapters.
+
+`python -m forward.release_candidate ... promotion|profit` writes a fresh,
+outside-repository JSON candidate and its final content-hash receipt. Promotion
+does not depend on profit; profit candidates contain the exact frozen P0
+identities and automatic Top1/2 projections. The projection slots explicitly
+say `AWAITING_NEW_EPOCH_NOT_RECORDED`. Every candidate remains REPLAY, with
+`ledger_written=false`, `publication_verified=false` and `new_forward_days=0`.
+It is not a production admission, remote CAS commit or Pages release receipt.
+Natural-input candidates recheck their original slot before and after data CAS;
+an expired assembly has no successful completion receipt. Candidate jobs never
+become dependencies of either inference job.
+
+`daybook_metrics.statistics_from_daybook(epoch, promotions, profits=None,
+truths=None, expected_costs_bps=45.0)` accepts v2 records directly. Promotion
+Top1/2/3 do not require a profit attachment. Missing/invalid P1 is separate from
+valid READY N=0; broken auxiliaries are reported and excluded. Valid T truth
+can remain usable when a different fee contract excludes that D's T1 returns.
+Coverage describes only provided frozen P0 days, never claims that unprovided
+scheduled days succeeded. This pure reader neither activates an epoch nor
+imports historical cumulative totals. Actual publisher/forward admission and
+T/T1 input adapters remain separate rollout requirements.
+
 ## Frozen day v1 (migration compatibility only)
 
 `day` has `signal_date`, `exec_date`, `exit_date` (YYYYMMDD),

@@ -270,6 +270,7 @@ def main(argv=None):
         emit_job_outputs({"receipt_sha256": _sha(encoded(result))})
     else:
         result = compute_profit(args.root, args.primary, args.output, primary_receipt_sha=args.primary_receipt_sha256)
+        emit_job_outputs({"receipt_sha256": _sha(encoded(result))})
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, allow_nan=False))
 
 

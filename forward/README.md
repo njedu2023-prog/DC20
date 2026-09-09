@@ -12,6 +12,7 @@
 - `ledger.py` 保留为第一阶段完整包兼容测试模块，不再作为未来 P0 写入入口。
 - `settlement.py` 区分未到期、缺真值、未买入、退出受阻与扣费结算，保持 D/T/T+1，缺值不当零。
 - `metrics.py` 只读取新纪元账本；晋级 Top1/2/3 及前三组合，盈利 Top1/2 及前二组合分别统计。
+- `daybook_metrics.py` 是新逐日 v2 账本的独立累计读取入口；不要求缺失的盈利榜补成空榜，辅助数据损坏明确降低覆盖率，不阻断晋级冻结计数。
 - `schedule.py` 使用仓库已提交 SSE 日历；时间带明确，延迟跨午夜仍绑定原计划 D，休市日不监管。
 - `storage.py` 提供本地并发锁与内容 SHA 比较交换，拒绝覆盖已变化账本。
 - `web/` 只保留晋级、盈利、每日验证、新账本累计四块；公司名称后内联标记 Top 席位。
@@ -107,11 +108,42 @@ python -m forward.bundle_rehearsal --root . profit --primary /absolute/new-prima
 当前只读入口要求 `production_enabled=false`。历史固定提交取数可以用于检验
 适配兼容性，但不得写入前向账本，也不得被称为首次自然 schedule 成功。
 
+## 发布候选与新账本统计接口（尚未接管生产）
+
+`release_evidence.py` 从外部 job-output SHA 验真 P0/P1 回执和相应原字节，核验
+同 D/T/T+1、当前代码 revision、模型及完整成员绑定。P1 还必须绑定那一份 P0
+回执，不能靠同日期或名称拼接。自然结果继续核对同一次 run 和原时段；历史
+复算始终保持 REPLAY。
+
+`release_candidate.py` 把已验真结果整理为独立、可下载的 JSON 发布候选包：
+
+- 晋级候选只读 P0，包含全部真实成员、路径和 `promotion_top3`。
+- 盈利候选在原晋级成员内按盈利名次展示，自动包含有公司名称和 D/T/T+1 的
+  `shadow_top2`；不足两支不补票。
+- 所有席位明确为 `AWAITING_NEW_EPOCH_NOT_RECORDED`，不是已记录的 Shadow。
+  `ledger_written=false`、`publication_verified=false`、`new_forward_days=0`。
+- 候选数据先写，完成回执最后写；自然截止跨越或 SHA 冲突不能留下成功回执。
+  两个候选 job 都在各自推理之后独立运行；推理不反向依赖候选包或累计统计。
+
+```bash
+python -m forward.release_candidate --root . promotion --primary /absolute/primary --primary-receipt-sha256 <trusted-primary-receipt-sha256> --output /absolute/new-promotion-candidate
+python -m forward.release_candidate --root . profit --primary /absolute/primary --primary-receipt-sha256 <trusted-primary-receipt-sha256> --profit /absolute/profit --profit-receipt-sha256 <trusted-profit-receipt-sha256> --output /absolute/new-profit-candidate
+```
+
+这些入口没有 Git/Pages 写权限，也不把候选席位转换成 NATURAL、冻结账本或启用
+统计纪元。未来发布器必须另外验收真实自然运行、前瞻准入、远端 CAS、共享
+writer 和公开 revision；当前成功 artifact 不能替代这些证据。
+
+`daybook_metrics.statistics_from_daybook` 直接验证 v2 晋级、盈利和真值分文件，
+晋级 Top1/2/3 与盈利 Top1/2 的累计口径各自独立。它不绕回要求“两榜齐全”的
+v1 账本；缺盈利、缺真值、损坏或不同费用口径会明确说明，不把未知当作零收益。
+本阶段仅用合成测试账本验证此接口，不迁入旧统计或把历史复算写成新前向样本。
+
 ## 切换前还必须完成
 
 1. 验收独立取数→晋级→盈利的首次真实自然运行；当前全部推理入口仍只做 REPLAY/staging。
    晋级 D 名单必须先独立可发布；盈利、真值、统计失败不能挡住真实晋级名单。
-2. 保持 exact-D 来源 SHA、候选门禁、模型字节及排序数值等价；新阶段的逐日账本还需接入累计指标与前台读取。
+2. 保持 exact-D 来源 SHA、候选门禁、模型字节及排序数值等价；逐日统计与发布候选接口已备妥，仍需接入经前瞻准入的新纪元与前台读取。
 3. 新生产单写入入口、GitHub 原子发布和共享 writer 锁、准确 Pages revision。
 4. 按既有北京时间 21:15 生成 / 21:35 验收窗口配置可靠触发与独立兜底。
    GitHub cron 本身没有准点保证；晚到必须显式标记，不能用改时间戳掩盖。

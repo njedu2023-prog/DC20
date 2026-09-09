@@ -112,7 +112,8 @@ class InputWorkflowTests(unittest.TestCase):
     def test_natural_input_job_is_first_and_has_own_time_limit(self):
         jobs = top_block(self.text, "jobs")
         self.assertEqual(re.findall(r"^  ([a-z-]+):$", jobs, re.M),
-                         ["input-acceptance", "promotion-inference", "profit-inference"])
+                         ["input-acceptance", "promotion-inference", "profit-inference",
+                          "promotion-release-candidate", "profit-release-candidate"])
         self.assertIn("if: ${{ github.event_name == 'schedule' }}", self.reader)
         self.assertIn("timeout-minutes: 20", self.reader)
         self.assertIn("runs-on: ubuntu-24.04", self.reader)
