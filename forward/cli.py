@@ -48,7 +48,7 @@ def export_site(output: Path, dashboard: dict, ledger: dict, web_root: Path) -> 
                "promotion_rank", "promotion_probability", "path_label", "path_change_pct", "profit_rank", "profit_score"]
     for filename, rank in (("promotion.csv", "promotion_rank"), ("profit.csv", "profit_rank")):
         with (output / filename).open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+            writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
             writer.writeheader()
             for row in sorted(rows, key=lambda row: row[rank]):
                 dates = {key: dashboard["latest"][key] for key in columns[:3]}

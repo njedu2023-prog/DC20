@@ -24,6 +24,8 @@ class PreviewTests(unittest.TestCase):
             self.assertFalse(revision["production_enabled"])
             self.assertEqual(len(revision["files"]), 7)
             self.assertNotIn("旧二筛", html)
+            for filename in ("promotion.csv", "profit.csv"):
+                self.assertNotIn(b"\r", (output / filename).read_bytes())
 
     def test_no_production_enable_flag_or_writer_in_cli(self):
         from forward.cli import main
