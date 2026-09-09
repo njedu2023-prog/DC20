@@ -6,10 +6,12 @@ on:
     paths:
       - 'forward/**'
       - '.github/workflows/test_forward_rebuild.yml'
+      - '.github/workflows/accept_forward_inputs.yml'
   pull_request:
     paths:
       - 'forward/**'
       - '.github/workflows/test_forward_rebuild.yml'
+      - '.github/workflows/accept_forward_inputs.yml'
 
 permissions:
   contents: read

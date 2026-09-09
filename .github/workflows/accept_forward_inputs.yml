@@ -1,0 +1,55 @@
+name: DC20 · Natural forward input acceptance (read only)
+
+on:
+  schedule:
+    - cron: '15 13 * * 1'
+    - cron: '15 14 * * 1'
+    - cron: '15 13 * * 2'
+    - cron: '15 14 * * 2'
+    - cron: '15 13 * * 3'
+    - cron: '15 14 * * 3'
+    - cron: '15 13 * * 4'
+    - cron: '15 14 * * 4'
+    - cron: '15 13 * * 5'
+    - cron: '15 14 * * 5'
+
+permissions:
+  contents: read
+  actions: read
+
+# This reader never acquires a production writer group or changes main/Pages.
+concurrency:
+  group: dc20-forward-inputs-readonly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  input-acceptance:
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+      - name: Verify original natural slot and read exact-D upstream inputs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FORWARD_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          python -m forward.input_acceptance --root . --output "$RUNNER_TEMP/forward-input-acceptance"
+      # Both a valid ELIGIBLE bundle and a valid CLOSED receipt exit successfully.
+      # This retained evidence is not a production list, ledger, or Pages release.
+      - name: Preserve successful read-only acceptance evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: forward-input-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/forward-input-acceptance/
+          if-no-files-found: error
+          retention-days: 14
