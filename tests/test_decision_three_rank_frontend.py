@@ -404,7 +404,7 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     ):
         assert removed not in renderer
     assert "下载 CSV" in renderer
-    assert '<th class="left">连板路径</th><th>路径变化</th>' in renderer
+    assert '连板路径<small class="row-meta">路径变化</small>' in renderer
     assert "pathClass(row.path_label_code)" in renderer
     assert 'row.path_label || "路径数据不足"' in renderer
     assert "const truth = truthByCode.get(String(row.ts_code)) || {};" in renderer
@@ -435,7 +435,9 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     assert "单一盈利排序" not in renderer
     assert "legacy_profit_relative_rank" not in renderer
     assert "legacy_profit_raw_score" not in renderer
-    assert 'if (sortField !== "promotion_rank") return;' in renderer
+    assert '["promotion_rank", "mixed_profit_rank"].includes(sortField)' in renderer
+    assert 'unifiedProfitView(contract)' in renderer
+    assert 'data-rank-field="mixed_profit_rank"' in renderer
     benchmark = text.split("function renderLegacyProfitBenchmark", 1)[1].split(
         "function renderThreeRankWatchlist", 1
     )[0]

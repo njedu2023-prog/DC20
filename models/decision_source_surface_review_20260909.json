@@ -1,0 +1,76 @@
+{
+  "schema_version": "decision_source_surface_successor_review_v1",
+  "review_id": "dc20_compact_two_rank_homepage_20260909",
+  "reviewed_on": "2026-09-09",
+  "approved_base_commit": "85de3d0fe6d576964aac61d95e25d793961b8466",
+  "baseline_manifest_sha256": "16f80f0b7bc45957dce4239e295abe849ec7fbae519b10b88e759b49e401593a",
+  "baseline_manifest_canonical_sha256": "b4f1ab8769d9f63144cf332358693f64e55b7869edc2f0347c511fa64a6c5345",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260906.json",
+  "predecessor_evidence_sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885",
+  "scope": "SOURCE_ONLY_SUCCESSOR_REVIEW_NOT_MODEL_RELEASE",
+  "reason": "Publish the compact two-rank HTML as the existing GitHub Pages homepage. Preserve all old review evidence, frozen rankings, model parameters, production data and inactive forward epoch. Update only the six reviewed source/test pins and the forward inventory fingerprint of this non-model freeze-manifest dependency.",
+  "protected_model_identity": {
+    "freeze_id": "dc20_decision_three_rank_v2_partial_d20260814_de4cae2427593b05",
+    "training_cutoff_signal_date": "20260805",
+    "history_snapshot_sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+    "three_rank_contract_sha256": "a66fe697a8a74bdec2052dfc017f279fdfcf98e4e0ee2ff3d188b8936f06b3c5",
+    "model_identity_changed": false,
+    "training_ledger_changed": false,
+    "action_plan_changed": false
+  },
+  "boundaries": {
+    "historical_evidence_rewritten": false,
+    "live_model_weights_changed": false,
+    "promotion_members_or_ranks_changed": false,
+    "predictions_or_shadow_selections_recreated": false,
+    "formal_trade_action_created": false,
+    "natural_verify_success_claimed": false,
+    "production_schedule_changed": false,
+    "forward_epoch_activated": false
+  },
+  "pin_changes": [
+    {
+      "path": ".github/workflows/run_primary_profit_rankings.yml",
+      "baseline_sha256": "11b810bad765a8c28b2ecbbf73fa03a238c17446556f7b9b51ebcde5082c5311",
+      "current_sha256": "b10e9e80fb040e0e68accdfcdc7511bad18288b98d71217fd1b4d337d116d1d8",
+      "reason": "Adapt inactive legacy DOM acceptance to one unified table; no triggers, schedules, writers or canonical Pages jobs changed."
+    },
+    {
+      "path": "decision.html",
+      "baseline_sha256": "6f20d69df54a525f523ca50f91400f5f14a78f2ac9c0ff5aa9d1bb1f62c81686",
+      "current_sha256": "337e892ffa5ef081185a92d2ad3914913306dbcd8d1b9638f7066a40b852a228",
+      "reason": "Compact production homepage and one exact-bound two-rank table; reference typography and truthful validation labels."
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "baseline_sha256": "642bb3bec193f5d122d3563dd3e621d5d7dbbb585c6de287e3ffac97ba003ff2",
+      "current_sha256": "e97245ab7bd61afaa829f6ecb89c89d10aef33aacd5b87c8c8d354f5d6c8409e",
+      "reason": "Assert the compact merged-table presentation while preserving same-D/hash/rank validation and failure-closed behavior."
+    },
+    {
+      "path": "tests/test_decision_executable_profit_frontend.py",
+      "baseline_sha256": "fc956368bcef8a9d833453bf875ce3404628dd1a3e0be59287dfb3d8f0beefc3",
+      "current_sha256": "283ec69a7818f62271b12fecf0787b984bf96237b0523865cc99a563ed0da0de",
+      "reason": "Assert the compact merged-table presentation while preserving same-D/hash/rank validation and failure-closed behavior."
+    },
+    {
+      "path": "tests/test_decision_three_rank_frontend.py",
+      "baseline_sha256": "83e9aaaf63384eb46a9251e2396a617d962c87cc8d20a9b26c8ff56e88d38c37",
+      "current_sha256": "cc4166131deb434d0bee6f29aebed5e13725f35c6afaf0870be4119f71b917ec",
+      "reason": "Assert the compact merged-table presentation while preserving same-D/hash/rank validation and failure-closed behavior."
+    },
+    {
+      "path": "tests/test_primary_profit_rankings_p1.py",
+      "baseline_sha256": "ca88c106decdd0157990f2df2949c70ec3291697470d9eb40bdcf5d95675f6f8",
+      "current_sha256": "74966f953a030a8c52c487d8e34c1a185df14d20f4071233ac68ae720367580d",
+      "reason": "Assert the compact merged-table presentation while preserving same-D/hash/rank validation and failure-closed behavior."
+    }
+  ],
+  "forward_inventory_dependency_update": {
+    "path": "models/decision_model_freeze.json",
+    "baseline_sha256": "16f80f0b7bc45957dce4239e295abe849ec7fbae519b10b88e759b49e401593a",
+    "current_sha256": "fbf2f92dec22604e402e73628a70bc287ea3cd16b0c1b6511fc0eb0a14211cae",
+    "bytes": 51529,
+    "all_other_41_assets_unchanged": true
+  }
+}

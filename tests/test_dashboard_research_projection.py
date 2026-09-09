@@ -85,7 +85,7 @@ def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() ->
     assert '<details id="researchPanel" class="panel observation-disclosure">' in text
     assert 'class="ranking-disclosure"' not in text
     assert 'class="mixed-profit-card"' not in text
-    assert 'class="profit-top-badge"' in text
+    assert 'class="rank-mark rank-profit"' in text
     assert 'class="workspace-nav" aria-label="页面主要区域"' in text
     assert 'const available = plan?.daily_research_only !== true' in text
     assert 'els.sentimentPanel.hidden = !available' in text
@@ -101,7 +101,7 @@ def test_dashboard_places_current_rankings_first_and_folds_secondary_panels() ->
     assert 'window.location.replace(latestUrl.toString())' in text
     assert 'title="重新加载最新版页面"' in text
     assert (
-        'const DASHBOARD_VERSION = "independent-two-ranks-v12-profit-research"'
+        'const DASHBOARD_VERSION = "compact-two-ranks-v13-unified"'
         in text
     )
     assert 'const researchExpected = info.research_available === true' in text

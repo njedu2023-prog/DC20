@@ -117,7 +117,8 @@ def test_public_research_layer_shows_ranked_uncalibrated_probability_estimate() 
         assert token in text
     assert "research_joint_proxy_score - row.research_fill_proxy_score * row.research_conditional_profit_score" in text
     assert "estimated_executable_profit_probability - row.research_joint_proxy_score" in text
-    assert 'pct(row.estimated_executable_profit_probability)' in text
+    assert 'number(row.mixed_profit_score, 4)' in text
+    assert '混合盈利研究联合代理分，非胜率或预期收益' in text
     assert "可实现盈利概率排序（研究估计）" not in text
     assert "公开研究可见 · 模型估计概率（未校准） · 全N排序 · 仅供人工决策参考" not in text
     assert "按模型估计可实现盈利概率从高到低显示全部真实" not in text
@@ -148,7 +149,8 @@ def test_selected_html_only_blocks_fields_and_action_section_are_not_rendered() 
 
     assert '<div class="executable-profit-proof">' not in profit
     assert "按模型估计可实现盈利概率从高到低显示全部真实" not in profit
-    assert '<table class="executable-profit-table">' in profit
+    assert '<table class="executable-profit-table">' not in profit
+    assert 'data-rank-field="mixed_profit_rank"' in stage
     assert "下载研究 CSV" in profit
     assert "下载研究 JSON" in profit
 
@@ -203,7 +205,7 @@ def test_real_candidate_count_and_shadow_slots_are_never_padded() -> None:
         'ranking.shadow_slot_rule === "min(2, N); no padding"',
         'ranking.shadow_price_use === "D-frozen research price cap only; not a buy instruction"',
         "Shadow T验证行数与min(2,N)不一致",
-        "当日没有2→3或3→4候选",
+        "D日没有符合硬范围的候选",
         "不从池外补票",
     ):
         assert token in text

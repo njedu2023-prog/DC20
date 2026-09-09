@@ -3,6 +3,12 @@
   "source_repository": "njedu2023-prog/DC20",
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
+  "dependency_successor_review": {
+    "path": "models/decision_source_surface_review_20260909.json",
+    "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28",
+    "approved_base_commit": "85de3d0fe6d576964aac61d95e25d793961b8466",
+    "scope": "Only the non-model freeze-manifest dependency tracks reviewed UI source pins; all other retained assets and the inactive epoch remain unchanged."
+  },
   "active_source_models": {
     "promotion": {
       "path": "models/decision_three_engines/promotion.joblib",
@@ -99,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "16f80f0b7bc45957dce4239e295abe849ec7fbae519b10b88e759b49e401593a",
+      "sha256": "fbf2f92dec22604e402e73628a70bc287ea3cd16b0c1b6511fc0eb0a14211cae",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

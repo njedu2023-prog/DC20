@@ -1003,10 +1003,12 @@ def test_p1_public_acceptance_revalidates_bytes_and_executes_dynamic_dom() -> No
         "status == '晋级榜与盈利排序已生成'",
         "parser.single_buttons == 0",
         "parser.stage_rows == expected_n",
-        "parser.mixed_rows == expected_n",
+        "parser.mixed_rows == 0",
+        "and unified_exact",
+        "parser.profit_sort_buttons == 1",
         "'单一盈利排序' not in parser.stage_headers",
         "'模型分值' not in parser.stage_headers",
-        "'盈利排序', '晋级排序', '联合代理分（非胜率）'",
+        "'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'",
         "f'真实候选 {expected_n} 支' in mixed_state",
     ):
         assert token in dom
@@ -1073,18 +1075,22 @@ def test_p1_public_acceptance_embedded_scripts_run_against_real_fixture(
     exec(compile(public_python, "<p1-public-fixture>", "exec"), {})
 
     n = int(result["candidate_count"])
-    stage_rows = "".join("<tr><td>row</td></tr>" for _ in range(n))
-    mixed_rows = "".join("<tr><td>row</td></tr>" for _ in range(n))
+    projection = json.loads(result["mixed"]["json"].read_text())
+    stage_rows = "".join(
+        f'<tr data-code="{row["ts_code"]}" data-promotion-rank="{row["promotion_rank"]}" data-profit-rank="{row["executable_profit_research_rank"]}">'
+        f'<td>{row["name"]} {row["ts_code"]}</td><td>2→3</td><td>路径</td>'
+        f'<td>{row["promotion_rank"]}</td><td>50%</td><td>{row["executable_profit_research_rank"]}</td>'
+        f'<td>{row["research_joint_proxy_score"]:.4f}</td><td>待验证</td><td>待验证</td></tr>'
+        for row in projection["rows"]
+    )
     rendered = f"""<!doctype html><html><body>
     <h2 id="statusTitle">晋级榜与盈利排序已生成</h2>
     <section id="stagePanel"><span id="stageSignalDate">D：2026-08-26</span><span id="stageCount">{n}</span>
-      <div id="stageContent"><button data-three-rank-sort="promotion_rank">晋级榜</button>
-        <table><thead><tr><th>晋级排序</th><th>晋级概率</th><th>连板路径</th><th>路径变化</th><th>T晋级结果</th><th>T+1净收益</th><th>T+1验证状态</th></tr></thead>
+      <div id="stageContent"><button data-three-rank-sort="promotion_rank">晋级榜</button><button data-three-rank-sort="mixed_profit_rank">盈利排序</button>
+        <table><thead><tr><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>连板路径<small>路径变化</small></th><th>T晋级结果</th><th>T+1净收益<small>T+1验证状态</small></th></tr></thead>
         <tbody data-three-rank-body>{stage_rows}</tbody></table></div></section>
     <section id="executableProfitResearchPanel"><span id="executableProfitResearchState">历史恢复 · 非前向研究 · 真实候选 {n} 支 · 不足10不补票</span>
-      <div id="executableProfitResearchContent"><table class="executable-profit-table">
-        <thead><tr><th>盈利排序</th><th>晋级排序</th><th>联合代理分（非胜率）</th></tr></thead><tbody>{mixed_rows}</tbody>
-      </table></div></section></body></html>"""
+      <div id="executableProfitResearchContent">盈利排序已并入名单，评分非概率。</div></section></body></html>"""
     dom_path = tmp_path / "rendered.html"
     dom_path.write_text(rendered, encoding="utf-8")
     dom = workflow.split(
@@ -1102,10 +1108,15 @@ def test_p1_public_acceptance_embedded_scripts_run_against_real_fixture(
     for broken in (
         rendered.replace("晋级榜与盈利排序已生成", "晋级榜、单一盈利与混合盈利排序已生成"),
         rendered.replace('data-three-rank-sort="promotion_rank"', 'data-three-rank-sort="legacy_profit_relative_rank"'),
-        rendered.replace("<th>连板路径</th>", "<th>缺失</th>"),
+        rendered.replace("连板路径<small>路径变化</small>", "缺失"),
         rendered.replace("<th>盈利排序</th>", "<th>混合盈利排序</th>"),
         rendered.replace("<th>晋级概率</th>", "<th>模型分值</th>"),
-        rendered.replace("<tr><td>row</td></tr>", "", 1),
+        rendered.replace(stage_rows.split('</tr>', 1)[0] + '</tr>', "", 1),
+        rendered.replace('data-profit-rank="1"', 'data-profit-rank="99"', 1),
+        rendered.replace('data-promotion-rank="1"', 'data-promotion-rank="99"', 1),
+        rendered.replace('<td>1</td>', '<td>99</td>', 1),
+        rendered.replace('data-three-rank-sort="mixed_profit_rank"', 'data-three-rank-sort="mixed_profit_rank" disabled'),
+        rendered.replace('<div id="executableProfitResearchContent">', '<div id="executableProfitResearchContent"><table class="executable-profit-table"><tbody><tr><td>重复名单</td></tr></tbody></table>'),
     ):
         dom_path.write_text(broken, encoding="utf-8")
         with pytest.raises(SystemExit, match="public rendered P1 DOM failed"):

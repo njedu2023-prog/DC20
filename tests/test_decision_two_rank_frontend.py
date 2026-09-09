@@ -23,16 +23,17 @@ def _function(name: str) -> str:
 
 
 def _run(body: str, count: int = 2):
-    mixed = json.loads((ROOT / "outputs/decision/executable_profit_research/projection_20260904.json").read_text())
-    single = json.loads((ROOT / "outputs/decision/legacy_profit_relative_research/projection_20260904.json").read_text())
+    day = "20260908" if count > 6 else "20260904"
+    mixed = json.loads((ROOT / f"outputs/decision/executable_profit_research/projection_{day}.json").read_text())
+    single = json.loads((ROOT / f"outputs/decision/legacy_profit_relative_research/projection_{day}.json").read_text())
     mixed["rows"] = mixed["rows"][:count]
     # Renderer fixtures; production loader binding validation remains tested separately.
     codes = {row["ts_code"] for row in mixed["rows"]}
     single["rows"] = [row for row in single["rows"] if row["ts_code"] in codes]
     contract = {key: mixed[key] for key in ("signal_date", "exec_date", "exit_date", "top10_members_sha256")}
-    contract.update(bundle_sha256=mixed["source_bundle_sha256"], rows=mixed["rows"],
+    contract.update(bundle_sha256=mixed["source_bundle_sha256"], feature_snapshot_sha256=mixed["source_feature_snapshot_sha256"], rows=mixed["rows"],
                     models={"promotion": {"status": "READY"}}, generated_at_utc="2026-09-04T14:00:00Z")
-    names = ("renderLegacyProfitBenchmark", "renderStatus", "renderThreeRankWatchlist",
+    names = ("renderLegacyProfitBenchmark", "renderStatus", "unifiedProfitView", "renderThreeRankWatchlist",
              "renderPrimaryMixedProfitResearch", "refreshCurrentLegacyProfitRelativeResearch",
              "canonicalYmd", "finiteNumber", "escapeHtml", "integerText", "number", "pct",
              "signedPct", "valueTone", "dateText", "pathClass", "truthClass",
@@ -40,9 +41,11 @@ def _run(body: str, count: int = 2):
     script = """
 const state = {index:0};
 const bodyNode = {innerHTML:''};
+const sortHandlers = {};
+const sortButtons = ['promotion_rank','mixed_profit_rank'].map(field=>({dataset:{threeRankSort:field},classList:{toggle:()=>{}},setAttribute:()=>{},addEventListener:(type,fn)=>{sortHandlers[field]=fn;}}));
 const els = new Proxy({}, {get(target, key) {
   return target[key] ??= {hidden:false, innerHTML:'', textContent:'', className:'',
-    querySelector:()=>bodyNode, querySelectorAll:()=>[], setAttribute:()=>{}};
+    querySelector:()=>bodyNode, querySelectorAll:selector=>selector.startsWith('button')?sortButtons:[], setAttribute:()=>{}};
 }});
 const document = {querySelectorAll:()=>[]};
 const validatedThreeRankContract = value=>value;
@@ -50,6 +53,7 @@ const localUrl = value=>value;
 const EXECUTABLE_PROFIT_RESEARCH_ROOT = 'outputs/decision/executable_profit_research';
 const LEGACY_PROFIT_RELATIVE_RESEARCH = {root:'outputs/decision/legacy_profit_relative_research'};
 const INDEPENDENCE_CUTOVER_SIGNAL_DATE = '20260821';
+const PRIMARY_MIXED_PROFIT_SCHEMA = 'dc20_primary_mixed_profit_research_projection_v1';
 let shadowProjection = null;
 function renderPrimaryProfitShadowSidecar(loaded) { shadowProjection = loaded.projection; }
 """
@@ -57,7 +61,8 @@ function renderPrimaryProfitShadowSidecar(loaded) { shadowProjection = loaded.pr
     script += f"\nconst mixed={json.dumps(mixed)}, single={json.dumps(single)}, contract={json.dumps(contract)};\n"
     script += "state.currentThreeRank=contract; state.currentLegacyProfitRelativeResearch=single; state.currentExecutableProfitResearch={status:'ready',kind:'primary_core',projection:mixed,index:{}};\n"
     script += "(async()=>{" + body + "})().catch(error=>{console.error(error);process.exit(1)});"
-    result = subprocess.run([NODE, "-e", script], check=True, text=True, capture_output=True)
+    result = subprocess.run([NODE, "-e", script], text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
 
@@ -112,56 +117,54 @@ def test_history_and_mismatched_baseline_clear_previously_visible_data():
     assert result["hidden"] and result["history"] == ""
 
 
-@pytest.mark.parametrize("count", [0, 1, 2, 6])
+@pytest.mark.parametrize("count", [0, 1, 2, 6, 10])
 def test_profit_top2_no_padding_same_frozen_rows_and_explicit_research_engine(count):
-    result = _run("const before=JSON.stringify(mixed);renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
-                  "console.log(JSON.stringify({html:els.executableProfitResearchContent.innerHTML,unchanged:before===JSON.stringify(mixed),"
+    result = _run("const before=JSON.stringify(mixed);renderThreeRankWatchlist({},contract);renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
+                  "console.log(JSON.stringify({html:els.executableProfitResearchContent.innerHTML,rows:bodyNode.innerHTML,unchanged:before===JSON.stringify(mixed),"
                   "sameShadow:shadowProjection===mixed,codes:mixed.rows.map(r=>r.ts_code)}));", count=count)
     assert result["unchanged"] and result["sameShadow"]
     assert '<article' not in result["html"]
     assert '<details' not in result["html"]
-    assert result["html"].count('class="profit-top-badge"') == min(count, 2)
+    assert result["rows"].count('aria-label="盈利排序第') == min(count, 2)
     assert "当前来源：混合盈利研究引擎" in result["html"]
     assert "不是盈利概率或预期收益" in result["html"]
     if count:
         assert "完整盈利排序" in result["html"]
         assert "联合代理分（非胜率）" in result["html"]
-        assert result["html"].count('<table ') == 1
-        assert result["html"].count('<td class="left name">') == count
+        assert result["html"].count('<table ') == 0
+        assert result["rows"].count('<td class="left name">') == count
         for code in result["codes"]:
-            assert result["html"].count(code) == 1
+            assert result["rows"].count(f'data-code="{code}"') == 1
     else:
         assert "真实N=0" in result["html"]
-    if count >= 2:
-        assert result["html"].index(result["codes"][0]) < result["html"].index(result["codes"][1])
 
 
 def test_top2_badges_follow_profit_rank_after_company_name_not_promotion_or_input_order():
     result = _run("mixed.rows.reverse();const before=JSON.stringify(mixed);"
-                  "renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
-                  "console.log(JSON.stringify({html:els.executableProfitResearchContent.innerHTML,"
+                  "renderThreeRankWatchlist({},contract);sortHandlers.mixed_profit_rank();"
+                  "console.log(JSON.stringify({html:bodyNode.innerHTML,"
                   "unchanged:before===JSON.stringify(mixed),rows:mixed.rows}));", count=6)
     assert result["unchanged"]
-    body = result["html"].split('<tbody>', 1)[1].split('</tbody>', 1)[0]
+    body = result["html"]
     cells = re.findall(r'<td class="left name">(.*?)</td>', body)
     ranked = sorted(result["rows"], key=lambda row: row["executable_profit_research_rank"])
     assert len(cells) == len(ranked) == 6
     for row, cell in zip(ranked, cells):
         rank = row["executable_profit_research_rank"]
-        assert cell.startswith(row["name"])
+        assert cell.startswith('<span class="company-line">' + row["name"])
         if rank in (1, 2):
-            assert f'aria-label="盈利排序第{rank}名">Top{rank}</span>' in cell
+            assert f'aria-label="盈利排序第{rank}名">盈{rank}</span>' in cell
         else:
-            assert 'profit-top-badge' not in cell
+            assert 'rank-profit' not in cell
 
 
 def test_inline_profit_badge_preserves_name_escaping_and_tied_score_label():
-    html = _run("mixed.rows[0].name='<img src=x onerror=alert(1)>';mixed.rows[0].rank_tied=true;"
-                "renderPrimaryMixedProfitResearch(state.currentExecutableProfitResearch);"
-                "console.log(JSON.stringify(els.executableProfitResearchContent.innerHTML));", count=2)
+    html = _run("contract.rows[0].name='<img src=x onerror=alert(1)>';mixed.rows[0].rank_tied=true;"
+                "renderThreeRankWatchlist({},contract);"
+                "console.log(JSON.stringify(bodyNode.innerHTML));", count=2)
     assert '<img' not in html
-    assert '&lt;img src=x onerror=alert(1)&gt;<span class="profit-top-badge"' in html
-    assert '1（并列分）' in html
+    assert '&lt;img src=x onerror=alert(1)&gt;<span class="rank-mark rank-profit"' in html
+    assert '并列分' in html
 
 
 def test_optional_baseline_refresh_clears_old_projection_on_error():
@@ -169,6 +172,58 @@ def test_optional_baseline_refresh_clears_old_projection_on_error():
                   "await refreshCurrentLegacyProfitRelativeResearch(contract);console.log(JSON.stringify({projection:state.currentLegacyProfitRelativeResearch,load:state.legacyProfitBenchmarkLoad}));")
     assert result["projection"] is None
     assert result["load"]["status"] == "missing"
+
+
+@pytest.mark.parametrize("mutation", [
+    "state.currentExecutableProfitResearch=null;",
+    "state.currentExecutableProfitResearch.status='invalid';",
+    "state.index=1;",
+    "mixed.signal_date='20260903';",
+    "mixed.exec_date='20260908';",
+    "mixed.exit_date='20260909';",
+    "mixed.source_bundle_sha256='wrong';",
+    "mixed.source_feature_snapshot_sha256='wrong';",
+    "mixed.top10_members_sha256='wrong';",
+    "mixed.rows[0].promotion_rank=999;",
+    "mixed.rows[0].predicted_promotion_probability=.999;",
+    "mixed.rows[0].ts_code=mixed.rows[1].ts_code;",
+    "mixed.rows[0].executable_profit_research_rank=2;",
+    "mixed.rows[0].research_joint_proxy_score=null;",
+    "state.currentExecutableProfitResearch.kind='forward_shadow';",
+])
+def test_unified_table_rejects_stale_or_unbound_profit_without_losing_promotion(mutation):
+    result = _run("renderThreeRankWatchlist({},contract);" + mutation +
+                  "const before=JSON.stringify(contract);renderThreeRankWatchlist({},contract);"
+                  "const first=bodyNode.innerHTML;sortHandlers.mixed_profit_rank();"
+                  "console.log(JSON.stringify({html:els.stageContent.innerHTML,rows:bodyNode.innerHTML,"
+                  "count:contract.rows.length,unchanged:before===JSON.stringify(contract),ignored:first===bodyNode.innerHTML}));", count=6)
+    assert result["unchanged"] and result["ignored"]
+    assert result["rows"].count('<tr data-code=') == result["count"]
+    assert 'aria-label="盈利排序第' not in result["rows"]
+    assert result["rows"].count('data-profit-rank=""') == result["count"]
+    assert re.search(r'data-three-rank-sort="mixed_profit_rank"[^>]*disabled', result["html"])
+
+
+def test_sort_toggle_preserves_both_frozen_orders_and_member_identity():
+    result = _run("mixed.rows.reverse();const before=JSON.stringify({contract,mixed});renderThreeRankWatchlist({},contract);"
+                  "const promotion=bodyNode.innerHTML;sortHandlers.mixed_profit_rank();const profit=bodyNode.innerHTML;"
+                  "sortHandlers.promotion_rank();console.log(JSON.stringify({promotion,profit,restored:bodyNode.innerHTML===promotion,"
+                  "unchanged:before===JSON.stringify({contract,mixed})}));", count=10)
+    assert result["unchanged"] and result["restored"]
+    assert [int(x) for x in re.findall(r'data-promotion-rank="(\d+)"', result["promotion"])] == list(range(1, 11))
+    assert [int(x) for x in re.findall(r'data-profit-rank="(\d+)"', result["profit"])] == list(range(1, 11))
+    assert sorted(re.findall(r'data-code="([^"]+)"', result["promotion"])) == sorted(re.findall(r'data-code="([^"]+)"', result["profit"]))
+
+
+def test_compact_home_has_one_main_table_and_no_duplicate_profit_table():
+    source = (ROOT / "decision.html").read_text()
+    assert 'compact-two-ranks-v13-unified' in source
+    assert '<table class="executable-profit-table">' not in source
+    assert 'font-size: 16px' in source
+    for name in ('profitDetails', 'historicalResearchDetails', 'technicalDetails'):
+        tag = re.search(rf'<details[^>]*id="{name}"[^>]*>', source).group()
+        assert ' open' not in tag
+    assert source.index('id="executableProfitShadowPanel"') > source.index('id="shadowWorkspace"')
 
 
 def test_baseline_is_default_collapsed_and_outside_main_rankings():
@@ -179,6 +234,30 @@ def test_baseline_is_default_collapsed_and_outside_main_rankings():
     baseline = re.search(r'<details id="legacyProfitBenchmarkPanel"([^>]*)>', source)
     assert baseline and "open" not in baseline.group(1)
     assert source.index('id="legacyProfitBenchmarkPanel"') > source.index('id="reviewWorkspace"')
+
+
+@pytest.mark.parametrize("status,kind,label,tone", [
+    ("PENDING_T_NOT_REACHED", "t", "未到T验证时间（截至快照）", "pending"),
+    ("PENDING_T1_NOT_REACHED", "t1", "未到T+1结算时间（截至快照）", "pending"),
+    ("PENDING_T_TRUTH", "t", "T真值待更新", "missing"),
+    ("PENDING_T1_TRUTH", "t1", "退出真值待更新", "missing"),
+    ("PENDING_T_VERIFICATION", "t1", "等待T验证", "pending"),
+    ("T_VERIFIED_PROXY_FILLED", "t", "代理可买 · 已验证", "final"),
+    ("T_VERIFIED_PROXY_NO_FILL_AUCTION_DAILY_CONFLICT", "t", "未买入 · 竞价与日线冲突", "no-fill"),
+    ("T_VERIFIED_PROXY_NO_FILL_ABOVE_FROZEN_CAP", "t", "未买入 · 超过冻结限价", "no-fill"),
+    ("T_VERIFIED_PROXY_NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED", "t", "未买入 · 涨停开盘未确认成交", "no-fill"),
+    ("T_VERIFIED_PROXY_NO_FILL_ONE_PRICE_LIMIT_UP", "t", "未买入 · 一字涨停", "no-fill"),
+    ("T_VERIFIED_PROXY_NO_FILL_CAPACITY", "t", "未买入 · 竞价容量不足", "no-fill"),
+    ("FINAL_PROXY_NO_FILL", "t1", "未买入 · 槽位0收益", "no-fill"),
+    ("FINAL_FIRST_TRADABLE_OPEN_PUBLIC_MARKET_PROXY", "t1", "已结算（开盘代理）", "final"),
+    ("FINAL_UNKNOWN", "t1", "状态待核验", "missing"),
+    ("T_VERIFIED_PROXY_NO_FILL_UNKNOWN", "t", "状态待核验", "missing"),
+    ("", "t", "状态待核验", "missing"),
+])
+def test_shadow_status_labels_do_not_call_missing_truth_settled(status, kind, label, tone):
+    script = _function("primaryShadowStatus") + f"\nconsole.log(JSON.stringify(primaryShadowStatus({json.dumps(status)}, {json.dumps(kind)})));"
+    result = subprocess.run([NODE, "-e", script], text=True, capture_output=True, check=True)
+    assert json.loads(result.stdout) == {"label": label, "tone": tone}
 
 
 def test_p1_empty_day_dom_acceptance_does_not_require_padded_tables(tmp_path, monkeypatch):

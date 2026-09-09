@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -14,6 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "models/decision_model_freeze.json"
 EVIDENCE = ROOT / "models/decision_source_surface_rotation_20260824.json"
 SUCCESSOR = ROOT / "models/decision_source_surface_review_20260906.json"
+COMPACT_REVIEW = ROOT / "models/decision_source_surface_review_20260909.json"
+COMPACT_REVIEW_SHA = "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+COMPACT_REVIEW_PATHS = {
+    ".github/workflows/run_primary_profit_rankings.yml", "decision.html",
+    "tests/test_dashboard_research_projection.py",
+    "tests/test_decision_executable_profit_frontend.py",
+    "tests/test_decision_three_rank_frontend.py", "tests/test_primary_profit_rankings_p1.py",
+}
 SUCCESSOR_REVIEW_PATHS = {
     ".github/workflows/verify_decision_observations.yml",
     "decision.html",
@@ -68,6 +77,78 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _pins_before_compact_ui_review(manifest: dict, review: dict) -> dict:
+    """Verify current disk bytes first, then rewind only six reviewed UI pins."""
+    assert _sha256(COMPACT_REVIEW) == COMPACT_REVIEW_SHA
+    assert review["schema_version"] == "decision_source_surface_successor_review_v1"
+    assert review["review_id"] == "dc20_compact_two_rank_homepage_20260909"
+    assert review["reviewed_on"] == "2026-09-09"
+    assert review["scope"] == "SOURCE_ONLY_SUCCESSOR_REVIEW_NOT_MODEL_RELEASE"
+    assert review["approved_base_commit"] == "85de3d0fe6d576964aac61d95e25d793961b8466"
+    assert review["baseline_manifest_sha256"] == "16f80f0b7bc45957dce4239e295abe849ec7fbae519b10b88e759b49e401593a"
+    assert review["baseline_manifest_canonical_sha256"] == "b4f1ab8769d9f63144cf332358693f64e55b7869edc2f0347c511fa64a6c5345"
+    assert review["predecessor_evidence_path"] == SUCCESSOR.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(SUCCESSOR) == "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    predecessor = json.loads(SUCCESSOR.read_text())
+    assert review["protected_model_identity"] == predecessor["protected_model_identity"]
+    assert review["boundaries"] == {
+        **predecessor["boundaries"], "production_schedule_changed": False, "forward_epoch_activated": False,
+    }
+    restored = copy.deepcopy(manifest)
+    pins = restored["pinned_files"]
+    assert len(pins) == 224 and COMPACT_REVIEW.relative_to(ROOT).as_posix() not in pins
+    for path, expected in pins.items():
+        target = ROOT / path
+        assert target.is_file() and not target.is_symlink()
+        assert _sha256(target) == expected
+    changes = review["pin_changes"]
+    assert [item["path"] for item in changes] == sorted(COMPACT_REVIEW_PATHS)
+    for item in changes:
+        assert set(item) == {"path", "baseline_sha256", "current_sha256", "reason"}
+        assert item["current_sha256"] == pins[item["path"]]
+        assert re.fullmatch(r"[0-9a-f]{64}", item["baseline_sha256"])
+        assert item["baseline_sha256"] != item["current_sha256"] and item["reason"]
+        pins[item["path"]] = item["baseline_sha256"]
+    # Bind every untouched pin AND the complete non-pin model/contract policy.
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    dep = review["forward_inventory_dependency_update"]
+    assert dep == {
+        "path": "models/decision_model_freeze.json", "baseline_sha256": review["baseline_manifest_sha256"],
+        "current_sha256": _sha256(MANIFEST), "bytes": MANIFEST.stat().st_size,
+        "all_other_41_assets_unchanged": True,
+    }
+    inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
+    assert inventory["dependency_successor_review"]["path"] == COMPACT_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == COMPACT_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["approved_base_commit"] == review["approved_base_commit"]
+    freeze = next(item for item in inventory["assets"] if item["path"] == dep["path"])
+    assert freeze["sha256"] == dep["current_sha256"] and freeze["bytes"] == dep["bytes"]
+    assert freeze["verify_for_replay"] is False
+    return pins
+
+
+@pytest.mark.parametrize("mutation", ["extra_path", "current_sha", "baseline_sha", "model_identity", "base_commit", "ranking_boundary", "model_policy"])
+def test_compact_ui_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_text())
+    review = json.loads(COMPACT_REVIEW.read_text())
+    if mutation == "extra_path":
+        review["pin_changes"].append(dict(review["pin_changes"][0], path="src/top10decision/auction_v3/engine.py"))
+    elif mutation == "current_sha":
+        review["pin_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "baseline_sha":
+        review["pin_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "model_identity":
+        review["protected_model_identity"]["model_identity_changed"] = True
+    elif mutation == "base_commit":
+        review["approved_base_commit"] = "0" * 40
+    elif mutation == "ranking_boundary":
+        review["boundaries"]["promotion_members_or_ranks_changed"] = True
+    else:
+        manifest["training_cutoff_signal_date"] = "20260909"
+    with pytest.raises(AssertionError):
+        _pins_before_compact_ui_review(manifest, review)
+
+
 def _historical_pins_after_successor_review(manifest: dict, evidence: dict, review: dict) -> dict:
     """Undo only an explicitly reviewed successor, never rewrite old evidence."""
     assert review["schema_version"] == "decision_source_surface_successor_review_v1"
@@ -91,7 +172,7 @@ def _historical_pins_after_successor_review(manifest: dict, evidence: dict, revi
     }
     historical_surface = {item["path"]: item["current_sha256"] for item in evidence["pin_changes"]}
     historical_surface.update(evidence["added_runtime_pins"])
-    pins = dict(manifest["pinned_files"])
+    pins = _pins_before_compact_ui_review(manifest, json.loads(COMPACT_REVIEW.read_text()))
     # A source-review record is audit evidence, not a new frozen runtime input.
     # Keep the runtime's exact required pin set and authenticate this record
     # independently rather than extending the protected model source boundary.
@@ -113,7 +194,8 @@ def _historical_pins_after_successor_review(manifest: dict, evidence: dict, revi
         assert item["reason"]
         target = ROOT / path
         assert target.is_file() and not target.is_symlink()
-        assert _sha256(target) == pins[path] == item["current_sha256"]
+        # Disk/current hashes were verified before the newer UI review rewind.
+        assert pins[path] == item["current_sha256"]
         pins[path] = item["historical_sha256"]
     return pins
 

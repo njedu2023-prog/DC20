@@ -834,6 +834,9 @@ jobs:
                   self.mixed_rows = 0
                   self.stage_headers = []
                   self.mixed_headers = []
+                  self.stage_tables = 0
+                  self.profit_sort_buttons = 0
+                  self.unified_rows = []
 
               def _inside_id(self, value):
                   return any(item['attrs'].get('id') == value for item in self.stack)
@@ -857,8 +860,14 @@ jobs:
                       self.mixed_hidden = 'hidden' in attributes
                   if tag == 'button' and attributes.get('data-three-rank-sort') == 'legacy_profit_relative_rank' and self._inside_id('stageContent'):
                       self.single_buttons += 1
+                  if tag == 'button' and attributes.get('data-three-rank-sort') == 'mixed_profit_rank' and 'disabled' not in attributes and self._inside_id('stageContent'):
+                      self.profit_sort_buttons += 1
+                  if tag == 'table' and self._inside_id('stageContent'):
+                      self.stage_tables += 1
                   if tag == 'tr' and self._inside_attr('data-three-rank-body'):
                       self.stage_rows += 1
+                      node['cells'] = []
+                      self.unified_rows.append(node)
                   if tag == 'tr' and self._inside_class('executable-profit-table') and self._inside_id('executableProfitResearchContent') and any(item['tag'] == 'tbody' for item in self.stack):
                       self.mixed_rows += 1
                   if tag in self.VOID:
@@ -877,6 +886,10 @@ jobs:
                           self.stage_headers.append(text)
                       if any('executable-profit-table' in item['attrs'].get('class', '').split() for item in self.stack[:position]):
                           self.mixed_headers.append(text)
+                  if node['tag'] == 'td' and self._inside_attr('data-three-rank-body'):
+                      row = next((item for item in reversed(self.stack[:position]) if item['tag'] == 'tr' and 'cells' in item), None)
+                      if row is not None:
+                          row['cells'].append(' '.join(text.split()))
                   del self.stack[position:]
 
               def handle_data(self, data):
@@ -896,6 +909,26 @@ jobs:
           mixed_state = parser.text('executableProfitResearchState')
           mixed_text = parser.text('executableProfitResearchContent')
           failures = ('读取失败', '校验失败', '未展示', '等待首个功能完整D日快照', '正在读取')
+          expected_rows = {row['ts_code']: row for row in mixed.get('rows', [])}
+          rendered_codes = [row['attrs'].get('data-code') for row in parser.unified_rows]
+          unified_exact = len(expected_rows) == expected_n and len(set(rendered_codes)) == expected_n and set(rendered_codes) == set(expected_rows)
+          for rendered in parser.unified_rows:
+              attrs, cells = rendered['attrs'], rendered['cells']
+              row = expected_rows.get(attrs.get('data-code'))
+              if not row or len(cells) != 9:
+                  unified_exact = False
+                  continue
+              unified_exact = unified_exact and (
+                  attrs.get('data-promotion-rank') == str(row['promotion_rank'])
+                  and attrs.get('data-profit-rank') == str(row['executable_profit_research_rank'])
+                  and row['ts_code'] in cells[0] and row['name'] in cells[0]
+                  and cells[3] == str(row['promotion_rank'])
+                  and cells[5].removesuffix('并列分').strip() == str(row['executable_profit_research_rank'])
+              )
+              try:
+                  unified_exact = unified_exact and abs(float(cells[6]) - row['research_joint_proxy_score']) <= 0.000050000001
+              except ValueError:
+                  unified_exact = False
           if not (
               status == '晋级榜与盈利排序已生成'
               and parser.stage_hidden is False
@@ -903,10 +936,14 @@ jobs:
               and parser.single_buttons == 0
               and '单一盈利排序' not in parser.stage_headers
               and '模型分值' not in parser.stage_headers
-              and (expected_n == 0 or {'晋级排序', '晋级概率', '连板路径', '路径变化', 'T晋级结果', 'T+1净收益', 'T+1验证状态'}.issubset(parser.stage_headers))
+              and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'}.issubset(parser.stage_headers))
+              and (expected_n == 0 or any('连板路径' in header and '路径变化' in header for header in parser.stage_headers))
+              and (expected_n == 0 or any('T+1净收益' in header and 'T+1验证状态' in header for header in parser.stage_headers))
               and parser.stage_rows == expected_n
-              and (expected_n == 0 or {'盈利排序', '晋级排序', '联合代理分（非胜率）'}.issubset(parser.mixed_headers))
-              and parser.mixed_rows == expected_n
+              and parser.stage_tables == (1 if expected_n else 0)
+              and (expected_n == 0 or parser.profit_sort_buttons == 1)
+              and parser.mixed_rows == 0
+              and unified_exact
               and f'真实候选 {expected_n} 支' in mixed_state
               and not any(value in stage_text or value in mixed_text or value in mixed_state for value in failures)
           ):
@@ -914,7 +951,7 @@ jobs:
                   'public rendered P1 DOM failed: '
                   f'status={status!r}, stage_hidden={parser.stage_hidden}, mixed_hidden={parser.mixed_hidden}, '
                   f'single_buttons={parser.single_buttons}, stage_rows={parser.stage_rows}/{expected_n}, '
-                  f'mixed_rows={parser.mixed_rows}/{expected_n}, mixed_state={mixed_state!r}'
+                  f'duplicate_mixed_rows={parser.mixed_rows}, unified_exact={unified_exact}, mixed_state={mixed_state!r}'
               )
           print(f'public rendered P1 DOM verified: D={signal_date}, N={expected_n}')
           PY
