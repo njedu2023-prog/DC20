@@ -1193,9 +1193,9 @@
         <p id="brandDates" class="brand-dates">D:- · T:- · T+1:-</p>
       </div>
       <nav class="controls" aria-label="报告导航">
-        <button id="prevBtn" class="icon-btn" type="button" title="上一份历史报告" aria-label="上一份历史报告">←</button>
+        <button id="prevBtn" class="icon-btn" type="button" title="上一交易日名单" aria-label="上一交易日名单" disabled>←</button>
         <button id="refreshBtn" class="icon-btn" type="button" title="重新加载最新版页面" aria-label="重新加载最新版页面">↻</button>
-        <button id="nextBtn" class="icon-btn" type="button" title="下一份报告" aria-label="下一份报告">→</button>
+        <button id="nextBtn" class="icon-btn" type="button" title="下一交易日名单" aria-label="下一交易日名单" disabled>→</button>
       </nav>
     </div>
   </header>
@@ -1693,8 +1693,9 @@
       const research = new URLSearchParams(location.search).get("view") === "research";
       for (const id of ["shadowWorkspace", "historicalResearchDetails", "technicalDetails", "researchReturn"]) document.getElementById(id).hidden = !research;
       for (const id of ["shadowWorkspace", "historicalResearchDetails"]) document.getElementById(id).hidden = !research || state.index !== 0;
-      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research || (id !== "rankingWorkspace" && state.index !== 0);
+      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research || (id !== "rankingWorkspace" && (state.index !== 0 || Boolean(state.dailyRequestedDate)));
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
+      if (state.dailyRequestedDate) return; // Never project latest cumulative results into a dated view.
       const source = compactShadowSource();
       const daily = state.currentPrimaryMixedDailyTop2;
       if (daily?.status !== "ready") {
@@ -2102,13 +2103,13 @@
       return new Uint8Array(await response.arrayBuffer());
     }
 
-    async function loadCurrentThreeRankPathEvidence(currentThreeRank) {
+    async function loadCurrentThreeRankPathEvidence(currentThreeRank, datedRuntimeIndex = null) {
       const contract = validatedThreeRankContract(currentThreeRank);
       if (!contract || contract === false) return null;
       const signalDate = canonicalYmd(contract.signal_date);
       const sourceIndex = currentThreeRank?.three_rank_source_index;
-      const indexBytes = await fetchPublishedBytes(PRIMARY_D_RUNTIME_INDEX.path);
-      const runtimeIndex = strictJsonFromBytes(indexBytes, "P0路径索引");
+      const indexBytes = datedRuntimeIndex ? null : await fetchPublishedBytes(PRIMARY_D_RUNTIME_INDEX.path);
+      const runtimeIndex = datedRuntimeIndex || strictJsonFromBytes(indexBytes, "P0路径索引");
       const receiptPath = `outputs/decision/primary_d_receipt_${signalDate}.json`;
       const runtimePath = `outputs/decision/primary_d_runtime_features_${signalDate}.csv`;
       const threeRankJsonPath = `outputs/decision/three_rank_top10_${signalDate}.json`;
@@ -2292,8 +2293,8 @@
         status: "VALID",
         signal_date: signalDate,
         pages_revision_sha: revisionSha,
-        runtime_index_path: PRIMARY_D_RUNTIME_INDEX.path,
-        runtime_index_sha256: await sha256Hex(indexBytes),
+        runtime_index_path: datedRuntimeIndex ? null : PRIMARY_D_RUNTIME_INDEX.path,
+        runtime_index_sha256: datedRuntimeIndex ? null : await sha256Hex(indexBytes),
         receipt_path: receiptPath,
         receipt_sha256: runtimeIndex.latest_receipt_sha256,
         runtime_path: runtimePath,
@@ -2537,7 +2538,7 @@
     }
 
     function renderStatus(plan) {
-      const currentPage = state.index === 0;
+      const currentPage = state.index === 0 && !state.dailyRequestedDate;
       els.shadowWorkspace.hidden = !currentPage;
       els.reviewWorkspace.hidden = !currentPage;
       document.querySelectorAll(".workspace-nav [data-current-only]").forEach(link => {
@@ -2550,7 +2551,7 @@
       if (primaryContract && primaryContract !== false) {
         const profitReady = unifiedProfitView(primaryContract).ready;
         els.statusBand.className = `status-band ${profitReady ? "good" : "warn"}`;
-        els.statusKicker.textContent = "D日核心排名（不依赖历史Action）";
+        els.statusKicker.textContent = state.dailyRequestedDate ? "历史D日名单 · 只读查看" : "D日核心排名（不依赖历史Action）";
         els.statusTitle.textContent = profitReady
           ? "晋级榜与盈利排序已生成"
           : "晋级榜已生成 · 盈利研究排序独立校验中";
@@ -5541,9 +5542,164 @@
         <div class="md-section"><h3>原始报告预览 · ${escapeHtml(reportName)}</h3><pre>${escapeHtml(md.slice(0, 12000))}</pre></div>`;
     }
 
+    // Published P0 receipts are the daily inventory. Old report dates and P1
+    // availability must never decide whether a promotion list is navigable.
+    async function loadDailyNavigation() {
+      const index = strictJsonFromBytes(await fetchPublishedBytes("outputs/decision/three_rank_history/index.json"), "D日目录");
+      executableProfitExpect(index.schema_version === "dc20_three_rank_history_index_v2" && index.data_alias === false
+        && index.statistics_url === "outputs/decision/three_rank_history/statistics.json" && isSha256(index.statistics_sha256), "D日目录合同无效");
+      const bytes = await fetchPublishedBytes(index.statistics_url);
+      executableProfitExpect(await sha256Hex(bytes) === index.statistics_sha256, "D日目录SHA256不一致");
+      const records = strictJsonFromBytes(bytes, "D日文件目录")?.p_fill_shadow_top2_forward?.primary_only_non_shadow_records;
+      executableProfitExpect(Array.isArray(records), "D日文件目录缺失");
+      const seen = new Set();
+      for (const entry of records) {
+        const d = canonicalYmd(entry.signal_date);
+        executableProfitExpect(d && d === entry.signal_date && d >= INDEPENDENCE_CUTOVER_SIGNAL_DATE
+          && d < canonicalYmd(entry.exec_date) && entry.exec_date < canonicalYmd(entry.exit_date) && !seen.has(d)
+          && ["NATURAL", "RETROSPECTIVE_RECOVERY"].includes(entry.generation_mode)
+          && entry.receipt?.path === `outputs/decision/primary_d_receipt_${d}.json`
+          && entry.snapshot?.path === `outputs/decision/three_rank_top10_${d}.json`
+          && [entry.receipt.sha256, entry.snapshot.sha256, entry.top10_members_sha256].every(isSha256), "D日目录日期、重复项或绑定无效");
+        seen.add(d);
+      }
+      return [...records].sort((a, b) => b.signal_date.localeCompare(a.signal_date));
+    }
+
+    async function refreshDailyNavigation() {
+      try {
+        state.dailyNavigation = await loadDailyNavigation();
+        state.dailyNavigationError = "";
+      } catch (error) {
+        state.dailyNavigation = [];
+        state.dailyNavigationError = `D日目录暂不可用：${error.message || error}`;
+      }
+      setNavigation();
+    }
+
+    function dailyAdjacentDates() {
+      const selected = state.dailyRequestedDate || state.currentThreeRank?.signal_date;
+      const dates = [...new Set([...(state.dailyNavigation || []).map(entry => entry.signal_date), state.dailyLatestDate].filter(Boolean))].sort();
+      return { previous: dates.filter(d => d < selected).at(-1) || null, next: dates.find(d => d > selected) || null };
+    }
+
     function setNavigation() {
-      els.prevBtn.disabled = state.index >= state.reports.length - 1;
-      els.nextBtn.disabled = state.index <= 0;
+      if (new URLSearchParams(location.search).get("view") === "research") {
+        els.prevBtn.disabled = state.index >= state.reports.length - 1;
+        els.nextBtn.disabled = state.index <= 0;
+        for (const [button, label] of [[els.prevBtn, "上一份历史报告"], [els.nextBtn, "下一份报告"]]) {
+          button.title = label;
+          button.setAttribute("aria-label", label);
+        }
+        return;
+      }
+      const dates = dailyAdjacentDates();
+      for (const [button, date, label] of [[els.prevBtn, dates.previous, "上一交易日名单"], [els.nextBtn, dates.next, "下一交易日名单"]]) {
+        button.disabled = !date;
+        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}` : `没有${label}`);
+        button.setAttribute("aria-label", button.title);
+      }
+    }
+
+    function navigateDaily(direction) {
+      if (new URLSearchParams(location.search).get("view") === "research") {
+        return loadReport(state.index + direction).catch(showError);
+      }
+      const dates = dailyAdjacentDates();
+      const date = direction > 0 ? dates.previous : dates.next;
+      if (!date) return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("page");
+      url.searchParams.set("d", date); // Keep the exact target even if the inventory lags the latest pointer.
+      url.hash = "";
+      window.location.assign(url.toString()); // A fresh state prevents cross-D async races.
+    }
+
+    async function loadPublishedDailyEntry(entry) {
+      const receiptBytes = await fetchPublishedBytes(entry.receipt.path);
+      executableProfitExpect(await sha256Hex(receiptBytes) === entry.receipt.sha256, "历史D receipt SHA256不一致");
+      const receipt = strictJsonFromBytes(receiptBytes, "历史D receipt");
+      const o = receipt.outputs;
+      executableProfitExpect(receipt.schema_version === "dc20_primary_d_receipt_v1" && receipt.artifact_kind === "p0_promotion_only_d_list_receipt"
+        && receipt.owner === `${REPO.owner}/${REPO.name}` && receipt.primary_status === "READY"
+        && receipt.signal_date === entry.signal_date && receipt.exec_date === entry.exec_date && receipt.exit_date === entry.exit_date
+        && receipt.generation_mode === entry.generation_mode && receipt.action_authorized === false && receipt.action_input_consumed === false
+        && receipt.formal_trade_count === 0 && receipt.runtime_dependency_on_top10_decision === false
+        && receipt.future_market_data_consumed === false && receipt.latest_fallback_used === false
+        && o?.json_path === entry.snapshot.path && o.json_sha256 === entry.snapshot.sha256
+        && o.top10_members_sha256 === entry.top10_members_sha256
+        && o.csv_path === `outputs/decision/three_rank_top10_${entry.signal_date}.csv` && isSha256(o.csv_sha256), "历史D receipt日期、输出或无Action边界无效");
+      const cal = receipt.inputs?.calendar;
+      executableProfitExpect(cal?.path === "data/market/trade_cal_sse.csv" && cal.exchange === "SSE" && cal.signal_date_is_open === true && isSha256(cal.sha256), "历史D交易日历绑定缺失");
+      const [jsonBytes, csvBytes, calendarBytes] = await Promise.all([fetchPublishedBytes(o.json_path), fetchPublishedBytes(o.csv_path), fetchPublishedBytes(cal.path)]);
+      executableProfitExpect(await sha256Hex(jsonBytes) === o.json_sha256 && await sha256Hex(csvBytes) === o.csv_sha256
+        && await sha256Hex(calendarBytes) === cal.sha256, "历史D名单或交易日历SHA256不一致");
+      const sessions = parseStrictCsvBytes(calendarBytes, ["exchange", "cal_date", "is_open"], "SSE交易日历").filter(row => row.exchange === "SSE");
+      executableProfitExpect(sessions.every(row => canonicalYmd(row.cal_date) === row.cal_date && ["0", "1"].includes(row.is_open))
+        && new Set(sessions.map(row => row.cal_date)).size === sessions.length, "SSE交易日历存在无效或重复日期");
+      const openDates = sessions.filter(row => row.is_open === "1").map(row => row.cal_date).sort();
+      const position = openDates.indexOf(entry.signal_date);
+      executableProfitExpect(position >= 0 && openDates[position + 1] === entry.exec_date && openDates[position + 2] === entry.exit_date, "历史D/T/T+1不是连续SSE交易日");
+      const wrapper = { signal_date: entry.signal_date, exec_date: entry.exec_date, exit_date: entry.exit_date,
+        three_rank: strictJsonFromBytes(jsonBytes, "历史D名单"), independent_dc20_sidecar: true,
+        three_rank_source_index: { json_path: o.json_path, json_sha256: o.json_sha256, csv_path: o.csv_path, csv_sha256: o.csv_sha256 } };
+      const contract = validatedThreeRankContract(wrapper);
+      executableProfitExpect(contract && contract.bundle_sha256 === o.bundle_sha256 && contract.feature_snapshot_sha256 === o.feature_snapshot_sha256
+        && contract.top10_members_sha256 === o.top10_members_sha256 && contract.downloads?.csv_sha256 === o.csv_sha256
+        && contract.promotion_pool_size === o.promotion_pool_size && contract.top10_count === o.top10_count, "历史D冻结合同与receipt不一致");
+      const runtimeIndex = { schema_version: PRIMARY_D_RUNTIME_INDEX.schema, index_kind: PRIMARY_D_RUNTIME_INDEX.kind, data_alias: false,
+        latest_signal_date: entry.signal_date, latest_exec_date: entry.exec_date, latest_exit_date: entry.exit_date,
+        latest_receipt_url: entry.receipt.path, latest_receipt_sha256: entry.receipt.sha256,
+        latest_runtime_features_url: o.runtime_features_path, latest_runtime_features_sha256: o.runtime_features_sha256,
+        runtime_feature_row_count: o.runtime_feature_row_count, runtime_selected_count: o.runtime_selected_count, runtime_identity_sha256: o.runtime_identity_sha256,
+        latest_feature_snapshot_sha256: o.feature_snapshot_sha256, latest_top10_members_sha256: o.top10_members_sha256,
+        latest_three_rank_json_url: o.json_path, latest_three_rank_json_sha256: o.json_sha256,
+        latest_three_rank_csv_url: o.csv_path, latest_three_rank_csv_sha256: o.csv_sha256, latest_bundle_sha256: o.bundle_sha256 };
+      return { wrapper, runtimeIndex };
+    }
+
+    async function loadDailyHistoricalProfit(currentThreeRank) {
+      const entry = state.currentPrimaryMixedDailyTop2?.status === "ready"
+        && state.currentPrimaryMixedDailyTop2.index.entries.find(row => row.signal_date === currentThreeRank.signal_date);
+      executableProfitExpect(entry, "该D日盈利文件尚未通过目录校验；晋级名单保留");
+      const [jsonBytes, csvBytes] = await Promise.all([fetchPublishedBytes(entry.projection_json_url), fetchPublishedBytes(entry.projection_csv_url)]);
+      executableProfitExpect(await sha256Hex(jsonBytes) === entry.projection_json_sha256 && await sha256Hex(csvBytes) === entry.projection_csv_sha256, "历史盈利文件SHA256不一致");
+      const p = strictJsonFromBytes(jsonBytes, "历史盈利排序");
+      const index = { schema_version: PRIMARY_MIXED_PROFIT_INDEX_SCHEMA, index_kind: "dated_primary_profit_research_pointer_only", data_alias: false,
+        display_name: "混合盈利排序", status: p.status, generation_mode: entry.generation_mode, prospective: entry.prospective, retrospective_non_forward: entry.retrospective_non_forward,
+        latest_signal_date: entry.signal_date, latest_exec_date: entry.exec_date, latest_exit_date: entry.exit_date,
+        latest_projection_json_url: entry.projection_json_url, latest_projection_json_sha256: entry.projection_json_sha256,
+        latest_projection_csv_url: entry.projection_csv_url, latest_projection_csv_sha256: entry.projection_csv_sha256,
+        latest_projection_snapshot_sha256: entry.projection_snapshot_sha256, latest_top10_members_sha256: entry.top10_members_sha256,
+        latest_source_bundle_sha256: entry.source_bundle_sha256, latest_source_feature_snapshot_sha256: entry.source_feature_snapshot_sha256,
+        candidate_count: entry.candidate_count, source_bindings: p.source_bindings, boundaries: p.boundaries };
+      validatePrimaryProfitIndex(index, PRIMARY_MIXED_PROFIT_INDEX_SCHEMA, EXECUTABLE_PROFIT_RESEARCH_ROOT, "混合盈利排序");
+      const projection = await validatePrimaryMixedProfitProjection(p, index, currentThreeRank);
+      executableProfitExpect(entry.rows.length === Math.min(2, projection.rows.length) && entry.rows.every((row, i) =>
+        row.slot === i + 1 && row.ts_code === projection.rows[i].ts_code && row.name === projection.rows[i].name
+        && row.industry === projection.rows[i].industry && row.stage_transition === projection.rows[i].stage_transition
+        && row.promotion_rank === projection.rows[i].promotion_rank && row.mixed_profit_rank === projection.rows[i].executable_profit_research_rank), "历史盈利前二与同D冻结排名不一致");
+      return { status: "ready", kind: "primary_core", index, projection, statistics: null, shadow: null, shadowError: "历史D只展示当日排名，不混入最新累计" };
+    }
+
+    async function initializeDailyHistory(date) {
+      executableProfitExpect(/^20\d{6}$/.test(date) && canonicalYmd(date) === date, "历史D参数无效");
+      state.dailyNavigation = await loadDailyNavigation();
+      state.dailyLatestDate = null; // A catalog maximum is not proof of the live latest D.
+      const entry = state.dailyNavigation.find(row => row.signal_date === date);
+      executableProfitExpect(entry, `没有已发布且可校验的 D ${dateText(date)} 名单；不会回退到最新日`);
+      const loaded = await loadPublishedDailyEntry(entry);
+      state.currentThreeRank = loaded.wrapper;
+      state.index = 0; // Independent P0/P1 renderer; never an old report-index position.
+      try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }
+      catch (error) { state.currentThreeRankPathEvidence = { status: "INVALID", signal_date: date, error: String(error.message || error) }; }
+      await refreshPublicObservationStatistics();
+      await refreshCurrentThreeRankTTruth(loaded.wrapper);
+      await refreshCurrentPrimaryMixedDailyTop2();
+      try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }
+      catch (error) { state.currentExecutableProfitResearch = { status: "invalid", message: String(error.message || error) }; }
+      renderPrimaryCoreOnly(new Error("历史D日只读名单，不加载旧Action"));
+      els.footer.textContent = `DC2.0 · 历史 D ${dateText(date)} · ${entry.generation_mode === "NATURAL" ? "自然生成留档" : "恢复留档，不计前向"} · T/T+1只展示同日已验证数据`;
     }
 
     function cacheCurrent(info, plan, md, evaluation) {
@@ -5734,8 +5890,16 @@
       els.mainContent.setAttribute("aria-busy", "true");
       let targetInfo = null;
       try {
+        const parameters = new URLSearchParams(location.search);
+        state.dailyRequestedDate = parameters.get("view") !== "research" && parameters.has("d") ? parameters.get("d") : null;
+        if (state.dailyRequestedDate !== null) {
+          await initializeDailyHistory(state.dailyRequestedDate);
+          return;
+        }
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
+        state.dailyLatestDate = state.currentThreeRank?.signal_date;
+        if (parameters.get("view") !== "research") void refreshDailyNavigation();
         await refreshPublicObservationStatistics();
         // Auxiliary history aggregation must not delay the current D list.
         void refreshPromotionSlotStatistics().then(() => {
@@ -5755,6 +5919,10 @@
         targetInfo = state.reports[0];
         await loadReport(0);
       } catch (error) {
+        if (state.dailyRequestedDate !== null && state.dailyRequestedDate !== undefined) {
+          state.compactFatalError = true;
+          throw error; // Never substitute latest data, an old Action, or cache for a requested D.
+        }
         const coreContract = validatedThreeRankContract(state.currentThreeRank);
         if (coreContract && coreContract !== false) {
           renderPrimaryCoreOnly(error);
@@ -5811,11 +5979,12 @@
     els.refreshBtn.addEventListener("click", () => {
       els.refreshBtn.disabled = true;
       const latestUrl = new URL(window.location.href);
+      latestUrl.searchParams.delete("d");
       latestUrl.searchParams.set("page", String(Date.now()));
       window.location.replace(latestUrl.toString());
     });
-    els.prevBtn.addEventListener("click", () => loadReport(state.index + 1).catch(showError));
-    els.nextBtn.addEventListener("click", () => loadReport(state.index - 1).catch(showError));
+    els.prevBtn.addEventListener("click", () => navigateDaily(1));
+    els.nextBtn.addEventListener("click", () => navigateDaily(-1));
 
     function showError(error) {
       state.compactFatalError = true;

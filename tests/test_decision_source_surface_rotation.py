@@ -27,6 +27,8 @@ PROFIT_DETAILS_REVIEW = ROOT / "models/decision_source_surface_review_20260909_h
 PROFIT_DETAILS_REVIEW_SHA = "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
 PROFIT_SUMMARY_REVIEW = ROOT / "models/decision_source_surface_review_20260909_profit_summary.json"
 PROFIT_SUMMARY_REVIEW_SHA = "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+NAVIGATION_REVIEW = ROOT / "models/decision_source_surface_review_20260910_navigation.json"
+NAVIGATION_REVIEW_SHA = "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
 COMPACT_REVIEW_PATHS = {
     ".github/workflows/run_primary_profit_rankings.yml", "decision.html",
     "tests/test_dashboard_research_projection.py",
@@ -87,10 +89,58 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _source_before_navigation(review: dict | None = None) -> str:
+    assert _sha256(NAVIGATION_REVIEW) == NAVIGATION_REVIEW_SHA
+    review = review if review is not None else json.loads(NAVIGATION_REVIEW.read_text())
+    source = (ROOT / "decision.html").read_text()
+    assert hashlib.sha256(source.encode()).hexdigest() == review["current_html_sha256"]
+    assert len(review["replacements"]) == 8
+    for replacement in review["replacements"]:
+        assert source.count(replacement["after"]) == 1
+        source = source.replace(replacement["after"], replacement["before"])
+    assert hashlib.sha256(source.encode()).hexdigest() == review["baseline_html_sha256"] == "d2718429a77eb6d72d07f5c44c6fbbe1ea56c6f0750d3d26695f798237cdfe41"
+    return source
+
+
+def _manifest_before_navigation(manifest: dict, review: dict | None = None) -> dict:
+    review = review if review is not None else json.loads(NAVIGATION_REVIEW.read_text())
+    _source_before_navigation(review)
+    assert review["schema_version"] == "decision_daily_navigation_ui_review_v1"
+    assert review["scope"] == "READ_ONLY_EXACT_D_NAVIGATION_NOT_MODEL_OR_DATA_RELEASE"
+    assert review["approved_base_commit"] == "71e6827f89215fedc919e96742ffae228f599ee4"
+    assert review["predecessor_evidence_path"] == PROFIT_SUMMARY_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(PROFIT_SUMMARY_REVIEW) == PROFIT_SUMMARY_REVIEW_SHA
+    assert review["boundaries"] == {key: False for key in ("models_changed", "workflows_changed", "frozen_ledger_or_truth_changed", "entry_or_settlement_policy_changed", "ranking_algorithm_changed")}
+    assert review["tests"]["path"] == "tests/test_primary_d_navigation.py"
+    assert _sha256(ROOT / review["tests"]["path"]) == review["tests"]["sha256"]
+    assert _sha256(MANIFEST) == review["current_manifest_sha256"]
+    assert len(manifest["pinned_files"]) == 224
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    restored = copy.deepcopy(manifest)
+    assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
+    restored["pinned_files"]["decision.html"] = review["baseline_html_sha256"]
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"] == "1ce0940518f602e2f5a70075fc7103b220ecc3345ed82a1a16d3f9b965fb7e80"
+    assert hashlib.sha256((json.dumps(restored, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["baseline_manifest_sha256"] == "327ebfcb7b3e7f0784163aeea773a1c761950410ba25f541645172d63aa5d666"
+    return restored
+
+
+@pytest.mark.parametrize("mutation", ["base", "baseline", "policy", "replacement", "model"])
+def test_navigation_review_rejects_unreviewed_changes(mutation):
+    manifest, review = json.loads(MANIFEST.read_text()), json.loads(NAVIGATION_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "baseline": review["baseline_html_sha256"] = "0" * 64
+    elif mutation == "policy": review["boundaries"]["ranking_algorithm_changed"] = True
+    elif mutation == "replacement": review["replacements"][0]["before"] = "anything"
+    else: manifest["training_cutoff_signal_date"] = "20260910"
+    with pytest.raises(AssertionError):
+        _manifest_before_navigation(manifest, review)
+
+
 def _source_before_profit_summary(review: dict | None = None) -> str:
     assert _sha256(PROFIT_SUMMARY_REVIEW) == PROFIT_SUMMARY_REVIEW_SHA
     review = review if review is not None else json.loads(PROFIT_SUMMARY_REVIEW.read_text())
-    source = (ROOT / "decision.html").read_text()
+    source = _source_before_navigation()
     assert hashlib.sha256(source.encode()).hexdigest() == review["current_html_sha256"]
     assert len(review["replacements"]) == 5
     for replacement in review["replacements"]:
@@ -101,6 +151,7 @@ def _source_before_profit_summary(review: dict | None = None) -> str:
 
 
 def _manifest_before_profit_summary_review(manifest: dict, review: dict) -> dict:
+    manifest = _manifest_before_navigation(manifest)
     _source_before_profit_summary(review)
     assert review["schema_version"] == "decision_profit_summary_ui_review_v1"
     assert review["approved_base_commit"] == "c831522293da5f4a1c259f75279b62287afa1801"
@@ -108,10 +159,11 @@ def _manifest_before_profit_summary_review(manifest: dict, review: dict) -> dict
     assert review["predecessor_evidence_path"] == PROFIT_DETAILS_REVIEW.relative_to(ROOT).as_posix()
     assert review["predecessor_evidence_sha256"] == _sha256(PROFIT_DETAILS_REVIEW) == PROFIT_DETAILS_REVIEW_SHA
     assert review["boundaries"] == {key: False for key in ("models_changed", "workflows_changed", "frozen_ledger_or_truth_changed", "entry_or_settlement_policy_changed", "ranking_algorithm_changed")}
-    assert _sha256(MANIFEST) == review["current_manifest_sha256"]
+    assert hashlib.sha256((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["current_manifest_sha256"]
     assert len(manifest["pinned_files"]) == 224
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        actual = hashlib.sha256(_source_before_navigation().encode()).hexdigest() if path == "decision.html" else _sha256(ROOT / path)
+        assert not (ROOT / path).is_symlink() and actual == expected
     restored = copy.deepcopy(manifest)
     assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
     restored["pinned_files"]["decision.html"] = review["baseline_html_sha256"]
@@ -214,8 +266,8 @@ def _manifest_before_success_rate_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == PROFIT_SUMMARY_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_SUMMARY_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == NAVIGATION_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == NAVIGATION_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]
@@ -273,8 +325,8 @@ def _manifest_before_statistics_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == PROFIT_SUMMARY_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == PROFIT_SUMMARY_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == NAVIGATION_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == NAVIGATION_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]
