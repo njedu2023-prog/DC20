@@ -48,12 +48,13 @@ def fixed_promotion_fixture():
 
 
 def run(body, data=None, extra=""):
-    names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
+    names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "compactStatisticsWindowView", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus", "valueTone",
              "sha256Hex", "isSha256", "parseStrictCsvBytes"]
     prelude = """
 const fs=require('fs'),vm=require('vm');
 const PUBLIC_STATISTICS_START_SIGNAL_DATE='20260828';
+const COMPACT_STATISTICS_WINDOW_START='20260910';
 const nodes=new Map();
 const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{hidden:false,open:false,innerHTML:'',textContent:''});return nodes.get(id)}};
 const els=Object.fromEntries(['compactLedgerContent','compactLedgerState','compactStatisticsContent'].map(id=>[id,document.getElementById(id)]));
@@ -61,6 +62,17 @@ const state={index:0,currentThreeRank:{signal_date:'20260908'}};
 const location={search:''};
 const validatedThreeRankContract=value=>value.three_rank || value;
 const crypto=require('crypto').webcrypto;
+// Renderer-only fixtures. The separate window-loader suite verifies the real
+// 09/10 cutoff and byte-bound source chain before installing a display window.
+function installRenderWindow(profit=null,promotion=null) {
+  state.compactStatisticsWindowLoad={status:'ready',message:''};
+  state.currentCompactStatisticsWindow={
+    payload:{start_signal_date:COMPACT_STATISTICS_WINDOW_START,report_signal_date:state.currentThreeRank.signal_date,
+      profit:profit||{status:'UNAVAILABLE',reason:'test fixture'},
+      promotion:promotion?{status:'READY',as_of_date:'20260910',ranks:promotion.map(r=>({rank:r.rank,count:r.count,verified:r.verified,hits:Math.round((r.hitRate||0)*r.verified),hit_rate:r.hitRate}))}:{status:'UNAVAILABLE',reason:'test fixture'}},
+    reportSignalDate:state.currentThreeRank.signal_date,profitSource:profit?compactShadowSource():null,
+    compactLoadSequence:state.compactLoadSequence};
+}
 """
     script = prelude + "\n".join(function(n) for n in names)
     script += "\nconst input=" + json.dumps(data or fixture(), ensure_ascii=False) + ";\n"
@@ -145,7 +157,7 @@ def test_bad_binding_only_closes_auxiliary_statistics(mutation):
 
 
 def test_compact_view_has_only_three_promotion_success_results():
-    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))", fixed_promotion_fixture())
+    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))", fixed_promotion_fixture())
     assert [result["html"].count(f"<dt>Top{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
     assert result["html"].count('class="success-rate">33.33%') == 2
     assert result["html"].count('class="success-rate">66.67%') == 1
@@ -153,8 +165,8 @@ def test_compact_view_has_only_three_promotion_success_results():
     assert "2 / 3 成功 / 已验证" in result["html"]
     for removed in ("<table", "盈利第", "T+1结算", "代理可买率", "成交胜率", "净收益", "合成累计", "最大回撤"):
         assert removed not in result["html"]
-    assert "尚未覆盖当前 D 2026-09-08" in result["html"]
-    assert "数据截至 2026-09-04" in result["html"]
+    assert "D 2026-09-10起" in result["html"]
+    assert "最新累计截至 2026-09-10" in result["html"]
     assert "晋级不代表盈利" in result["html"]
     assert '<h2 id="compactStatisticsTitle">晋级成功率</h2>' in (ROOT / "decision.html").read_text()
     assert result["hidden"]["shadowWorkspace"] and result["hidden"]["historicalResearchDetails"]
@@ -163,7 +175,7 @@ def test_compact_view_has_only_three_promotion_success_results():
 
 
 def test_unavailable_statistics_are_not_fake_zero_and_do_not_borrow_shadow():
-    result = run("state.promotionSlotError='SHA校验失败';renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
+    result = run("state.compactStatisticsWindowLoad={status:'invalid',message:'SHA校验失败'};renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
     assert result.count("SHA校验失败") == 3
     assert 'class="success-rate">0.00%' not in result
     assert "盈利第" not in result
@@ -171,16 +183,16 @@ def test_unavailable_statistics_are_not_fake_zero_and_do_not_borrow_shadow():
 
 
 def test_success_results_distinguish_no_rank_pending_and_verified_zero():
-    result = run("state.promotionSlotStatistics=[{rank:1,count:0,verified:0,hitRate:null},{rank:2,count:2,verified:0,hitRate:null},{rank:3,count:2,verified:2,hitRate:0}];renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
+    result = run("state.promotionSlotStatistics=[{rank:1,count:0,verified:0,hitRate:null},{rank:2,count:2,verified:0,hitRate:null},{rank:3,count:2,verified:2,hitRate:0}];installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
     assert "暂无该名次样本" in result and "暂无已验证样本" in result
     assert result.count('class="success-rate">0.00%') == 1
     assert "0 / 2 成功 / 已验证" in result
-    assert "数据截至" not in result
+    assert "最新累计截至 2026-09-10" in result
 
 
 @pytest.mark.parametrize("n", [0, 1, 2])
 def test_absent_promotion_ranks_do_not_gain_synthetic_success_samples(n):
-    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))",small_fixture(n))
+    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))",small_fixture(n))
     assert result.count("暂无该名次样本") == 3 - n
     assert result.count("成功 / 已验证") == n
 
@@ -247,7 +259,7 @@ def profit_fixture(daily_archive=None):
 
 
 def profit_dashboard(data, before=""):
-    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))", data)
+    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const bound=compactShadowSource();installRenderWindow(bound&&!bound.loaded.shadow.selectionOnlyCutover?{...bound.shadow,status:'READY',recorded_days:input.daily.recorded_days,recorded_slots:input.daily.recorded_slots}:null);const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))", data)
 
 
 def profit_html(data, before=""):
@@ -416,7 +428,7 @@ def test_corrupt_profit_cohort_fails_closed_without_mutating_hidden_daily_ledger
 def test_missing_or_selection_only_sidecar_never_fabricates_cumulative_zero(mutation):
     result = profit_dashboard(profit_fixture(), mutation)
     assert result["html"] == ""
-    assert "8日 / 16席" in result["header"]
+    assert "D 2026-09-10起" in result["header"] and "统计窗口待验证" in result["header"]
     assert result["unchanged"] is True
 
 

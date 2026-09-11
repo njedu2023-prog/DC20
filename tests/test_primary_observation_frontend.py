@@ -49,13 +49,14 @@ def _run(body: str, payload: dict | None = None):
              "refreshPublicObservationStatistics", "publicStatisticsPlan", "primaryObservationAvailability",
              "primaryObservationStatusHtml", "primaryPortfolioExplanation", "renderMetrics", "renderObservationStatistics", "canonicalYmd",
              "finiteNumber", "escapeHtml", "metric", "integerText", "pct", "signedPct", "valueTone",
-             "dateText", "number")
+             "dateText", "number", "strictJsonFromBytes", "sha256Hex")
     prelude = """
 const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
 const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
 const state = {index:0, currentThreeRank:{signal_date:"20260828"}, publicObservationLoad:{status:"ready"}};
 const els = Object.fromEntries(["metrics","metricsCount","observationMetrics","observationUpdate","observationNote"].map(k=>[k,{innerHTML:"",textContent:""}]));
 const validatedThreeRankContract = value => value;
+const crypto=require('crypto').webcrypto;
 """
     script = prelude + "\n".join(_function(name) for name in names)
     script += "\nconst payload = " + json.dumps(payload if payload is not None else _payload()) + ";\n"
@@ -83,7 +84,7 @@ def test_wrong_counts_duplicate_days_and_mixed_shadow_statistics_are_rejected():
 
 @pytest.mark.parametrize("error,status", [("HTTP 404", "missing"), ("HTTP 503", "error")])
 def test_unavailable_source_does_not_synthesize_zero_samples(error, status):
-    result = _run(f"globalThis.fetchPath = async()=>{{throw new Error({json.dumps(error)})}};"
+    result = _run(f"globalThis.fetchPublishedBytes = async()=>{{throw new Error({json.dumps(error)})}};"
                   "await refreshPublicObservationStatistics();renderMetrics({});renderObservationStatistics({});"
                   "console.log(JSON.stringify({load:state.publicObservationLoad,stats:state.currentPublicObservationStatistics,html:els.metrics.innerHTML,note:els.observationNote.textContent}));")
     assert result["load"]["status"] == status
@@ -93,7 +94,7 @@ def test_unavailable_source_does_not_synthesize_zero_samples(error, status):
 
 
 def test_legacy_payload_does_not_pass_as_empty_primary_statistics():
-    result = _run("globalThis.fetchPath=async()=>({schema_version:'decision_observation_validation_v4_auction_truth',observation_rows:0});"
+    result = _run("globalThis.fetchPublishedBytes=async()=>new TextEncoder().encode(JSON.stringify({schema_version:'decision_observation_validation_v4_auction_truth',observation_rows:0}));"
                   "await refreshPublicObservationStatistics();console.log(JSON.stringify(state.publicObservationLoad));")
     assert result["status"] == "invalid"
 

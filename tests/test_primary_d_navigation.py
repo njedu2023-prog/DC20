@@ -77,7 +77,7 @@ console.log(JSON.stringify(out));
 """, f"?d={date}")
     assert result["d"] == date and result["count"] == count
     assert result["path"] == "VALID" and result["profit"] == "ready", result
-    assert result["ready"] and result["unchanged"] and result["hidden"] and result["shadow"] is None
+    assert result["ready"] and result["unchanged"] and not result["hidden"] and result["shadow"] is None
     assert "report_index" not in " ".join(result["calls"])
     assert "primary_d_runtime_index.json" not in " ".join(result["calls"])
     assert "历史 D" in result["footer"]

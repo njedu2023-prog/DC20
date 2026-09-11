@@ -1440,6 +1440,10 @@
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
+    const COMPACT_STATISTICS_WINDOW_PATH = "outputs/decision/compact_statistics_window.json";
+    const COMPACT_STATISTICS_WINDOW_START = "20260910";
+    const COMPACT_STATISTICS_WINDOW_CONFIG_PATH = "models/decision_compact_statistics_window_v1.json";
+    const COMPACT_STATISTICS_WINDOW_CONFIG_SHA256 = "d79e59bbb6fd1e0352adfa62a7539eaaa563cdb0468c035b0212647a3b806c8b";
     const LEGACY_PROFIT_RELATIVE_RESEARCH = Object.freeze({
       root: "outputs/decision/legacy_profit_relative_research",
       projectionSchema: "dc20_legacy_profit_relative_research_projection_v1",
@@ -1476,6 +1480,10 @@
       currentThreeRankTTruth: null,
       currentThreeRankObservationTruth: null,
       currentPublicObservationStatistics: null,
+      currentPublicObservationStatisticsSha256: null,
+      publicObservationLoadSequence: 0,
+      currentCompactStatisticsWindow: null,
+      compactStatisticsWindowLoad: { status: "loading", message: "正在校验统计窗口。" },
       publicObservationLoad: { status: "loading", message: "正在读取晋级名单验证统计。" },
       publishedRevisionSha: null,
       publishedRevision: null,
@@ -1548,18 +1556,27 @@
     }
 
     async function refreshPublicObservationStatistics() {
+      const loadSequence = (state.publicObservationLoadSequence || 0) + 1;
+      state.publicObservationLoadSequence = loadSequence;
+      const compactLoadSequence = state.compactLoadSequence;
       state.currentPublicObservationStatistics = null;
+      state.currentPublicObservationStatisticsSha256 = null;
       state.publicObservationLoad = { status: "loading", message: "正在读取晋级名单验证统计。" };
       try {
-        const payload = await fetchPath(PUBLIC_OBSERVATION_STATISTICS_PATH);
+        const bytes = await fetchPublishedBytes(PUBLIC_OBSERVATION_STATISTICS_PATH);
+        const payload = strictJsonFromBytes(bytes, "晋级名单验证统计");
+        const sourceSha256 = await sha256Hex(bytes);
+        if (state.publicObservationLoadSequence !== loadSequence || state.compactLoadSequence !== compactLoadSequence) return;
         const validated = validatedPublicObservationStatistics(payload);
         if (!validated) {
           state.publicObservationLoad = { status: "invalid", message: "晋级名单统计未通过日期、样本范围或数据结构校验。" };
           return;
         }
         state.currentPublicObservationStatistics = validated;
+        state.currentPublicObservationStatisticsSha256 = sourceSha256;
         state.publicObservationLoad = { status: "ready", message: "" };
       } catch (error) {
+        if (state.publicObservationLoadSequence !== loadSequence || state.compactLoadSequence !== compactLoadSequence) return;
         const missing = /HTTP 404\b/.test(String(error?.message || error));
         state.publicObservationLoad = {
           status: missing ? "missing" : "error",
@@ -1568,6 +1585,112 @@
             : "晋级名单验证统计读取失败，请重新加载页面。"
         };
       }
+    }
+
+    async function validateCompactStatisticsWindow(payload, reportSignalDate) {
+      executableProfitExpect(exactObjectKeys(payload, ["schema_version", "start_signal_date", "report_signal_date", "config_sha256", "source_files", "snapshot_sha256", "profit", "promotion"]), "统计窗口字段面漂移");
+      const clock = new Date(Date.now() + 8 * 60 * 60 * 1000);
+      const today = clock.toISOString().slice(0, 10).replaceAll("-", "");
+      if (clock.getUTCHours() < 15) clock.setUTCDate(clock.getUTCDate() - 1);
+      const closedThrough = clock.toISOString().slice(0, 10).replaceAll("-", "");
+      executableProfitExpect(payload.schema_version === "dc20_compact_statistics_window_v1" && payload.start_signal_date === COMPACT_STATISTICS_WINDOW_START && payload.report_signal_date === reportSignalDate && canonicalYmd(reportSignalDate) === reportSignalDate && reportSignalDate >= COMPACT_STATISTICS_WINDOW_START && reportSignalDate <= today, "统计窗口起点或当前D不一致");
+      executableProfitExpect(payload.config_sha256 === COMPACT_STATISTICS_WINDOW_CONFIG_SHA256 && isSha256(payload.snapshot_sha256) && Array.isArray(payload.source_files), "统计窗口来源指纹缺失或配置漂移");
+      const sourcePaths = payload.source_files.map(binding => {
+        executableProfitExpect(exactObjectKeys(binding, ["path", "sha256"]) && typeof binding.path === "string" && /^[A-Za-z0-9_./-]+$/.test(binding.path) && !binding.path.startsWith("/") && binding.path.split("/").every(part => part && part !== "." && part !== "..") && isSha256(binding.sha256), "统计窗口来源路径或SHA无效");
+        return binding.path;
+      });
+      executableProfitExpect(sourcePaths.join("\n") === [...new Set(sourcePaths)].sort().join("\n"), "统计窗口来源重复或顺序漂移");
+      const bound = (path, sha) => payload.source_files.some(binding => binding.path === path && binding.sha256 === sha);
+      executableProfitExpect(bound(COMPACT_STATISTICS_WINDOW_CONFIG_PATH, payload.config_sha256), "统计窗口配置来源未绑定");
+      // The Pages revision authenticates the complete original JSON bytes.
+      // Python/JS serialize small floating-point numbers differently; the
+      // producer validates the semantic snapshot without rounding returns here.
+      const asOf = value => canonicalYmd(value) === value && value >= COMPACT_STATISTICS_WINDOW_START && value <= closedThrough;
+      let profitSource = null;
+      for (const name of ["profit", "promotion"]) {
+        const section = payload[name];
+        executableProfitExpect(section && ["READY", "UNAVAILABLE"].includes(section.status), `统计窗口${name}状态无效`);
+        if (section.status === "UNAVAILABLE") {
+          executableProfitExpect(exactObjectKeys(section, ["status", "reason"]) && typeof section.reason === "string" && section.reason.trim(), `统计窗口${name}缺失原因无效`);
+          continue;
+        }
+        executableProfitExpect(asOf(section.as_of_date), `统计窗口${name}尚未到实际收盘时间或日期无效`);
+        if (name === "profit") {
+          executableProfitExpect(exactObjectKeys(section, ["status", "as_of_date", "source_statistics", "cohorts", "recorded_days", "recorded_slots", "forward_signal_date_progress_180", "probability_diagnostics"]), "盈利统计窗口字段面漂移");
+          const binding = section.source_statistics;
+          executableProfitExpect(exactObjectKeys(binding, ["path", "sha256", "snapshot_sha256", "as_of_date"]) && binding.as_of_date === section.as_of_date && isSha256(binding.snapshot_sha256) && bound(binding.path, binding.sha256) && (binding.path === "data/decision_executable_profit/forward/statistics/summary.json" || binding.path === `data/decision_executable_profit/forward/statistics/snapshots/summary_asof_${section.as_of_date}_sha256_${binding.sha256}.json`), "盈利统计窗口未绑定当前Shadow统计来源");
+          const statePattern = new RegExp(`^outputs/decision/executable_profit_research/shadow_state_${reportSignalDate}_asof_${section.as_of_date}(?:_sha256_[0-9a-f]{64})?\\.json$`);
+          const states = payload.source_files.filter(item => statePattern.test(item.path));
+          executableProfitExpect(states.length === 1, "盈利统计窗口缺少唯一最新Shadow状态来源");
+          const stateFile = await fetchPagesOnlyShaBoundJson(states[0].path, states[0].sha256, "累计窗口最新Shadow状态");
+          const mixed = stateFile.payload.source_bindings?.mixed_projection;
+          executableProfitExpect(mixed?.path === `outputs/decision/executable_profit_research/projection_${reportSignalDate}.json` && bound(mixed.path, mixed.sha256), "盈利统计窗口最新排名来源无效");
+          const projection = (await fetchPagesOnlyShaBoundJson(mixed.path, mixed.sha256, "累计窗口最新混合排名")).payload;
+          const index = { latest_projection_json_url: mixed.path, latest_projection_json_sha256: mixed.sha256 };
+          const sidecar = await loadPrimaryProfitShadowSidecar(projection, index);
+          const expected = sidecar?.state.source_bindings?.statistics;
+          executableProfitExpect(sidecar?.publicWindowReady === true && !sidecar.selectionOnlyCutover && sidecar.index.latest_state_url === states[0].path && sidecar.index.latest_state_sha256 === states[0].sha256 && expected && ["path", "sha256", "snapshot_sha256", "as_of_date"].every(key => binding[key] === expected[key]), "盈利统计窗口未绑定当前Shadow统计来源");
+          profitSource = { loaded: { status: "ready", kind: "primary_core", index, shadow: sidecar }, shadow: sidecar.state };
+          validatePrimaryProfitShadowCohorts(section);
+          executableProfitExpect(Number.isInteger(section.recorded_days) && section.recorded_days >= 0 && Number.isInteger(section.recorded_slots) && section.recorded_slots >= 0 && section.recorded_slots <= section.recorded_days * 2, "盈利统计窗口记录计数无效");
+          const selectionDates = sourcePaths.map(path => /^data\/decision_executable_profit\/forward\/selections\/shadow_(20[0-9]{6})\.json$/.exec(path)?.[1]).filter(date => date && date >= payload.start_signal_date && date <= reportSignalDate && date <= section.as_of_date);
+          const selections = await Promise.all(selectionDates.map(async date => {
+            const path = `data/decision_executable_profit/forward/selections/shadow_${date}.json`;
+            const source = payload.source_files.find(item => item.path === path);
+            const selection = (await fetchPagesOnlyShaBoundJson(path, source.sha256, "累计窗口自然冻结选择")).payload;
+            executableProfitExpect(selection.schema_version === "dc20_primary_profit_forward_shadow_selection_v2" && selection.signal_date === date && selection.source_bindings?.mixed_projection?.generation_mode === "NATURAL" && selection.source_bindings?.primary_receipt?.generation_mode === "NATURAL" && Array.isArray(selection.rows), "盈利统计窗口自然冻结身份不一致");
+            const rows = selection.rows.filter(row => row.internal_shadow_selected === 1);
+            executableProfitExpect(rows.length === Math.min(2, selection.top10_count), "盈利统计窗口自然冻结席位不一致");
+            return rows.length;
+          }));
+          executableProfitExpect(section.recorded_days === selections.length && section.recorded_slots === selections.reduce((total, count) => total + count, 0), "盈利统计窗口未按D起点筛选自然冻结账本");
+        } else {
+          executableProfitExpect(exactObjectKeys(section, ["status", "as_of_date", "source_summary", "rows_sha256", "ranks"]), "晋级统计窗口字段面漂移");
+          executableProfitExpect(exactObjectKeys(section.source_summary, ["path", "sha256"]) && section.source_summary.path === PUBLIC_OBSERVATION_STATISTICS_PATH && bound(section.source_summary.path, section.source_summary.sha256), "晋级统计窗口未绑定当前summary及逐行SHA");
+          const summary = (await fetchPagesOnlyShaBoundJson(section.source_summary.path, section.source_summary.sha256, "累计窗口晋级summary")).payload;
+          executableProfitExpect(validatedPublicObservationStatistics(summary) && section.rows_sha256 === summary.rows_sha256 && section.as_of_date === summary.as_of_date && summary.rows_path === "outputs/decision/primary_observation/rows.csv" && bound(summary.rows_path, section.rows_sha256), "晋级统计窗口未绑定当前summary及逐行SHA");
+          const rowBytes = await fetchPagesOnlyPath(summary.rows_path, "bytes");
+          executableProfitExpect(await sha256Hex(rowBytes) === section.rows_sha256, "晋级统计窗口逐行字节SHA不一致");
+          const sourceRows = parseStrictCsvBytes(rowBytes, ["signal_date", "promotion_rank", "continuation_limit_up_hit"], "晋级窗口逐行来源");
+          executableProfitExpect(Array.isArray(section.ranks) && section.ranks.length === 3, "晋级统计窗口分席数量无效");
+          section.ranks.forEach((rank, index) => {
+            executableProfitExpect(exactObjectKeys(rank, ["rank", "count", "verified", "hits", "hit_rate"]) && rank.rank === index + 1 && ["count", "verified", "hits"].every(key => Number.isInteger(rank[key]) && rank[key] >= 0) && rank.hits <= rank.verified && rank.verified <= rank.count && (rank.verified ? validNullableFinite(rank.hit_rate) && rank.hit_rate != null && Math.abs(rank.hit_rate - rank.hits / rank.verified) < 0.000001 : rank.hit_rate === null), "晋级统计窗口分母或成功率无效");
+            const count = summary.daily_summaries.filter(day => day.signal_date >= payload.start_signal_date && day.signal_date <= reportSignalDate && day.signal_date <= section.as_of_date && day.rows >= rank.rank).length;
+            const rows = sourceRows.filter(row => row.signal_date >= payload.start_signal_date && row.signal_date <= reportSignalDate && row.signal_date <= section.as_of_date && Number(row.promotion_rank) === rank.rank);
+            const verified = rows.filter(row => row.continuation_limit_up_hit !== "" && row.continuation_limit_up_hit != null);
+            executableProfitExpect(rank.count === count && rank.count === rows.length && verified.every(row => [0, 1].includes(Number(row.continuation_limit_up_hit))) && rank.verified === verified.length && rank.hits === verified.reduce((total, row) => total + Number(row.continuation_limit_up_hit), 0), "晋级统计窗口未按D起点筛选样本");
+          });
+        }
+      }
+      return { payload, profitSource };
+    }
+
+    async function refreshCompactStatisticsWindow() {
+      const loadSequence = (state.compactStatisticsWindowSequence || 0) + 1;
+      state.compactStatisticsWindowSequence = loadSequence;
+      const compactLoadSequence = state.compactLoadSequence;
+      state.currentCompactStatisticsWindow = null;
+      state.compactStatisticsWindowLoad = { status: "loading", message: "正在校验统计窗口。" };
+      const current = () => state.compactStatisticsWindowSequence === loadSequence && state.compactLoadSequence === compactLoadSequence && !state.compactFatalError;
+      try {
+        const revision = await publishedRevisionMetadata();
+        executableProfitExpect(revision.compact_statistics_window_url === COMPACT_STATISTICS_WINDOW_PATH && revision.compact_statistics_window_start_signal_date === COMPACT_STATISTICS_WINDOW_START && isSha256(revision.compact_statistics_window_sha256) && canonicalYmd(revision.primary_d_signal_date) === revision.primary_d_signal_date, "统计窗口未绑定Pages精确revision");
+        const window = await fetchPagesOnlyShaBoundJson(COMPACT_STATISTICS_WINDOW_PATH, revision.compact_statistics_window_sha256, "统计窗口");
+        if (!current()) return;
+        const validated = await validateCompactStatisticsWindow(window.payload, revision.primary_d_signal_date);
+        if (!current()) return;
+        state.currentCompactStatisticsWindow = { ...validated, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };
+        state.compactStatisticsWindowLoad = { status: "ready", message: "" };
+      } catch (error) {
+        if (!current()) return;
+        state.compactStatisticsWindowLoad = { status: "invalid", message: String(error?.message || error) };
+      }
+    }
+
+    function compactStatisticsWindowView() {
+      const loaded = state.currentCompactStatisticsWindow;
+      if (!loaded || state.compactStatisticsWindowLoad?.status !== "ready" || state.compactFatalError || loaded.compactLoadSequence !== state.compactLoadSequence || loaded.payload.report_signal_date !== loaded.reportSignalDate) return null;
+      return loaded.payload;
     }
 
     // Read-only display projection. Never writes a ledger or activates the new epoch.
@@ -1728,37 +1851,24 @@
         const panel = document.getElementById(id);
         if (panel) panel.hidden = !research || state.index !== 0;
       }
-      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research || (id !== "rankingWorkspace" && (state.index !== 0 || Boolean(state.dailyRequestedDate)));
+      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research;
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
-      if (state.dailyRequestedDate) return; // Never project latest cumulative results into a dated view.
-      const source = compactShadowSource();
-      const daily = state.currentPrimaryMixedDailyTop2;
-      if (daily?.status === "loading") {
-        els.compactLedgerState.textContent = "正在校验每日账本";
-        els.compactLedgerContent.innerHTML = '<div class="empty" role="status">正在加载同D同来源的账本与验证结果；未完成不按0统计。</div>';
-      } else if (daily?.status !== "ready") {
-        els.compactLedgerState.textContent = "每日账本未通过校验";
-        els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<div class="empty">${escapeHtml(daily?.message || "每日记录尚未公开；缺失不等于0席。")}</div>`;
-      } else {
-        const ledger = daily.index;
-        els.compactLedgerState.textContent = `D ${dateText(ledger.public_start_signal_date)}起 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席`;
-        els.compactLedgerContent.innerHTML = renderCompactProfitStatistics(source);
-      }
-      const summary = state.currentPublicObservationStatistics;
-      const promotion = state.promotionSlotStatistics;
+      const window = compactStatisticsWindowView();
+      const profit = window?.profit?.status === "READY" ? window.profit : null;
+      const source = window && state.currentCompactStatisticsWindow.profitSource;
+      els.compactLedgerState.textContent = `D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起 · 最新累计` + (profit ? ` · 截至 ${dateText(profit.as_of_date)} · ${profit.recorded_days}日 / ${profit.recorded_slots}席` : " · 统计窗口待验证");
+      els.compactLedgerContent.innerHTML = profit && source ? renderCompactProfitStatistics({ loaded: source.loaded, shadow: profit }) : "";
+      const promotion = window?.promotion?.status === "READY" ? window.promotion : null;
       const pRows = [1,2,3].map(rank => {
-        const c = promotion?.find(item => item.rank === rank);
-        const sample = !c ? state.promotionSlotError || "统计暂不可用"
+        const c = promotion?.ranks.find(item => item.rank === rank);
+        const sample = !c ? state.compactStatisticsWindowLoad?.message || "统计窗口暂不可用"
           : !c.count ? "暂无该名次样本"
           : !c.verified ? "暂无已验证样本"
-          : `${Math.round(c.hitRate * c.verified)} / ${c.verified} 成功 / 已验证`;
-        return `<div><dt>Top${rank}</dt><dd class="success-rate">${c ? pct(c.hitRate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
+          : `${c.hits} / ${c.verified} 成功 / 已验证`;
+        return `<div><dt>Top${rank}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
       });
-      const currentD = state.currentThreeRank?.signal_date;
-      const stale = summary && currentD && summary.latest_signal_date < currentD
-        ? `晋级累计尚未覆盖当前 D ${dateText(currentD)}，目前仅到 D ${dateText(summary.latest_signal_date)}。` : "";
-      const asOf = promotion && summary?.as_of_date ? ` · 数据截至 ${dateText(summary.as_of_date)}` : "";
-      els.compactStatisticsContent.innerHTML = `${stale ? `<p class="stats-note warn">${escapeHtml(stale)}</p>` : ""}<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起${asOf}；各名次按T日已验证结果独立统计，未验证不计入。晋级不代表盈利。</p>`;
+      const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
+      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；各名次按T日已验证结果独立统计，未验证不计入。晋级不代表盈利。</p>`;
     }
 
     function publicStatisticsPlan(plan) {
@@ -5746,7 +5856,7 @@
         row.slot === i + 1 && row.ts_code === projection.rows[i].ts_code && row.name === projection.rows[i].name
         && row.industry === projection.rows[i].industry && row.stage_transition === projection.rows[i].stage_transition
         && row.promotion_rank === projection.rows[i].promotion_rank && row.mixed_profit_rank === projection.rows[i].executable_profit_research_rank), "历史盈利前二与同D冻结排名不一致");
-      return { status: "ready", kind: "primary_core", index, projection, statistics: null, shadow: null, shadowError: "历史D只展示当日排名，不混入最新累计" };
+      return { status: "ready", kind: "primary_core", index, projection, statistics: null, shadow: null, shadowError: "历史D逐股验证仅绑定当日；最新累计窗口独立加载" };
     }
 
     async function initializeDailyHistory(date) {
@@ -5758,6 +5868,10 @@
       const loaded = await loadPublishedDailyEntry(entry);
       state.currentThreeRank = loaded.wrapper;
       state.index = 0; // Independent P0/P1 renderer; never an old report-index position.
+      const compactLoadSequence = state.compactLoadSequence;
+      void refreshCompactStatisticsWindow().then(() => {
+        if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+      });
       const truth = refreshPublicObservationStatistics().then(() => refreshCurrentThreeRankTTruth(loaded.wrapper));
       const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
         try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }
@@ -5981,6 +6095,8 @@
       state.currentExecutableProfitResearch = null;
       state.currentLegacyProfitRelativeResearch = null;
       state.currentPrimaryMixedDailyTop2 = { status: "loading", message: "正在校验每日账本" };
+      state.currentCompactStatisticsWindow = null;
+      state.compactStatisticsWindowLoad = { status: "loading", message: "正在校验统计窗口。" };
       state.promotionSlotStatistics = null;
       state.promotionSlotError = "正在校验晋级统计";
       let targetInfo = null;
@@ -6014,6 +6130,10 @@
         const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
           await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
           paint();
+        });
+        // Pages-only display windows never delay the first validated D ranking.
+        void refreshCompactStatisticsWindow().then(() => {
+          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
         });
         const path = refreshCurrentThreeRankPathEvidence(state.currentThreeRank).then(() => {
           pathReady = true;

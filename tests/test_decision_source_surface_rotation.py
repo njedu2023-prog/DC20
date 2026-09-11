@@ -173,6 +173,205 @@ COPY_DELETE_BOUNDARIES = {
 }
 
 
+COMPACT_WINDOW_REVIEW = ROOT / "models/decision_source_surface_review_20260911_window_0910.json"
+COMPACT_WINDOW_REVIEW_SHA = "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db"
+COMPACT_WINDOW_EXISTING_PATHS = {'.github/workflows/deploy_dc20_pages.yml', 'decision.html', 'tests/test_compact_rank_statistics.py', 'tests/test_primary_d_navigation.py', 'tests/test_primary_observation_frontend.py', 'tests/test_profit_shadow_versioned_frontend.py'}
+COMPACT_WINDOW_ADDED_PATHS = {'models/decision_compact_statistics_window_v1.json', 'scripts/build_compact_statistics_window.py', 'tests/test_compact_statistics_window.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_compact_statistics_window_pages.py'}
+COMPACT_WINDOW_ADDED_PINS = {
+    "models/decision_compact_statistics_window_v1.json",
+    "scripts/build_compact_statistics_window.py",
+}
+COMPACT_WINDOW_BOUNDARIES = {
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "truth_policy_changed": False,
+    "public_statistics_window_changed": True,
+    "separate_statistics_projection_added": True,
+    "original_statistics_calculation_changed": False,
+    "historical_navigation_preserves_latest_window": True,
+    "versioned_truth_publication_changed": False,
+    "historical_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _compact_window_review(review: dict | None = None) -> dict:
+    assert not COMPACT_WINDOW_REVIEW.is_symlink()
+    assert _sha256(COMPACT_WINDOW_REVIEW) == COMPACT_WINDOW_REVIEW_SHA
+    review = json.loads(COMPACT_WINDOW_REVIEW.read_text()) if review is None else review
+    assert review["schema_version"] == "decision_compact_statistics_window_review_v1"
+    assert review["approved_base_commit"] == "1c7b7345800f163e7c0eefc272deba321fc30d9d"
+    assert review["scope"] == "INDEPENDENT_D0910_PUBLIC_STATISTICS_WINDOW_OLD_LEDGER_TRUTH_AND_MODELS_PRESERVED"
+    assert review["boundaries"] == COMPACT_WINDOW_BOUNDARIES
+    assert review["start_signal_date"] == "20260910"
+    assert review["predecessor_evidence_path"] == COPY_DELETE_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(COPY_DELETE_REVIEW) == COPY_DELETE_REVIEW_SHA
+    paths = [item["path"] for item in review["source_changes"]]
+    expected = COMPACT_WINDOW_EXISTING_PATHS | COMPACT_WINDOW_ADDED_PATHS | {"models/decision_model_freeze.json"}
+    assert len(paths) == len(set(paths)) == len(expected)
+    assert set(paths) == expected
+    assert review["added_runtime_pins"] == sorted(COMPACT_WINDOW_ADDED_PINS)
+    predecessor = json.loads(COPY_DELETE_REVIEW.read_text())
+    assert len(review["preserved_evidence"]) == 18
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": COPY_DELETE_REVIEW.relative_to(ROOT).as_posix(), "sha256": COPY_DELETE_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    regressions = review["regression_tests"]
+    assert {item["path"] for item in regressions} == {p for p in expected if p.startswith("tests/")}
+    assert len(regressions) == len({item["path"] for item in regressions})
+    for item in regressions:
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    return review
+
+
+@lru_cache(maxsize=1)
+def _parse_compact_window_review(raw: bytes) -> dict:
+    # Only pure parsing is cached; no mutable source, hash or state is cached.
+    return json.loads(raw)
+
+
+def _source_before_compact_window(path: str, review: dict | None = None) -> bytes:
+    assert not COMPACT_WINDOW_REVIEW.is_symlink()
+    raw_review = COMPACT_WINDOW_REVIEW.read_bytes()
+    assert hashlib.sha256(raw_review).hexdigest() == COMPACT_WINDOW_REVIEW_SHA
+    review = _parse_compact_window_review(raw_review) if review is None else review
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert item["baseline_exists"] is (path not in COMPACT_WINDOW_ADDED_PATHS)
+    assert item["reason"]
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+    for part in reversed(changes):
+        assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+        assert type(part["current_start"]) is int and part["current_start"] > 0
+        start = part["current_start"] - 1
+        assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+        lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    if path in COMPACT_WINDOW_ADDED_PATHS:
+        assert restored == b"" and item["baseline_bytes"] == 0
+    return restored
+
+
+def _state_before_compact_window(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _compact_window_review(review)
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 227
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    for item in review["source_changes"]:
+        _source_before_compact_window(item["path"], review)
+    before = _source_before_compact_window("models/decision_model_freeze.json", review)
+    restored = json.loads(before)
+    assert len(restored["pinned_files"]) == 225
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in COMPACT_WINDOW_ADDED_PINS:
+        assert path not in restored["pinned_files"]
+        assert expected["pinned_files"].pop(path) == _sha256(ROOT / path)
+    for path in COMPACT_WINDOW_EXISTING_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_compact_window(path, review)).hexdigest()
+    assert expected == restored  # Complete prior map and non-pin model identity.
+    assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(
+        path=COMPACT_WINDOW_REVIEW.relative_to(ROOT).as_posix(), sha256=COMPACT_WINDOW_REVIEW_SHA,
+        approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(asset for asset in inventory["assets"] if asset["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_compact_window_review_preserves_complete_prior_state_and_models():
+    manifest, inventory = _state_before_compact_window()
+    predecessor = json.loads(COPY_DELETE_REVIEW.read_text())
+    assert _canonical_sha256(manifest) == predecessor["current_manifest_canonical_sha256"]
+    assert inventory["dependency_successor_review"]["sha256"] == COPY_DELETE_REVIEW_SHA
+    for path in COMPACT_WINDOW_ADDED_PATHS:
+        assert _source_before_compact_window(path) == b""
+    config = json.loads((ROOT / "models/decision_compact_statistics_window_v1.json").read_text())
+    assert config == {
+        "schema_version": "dc20_compact_statistics_window_config_v1",
+        "window_id": "dc20_compact_statistics_from_d20260910",
+        "start_signal_date": "20260910", "date_axis": "signal_date_inclusive",
+        "profit_scope": "NATURAL_FROZEN_PRIMARY_MIXED_SHADOW",
+        "promotion_scope": "FROZEN_PRIMARY_PROMOTION_TOP3",
+        "research_only": True, "source_ledger_mutation_allowed": False,
+    }
+
+
+@pytest.mark.parametrize("target", ["review", "source", "added_script", "config"])
+def test_compact_window_review_live_byte_changes_are_not_hidden_by_decode_cache(monkeypatch, target):
+    paths = {"review": COMPACT_WINDOW_REVIEW, "source": ROOT / "decision.html",
+             "added_script": ROOT / "scripts/build_compact_statistics_window.py",
+             "config": ROOT / "models/decision_compact_statistics_window_v1.json"}
+    path = "decision.html" if target == "review" else paths[target].relative_to(ROOT).as_posix()
+    _source_before_compact_window(path)
+    _source_before_compact_window(path)
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == paths[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _source_before_compact_window(path)
+
+
+@pytest.mark.parametrize("mutation", ["base", "scope", "truth_policy", "window", "start_date", "history", "extra_path", "current_sha", "baseline_sha", "inverse", "extra_pin", "remove_pin", "model_policy", "added_exists", "drop_evidence"])
+def test_compact_window_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_text())
+    review = json.loads(COMPACT_WINDOW_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "scope": review["scope"] = "DISPLAY_ONLY"
+    elif mutation == "truth_policy": review["boundaries"]["truth_policy_changed"] = True
+    elif mutation == "window": review["boundaries"]["public_statistics_window_changed"] = False
+    elif mutation == "start_date": review["start_signal_date"] = "20260828"
+    elif mutation == "history": review["boundaries"]["historical_ledger_rewritten"] = True
+    elif mutation == "extra_path": review["source_changes"].append(dict(review["source_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "current_sha": review["source_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "baseline_sha": review["source_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "remove_pin": del manifest["pinned_files"]["scripts/build_compact_statistics_window.py"]
+    elif mutation == "added_exists": next(item for item in review["source_changes"] if item["path"] in COMPACT_WINDOW_ADDED_PATHS)["baseline_exists"] = True
+    elif mutation == "drop_evidence": review["preserved_evidence"].pop()
+    else: manifest["training_cutoff_signal_date"] = "20260911"
+    with pytest.raises(AssertionError):
+        _state_before_compact_window(manifest, review)
+
+
 def _copy_delete_review(review: dict | None = None) -> dict:
     assert not COPY_DELETE_REVIEW.is_symlink()
     assert _sha256(COPY_DELETE_REVIEW) == COPY_DELETE_REVIEW_SHA
@@ -197,7 +396,7 @@ def _copy_delete_review(review: dict | None = None) -> dict:
         assert not (ROOT / item["path"]).is_symlink()
         assert _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_compact_rank_statistics.py"
-    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    assert hashlib.sha256(_source_before_compact_window(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
     return review
 
 
@@ -213,7 +412,7 @@ def _source_before_copy_delete(path: str, review: dict | None = None) -> bytes:
     assert hashlib.sha256(raw_review).hexdigest() == COPY_DELETE_REVIEW_SHA
     review = _parse_copy_delete_review(raw_review) if review is None else review
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_compact_window(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -236,11 +435,11 @@ def _source_before_copy_delete(path: str, review: dict | None = None) -> bytes:
 
 def _state_before_copy_delete(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     review = _copy_delete_review(review)
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_compact_window(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 225
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_compact_window(path)).hexdigest() == expected
     for item in review["source_changes"]:
         _source_before_copy_delete(item["path"], review)
     before = _source_before_copy_delete("models/decision_model_freeze.json", review)
@@ -254,14 +453,13 @@ def _state_before_copy_delete(manifest: dict | None = None, review: dict | None 
     assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(
         path=COPY_DELETE_REVIEW.relative_to(ROOT).as_posix(), sha256=COPY_DELETE_REVIEW_SHA,
         approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_compact_window(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)
@@ -290,10 +488,10 @@ def test_copy_delete_is_exactly_requested_display_changes():
     for old, new in changes:
         assert expected.count(old) == 1
         expected = expected.replace(old, new, 1)
-    assert (ROOT / "decision.html").read_text() == expected
+    assert _source_before_compact_window("decision.html").decode() == expected
     # No backend, settlement, source acceptance, or production gate can change.
     for path in ("src/top10decision/decision/executable_profit_shadow_settlement.py", "src/top10decision/decision/primary_profit_forward_shadow_bridge.py", "scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", ".github/workflows/deploy_dc20_pages.yml", "models/decision_primary_profit_shadow_entry_price_policy_v2.json"):
-        assert _source_before_copy_delete(path) == (ROOT / path).read_bytes()
+        assert _source_before_copy_delete(path) == _source_before_compact_window(path)
 
 
 @pytest.mark.parametrize("target", ["review", "source"])
@@ -1214,7 +1412,7 @@ def _manifest_before_navigation(manifest: dict, review: dict | None = None) -> d
     assert review["predecessor_evidence_sha256"] == _sha256(PROFIT_SUMMARY_REVIEW) == PROFIT_SUMMARY_REVIEW_SHA
     assert review["boundaries"] == {key: False for key in ("models_changed", "workflows_changed", "frozen_ledger_or_truth_changed", "entry_or_settlement_policy_changed", "ranking_algorithm_changed")}
     assert review["tests"]["path"] == "tests/test_primary_d_navigation.py"
-    assert _sha256(ROOT / review["tests"]["path"]) == review["tests"]["sha256"]
+    assert hashlib.sha256(_source_before_compact_window(review["tests"]["path"])).hexdigest() == review["tests"]["sha256"]
     assert hashlib.sha256((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["current_manifest_sha256"]
     assert len(manifest["pinned_files"]) == 224
     for path, expected in manifest["pinned_files"].items():

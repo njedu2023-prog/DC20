@@ -106,9 +106,8 @@ def test_versioned_snapshot_and_legacy_archive_are_exact_sha_bound(case):
     if case in {"v2_ok", "v1_archive"}:
         assert result["ready"] is True
         assert archive in result["requests"]
-        assert result["html"].count('class="three-rank-table profit-summary-table"') == 1
-        assert result["html"].count('class="rank-mark rank-profit"') == 2
-        assert result["html"].endswith("</tbody></table></div>")
+        # Even a valid D28 sidecar cannot substitute for the new SHA-bound window.
+        assert result["html"] == ""
     elif case == "v2_missing_sidecar":
         assert result["ready"] is False
         assert "error" not in result
@@ -117,7 +116,7 @@ def test_versioned_snapshot_and_legacy_archive_are_exact_sha_bound(case):
         assert result.get("error")
         assert result["html"] == ""
     assert result["unchanged"] is True
-    assert "日 / " in result["header"] and result["header"].endswith("席")
+    assert result["header"] == "D 2026-09-10起 · 最新累计 · 统计窗口待验证"
     assert "outputs/decision/executable_profit_research/daily_mixed_top2_index.json" in result["requests"]
     for removed in ("<details", "compactProfitDailyDetails", "每日记录与验证", "stats-note", 'data-field="code"'):
         assert removed not in result["html"]

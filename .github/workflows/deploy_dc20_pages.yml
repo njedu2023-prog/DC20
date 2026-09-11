@@ -23,9 +23,13 @@ on:
       - models/decision_primary_profit_research_contract.json
       - models/decision_three_engines/validation_latest.json
       - models/decision_three_rank_history_sources.json
+      - models/decision_compact_statistics_window_v1.json
       - src/top10decision/decision/legacy_profit_relative_research.py
       - requirements.lock
       - scripts/build_decision_three_rank_history.py
+      - scripts/build_compact_statistics_window.py
+      - tests/test_compact_statistics_window.py
+      - tests/test_compact_statistics_window_pages.py
       - scripts/project_decision_legacy_profit_relative_research.py
       - scripts/publish_primary_profit_rankings.py
       - scripts/freeze_primary_profit_forward_shadow.py
@@ -1685,6 +1689,116 @@ jobs:
           print(json.dumps(revision, ensure_ascii=False, sort_keys=True))
           PY
 
+      - name: Build independent compact statistics window
+        env:
+          PYTHONPATH: .:src
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, re
+          from pathlib import Path
+          from scripts.build_compact_statistics_window import build_window, validate_window
+
+          def materialize_compact_statistics_window(repo_root, site_root):
+              repo_root=Path(repo_root).resolve(strict=True)
+              site_root=Path(site_root).resolve(strict=True)
+              window_relative='outputs/decision/compact_statistics_window.json'
+              config_relative='models/decision_compact_statistics_window_v1.json'
+
+              def safe_path(root, relative, *, required=True):
+                  parts=Path(relative).parts
+                  path=root/relative
+                  if (
+                      not relative or Path(relative).is_absolute() or '..' in parts
+                      or Path(relative).as_posix() != relative
+                      or any((root/Path(*parts[:i])).is_symlink() for i in range(1,len(parts)+1))
+                      or not path.resolve().is_relative_to(root)
+                      or (path.exists() and not path.is_file())
+                      or (required and not path.is_file())
+                  ):
+                      raise ValueError(f'compact window path is missing or unsafe: {relative}')
+                  return path
+
+              revision_path=safe_path(site_root,'revision.json')
+              revision=json.loads(revision_path.read_bytes())
+              signal_date=str(revision.get('signal_date') or '')
+              if re.fullmatch(r'20[0-9]{6}',signal_date) is None:
+                  raise ValueError('compact window requires exact site revision signal_date')
+              # Recognized section source failures are explicit UNAVAILABLE
+              # envelopes inside the builder. Do not swallow configuration or
+              # unexpected program errors, or bypass any existing daily gate.
+              payload=build_window(repo_root,signal_date=signal_date)
+              validate_window(payload)
+              config_bytes=safe_path(repo_root,config_relative).read_bytes()
+              config_sha=hashlib.sha256(config_bytes).hexdigest()
+              if (
+                  payload.get('schema_version') != 'dc20_compact_statistics_window_v1'
+                  or payload.get('report_signal_date') != signal_date
+                  or payload.get('start_signal_date') != '20260910'
+                  or payload.get('config_sha256') != config_sha
+              ):
+                  raise ValueError('compact window configuration/date binding drifted')
+              patterns=(
+                  r'data/market/trade_cal_sse\.csv',
+                  r'outputs/decision/primary_observation/(?:summary\.json|rows\.csv)',
+                  r'outputs/decision/primary_d_receipt_20[0-9]{6}\.json',
+                  r'outputs/decision/primary_d_runtime_features_20[0-9]{6}\.csv',
+                  r'outputs/decision/three_rank_top10_20[0-9]{6}\.(?:json|csv)',
+                  r'outputs/decision/(?:executable_profit_research|legacy_profit_relative_research)/projection_20[0-9]{6}\.(?:json|csv)',
+                  r'outputs/decision/executable_profit_research/shadow_state_20[0-9]{6}_asof_20[0-9]{6}(?:_sha256_[0-9a-f]{64})?\.json',
+                  r'data/decision_executable_profit/forward/selections/shadow_20[0-9]{6}\.(?:json|csv)',
+                  r'data/decision_executable_profit/forward/verifications/t_verification_20[0-9]{6}\.json',
+                  r'data/decision_executable_profit/forward/settlements/settlement_20[0-9]{6}\.json',
+                  r'data/decision_executable_profit/forward/statistics/snapshots/summary_asof_20[0-9]{6}_sha256_[0-9a-f]{64}\.json',
+                  r'data/market/raw/20[0-9]{2}/20[0-9]{6}/(?:(?:daily|stk_limit|stk_auction|stk_auction_o)\.csv|stk_auction_o\.meta\.json|_sync_meta\.json)',
+              )
+              exact_sources={}
+              for binding in payload['source_files']:
+                  if set(binding) != {'path','sha256'}:
+                      raise ValueError('compact window source binding surface drifted')
+                  relative=str(binding['path'])
+                  digest=str(binding['sha256'])
+                  if (
+                      relative in exact_sources or re.fullmatch(r'[0-9a-f]{64}',digest) is None
+                      or (relative != config_relative and not any(re.fullmatch(pattern,relative) for pattern in patterns))
+                  ):
+                      raise ValueError(f'compact window source is not exact allowlisted evidence: {relative}')
+                  raw=safe_path(repo_root,relative).read_bytes()
+                  if hashlib.sha256(raw).hexdigest() != digest:
+                      raise ValueError(f'compact window source SHA drifted: {relative}')
+                  target=safe_path(site_root,relative,required=False)
+                  # Never reintroduce a state removed by the pre-existing
+                  # pending/retrospective/grandfathered Shadow publication gate.
+                  if '/shadow_state_' in relative and not target.is_file():
+                      raise ValueError('compact window cannot reintroduce a hidden Shadow state')
+                  if target.exists() and target.read_bytes() != raw:
+                      raise ValueError(f'compact window cannot overwrite a different public source: {relative}')
+                  exact_sources[relative]=raw
+              if exact_sources.get(config_relative) != config_bytes:
+                  raise ValueError('compact window config is not an exact source_files binding')
+              for relative,raw in exact_sources.items():
+                  target=safe_path(site_root,relative,required=False)
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_bytes(raw)
+              window_bytes=(json.dumps(payload,ensure_ascii=False,sort_keys=True,indent=2,allow_nan=False)+'\n').encode('utf-8')
+              target=safe_path(site_root,window_relative,required=False)
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_bytes(window_bytes)
+              revision.update(
+                  compact_statistics_window_url=window_relative,
+                  compact_statistics_window_sha256=hashlib.sha256(window_bytes).hexdigest(),
+                  compact_statistics_window_start_signal_date='20260910',
+              )
+              revision_path.write_text(json.dumps(revision,ensure_ascii=False,indent=2,allow_nan=False)+'\n',encoding='utf-8')
+              return payload
+
+          window=materialize_compact_statistics_window(Path('.'),Path('_site'))
+          print(json.dumps({'compact_statistics_window':{
+              'report_signal_date':window['report_signal_date'],'start_signal_date':window['start_signal_date'],
+              'profit_status':window['profit']['status'],'promotion_status':window['promotion']['status'],
+          }},ensure_ascii=False,sort_keys=True))
+          PY
+
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
@@ -1692,6 +1806,97 @@ jobs:
       - name: Deploy DC2.0 Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+      - name: Verify public compact statistics window
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
+          EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re, time
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from scripts.build_compact_statistics_window import validate_window
+
+          def verify_public_compact_statistics_window(site_root, fetch_bytes, expected_head, expected_signal_date):
+              from concurrent.futures import ThreadPoolExecutor
+              site_root=Path(site_root).resolve(strict=True)
+
+              def local_bytes(relative):
+                  parts=Path(relative).parts
+                  path=site_root/relative
+                  if (
+                      not relative or Path(relative).is_absolute() or '..' in parts
+                      or Path(relative).as_posix() != relative
+                      or any((site_root/Path(*parts[:i])).is_symlink() for i in range(1,len(parts)+1))
+                      or not path.is_file() or not path.resolve(strict=True).is_relative_to(site_root)
+                  ):
+                      raise ValueError(f'public compact window source path is unsafe: {relative}')
+                  return path.read_bytes()
+
+              revision_bytes=fetch_bytes('revision.json')
+              if revision_bytes != local_bytes('revision.json'):
+                  raise ValueError('public compact window revision bytes differ from exact build')
+              revision=json.loads(revision_bytes)
+              relative='outputs/decision/compact_statistics_window.json'
+              config_relative='models/decision_compact_statistics_window_v1.json'
+              if (
+                  revision.get('head_sha') != expected_head
+                  or revision.get('signal_date') != expected_signal_date
+                  or revision.get('compact_statistics_window_url') != relative
+                  or revision.get('compact_statistics_window_start_signal_date') != '20260910'
+              ):
+                  raise ValueError('public compact window revision/date/start binding drifted')
+              raw=fetch_bytes(relative)
+              if raw != local_bytes(relative) or hashlib.sha256(raw).hexdigest() != revision.get('compact_statistics_window_sha256'):
+                  raise ValueError('public compact window bytes/SHA differ from exact revision')
+              payload=json.loads(raw)
+              validate_window(payload)
+              if (
+                  payload.get('schema_version') != 'dc20_compact_statistics_window_v1'
+                  or payload.get('report_signal_date') != expected_signal_date
+                  or payload.get('start_signal_date') != '20260910'
+              ):
+                  raise ValueError('public compact window payload date/start drifted')
+              sources=payload['source_files']
+              bindings={item['path']:item['sha256'] for item in sources}
+              if len(bindings) != len(sources) or bindings.get(config_relative) != payload.get('config_sha256'):
+                  raise ValueError('public compact window config/source inventory drifted')
+
+              def verify_source(binding):
+                  relative,digest=binding
+                  raw=local_bytes(relative)
+                  if re.fullmatch(r'[0-9a-f]{64}',digest) is None or hashlib.sha256(raw).hexdigest() != digest:
+                      raise ValueError(f'compact window build source SHA drifted: {relative}')
+                  public=fetch_bytes(relative)
+                  if public != raw or hashlib.sha256(public).hexdigest() != digest:
+                      raise ValueError(f'public compact window source bytes/SHA drifted: {relative}')
+
+              with ThreadPoolExecutor(max_workers=6) as pool:
+                  list(pool.map(verify_source,bindings.items()))
+              return payload
+
+          page_url=os.environ['PAGE_URL'].rstrip('/')
+          for attempt in range(1,13):
+              def fetch_bytes(relative):
+                  url=f"{page_url}/{relative}?run_id={os.environ['GITHUB_RUN_ID']}&compact_verify_attempt={attempt}"
+                  with urlopen(Request(url,headers={'Cache-Control':'no-cache'}),timeout=30) as response:
+                      return response.read()
+              try:
+                  payload=verify_public_compact_statistics_window(
+                      Path('_site'),fetch_bytes,os.environ['EXPECTED_HEAD'],os.environ['EXPECTED_SIGNAL_DATE'],
+                  )
+                  print(json.dumps({'public_compact_statistics_window':'EXACT_BYTES_VERIFIED',
+                      'report_signal_date':payload['report_signal_date'],'start_signal_date':payload['start_signal_date']},sort_keys=True))
+                  break
+              except (OSError,ValueError,KeyError) as exc:
+                  if attempt == 12:
+                      raise
+                  time.sleep(10)
+          PY
 
       - name: Verify public primary-profit bundle when present
         if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}

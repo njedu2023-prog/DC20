@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_copy_delete.json",
-    "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d",
-    "approved_base_commit": "fa9605013f6f370eb14eee6e67838862c9e4db5d",
-    "scope": "Only the freeze-manifest reference follows requested copy/daily-detail removal, signed-return colors and inline completed-day display. All other 41 inventory assets, the inactive forward epoch, model weights, ranks, frozen selections, source loading, verification gates, settlement policies and statistics calculations remain unchanged."
+    "path": "models/decision_source_surface_review_20260911_window_0910.json",
+    "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db",
+    "approved_base_commit": "1c7b7345800f163e7c0eefc272deba321fc30d9d",
+    "scope": "Only the freeze-manifest reference follows the independent D20260910-inclusive public statistics projection and its authenticated Pages/frontend integration, including latest cumulative statistics during historical navigation. Public statistics scope changes explicitly; original D28 ledgers, truth/settlement calculations, model weights, ranking algorithms, frozen selections, the other 41 inventory assets, inactive forward epoch and all validation gates remain unchanged."
   },
   "active_source_models": {
     "promotion": {
@@ -105,8 +105,8 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "7b8d81c5e9d25454cad935eb81593c0496938d3cec789781ed18d1a2300a8334",
-      "bytes": 51669,
+      "sha256": "a8ee4a68fda9345aa4c69ffb21c54ea42a83047c22b7b5234b42d0df903d2755",
+      "bytes": 51912,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
     },
