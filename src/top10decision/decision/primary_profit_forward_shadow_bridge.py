@@ -41,6 +41,9 @@ PUBLIC_ROOT = Path("outputs/decision/executable_profit_research")
 PUBLIC_INDEX_PATH = PUBLIC_ROOT / "shadow_index.json"
 PUBLIC_STATE_SCHEMA = "dc20_primary_profit_forward_shadow_public_state_v1"
 PUBLIC_INDEX_SCHEMA = "dc20_primary_profit_forward_shadow_public_index_v1"
+PUBLIC_STATE_SCHEMA_V2 = "dc20_primary_profit_forward_shadow_public_state_v2"
+PUBLIC_INDEX_SCHEMA_V2 = "dc20_primary_profit_forward_shadow_public_index_v2"
+STATISTICS_SNAPSHOT_ROOT = STATISTICS_PATH.parent / "snapshots"
 PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE = "20260828"
 GRANDFATHERED_PUBLIC_STATE_IDENTITY = ("20260828", "20260828")
 GRANDFATHERED_PUBLIC_STATE_SNAPSHOT_SHA256 = (
@@ -1278,6 +1281,12 @@ def _rebuild_forward_statistics(repo_root: Path, *, as_of_date: str) -> tuple[Pa
         )
         summary = build_public_statistics(repo_root, as_of_date=as_of_date)
         validate_statistics(summary, require_public_cumulative=True)
+        previous = repo_root / STATISTICS_PATH
+        if previous.exists() or previous.is_symlink():
+            previous = _safe_file(repo_root, STATISTICS_PATH, label="previous Shadow statistics")
+            previous_payload = _read_json(previous, label="previous Shadow statistics")
+            validate_statistics(previous_payload)
+            _materialize_statistics_snapshot(repo_root, previous, previous_payload)
         path = materialize_statistics(repo_root, summary)
     except (OSError, ValueError, ExecutableProfitSettlementError) as exc:
         raise PrimaryProfitForwardShadowError("P1 Shadow statistics rebuild failed") from exc
@@ -1286,7 +1295,48 @@ def _rebuild_forward_statistics(repo_root: Path, *, as_of_date: str) -> tuple[Pa
         and summary.get("as_of_date") == as_of_date,
         "P1 Shadow statistics path/as-of drifted",
     )
-    return path, summary
+    _expect(_read_json(path, label="current Shadow statistics") == summary,
+            "Shadow statistics writer did not install the requested projection")
+    return _materialize_statistics_snapshot(repo_root, path, summary), summary
+
+
+def _statistics_snapshot_relative(as_of_date: str, file_sha256: str) -> Path:
+    _expect(_normal_date(as_of_date) == as_of_date and SHA256_RE.fullmatch(file_sha256),
+            "Shadow statistics snapshot address is invalid")
+    return STATISTICS_SNAPSHOT_ROOT / f"summary_asof_{as_of_date}_sha256_{file_sha256}.json"
+
+
+def _materialize_statistics_snapshot(
+    repo_root: Path, path: Path, payload: Mapping[str, Any],
+) -> Path:
+    source = _safe_file(repo_root, path.relative_to(repo_root), label="Shadow statistics snapshot source")
+    raw = source.read_bytes()
+    _expect(json.loads(raw) == payload, "Shadow statistics snapshot source changed")
+    relative = _statistics_snapshot_relative(str(payload["as_of_date"]), _sha256_bytes(raw))
+    output = _safe_directory(repo_root, STATISTICS_SNAPSHOT_ROOT, label="Shadow statistics snapshots")
+    destination = output / relative.name
+    _install_new(destination, raw)
+    return destination
+
+
+def _bound_statistics_file(
+    repo_root: Path, binding: Mapping[str, Any], *, as_of_date: str, legacy: bool,
+) -> Path:
+    snapshot = _statistics_snapshot_relative(as_of_date, str(binding.get("sha256") or ""))
+    relative = Path(str(binding.get("path") or ""))
+    _expect(relative == (STATISTICS_PATH if legacy else snapshot),
+            "public P1 Shadow statistics path/address drifted")
+    if legacy:
+        current = repo_root / relative
+        if current.exists() or current.is_symlink():
+            current = _safe_file(repo_root, relative, label="legacy Shadow statistics")
+            if _sha256(current) == binding["sha256"]:
+                return current
+        # A legacy state's fixed summary pointer may have advanced. Only its
+        # exact original bytes, archived under the bound file hash, may replace it.
+    path = _safe_file(repo_root, snapshot, label="immutable Shadow statistics")
+    _expect(_sha256(path) == binding["sha256"], "public P1 Shadow statistics SHA drifted")
+    return path
 
 
 def _public_state_snapshot(payload: Mapping[str, Any]) -> str:
@@ -1376,6 +1426,7 @@ def _selected_rows_for_public_state(
     *,
     selection: Mapping[str, Any],
     as_of_date: str,
+    truth_bindings: Mapping[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     signal_date = str(selection["signal_date"])
     exec_date = str(selection["exec_date"])
@@ -1412,7 +1463,7 @@ def _selected_rows_for_public_state(
 
     if as_of_date >= exec_date:
         verification_path = repo_root / VERIFICATION_ROOT / f"t_verification_{signal_date}.json"
-        if verification_path.exists():
+        if verification_path.exists() and (truth_bindings is None or truth_bindings["t_verification"] is not None):
             _expect(
                 verification_path.is_file() and not verification_path.is_symlink(),
                 "P1 Shadow T verification path is unsafe",
@@ -1443,7 +1494,7 @@ def _selected_rows_for_public_state(
             verification_binding = _truth_binding(repo_root, verification_path)
 
         settlement_path = repo_root / SETTLEMENT_ROOT / f"settlement_{signal_date}.json"
-        if settlement_path.exists():
+        if settlement_path.exists() and (truth_bindings is None or truth_bindings["t1_settlement"] is not None):
             _expect(
                 verification_binding is not None,
                 "P1 Shadow settlement exists without immutable T verification",
@@ -1552,6 +1603,7 @@ def build_primary_profit_shadow_public_state(
     selection: Mapping[str, Any],
     summary_path: Path,
     summary: Mapping[str, Any],
+    schema_version: str = PUBLIC_STATE_SCHEMA_V2,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve(strict=True)
     validate_primary_profit_forward_shadow(
@@ -1567,6 +1619,8 @@ def build_primary_profit_shadow_public_state(
     )
     summary_snapshot = str(summary.get("snapshot_sha256") or "")
     _expect(SHA256_RE.fullmatch(summary_snapshot) is not None, "Shadow summary snapshot is invalid")
+    if schema_version == PUBLIC_STATE_SCHEMA_V2:
+        summary_path = _materialize_statistics_snapshot(repo_root, summary_path, summary)
     _expect(
         _summary_has_public_cumulative_cutover(summary),
         "Shadow public summary is missing the D28 cumulative cutover",
@@ -1578,7 +1632,7 @@ def build_primary_profit_shadow_public_state(
     )
     source_mixed = selection["source_bindings"]["mixed_projection"]
     state: dict[str, Any] = {
-        "schema_version": PUBLIC_STATE_SCHEMA,
+        "schema_version": schema_version,
         "artifact_kind": "immutable_primary_profit_forward_shadow_public_state",
         "status": STATUS,
         "signal_date": signal_date,
@@ -1653,7 +1707,7 @@ def validate_primary_profit_forward_shadow_public_state(
     exit_date = _normal_date(payload.get("exit_date"))
     as_of_date = _normal_date(payload.get("as_of_date"))
     _expect(
-        payload.get("schema_version") == PUBLIC_STATE_SCHEMA
+        payload.get("schema_version") in {PUBLIC_STATE_SCHEMA, PUBLIC_STATE_SCHEMA_V2}
         and payload.get("artifact_kind")
         == "immutable_primary_profit_forward_shadow_public_state"
         and payload.get("status") == STATUS
@@ -1713,6 +1767,13 @@ def validate_primary_profit_forward_shadow_public_state(
             is not None,
             f"public P1 Shadow {key} binding drifted",
         )
+    _expect(sources["statistics"].get("as_of_date") == as_of_date,
+            "public P1 Shadow statistics as-of drifted")
+    statistics_relative = _statistics_snapshot_relative(as_of_date, sources["statistics"]["sha256"])
+    _expect(sources["statistics"]["path"] == (
+        STATISTICS_PATH.as_posix() if payload["schema_version"] == PUBLIC_STATE_SCHEMA
+        else statistics_relative.as_posix()
+    ), "public P1 Shadow statistics path/address drifted")
     for key in ("t_verification", "t1_settlement"):
         binding = sources[key]
         _expect(
@@ -1744,11 +1805,12 @@ def validate_primary_profit_forward_shadow_public_state(
         loaded: dict[str, Path] = {}
         for key in ("mixed_projection", "selection", "statistics"):
             binding = sources[key]
-            path = _safe_file(
-                repo_root,
-                Path(str(binding["path"])),
-                label=f"public P1 Shadow {key}",
-            )
+            path = (_bound_statistics_file(
+                repo_root, binding, as_of_date=as_of_date,
+                legacy=payload["schema_version"] == PUBLIC_STATE_SCHEMA,
+            ) if key == "statistics" else _safe_file(
+                repo_root, Path(str(binding["path"])), label=f"public P1 Shadow {key}",
+            ))
             _expect(_sha256(path) == binding["sha256"], f"public P1 Shadow {key} SHA drifted")
             loaded[key] = path
         for key in ("t_verification", "t1_settlement"):
@@ -1805,10 +1867,25 @@ def validate_primary_profit_forward_shadow_public_state(
             == selection["source_bindings"]["mixed_projection"],
             "public P1 Shadow aggregate/source projection drifted",
         )
+        input_files = summary.get("input_files")
+        _expect(isinstance(input_files, list), "public P1 Shadow statistics input manifest missing")
+        inputs = {item["path"]: item["sha256"] for item in input_files}
+        _expect(len(inputs) == len(input_files), "public P1 Shadow statistics input manifest duplicated")
+        for relative, sha in inputs.items():
+            path = _safe_file(repo_root, Path(relative), label="public P1 Shadow statistics input")
+            _expect(_sha256(path) == sha, "public P1 Shadow statistics input SHA drifted")
+        for key, relative in (
+            ("t_verification", VERIFICATION_ROOT / f"t_verification_{signal_date}.json"),
+            ("t1_settlement", SETTLEMENT_ROOT / f"settlement_{signal_date}.json"),
+        ):
+            expected = ({"path": relative.as_posix(), "sha256": inputs[relative.as_posix()]}
+                        if relative.as_posix() in inputs else None)
+            _expect(sources[key] == expected, "public P1 Shadow truth/statistics manifest drifted")
         expected_rows, expected_truth = _selected_rows_for_public_state(
             repo_root,
             selection=selection,
             as_of_date=as_of_date,
+            truth_bindings=sources,
         )
         _expect(
             payload.get("latest_selected_rows") == expected_rows
@@ -1830,10 +1907,12 @@ def _materialize_public_state(
     signal_date = str(state["signal_date"])
     as_of_date = str(state["as_of_date"])
     output = _safe_directory(repo_root, PUBLIC_ROOT, label="public Shadow output")
-    state_path = output / f"shadow_state_{signal_date}_asof_{as_of_date}.json"
+    versioned = state["schema_version"] == PUBLIC_STATE_SCHEMA_V2
+    suffix = f"_sha256_{state['snapshot_sha256']}" if versioned else ""
+    state_path = output / f"shadow_state_{signal_date}_asof_{as_of_date}{suffix}.json"
     state_bytes = _pretty_json_bytes(state)
     index = {
-        "schema_version": PUBLIC_INDEX_SCHEMA,
+        "schema_version": PUBLIC_INDEX_SCHEMA_V2 if versioned else PUBLIC_INDEX_SCHEMA,
         "index_kind": "primary_profit_forward_shadow_public_pointer",
         "data_alias": False,
         "latest_signal_date": signal_date,
@@ -1866,9 +1945,40 @@ def _materialize_public_state(
                 "out-of-order public Shadow pointer rejected",
             )
             if (existing_date, existing_as_of) == (signal_date, as_of_date):
-                _expect(existing == index, "same-as-of public Shadow pointer rewrite rejected")
-                _install_new(state_path, state_bytes)
-                return state_path, index_path, existing
+                if existing == index:
+                    _install_new(state_path, state_bytes)
+                    return state_path, index_path, existing
+                _expect(versioned, "same-as-of public Shadow pointer rewrite rejected")
+                _expect(all(existing[key] == index[key] for key in (
+                    "latest_exec_date", "latest_exit_date", "latest_selection_identity_sha256",
+                    "latest_mixed_projection_sha256",
+                )), "same-as-of public Shadow frozen identity rewrite rejected")
+                previous_path = _safe_file(repo_root, Path(existing["latest_state_url"]),
+                                           label="previous public Shadow state")
+                _expect(_sha256(previous_path) == existing["latest_state_sha256"],
+                        "previous public Shadow state SHA drifted")
+                previous = _read_json(previous_path, label="previous public Shadow state")
+                validate_primary_profit_forward_shadow_public_state(previous, repo_root=repo_root)
+                _validate_public_index_state_binding(existing, previous)
+                old_statistics = _read_json(_bound_statistics_file(
+                    repo_root, previous["source_bindings"]["statistics"], as_of_date=as_of_date,
+                    legacy=previous["schema_version"] == PUBLIC_STATE_SCHEMA,
+                ), label="previous public Shadow statistics")
+                new_statistics = _read_json(_bound_statistics_file(
+                    repo_root, state["source_bindings"]["statistics"], as_of_date=as_of_date,
+                    legacy=False,
+                ), label="new public Shadow statistics")
+                old_inputs = {item["path"]: item["sha256"] for item in old_statistics["input_files"]}
+                new_inputs = {item["path"]: item["sha256"] for item in new_statistics["input_files"]}
+                _expect(all(new_inputs.get(path) == sha for path, sha in old_inputs.items()),
+                        "same-as-of public Shadow rewrote or removed immutable inputs")
+                additions = set(new_inputs) - set(old_inputs)
+                _expect(all(re.fullmatch(
+                    r"data/decision_executable_profit/forward/(?:verifications/t_verification_|settlements/settlement_)20\d{6}\.json",
+                    path,
+                ) for path in additions), "same-as-of public Shadow added foreign inputs")
+                _expect(additions or previous["schema_version"] == PUBLIC_STATE_SCHEMA,
+                        "same-as-of public Shadow changed without new immutable truth")
         _install_new(state_path, state_bytes)
         _atomic_pointer(index_path, _pretty_json_bytes(index))
     return state_path, index_path, index
@@ -1894,9 +2004,11 @@ def validate_primary_profit_forward_shadow_public_index(
     }
     signal_date = _normal_date(payload.get("latest_signal_date"))
     as_of_date = _normal_date(payload.get("latest_as_of_date"))
+    suffix = (f"_sha256_{payload.get('latest_state_snapshot_sha256')}"
+              if payload.get("schema_version") == PUBLIC_INDEX_SCHEMA_V2 else "")
     _expect(
         set(payload) == expected
-        and payload.get("schema_version") == PUBLIC_INDEX_SCHEMA
+        and payload.get("schema_version") in {PUBLIC_INDEX_SCHEMA, PUBLIC_INDEX_SCHEMA_V2}
         and payload.get("index_kind")
         == "primary_profit_forward_shadow_public_pointer"
         and payload.get("data_alias") is False
@@ -1907,7 +2019,7 @@ def validate_primary_profit_forward_shadow_public_index(
         and payload.get("latest_state_url")
         == (
             f"{PUBLIC_ROOT.as_posix()}/"
-            f"shadow_state_{signal_date}_asof_{as_of_date}.json"
+            f"shadow_state_{signal_date}_asof_{as_of_date}{suffix}.json"
         )
         and payload.get("boundaries") == BOUNDARIES,
         "public P1 Shadow index identity/path drifted",
@@ -1924,6 +2036,20 @@ def validate_primary_profit_forward_shadow_public_index(
         )
 
 
+def _validate_public_index_state_binding(index: Mapping[str, Any], state: Mapping[str, Any]) -> None:
+    _expect((index["schema_version"] == PUBLIC_INDEX_SCHEMA_V2)
+            == (state["schema_version"] == PUBLIC_STATE_SCHEMA_V2),
+            "public P1 Shadow index/state schema mismatch")
+    _expect(all(index[f"latest_{key}"] == state[key] for key in (
+        "signal_date", "exec_date", "exit_date", "as_of_date",
+    )) and index["latest_state_snapshot_sha256"] == state["snapshot_sha256"]
+        and index["latest_selection_identity_sha256"]
+        == state["source_bindings"]["selection"]["selection_identity_sha256"]
+        and index["latest_mixed_projection_sha256"]
+        == state["source_bindings"]["mixed_projection"]["sha256"],
+        "public P1 Shadow index/state identity or snapshot drifted")
+
+
 def _existing_same_as_of_public_projection(
     repo_root: Path,
     *,
@@ -1932,11 +2058,10 @@ def _existing_same_as_of_public_projection(
     signal_date: str,
     as_of_date: str,
 ) -> dict[str, Any] | None:
-    """Return an already-published exact pair without rebuilding any pointer.
+    """Validate the previous exact pair before considering an append-only refresh.
 
-    This preflight is deliberately before statistics materialization.  It keeps
-    the immutable pre-cutover D28/as-of-D28 state byte-identical and also makes
-    every later exact-pair retry strictly idempotent.
+    The pre-cutover exception remains a byte-identical no-op. Later states may
+    advance only through a source-addressed snapshot preserving all prior inputs.
     """
 
     index_path = repo_root / PUBLIC_INDEX_PATH
@@ -1974,6 +2099,7 @@ def _existing_same_as_of_public_projection(
         state,
         repo_root=repo_root,
     )
+    _validate_public_index_state_binding(index, state)
     _expect(
         state.get("signal_date") == signal_date
         and state.get("as_of_date") == as_of_date
@@ -1993,10 +2119,9 @@ def _existing_same_as_of_public_projection(
         ),
         "existing exact-pair public Shadow selection binding drifted",
     )
-    summary_path = _safe_file(
-        repo_root,
-        STATISTICS_PATH,
-        label="existing exact-pair public Shadow statistics",
+    summary_path = _bound_statistics_file(
+        repo_root, state["source_bindings"]["statistics"], as_of_date=as_of_date,
+        legacy=state["schema_version"] == PUBLIC_STATE_SCHEMA,
     )
     summary = _read_json(
         summary_path,
@@ -2048,7 +2173,7 @@ def project_primary_profit_forward_shadow_state(
         signal_date=signal_date,
         as_of_date=as_of_date,
     )
-    if existing is not None:
+    if existing is not None and existing["grandfathered_pre_cutover"]:
         return existing
     summary_path, summary = _rebuild_forward_statistics(
         repo_root,
@@ -2061,6 +2186,8 @@ def project_primary_profit_forward_shadow_state(
         summary_path=summary_path,
         summary=summary,
     )
+    if existing is not None and existing["public_state_payload"] == state:
+        return existing
     state_path, public_index_path, public_index = _materialize_public_state(
         repo_root,
         state,
@@ -2130,28 +2257,6 @@ def validate_primary_profit_forward_shadow_repository_chain(
         "P1 Shadow primary pointer bytes/date drifted",
     )
 
-    summary_path = _safe_file(
-        repo_root,
-        STATISTICS_PATH,
-        label="P1 Shadow statistics",
-    )
-    summary = _read_json(summary_path, label="P1 Shadow statistics")
-    try:
-        from top10decision.decision.executable_profit_shadow_settlement import (
-            validate_statistics,
-        )
-        validate_statistics(summary)
-    except (ImportError, RuntimeError, ValueError) as exc:
-        raise PrimaryProfitForwardShadowError("P1 Shadow statistics are invalid") from exc
-    expected_selection_binding = {
-        "path": selection_path.relative_to(repo_root).as_posix(),
-        "sha256": _sha256(selection_path),
-    }
-    _expect(
-        expected_selection_binding in summary.get("input_files", []),
-        "P1 Shadow statistics do not bind exact selection bytes",
-    )
-
     public_index_path = _safe_file(
         repo_root,
         PUBLIC_INDEX_PATH,
@@ -2173,6 +2278,23 @@ def validate_primary_profit_forward_shadow_repository_chain(
         state,
         repo_root=repo_root,
     )
+    _validate_public_index_state_binding(public_index, state)
+    summary_path = _bound_statistics_file(
+        repo_root, state["source_bindings"]["statistics"], as_of_date=state["as_of_date"],
+        legacy=state["schema_version"] == PUBLIC_STATE_SCHEMA,
+    )
+    summary = _read_json(summary_path, label="P1 Shadow statistics")
+    try:
+        from top10decision.decision.executable_profit_shadow_settlement import validate_statistics
+        validate_statistics(summary)
+    except (ImportError, RuntimeError, ValueError) as exc:
+        raise PrimaryProfitForwardShadowError("P1 Shadow statistics are invalid") from exc
+    expected_selection_binding = {
+        "path": selection_path.relative_to(repo_root).as_posix(),
+        "sha256": _sha256(selection_path),
+    }
+    _expect(expected_selection_binding in summary.get("input_files", []),
+            "P1 Shadow statistics do not bind exact selection bytes")
     grandfathered = _is_grandfathered_public_state(state, summary)
     if not grandfathered:
         try:

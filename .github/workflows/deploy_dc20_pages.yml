@@ -17,6 +17,7 @@ on:
       - data/decision_executable_profit/forward/verifications/t_verification_*.json
       - data/decision_executable_profit/forward/settlements/settlement_*.json
       - data/decision_executable_profit/forward/statistics/summary.json
+      - data/decision_executable_profit/forward/statistics/snapshots/summary_asof_*.json
       - models/decision_model_freeze.json
       - models/decision_primary_profit_forward_shadow_bridge_contract.json
       - models/decision_primary_profit_research_contract.json
@@ -351,6 +352,82 @@ jobs:
                   target.unlink()
                   removed.append(target.relative_to(site_root).as_posix())
               return tuple(sorted(removed))
+
+          def copy_primary_shadow_statistics_snapshots(repo_root, site_root):
+              import json
+              from datetime import datetime
+              from pathlib import Path
+
+              from top10decision.decision.executable_profit_shadow_settlement import (
+                  validate_statistics,
+              )
+
+              relative_root = Path(
+                  'data/decision_executable_profit/forward/statistics/snapshots'
+              )
+              repo_root = Path(repo_root).resolve(strict=True)
+              site_root = Path(site_root).resolve(strict=True)
+
+              def safe_directory(root, relative, *, create=False):
+                  current = root
+                  for part in relative.parts:
+                      current = current / part
+                      if current.is_symlink():
+                          raise ValueError('Pages Shadow statistics snapshot directory is unsafe')
+                      if not current.exists():
+                          if not create:
+                              return None
+                          current.mkdir()
+                      if not current.is_dir() or current.resolve(strict=True) != current:
+                          raise ValueError('Pages Shadow statistics snapshot directory is unsafe')
+                  return current
+
+              source_root = safe_directory(repo_root, relative_root)
+              if source_root is None:
+                  return ()
+              snapshots = []
+              for source in sorted(source_root.iterdir()):
+                  if (
+                      source.is_symlink()
+                      or not source.is_file()
+                      or source.resolve(strict=True) != source
+                  ):
+                      raise ValueError('Pages Shadow statistics snapshot source is unsafe')
+                  matched = re.fullmatch(
+                      r'summary_asof_(20[0-9]{6})_sha256_([0-9a-f]{64})\.json',
+                      source.name,
+                  )
+                  if matched is None:
+                      raise ValueError('Pages Shadow statistics snapshot path is not exact')
+                  as_of_date, expected_sha = matched.groups()
+                  try:
+                      parsed_date = datetime.strptime(as_of_date, '%Y%m%d')
+                  except ValueError as exc:
+                      raise ValueError('Pages Shadow statistics snapshot date is invalid') from exc
+                  if parsed_date.strftime('%Y%m%d') != as_of_date:
+                      raise ValueError('Pages Shadow statistics snapshot date is invalid')
+                  raw = source.read_bytes()
+                  if hashlib.sha256(raw).hexdigest() != expected_sha:
+                      raise ValueError('Pages Shadow statistics snapshot byte SHA drifted')
+                  payload = json.loads(raw)
+                  validate_statistics(payload, require_public_cumulative=True)
+                  if payload['as_of_date'] != as_of_date:
+                      raise ValueError('Pages Shadow statistics snapshot as-of binding drifted')
+                  snapshots.append((relative_root / source.name, raw))
+
+              target_root = safe_directory(site_root, relative_root, create=True)
+              for relative, raw in snapshots:
+                  target = target_root / relative.name
+                  if target.is_symlink() or (
+                      target.exists()
+                      and (not target.is_file() or target.read_bytes() != raw)
+                  ):
+                      raise ValueError('Pages Shadow statistics snapshot target is unsafe or drifted')
+                  if not target.exists():
+                      target.write_bytes(raw)
+                  if target.read_bytes() != raw:
+                      raise ValueError('Pages Shadow statistics snapshot copy drifted')
+              return tuple(relative.as_posix() for relative, _ in snapshots)
 
           repo_root = Path('.').resolve(strict=True)
           site_root = Path('_site').resolve(strict=True)
@@ -694,6 +771,7 @@ jobs:
                               raise SystemExit(
                                   'Pages standard Shadow summary lacks D28 cutover marker'
                               )
+                          copy_primary_shadow_statistics_snapshots(repo_root, site_root)
                           # The repository keeps this immutable pre-cutover pair
                           # for audit, but the bulk outputs/decision projection
                           # must never re-publish it beside the new public chain.
@@ -1701,13 +1779,16 @@ jobs:
                   )
               prefix = 'outputs/decision/executable_profit_research/'
               dated_name = re.compile(
-                  r'shadow_(?:state|statistics)_20\d{6}_asof_20\d{6}\.json'
+                  r'(?:shadow_state_20[0-9]{6}_asof_20[0-9]{6}'
+                  r'(?:_sha256_[0-9a-f]{64})?'
+                  r'|shadow_statistics_20[0-9]{6}_asof_20[0-9]{6})\.json'
               )
               for relative in values:
                   path = PurePosixPath(relative)
                   if (
                       path.is_absolute()
                       or '..' in path.parts
+                      or path.as_posix() != relative
                       or len(path.parts) != 4
                       or not relative.startswith(prefix)
                       or (
@@ -1796,6 +1877,11 @@ jobs:
               outputs/decision/executable_profit_research/shadow_index.json
               "${shadow_state}"
             )
+            for snapshot in _site/data/decision_executable_profit/forward/statistics/snapshots/summary_asof_*.json; do
+              if [ -f "${snapshot}" ] && [ "${snapshot#_site/}" != "${shadow_statistics}" ]; then
+                files+=("${snapshot#_site/}")
+              fi
+            done
             if [ -n "${shadow_t}" ]; then files+=("${shadow_t}"); fi
             if [ -n "${shadow_t1}" ]; then files+=("${shadow_t1}"); fi
           elif [ -f "${shadow_cutover_index}" ]; then

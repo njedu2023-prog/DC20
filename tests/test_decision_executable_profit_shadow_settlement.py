@@ -351,6 +351,8 @@ def _prepare_repo(tmp_path: Path, *, slot_count: int = 2, include_t1: bool = Tru
     shutil.copytree(
         ROOT / settlement.CONTRACT_PATH.parent,
         tmp_path / settlement.CONTRACT_PATH.parent,
+        # Existing cases continue exercising the pre-v2 strict-auction policy.
+        ignore=shutil.ignore_patterns(settlement.PRICE_POLICY_PATH_V2.name),
     )
     calendar = tmp_path / settlement.CALENDAR_PATH
     calendar.parent.mkdir(parents=True, exist_ok=True)
@@ -397,6 +399,256 @@ def _prepare_repo(tmp_path: Path, *, slot_count: int = 2, include_t1: bool = Tru
             ["600001.SH,20260826,11.55,9.45"],
         )
     return tmp_path
+
+
+def _price_v2_repo(tmp_path: Path, *, source="none", slots=2) -> Path:
+    repo = _prepare_repo(tmp_path, slot_count=slots)
+    _install_primary_mixed_v2_selection(repo, slot_count=slots)
+    _write_json(repo / settlement.PRICE_POLICY_PATH_V2, settlement.PRICE_POLICY_V2_SPEC)
+    daily = repo / "data/market/raw/2026/20260825/daily.csv"
+    for table in (daily, repo / "data/market/raw/2026/20260826/daily.csv"):
+        lines = table.read_text().splitlines()
+        table.write_text(lines[0] + ",vol\n" + "\n".join(line + ",10000" for line in lines[1:]) + "\n")
+    auction = daily.with_name("stk_auction_o.csv")
+    if source == "none" or source == "stk_auction":
+        auction.unlink()
+    else:
+        _auction_o_meta(auction)
+    if source in {"stk_auction", "both"}:
+        _dated_auction(repo)
+    return repo
+
+
+def _auction_o_meta(path: Path) -> None:
+    text = path.read_bytes().decode("utf-8-sig").replace("\r\n", "\n")
+    _write_json(path.with_suffix(".meta.json"), {
+        "schema_version": "decision_auction_truth_v1", "source": "tushare:stk_auction_o",
+        "trade_date": AS_OF_T, "rows": len(text.splitlines()) - 1,
+        "fields": text.splitlines()[0].split(","), "sha256": settlement._sha256_bytes(text.encode()),
+        "immutable": True, "credential_persisted": False,
+    })
+
+
+def _dated_auction(repo: Path, *, price="10.00", amount="40000000", first_code="600001.SH") -> Path:
+    path = repo / f"data/market/raw/2026/{AS_OF_T}/stk_auction.csv"
+    _write_csv(path, "ts_code,trade_date,vol,price,amount", [
+        f"{first_code},{AS_OF_T},1000000,{price},{amount}",
+        f"000002.SZ,{AS_OF_T},1000000,11.00,40000000",
+    ])
+    _dated_auction_meta(repo, path)
+    return path
+
+
+def _dated_auction_meta(repo: Path, path: Path) -> None:
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    _write_json(path.with_name("_sync_meta.json"), {
+        "trade_date": AS_OF_T, "requested_trade_date": AS_OF_T, "resolved_trade_date": AS_OF_T,
+        "strict_dated_source": True,
+        "source_repo": {"owner": "njedu2023-prog", "repo": "a-share-top3-data", "resolved_commit": "a" * 40},
+        "files": [{"name": "stk_auction", "upstream_name": "stk_auction.csv", "success": True,
+                   "date_scoped": True, "source_trade_date": AS_OF_T, "status_code": 200,
+                   "dated_path": path.relative_to(repo).as_posix(), "bytes": path.stat().st_size,
+                   "sha256": settlement._sha256(path),
+                   "source_url": f"https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/{'a'*40}/data/raw/2026/{AS_OF_T}/stk_auction.csv"}],
+        "upstream_meta": {"resolved_trade_date": AS_OF_T, "auction": {
+            "enabled": True, "ok": True, "rows": len(lines) - 1, "columns": lines[0].split(",")}},
+    })
+
+
+@pytest.mark.parametrize("source,expected", [
+    ("none", "DAILY_OPEN_PROXY"), ("stk_auction", "TUSHARE_STK_AUCTION"),
+    ("stk_auction_o", "TUSHARE_STK_AUCTION_O"), ("both", "TUSHARE_STK_AUCTION_O"),
+])
+def test_price_v2_priority_and_explicit_capacity(tmp_path, source, expected):
+    repo = _price_v2_repo(tmp_path, source=source)
+    payload, status = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    assert status == "T_VERIFIED"
+    assert payload["schema_version"] == settlement.T_VERIFICATION_SCHEMA_V2
+    row = payload["rows"][0]
+    assert row["entry_price_source"] == expected and row["entry_open_price"] == 10.0
+    assert row["proxy_fill"] == 1 and row["actual_order_fill_observed"] is False
+    if source == "none":
+        assert row["auction_amount"] is row["shadow_capacity_cny"] is row["shadow_capacity_accepted"] is None
+        assert row["capacity_evidence"] == "UNVERIFIED_NO_AUCTION_AMOUNT"
+        assert row["validation_status"] == "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED"
+    else:
+        assert row["auction_amount"] == (40000000.0 if source == "stk_auction" else 20000000.0)
+        assert row["capacity_evidence"] == "OBSERVED_AUCTION_AMOUNT"
+    # Opening-limit-up row remains unfilled even with a daily price fallback.
+    assert payload["rows"][1]["proxy_fill"] == 0
+
+
+def test_price_v2_daily_proxy_settlement_keeps_cost_and_source(tmp_path):
+    repo = _price_v2_repo(tmp_path)
+    verified, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    settlement.materialize_t_verification(repo, verified)
+    payload, status = settlement.build_t1_settlement(repo, AS_OF_D, as_of_date=AS_OF_T1)
+    assert status == "FINAL_SETTLED" and payload["schema_version"] == settlement.SETTLEMENT_SCHEMA_V2
+    assert payload["rows"][0]["net_return_after_cost"] == pytest.approx(.08 - .0045)
+    assert payload["rows"][0]["entry_price_source"] == "DAILY_OPEN_PROXY"
+    assert payload["rows"][0]["capacity_evidence"] == "UNVERIFIED_NO_AUCTION_AMOUNT"
+    assert payload["rows"][1]["strategy_slot_return"] == 0
+    assert payload["rows"][1]["net_return_after_cost"] is None
+    settlement.materialize_t1_settlement(repo, payload)
+    stats = settlement.build_statistics(repo, as_of_date=AS_OF_T1)
+    assert stats["cohorts"]["shadow_slot_1"]["win_rate"] == 1
+    assert stats["cohorts"]["shadow_slot_2"]["win_rate"] is None
+
+
+@pytest.mark.parametrize("bad", ["NaN", "Infinity", "-1", "0"])
+def test_price_v2_invalid_observed_price_cannot_fall_back(tmp_path, bad):
+    repo = _price_v2_repo(tmp_path, source="stk_auction")
+    _dated_auction(repo, price=bad)
+    with pytest.raises(settlement.ExecutableProfitSettlementError, match="invalid auction price"):
+        settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+
+
+@pytest.mark.parametrize("fault", ["hash", "date", "duplicate", "missing_meta", "url", "conflict"])
+def test_price_v2_bad_provenance_or_conflict_cannot_fall_back(tmp_path, fault):
+    repo = _price_v2_repo(tmp_path, source="both" if fault == "conflict" else "stk_auction")
+    path = repo / f"data/market/raw/2026/{AS_OF_T}/stk_auction.csv"
+    metadata = path.with_name("_sync_meta.json")
+    if fault == "missing_meta":
+        metadata.unlink()
+    elif fault == "date":
+        path.write_text(path.read_text().replace(AS_OF_T, AS_OF_T1))
+        _dated_auction_meta(repo, path)
+    elif fault == "duplicate":
+        path.write_text(path.read_text() + path.read_text().splitlines()[1] + "\n")
+        _dated_auction_meta(repo, path)
+    elif fault == "conflict":
+        _dated_auction(repo, price="10.01")
+    else:
+        meta = json.loads(metadata.read_text())
+        meta["files"][0]["sha256" if fault == "hash" else "source_url"] = "bad"
+        _write_json(metadata, meta)
+    with pytest.raises(settlement.ExecutableProfitSettlementError):
+        settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+
+
+def test_price_v2_missing_code_or_blank_price_can_use_daily_without_amount(tmp_path):
+    for case in ("missing", "blank"):
+        repo = _price_v2_repo(tmp_path / case, source="stk_auction")
+        _dated_auction(repo, first_code="600003.SH" if case == "missing" else "600001.SH",
+                       price="" if case == "blank" else "10.00")
+        payload, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+        assert payload["rows"][0]["entry_price_source"] == "DAILY_OPEN_PROXY"
+        assert payload["rows"][0]["auction_amount"] is None
+
+
+def test_price_v2_keeps_existing_v1_bytes_and_existing_v2_fallback(tmp_path):
+    old = _prepare_repo(tmp_path / "old")
+    _install_primary_mixed_v2_selection(old)
+    v1, _ = settlement.build_t_verification(old, AS_OF_D, as_of_date=AS_OF_T)
+    path = settlement.materialize_t_verification(old, v1)
+    before = path.read_bytes()
+    _write_json(old / settlement.PRICE_POLICY_PATH_V2, settlement.PRICE_POLICY_V2_SPEC)
+    again, reason = settlement.build_t_verification(old, AS_OF_D, as_of_date=AS_OF_T)
+    assert again == v1 and path.read_bytes() == before
+    assert reason == "T_VERIFIED_IMMUTABLE_EXISTING"
+    new = _price_v2_repo(tmp_path / "new")
+    v2, _ = settlement.build_t_verification(new, AS_OF_D, as_of_date=AS_OF_T)
+    path2 = settlement.materialize_t_verification(new, v2)
+    before2 = path2.read_bytes()
+    _dated_auction(new)
+    again2, _ = settlement.build_t_verification(new, AS_OF_D, as_of_date=AS_OF_T)
+    assert again2 == v2 and path2.read_bytes() == before2
+
+
+def test_price_v2_empty_and_future_do_not_read_market(tmp_path, monkeypatch):
+    empty = _price_v2_repo(tmp_path / "empty", slots=0)
+    future = _price_v2_repo(tmp_path / "future")
+    monkeypatch.setattr(settlement, "_find_market_file", lambda *args: pytest.fail("unexpected market read"))
+    value, _ = settlement.build_t_verification(empty, AS_OF_D, as_of_date=AS_OF_T)
+    assert value["rows"] == [] and value["source_files"] == []
+    value, reason = settlement.build_t_verification(future, AS_OF_D, as_of_date=AS_OF_D)
+    assert value is None and reason == "PENDING_T_NOT_REACHED"
+
+
+def test_price_v2_daily_fallback_keeps_cap_and_suspension(tmp_path):
+    repo = _price_v2_repo(tmp_path)
+    path = repo / f"data/market/raw/2026/{AS_OF_T}/daily.csv"
+    text = path.read_text().replace(",10.00,11.00,9.80,", ",10.20,11.00,9.80,")
+    path.write_text(text)
+    v2, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    assert v2["rows"][0]["validation_status"] == "T_VERIFIED_PROXY_NO_FILL_ABOVE_FROZEN_CAP"
+    path.write_text(text.replace(",10000", ",0"))
+    v2, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    assert v2["rows"][0]["validation_status"] == "T_VERIFIED_PROXY_NO_FILL_SUSPENDED"
+
+
+def _v2_delayed_exit_partition(repo: Path) -> None:
+    delayed = repo / f"data/market/raw/2026/{AS_OF_DELAYED}"
+    _write_csv(delayed / "daily.csv", "ts_code,trade_date,open,high,low,close,pre_close,vol", [
+        f"600001.SH,{AS_OF_DELAYED},10.80,11.20,10.60,11.00,10.50,20000",
+    ])
+    _write_csv(delayed / "stk_limit.csv", "ts_code,trade_date,up_limit,down_limit", [
+        f"600001.SH,{AS_OF_DELAYED},11.55,9.45",
+    ])
+
+
+def test_price_v2_zero_exit_volume_waits_then_uses_first_traded_open(tmp_path):
+    repo = _price_v2_repo(tmp_path, slots=1)
+    day = repo / f"data/market/raw/2026/{AS_OF_T1}/daily.csv"
+    # Carried positive prices cannot turn an explicit zero-volume day into a fill.
+    _write_csv(day, "ts_code,trade_date,open,high,low,close,pre_close,vol", [
+        f"600001.SH,{AS_OF_T1},10.50,10.50,10.50,10.50,10.50,0",
+    ])
+    _v2_delayed_exit_partition(repo)
+    verified, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    early, status = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=AS_OF_T1)
+    assert early is None and status == f"PENDING_EXIT_AS_OF_CUTOFF:{AS_OF_T1}:600001.SH"
+    payload, status = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=AS_OF_DELAYED)
+    assert status == "FINAL_SETTLED"
+    row = payload["rows"][0]
+    assert row["actual_exit_date"] == AS_OF_DELAYED and row["delayed_trading_days"] == 1
+    assert row["suspended_exit_sessions"] == 1 and row["blocked_exit_sessions"] == 0
+    assert row["exit_reason"] == "DELAYED_FIRST_TRADABLE_OPEN_AFTER_SUSPENSION"
+    assert row["exit_open_price"] == 10.8
+    assert row["net_return_after_cost"] == pytest.approx(.08 - .0045)
+    assert {item["path"] for item in payload["source_files"]} == {
+        f"data/market/raw/2026/{date}/{name}.csv"
+        for date in (AS_OF_T1, AS_OF_DELAYED) for name in ("daily", "stk_limit")
+    }
+
+
+@pytest.mark.parametrize("bad_volume", [None, "", "NaN", "Infinity", "-1"])
+def test_price_v2_missing_or_invalid_exit_volume_cannot_skip_to_later_day(tmp_path, bad_volume):
+    repo = _price_v2_repo(tmp_path, slots=1)
+    day = repo / f"data/market/raw/2026/{AS_OF_T1}/daily.csv"
+    header = "ts_code,trade_date,open,high,low,close,pre_close"
+    row = f"600001.SH,{AS_OF_T1},10.80,11.20,10.60,11.00,10.50"
+    _write_csv(day, header if bad_volume is None else header + ",vol",
+               [row if bad_volume is None else row + "," + bad_volume])
+    _v2_delayed_exit_partition(repo)
+    verified, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    payload, status = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=AS_OF_DELAYED)
+    assert payload is None and status == f"PENDING_EXIT_VOLUME:{AS_OF_T1}:600001.SH"
+
+
+def test_price_v2_missing_exit_row_is_not_unproven_suspension(tmp_path):
+    repo = _price_v2_repo(tmp_path, slots=1)
+    day = repo / f"data/market/raw/2026/{AS_OF_T1}/daily.csv"
+    day.write_text(day.read_text().replace("600001.SH", "600099.SH"))
+    _v2_delayed_exit_partition(repo)
+    verified, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    for cutoff in (AS_OF_T1, AS_OF_DELAYED):
+        payload, status = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=cutoff)
+        assert payload is None and status == f"PENDING_EXIT_MISSING_ROW:{AS_OF_T1}:600001.SH"
+
+
+def test_v1_exit_ignores_new_volume_gate_for_byte_compatibility(tmp_path):
+    repo = _prepare_repo(tmp_path, slot_count=1)
+    verified, _ = settlement.build_t_verification(repo, AS_OF_D, as_of_date=AS_OF_T)
+    original, _ = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=AS_OF_T1)
+    day = repo / f"data/market/raw/2026/{AS_OF_T1}/daily.csv"
+    lines = day.read_text().splitlines()
+    day.write_text(lines[0] + ",vol\n" + "\n".join(line + ",0" for line in lines[1:]) + "\n")
+    again, status = settlement.build_t1_settlement(repo, AS_OF_D, verified, as_of_date=AS_OF_T1)
+    assert status == "FINAL_SETTLED"
+    # Only the modified fixture's source bytes/hash change, never v1 row math.
+    assert again["schema_version"] == settlement.SETTLEMENT_SCHEMA
+    assert again["rows"] == original["rows"]
 
 
 def test_primary_mixed_v2_uses_exact_runtime_bytes_and_preserves_uncalibrated_statistics(

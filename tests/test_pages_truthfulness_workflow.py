@@ -760,6 +760,7 @@ def test_pages_recovery_removes_only_generated_public_shadow_surfaces(
         "shadow_state_20260828_asof_20260828.json",
         "shadow_statistics_20260828_asof_20260828.json",
         "shadow_state_20260831_asof_20260901.json",
+        "shadow_state_20260908_asof_20260911_sha256_" + "a" * 64 + ".json",
         "shadow_statistics_20260831_asof_20260901.json",
     )
     for name in stale:
@@ -781,6 +782,125 @@ def test_pages_recovery_removes_only_generated_public_shadow_surfaces(
     assert not any((shadow_root / name).exists() for name in stale)
 
 
+STATISTICS_SNAPSHOT_ROOT = Path(
+    "data/decision_executable_profit/forward/statistics/snapshots"
+)
+LEGACY_STATISTICS_ARCHIVE = STATISTICS_SNAPSHOT_ROOT / (
+    "summary_asof_20260910_sha256_"
+    "f3011892e41381e390320806d369c8a320dadb77c22705a9335853dfb55f8e9d.json"
+)
+
+
+def _statistics_snapshot_collector():
+    functions = _embedded_python_functions(
+        "copy_primary_shadow_statistics_snapshots"
+    )
+    assert len(functions) == 1
+    return functions[0]
+
+
+def _install_statistics_snapshot(repo_root, raw, *, name=None):
+    payload = json.loads(raw)
+    name = name or (
+        f"summary_asof_{payload['as_of_date']}_sha256_"
+        f"{hashlib.sha256(raw).hexdigest()}.json"
+    )
+    target = repo_root / STATISTICS_SNAPSHOT_ROOT / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(raw)
+    return target
+
+
+def test_pages_collects_real_v1_archive_and_v2_statistics_byte_exact(tmp_path):
+    collect = _statistics_snapshot_collector()
+    index = json.loads(
+        (ROOT / "outputs/decision/executable_profit_research/shadow_index.json").read_text()
+    )
+    state = json.loads((ROOT / index["latest_state_url"]).read_text())
+    current = Path(state["source_bindings"]["statistics"]["path"])
+    assert current.parent == STATISTICS_SNAPSHOT_ROOT
+    copied = collect(ROOT, tmp_path)
+    assert LEGACY_STATISTICS_ARCHIVE.as_posix() in copied
+    assert current.as_posix() in copied
+    assert current != LEGACY_STATISTICS_ARCHIVE
+    for relative in copied:
+        assert (tmp_path / relative).read_bytes() == (ROOT / relative).read_bytes()
+    assert collect(ROOT, tmp_path) == copied
+
+    workflow = _workflow()
+    standard = workflow.split("elif chain_status == 'D28_CUTOVER_VALID':", 1)[1]
+    assert "copy_primary_shadow_statistics_snapshots(repo_root, site_root)" in standard
+    public = workflow.split("- name: Verify public primary-profit bundle when present", 1)[1]
+    assert "for snapshot in _site/" + STATISTICS_SNAPSHOT_ROOT.as_posix() + "/summary_asof_*.json; do" in public
+    assert 'files+=("${snapshot#_site/}")' in public
+
+
+@pytest.mark.parametrize("corruption", ["byte_sha", "date", "asof", "schema", "cutover", "path"])
+def test_pages_statistics_collector_rejects_bad_snapshots_before_copy(tmp_path, corruption):
+    from top10decision.decision.executable_profit_shadow_settlement import (
+        ExecutableProfitSettlementError,
+    )
+
+    repo_root, site_root = tmp_path / "repo", tmp_path / "site"
+    repo_root.mkdir()
+    site_root.mkdir()
+    raw = (ROOT / LEGACY_STATISTICS_ARCHIVE).read_bytes()
+    name = LEGACY_STATISTICS_ARCHIVE.name
+    expected = {
+        "byte_sha": "byte SHA drifted", "date": "date is invalid",
+        "asof": "as-of binding drifted", "schema": "statistics identity drifted",
+        "cutover": "statistics public cumulative cutover missing",
+        "path": "path is not exact",
+    }
+    if corruption == "byte_sha":
+        raw += b"\n"
+    elif corruption == "date":
+        name = name.replace("20260910", "20260230")
+    elif corruption == "asof":
+        name = name.replace("20260910", "20260909")
+    elif corruption in {"schema", "cutover"}:
+        payload = json.loads(raw)
+        if corruption == "schema":
+            payload["schema_version"] = "untrusted_statistics"
+        else:
+            payload.pop("public_start_signal_date")
+        raw = json.dumps(payload).encode()
+        name = None
+    elif corruption == "path":
+        name = name.replace("sha256_", "sha256_A")
+    _install_statistics_snapshot(repo_root, raw, name=name)
+    with pytest.raises((ValueError, ExecutableProfitSettlementError), match=expected[corruption]):
+        _statistics_snapshot_collector()(repo_root, site_root)
+    assert not (site_root / STATISTICS_SNAPSHOT_ROOT).exists()
+
+
+@pytest.mark.parametrize("location", ["source", "source_ancestor", "target", "target_ancestor"])
+def test_pages_statistics_collector_rejects_symlinks_and_escaping_paths(tmp_path, location):
+    repo_root, site_root, outside = (tmp_path / name for name in ("repo", "site", "outside"))
+    for directory in (repo_root, site_root, outside):
+        directory.mkdir()
+    raw = (ROOT / LEGACY_STATISTICS_ARCHIVE).read_bytes()
+    source = _install_statistics_snapshot(repo_root, raw)
+    outside_file = outside / source.name
+    outside_file.write_bytes(raw)
+    if location == "source":
+        source.unlink()
+        source.symlink_to(outside_file)
+    elif location == "source_ancestor":
+        source.unlink()
+        source.parent.rmdir()
+        source.parent.symlink_to(outside, target_is_directory=True)
+    elif location == "target":
+        target = site_root / STATISTICS_SNAPSHOT_ROOT / source.name
+        target.parent.mkdir(parents=True)
+        target.symlink_to(outside_file)
+    else:
+        (site_root / "data").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="unsafe"):
+        _statistics_snapshot_collector()(repo_root, site_root)
+    assert outside_file.read_bytes() == raw
+
+
 def test_pages_public_removed_shadow_inventory_is_closed_and_path_safe() -> None:
     functions = _embedded_python_functions(
         "validate_removed_shadow_surface_inventory"
@@ -795,6 +915,10 @@ def test_pages_public_removed_shadow_inventory_is_closed_and_path_safe() -> None
         ),
         (
             "outputs/decision/executable_profit_research/"
+            "shadow_state_20260908_asof_20260911_sha256_" + "a" * 64 + ".json"
+        ),
+        (
+            "outputs/decision/executable_profit_research/"
             "shadow_statistics_20260828_asof_20260828.json"
         ),
     ]
@@ -802,17 +926,44 @@ def test_pages_public_removed_shadow_inventory_is_closed_and_path_safe() -> None
     assert validate(inventory, "OMIT_NATURAL_PENDING_SHADOW") == tuple(
         inventory
     )
+    assert validate(inventory, "OMIT_RETROSPECTIVE_SHADOW") == tuple(inventory)
     assert validate([], "REQUIRE_SAME_D_SHADOW") == ()
     for invalid in (
         list(reversed(inventory)),
         inventory + [inventory[-1]],
         ["outputs/decision/executable_profit_research/projection_20260831.json"],
         ["outputs/decision/executable_profit_research/../shadow_index.json"],
+        ["/outputs/decision/executable_profit_research/shadow_index.json"],
+        ["outputs/decision/executable_profit_research//shadow_index.json"],
+        ["outputs/decision/executable_profit_research/./shadow_index.json"],
+        ["outputs/decision/executable_profit_research/sub/shadow_index.json"],
     ):
         with pytest.raises(ValueError):
             validate(invalid, "OMIT_RETROSPECTIVE_SHADOW")
     with pytest.raises(ValueError, match="removed active surfaces"):
         validate(inventory, "REQUIRE_SAME_D_SHADOW")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "shadow_state_20260908_asof_20260911_sha256_" + digest + ".json"
+        for digest in ("", "a" * 63, "a" * 65, "A" * 64, "g" * 64, "../" + "a" * 64)
+    ]
+    + [
+        "shadow_statistics_20260908_asof_20260911_sha256_" + "a" * 64 + ".json",
+        "shadow_state_20260908_asof_20260911_sha256_" + "a" * 64 + ".json.bak",
+        "shadow_state_20260908_asof_20260911_sha256_" + "a" * 64 + ".json/",
+        "shadow_state_20１６０９０８_asof_20260911.json",
+    ],
+)
+def test_pages_removed_shadow_inventory_rejects_nonexact_hash_addresses(name) -> None:
+    validate = _embedded_python_functions("validate_removed_shadow_surface_inventory")[0]
+    with pytest.raises(ValueError, match="path is unsafe"):
+        validate(
+            ["outputs/decision/executable_profit_research/" + name],
+            "OMIT_NATURAL_PENDING_SHADOW",
+        )
 
 
 def test_pages_recovery_public_verifier_requires_shadow_surfaces_to_be_absent() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from functools import lru_cache
 import hashlib
 import json
 import re
@@ -119,6 +120,196 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+SHADOW_PRICE_REVIEW = ROOT / "models/decision_source_surface_review_20260911_shadow_price_v2.json"
+SHADOW_PRICE_REVIEW_SHA = "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5"
+SHADOW_PRICE_EXISTING_PATHS = {
+    ".github/workflows/deploy_dc20_pages.yml",
+    ".github/workflows/run_primary_profit_forward_shadow.yml",
+    ".github/workflows/verify_decision_observations.yml",
+    "decision.html",
+    "src/top10decision/decision/executable_profit_shadow_settlement.py",
+    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
+    "tests/test_decision_executable_profit_shadow_settlement.py",
+    "tests/test_pages_truthfulness_workflow.py",
+    "tests/test_primary_profit_forward_shadow_bridge.py",
+    "tests/test_primary_profit_forward_shadow_workflow.py",
+    "tests/test_verify_forecast_inputs.py",
+    "tests/test_compact_rank_statistics.py",
+}
+SHADOW_PRICE_ADDED_PATHS = {
+    "models/decision_primary_profit_shadow_entry_price_policy_v2.json",
+    "tests/test_profit_shadow_versioned_frontend.py",
+}
+SHADOW_PRICE_ADDED_PIN = "models/decision_primary_profit_shadow_entry_price_policy_v2.json"
+SHADOW_PRICE_BOUNDARIES = {
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "truth_policy_changed": True,
+    "versioned_truth_publication_changed": True,
+    "historical_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _shadow_price_review(review: dict | None = None) -> dict:
+    assert not SHADOW_PRICE_REVIEW.is_symlink()
+    assert _sha256(SHADOW_PRICE_REVIEW) == SHADOW_PRICE_REVIEW_SHA
+    review = json.loads(SHADOW_PRICE_REVIEW.read_text()) if review is None else review
+    assert review["schema_version"] == "decision_primary_shadow_price_policy_review_v2"
+    assert review["approved_base_commit"] == "a246e2706db3ecbb86ebe8f1ad2f4f3dc3acd9c1"
+    assert review["scope"] == "AUTHORIZED_VERSIONED_SHADOW_PRICE_TRUTH_AND_PUBLICATION_NOT_MODEL_OR_RANKING_RELEASE"
+    assert review["boundaries"] == SHADOW_PRICE_BOUNDARIES
+    assert review["predecessor_evidence_path"] == EXIT_LABEL_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(EXIT_LABEL_REVIEW) == EXIT_LABEL_REVIEW_SHA
+    paths = [item["path"] for item in review["source_changes"]]
+    assert len(paths) == len(set(paths)) == 15
+    assert set(paths) == SHADOW_PRICE_EXISTING_PATHS | SHADOW_PRICE_ADDED_PATHS | {"models/decision_model_freeze.json"}
+    assert review["added_runtime_pins"] == [SHADOW_PRICE_ADDED_PIN]
+    assert len(review["preserved_evidence"]) == 16
+    predecessor = json.loads(EXIT_LABEL_REVIEW.read_text())
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": EXIT_LABEL_REVIEW.relative_to(ROOT).as_posix(), "sha256": EXIT_LABEL_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_profit_shadow_versioned_frontend.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+@lru_cache(maxsize=1)
+def _parse_shadow_source_review(raw: bytes) -> dict:
+    # Cache pure decoding only. Callers always reread and authenticate the
+    # complete live bytes before lookup, so changed files cannot hit this key.
+    return json.loads(raw)
+
+
+def _source_before_shadow_price_v2(path: str, review: dict | None = None) -> bytes:
+    """Authenticate live bytes, then reconstruct the exact a246 source view."""
+    # _state_before_shadow_price_v2 validates all evidence and live pins once.
+    # Each individual rewind still authenticates the review's live bytes; do
+    # not rescan all 16 predecessors for each of the 225 historical pin reads.
+    assert not SHADOW_PRICE_REVIEW.is_symlink()
+    raw_review = SHADOW_PRICE_REVIEW.read_bytes()
+    assert hashlib.sha256(raw_review).hexdigest() == SHADOW_PRICE_REVIEW_SHA
+    review = _parse_shadow_source_review(raw_review) if review is None else review
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert item["baseline_exists"] is (path not in SHADOW_PRICE_ADDED_PATHS)
+    assert item["reason"]
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+    for part in reversed(changes):
+        assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+        assert type(part["current_start"]) is int and part["current_start"] > 0
+        start = part["current_start"] - 1
+        assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+        lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    if path in SHADOW_PRICE_ADDED_PATHS:
+        assert restored == b"" and item["baseline_bytes"] == 0
+    return restored
+
+
+def _state_before_shadow_price_v2(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _shadow_price_review(review)
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 225
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    for item in review["source_changes"]:
+        _source_before_shadow_price_v2(item["path"], review)
+    before = _source_before_shadow_price_v2("models/decision_model_freeze.json", review)
+    restored = json.loads(before)
+    assert len(restored["pinned_files"]) == 224
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    assert SHADOW_PRICE_ADDED_PIN not in restored["pinned_files"]
+    assert expected["pinned_files"].pop(SHADOW_PRICE_ADDED_PIN) == _sha256(ROOT / SHADOW_PRICE_ADDED_PIN)
+    for path in SHADOW_PRICE_EXISTING_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_shadow_price_v2(path, review)).hexdigest()
+    assert expected == restored  # Complete non-pin identity and every other pin are protected.
+    assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(
+        path=SHADOW_PRICE_REVIEW.relative_to(ROOT).as_posix(), sha256=SHADOW_PRICE_REVIEW_SHA,
+        approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(asset for asset in inventory["assets"] if asset["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_shadow_price_v2_review_is_explicit_and_preserves_all_predecessors():
+    manifest, inventory = _state_before_shadow_price_v2()
+    old = json.loads(EXIT_LABEL_REVIEW.read_text())
+    assert _canonical_sha256(manifest) == old["current_manifest_canonical_sha256"]
+    assert inventory["dependency_successor_review"]["sha256"] == EXIT_LABEL_REVIEW_SHA
+    assert _shadow_price_review()["boundaries"]["truth_policy_changed"] is True
+
+
+@pytest.mark.parametrize("target", ["review", "source"])
+def test_shadow_price_review_live_byte_changes_are_not_hidden_by_decode_cache(monkeypatch, target):
+    path = "src/top10decision/decision/executable_profit_shadow_settlement.py"
+    assert _source_before_shadow_price_v2(path)
+    assert _source_before_shadow_price_v2(path)  # Warm the pure parse cache.
+    changed = SHADOW_PRICE_REVIEW if target == "review" else ROOT / path
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == changed else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _source_before_shadow_price_v2(path)
+
+
+@pytest.mark.parametrize("mutation", ["base", "scope", "truth_policy", "history", "extra_path", "current_sha", "baseline_sha", "inverse", "extra_pin", "remove_pin", "model_policy"])
+def test_shadow_price_v2_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_text())
+    review = json.loads(SHADOW_PRICE_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "scope": review["scope"] = "DISPLAY_ONLY"
+    elif mutation == "truth_policy": review["boundaries"]["truth_policy_changed"] = False
+    elif mutation == "history": review["boundaries"]["historical_ledger_rewritten"] = True
+    elif mutation == "extra_path": review["source_changes"].append(dict(review["source_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "current_sha": review["source_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "baseline_sha": review["source_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "remove_pin": del manifest["pinned_files"][SHADOW_PRICE_ADDED_PIN]
+    else: manifest["training_cutoff_signal_date"] = "20260911"
+    with pytest.raises(AssertionError):
+        _state_before_shadow_price_v2(manifest, review)
+
+
 def _exit_label_review() -> dict:
     assert _sha256(EXIT_LABEL_REVIEW) == EXIT_LABEL_REVIEW_SHA
     review = json.loads(EXIT_LABEL_REVIEW.read_text())
@@ -141,7 +332,7 @@ def _exit_label_review() -> dict:
 def _source_before_exit_label(path: str) -> bytes:
     review = _exit_label_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_shadow_price_v2(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -161,11 +352,11 @@ def _source_before_exit_label(path: str) -> bytes:
 
 def _state_before_exit_label(manifest: dict | None = None) -> tuple[dict, dict]:
     review = _exit_label_review()
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_shadow_price_v2(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_shadow_price_v2(path)).hexdigest() == expected
     before = _source_before_exit_label("models/decision_model_freeze.json")
     restored = json.loads(before)
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
@@ -175,12 +366,11 @@ def _state_before_exit_label(manifest: dict | None = None) -> tuple[dict, dict]:
     assert expected == restored
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(path=EXIT_LABEL_REVIEW.relative_to(ROOT).as_posix(), sha256=EXIT_LABEL_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_shadow_price_v2(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)
@@ -197,11 +387,11 @@ def _state_before_exit_label(manifest: dict | None = None) -> tuple[dict, dict]:
 def test_exit_label_is_display_only_and_keeps_validation_and_returns():
     _state_before_exit_label()
     previous = _source_before_exit_label("decision.html").decode()
-    current = (ROOT / "decision.html").read_text()
+    current = _source_before_shadow_price_v2("decision.html").decode()
     expected = previous.replace('const exitNote =', 'const exitLabel =', 1).replace('` · 退出 ${dateText(observationRow.actual_exit_date)}`', '`退出 ${dateText(observationRow.actual_exit_date)}`', 1).replace('threeRankTruthStatusLabel(status, contract) + exitNote', 'exitLabel || threeRankTruthStatusLabel(status, contract)', 1)
     assert current == expected
     for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py", "outputs/decision/primary_observation/rows.csv", "outputs/decision/primary_observation/summary.json"):
-        assert _source_before_exit_label(path) == (ROOT / path).read_bytes()
+        assert _source_before_exit_label(path) == _source_before_shadow_price_v2(path)
 
 
 def _settle_cli_review() -> dict:
@@ -285,7 +475,7 @@ def test_settlement_cli_bootstrap_keeps_all_models_and_validation_policy():
     assert current.split("from top10decision", 1)[1] == previous.split("from top10decision", 1)[1]
     assert 'sys.path[:0] = [str(ROOT), str(SRC)]' in current
     for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py"):
-        assert _source_before_settle_cli(path) == (ROOT / path).read_bytes()
+        assert _source_before_settle_cli(path) == _source_before_shadow_price_v2(path)
 
 
 def _verify_close_review() -> dict:
@@ -369,7 +559,7 @@ def test_verify_import_fix_and_close_column_do_not_change_models_or_validation_p
     assert current.split("from top10decision", 1)[1] == previous.split("from top10decision", 1)[1]
     assert 'sys.path[:0] = [str(ROOT), str(ROOT / "src")]' in current
     for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py"):
-        assert _source_before_verify_close(path) == (ROOT / path).read_bytes()
+        assert _source_before_verify_close(path) == _source_before_shadow_price_v2(path)
 
 
 def _density_review() -> dict:
@@ -1153,7 +1343,7 @@ def test_density_review_rejects_non_css_and_unreviewed_changes(mutation):
 
 
 def test_requested_dense_table_typography_and_spacing():
-    source = (ROOT / "decision.html").read_text()
+    source = _source_before_shadow_price_v2("decision.html").decode()
     css = re.findall(r"<style(?:\s[^>]*)?>(.*?)</style>", source, re.S)[0]
     assert 'body.compact-dashboard { font-size: 14px; }' in css
     cells = re.search(r'\.compact-dashboard table\.three-rank-table th, \.compact-dashboard table\.three-rank-table td \{([^}]+)}', css).group(1)
@@ -1564,7 +1754,7 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
     assert _canonical_sha256(reconstructed_prior_pins) == (
         evidence["prior_pinned_files_sha256"]
     )
-    assert len(manifest["pinned_files"]) == (
+    assert len(historical_pins) == (
         len(reconstructed_prior_pins) + len(added_runtime_pins)
     )
 

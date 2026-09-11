@@ -715,7 +715,10 @@ def test_real_d28_dry_freeze_materializes_and_validates_complete_chain(
     assert frozen["selection_csv"].is_file()
     assert frozen["selection_index"].name == "primary_mixed_index.json"
     assert frozen["statistics"].is_file()
-    assert frozen["public_state"].name == "shadow_state_20260828_asof_20260828.json"
+    assert frozen["public_state"].name == (
+        "shadow_state_20260828_asof_20260828_sha256_"
+        + frozen["public_pointer"]["latest_state_snapshot_sha256"] + ".json"
+    )
     assert frozen["public_index"].name == "shadow_index.json"
     state = json.loads(frozen["public_state"].read_text(encoding="utf-8"))
     assert [(row["ts_code"], row["name"]) for row in state["latest_selected_rows"]] == [
@@ -780,6 +783,7 @@ def test_exact_pair_grandfather_is_strict_byte_identical_no_op(
         selection=selection,
         summary_path=summary_path,
         summary=summary,
+        schema_version=bridge.PUBLIC_STATE_SCHEMA,
     )
     monkeypatch.setattr(
         bridge,
@@ -840,16 +844,190 @@ def test_cli_and_workflow_interfaces_are_exported() -> None:
     assert callable(bridge.validate_primary_profit_forward_shadow_repository_chain)
     assert callable(bridge.project_primary_profit_forward_shadow_state)
     completed = subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "scripts/freeze_primary_profit_forward_shadow.py"),
-            "--help",
-        ],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
+        [sys.executable, str(ROOT / "scripts/freeze_primary_profit_forward_shadow.py"), "--help"],
+        cwd=ROOT, check=False, capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stderr
     assert "--signal-date" in completed.stdout
     assert "--as-of-date" in completed.stdout
+
+
+@pytest.fixture
+def public_snapshot_fixture(tmp_path, monkeypatch):
+    repo, _, _ = _fixture_bundle(tmp_path, monkeypatch, candidate_count=2)
+    selection = bridge.build_primary_profit_forward_shadow(repo, "20260828", selected_at=D28_SELECTED_AT)
+    selection_path, _, _, _ = bridge.materialize_primary_profit_forward_shadow(
+        repo, selection, _now=D28_SELECTED_AT + timedelta(minutes=1),
+    )
+    selection = json.loads(selection_path.read_text())
+    module = types.ModuleType("top10decision.decision.executable_profit_shadow_settlement")
+    module.validate_statistics = lambda *args, **kwargs: None
+    module.validate_t_verification = lambda *args, **kwargs: None
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    summary = {
+        "as_of_date": "20260831", "snapshot_sha256": "a" * 64,
+        "public_start_signal_date": "20260828", "scope": {"minimum_signal_date": "20260828"},
+        "cohorts": {"all_selected_slots": {"selected_slots": 2}},
+        "forward_signal_date_progress_180": {"observed_signal_dates": 1},
+        "probability_diagnostics": {"status": "UNCALIBRATED"},
+        "input_files": [{"path": selection_path.relative_to(repo).as_posix(),
+                         "sha256": bridge._sha256(selection_path)}],
+    }
+    summary_path = _write(repo / bridge.STATISTICS_PATH, bridge._pretty_json_bytes(summary))
+    old_state = bridge.build_primary_profit_shadow_public_state(
+        repo, selection_path=selection_path, selection=selection,
+        summary_path=summary_path, summary=summary, schema_version=bridge.PUBLIC_STATE_SCHEMA,
+    )
+    old_state_path, index_path, _ = bridge._materialize_public_state(repo, old_state)
+    archive = bridge._materialize_statistics_snapshot(repo, summary_path, summary)
+    return SimpleNamespace(repo=repo, selection=selection, selection_path=selection_path,
+                           summary=summary, summary_path=summary_path, old_state=old_state,
+                           old_state_path=old_state_path, index_path=index_path, archive=archive)
+
+
+def _append_fixture_verification(fixture):
+    selection = fixture.selection
+    selected = [row for row in selection["rows"] if row["internal_shadow_selected"]]
+    verification = {
+        "signal_date": "20260828", "exec_date": "20260831", "exit_date": "20260901",
+        "selection": {
+            "path": fixture.selection_path.relative_to(fixture.repo).as_posix(),
+            "file_sha256": bridge._sha256(fixture.selection_path),
+            "snapshot_sha256": selection["snapshot_sha256"],
+            "top10_members_sha256": selection["top10_members_sha256"],
+            "selected_slots": len(selected),
+            "selected_members": [{"shadow_slot": row["shadow_slot"], "ts_code": row["ts_code"]}
+                                 for row in selected],
+        },
+        "rows": [{"shadow_slot": row["shadow_slot"], "ts_code": row["ts_code"], "proxy_fill": 1,
+                  "validation_status": "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED",
+                  "truth_state": "OBSERVED_PROXY_FILL"} for row in selected],
+    }
+    path = _write(fixture.repo / bridge.VERIFICATION_ROOT / "t_verification_20260828.json",
+                  bridge._pretty_json_bytes(verification))
+    summary = copy.deepcopy(fixture.summary)
+    summary["snapshot_sha256"] = "b" * 64
+    summary["cohorts"]["all_selected_slots"]["t_validated_slots"] = 2
+    summary["input_files"].append({"path": path.relative_to(fixture.repo).as_posix(),
+                                   "sha256": bridge._sha256(path)})
+    _write(fixture.summary_path, bridge._pretty_json_bytes(summary))
+    state = bridge.build_primary_profit_shadow_public_state(
+        fixture.repo, selection_path=fixture.selection_path, selection=fixture.selection,
+        summary_path=fixture.summary_path, summary=summary,
+    )
+    return state, path, summary
+
+
+def test_same_pair_v2_appends_source_addressed_snapshots_without_rewriting_v1(public_snapshot_fixture):
+    f = public_snapshot_fixture
+    protected = {path: path.read_bytes() for path in (f.old_state_path, f.selection_path, f.archive)}
+    state, verification_path, summary = _append_fixture_verification(f)
+    verification_bytes = verification_path.read_bytes()
+    path, index_path, index = bridge._materialize_public_state(f.repo, state)
+    assert path.name == f"shadow_state_20260828_asof_20260831_sha256_{state['snapshot_sha256']}.json"
+    assert index["schema_version"] == bridge.PUBLIC_INDEX_SCHEMA_V2
+    assert state["schema_version"] == bridge.PUBLIC_STATE_SCHEMA_V2
+    assert {row["t_status"] for row in state["latest_selected_rows"]} == {
+        "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED",
+    }
+    snapshot = f.repo / state["source_bindings"]["statistics"]["path"]
+    assert snapshot.name == f"summary_asof_20260831_sha256_{bridge._sha256(snapshot)}.json"
+    assert json.loads(snapshot.read_text()) == summary
+    bridge.validate_primary_profit_forward_shadow_public_state(f.old_state, repo_root=f.repo)
+    chain = bridge.validate_primary_profit_forward_shadow_repository_chain(f.repo, "20260828")
+    assert chain["statistics"] == snapshot
+    assert {path: path.read_bytes() for path in protected} == protected
+    assert verification_path.read_bytes() == verification_bytes
+    first = index_path.read_bytes()
+    assert bridge._materialize_public_state(f.repo, state)[0] == path
+    assert index_path.read_bytes() == first
+
+
+def test_v2_snapshot_does_not_follow_mutable_statistics_pointer(public_snapshot_fixture):
+    f = public_snapshot_fixture
+    state, _, _ = _append_fixture_verification(f)
+    bridge._materialize_public_state(f.repo, state)
+    _write(f.summary_path, b'{"unrelated":"newer pointer"}\n')
+    bridge.validate_primary_profit_forward_shadow_public_state(state, repo_root=f.repo)
+    bridge.validate_primary_profit_forward_shadow_public_state(f.old_state, repo_root=f.repo)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "wrong_bytes", "symlink"])
+def test_legacy_statistics_archive_requires_exact_safe_original_bytes(public_snapshot_fixture, mutation):
+    f = public_snapshot_fixture
+    _write(f.summary_path, b'{"new":"summary"}\n')
+    if mutation == "missing":
+        f.archive.unlink()
+    elif mutation == "wrong_bytes":
+        _write(f.archive, b'{"not":"original"}\n')
+    else:
+        f.archive.unlink()
+        f.archive.symlink_to(f.summary_path)
+    with pytest.raises(bridge.PrimaryProfitForwardShadowError):
+        bridge.validate_primary_profit_forward_shadow_public_state(f.old_state, repo_root=f.repo)
+
+
+def test_same_pair_v2_rejects_changed_projection_without_new_truth(public_snapshot_fixture):
+    f = public_snapshot_fixture
+    state, _, summary = _append_fixture_verification(f)
+    bridge._materialize_public_state(f.repo, state)
+    before = f.index_path.read_bytes()
+    summary["snapshot_sha256"] = "c" * 64
+    summary["cohorts"]["all_selected_slots"]["t_validated_slots"] = 1
+    _write(f.summary_path, bridge._pretty_json_bytes(summary))
+    changed = bridge.build_primary_profit_shadow_public_state(
+        f.repo, selection_path=f.selection_path, selection=f.selection,
+        summary_path=f.summary_path, summary=summary,
+    )
+    with pytest.raises(bridge.PrimaryProfitForwardShadowError, match="without new immutable truth"):
+        bridge._materialize_public_state(f.repo, changed)
+    assert f.index_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("field", ["latest_state_url", "latest_state_snapshot_sha256"])
+def test_v2_public_index_rejects_mismatched_content_address(public_snapshot_fixture, field):
+    f = public_snapshot_fixture
+    state, _, _ = _append_fixture_verification(f)
+    _, _, index = bridge._materialize_public_state(f.repo, state)
+    if field == "latest_state_url":
+        index[field] = index[field].replace("_sha256_", "_sha256_../")
+    else:
+        index[field] = "f" * 64
+    with pytest.raises(bridge.PrimaryProfitForwardShadowError):
+        bridge.validate_primary_profit_forward_shadow_public_index(index)
+
+
+def test_public_projector_refresh_is_idempotent_and_keeps_original_pair(public_snapshot_fixture, monkeypatch):
+    f = public_snapshot_fixture
+    state, _, summary = _append_fixture_verification(f)
+    statistics_path = f.repo / state["source_bindings"]["statistics"]["path"]
+    monkeypatch.setattr(bridge, "_rebuild_forward_statistics", lambda *args, **kwargs: (statistics_path, summary))
+    original = f.old_state_path.read_bytes()
+    first = bridge.project_primary_profit_forward_shadow_state(f.repo, "20260828", "20260831")
+    assert first["materialization"] == "NEW_PUBLIC_CUMULATIVE_STATE"
+    before = {path: path.read_bytes() for path in f.repo.rglob("*.json")}
+    second = bridge.project_primary_profit_forward_shadow_state(f.repo, "20260828", "20260831")
+    assert second["materialization"] == "EXACT_PAIR_BYTE_IDENTICAL_NO_OP"
+    assert second["statistics"] == statistics_path
+    assert {path: path.read_bytes() for path in f.repo.rglob("*.json")} == before
+    assert f.old_state_path.read_bytes() == original
+
+
+def test_public_projector_rejects_older_asof_before_materializing_statistics(public_snapshot_fixture, monkeypatch):
+    f = public_snapshot_fixture
+    def forbidden(*args, **kwargs):
+        raise AssertionError("out-of-order request reached statistics writer")
+    monkeypatch.setattr(bridge, "_rebuild_forward_statistics", forbidden)
+    before = f.summary_path.read_bytes()
+    with pytest.raises(bridge.PrimaryProfitForwardShadowError, match="out-of-order"):
+        bridge.project_primary_profit_forward_shadow_state(f.repo, "20260828", "20260828")
+    assert f.summary_path.read_bytes() == before
+
+
+def test_public_index_and_state_versions_must_match(public_snapshot_fixture):
+    f = public_snapshot_fixture
+    state, _, _ = _append_fixture_verification(f)
+    _, _, index = bridge._materialize_public_state(f.repo, state)
+    index["schema_version"] = bridge.PUBLIC_INDEX_SCHEMA
+    with pytest.raises(bridge.PrimaryProfitForwardShadowError, match="schema mismatch"):
+        bridge._validate_public_index_state_binding(index, state)

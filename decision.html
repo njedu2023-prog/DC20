@@ -1695,7 +1695,7 @@
         validatePrimaryProfitShadowCohorts(source.shadow);
         const rows = [1, 2].map(slot => {
           const c = source.shadow.cohorts[`shadow_slot_${slot}`];
-          for (const key of ["wins_after_cost", "terminal_slots", "pending_slots", "proxy_fill_slots", "proxy_no_fill_slots", "pending_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"]) {
+          for (const key of ["wins_after_cost", "terminal_slots", "pending_slots", "proxy_fill_slots", "proxy_no_fill_slots", "pending_exit_slots", "blocked_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"]) {
             executableProfitExpect(Number.isInteger(c[key]) && c[key] >= 0, "盈利累计计数无效");
           }
           executableProfitExpect(c.wins_after_cost <= c.t1_settled_slots && c.t1_settled_slots <= c.proxy_fill_slots && c.proxy_fill_slots + c.proxy_no_fill_slots === c.t_validated_slots && c.t_validated_slots <= c.selected_slots, "盈利累计分母不一致");
@@ -1703,12 +1703,12 @@
           executableProfitExpect(c.t1_settled_slots ? c.win_rate != null && Math.abs(c.win_rate - c.wins_after_cost / c.t1_settled_slots) < 0.000001 && c.mean_net_return_after_cost != null : c.win_rate == null && c.mean_net_return_after_cost == null, "盈利胜率与结算样本不一致");
           const pending = `${c.pending_validation_slots} / ${c.pending_settlement_slots}`;
           const noSettled = c.pending_slots ? "待验证" : c.selected_slots ? "暂无成交结算" : "暂无入选";
-          const blocked = c.pending_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0;
+          const blocked = c.blocked_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0;
           const cumulative = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.equal_weight_cumulative_return);
           const drawdown = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.maximum_drawdown);
           return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td>${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td>${cumulative}<div class="score-secondary">${c.effective_dates} 个完整日</div></td><td>${drawdown}</td></tr>`;
         }).join("");
-        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 已成交结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起 · 验证快照截至 ${dateText(source.shadow.as_of_date)}。胜率＝盈利笔数÷代理买入且已结算笔数；收益已扣45bp。未成交、未验证不进入胜率；累计仅含完整结算日，未完成日期不计入；已确认未成交槽位记0，不代表实盘净值。恢复留档不计入。</p>`;
+        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 代理结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起 · 验证快照截至 ${dateText(source.shadow.as_of_date)}。胜率＝盈利笔数÷代理买入且已结算笔数；收益已扣45bp。买价采用竞价优先、缺失时开盘价后备；容量未验证的样本仅为价格代理，不代表实际可成交。未成交、未验证不进入胜率；累计仅含完整结算日，未完成日期不计入；已确认未成交槽位记0，不代表实盘净值。恢复留档不计入。</p>`;
       } catch (error) {
         return `<p class="stats-note warn">盈利累计统计校验失败：${escapeHtml(error.message || error)}；不显示未核实的胜率或收益。</p>`;
       }
@@ -3763,13 +3763,16 @@
         "latest_selection_identity_sha256", "latest_mixed_projection_sha256", "boundaries"
       ];
       executableProfitExpect(exactObjectKeys(shadowIndex, indexKeys), "P1 Shadow公开索引字段面漂移");
-      executableProfitExpect(shadowIndex.schema_version === PRIMARY_PROFIT_SHADOW_INDEX_SCHEMA && shadowIndex.index_kind === "primary_profit_forward_shadow_public_pointer" && shadowIndex.data_alias === false, "P1 Shadow公开索引身份无效");
+      const versionedState = shadowIndex.schema_version === "dc20_primary_profit_forward_shadow_public_index_v2";
+      executableProfitExpect((versionedState || shadowIndex.schema_version === PRIMARY_PROFIT_SHADOW_INDEX_SCHEMA) && shadowIndex.index_kind === "primary_profit_forward_shadow_public_pointer" && shadowIndex.data_alias === false, "P1 Shadow公开索引身份无效");
       executableProfitExpect(exactPrimaryProfitShadowBoundaries(shadowIndex.boundaries), "P1 Shadow公开索引安全边界漂移");
       const signalDate = canonicalYmd(shadowIndex.latest_signal_date);
       const asOfDate = canonicalYmd(shadowIndex.latest_as_of_date);
       executableProfitExpect(signalDate === projection.signal_date && shadowIndex.latest_exec_date === projection.exec_date && shadowIndex.latest_exit_date === projection.exit_date && asOfDate >= signalDate, "P1 Shadow公开索引D/T/T+1/as-of不一致");
       executableProfitExpect(shadowIndex.latest_mixed_projection_sha256 === primaryIndex.latest_projection_json_sha256, "P1 Shadow与当前混合盈利投影字节SHA不一致");
-      const expectedStateUrl = `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_state_${signalDate}_asof_${asOfDate}.json`;
+      const expectedStateUrl = versionedState
+        ? `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_state_${signalDate}_asof_${asOfDate}_sha256_${shadowIndex.latest_state_snapshot_sha256}.json`
+        : `${EXECUTABLE_PROFIT_RESEARCH_ROOT}/shadow_state_${signalDate}_asof_${asOfDate}.json`;
       executableProfitExpect(shadowIndex.latest_state_url === expectedStateUrl && [shadowIndex.latest_state_sha256, shadowIndex.latest_state_snapshot_sha256, shadowIndex.latest_selection_identity_sha256].every(isSha256), "P1 Shadow公开索引state绑定无效");
       const stateLoaded = await fetchPagesOnlyShaBoundJson(shadowIndex.latest_state_url, shadowIndex.latest_state_sha256, "P1 Shadow公开状态");
       const shadow = stateLoaded.payload;
@@ -3781,7 +3784,7 @@
         "snapshot_sha256"
       ];
       executableProfitExpect(exactObjectKeys(shadow, stateKeys), "P1 Shadow公开状态字段面漂移");
-      executableProfitExpect(shadow.schema_version === PRIMARY_PROFIT_SHADOW_STATE_SCHEMA && shadow.artifact_kind === "immutable_primary_profit_forward_shadow_public_state" && shadow.status === "INTERNAL_RESEARCH_SHADOW_ONLY", "P1 Shadow公开状态身份无效");
+      executableProfitExpect(shadow.schema_version === (versionedState ? "dc20_primary_profit_forward_shadow_public_state_v2" : PRIMARY_PROFIT_SHADOW_STATE_SCHEMA) && shadow.artifact_kind === "immutable_primary_profit_forward_shadow_public_state" && shadow.status === "INTERNAL_RESEARCH_SHADOW_ONLY", "P1 Shadow公开状态身份无效");
       executableProfitExpect(shadow.signal_date === signalDate && shadow.exec_date === projection.exec_date && shadow.exit_date === projection.exit_date && shadow.as_of_date === asOfDate, "P1 Shadow公开状态日期漂移");
       executableProfitExpect(shadow.candidate_count === projection.candidate_count && shadow.selected_slots === Math.min(2, projection.candidate_count) && shadow.top10_members_sha256 === projection.top10_members_sha256, "P1 Shadow候选/席位/成员指纹漂移");
       executableProfitExpect(exactPrimaryProfitShadowBoundaries(shadow.boundaries), "P1 Shadow公开状态安全边界漂移");
@@ -3790,7 +3793,8 @@
       executableProfitExpect(exactObjectKeys(sources, ["mixed_projection", "selection", "statistics", "t_verification", "t1_settlement"]), "P1 Shadow公开来源绑定缺失");
       executableProfitExpect(sources.mixed_projection?.path === primaryIndex.latest_projection_json_url && sources.mixed_projection?.sha256 === primaryIndex.latest_projection_json_sha256 && sources.mixed_projection?.snapshot_sha256 === projection.snapshot_sha256, "P1 Shadow没有绑定同D同SHA混合盈利投影");
       executableProfitExpect(sources.selection?.path === `data/decision_executable_profit/forward/selections/shadow_${signalDate}.json` && isSha256(sources.selection?.sha256) && sources.selection?.selection_identity_sha256 === shadowIndex.latest_selection_identity_sha256, "P1 Shadow冻结选择来源无效");
-      executableProfitExpect(sources.statistics?.path === "data/decision_executable_profit/forward/statistics/summary.json" && sources.statistics?.as_of_date === asOfDate && isSha256(sources.statistics?.sha256), "P1 Shadow累计统计来源无效");
+      const expectedStatisticsPath = versionedState ? `data/decision_executable_profit/forward/statistics/snapshots/summary_asof_${asOfDate}_sha256_${sources.statistics?.sha256}.json` : "data/decision_executable_profit/forward/statistics/summary.json";
+      executableProfitExpect(sources.statistics?.path === expectedStatisticsPath && sources.statistics?.as_of_date === asOfDate && isSha256(sources.statistics?.sha256), "P1 Shadow累计统计来源无效");
       const expectedTruthPaths = {
         t_verification: `data/decision_executable_profit/forward/verifications/t_verification_${signalDate}.json`,
         t1_settlement: `data/decision_executable_profit/forward/settlements/settlement_${signalDate}.json`
@@ -3799,9 +3803,15 @@
         const binding = sources[name];
         executableProfitExpect(binding == null || (exactObjectKeys(binding, ["path", "sha256"]) && binding.path === expectedTruthPaths[name] && isSha256(binding.sha256)), `P1 Shadow ${name}来源无效`);
       }
+      const summaryPromise = fetchPagesOnlyShaBoundJson(sources.statistics.path, sources.statistics.sha256, "P1 Shadow累计统计").catch(error => {
+        const message = String(error?.message || error);
+        if (versionedState || (!/HTTP 404\b/.test(message) && message !== "P1 Shadow累计统计字节SHA256不一致")) throw error;
+        const archive = `data/decision_executable_profit/forward/statistics/snapshots/summary_asof_${asOfDate}_sha256_${sources.statistics.sha256}.json`;
+        return fetchPagesOnlyShaBoundJson(archive, sources.statistics.sha256, "P1 Shadow累计统计");
+      });
       const [selectionLoaded, summaryLoaded] = await Promise.all([
         fetchPagesOnlyShaBoundJson(sources.selection.path, sources.selection.sha256, "P1 Shadow冻结选择"),
-        fetchPagesOnlyShaBoundJson(sources.statistics.path, sources.statistics.sha256, "P1 Shadow累计统计")
+        summaryPromise
       ]);
       const selection = selectionLoaded.payload;
       const summary = summaryLoaded.payload;
@@ -4071,7 +4081,9 @@
       if (value === "PENDING_T1_TRUTH") return { label: "退出真值待更新", tone: "missing" };
       if (value === "PENDING_T_VERIFICATION") return { label: "等待T验证", tone: "pending" };
       if (value === "T_VERIFIED_PROXY_FILLED") return { label: "代理可买 · 已验证", tone: "final" };
+      if (value === "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED") return { label: "价格代理 · 容量未验证", tone: "final" };
       const noFillReasons = {
+        T_VERIFIED_PROXY_NO_FILL_SUSPENDED: "停牌无成交",
         T_VERIFIED_PROXY_NO_FILL_AUCTION_DAILY_CONFLICT: "竞价与日线冲突",
         T_VERIFIED_PROXY_NO_FILL_ABOVE_FROZEN_CAP: "超过冻结限价",
         T_VERIFIED_PROXY_NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED: "涨停开盘未确认成交",

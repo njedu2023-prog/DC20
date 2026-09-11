@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import csv
 import hashlib
+import io
 import json
 import re
 import shutil
@@ -31,6 +32,21 @@ def fixture():
     return dict(summary=summary, rows=rows, contracts=contracts)
 
 
+def fixed_promotion_fixture():
+    """Keep fixed numeric/rendering assertions on the original 09/04 cutoff.
+
+    Reconstruct only in memory from frozen inputs. The live SHA/loader tests
+    continue using fixture() and the actual published latest pointers.
+    """
+    from scripts.settle_primary_observations import build, csv_bytes
+
+    summary, observed = build(ROOT, "20260904")
+    rows = list(csv.DictReader(io.StringIO(csv_bytes(observed).decode("utf-8"))))
+    contracts = [json.loads((ROOT / f"outputs/decision/three_rank_top10_{day['signal_date']}.json").read_text())
+                 for day in summary["daily_summaries"]]
+    return dict(summary=summary, rows=rows, contracts=contracts)
+
+
 def run(body, data=None, extra=""):
     names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus",
@@ -55,7 +71,7 @@ const crypto=require('crypto').webcrypto;
 
 
 def test_real_frozen_rows_produce_three_independent_ranks():
-    result = run("console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)));")
+    result = run("console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)));", fixed_promotion_fixture())
     assert [r["rank"] for r in result] == [1, 2, 3]
     assert [r["count"] for r in result] == [4, 4, 4]
     assert [r["verified"] for r in result] == [3, 3, 3]
@@ -129,7 +145,7 @@ def test_bad_binding_only_closes_auxiliary_statistics(mutation):
 
 
 def test_compact_view_has_only_three_promotion_success_results():
-    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))")
+    result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))", fixed_promotion_fixture())
     assert [result["html"].count(f"<dt>Top{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
     assert result["html"].count('class="success-rate">33.33%') == 2
     assert result["html"].count('class="success-rate">66.67%') == 1
@@ -299,7 +315,7 @@ def test_profit_wins_use_filled_settled_denominator_not_no_fill_or_pending():
     assert "校验失败" not in summary
 
 
-@pytest.mark.parametrize("field", ["pending_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"])
+@pytest.mark.parametrize("field", ["blocked_exit_slots", "delayed_exit_slots", "blocked_exit_sessions"])
 def test_unresolved_or_delayed_exits_do_not_show_synthetic_nav_as_account_return(field):
     data = profit_fixture()
     data["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"][field] = 1
@@ -307,7 +323,28 @@ def test_unresolved_or_delayed_exits_do_not_show_synthetic_nav_as_account_return
     assert summary.count("暂不累计") == 2
 
 
-@pytest.mark.parametrize("mutation", ["c.wins_after_cost=1", "c.win_rate=0", "c.terminal_slots=1", "c.t_validated_slots=7"])
+def test_normal_pending_t1_does_not_hide_completed_daily_cumulative_return():
+    data = profit_fixture()
+    data["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_2"].update(
+        selected_slots=8, selection_dates=8, t_validated_slots=7,
+        proxy_fill_slots=4, proxy_no_fill_slots=3, terminal_slots=6,
+        t1_settled_slots=3, wins_after_cost=1, win_rate=1 / 3,
+        mean_net_return_after_cost=-0.02,
+        pending_validation_slots=1, pending_settlement_slots=1, pending_slots=2,
+        pending_exit_slots=1, blocked_exit_slots=0, delayed_exit_slots=0,
+        blocked_exit_sessions=0, effective_dates=6,
+        equal_weight_cumulative_return=-0.0646, maximum_drawdown=-0.0924,
+    )
+    original = copy.deepcopy(data)
+    summary = profit_html(data).split('<details')[0]
+    assert '<td>1 / 1</td>' in summary
+    assert '<td>-6.46% ↓<div class="score-secondary">6 个完整日</div></td>' in summary
+    assert '<td>-9.24% ↓</td>' in summary
+    assert "暂不累计" not in summary and "校验失败" not in summary
+    assert data == original
+
+
+@pytest.mark.parametrize("mutation", ["c.wins_after_cost=1", "c.win_rate=0", "c.terminal_slots=1", "c.t_validated_slots=7", "c.blocked_exit_slots=-1", "c.blocked_exit_slots=0.5", "delete c.blocked_exit_slots"])
 def test_corrupt_profit_cohort_fails_closed_without_clearing_daily_list(mutation):
     result = profit_html(profit_fixture(), "const c=input.profit.shadow.state.cohorts.shadow_slot_1;" + mutation)
     assert "盈利累计统计校验失败" in result
@@ -388,7 +425,7 @@ const window={location,addEventListener(){}};
     tail += "fetchPagesOnlyPath=async (path,type)=>{const bytes=new Uint8Array(fs.readFileSync(root+'/'+path));return type==='bytes'?bytes:JSON.parse(new TextDecoder().decode(bytes))};\n"
     if drift:
         # Corruption introduced after the real SHA reader: exercise equality guard rather than a hash stub.
-        tail += "const originalReader=fetchPagesOnlyShaBoundJson;fetchPagesOnlyShaBoundJson=async (...args)=>{const r=await originalReader(...args);if(args[0].endsWith('/statistics/summary.json'))r.payload.cohorts.shadow_slot_1.selected_slots+=1;return r};\n"
+        tail += "const originalReader=fetchPagesOnlyShaBoundJson;fetchPagesOnlyShaBoundJson=async (...args)=>{const r=await originalReader(...args);if(args[2]==='P1 Shadow累计统计')r.payload.cohorts.shadow_slot_1.selected_slots+=1;return r};\n"
     tail += "(async()=>{try{const index=await fetchPagesOnlyPath(EXECUTABLE_PROFIT_RESEARCH_ROOT+'/index.json');const projection=await fetchPagesOnlyPath(index.latest_projection_json_url);const result=await loadPrimaryProfitShadowSidecar(projection,index);console.log(JSON.stringify({ready:result.publicWindowReady,selected:result.state.cohorts.shadow_slot_1.selected_slots}));}catch(error){console.log(JSON.stringify({error:error.message}));}})();"
     result = subprocess.run([NODE, "-"], input=prelude + script + tail, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr

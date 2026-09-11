@@ -1,0 +1,22 @@
+{
+  "schema_version": "dc20_primary_profit_shadow_entry_price_policy_v2",
+  "policy_id": "dc20_primary_profit_shadow_auction_or_open_20260911_v2",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "selection_schema": "dc20_primary_profit_forward_shadow_selection_v2",
+  "entry_priority": [
+    "TUSHARE_STK_AUCTION_O",
+    "TUSHARE_STK_AUCTION",
+    "DAILY_OPEN_PROXY"
+  ],
+  "invalid_or_conflicting_source": "FAIL_CLOSED_NOT_FALLBACK",
+  "missing_auction_price": "EXACT_T_DAILY_OPEN_PROXY",
+  "capacity_rule": "OBSERVED_AMOUNT_ENFORCES_CAPACITY_OTHERWISE_PRICE_ONLY_PROXY_UNVERIFIED",
+  "shadow_notional_cny": 100000,
+  "maximum_auction_participation": 0.01,
+  "frozen_cap_required": true,
+  "opening_limit_up_rejected": true,
+  "round_trip_cost_rate": 0.0045,
+  "cost_version": "dc20_shadow_cost_v1_45bp",
+  "existing_verification_is_immutable": true,
+  "actual_order_fill_claimed": false
+}

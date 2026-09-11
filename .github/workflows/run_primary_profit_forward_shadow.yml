@@ -202,8 +202,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib, json, os
+          import hashlib, json, os, re
           from pathlib import Path
+          from top10decision.decision.executable_profit_shadow_settlement import validate_statistics
 
           d=os.environ['SIGNAL_DATE']
           protected=[
@@ -214,12 +215,44 @@ jobs:
           ]
           protected.extend(sorted(Path('outputs/decision').glob('action_plan_*.json')))
           protected.append(Path('outputs/decision/report_index.json'))
+          for pattern in (
+              'data/decision_executable_profit/forward/selections/shadow_*.json',
+              'data/decision_executable_profit/forward/selections/shadow_*.csv',
+              'data/decision_executable_profit/forward/verifications/t_verification_*.json',
+              'data/decision_executable_profit/forward/settlements/settlement_*.json',
+              'data/decision_executable_profit/forward/statistics/snapshots/summary_asof_*.json',
+              'outputs/decision/executable_profit_research/shadow_state_*.json',
+          ):
+              protected.extend(sorted(Path('.').glob(pattern)))
           inventory={}
           for path in protected:
               if path.exists():
                   if not path.is_file() or path.is_symlink(): raise SystemExit(f'protected input is unsafe: {path}')
                   inventory[path.as_posix()]=hashlib.sha256(path.read_bytes()).hexdigest()
           Path(os.environ['RUNNER_TEMP'],'shadow-protected-before.json').write_text(json.dumps(inventory,sort_keys=True)+'\n',encoding='utf-8')
+          previous_statistics=None
+          summary_path=Path('data/decision_executable_profit/forward/statistics/summary.json')
+          if summary_path.exists() or summary_path.is_symlink():
+              if not summary_path.is_file() or summary_path.is_symlink():
+                  raise SystemExit('previous Shadow summary is unsafe')
+              summary_bytes=summary_path.read_bytes()
+              summary=json.loads(summary_bytes)
+              validate_statistics(summary)
+              as_of_date=str(summary.get('as_of_date') or '')
+              if re.fullmatch(r'20[0-9]{6}',as_of_date) is None or as_of_date > d:
+                  raise SystemExit('previous Shadow summary cutoff is invalid')
+              summary_sha=hashlib.sha256(summary_bytes).hexdigest()
+              archive_path=(
+                  'data/decision_executable_profit/forward/statistics/snapshots/'
+                  f'summary_asof_{as_of_date}_sha256_{summary_sha}.json'
+              )
+              previous_statistics={
+                  'as_of_date':as_of_date,'sha256':summary_sha,'path':archive_path,
+                  'existed':archive_path in inventory,
+              }
+          Path(os.environ['RUNNER_TEMP'],'shadow-statistics-before.json').write_text(
+              json.dumps(previous_statistics,sort_keys=True)+'\n',encoding='utf-8'
+          )
           PY
           python scripts/freeze_primary_profit_forward_shadow.py \
             --signal-date "${SIGNAL_DATE}"
@@ -259,43 +292,123 @@ jobs:
         id: candidate
         env:
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          PYTHONPATH: src
         run: |
           set -euo pipefail
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
-          git add -A -- \
-            "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.json" \
-            "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.csv" \
-            data/decision_executable_profit/forward/selections/primary_mixed_index.json \
-            data/decision_executable_profit/forward/statistics/summary.json \
-            "outputs/decision/executable_profit_research/shadow_state_${SIGNAL_DATE}_asof_${SIGNAL_DATE}.json" \
-            outputs/decision/executable_profit_research/shadow_index.json
-          git diff --cached --name-only -z > "${RUNNER_TEMP}/shadow-paths.bin"
-          STAGED_PATHS="${RUNNER_TEMP}/shadow-paths.bin" SIGNAL_DATE="${SIGNAL_DATE}" python3 - <<'PY'
-          import os
+          python3 - <<'PY'
+          import hashlib, json, os, re, subprocess
           from pathlib import Path
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              validate_primary_profit_forward_shadow_repository_chain,
+          )
+
+          def exact_shadow_candidate_paths(root, d, chain, previous_statistics):
+              root=root.resolve(strict=True)
+              if re.fullmatch(r'20[0-9]{6}',d) is None or (
+                  chain.get('signal_date') != d or chain.get('as_of_date') != d
+              ):
+                  raise ValueError('Shadow candidate chain is not exact natural D/as-of')
+              public_root='outputs/decision/executable_profit_research/'
+              statistics_root='data/decision_executable_profit/forward/statistics/'
+              summary_relative=statistics_root+'summary.json'
+
+              def read_exact(relative):
+                  path=root/relative
+                  if (
+                      Path(relative).is_absolute() or '..' in Path(relative).parts
+                      or not path.is_file() or path.is_symlink()
+                      or not path.resolve(strict=True).is_relative_to(root)
+                  ):
+                      raise ValueError(f'Shadow candidate source is unsafe: {relative}')
+                  return path.read_bytes()
+
+              index_relative='outputs/decision/executable_profit_research/shadow_index.json'
+              index=json.loads(read_exact(index_relative))
+              state_relative=str(index.get('latest_state_url') or '')
+              snapshot_sha=str(index.get('latest_state_snapshot_sha256') or '')
+              legacy_state=public_root+f'shadow_state_{d}_asof_{d}.json'
+              versioned=state_relative != legacy_state
+              expected_state=(
+                  public_root+f'shadow_state_{d}_asof_{d}_sha256_{snapshot_sha}.json'
+                  if versioned else legacy_state
+              )
+              if re.fullmatch(r'[0-9a-f]{64}',snapshot_sha) is None or state_relative != expected_state:
+                  raise ValueError('Shadow candidate state address is not exact')
+              state_bytes=read_exact(state_relative)
+              state=json.loads(state_bytes)
+              binding=state['source_bindings']['statistics']
+              statistics_sha=str(binding.get('sha256') or '')
+              statistics_relative=(
+                  statistics_root+f'snapshots/summary_asof_{d}_sha256_{statistics_sha}.json'
+                  if versioned else summary_relative
+              )
+              if (
+                  re.fullmatch(r'[0-9a-f]{64}',statistics_sha) is None
+                  or binding.get('path') != statistics_relative
+                  or hashlib.sha256(state_bytes).hexdigest() != index.get('latest_state_sha256')
+                  or state.get('snapshot_sha256') != snapshot_sha
+                  or state.get('signal_date') != d or state.get('as_of_date') != d
+                  or binding.get('as_of_date') != d
+                  or index.get('latest_signal_date') != d or index.get('latest_as_of_date') != d
+              ):
+                  raise ValueError('Shadow candidate state/statistics binding drifted')
+              for key,relative in (
+                  ('public_index',index_relative),('public_state',state_relative),
+                  ('statistics',statistics_relative),
+              ):
+                  if Path(chain[key]).resolve(strict=True) != (root/relative).resolve(strict=True):
+                      raise ValueError('Shadow candidate differs from validated repository chain')
+              statistics_bytes=read_exact(statistics_relative)
+              if (
+                  hashlib.sha256(statistics_bytes).hexdigest() != statistics_sha
+                  or read_exact(summary_relative) != statistics_bytes
+              ):
+                  raise ValueError('Shadow candidate summary/snapshot bytes drifted')
+              required={
+                  f'data/decision_executable_profit/forward/selections/shadow_{d}.json',
+                  f'data/decision_executable_profit/forward/selections/shadow_{d}.csv',
+                  'data/decision_executable_profit/forward/selections/primary_mixed_index.json',
+                  summary_relative,statistics_relative,state_relative,index_relative,
+              }
+              expected=set(required)
+              if previous_statistics is not None and versioned:
+                  previous=previous_statistics
+                  previous_date=str(previous.get('as_of_date') or '')
+                  previous_sha=str(previous.get('sha256') or '')
+                  archive=(statistics_root+'snapshots/'
+                           f'summary_asof_{previous_date}_sha256_{previous_sha}.json')
+                  if (
+                      set(previous) != {'as_of_date','sha256','path','existed'}
+                      or re.fullmatch(r'20[0-9]{6}',previous_date) is None or previous_date > d
+                      or re.fullmatch(r'[0-9a-f]{64}',previous_sha) is None
+                      or previous.get('path') != archive or type(previous.get('existed')) is not bool
+                      or hashlib.sha256(read_exact(archive)).hexdigest() != previous_sha
+                  ):
+                      raise ValueError('Shadow candidate previous-summary archive drifted')
+                  expected.add(archive)
+                  if not previous['existed']:
+                      required.add(archive)
+              return expected,required
+
+          def validate_staged_shadow_candidate(paths, expected, required):
+              if not paths.issubset(expected):
+                  raise SystemExit(f'Shadow candidate has foreign paths: {sorted(paths)}')
+              if paths and not required.issubset(paths):
+                  raise SystemExit(f'Shadow candidate is incomplete: {sorted(required-paths)}')
+
+          root=Path('.').resolve(strict=True)
           d=os.environ['SIGNAL_DATE']
-          expected={
-              f'data/decision_executable_profit/forward/selections/shadow_{d}.json',
-              f'data/decision_executable_profit/forward/selections/shadow_{d}.csv',
-              'data/decision_executable_profit/forward/selections/primary_mixed_index.json',
-              'data/decision_executable_profit/forward/statistics/summary.json',
-              f'outputs/decision/executable_profit_research/shadow_state_{d}_asof_{d}.json',
-              'outputs/decision/executable_profit_research/shadow_index.json',
-          }
-          paths={value.decode() for value in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if value}
-          if not paths.issubset(expected):
-              raise SystemExit(f'Shadow candidate has foreign paths: {sorted(paths)}')
-          required={
-              f'data/decision_executable_profit/forward/selections/shadow_{d}.json',
-              f'data/decision_executable_profit/forward/selections/shadow_{d}.csv',
-              'data/decision_executable_profit/forward/selections/primary_mixed_index.json',
-              'data/decision_executable_profit/forward/statistics/summary.json',
-              f'outputs/decision/executable_profit_research/shadow_state_{d}_asof_{d}.json',
-              'outputs/decision/executable_profit_research/shadow_index.json',
-          }
-          if paths and not required.issubset(paths):
-              raise SystemExit(f'Shadow candidate is incomplete: {sorted(required-paths)}')
+          chain=validate_primary_profit_forward_shadow_repository_chain(root,d)
+          previous_statistics=json.loads(
+              Path(os.environ['RUNNER_TEMP'],'shadow-statistics-before.json').read_text(encoding='utf-8')
+          )
+          expected,required=exact_shadow_candidate_paths(root,d,chain,previous_statistics)
+          subprocess.run(['git','add','-A','--',*sorted(expected)],check=True)
+          staged=subprocess.check_output(['git','diff','--cached','--name-only','-z'])
+          paths={value.decode() for value in staged.split(b'\0') if value}
+          validate_staged_shadow_candidate(paths,expected,required)
           PY
           git diff --cached --binary --full-index > "${RUNNER_TEMP}/shadow.patch"
           sha256sum "${RUNNER_TEMP}/shadow.patch" | cut -d' ' -f1 > "${RUNNER_TEMP}/shadow.patch.sha256"

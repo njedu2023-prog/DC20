@@ -4,6 +4,7 @@ import copy
 import csv
 import fcntl
 import hashlib
+import io
 import json
 import math
 import os
@@ -15,6 +16,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from statistics import median
 from typing import Any
+from urllib.parse import urlparse
 
 from top10decision.decision.executable_profit_shadow import (
     MINIMUM_SIGNAL_DATE,
@@ -60,6 +62,32 @@ GRANDFATHERED_PUBLIC_STATISTICS_FILE_SHA256 = (
 DATE_RE = re.compile(r"20\d{6}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 PRICE_TICK = Decimal("0.01")
+T_VERIFICATION_SCHEMA_V2 = "dc20_executable_profit_shadow_t_verification_v2"
+SETTLEMENT_SCHEMA_V2 = "dc20_executable_profit_shadow_t1_settlement_v2"
+PRICE_POLICY_ID_V2 = "dc20_primary_profit_shadow_auction_or_open_20260911_v2"
+PRICE_POLICY_PATH_V2 = Path("models/decision_primary_profit_shadow_entry_price_policy_v2.json")
+PRICE_POLICY_V2_SPEC = {
+    "schema_version": "dc20_primary_profit_shadow_entry_price_policy_v2",
+    "policy_id": PRICE_POLICY_ID_V2,
+    "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+    "selection_schema": PRIMARY_MIXED_SELECTION_SCHEMA,
+    "entry_priority": ["TUSHARE_STK_AUCTION_O", "TUSHARE_STK_AUCTION", "DAILY_OPEN_PROXY"],
+    "invalid_or_conflicting_source": "FAIL_CLOSED_NOT_FALLBACK",
+    "missing_auction_price": "EXACT_T_DAILY_OPEN_PROXY",
+    "capacity_rule": "OBSERVED_AMOUNT_ENFORCES_CAPACITY_OTHERWISE_PRICE_ONLY_PROXY_UNVERIFIED",
+    "shadow_notional_cny": SHADOW_NOTIONAL_CNY,
+    "maximum_auction_participation": MAX_AUCTION_PARTICIPATION,
+    "frozen_cap_required": True,
+    "opening_limit_up_rejected": True,
+    "round_trip_cost_rate": COST_RATE,
+    "cost_version": COST_VERSION,
+    "existing_verification_is_immutable": True,
+    "actual_order_fill_claimed": False,
+}
+PRICE_ROW_FIELDS_V2 = {
+    "entry_price_source", "entry_price_source_file", "entry_price_source_sha256",
+    "entry_price_metadata_file", "entry_price_metadata_sha256", "capacity_evidence",
+}
 
 
 class ExecutableProfitSettlementError(RuntimeError):
@@ -644,6 +672,142 @@ def _source_binding(repo_root: Path, path: Path) -> dict[str, Any]:
     }
 
 
+def _load_price_policy_v2(repo_root: Path) -> dict[str, Any]:
+    path = _safe_existing_file(repo_root, PRICE_POLICY_PATH_V2, label="v2 entry price policy")
+    _expect(_read_json(path, label="v2 entry price policy") == PRICE_POLICY_V2_SPEC,
+            "v2 entry price policy drifted")
+    return {**_source_binding(repo_root, path), "policy_id": PRICE_POLICY_ID_V2,
+            "definition_sha256": _canonical_sha256(PRICE_POLICY_V2_SPEC)}
+
+
+def _validate_price_policy_binding(binding: Any) -> None:
+    _expect(isinstance(binding, Mapping) and set(binding) == {
+        "path", "sha256", "policy_id", "definition_sha256"}, "v2 price policy binding invalid")
+    _expect(binding.get("path") == PRICE_POLICY_PATH_V2.as_posix()
+            and binding.get("policy_id") == PRICE_POLICY_ID_V2
+            and binding.get("definition_sha256") == _canonical_sha256(PRICE_POLICY_V2_SPEC)
+            and SHA256_RE.fullmatch(str(binding.get("sha256") or "")) is not None,
+            "v2 price policy identity invalid")
+
+
+def _verified_auction_sources_v2(repo_root: Path, trade_date: str) -> list[dict[str, Any]]:
+    """Read dated, provenance-bound sources; never rename or manufacture truth."""
+    sources = []
+    for name, source_name, field in (
+        ("stk_auction_o", "TUSHARE_STK_AUCTION_O", "close"),
+        ("stk_auction", "TUSHARE_STK_AUCTION", "price"),
+    ):
+        path = _find_market_file(repo_root, trade_date, name)
+        if path is None:
+            if name == "stk_auction_o":
+                for relative in _market_relative_candidates(trade_date, name):
+                    orphan = repo_root / relative.with_suffix(".meta.json")
+                    _expect(not orphan.exists() and not orphan.is_symlink(),
+                            "orphan auction metadata cannot enable fallback")
+            continue
+        raw = path.read_bytes()
+        text = raw.decode("utf-8-sig").replace("\r\n", "\n")
+        reader = csv.DictReader(io.StringIO(text))
+        _expect({"ts_code", "trade_date", field}.issubset(reader.fieldnames or []),
+                f"{name} price source columns invalid")
+        records = list(reader)
+        rows = {}
+        for row in records:
+            code = str(row.get("ts_code") or "")
+            _expect(row.get("trade_date") == trade_date, "auction price source date mismatch")
+            _expect(re.fullmatch(r"\d{6}\.(?:SH|SZ|BJ)", code) is not None and code not in rows,
+                    "auction price source code identity invalid")
+            rows[code] = row
+        if name == "stk_auction_o":
+            meta_path = _safe_existing_file(repo_root, path.with_suffix(".meta.json").relative_to(repo_root),
+                                            label="opening auction metadata")
+            meta = _read_json(meta_path, label="opening auction metadata")
+            _expect(meta.get("schema_version") == "decision_auction_truth_v1"
+                    and meta.get("source") == "tushare:stk_auction_o"
+                    and meta.get("trade_date") == trade_date
+                    and meta.get("immutable") is True
+                    and meta.get("credential_persisted") is False
+                    and meta.get("rows") == len(records)
+                    and meta.get("fields") == reader.fieldnames
+                    and meta.get("sha256") == _sha256_bytes(text.encode("utf-8")),
+                    "opening auction provenance/hash invalid")
+        else:
+            relative = Path(f"data/market/raw/{trade_date[:4]}/{trade_date}/stk_auction.csv")
+            _expect(path.relative_to(repo_root) == relative, "dated auction source path invalid")
+            meta_path = _safe_existing_file(repo_root, relative.with_name("_sync_meta.json"),
+                                            label="dated auction sync metadata")
+            meta = _read_json(meta_path, label="dated auction sync metadata")
+            entries = [item for item in meta.get("files", []) if isinstance(item, Mapping)
+                       and item.get("name") == "stk_auction"]
+            source_repo = meta.get("source_repo", {})
+            commit = str(source_repo.get("resolved_commit") or "")
+            _expect(len(entries) == 1 and re.fullmatch(r"[0-9a-f]{40}", commit) is not None
+                    and source_repo.get("owner") == "njedu2023-prog"
+                    and source_repo.get("repo") == "a-share-top3-data"
+                    and meta.get("strict_dated_source") is True
+                    and all(meta.get(key) == trade_date for key in (
+                        "trade_date", "requested_trade_date", "resolved_trade_date")),
+                    "dated auction sync provenance invalid")
+            entry = entries[0]
+            url = urlparse(str(entry.get("source_url") or ""))
+            expected_path = f"/njedu2023-prog/a-share-top3-data/{commit}/data/raw/{trade_date[:4]}/{trade_date}/stk_auction.csv"
+            upstream = meta.get("upstream_meta", {})
+            auction = upstream.get("auction", {})
+            _expect(entry.get("success") is True and entry.get("date_scoped") is True
+                    and entry.get("source_trade_date") == trade_date and entry.get("status_code") == 200
+                    and entry.get("upstream_name") == "stk_auction.csv"
+                    and entry.get("dated_path") == relative.as_posix()
+                    and entry.get("bytes") == len(raw) and entry.get("sha256") == _sha256_bytes(raw)
+                    and url.scheme == "https" and url.netloc == "raw.githubusercontent.com"
+                    and url.path == expected_path and not url.query and not url.fragment
+                    and upstream.get("resolved_trade_date") == trade_date
+                    and auction.get("enabled") is True and auction.get("ok") is True
+                    and auction.get("rows") == len(records)
+                    and auction.get("columns") == reader.fieldnames,
+                    "dated auction bytes/endpoint evidence invalid")
+        sources.append({"name": source_name, "field": field, "rows": rows,
+                        "file": _source_binding(repo_root, path),
+                        "metadata": _source_binding(repo_root, meta_path)})
+    return sources
+
+
+def _entry_price_v2(code: str, daily_path: Path, daily_open: float,
+                    repo_root: Path, sources: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    choices = []
+    for source in sources:
+        row = source["rows"].get(code)
+        if row is None:
+            continue
+        value = row.get(source["field"])
+        if value is None or str(value).strip() == "":
+            continue
+        price = _finite(value)
+        _expect(price is not None and price > 0, "invalid auction price cannot enable fallback")
+        raw_amount = row.get("amount")
+        amount = None if raw_amount is None or str(raw_amount).strip() == "" else _finite(raw_amount)
+        _expect(raw_amount is None or str(raw_amount).strip() == "" or
+                (amount is not None and amount > 0), "invalid auction amount cannot enable fallback")
+        choices.append({"price": price, "amount": amount, "source": source})
+    if choices:
+        _expect(all(_same_rounded_price(choices[0]["price"], item["price"]) for item in choices),
+                "conflicting auction sources cannot enable fallback")
+        chosen = choices[0]
+        source = chosen["source"]
+        binding, metadata = source["file"], source["metadata"]
+        return {"price": chosen["price"], "amount": chosen["amount"],
+                "entry_price_source": source["name"], "entry_price_source_file": binding["path"],
+                "entry_price_source_sha256": binding["sha256"],
+                "entry_price_metadata_file": metadata["path"],
+                "entry_price_metadata_sha256": metadata["sha256"],
+                "capacity_evidence": "OBSERVED_AUCTION_AMOUNT" if chosen["amount"] is not None
+                else "UNVERIFIED_NO_AUCTION_AMOUNT"}
+    binding = _source_binding(repo_root, daily_path)
+    return {"price": daily_open, "amount": None, "entry_price_source": "DAILY_OPEN_PROXY",
+            "entry_price_source_file": binding["path"], "entry_price_source_sha256": binding["sha256"],
+            "entry_price_metadata_file": None, "entry_price_metadata_sha256": None,
+            "capacity_evidence": "UNVERIFIED_NO_AUCTION_AMOUNT"}
+
+
 def _ohlc(row: Mapping[str, Any]) -> tuple[float | None, float | None, float | None, float | None]:
     return tuple(_finite(row.get(column)) for column in ("open", "high", "low", "close"))  # type: ignore[return-value]
 
@@ -762,6 +926,30 @@ def build_t_verification(
     if selected and exec_date > as_of_date:
         return None, "PENDING_T_NOT_REACHED"
 
+    existing_path = repo_root / VERIFICATION_ROOT / f"t_verification_{signal_date}.json"
+    if existing_path.exists() or existing_path.is_symlink():
+        existing_path = _safe_existing_file(repo_root, existing_path.relative_to(repo_root),
+                                            label="existing T verification")
+        existing = _read_json(existing_path, label="existing T verification")
+        validate_t_verification(existing)
+        _expect(existing.get("selection") == _selection_binding(selection_path, selection, selected)
+                and (existing.get("signal_date"), existing.get("exec_date"), existing.get("exit_date"))
+                == (signal_date, exec_date, exit_date), "existing T verification frozen binding drifted")
+        for binding in existing["source_files"]:
+            path = _safe_existing_file(repo_root, Path(binding["path"]), label="existing T truth")
+            _expect(_sha256(path) == binding["sha256"], "existing T truth source bytes changed")
+        if existing.get("schema_version") == T_VERIFICATION_SCHEMA_V2:
+            _expect(existing["entry_price_policy"] == _load_price_policy_v2(repo_root),
+                    "existing v2 price policy changed")
+        # New auction availability must never reprice an immutable old entry.
+        return existing, "T_VERIFIED_IMMUTABLE_EXISTING"
+
+    price_policy = None
+    if selection.get("schema_version") == PRIMARY_MIXED_SELECTION_SCHEMA and (
+        (repo_root / PRICE_POLICY_PATH_V2).exists() or (repo_root / PRICE_POLICY_PATH_V2).is_symlink()
+    ):
+        price_policy = _load_price_policy_v2(repo_root)
+
     source_files: list[dict[str, Any]] = []
     daily_rows: dict[str, dict[str, str]] = {}
     limit_rows: dict[str, dict[str, str]] = {}
@@ -770,16 +958,21 @@ def build_t_verification(
         daily_path = _find_market_file(repo_root, exec_date, "daily")
         limit_path = _find_market_file(repo_root, exec_date, "stk_limit")
         auction_path = _find_market_file(repo_root, exec_date, "stk_auction_o")
-        if daily_path is None or limit_path is None or auction_path is None:
+        if daily_path is None or limit_path is None or (price_policy is None and auction_path is None):
             return None, "PENDING_T_SOURCE_FILES"
         daily_rows = _market_rows(daily_path, exec_date)
         limit_rows = _market_rows(limit_path, exec_date)
-        auction_rows = _market_rows(auction_path, exec_date)
         source_files = [
             _source_binding(repo_root, daily_path),
             _source_binding(repo_root, limit_path),
-            _source_binding(repo_root, auction_path),
         ]
+        if price_policy is None:
+            auction_rows = _market_rows(auction_path, exec_date)
+            source_files.append(_source_binding(repo_root, auction_path))
+        else:
+            auction_sources = _verified_auction_sources_v2(repo_root, exec_date)
+            for source in auction_sources:
+                source_files.extend([source["file"], source["metadata"]])
 
     rows: list[dict[str, Any]] = []
     selection_ranking = selection.get("ranking_contract")
@@ -820,13 +1013,23 @@ def build_t_verification(
         prices = _ohlc(daily)
         if any(value is None or value <= 0 for value in prices):
             return None, f"PENDING_T_INVALID_DAILY_ROW:{code}"
+        suspended_entry = False
+        if price_policy is not None:
+            volume = _finite(daily.get("vol"))
+            if volume is None or volume < 0:
+                return None, f"PENDING_T_VOLUME:{code}"
+            suspended_entry = volume == 0
         limit = limit_rows.get(code)
         up_limit = _finite(limit.get("up_limit")) if limit is not None else None
         if up_limit is None or up_limit <= 0:
             return None, f"PENDING_T_LIMIT_ROW:{code}"
         auction = auction_rows.get(code)
-        if auction is None:
+        if price_policy is None and auction is None:
             return None, f"PENDING_T_AUCTION_ROW:{code}"
+        price_evidence = None
+        if price_policy is not None:
+            price_evidence = _entry_price_v2(code, daily_path, float(prices[0]), repo_root, auction_sources)
+            auction = {"close": price_evidence["price"], "amount": price_evidence["amount"]}
         auction_price = next(
             (
                 value
@@ -854,7 +1057,7 @@ def build_t_verification(
         )
         if auction_price is None:
             return None, f"PENDING_T_AUCTION_PRICE:{code}"
-        if auction_amount is None:
+        if auction_amount is None and price_policy is None:
             return None, f"PENDING_T_AUCTION_AMOUNT:{code}"
         one_price = _all_at_limit(prices, up_limit)
         open_conflict = not _same_rounded_price(prices[0], auction_price)
@@ -870,16 +1073,19 @@ def build_t_verification(
             and auction_tick <= cap_tick
         )
         opening_limit_up = _same_rounded_price(auction_price, up_limit)
-        capacity_cny = auction_amount * MAX_AUCTION_PARTICIPATION
-        capacity_accept = capacity_cny + 1e-9 >= SHADOW_NOTIONAL_CNY
+        capacity_cny = auction_amount * MAX_AUCTION_PARTICIPATION if auction_amount is not None else None
+        capacity_accept = capacity_cny + 1e-9 >= SHADOW_NOTIONAL_CNY if capacity_cny is not None else None
         proxy_fill = int(
-            not open_conflict
+            not suspended_entry
+            and not open_conflict
             and cap_accept
             and not opening_limit_up
             and not one_price
-            and capacity_accept
+            and (capacity_accept is True or (price_policy is not None and capacity_accept is None))
         )
-        if open_conflict:
+        if suspended_entry:
+            validation_status = "T_VERIFIED_PROXY_NO_FILL_SUSPENDED"
+        elif open_conflict:
             validation_status = "T_VERIFIED_PROXY_NO_FILL_AUCTION_DAILY_CONFLICT"
         elif not cap_accept:
             validation_status = "T_VERIFIED_PROXY_NO_FILL_ABOVE_FROZEN_CAP"
@@ -887,8 +1093,10 @@ def build_t_verification(
             validation_status = "T_VERIFIED_PROXY_NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED"
         elif one_price:
             validation_status = "T_VERIFIED_PROXY_NO_FILL_ONE_PRICE_LIMIT_UP"
-        elif not capacity_accept:
+        elif capacity_accept is False:
             validation_status = "T_VERIFIED_PROXY_NO_FILL_CAPACITY"
+        elif capacity_accept is None:
+            validation_status = "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED"
         else:
             validation_status = "T_VERIFIED_PROXY_FILLED"
         rows.append(
@@ -897,7 +1105,7 @@ def build_t_verification(
                 "ts_code": code,
                 "stage_transition": str(frozen["stage_transition"]),
                 "research_joint_proxy_score": float(frozen["research_joint_proxy_score"]),
-                "entry_policy_id": ENTRY_POLICY_ID,
+                "entry_policy_id": PRICE_POLICY_ID_V2 if price_policy is not None else ENTRY_POLICY_ID,
                 "shadow_max_price": float(cap),
                 "shadow_price_basis": cap_basis,
                 "shadow_price_source_file": source_file_name,
@@ -911,17 +1119,19 @@ def build_t_verification(
                 "one_price_limit_up": one_price,
                 "auction_daily_open_conflict": open_conflict,
                 "open_at_or_below_frozen_cap": cap_accept,
-                "auction_amount": float(auction_amount),
-                "shadow_capacity_cny": float(capacity_cny),
+                "auction_amount": float(auction_amount) if auction_amount is not None else None,
+                "shadow_capacity_cny": float(capacity_cny) if capacity_cny is not None else None,
                 "shadow_capacity_accepted": capacity_accept,
                 "actual_order_fill_observed": False,
             }
         )
+        if price_evidence is not None:
+            rows[-1].update({key: price_evidence[key] for key in PRICE_ROW_FIELDS_V2})
 
     payload: dict[str, Any] = {
-        "schema_version": T_VERIFICATION_SCHEMA,
+        "schema_version": T_VERIFICATION_SCHEMA_V2 if price_policy is not None else T_VERIFICATION_SCHEMA,
         "artifact_kind": "immutable_t_public_market_proxy_verification",
-        "contract_id": CONTRACT_ID,
+        "contract_id": PRICE_POLICY_ID_V2 if price_policy is not None else CONTRACT_ID,
         "status": "T_VERIFIED_RESEARCH_PROXY_ONLY",
         "signal_date": signal_date,
         "exec_date": exec_date,
@@ -938,12 +1148,15 @@ def build_t_verification(
             "selection_changed": False,
         },
     }
+    if price_policy is not None:
+        payload["entry_price_policy"] = price_policy
     payload["snapshot_sha256"] = _payload_snapshot(payload)
     validate_t_verification(payload)
     return payload, "T_VERIFIED"
 
 
 def validate_t_verification(payload: Mapping[str, Any]) -> None:
+    v2 = payload.get("schema_version") == T_VERIFICATION_SCHEMA_V2
     expected = {
         "schema_version",
         "artifact_kind",
@@ -959,10 +1172,13 @@ def validate_t_verification(payload: Mapping[str, Any]) -> None:
         "boundaries",
         "snapshot_sha256",
     }
+    if v2:
+        expected.add("entry_price_policy")
+        _validate_price_policy_binding(payload.get("entry_price_policy"))
     _expect(set(payload) == expected, "T verification surface drifted")
     _expect(
-        payload.get("schema_version") == T_VERIFICATION_SCHEMA
-        and payload.get("contract_id") == CONTRACT_ID
+        payload.get("schema_version") == (T_VERIFICATION_SCHEMA_V2 if v2 else T_VERIFICATION_SCHEMA)
+        and payload.get("contract_id") == (PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID)
         and payload.get("status") == "T_VERIFIED_RESEARCH_PROXY_ONLY",
         "T verification identity drifted",
     )
@@ -1015,12 +1231,12 @@ def validate_t_verification(payload: Mapping[str, Any]) -> None:
                 "shadow_capacity_cny",
                 "shadow_capacity_accepted",
                 "actual_order_fill_observed",
-            },
+            } | (PRICE_ROW_FIELDS_V2 if v2 else set()),
             "T verification row surface drifted",
         )
         _expect(row.get("proxy_fill") in {0, 1}, "T verification proxy fill invalid")
         _expect(
-            row.get("entry_policy_id") == ENTRY_POLICY_ID
+            row.get("entry_policy_id") == (PRICE_POLICY_ID_V2 if v2 else ENTRY_POLICY_ID)
             and _finite(row.get("shadow_max_price")) is not None
             and str(row.get("shadow_price_basis") or "").strip()
             and str(row.get("shadow_price_source_file") or "").strip()
@@ -1042,9 +1258,59 @@ def validate_t_verification(payload: Mapping[str, Any]) -> None:
     if rows:
         names = {Path(item["path"]).name for item in payload["source_files"]}
         _expect(
-            names == {"daily.csv", "stk_limit.csv", "stk_auction_o.csv"},
+            (names >= {"daily.csv", "stk_limit.csv"}
+             and names <= {"daily.csv", "stk_limit.csv", "stk_auction_o.csv",
+                           "stk_auction_o.meta.json", "stk_auction.csv", "_sync_meta.json"})
+            if v2 else names == {"daily.csv", "stk_limit.csv", "stk_auction_o.csv"},
             "T verification does not bind all strict proxy truth sources",
         )
+    if v2:
+        files = {item["path"]: item["sha256"] for item in payload["source_files"]}
+        for row in rows:
+            source = row["entry_price_source"]
+            expected_name = {"TUSHARE_STK_AUCTION_O": "stk_auction_o.csv",
+                             "TUSHARE_STK_AUCTION": "stk_auction.csv",
+                             "DAILY_OPEN_PROXY": "daily.csv"}.get(source)
+            price = _finite(row.get("entry_open_price"))
+            _expect(expected_name is not None and price is not None and price > 0
+                    and _finite(row.get("daily_open_price")) is not None
+                    and row["daily_open_price"] > 0 and _finite(row.get("t_close_price")) is not None
+                    and row["t_close_price"] > 0 and row["shadow_max_price"] > 0,
+                    "v2 price/source invalid")
+            _expect(Path(str(row["entry_price_source_file"])).name == expected_name
+                    and files.get(row["entry_price_source_file"]) == row["entry_price_source_sha256"],
+                    "v2 entry price source SHA missing")
+            if source == "DAILY_OPEN_PROXY":
+                _expect(row["entry_price_metadata_file"] is None and row["entry_price_metadata_sha256"] is None
+                        and _same_rounded_price(price, row["daily_open_price"])
+                        and row["auction_amount"] is None, "daily fallback invented auction evidence")
+            else:
+                _expect(Path(str(row["entry_price_metadata_file"])).name == (
+                    "stk_auction_o.meta.json" if source == "TUSHARE_STK_AUCTION_O" else "_sync_meta.json")
+                    and files.get(row["entry_price_metadata_file"]) == row["entry_price_metadata_sha256"],
+                    "v2 auction metadata binding missing")
+            amount = row["auction_amount"]
+            if amount is None:
+                _expect(row["shadow_capacity_cny"] is None and row["shadow_capacity_accepted"] is None
+                        and row["capacity_evidence"] == "UNVERIFIED_NO_AUCTION_AMOUNT",
+                        "unverified capacity was invented")
+                if row["proxy_fill"] == 1:
+                    _expect(row["validation_status"] == "T_VERIFIED_PRICE_ONLY_PROXY_CAPACITY_UNVERIFIED",
+                            "price-only proxy misrepresented as capacity-verified")
+            else:
+                _expect(_finite(amount) is not None and amount > 0
+                        and row["shadow_capacity_cny"] == amount * MAX_AUCTION_PARTICIPATION
+                        and row["shadow_capacity_accepted"] is (
+                            amount * MAX_AUCTION_PARTICIPATION + 1e-9 >= SHADOW_NOTIONAL_CNY)
+                        and row["capacity_evidence"] == "OBSERVED_AUCTION_AMOUNT",
+                        "observed auction capacity evidence invalid")
+            if row["proxy_fill"] == 1:
+                _expect(row["open_at_or_below_frozen_cap"] is True
+                        and _rounded_price_tick(price) <= _rounded_price_tick(row["shadow_max_price"])
+                        and row["one_price_limit_up"] is False
+                        and row["auction_daily_open_conflict"] is False
+                        and row["shadow_capacity_accepted"] is not False,
+                        "v2 proxy fill bypassed frozen entry gates")
     _expect(payload.get("calendar") == {"path": CALENDAR_PATH.as_posix(), "sha256": CALENDAR_SHA256}, "T verification calendar drifted")
     boundaries = payload.get("boundaries", {})
     _expect(
@@ -1066,6 +1332,7 @@ def _resolve_delayed_public_exit(
     entry_price: float,
     t_close_price: float,
     table_cache: dict[tuple[str, str], tuple[Path, dict[str, dict[str, str]]]],
+    strict_exit_volume_v2: bool = False,
 ) -> tuple[dict[str, Any] | None, str, list[dict[str, Any]]]:
     """Resolve the first non-one-price-limit-down open without skipping truth."""
 
@@ -1110,11 +1377,24 @@ def _resolve_delayed_public_exit(
             examined_sources[binding["path"]] = binding
         daily = daily_loaded[1].get(code)
         if daily is None:
+            if strict_exit_volume_v2:
+                # A missing stock row does not itself prove a suspension.
+                # Never skip an unobserved v2 exit session to a later price.
+                return None, f"PENDING_EXIT_MISSING_ROW:{trade_date}", list(examined_sources.values())
             # A complete official daily partition with no stock row is a
             # suspension/non-trading observation. It cannot be used as an exit,
             # but it is not silently dropped from delayed trading-day counts.
             suspended_sessions += 1
             continue
+        if strict_exit_volume_v2:
+            volume = _finite(daily.get("vol"))
+            if volume is None or volume < 0:
+                return None, f"PENDING_EXIT_VOLUME:{trade_date}", list(examined_sources.values())
+            if volume == 0:
+                # Explicit zero traded volume proves there was no executable
+                # open. Ignore carried OHLC prices and retain prior wealth.
+                suspended_sessions += 1
+                continue
         limit = limit_loaded[1].get(code)
         if limit is None:
             return None, f"PENDING_EXIT_LIMIT_ROW:{trade_date}:{code}", list(examined_sources.values())
@@ -1225,6 +1505,10 @@ def build_t1_settlement(
     elif verification is None:
         return None, "PENDING_T_VERIFICATION"
     validate_t_verification(verification)
+    v2 = verification.get("schema_version") == T_VERIFICATION_SCHEMA_V2
+    if v2:
+        _expect(verification.get("entry_price_policy") == _load_price_policy_v2(repo_root),
+                "T+1 price policy binding drifted")
     selection_binding = _selection_binding(selection_path, selection, selected)
     _expect(verification.get("selection") == selection_binding, "T verification no longer binds the immutable selection")
     verification_file_sha = (
@@ -1283,6 +1567,7 @@ def build_t1_settlement(
             entry_price=float(entry),
             t_close_price=float(t_close),
             table_cache=table_cache,
+            strict_exit_volume_v2=v2,
         )
         for binding in examined_sources:
             source_file_map[str(binding["path"])] = binding
@@ -1314,10 +1599,14 @@ def build_t1_settlement(
             }
         )
 
+    if v2:
+        verification_by_slot = {row["shadow_slot"]: row for row in verified_rows}
+        for row in rows:
+            row.update({key: verification_by_slot[row["shadow_slot"]][key] for key in PRICE_ROW_FIELDS_V2})
     payload: dict[str, Any] = {
-        "schema_version": SETTLEMENT_SCHEMA,
+        "schema_version": SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA,
         "artifact_kind": "immutable_t1_public_market_proxy_settlement",
-        "contract_id": CONTRACT_ID,
+        "contract_id": PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID,
         "status": "FINAL_RESEARCH_PROXY_SETTLEMENT",
         "signal_date": signal_date,
         "exec_date": str(selection["exec_date"]),
@@ -1345,12 +1634,15 @@ def build_t1_settlement(
             "selection_changed": False,
         },
     }
+    if v2:
+        payload["entry_price_policy"] = copy.deepcopy(verification["entry_price_policy"])
     payload["snapshot_sha256"] = _payload_snapshot(payload)
     validate_t1_settlement(payload)
     return payload, "FINAL_SETTLED"
 
 
 def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
+    v2 = payload.get("schema_version") == SETTLEMENT_SCHEMA_V2
     expected = {
         "schema_version",
         "artifact_kind",
@@ -1367,10 +1659,13 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
         "boundaries",
         "snapshot_sha256",
     }
+    if v2:
+        expected.add("entry_price_policy")
+        _validate_price_policy_binding(payload.get("entry_price_policy"))
     _expect(set(payload) == expected, "T+1 settlement surface drifted")
     _expect(
-        payload.get("schema_version") == SETTLEMENT_SCHEMA
-        and payload.get("contract_id") == CONTRACT_ID
+        payload.get("schema_version") == (SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA)
+        and payload.get("contract_id") == (PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID)
         and payload.get("status") == "FINAL_RESEARCH_PROXY_SETTLEMENT",
         "T+1 settlement identity drifted",
     )
@@ -1430,9 +1725,15 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
                 "blocked_exit_sessions",
                 "suspended_exit_sessions",
                 "actual_human_trade_return",
-            },
+            } | (PRICE_ROW_FIELDS_V2 if v2 else set()),
             "T+1 settlement row surface drifted",
         )
+        if v2:
+            _expect(row.get("entry_price_source") in PRICE_POLICY_V2_SPEC["entry_priority"]
+                    and SHA256_RE.fullmatch(str(row.get("entry_price_source_sha256") or "")) is not None
+                    and row.get("capacity_evidence") in {
+                        "OBSERVED_AUCTION_AMOUNT", "UNVERIFIED_NO_AUCTION_AMOUNT"},
+                    "v2 settlement entry provenance invalid")
         if row.get("proxy_fill") == 1:
             gross = _finite(row.get("gross_return"))
             net = _finite(row.get("net_return_after_cost"))
