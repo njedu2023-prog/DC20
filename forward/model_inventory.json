@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_verify_close.json",
-    "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3",
-    "approved_base_commit": "9736747e842f95f0fac0f641ae513a2083f2c1ec",
-    "scope": "Only the freeze-manifest dependency follows the reviewed CLI import fix and T close column with matching DOM acceptance. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
+    "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+    "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95",
+    "approved_base_commit": "e2752ecdb79a2ba014d74803d5b1f376e212006a",
+    "scope": "Only the freeze-manifest dependency follows the reviewed settlement CLI import fix. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "706a9d2c76ca3ed3da15050bca96379f86430b7e3183064d299fbc72d9d6132d",
+      "sha256": "1136f380c05b084a22b098b5f8550bf40e19e7b8db2aa91614ed531a1a89afe2",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

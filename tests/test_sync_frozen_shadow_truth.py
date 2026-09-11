@@ -191,3 +191,25 @@ def test_real_cli_with_src_only_pythonpath_loads_dated_p1_validator(tmp_path):
     assert payload["partitions"] == []
     assert payload["selection_created"] is False
     assert payload["existing_truth_overwritten"] is False
+
+
+def test_settlement_cli_bootstrap_loads_dated_p1_without_writing_truth(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONPATH=str(root / "src"), PYTHONDONTWRITEBYTECODE="1", TUSHARE_TOKEN="")
+    # Load the actual entrypoint, then exercise its first read-only settlement
+    # operation. Avoid main(): it deliberately materializes a statistics file.
+    probe = """
+import json, runpy, sys
+from pathlib import Path
+scope = runpy.run_path(sys.argv[1], run_name='readonly_cli_probe')
+build = scope['settle_signal_date'].__globals__['build_t_verification']
+payload, status = build(Path(sys.argv[2]), '20260828', as_of_date='20260828')
+assert payload is None
+print(json.dumps({'status': status}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe, str(root / "scripts/settle_decision_executable_profit_forward_shadow.py"), str(root)],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"status": "PENDING_T_NOT_REACHED"}

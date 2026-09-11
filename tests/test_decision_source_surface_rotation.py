@@ -35,6 +35,9 @@ LOADING_REVIEW = ROOT / "models/decision_source_surface_review_20260911_loading.
 LOADING_REVIEW_SHA = "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
 REFERENCE_DENSITY_REVIEW = ROOT / "models/decision_source_surface_review_20260911_density.json"
 REFERENCE_DENSITY_REVIEW_SHA = "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+SETTLE_CLI_REVIEW = ROOT / "models/decision_source_surface_review_20260911_settle_cli.json"
+SETTLE_CLI_REVIEW_SHA = "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+SETTLE_CLI_PATHS = {"scripts/settle_decision_executable_profit_forward_shadow.py", "tests/test_sync_frozen_shadow_truth.py"}
 VERIFY_CLOSE_REVIEW = ROOT / "models/decision_source_surface_review_20260911_verify_close.json"
 VERIFY_CLOSE_REVIEW_SHA = "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
 VERIFY_CLOSE_PATHS = {"decision.html", ".github/workflows/run_primary_profit_rankings.yml",
@@ -113,6 +116,91 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _settle_cli_review() -> dict:
+    assert _sha256(SETTLE_CLI_REVIEW) == SETTLE_CLI_REVIEW_SHA
+    review = json.loads(SETTLE_CLI_REVIEW.read_text())
+    assert review["schema_version"] == "decision_settlement_cli_import_review_v1"
+    assert review["approved_base_commit"] == "e2752ecdb79a2ba014d74803d5b1f376e212006a"
+    assert review["scope"] == "SETTLEMENT_CLI_IMPORT_REPAIR_FULL_VALIDATION_GATES_UNCHANGED"
+    assert review["predecessor_evidence_path"] == VERIFY_CLOSE_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(VERIFY_CLOSE_REVIEW) == VERIFY_CLOSE_REVIEW_SHA
+    assert len(review["boundaries"]) == 8 and all(value is False for value in review["boundaries"].values())
+    assert {item["path"] for item in review["source_changes"]} == SETTLE_CLI_PATHS | {"models/decision_model_freeze.json"}
+    assert len(review["source_changes"]) == 3 and len(review["preserved_evidence"]) == 14
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink() and _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_sync_frozen_shadow_truth.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+def _source_before_settle_cli(path: str) -> bytes:
+    review = _settle_cli_review()
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    assert item["inverse_changes"]
+    for entry in reversed(item["inverse_changes"]):
+        assert set(entry) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(entry["current_start"]) is int and entry["current_start"] > 0
+        start = entry["current_start"] - 1
+        assert lines[start:start + len(entry["current_lines"])] == entry["current_lines"]
+        lines[start:start + len(entry["current_lines"])] = entry["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _state_before_settle_cli(manifest: dict | None = None) -> tuple[dict, dict]:
+    review = _settle_cli_review()
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    before = _source_before_settle_cli("models/decision_model_freeze.json")
+    restored = json.loads(before)
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in SETTLE_CLI_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_settle_cli(path)).hexdigest()
+    assert expected == restored
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(path=SETTLE_CLI_REVIEW.relative_to(ROOT).as_posix(), sha256=SETTLE_CLI_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(a for a in protected["assets"] if a["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(a for a in inventory["assets"] if a["path"] == "models/decision_model_freeze.json").update(sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_settlement_cli_bootstrap_keeps_all_models_and_validation_policy():
+    _state_before_settle_cli()
+    previous = _source_before_settle_cli("scripts/settle_decision_executable_profit_forward_shadow.py").decode()
+    current = (ROOT / "scripts/settle_decision_executable_profit_forward_shadow.py").read_text()
+    assert current.split("from top10decision", 1)[1] == previous.split("from top10decision", 1)[1]
+    assert 'sys.path[:0] = [str(ROOT), str(SRC)]' in current
+    for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py"):
+        assert _source_before_settle_cli(path) == (ROOT / path).read_bytes()
+
+
 def _verify_close_review() -> dict:
     assert _sha256(VERIFY_CLOSE_REVIEW) == VERIFY_CLOSE_REVIEW_SHA
     review = json.loads(VERIFY_CLOSE_REVIEW.read_text())
@@ -135,7 +223,7 @@ def _verify_close_review() -> dict:
 def _source_before_verify_close(path: str) -> bytes:
     review = _verify_close_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_settle_cli(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -155,11 +243,11 @@ def _source_before_verify_close(path: str) -> bytes:
 
 def _state_before_verify_close(manifest: dict | None = None) -> tuple[dict, dict]:
     review = _verify_close_review()
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_settle_cli(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_settle_cli(path)).hexdigest() == expected
     before = _source_before_verify_close("models/decision_model_freeze.json")
     restored = json.loads(before)
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
@@ -169,12 +257,11 @@ def _state_before_verify_close(manifest: dict | None = None) -> tuple[dict, dict
     assert expected == restored
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(path=VERIFY_CLOSE_REVIEW.relative_to(ROOT).as_posix(), sha256=VERIFY_CLOSE_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_settle_cli(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)

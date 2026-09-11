@@ -9,8 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+# Frozen primary selections load the repository-local dated P1 validator.
+# A directly executed CLI must expose both roots even with PYTHONPATH=src.
+sys.path[:0] = [str(ROOT), str(SRC)]
 
 from top10decision.decision.executable_profit_shadow_settlement import (  # noqa: E402
     ExecutableProfitSettlementError,

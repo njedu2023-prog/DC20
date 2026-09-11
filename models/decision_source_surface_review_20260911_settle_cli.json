@@ -1,0 +1,185 @@
+{
+  "schema_version": "decision_settlement_cli_import_review_v1",
+  "approved_base_commit": "e2752ecdb79a2ba014d74803d5b1f376e212006a",
+  "scope": "SETTLEMENT_CLI_IMPORT_REPAIR_FULL_VALIDATION_GATES_UNCHANGED",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260911_verify_close.json",
+  "predecessor_evidence_sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "forward_epoch_activated": false,
+    "validation_gates_bypassed": false
+  },
+  "pin_count": 224,
+  "source_changes": [
+    {
+      "path": "scripts/settle_decision_executable_profit_forward_shadow.py",
+      "baseline_sha256": "d412ce6b156665547d9be94640d1f4c43151b334e3fb7d3b1d6fff43b264c745",
+      "current_sha256": "0f2b8e053ad50d6389c6925c0fd318ff93c09d7285f5054517a13d54913e0799",
+      "baseline_bytes": 3258,
+      "current_bytes": 3382,
+      "inverse_changes": [
+        {
+          "baseline_start": 12,
+          "current_start": 12,
+          "baseline_lines": [
+            "if str(SRC) not in sys.path:\n",
+            "    sys.path.insert(0, str(SRC))\n"
+          ],
+          "current_lines": [
+            "# Frozen primary selections load the repository-local dated P1 validator.\n",
+            "# A directly executed CLI must expose both roots even with PYTHONPATH=src.\n",
+            "sys.path[:0] = [str(ROOT), str(SRC)]\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_sync_frozen_shadow_truth.py",
+      "baseline_sha256": "0f569f6719f18240fbb4e139ff76e966571db11ab45350e3d93b084794a7c314",
+      "current_sha256": "9de2f4531e5ad6cfeef11a7fcb93934865af067627df5d14aa1e42f122d26a0c",
+      "baseline_bytes": 8677,
+      "current_bytes": 9777,
+      "inverse_changes": [
+        {
+          "baseline_start": 194,
+          "current_start": 194,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_settlement_cli_bootstrap_loads_dated_p1_without_writing_truth(tmp_path):\n",
+            "    root = Path(__file__).resolve().parents[1]\n",
+            "    env = dict(os.environ, PYTHONPATH=str(root / \"src\"), PYTHONDONTWRITEBYTECODE=\"1\", TUSHARE_TOKEN=\"\")\n",
+            "    # Load the actual entrypoint, then exercise its first read-only settlement\n",
+            "    # operation. Avoid main(): it deliberately materializes a statistics file.\n",
+            "    probe = \"\"\"\n",
+            "import json, runpy, sys\n",
+            "from pathlib import Path\n",
+            "scope = runpy.run_path(sys.argv[1], run_name='readonly_cli_probe')\n",
+            "build = scope['settle_signal_date'].__globals__['build_t_verification']\n",
+            "payload, status = build(Path(sys.argv[2]), '20260828', as_of_date='20260828')\n",
+            "assert payload is None\n",
+            "print(json.dumps({'status': status}))\n",
+            "\"\"\"\n",
+            "    result = subprocess.run(\n",
+            "        [sys.executable, \"-c\", probe, str(root / \"scripts/settle_decision_executable_profit_forward_shadow.py\"), str(root)],\n",
+            "        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60,\n",
+            "    )\n",
+            "    assert result.returncode == 0, result.stderr\n",
+            "    assert json.loads(result.stdout) == {\"status\": \"PENDING_T_NOT_REACHED\"}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "706a9d2c76ca3ed3da15050bca96379f86430b7e3183064d299fbc72d9d6132d",
+      "current_sha256": "1136f380c05b084a22b098b5f8550bf40e19e7b8db2aa91614ed531a1a89afe2",
+      "baseline_bytes": 51529,
+      "current_bytes": 51529,
+      "inverse_changes": [
+        {
+          "baseline_start": 727,
+          "current_start": 727,
+          "baseline_lines": [
+            "    \"scripts/settle_decision_executable_profit_forward_shadow.py\": \"d412ce6b156665547d9be94640d1f4c43151b334e3fb7d3b1d6fff43b264c745\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/settle_decision_executable_profit_forward_shadow.py\": \"0f2b8e053ad50d6389c6925c0fd318ff93c09d7285f5054517a13d54913e0799\",\n"
+          ]
+        },
+        {
+          "baseline_start": 842,
+          "current_start": 842,
+          "baseline_lines": [
+            "    \"tests/test_sync_frozen_shadow_truth.py\": \"0f569f6719f18240fbb4e139ff76e966571db11ab45350e3d93b084794a7c314\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_sync_frozen_shadow_truth.py\": \"9de2f4531e5ad6cfeef11a7fcb93934865af067627df5d14aa1e42f122d26a0c\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_manifest_canonical_sha256": "9565066360159169296529699d2ee71553a5ea22f87477727948116a92ef6e5e",
+  "baseline_manifest_canonical_sha256": "73ffd553e1dcd876204b8c074fe246cdb96d8506fe7cfb15a691a30b38847db7",
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    }
+  ],
+  "regression_test": {
+    "path": "tests/test_sync_frozen_shadow_truth.py",
+    "sha256": "9de2f4531e5ad6cfeef11a7fcb93934865af067627df5d14aa1e42f122d26a0c"
+  },
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "6b00548c1b0be07d6e0ea697845718af71d7f98c9ac5872f98971d4ec5afeaf7",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3",
+      "approved_base_commit": "9736747e842f95f0fac0f641ae513a2083f2c1ec",
+      "scope": "Only the freeze-manifest dependency follows the reviewed CLI import fix and T close column with matching DOM acceptance. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
+    },
+    "protected_canonical_sha256": "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c",
+    "current_scope": "Only the freeze-manifest dependency follows the reviewed settlement CLI import fix. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
+  }
+}
