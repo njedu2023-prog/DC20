@@ -155,6 +155,179 @@ SHADOW_PRICE_BOUNDARIES = {
 }
 
 
+COPY_DELETE_REVIEW = ROOT / "models/decision_source_surface_review_20260911_copy_delete.json"
+COPY_DELETE_REVIEW_SHA = "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d"
+COPY_DELETE_PATHS = {"decision.html", "tests/test_compact_rank_statistics.py", "tests/test_profit_shadow_versioned_frontend.py"}
+COPY_DELETE_BOUNDARIES = {
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "truth_policy_changed": False,
+    "statistics_calculation_changed": False,
+    "versioned_truth_publication_changed": False,
+    "historical_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _copy_delete_review(review: dict | None = None) -> dict:
+    assert not COPY_DELETE_REVIEW.is_symlink()
+    assert _sha256(COPY_DELETE_REVIEW) == COPY_DELETE_REVIEW_SHA
+    review = json.loads(COPY_DELETE_REVIEW.read_text()) if review is None else review
+    assert review["schema_version"] == "decision_copy_delete_display_review_v1"
+    assert review["approved_base_commit"] == "fa9605013f6f370eb14eee6e67838862c9e4db5d"
+    assert review["scope"] == "COPY_AND_STATISTICS_DISPLAY_ONLY_CALCULATION_AND_VALIDATION_UNCHANGED"
+    assert review["boundaries"] == COPY_DELETE_BOUNDARIES
+    assert review["predecessor_evidence_path"] == SHADOW_PRICE_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(SHADOW_PRICE_REVIEW) == SHADOW_PRICE_REVIEW_SHA
+    paths = [item["path"] for item in review["source_changes"]]
+    assert len(paths) == len(set(paths)) == 4
+    assert set(paths) == COPY_DELETE_PATHS | {"models/decision_model_freeze.json"}
+    assert review["added_runtime_pins"] == []
+    predecessor = json.loads(SHADOW_PRICE_REVIEW.read_text())
+    assert len(review["preserved_evidence"]) == 17
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": SHADOW_PRICE_REVIEW.relative_to(ROOT).as_posix(), "sha256": SHADOW_PRICE_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_compact_rank_statistics.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+@lru_cache(maxsize=1)
+def _parse_copy_delete_review(raw: bytes) -> dict:
+    # Pure decoding only. Every use authenticates freshly read live bytes.
+    return json.loads(raw)
+
+
+def _source_before_copy_delete(path: str, review: dict | None = None) -> bytes:
+    assert not COPY_DELETE_REVIEW.is_symlink()
+    raw_review = COPY_DELETE_REVIEW.read_bytes()
+    assert hashlib.sha256(raw_review).hexdigest() == COPY_DELETE_REVIEW_SHA
+    review = _parse_copy_delete_review(raw_review) if review is None else review
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert item["baseline_exists"] is True and item["reason"]
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+    for part in reversed(changes):
+        assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+        assert type(part["current_start"]) is int and part["current_start"] > 0
+        start = part["current_start"] - 1
+        assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+        lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _state_before_copy_delete(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _copy_delete_review(review)
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 225
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    for item in review["source_changes"]:
+        _source_before_copy_delete(item["path"], review)
+    before = _source_before_copy_delete("models/decision_model_freeze.json", review)
+    restored = json.loads(before)
+    assert len(restored["pinned_files"]) == 225
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    assert COPY_DELETE_PATHS & set(expected["pinned_files"]) == {"decision.html"}
+    expected["pinned_files"]["decision.html"] = hashlib.sha256(_source_before_copy_delete("decision.html", review)).hexdigest()
+    assert expected == restored  # Exactly one pin changes; all other identity is unchanged.
+    assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(
+        path=COPY_DELETE_REVIEW.relative_to(ROOT).as_posix(), sha256=COPY_DELETE_REVIEW_SHA,
+        approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(asset for asset in inventory["assets"] if asset["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_copy_delete_review_preserves_complete_prior_state_and_models():
+    manifest, inventory = _state_before_copy_delete()
+    assert _canonical_sha256(manifest) == _shadow_price_review()["current_manifest_canonical_sha256"]
+    assert inventory["dependency_successor_review"]["sha256"] == SHADOW_PRICE_REVIEW_SHA
+    assert all(value is False for value in _copy_delete_review()["boundaries"].values())
+
+
+def test_copy_delete_is_exactly_requested_display_changes():
+    previous = _source_before_copy_delete("decision.html").decode()
+    changes = [('    .compact-dashboard .compact-disclosure > summary { padding: 6px 8px; font-size: .75rem; }\n', '    .compact-dashboard .compact-disclosure > summary { padding: 6px 8px; font-size: .75rem; }\n    .compact-dashboard .compact-verification-dates { padding: 6px 8px; font-size: .75rem; font-weight: 650; }\n    .compact-dashboard .profit-cumulative-inline { display: inline-flex; flex-wrap: nowrap; align-items: baseline; gap: 6px; white-space: nowrap; }\n    .compact-dashboard .profit-cumulative-inline .score-secondary { color: var(--muted); font-weight: 400; }\n'), ('      if (!source || source.loaded.shadow.selectionOnlyCutover) return \'<p class="stats-note warn">盈利累计统计尚未通过独立账本校验，胜率和收益暂不可用。</p>\';\n', "      if (!source || source.loaded.shadow.selectionOnlyCutover) return '';\n"), ('          return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td>${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td>${cumulative}<div class="score-secondary">${c.effective_dates} 个完整日</div></td><td>${drawdown}</td></tr>`;\n', '          return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td class="${valueTone(c.t1_settled_slots ? c.mean_net_return_after_cost : null)}">${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td><span class="profit-cumulative-inline"><span class="${valueTone(!blocked && c.effective_dates ? c.equal_weight_cumulative_return : null)}">${cumulative}</span><span class="score-secondary">${c.effective_dates} 个完整日</span></span></td><td class="${valueTone(!blocked && c.effective_dates ? c.maximum_drawdown : null)}">${drawdown}</td></tr>`;\n'), ('        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 代理结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起 · 验证快照截至 ${dateText(source.shadow.as_of_date)}。胜率＝盈利笔数÷代理买入且已结算笔数；收益已扣45bp。买价采用竞价优先、缺失时开盘价后备；容量未验证的样本仅为价格代理，不代表实际可成交。未成交、未验证不进入胜率；累计仅含完整结算日，未完成日期不计入；已确认未成交槽位记0，不代表实盘净值。恢复留档不计入。</p>`;\n', '        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 代理结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div>`;\n'), ('        const body = [...ledger.entries].reverse().flatMap(entry => {\n          if (!entry.rows.length) return [`<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td colspan="8" class="left">当日无真实候选，已记录0席，不补票</td></tr>`];\n          return entry.rows.map(row => {\n            const bound = entry.generation_mode === "NATURAL" && source && entry.signal_date === source.shadow.signal_date &&\n              entry.exec_date === source.shadow.exec_date && entry.exit_date === source.shadow.exit_date &&\n              entry.projection_json_sha256 === source.loaded.index.latest_projection_json_sha256;\n            const truth = bound && source.shadow.latest_selected_rows.find(item => item.shadow_slot === row.slot && item.ts_code === row.ts_code && item.name === row.name && item.promotion_rank === row.promotion_rank);\n            const recovery = entry.generation_mode !== "NATURAL";\n            const t = truth ? primaryShadowStatus(truth.t_status, "t").label : recovery ? "恢复留档" : "未绑定该日验证";\n            const t1 = truth ? primaryShadowStatus(truth.t1_status, "t1").label : recovery ? "不计前向收益" : "未绑定该日验证";\n            return `<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td class="left" data-field="code">${escapeHtml(row.ts_code)}</td><td class="left" data-field="stock"><strong>${escapeHtml(row.name)}</strong></td><td data-field="profit-rank"><span class="rank-mark rank-profit" aria-label="盈利排序第${row.slot}名">盈${row.slot}</span></td><td>${escapeHtml(t)}</td><td>${escapeHtml(t1)}</td><td>${signedPct(truth ? truth.net_return_after_cost : null)}</td><td>${signedPct(truth ? truth.strategy_slot_return : null)}</td><td>${truth ? "自然冻结" : recovery ? "仅留档" : "须独立冻结"}</td></tr>`;\n          });\n        }).join("");\n        els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<details class="compact-disclosure" id="compactProfitDailyDetails"><summary>每日记录与验证 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席</summary><div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利前二每日记录与验证"><table class="three-rank-table"><thead><tr><th scope="col">D</th><th scope="col">T</th><th scope="col">T+1</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col">盈利名次</th><th scope="col">T验证</th><th scope="col">T+1验证</th><th scope="col">成交净收益</th><th scope="col">槽位收益</th><th scope="col">统计资格</th></tr></thead><tbody>${body}</tbody></table></div><p class="stats-note">每日入选必留档；只有同D同来源的自然冻结进入前向收益。未绑定验证的历史行不填0，也不拿晋级观察收益代填。</p></details>`;\n', '        els.compactLedgerContent.innerHTML = renderCompactProfitStatistics(source);\n'), ('        ${independentTruth ? `<details class="compact-disclosure"><summary>验证日期与收益口径：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</summary><p class="stats-note">D ${dateText(contract.signal_date)}；T收盘核验晋级，T+1收盘后核验退出。上表净收益为独立晋级名单的事后日开盘代理观察、扣除45bp（0.45%）成本，非实际成交或混合Shadow成绩。不能退出时顺延，缺失不按0收益。${state.index !== 0 ? "本历史视图未加载独立逐行验证，不借用当前D或旧Action结果。" : ""}</p></details>` : ""}`;\n', '        ${independentTruth ? `<div class="compact-disclosure compact-verification-dates">验证日期：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</div>` : ""}`;\n')]
+    expected = previous
+    for old, new in changes:
+        assert expected.count(old) == 1
+        expected = expected.replace(old, new, 1)
+    assert (ROOT / "decision.html").read_text() == expected
+    # No backend, settlement, source acceptance, or production gate can change.
+    for path in ("src/top10decision/decision/executable_profit_shadow_settlement.py", "src/top10decision/decision/primary_profit_forward_shadow_bridge.py", "scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", ".github/workflows/deploy_dc20_pages.yml", "models/decision_primary_profit_shadow_entry_price_policy_v2.json"):
+        assert _source_before_copy_delete(path) == (ROOT / path).read_bytes()
+
+
+@pytest.mark.parametrize("target", ["review", "source"])
+def test_copy_delete_review_rejects_live_byte_changes_after_cache_warmup(monkeypatch, target):
+    path = "decision.html"
+    assert _source_before_copy_delete(path)
+    assert _source_before_copy_delete(path)
+    changed = COPY_DELETE_REVIEW if target == "review" else ROOT / path
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == changed else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _source_before_copy_delete(path)
+
+
+@pytest.mark.parametrize("mutation", ["base", "scope", "truth_policy", "statistics", "extra_path", "current_sha", "baseline_sha", "inverse", "extra_pin", "remove_pin", "model_policy"])
+def test_copy_delete_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_text())
+    review = json.loads(COPY_DELETE_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "scope": review["scope"] = "MODEL_RELEASE"
+    elif mutation == "truth_policy": review["boundaries"]["truth_policy_changed"] = True
+    elif mutation == "statistics": review["boundaries"]["statistics_calculation_changed"] = True
+    elif mutation == "extra_path": review["source_changes"].append(dict(review["source_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "current_sha": review["source_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "baseline_sha": review["source_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "remove_pin": del manifest["pinned_files"]["decision.html"]
+    else: manifest["training_cutoff_signal_date"] = "20260911"
+    with pytest.raises(AssertionError):
+        _state_before_copy_delete(manifest, review)
 def _shadow_price_review(review: dict | None = None) -> dict:
     assert not SHADOW_PRICE_REVIEW.is_symlink()
     assert _sha256(SHADOW_PRICE_REVIEW) == SHADOW_PRICE_REVIEW_SHA
@@ -179,7 +352,7 @@ def _shadow_price_review(review: dict | None = None) -> dict:
         assert not (ROOT / item["path"]).is_symlink()
         assert _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_profit_shadow_versioned_frontend.py"
-    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    assert hashlib.sha256(_source_before_copy_delete(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
     return review
 
 
@@ -200,7 +373,7 @@ def _source_before_shadow_price_v2(path: str, review: dict | None = None) -> byt
     assert hashlib.sha256(raw_review).hexdigest() == SHADOW_PRICE_REVIEW_SHA
     review = _parse_shadow_source_review(raw_review) if review is None else review
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_copy_delete(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -226,11 +399,11 @@ def _source_before_shadow_price_v2(path: str, review: dict | None = None) -> byt
 
 def _state_before_shadow_price_v2(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     review = _shadow_price_review(review)
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_copy_delete(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 225
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_copy_delete(path)).hexdigest() == expected
     for item in review["source_changes"]:
         _source_before_shadow_price_v2(item["path"], review)
     before = _source_before_shadow_price_v2("models/decision_model_freeze.json", review)
@@ -246,14 +419,13 @@ def _state_before_shadow_price_v2(manifest: dict | None = None, review: dict | N
     assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(
         path=SHADOW_PRICE_REVIEW.relative_to(ROOT).as_posix(), sha256=SHADOW_PRICE_REVIEW_SHA,
         approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_copy_delete(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)

@@ -49,7 +49,7 @@ def fixed_promotion_fixture():
 
 def run(body, data=None, extra=""):
     names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
-             "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus",
+             "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus", "valueTone",
              "sha256Hex", "isSha256", "parseStrictCsvBytes"]
     prelude = """
 const fs=require('fs'),vm=require('vm');
@@ -202,7 +202,7 @@ def test_future_asof_is_rejected_and_old_async_generation_cannot_return_statisti
     assert result is None
 
 
-def test_real_daily_ledger_unifies_identity_and_only_joins_exact_current_shadow():
+def test_real_daily_ledger_keeps_header_counts_without_rendering_rows():
     data = fixture()
     base = ROOT / "outputs/decision/executable_profit_research"
     data["daily"] = json.loads((base / "daily_mixed_top2_index.json").read_text())
@@ -210,15 +210,11 @@ def test_real_daily_ledger_unifies_identity_and_only_joins_exact_current_shadow(
     shadow_index = json.loads((base / "shadow_index.json").read_text())
     shadow = json.loads((ROOT / shadow_index["latest_state_url"]).read_text())
     data["profit"] = dict(status="ready",kind="primary_core",index=index,shadow=dict(publicWindowReady=True,state=shadow))
-    result = run("state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;renderCompactDashboard();console.log(JSON.stringify(els.compactLedgerContent.innerHTML))", data)
-    assert "不计前向收益" in result
-    assert "未绑定该日验证" in result
-    assert "自然冻结" in result
-    assert "成交净收益" in result and "槽位收益" in result
-    data["profit"]["shadow"]["state"]["signal_date"] = "20990101"
-    mismatch = run("state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;renderCompactDashboard();console.log(JSON.stringify(els.compactLedgerContent.innerHTML))", data)
-    assert "未绑定该日验证" in mismatch
-    assert "<td>自然冻结</td>" not in mismatch
+    result = profit_dashboard(data)
+    assert f"{data['daily']['recorded_days']}日 / {data['daily']['recorded_slots']}席" in result["header"]
+    assert result["html"].count('class="three-rank-table profit-summary-table"') == 1
+    assert result["unchanged"] is True
+    assert_no_profit_daily_copy(result["html"])
 
 
 def profit_fixture(daily_archive=None):
@@ -250,8 +246,22 @@ def profit_fixture(daily_archive=None):
     return data
 
 
+def profit_dashboard(data, before=""):
+    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))", data)
+
+
 def profit_html(data, before=""):
-    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;renderCompactDashboard();console.log(JSON.stringify(els.compactLedgerContent.innerHTML))", data)
+    return profit_dashboard(data, before)["html"]
+
+
+def assert_no_profit_daily_copy(html):
+    for removed in (
+        "<details", "compactProfitDailyDetails", "每日记录与验证",
+        'data-field="code"', 'data-field="stock"', 'data-field="profit-rank"',
+        '<p class="stats-note">', "验证快照截至", "胜率＝盈利笔数÷",
+        "每日入选必留档", "未绑定该日验证", "成交净收益", "槽位收益",
+    ):
+        assert removed not in html
 
 
 def test_profit_fixture_and_denominators_ignore_later_trading_days():
@@ -274,7 +284,7 @@ def test_profit_fixture_and_denominators_ignore_later_trading_days():
             pending_validation_slots=2, pending_settlement_slots=0, pending_slots=2,
             effective_dates=4, equal_weight_cumulative_return=0.039, maximum_drawdown=-0.02,
         )
-    summary = profit_html(fixed).split('<details')[0]
+    summary = profit_html(fixed)
     assert summary.count('<td>1 / 2</td><td>50.00%</td>') == 2
     assert "校验失败" not in summary
     fixed["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"]["win_rate"] = 1 / 6
@@ -284,18 +294,16 @@ def test_profit_fixture_and_denominators_ignore_later_trading_days():
 def test_profit_summary_uses_natural_cohorts_not_sixteen_daily_archive_seats():
     data = profit_fixture()
     original = copy.deepcopy(data)
-    result = profit_html(data)
-    summary, details = result.split('<details class="compact-disclosure" id="compactProfitDailyDetails">')
+    result = profit_dashboard(data)
+    summary = result["html"]
     assert summary.count('class="rank-mark rank-profit"') == 2
     assert summary.count('<td>6</td><td>6 / 0</td><td>0 / 0</td><td>待验证</td>') == 2
     assert "0.00%" not in summary
-    assert "验证快照截至 2026-09-08" in summary
-    assert "8日 / 16席" in details
-    assert details.count('data-field="code"') == 16
-    assert details.count('data-field="stock"') == 16
-    assert details.count('data-field="profit-rank"') == 16
-    assert "股票 / 盈利名次" not in details
-    assert '<th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col">盈利名次</th>' in details
+    assert "8日 / 16席" in result["header"]
+    assert summary.count("<table") == 1 and summary.count("<tr>") == 3
+    assert summary.endswith("</tbody></table></div>")
+    assert_no_profit_daily_copy(summary)
+    assert result["unchanged"] is True
     assert data == original
 
 
@@ -307,7 +315,7 @@ def test_profit_wins_use_filled_settled_denominator_not_no_fill_or_pending():
             t1_settled_slots=2, wins_after_cost=wins, win_rate=wins / 2, mean_net_return_after_cost=mean,
             pending_validation_slots=2, pending_settlement_slots=0, pending_slots=2,
             effective_dates=4, equal_weight_cumulative_return=0.039, maximum_drawdown=-0.02)
-    summary = profit_html(data).split('<details')[0]
+    summary = profit_html(data)
     assert '<td>1 / 2</td><td>50.00%</td>' in summary
     assert '<td>0 / 2</td><td>0.00%</td>' in summary
     assert '+2.00%' in summary and '-1.00%' in summary  # already charged; never charge again
@@ -319,8 +327,10 @@ def test_profit_wins_use_filled_settled_denominator_not_no_fill_or_pending():
 def test_unresolved_or_delayed_exits_do_not_show_synthetic_nav_as_account_return(field):
     data = profit_fixture()
     data["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"][field] = 1
-    summary = profit_html(data).split('<details')[0]
+    summary = profit_html(data)
     assert summary.count("暂不累计") == 2
+    assert '<span class="">暂不累计</span>' in summary
+    assert '<td class="">暂不累计</td>' in summary
 
 
 def test_normal_pending_t1_does_not_hide_completed_daily_cumulative_return():
@@ -336,35 +346,99 @@ def test_normal_pending_t1_does_not_hide_completed_daily_cumulative_return():
         equal_weight_cumulative_return=-0.0646, maximum_drawdown=-0.0924,
     )
     original = copy.deepcopy(data)
-    summary = profit_html(data).split('<details')[0]
+    summary = profit_html(data)
     assert '<td>1 / 1</td>' in summary
-    assert '<td>-6.46% ↓<div class="score-secondary">6 个完整日</div></td>' in summary
-    assert '<td>-9.24% ↓</td>' in summary
+    assert '<span class="profit-cumulative-inline"><span class="negative">-6.46% ↓</span><span class="score-secondary">6 个完整日</span></span>' in summary
+    assert '<td class="negative">-9.24% ↓</td>' in summary
     assert "暂不累计" not in summary and "校验失败" not in summary
     assert data == original
 
 
-@pytest.mark.parametrize("mutation", ["c.wins_after_cost=1", "c.win_rate=0", "c.terminal_slots=1", "c.t_validated_slots=7", "c.blocked_exit_slots=-1", "c.blocked_exit_slots=0.5", "delete c.blocked_exit_slots"])
-def test_corrupt_profit_cohort_fails_closed_without_clearing_daily_list(mutation):
-    result = profit_html(profit_fixture(), "const c=input.profit.shadow.state.cohorts.shadow_slot_1;" + mutation)
-    assert "盈利累计统计校验失败" in result
-    assert 'id="compactProfitDailyDetails"' in result
-    assert result.count('data-field="code"') == 16
-
-
-@pytest.mark.parametrize("mutation", ["input.profit.shadow.publicWindowReady=false", "input.profit.shadow.selectionOnlyCutover=true"])
-def test_missing_or_selection_only_sidecar_never_fabricates_cumulative_zero(mutation):
-    result = profit_html(profit_fixture(), mutation)
-    assert "盈利累计统计尚未通过独立账本校验" in result
-    assert 'class="three-rank-table profit-summary-table"' not in result
-    assert result.count('data-field="code"') == 16
-
-
-def test_zero_candidate_day_has_correct_eleven_column_span():
+@pytest.mark.parametrize("value,tone,label,drawdown,drawdown_tone,drawdown_label", [
+    (0.021, "positive", "+2.10% ↑", -0.01, "negative", "-1.00% ↓"),
+    (-0.021, "negative", "-2.10% ↓", -0.021, "negative", "-2.10% ↓"),
+    (0, "", "0.00%", 0, "", "0.00%"),
+    (None, "", "待验证", None, "", "待验证"),
+])
+def test_profit_return_colors_and_inline_completed_days_preserve_exact_values(
+    value, tone, label, drawdown, drawdown_tone, drawdown_label,
+):
     data = profit_fixture()
-    data["daily"]["entries"][0]["rows"] = []
-    result = profit_html(data)
-    assert 'colspan="8"' in result and "已记录0席，不补票" in result
+    if value is not None:
+        data["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"].update(
+            t_validated_slots=4, proxy_fill_slots=2, proxy_no_fill_slots=2, terminal_slots=4,
+            t1_settled_slots=2, wins_after_cost=1, win_rate=0.5,
+            mean_net_return_after_cost=value, pending_validation_slots=2,
+            pending_settlement_slots=0, pending_slots=2, effective_dates=4,
+            equal_weight_cumulative_return=value, maximum_drawdown=drawdown,
+        )
+    result = profit_dashboard(data)
+    body = re.search(r"<tbody>(.*?)</tbody>", result["html"], re.S).group(1)
+    first_row = re.search(r"<tr>(.*?)</tr>", body, re.S).group(1)
+    days = 4 if value is not None else 0
+    assert f'<td class="{tone}">{label}</td>' in first_row
+    assert (
+        f'<span class="profit-cumulative-inline"><span class="{tone}">{label}</span>'
+        f'<span class="score-secondary">{days} 个完整日</span></span>'
+    ) in first_row
+    assert f'<td class="{drawdown_tone}">{drawdown_label}</td>' in first_row
+    assert '<div class="score-secondary">' not in first_row and "<br" not in first_row
+    assert result["unchanged"] is True
+    assert_no_profit_daily_copy(result["html"])
+
+
+def test_profit_cumulative_css_keeps_days_muted_and_on_the_same_line():
+    source = (ROOT / "decision.html").read_text()
+    rules = re.search(r"\.compact-dashboard \.profit-cumulative-inline\s*\{([^}]*)\}", source).group(1)
+    for declaration in ("display: inline-flex", "flex-wrap: nowrap", "align-items: baseline", "white-space: nowrap"):
+        assert declaration in rules
+    days_rules = re.search(r"\.compact-dashboard \.profit-cumulative-inline \.score-secondary\s*\{([^}]*)\}", source).group(1)
+    assert "color: var(--muted)" in days_rules
+    assert ".positive { color: var(--up);" in source and "--up: #b42318;" in source
+    assert ".negative { color: var(--down);" in source and "--down: #167248;" in source
+
+
+@pytest.mark.parametrize("mutation", ["c.wins_after_cost=1", "c.win_rate=0", "c.terminal_slots=1", "c.t_validated_slots=7", "c.blocked_exit_slots=-1", "c.blocked_exit_slots=0.5", "delete c.blocked_exit_slots"])
+def test_corrupt_profit_cohort_fails_closed_without_mutating_hidden_daily_ledger(mutation):
+    result = profit_dashboard(profit_fixture(), "const c=input.profit.shadow.state.cohorts.shadow_slot_1;" + mutation)
+    assert "盈利累计统计校验失败" in result["html"]
+    assert "<table" not in result["html"]
+    assert "8日 / 16席" in result["header"]
+    assert result["unchanged"] is True
+    assert_no_profit_daily_copy(result["html"])
+
+
+@pytest.mark.parametrize("mutation", [
+    "input.profit.shadow.publicWindowReady=false", "input.profit.shadow.selectionOnlyCutover=true",
+    "input.profit.shadow=null", "delete input.profit.shadow", "input.profit=null",
+    "input.profit.status='invalid'", "input.profit.kind='forward_shadow'",
+])
+def test_missing_or_selection_only_sidecar_never_fabricates_cumulative_zero(mutation):
+    result = profit_dashboard(profit_fixture(), mutation)
+    assert result["html"] == ""
+    assert "8日 / 16席" in result["header"]
+    assert result["unchanged"] is True
+
+
+def test_selected_explanatory_copy_removed_but_verification_dates_kept():
+    source = (ROOT / "decision.html").read_text()
+    assert "T收盘核验晋级，T+1收盘后核验退出。" not in source
+    assert "上表净收益为独立晋级名单的事后日开盘代理观察" not in source
+    assert 'class="compact-disclosure compact-verification-dates">验证日期：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</div>' in source
+    assert 'validatePrimaryProfitShadowCohorts(source.shadow);' in source
+    assert '盈利累计统计校验失败：' in source
+
+
+def test_zero_candidate_day_remains_counted_without_daily_placeholder_or_padding():
+    data = profit_fixture()
+    data["daily"]["entries"][0].update(rows=[], recorded_slots=0, candidate_count=0)
+    data["daily"]["recorded_slots"] -= 2
+    result = profit_dashboard(data)
+    assert "8日 / 14席" in result["header"]
+    assert 'colspan=' not in result["html"] and "已记录0席，不补票" not in result["html"]
+    assert result["html"].count('class="rank-mark rank-profit"') == 2
+    assert result["unchanged"] is True
+    assert_no_profit_daily_copy(result["html"])
 
 
 def test_all_verified_no_fill_is_not_pending_or_fake_win_rate():
@@ -373,7 +447,7 @@ def test_all_verified_no_fill_is_not_pending_or_fake_win_rate():
         data["profit"]["shadow"]["state"]["cohorts"][f"shadow_slot_{slot}"].update(
             t_validated_slots=6, proxy_no_fill_slots=6, terminal_slots=6, pending_validation_slots=0,
             pending_slots=0, effective_dates=6, equal_weight_cumulative_return=0, maximum_drawdown=0)
-    summary = profit_html(data).split('<details')[0]
+    summary = profit_html(data)
     assert summary.count("暂无成交结算") == 4
     assert "待验证" not in summary
     assert summary.count('0.00%') == 4  # known no-fill slots produce zero cumulative/dd, not a zero win rate

@@ -1195,6 +1195,9 @@
     .compact-dashboard .rank-mark { padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }
     .compact-dashboard .truth-badge { min-height: 16px; padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }
     .compact-dashboard .compact-disclosure > summary { padding: 6px 8px; font-size: .75rem; }
+    .compact-dashboard .compact-verification-dates { padding: 6px 8px; font-size: .75rem; font-weight: 650; }
+    .compact-dashboard .profit-cumulative-inline { display: inline-flex; flex-wrap: nowrap; align-items: baseline; gap: 6px; white-space: nowrap; }
+    .compact-dashboard .profit-cumulative-inline .score-secondary { color: var(--muted); font-weight: 400; }
     @media(max-width:800px) { .compact-dashboard .controls { top: 7px; } }
     #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
     #compactLedger table { min-width: 1080px; }
@@ -1690,7 +1693,7 @@
     }
 
     function renderCompactProfitStatistics(source) {
-      if (!source || source.loaded.shadow.selectionOnlyCutover) return '<p class="stats-note warn">盈利累计统计尚未通过独立账本校验，胜率和收益暂不可用。</p>';
+      if (!source || source.loaded.shadow.selectionOnlyCutover) return '';
       try {
         validatePrimaryProfitShadowCohorts(source.shadow);
         const rows = [1, 2].map(slot => {
@@ -1706,9 +1709,9 @@
           const blocked = c.blocked_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0;
           const cumulative = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.equal_weight_cumulative_return);
           const drawdown = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.maximum_drawdown);
-          return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td>${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td>${cumulative}<div class="score-secondary">${c.effective_dates} 个完整日</div></td><td>${drawdown}</td></tr>`;
+          return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td class="${valueTone(c.t1_settled_slots ? c.mean_net_return_after_cost : null)}">${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td><span class="profit-cumulative-inline"><span class="${valueTone(!blocked && c.effective_dates ? c.equal_weight_cumulative_return : null)}">${cumulative}</span><span class="score-secondary">${c.effective_dates} 个完整日</span></span></td><td class="${valueTone(!blocked && c.effective_dates ? c.maximum_drawdown : null)}">${drawdown}</td></tr>`;
         }).join("");
-        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 代理结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">D ${dateText(PUBLIC_STATISTICS_START_SIGNAL_DATE)}起 · 验证快照截至 ${dateText(source.shadow.as_of_date)}。胜率＝盈利笔数÷代理买入且已结算笔数；收益已扣45bp。买价采用竞价优先、缺失时开盘价后备；容量未验证的样本仅为价格代理，不代表实际可成交。未成交、未验证不进入胜率；累计仅含完整结算日，未完成日期不计入；已确认未成交槽位记0，不代表实盘净值。恢复留档不计入。</p>`;
+        return `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col" class="left">盈利名次</th><th scope="col">自然冻结</th><th scope="col">待T / 待结算</th><th scope="col">盈利 / 代理结算</th><th scope="col">胜率</th><th scope="col">平均扣费净收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       } catch (error) {
         return `<p class="stats-note warn">盈利累计统计校验失败：${escapeHtml(error.message || error)}；不显示未核实的胜率或收益。</p>`;
       }
@@ -1739,20 +1742,7 @@
       } else {
         const ledger = daily.index;
         els.compactLedgerState.textContent = `D ${dateText(ledger.public_start_signal_date)}起 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席`;
-        const body = [...ledger.entries].reverse().flatMap(entry => {
-          if (!entry.rows.length) return [`<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td colspan="8" class="left">当日无真实候选，已记录0席，不补票</td></tr>`];
-          return entry.rows.map(row => {
-            const bound = entry.generation_mode === "NATURAL" && source && entry.signal_date === source.shadow.signal_date &&
-              entry.exec_date === source.shadow.exec_date && entry.exit_date === source.shadow.exit_date &&
-              entry.projection_json_sha256 === source.loaded.index.latest_projection_json_sha256;
-            const truth = bound && source.shadow.latest_selected_rows.find(item => item.shadow_slot === row.slot && item.ts_code === row.ts_code && item.name === row.name && item.promotion_rank === row.promotion_rank);
-            const recovery = entry.generation_mode !== "NATURAL";
-            const t = truth ? primaryShadowStatus(truth.t_status, "t").label : recovery ? "恢复留档" : "未绑定该日验证";
-            const t1 = truth ? primaryShadowStatus(truth.t1_status, "t1").label : recovery ? "不计前向收益" : "未绑定该日验证";
-            return `<tr><td>${dateText(entry.signal_date)}</td><td>${dateText(entry.exec_date)}</td><td>${dateText(entry.exit_date)}</td><td class="left" data-field="code">${escapeHtml(row.ts_code)}</td><td class="left" data-field="stock"><strong>${escapeHtml(row.name)}</strong></td><td data-field="profit-rank"><span class="rank-mark rank-profit" aria-label="盈利排序第${row.slot}名">盈${row.slot}</span></td><td>${escapeHtml(t)}</td><td>${escapeHtml(t1)}</td><td>${signedPct(truth ? truth.net_return_after_cost : null)}</td><td>${signedPct(truth ? truth.strategy_slot_return : null)}</td><td>${truth ? "自然冻结" : recovery ? "仅留档" : "须独立冻结"}</td></tr>`;
-          });
-        }).join("");
-        els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<details class="compact-disclosure" id="compactProfitDailyDetails"><summary>每日记录与验证 · ${ledger.recorded_days}日 / ${ledger.recorded_slots}席</summary><div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="盈利前二每日记录与验证"><table class="three-rank-table"><thead><tr><th scope="col">D</th><th scope="col">T</th><th scope="col">T+1</th><th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col">盈利名次</th><th scope="col">T验证</th><th scope="col">T+1验证</th><th scope="col">成交净收益</th><th scope="col">槽位收益</th><th scope="col">统计资格</th></tr></thead><tbody>${body}</tbody></table></div><p class="stats-note">每日入选必留档；只有同D同来源的自然冻结进入前向收益。未绑定验证的历史行不填0，也不拿晋级观察收益代填。</p></details>`;
+        els.compactLedgerContent.innerHTML = renderCompactProfitStatistics(source);
       }
       const summary = state.currentPublicObservationStatistics;
       const promotion = state.promotionSlotStatistics;
@@ -5015,7 +5005,7 @@
           <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
           <th scope="col">T晋级结果</th><th scope="col">T收盘</th><th scope="col">T+1净收益<small class="row-meta">T+1验证状态</small></th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
-        ${independentTruth ? `<details class="compact-disclosure"><summary>验证日期与收益口径：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</summary><p class="stats-note">D ${dateText(contract.signal_date)}；T收盘核验晋级，T+1收盘后核验退出。上表净收益为独立晋级名单的事后日开盘代理观察、扣除45bp（0.45%）成本，非实际成交或混合Shadow成绩。不能退出时顺延，缺失不按0收益。${state.index !== 0 ? "本历史视图未加载独立逐行验证，不借用当前D或旧Action结果。" : ""}</p></details>` : ""}`;
+        ${independentTruth ? `<div class="compact-disclosure compact-verification-dates">验证日期：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</div>` : ""}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));
       });

@@ -29,6 +29,12 @@ def run_case(case):
     raw = (ROOT / archive).read_bytes()
     assert hashlib.sha256(raw).hexdigest() == source["sha256"]
     overlay = {archive: raw.decode()}
+    if case == "v2_mixed_source_mismatch":
+        state["source_bindings"]["mixed_projection"]["sha256"] = "a" * 64
+    if case == "v2_selection_sha_mismatch":
+        state["source_bindings"]["selection"]["sha256"] = "a" * 64
+    if case == "v2_cohort_count_drift":
+        state["cohorts"]["shadow_slot_1"]["selected_slots"] += 1
     versioned = not case.startswith("v1_")
     if versioned:
         state["schema_version"] = "dc20_primary_profit_forward_shadow_public_state_v2"
@@ -51,6 +57,9 @@ def run_case(case):
     if case.startswith("v1_"):
         overlay["data/decision_executable_profit/forward/statistics/summary.json"] = "{}"
     overlay[base + "shadow_index.json"] = json.dumps(index)
+    if case == "v2_missing_sidecar":
+        overlay[base + "shadow_index.json"] = None
+        overlay[base + "shadow_cutover_index.json"] = None
     script = re.search(r"<script>(.*?)</script>", (ROOT / "decision.html").read_text(), re.S).group(1).replace("initialize(false).catch(showError);", "")
     prelude = """
 const fs=require('fs'),crypto=require('crypto').webcrypto;
@@ -62,19 +71,62 @@ const window={location,addEventListener(){}};
     tail = "\nconst root=" + json.dumps(str(ROOT)) + ",overlay=" + json.dumps(overlay, ensure_ascii=False) + ",requests=[];\n"
     tail += "fetchPagesOnlyPath=async(path,type)=>{requests.push(path);if(Object.hasOwn(overlay,path)&&overlay[path]===null)throw Error('HTTP 404 '+path);const bytes=new Uint8Array(Object.hasOwn(overlay,path)?Buffer.from(overlay[path]):fs.readFileSync(root+'/'+path));return type==='bytes'?bytes:JSON.parse(new TextDecoder().decode(bytes))};\n"
     tail += "const primary=" + json.dumps(primary) + ";\n"
-    tail += "(async()=>{try{const projection=await fetchPagesOnlyPath(primary.latest_projection_json_url);const r=await loadPrimaryProfitShadowSidecar(projection,primary);console.log(JSON.stringify({ready:r.publicWindowReady,requests}));}catch(e){console.log(JSON.stringify({error:e.message,requests}));}})();"
+    tail += """
+(async()=>{
+  const daily=await fetchPagesOnlyPath(PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH);
+  state.currentPrimaryMixedDailyTop2={status:'ready',index:await validatePrimaryMixedDailyTop2Index(daily)};
+  const render=sidecar=>{
+    state.currentExecutableProfitResearch={status:'ready',kind:'primary_core',index:primary,shadow:sidecar};
+    const before=JSON.stringify({daily,sidecar});
+    renderCompactDashboard();
+    return {html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,
+      unchanged:JSON.stringify({daily,sidecar})===before};
+  };
+  try {
+    const projection=await fetchPagesOnlyPath(primary.latest_projection_json_url);
+    const r=await loadPrimaryProfitShadowSidecar(projection,primary);
+    console.log(JSON.stringify({ready:r?.publicWindowReady===true,requests,...render(r)}));
+  } catch(e) {
+    console.log(JSON.stringify({error:e.message,requests,...render(null)}));
+  }
+})().catch(e=>{console.error(e);process.exit(1)});
+"""
     result = subprocess.run([NODE, "-"], input=prelude + script + tail, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout), archive
 
 
-@pytest.mark.parametrize("case", ["v2_ok", "v2_corrupt", "v2_missing", "v2_bad_path", "v2_bad_schema", "v1_archive", "v1_corrupt_archive"])
+@pytest.mark.parametrize("case", [
+    "v2_ok", "v2_corrupt", "v2_missing", "v2_bad_path", "v2_bad_schema",
+    "v1_archive", "v1_corrupt_archive", "v2_missing_sidecar",
+    "v2_mixed_source_mismatch", "v2_selection_sha_mismatch", "v2_cohort_count_drift",
+])
 def test_versioned_snapshot_and_legacy_archive_are_exact_sha_bound(case):
     result, archive = run_case(case)
     if case in {"v2_ok", "v1_archive"}:
         assert result["ready"] is True
         assert archive in result["requests"]
+        assert result["html"].count('class="three-rank-table profit-summary-table"') == 1
+        assert result["html"].count('class="rank-mark rank-profit"') == 2
+        assert result["html"].endswith("</tbody></table></div>")
+    elif case == "v2_missing_sidecar":
+        assert result["ready"] is False
+        assert "error" not in result
+        assert result["html"] == ""
     else:
         assert result.get("error")
+        assert result["html"] == ""
+    assert result["unchanged"] is True
+    assert "日 / " in result["header"] and result["header"].endswith("席")
+    assert "outputs/decision/executable_profit_research/daily_mixed_top2_index.json" in result["requests"]
+    for removed in ("<details", "compactProfitDailyDetails", "每日记录与验证", "stats-note", 'data-field="code"'):
+        assert removed not in result["html"]
     if case.startswith("v2_"):
         assert "data/decision_executable_profit/forward/statistics/summary.json" not in result["requests"]
+    expected_error = {
+        "v2_mixed_source_mismatch": "没有绑定同D同SHA混合盈利投影",
+        "v2_selection_sha_mismatch": "冻结选择字节SHA256不一致",
+        "v2_cohort_count_drift": "summary分组不一致",
+    }.get(case)
+    if expected_error:
+        assert expected_error in result["error"]

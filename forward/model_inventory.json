@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
-    "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5",
-    "approved_base_commit": "a246e2706db3ecbb86ebe8f1ad2f4f3dc3acd9c1",
-    "scope": "Only the freeze-manifest dependency follows the explicitly authorized v2 Shadow price-source, settlement and publication review. The truth policy changes for new verifications; existing v1 truth, frozen selections, ranking and weights, all other 41 inventory assets, and the inactive forward epoch remain unchanged. Proxy outcomes do not claim actual fills; unavailable capacity remains unverified."
+    "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+    "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d",
+    "approved_base_commit": "fa9605013f6f370eb14eee6e67838862c9e4db5d",
+    "scope": "Only the freeze-manifest reference follows requested copy/daily-detail removal, signed-return colors and inline completed-day display. All other 41 inventory assets, the inactive forward epoch, model weights, ranks, frozen selections, source loading, verification gates, settlement policies and statistics calculations remain unchanged."
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "3d8173ee36e825b44ec8c1b930929433cd805fcf85e80663cf362f71584c9fce",
+      "sha256": "7b8d81c5e9d25454cad935eb81593c0496938d3cec789781ed18d1a2300a8334",
       "bytes": 51669,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
