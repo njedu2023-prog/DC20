@@ -1691,14 +1691,23 @@
     function renderCompactDashboard() {
       if (!els.compactLedgerContent || state.compactFatalError) return;
       const research = new URLSearchParams(location.search).get("view") === "research";
-      for (const id of ["shadowWorkspace", "historicalResearchDetails", "technicalDetails", "researchReturn"]) document.getElementById(id).hidden = !research;
-      for (const id of ["shadowWorkspace", "historicalResearchDetails"]) document.getElementById(id).hidden = !research || state.index !== 0;
+      for (const id of ["shadowWorkspace", "historicalResearchDetails", "technicalDetails", "researchReturn"]) {
+        const panel = document.getElementById(id);
+        if (panel) panel.hidden = !research;
+      }
+      for (const id of ["shadowWorkspace", "historicalResearchDetails"]) {
+        const panel = document.getElementById(id);
+        if (panel) panel.hidden = !research || state.index !== 0;
+      }
       for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research || (id !== "rankingWorkspace" && (state.index !== 0 || Boolean(state.dailyRequestedDate)));
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
       if (state.dailyRequestedDate) return; // Never project latest cumulative results into a dated view.
       const source = compactShadowSource();
       const daily = state.currentPrimaryMixedDailyTop2;
-      if (daily?.status !== "ready") {
+      if (daily?.status === "loading") {
+        els.compactLedgerState.textContent = "正在校验每日账本";
+        els.compactLedgerContent.innerHTML = '<div class="empty" role="status">正在加载同D同来源的账本与验证结果；未完成不按0统计。</div>';
+      } else if (daily?.status !== "ready") {
         els.compactLedgerState.textContent = "每日账本未通过校验";
         els.compactLedgerContent.innerHTML = `${renderCompactProfitStatistics(source)}<div class="empty">${escapeHtml(daily?.message || "每日记录尚未公开；缺失不等于0席。")}</div>`;
       } else {
@@ -1835,14 +1844,37 @@
       return new URL(path, location.href).href;
     }
 
+    async function readPageResourceBytes(url) {
+      // One read per exact URL in this page lifetime, never a cached fallback
+      // under a Pages URL. Each consumer still verifies its own SHA/contract.
+      const reads = state.resourceReads || (state.resourceReads = new Map());
+      let pending = reads.get(url);
+      if (!pending) {
+        pending = (async () => {
+          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`);
+            error.httpStatus = response.status;
+            throw error;
+          }
+          return new Uint8Array(await response.arrayBuffer());
+        })();
+        reads.set(url, pending);
+      }
+      try { return new Uint8Array(await pending); } // No shared mutable bytes/JSON.
+      catch (error) {
+        if (reads.get(url) === pending) reads.delete(url); // A failed read is retryable.
+        throw error;
+      }
+    }
+
     async function fetchPath(path, kind = "json") {
       const primary = localUrl(path);
       const readUrl = async url => {
-        const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        if (kind === "text") return await response.text();
-        if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
-        return await response.json();
+        const bytes = await readPageResourceBytes(url);
+        if (kind === "bytes") return bytes;
+        const text = new TextDecoder().decode(bytes);
+        return kind === "text" ? text : JSON.parse(text);
       };
       if (primary === RAW_BASE + path) return readUrl(primary);
       try {
@@ -1864,10 +1896,8 @@
       if (location.protocol === "file:") throw new Error("Pages-only Shadow来源在本地文件模式不可用");
       const url = new URL(path, location.href);
       if (url.origin !== location.origin) throw new Error("Pages-only Shadow来源拒绝跨源读取");
-      const response = await fetch(`${url.href}${url.href.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
-      return await response.json();
+      const bytes = await readPageResourceBytes(url.href);
+      return kind === "bytes" ? bytes : JSON.parse(new TextDecoder().decode(bytes));
     }
 
     function finiteNumber(value) {
@@ -2072,9 +2102,9 @@
       if (location.protocol === "file:") return { head_sha: REPO.branch };
       if (state.publishedRevision) return state.publishedRevision;
       const revisionUrl = new URL("revision.json", location.href).href;
-      const response = await fetch(`${revisionUrl}?v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Pages revision HTTP ${response.status}`);
-      const revision = await response.json();
+      // The byte reader also shares in-flight reads: concurrent loaders must
+      // see one deployment identity, including while Pages is rolling forward.
+      const revision = JSON.parse(new TextDecoder().decode(await readPageResourceBytes(revisionUrl)));
       const headSha = String(revision?.head_sha || "");
       if (revision?.repository !== `${REPO.owner}/${REPO.name}` ||
           revision?.branch !== REPO.branch ||
@@ -2093,14 +2123,13 @@
 
     async function fetchPublishedBytes(path) {
       const primary = location.protocol === "file:" ? RAW_BASE + path : new URL(path, location.href).href;
-      const primaryResponse = await fetch(`${primary}${primary.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-      if (primaryResponse.ok) return new Uint8Array(await primaryResponse.arrayBuffer());
-      if (location.protocol === "file:") throw new Error(`HTTP ${primaryResponse.status}`);
+      try { return await readPageResourceBytes(primary); }
+      catch (error) {
+        if (location.protocol === "file:" || !error.httpStatus) throw error;
+      }
       const headSha = await publishedRevisionSha();
       const exactRaw = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${headSha}/${path}`;
-      const response = await fetch(`${exactRaw}?v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`exact revision HTTP ${response.status}`);
-      return new Uint8Array(await response.arrayBuffer());
+      return readPageResourceBytes(exactRaw);
     }
 
     async function loadCurrentThreeRankPathEvidence(currentThreeRank, datedRuntimeIndex = null) {
@@ -2484,24 +2513,27 @@
       if (!contract || contract === false) return;
       const failed = (status, error) => ({ signal_date: contract.signal_date, exec_date: contract.exec_date, exit_date: contract.exit_date,
         bundle_sha256: contract.bundle_sha256, top10_members_sha256: contract.top10_members_sha256, status, error: String(error?.message || error), rows: [] });
+      let tTruth = null, observed = null;
       try {
-        state.currentThreeRankTTruth = await loadCurrentThreeRankTTruth(currentThreeRank);
+        tTruth = await loadCurrentThreeRankTTruth(currentThreeRank);
       } catch (error) {
-        state.currentThreeRankTTruth = failed(/HTTP 404\b|T日真值缺少冻结成员/.test(String(error?.message || error)) ? "MISSING_T_TRUTH" : "INVALID_T_TRUTH", error);
+        tTruth = failed(/HTTP 404\b|T日真值缺少冻结成员/.test(String(error?.message || error)) ? "MISSING_T_TRUTH" : "INVALID_T_TRUTH", error);
       }
       try {
-        state.currentThreeRankObservationTruth = await loadCurrentThreeRankObservationTruth(currentThreeRank);
-        const tTruth = state.currentThreeRankTTruth, observed = state.currentThreeRankObservationTruth;
+        observed = await loadCurrentThreeRankObservationTruth(currentThreeRank);
         if (tTruth?.status === "READY" && observed?.status === "READY") {
           const hits = new Map(tTruth.rows.map(row => [row.ts_code, row.continuation_limit_up_hit]));
           if (observed.rows.some(row => row.continuation_limit_up_hit !== null && hits.get(row.ts_code) !== row.continuation_limit_up_hit)) {
-            state.currentThreeRankTTruth = failed("INVALID_T_TRUTH", "T收盘行情与逐行观察真值冲突");
+            tTruth = failed("INVALID_T_TRUTH", "T收盘行情与逐行观察真值冲突");
             throw new Error("T收盘行情与逐行观察真值冲突");
           }
         }
       } catch (error) {
-        state.currentThreeRankObservationTruth = failed(/HTTP 404\b/.test(String(error?.message || error)) ? "OBSERVATION_MISSING" : "OBSERVATION_INVALID", error);
+        observed = failed(/HTTP 404\b/.test(String(error?.message || error)) ? "OBSERVATION_MISSING" : "OBSERVATION_INVALID", error);
       }
+      // Publish only after cross-source checks, never a transient unchecked hit.
+      state.currentThreeRankTTruth = tTruth;
+      state.currentThreeRankObservationTruth = observed;
     }
 
     function threeRankRowTruth(contract, code, tTruth, observation) {
@@ -4475,10 +4507,8 @@
       if (location.protocol !== "file:" && new URL(url).origin !== location.origin) {
         throw new Error("原盈利实验排序拒绝跨源读取");
       }
-      const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (kind === "bytes") return new Uint8Array(await response.arrayBuffer());
-      return await response.json();
+      const bytes = await readPageResourceBytes(url);
+      return kind === "bytes" ? bytes : JSON.parse(new TextDecoder().decode(bytes));
     }
 
     async function validateLegacyProfitRelativeProjection(projection, index, currentThreeRank) {
@@ -4890,6 +4920,7 @@
 
       const renderRows = sortField => {
         if (!["promotion_rank", "mixed_profit_rank"].includes(sortField) || (sortField === "mixed_profit_rank" && !profitView.ready)) return;
+        state.currentRankSort = { signal_date: contract.signal_date, bundle_sha256: contract.bundle_sha256, field: sortField };
         const sorted = [...fixedRows].sort((left, right) => {
           const leftRank = finiteNumber(left?.[sortField]) ?? Number.POSITIVE_INFINITY;
           const rightRank = finiteNumber(right?.[sortField]) ?? Number.POSITIVE_INFINITY;
@@ -4945,7 +4976,10 @@
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
         button.addEventListener("click", () => renderRows(button.dataset.threeRankSort));
       });
-      renderRows("promotion_rank");
+      const remembered = state.currentRankSort;
+      if (remembered?.signal_date === contract.signal_date && remembered?.bundle_sha256 === contract.bundle_sha256 &&
+          (remembered.field !== "mixed_profit_rank" || profitView.ready)) renderRows(remembered.field);
+      else renderRows("promotion_rank");
     }
 
     function renderStageWatchlist(plan) {
@@ -5691,13 +5725,17 @@
       const loaded = await loadPublishedDailyEntry(entry);
       state.currentThreeRank = loaded.wrapper;
       state.index = 0; // Independent P0/P1 renderer; never an old report-index position.
-      try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }
-      catch (error) { state.currentThreeRankPathEvidence = { status: "INVALID", signal_date: date, error: String(error.message || error) }; }
-      await refreshPublicObservationStatistics();
-      await refreshCurrentThreeRankTTruth(loaded.wrapper);
-      await refreshCurrentPrimaryMixedDailyTop2();
-      try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }
-      catch (error) { state.currentExecutableProfitResearch = { status: "invalid", message: String(error.message || error) }; }
+      const truth = refreshPublicObservationStatistics().then(() => refreshCurrentThreeRankTTruth(loaded.wrapper));
+      const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
+        try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }
+        catch (error) { state.currentExecutableProfitResearch = { status: "invalid", message: String(error.message || error) }; }
+      });
+      const path = (async () => {
+        try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }
+        catch (error) { state.currentThreeRankPathEvidence = { status: "INVALID", signal_date: date, error: String(error.message || error) }; }
+        renderPrimaryCoreOnly(new Error("历史D日独立验证加载中"));
+      })();
+      await Promise.all([path, truth, profit]);
       renderPrimaryCoreOnly(new Error("历史D日只读名单，不加载旧Action"));
       els.footer.textContent = `DC2.0 · 历史 D ${dateText(date)} · ${entry.generation_mode === "NATURAL" ? "自然生成留档" : "恢复留档，不计前向"} · T/T+1只展示同日已验证数据`;
     }
@@ -5868,6 +5906,15 @@
       state.index = 0;
       state.current = { info: null, plan, md: "", evaluation: null };
       state.compactFatalError = false;
+      if (new URLSearchParams(location.search).get("view") !== "research") {
+        // The formal homepage does not render hidden old reports or research panels.
+        renderStatus(plan);
+        renderStageWatchlist(plan);
+        renderCompactDashboard();
+        els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString("zh-CN")}`;
+        setNavigation();
+        return;
+      }
       els.researchPanel.hidden = true;
       renderStatus(plan);
       renderTop10Backtest(plan);
@@ -5888,6 +5935,21 @@
       state.compactFatalError = false;
       els.refreshBtn.disabled = true;
       els.mainContent.setAttribute("aria-busy", "true");
+      if (force) {
+        state.resourceReads = new Map();
+        state.publishedRevision = null;
+        state.publishedRevisionSha = null;
+      }
+      state.index = 0;
+      state.currentThreeRank = null;
+      state.currentThreeRankPathEvidence = null;
+      state.currentThreeRankTTruth = null;
+      state.currentThreeRankObservationTruth = null;
+      state.currentExecutableProfitResearch = null;
+      state.currentLegacyProfitRelativeResearch = null;
+      state.currentPrimaryMixedDailyTop2 = { status: "loading", message: "正在校验每日账本" };
+      state.promotionSlotStatistics = null;
+      state.promotionSlotError = "正在校验晋级统计";
       let targetInfo = null;
       try {
         const parameters = new URLSearchParams(location.search);
@@ -5899,17 +5961,38 @@
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
         state.dailyLatestDate = state.currentThreeRank?.signal_date;
-        if (parameters.get("view") !== "research") void refreshDailyNavigation();
-        await refreshPublicObservationStatistics();
-        // Auxiliary history aggregation must not delay the current D list.
-        void refreshPromotionSlotStatistics().then(() => {
-          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+        const research = parameters.get("view") === "research";
+        if (!research) void refreshDailyNavigation();
+        let pathReady = false;
+        const paint = () => {
+          if (!research && pathReady && state.compactLoadSequence === compactLoadSequence && !state.compactFatalError && primaryCoreOnlyPlan()) {
+            renderPrimaryCoreOnly(new Error("独立验证加载中"));
+          }
+        };
+        const truth = (async () => {
+          await refreshPublicObservationStatistics();
+          // Auxiliary history aggregation must not delay the current D list.
+          void refreshPromotionSlotStatistics().then(() => {
+            if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+          });
+          await refreshCurrentThreeRankTTruth(state.currentThreeRank);
+          paint();
+        })();
+        const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
+          await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
+          paint();
         });
-        await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);
-        await refreshCurrentThreeRankTTruth(state.currentThreeRank);
-        await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);
-        await refreshCurrentPrimaryMixedDailyTop2();
-        await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
+        const path = refreshCurrentThreeRankPathEvidence(state.currentThreeRank).then(() => {
+          pathReady = true;
+          paint();
+        });
+        await Promise.all([path, truth, profit,
+          research ? refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank) : Promise.resolve()
+        ]);
+        if (!research) {
+          renderPrimaryCoreOnly(new Error("首页不加载旧报告/Action及隐藏研究基准"));
+          return;
+        }
         const index = await fetchPath("outputs/decision/report_index.json");
         const reports = Array.isArray(index?.reports) ? index.reports : [];
         state.reportIndex = index;
@@ -6034,6 +6117,13 @@
     }
 
     window.addEventListener("error", event => showError(event.error || event.message));
+    if (new URLSearchParams(location.search).get("view") !== "research") {
+      // Remove unused homepage blocks from the DOM. The explicit research route
+      // and the underlying model, archive and ledger files remain untouched.
+      for (const id of ["shadowWorkspace", "historicalResearchDetails", "technicalDetails", "researchReturn", "executableProfitResearchPanel"]) {
+        document.getElementById(id)?.remove?.();
+      }
+    }
     initialize(false).catch(showError);
   </script>
 </body>

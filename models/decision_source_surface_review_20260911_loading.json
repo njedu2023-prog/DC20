@@ -1,0 +1,480 @@
+{
+  "schema_version": "decision_frontend_loading_review_v1",
+  "approved_base_commit": "3c2dacbf03109801caaadc8f4c37c78b1f2b5c29",
+  "scope": "READ_ONLY_HOMEPAGE_LOADING_NOT_MODEL_OR_DATA_RELEASE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+  "predecessor_evidence_sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_changed": false,
+    "forward_epoch_activated": false
+  },
+  "pin_count": 224,
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "ff9b2d829afeeac336660e915dec4e7bc359f187baa69c4bea3e7c6f4ab5a14d",
+      "current_sha256": "5310ec41be5dd97911f8f231bb03fb21e3769aebc82019c8e96d8dbe26b4c33b",
+      "baseline_bytes": 387106,
+      "current_bytes": 390755,
+      "inverse_changes": [
+        {
+          "baseline_start": 1694,
+          "current_start": 1694,
+          "baseline_lines": [
+            "      for (const id of [\"shadowWorkspace\", \"historicalResearchDetails\", \"technicalDetails\", \"researchReturn\"]) document.getElementById(id).hidden = !research;\n",
+            "      for (const id of [\"shadowWorkspace\", \"historicalResearchDetails\"]) document.getElementById(id).hidden = !research || state.index !== 0;\n"
+          ],
+          "current_lines": [
+            "      for (const id of [\"shadowWorkspace\", \"historicalResearchDetails\", \"technicalDetails\", \"researchReturn\"]) {\n",
+            "        const panel = document.getElementById(id);\n",
+            "        if (panel) panel.hidden = !research;\n",
+            "      }\n",
+            "      for (const id of [\"shadowWorkspace\", \"historicalResearchDetails\"]) {\n",
+            "        const panel = document.getElementById(id);\n",
+            "        if (panel) panel.hidden = !research || state.index !== 0;\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 1701,
+          "current_start": 1707,
+          "baseline_lines": [
+            "      if (daily?.status !== \"ready\") {\n"
+          ],
+          "current_lines": [
+            "      if (daily?.status === \"loading\") {\n",
+            "        els.compactLedgerState.textContent = \"正在校验每日账本\";\n",
+            "        els.compactLedgerContent.innerHTML = '<div class=\"empty\" role=\"status\">正在加载同D同来源的账本与验证结果；未完成不按0统计。</div>';\n",
+            "      } else if (daily?.status !== \"ready\") {\n"
+          ]
+        },
+        {
+          "baseline_start": 1838,
+          "current_start": 1847,
+          "baseline_lines": [],
+          "current_lines": [
+            "    async function readPageResourceBytes(url) {\n",
+            "      // One read per exact URL in this page lifetime, never a cached fallback\n",
+            "      // under a Pages URL. Each consumer still verifies its own SHA/contract.\n",
+            "      const reads = state.resourceReads || (state.resourceReads = new Map());\n",
+            "      let pending = reads.get(url);\n",
+            "      if (!pending) {\n",
+            "        pending = (async () => {\n",
+            "          const response = await fetch(`${url}${url.includes(\"?\") ? \"&\" : \"?\"}v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "          if (!response.ok) {\n",
+            "            const error = new Error(`HTTP ${response.status}`);\n",
+            "            error.httpStatus = response.status;\n",
+            "            throw error;\n",
+            "          }\n",
+            "          return new Uint8Array(await response.arrayBuffer());\n",
+            "        })();\n",
+            "        reads.set(url, pending);\n",
+            "      }\n",
+            "      try { return new Uint8Array(await pending); } // No shared mutable bytes/JSON.\n",
+            "      catch (error) {\n",
+            "        if (reads.get(url) === pending) reads.delete(url); // A failed read is retryable.\n",
+            "        throw error;\n",
+            "      }\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 1841,
+          "current_start": 1874,
+          "baseline_lines": [
+            "        const response = await fetch(`${url}${url.includes(\"?\") ? \"&\" : \"?\"}v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "        if (!response.ok) throw new Error(`HTTP ${response.status}`);\n",
+            "        if (kind === \"text\") return await response.text();\n",
+            "        if (kind === \"bytes\") return new Uint8Array(await response.arrayBuffer());\n",
+            "        return await response.json();\n"
+          ],
+          "current_lines": [
+            "        const bytes = await readPageResourceBytes(url);\n",
+            "        if (kind === \"bytes\") return bytes;\n",
+            "        const text = new TextDecoder().decode(bytes);\n",
+            "        return kind === \"text\" ? text : JSON.parse(text);\n"
+          ]
+        },
+        {
+          "baseline_start": 1867,
+          "current_start": 1899,
+          "baseline_lines": [
+            "      const response = await fetch(`${url.href}${url.href.includes(\"?\") ? \"&\" : \"?\"}v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "      if (!response.ok) throw new Error(`HTTP ${response.status}`);\n",
+            "      if (kind === \"bytes\") return new Uint8Array(await response.arrayBuffer());\n",
+            "      return await response.json();\n"
+          ],
+          "current_lines": [
+            "      const bytes = await readPageResourceBytes(url.href);\n",
+            "      return kind === \"bytes\" ? bytes : JSON.parse(new TextDecoder().decode(bytes));\n"
+          ]
+        },
+        {
+          "baseline_start": 2075,
+          "current_start": 2105,
+          "baseline_lines": [
+            "      const response = await fetch(`${revisionUrl}?v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "      if (!response.ok) throw new Error(`Pages revision HTTP ${response.status}`);\n",
+            "      const revision = await response.json();\n"
+          ],
+          "current_lines": [
+            "      // The byte reader also shares in-flight reads: concurrent loaders must\n",
+            "      // see one deployment identity, including while Pages is rolling forward.\n",
+            "      const revision = JSON.parse(new TextDecoder().decode(await readPageResourceBytes(revisionUrl)));\n"
+          ]
+        },
+        {
+          "baseline_start": 2096,
+          "current_start": 2126,
+          "baseline_lines": [
+            "      const primaryResponse = await fetch(`${primary}${primary.includes(\"?\") ? \"&\" : \"?\"}v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "      if (primaryResponse.ok) return new Uint8Array(await primaryResponse.arrayBuffer());\n",
+            "      if (location.protocol === \"file:\") throw new Error(`HTTP ${primaryResponse.status}`);\n"
+          ],
+          "current_lines": [
+            "      try { return await readPageResourceBytes(primary); }\n",
+            "      catch (error) {\n",
+            "        if (location.protocol === \"file:\" || !error.httpStatus) throw error;\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 2101,
+          "current_start": 2132,
+          "baseline_lines": [
+            "      const response = await fetch(`${exactRaw}?v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "      if (!response.ok) throw new Error(`exact revision HTTP ${response.status}`);\n",
+            "      return new Uint8Array(await response.arrayBuffer());\n"
+          ],
+          "current_lines": [
+            "      return readPageResourceBytes(exactRaw);\n"
+          ]
+        },
+        {
+          "baseline_start": 2487,
+          "current_start": 2516,
+          "baseline_lines": [],
+          "current_lines": [
+            "      let tTruth = null, observed = null;\n"
+          ]
+        },
+        {
+          "baseline_start": 2488,
+          "current_start": 2518,
+          "baseline_lines": [
+            "        state.currentThreeRankTTruth = await loadCurrentThreeRankTTruth(currentThreeRank);\n"
+          ],
+          "current_lines": [
+            "        tTruth = await loadCurrentThreeRankTTruth(currentThreeRank);\n"
+          ]
+        },
+        {
+          "baseline_start": 2490,
+          "current_start": 2520,
+          "baseline_lines": [
+            "        state.currentThreeRankTTruth = failed(/HTTP 404\\b|T日真值缺少冻结成员/.test(String(error?.message || error)) ? \"MISSING_T_TRUTH\" : \"INVALID_T_TRUTH\", error);\n"
+          ],
+          "current_lines": [
+            "        tTruth = failed(/HTTP 404\\b|T日真值缺少冻结成员/.test(String(error?.message || error)) ? \"MISSING_T_TRUTH\" : \"INVALID_T_TRUTH\", error);\n"
+          ]
+        },
+        {
+          "baseline_start": 2493,
+          "current_start": 2523,
+          "baseline_lines": [
+            "        state.currentThreeRankObservationTruth = await loadCurrentThreeRankObservationTruth(currentThreeRank);\n",
+            "        const tTruth = state.currentThreeRankTTruth, observed = state.currentThreeRankObservationTruth;\n"
+          ],
+          "current_lines": [
+            "        observed = await loadCurrentThreeRankObservationTruth(currentThreeRank);\n"
+          ]
+        },
+        {
+          "baseline_start": 2498,
+          "current_start": 2527,
+          "baseline_lines": [
+            "            state.currentThreeRankTTruth = failed(\"INVALID_T_TRUTH\", \"T收盘行情与逐行观察真值冲突\");\n"
+          ],
+          "current_lines": [
+            "            tTruth = failed(\"INVALID_T_TRUTH\", \"T收盘行情与逐行观察真值冲突\");\n"
+          ]
+        },
+        {
+          "baseline_start": 2503,
+          "current_start": 2532,
+          "baseline_lines": [
+            "        state.currentThreeRankObservationTruth = failed(/HTTP 404\\b/.test(String(error?.message || error)) ? \"OBSERVATION_MISSING\" : \"OBSERVATION_INVALID\", error);\n"
+          ],
+          "current_lines": [
+            "        observed = failed(/HTTP 404\\b/.test(String(error?.message || error)) ? \"OBSERVATION_MISSING\" : \"OBSERVATION_INVALID\", error);\n"
+          ]
+        },
+        {
+          "baseline_start": 2505,
+          "current_start": 2534,
+          "baseline_lines": [],
+          "current_lines": [
+            "      // Publish only after cross-source checks, never a transient unchecked hit.\n",
+            "      state.currentThreeRankTTruth = tTruth;\n",
+            "      state.currentThreeRankObservationTruth = observed;\n"
+          ]
+        },
+        {
+          "baseline_start": 4478,
+          "current_start": 4510,
+          "baseline_lines": [
+            "      const response = await fetch(`${url}${url.includes(\"?\") ? \"&\" : \"?\"}v=${Date.now()}`, { cache: \"no-store\" });\n",
+            "      if (!response.ok) throw new Error(`HTTP ${response.status}`);\n",
+            "      if (kind === \"bytes\") return new Uint8Array(await response.arrayBuffer());\n",
+            "      return await response.json();\n"
+          ],
+          "current_lines": [
+            "      const bytes = await readPageResourceBytes(url);\n",
+            "      return kind === \"bytes\" ? bytes : JSON.parse(new TextDecoder().decode(bytes));\n"
+          ]
+        },
+        {
+          "baseline_start": 4893,
+          "current_start": 4923,
+          "baseline_lines": [],
+          "current_lines": [
+            "        state.currentRankSort = { signal_date: contract.signal_date, bundle_sha256: contract.bundle_sha256, field: sortField };\n"
+          ]
+        },
+        {
+          "baseline_start": 4948,
+          "current_start": 4979,
+          "baseline_lines": [
+            "      renderRows(\"promotion_rank\");\n"
+          ],
+          "current_lines": [
+            "      const remembered = state.currentRankSort;\n",
+            "      if (remembered?.signal_date === contract.signal_date && remembered?.bundle_sha256 === contract.bundle_sha256 &&\n",
+            "          (remembered.field !== \"mixed_profit_rank\" || profitView.ready)) renderRows(remembered.field);\n",
+            "      else renderRows(\"promotion_rank\");\n"
+          ]
+        },
+        {
+          "baseline_start": 5694,
+          "current_start": 5728,
+          "baseline_lines": [
+            "      try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }\n",
+            "      catch (error) { state.currentThreeRankPathEvidence = { status: \"INVALID\", signal_date: date, error: String(error.message || error) }; }\n",
+            "      await refreshPublicObservationStatistics();\n",
+            "      await refreshCurrentThreeRankTTruth(loaded.wrapper);\n",
+            "      await refreshCurrentPrimaryMixedDailyTop2();\n",
+            "      try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }\n",
+            "      catch (error) { state.currentExecutableProfitResearch = { status: \"invalid\", message: String(error.message || error) }; }\n"
+          ],
+          "current_lines": [
+            "      const truth = refreshPublicObservationStatistics().then(() => refreshCurrentThreeRankTTruth(loaded.wrapper));\n",
+            "      const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {\n",
+            "        try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }\n",
+            "        catch (error) { state.currentExecutableProfitResearch = { status: \"invalid\", message: String(error.message || error) }; }\n",
+            "      });\n",
+            "      const path = (async () => {\n",
+            "        try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }\n",
+            "        catch (error) { state.currentThreeRankPathEvidence = { status: \"INVALID\", signal_date: date, error: String(error.message || error) }; }\n",
+            "        renderPrimaryCoreOnly(new Error(\"历史D日独立验证加载中\"));\n",
+            "      })();\n",
+            "      await Promise.all([path, truth, profit]);\n"
+          ]
+        },
+        {
+          "baseline_start": 5871,
+          "current_start": 5909,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (new URLSearchParams(location.search).get(\"view\") !== \"research\") {\n",
+            "        // The formal homepage does not render hidden old reports or research panels.\n",
+            "        renderStatus(plan);\n",
+            "        renderStageWatchlist(plan);\n",
+            "        renderCompactDashboard();\n",
+            "        els.footer.textContent = `DC2.0 · 页面版 ${DASHBOARD_VERSION} · 本页面不自动刷新 · 本次读取 ${new Date().toLocaleString(\"zh-CN\")}`;\n",
+            "        setNavigation();\n",
+            "        return;\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 5891,
+          "current_start": 5938,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (force) {\n",
+            "        state.resourceReads = new Map();\n",
+            "        state.publishedRevision = null;\n",
+            "        state.publishedRevisionSha = null;\n",
+            "      }\n",
+            "      state.index = 0;\n",
+            "      state.currentThreeRank = null;\n",
+            "      state.currentThreeRankPathEvidence = null;\n",
+            "      state.currentThreeRankTTruth = null;\n",
+            "      state.currentThreeRankObservationTruth = null;\n",
+            "      state.currentExecutableProfitResearch = null;\n",
+            "      state.currentLegacyProfitRelativeResearch = null;\n",
+            "      state.currentPrimaryMixedDailyTop2 = { status: \"loading\", message: \"正在校验每日账本\" };\n",
+            "      state.promotionSlotStatistics = null;\n",
+            "      state.promotionSlotError = \"正在校验晋级统计\";\n"
+          ]
+        },
+        {
+          "baseline_start": 5902,
+          "current_start": 5964,
+          "baseline_lines": [
+            "        if (parameters.get(\"view\") !== \"research\") void refreshDailyNavigation();\n",
+            "        await refreshPublicObservationStatistics();\n",
+            "        // Auxiliary history aggregation must not delay the current D list.\n",
+            "        void refreshPromotionSlotStatistics().then(() => {\n",
+            "          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();\n"
+          ],
+          "current_lines": [
+            "        const research = parameters.get(\"view\") === \"research\";\n",
+            "        if (!research) void refreshDailyNavigation();\n",
+            "        let pathReady = false;\n",
+            "        const paint = () => {\n",
+            "          if (!research && pathReady && state.compactLoadSequence === compactLoadSequence && !state.compactFatalError && primaryCoreOnlyPlan()) {\n",
+            "            renderPrimaryCoreOnly(new Error(\"独立验证加载中\"));\n",
+            "          }\n",
+            "        };\n",
+            "        const truth = (async () => {\n",
+            "          await refreshPublicObservationStatistics();\n",
+            "          // Auxiliary history aggregation must not delay the current D list.\n",
+            "          void refreshPromotionSlotStatistics().then(() => {\n",
+            "            if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();\n",
+            "          });\n",
+            "          await refreshCurrentThreeRankTTruth(state.currentThreeRank);\n",
+            "          paint();\n",
+            "        })();\n",
+            "        const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {\n",
+            "          await refreshCurrentExecutableProfitResearch(state.currentThreeRank);\n",
+            "          paint();\n"
+          ]
+        },
+        {
+          "baseline_start": 5908,
+          "current_start": 5985,
+          "baseline_lines": [
+            "        await refreshCurrentThreeRankPathEvidence(state.currentThreeRank);\n",
+            "        await refreshCurrentThreeRankTTruth(state.currentThreeRank);\n",
+            "        await refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank);\n",
+            "        await refreshCurrentPrimaryMixedDailyTop2();\n",
+            "        await refreshCurrentExecutableProfitResearch(state.currentThreeRank);\n"
+          ],
+          "current_lines": [
+            "        const path = refreshCurrentThreeRankPathEvidence(state.currentThreeRank).then(() => {\n",
+            "          pathReady = true;\n",
+            "          paint();\n",
+            "        });\n",
+            "        await Promise.all([path, truth, profit,\n",
+            "          research ? refreshCurrentLegacyProfitRelativeResearch(state.currentThreeRank) : Promise.resolve()\n",
+            "        ]);\n",
+            "        if (!research) {\n",
+            "          renderPrimaryCoreOnly(new Error(\"首页不加载旧报告/Action及隐藏研究基准\"));\n",
+            "          return;\n",
+            "        }\n"
+          ]
+        },
+        {
+          "baseline_start": 6037,
+          "current_start": 6120,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if (new URLSearchParams(location.search).get(\"view\") !== \"research\") {\n",
+            "      // Remove unused homepage blocks from the DOM. The explicit research route\n",
+            "      // and the underlying model, archive and ledger files remain untouched.\n",
+            "      for (const id of [\"shadowWorkspace\", \"historicalResearchDetails\", \"technicalDetails\", \"researchReturn\", \"executableProfitResearchPanel\"]) {\n",
+            "        document.getElementById(id)?.remove?.();\n",
+            "      }\n",
+            "    }\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "408311f0852892e7b175e589d40d649f56717f2b27de08cd6b5f6f4459b6c2e8",
+      "current_sha256": "7b3af655f4b0cd940eb701a0b0f421e608e0d060e08d6054387e2d288d2530a7",
+      "baseline_bytes": 51529,
+      "current_bytes": 51529,
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"ff9b2d829afeeac336660e915dec4e7bc359f187baa69c4bea3e7c6f4ab5a14d\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"5310ec41be5dd97911f8f231bb03fb21e3769aebc82019c8e96d8dbe26b4c33b\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_manifest_canonical_sha256": "161e93b7e5e5ee20002b370708c1039e2200247072cabedd25f2142a8ff1b3d4",
+  "baseline_manifest_canonical_sha256": "a5da84f3f78fe3e427d027bb6e4b4391fe319ba739820710629d25111ada069f",
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    }
+  ],
+  "regression_test": {
+    "path": "tests/test_dashboard_loading_performance.py",
+    "sha256": "565343b041c3868f98d4aec8b8eb76c7cb3fee56c41849705980c259081de731"
+  },
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "de0123ea6bc840bb9698e32767bb1c7862071b79fe351a1afba2dc4803d3f128",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a",
+      "approved_base_commit": "54a62f2293d26618abeca1942aa733e2448a0b9b",
+      "scope": "Only the non-model freeze-manifest dependency follows the reviewed same-day controlled NATURAL dispatch and P1 handoff; all other 41 retained assets and the inactive forward epoch are unchanged."
+    },
+    "protected_canonical_sha256": "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c",
+    "current_scope": "Only the non-model freeze-manifest dependency follows the reviewed homepage loading optimization; all other 41 assets and the inactive forward epoch are unchanged."
+  }
+}
