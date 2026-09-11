@@ -72,8 +72,16 @@ def test_complete_t1_proxy_and_no_fill_preserve_distinct_returns_without_mutatin
     assert out["rows"][0]["actual_net_return"] is None
     assert out["rows"][1]["validation_status"] == "FINAL_VERIFIED_PROXY"
     assert out["rows"][1]["actual_net_return"] == pytest.approx(0.039686888808402716)
-    assert "退出 2026-09-01" in out["rows"][1]["validation_status_label"]
-    assert "等待T+1" not in out["rows"][1]["validation_status_label"]
+    assert out["rows"][1]["validation_status_label"] == "退出 2026-09-01"
+    assert out["rows"][0]["validation_status_label"] == "开盘代理未买入（非0成交收益）"
+
+
+def test_settled_label_uses_verified_actual_exit_date_not_planned_exit_date():
+    out = run("const row={ts_code:contract.rows[1].ts_code,validation_status:'FINAL_VERIFIED_PROXY',actual_exit_date:'20260902',actual_net_return:0.025};console.log(JSON.stringify({planned:contract.exit_date,truth:threeRankRowTruth(contract,row.ts_code,null,{status:'READY',rows:[row]})}));")
+    assert out["planned"] == "20260901"
+    assert out["truth"]["validation_status_label"] == "退出 2026-09-02"
+    assert out["truth"]["actual_net_return"] == 0.025
+    assert out["truth"]["validation_status"] == "FINAL_VERIFIED_PROXY"
 
 
 @pytest.mark.parametrize("mutation", [

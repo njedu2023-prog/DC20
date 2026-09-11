@@ -1,0 +1,179 @@
+{
+  "schema_version": "decision_exit_label_display_review_v1",
+  "approved_base_commit": "f4ba50ea5f2f850ca7c86dd274f2dc9500dbe5cf",
+  "scope": "EXIT_LABEL_DISPLAY_ONLY_VALIDATION_AND_RETURNS_UNCHANGED",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260911_settle_cli.json",
+  "predecessor_evidence_sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "forward_epoch_activated": false,
+    "validation_gates_bypassed": false
+  },
+  "pin_count": 224,
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "61c6b2c9cb64c9bcc13a94b2d1aed7e1443599944e14099130666d3f09becd71",
+      "current_sha256": "399972a6c8e92ed7391ad654ebc92afb917b56c6c78273ea030c618c333f4f6e",
+      "baseline_bytes": 394001,
+      "current_bytes": 394000,
+      "inverse_changes": [
+        {
+          "baseline_start": 2577,
+          "current_start": 2577,
+          "baseline_lines": [
+            "      const exitNote = status === \"FINAL_VERIFIED_PROXY\" && observationRow?.actual_exit_date\n",
+            "        ? ` · 退出 ${dateText(observationRow.actual_exit_date)}` : \"\";\n"
+          ],
+          "current_lines": [
+            "      const exitLabel = status === \"FINAL_VERIFIED_PROXY\" && observationRow?.actual_exit_date\n",
+            "        ? `退出 ${dateText(observationRow.actual_exit_date)}` : \"\";\n"
+          ]
+        },
+        {
+          "baseline_start": 2585,
+          "current_start": 2585,
+          "baseline_lines": [
+            "        validation_status_label: threeRankTruthStatusLabel(status, contract) + exitNote\n"
+          ],
+          "current_lines": [
+            "        validation_status_label: exitLabel || threeRankTruthStatusLabel(status, contract)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_three_rank_truth_frontend.py",
+      "baseline_sha256": "25519c62730976c0d4ee57a0a6f8dba6f0a3c613e984976b640e0c174bd7717d",
+      "current_sha256": "dd3b11a95f3a8bd049c3cbc9683297a2277a4c602f139bd10dacc64a29f87a72",
+      "baseline_bytes": 10608,
+      "current_bytes": 11251,
+      "inverse_changes": [
+        {
+          "baseline_start": 75,
+          "current_start": 75,
+          "baseline_lines": [
+            "    assert \"退出 2026-09-01\" in out[\"rows\"][1][\"validation_status_label\"]\n",
+            "    assert \"等待T+1\" not in out[\"rows\"][1][\"validation_status_label\"]\n"
+          ],
+          "current_lines": [
+            "    assert out[\"rows\"][1][\"validation_status_label\"] == \"退出 2026-09-01\"\n",
+            "    assert out[\"rows\"][0][\"validation_status_label\"] == \"开盘代理未买入（非0成交收益）\"\n",
+            "\n",
+            "\n",
+            "def test_settled_label_uses_verified_actual_exit_date_not_planned_exit_date():\n",
+            "    out = run(\"const row={ts_code:contract.rows[1].ts_code,validation_status:'FINAL_VERIFIED_PROXY',actual_exit_date:'20260902',actual_net_return:0.025};console.log(JSON.stringify({planned:contract.exit_date,truth:threeRankRowTruth(contract,row.ts_code,null,{status:'READY',rows:[row]})}));\")\n",
+            "    assert out[\"planned\"] == \"20260901\"\n",
+            "    assert out[\"truth\"][\"validation_status_label\"] == \"退出 2026-09-02\"\n",
+            "    assert out[\"truth\"][\"actual_net_return\"] == 0.025\n",
+            "    assert out[\"truth\"][\"validation_status\"] == \"FINAL_VERIFIED_PROXY\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "1136f380c05b084a22b098b5f8550bf40e19e7b8db2aa91614ed531a1a89afe2",
+      "current_sha256": "7f2f9e0166d790887655a43168e30d4e9fe6ab61b038eb7db97cec6f7474c64e",
+      "baseline_bytes": 51529,
+      "current_bytes": 51529,
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"61c6b2c9cb64c9bcc13a94b2d1aed7e1443599944e14099130666d3f09becd71\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"399972a6c8e92ed7391ad654ebc92afb917b56c6c78273ea030c618c333f4f6e\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_manifest_canonical_sha256": "021843f401dade7b028c6eace3bd35f7036b69dda05977fe62ba3ed1f445d58f",
+  "baseline_manifest_canonical_sha256": "9565066360159169296529699d2ee71553a5ea22f87477727948116a92ef6e5e",
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+    }
+  ],
+  "regression_test": {
+    "path": "tests/test_three_rank_truth_frontend.py",
+    "sha256": "dd3b11a95f3a8bd049c3cbc9683297a2277a4c602f139bd10dacc64a29f87a72"
+  },
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "2cf296893d739ad9b4ce6d73efefe551c937c26381f5d0decd8fca1d9f575a12",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95",
+      "approved_base_commit": "e2752ecdb79a2ba014d74803d5b1f376e212006a",
+      "scope": "Only the freeze-manifest dependency follows the reviewed settlement CLI import fix. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
+    },
+    "protected_canonical_sha256": "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c",
+    "current_scope": "Only the freeze-manifest dependency follows the reviewed settled exit-date label simplification. Return calculations, actual exit dates, pending and no-fill states, all other 41 inventory assets, models, frozen records, complete validation gates and the inactive forward epoch remain unchanged."
+  }
+}

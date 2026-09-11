@@ -2574,15 +2574,15 @@
       let net = observationRow?.actual_net_return ?? null;
       if (clock.t1_status !== "MATURE") { status = status === "OBSERVATION_INVALID" ? status : clock.t1_status; net = null; }
       else if (["PENDING_T", "PENDING_T1"].includes(status)) { status = "OBSERVATION_STALE"; net = null; }
-      const exitNote = status === "FINAL_VERIFIED_PROXY" && observationRow?.actual_exit_date
-        ? ` · 退出 ${dateText(observationRow.actual_exit_date)}` : "";
+      const exitLabel = status === "FINAL_VERIFIED_PROXY" && observationRow?.actual_exit_date
+        ? `退出 ${dateText(observationRow.actual_exit_date)}` : "";
       return {
         continuation_limit_up_hit: hit,
         t_close_change: clock.t_status === "MATURE" ? tRow?.t_close_change ?? null : null,
         continuation_status_label: hit == null ? threeRankTruthStatusLabel(tStatus, contract) : continuationLabel(hit),
         actual_net_return: net,
         validation_status: status,
-        validation_status_label: threeRankTruthStatusLabel(status, contract) + exitNote
+        validation_status_label: exitLabel || threeRankTruthStatusLabel(status, contract)
       };
     }
 

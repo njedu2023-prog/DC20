@@ -35,6 +35,9 @@ LOADING_REVIEW = ROOT / "models/decision_source_surface_review_20260911_loading.
 LOADING_REVIEW_SHA = "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
 REFERENCE_DENSITY_REVIEW = ROOT / "models/decision_source_surface_review_20260911_density.json"
 REFERENCE_DENSITY_REVIEW_SHA = "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+EXIT_LABEL_REVIEW = ROOT / "models/decision_source_surface_review_20260911_exit_label.json"
+EXIT_LABEL_REVIEW_SHA = "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1"
+EXIT_LABEL_PATHS = {"decision.html", "tests/test_three_rank_truth_frontend.py"}
 SETTLE_CLI_REVIEW = ROOT / "models/decision_source_surface_review_20260911_settle_cli.json"
 SETTLE_CLI_REVIEW_SHA = "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
 SETTLE_CLI_PATHS = {"scripts/settle_decision_executable_profit_forward_shadow.py", "tests/test_sync_frozen_shadow_truth.py"}
@@ -116,6 +119,91 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _exit_label_review() -> dict:
+    assert _sha256(EXIT_LABEL_REVIEW) == EXIT_LABEL_REVIEW_SHA
+    review = json.loads(EXIT_LABEL_REVIEW.read_text())
+    assert review["schema_version"] == "decision_exit_label_display_review_v1"
+    assert review["approved_base_commit"] == "f4ba50ea5f2f850ca7c86dd274f2dc9500dbe5cf"
+    assert review["scope"] == "EXIT_LABEL_DISPLAY_ONLY_VALIDATION_AND_RETURNS_UNCHANGED"
+    assert review["predecessor_evidence_path"] == SETTLE_CLI_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(SETTLE_CLI_REVIEW) == SETTLE_CLI_REVIEW_SHA
+    assert len(review["boundaries"]) == 8 and all(value is False for value in review["boundaries"].values())
+    assert {item["path"] for item in review["source_changes"]} == EXIT_LABEL_PATHS | {"models/decision_model_freeze.json"}
+    assert len(review["source_changes"]) == 3 and len(review["preserved_evidence"]) == 15
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink() and _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_three_rank_truth_frontend.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+def _source_before_exit_label(path: str) -> bytes:
+    review = _exit_label_review()
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    assert item["inverse_changes"]
+    for entry in reversed(item["inverse_changes"]):
+        assert set(entry) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(entry["current_start"]) is int and entry["current_start"] > 0
+        start = entry["current_start"] - 1
+        assert lines[start:start + len(entry["current_lines"])] == entry["current_lines"]
+        lines[start:start + len(entry["current_lines"])] = entry["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _state_before_exit_label(manifest: dict | None = None) -> tuple[dict, dict]:
+    review = _exit_label_review()
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    before = _source_before_exit_label("models/decision_model_freeze.json")
+    restored = json.loads(before)
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in EXIT_LABEL_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_exit_label(path)).hexdigest()
+    assert expected == restored
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(path=EXIT_LABEL_REVIEW.relative_to(ROOT).as_posix(), sha256=EXIT_LABEL_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(a for a in protected["assets"] if a["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(a for a in inventory["assets"] if a["path"] == "models/decision_model_freeze.json").update(sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_exit_label_is_display_only_and_keeps_validation_and_returns():
+    _state_before_exit_label()
+    previous = _source_before_exit_label("decision.html").decode()
+    current = (ROOT / "decision.html").read_text()
+    expected = previous.replace('const exitNote =', 'const exitLabel =', 1).replace('` · 退出 ${dateText(observationRow.actual_exit_date)}`', '`退出 ${dateText(observationRow.actual_exit_date)}`', 1).replace('threeRankTruthStatusLabel(status, contract) + exitNote', 'exitLabel || threeRankTruthStatusLabel(status, contract)', 1)
+    assert current == expected
+    for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py", "outputs/decision/primary_observation/rows.csv", "outputs/decision/primary_observation/summary.json"):
+        assert _source_before_exit_label(path) == (ROOT / path).read_bytes()
+
+
 def _settle_cli_review() -> dict:
     assert _sha256(SETTLE_CLI_REVIEW) == SETTLE_CLI_REVIEW_SHA
     review = json.loads(SETTLE_CLI_REVIEW.read_text())
@@ -138,7 +226,7 @@ def _settle_cli_review() -> dict:
 def _source_before_settle_cli(path: str) -> bytes:
     review = _settle_cli_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_exit_label(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -158,11 +246,11 @@ def _source_before_settle_cli(path: str) -> bytes:
 
 def _state_before_settle_cli(manifest: dict | None = None) -> tuple[dict, dict]:
     review = _settle_cli_review()
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_exit_label(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_exit_label(path)).hexdigest() == expected
     before = _source_before_settle_cli("models/decision_model_freeze.json")
     restored = json.loads(before)
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
@@ -172,12 +260,11 @@ def _state_before_settle_cli(manifest: dict | None = None) -> tuple[dict, dict]:
     assert expected == restored
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(path=SETTLE_CLI_REVIEW.relative_to(ROOT).as_posix(), sha256=SETTLE_CLI_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_exit_label(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)
