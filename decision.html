@@ -1172,6 +1172,28 @@
     [hidden] { display: none !important; }
     .compact-dashboard #stagePanel .three-rank-table th:first-child, .compact-dashboard #stagePanel .three-rank-table td:first-child { min-width: 104px; }
     .compact-dashboard #stagePanel .three-rank-table th:nth-child(2), .compact-dashboard #stagePanel .three-rank-table td:nth-child(2) { min-width: 136px; }
+    /* Reference-table density: compact typography without changing content. */
+    body.compact-dashboard { font-size: .8125rem; }
+    .compact-dashboard .topbar-inner { min-height: 48px; padding: 6px 14px; }
+    .compact-dashboard .brand h1 { font-size: 1rem; }
+    .compact-dashboard .icon-btn { width: 34px; height: 34px; font-size: 18px; }
+    .compact-dashboard main { padding-top: 6px; }
+    .compact-dashboard .status-band { padding: 6px 8px; gap: 8px; }
+    .compact-dashboard .status-title, .compact-dashboard .date-box span, .compact-dashboard .date-box strong { font-size: .8125rem; }
+    .compact-dashboard .workspace-nav a { min-height: 26px; padding: 4px 8px; font-size: .75rem; }
+    .compact-dashboard .panel-head { min-height: 40px; padding: 6px 8px; }
+    .compact-dashboard .panel-head h2 { font-size: .875rem; }
+    .compact-dashboard .three-rank-toolbar { padding: 4px 6px; gap: 6px; }
+    .compact-dashboard .three-rank-btn { min-height: 26px; padding: 3px 7px; font-size: .75rem; }
+    .compact-dashboard table.three-rank-table { font-size: .75rem; }
+    .compact-dashboard table.three-rank-table th, .compact-dashboard table.three-rank-table td { height: 38px; padding: 3px 7px; font-size: .75rem; line-height: 1.2; }
+    .compact-dashboard table.three-rank-table td:nth-last-child(-n+2) { line-height: 1.2; }
+    .compact-dashboard .company-line { gap: 3px; }
+    .compact-dashboard .row-meta { margin-top: 1px; font-size: .6875rem; line-height: 1.15; }
+    .compact-dashboard .rank-mark { padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }
+    .compact-dashboard .truth-badge { min-height: 16px; padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }
+    .compact-dashboard .compact-disclosure > summary { padding: 6px 8px; font-size: .75rem; }
+    @media(max-width:800px) { .compact-dashboard .controls { top: 7px; } }
     #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
     #compactLedger table { min-width: 1080px; }
     #compactLedger .profit-summary-table { min-width: 780px; }

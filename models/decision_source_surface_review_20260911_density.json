@@ -1,0 +1,145 @@
+{
+  "schema_version": "decision_frontend_density_review_v1",
+  "approved_base_commit": "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d",
+  "scope": "CSS_ONLY_REFERENCE_TABLE_DENSITY_NOT_MODEL_OR_DATA_RELEASE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260911_columns.json",
+  "predecessor_evidence_sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "forward_epoch_activated": false,
+    "publication_dom_acceptance_changed": false
+  },
+  "pin_count": 224,
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "53e61994cb32852dfa94a74e7f581764f31aac0da0d350f568b157531ae16989",
+      "current_sha256": "68d4db390ac7cc34d13af74df72b2bed63dc53c2e8704672d5ac15a541781535",
+      "baseline_bytes": 391366,
+      "current_bytes": 393225,
+      "inverse_changes": [
+        {
+          "baseline_start": 1175,
+          "current_start": 1175,
+          "baseline_lines": [],
+          "current_lines": [
+            "    /* Reference-table density: compact typography without changing content. */\n",
+            "    body.compact-dashboard { font-size: .8125rem; }\n",
+            "    .compact-dashboard .topbar-inner { min-height: 48px; padding: 6px 14px; }\n",
+            "    .compact-dashboard .brand h1 { font-size: 1rem; }\n",
+            "    .compact-dashboard .icon-btn { width: 34px; height: 34px; font-size: 18px; }\n",
+            "    .compact-dashboard main { padding-top: 6px; }\n",
+            "    .compact-dashboard .status-band { padding: 6px 8px; gap: 8px; }\n",
+            "    .compact-dashboard .status-title, .compact-dashboard .date-box span, .compact-dashboard .date-box strong { font-size: .8125rem; }\n",
+            "    .compact-dashboard .workspace-nav a { min-height: 26px; padding: 4px 8px; font-size: .75rem; }\n",
+            "    .compact-dashboard .panel-head { min-height: 40px; padding: 6px 8px; }\n",
+            "    .compact-dashboard .panel-head h2 { font-size: .875rem; }\n",
+            "    .compact-dashboard .three-rank-toolbar { padding: 4px 6px; gap: 6px; }\n",
+            "    .compact-dashboard .three-rank-btn { min-height: 26px; padding: 3px 7px; font-size: .75rem; }\n",
+            "    .compact-dashboard table.three-rank-table { font-size: .75rem; }\n",
+            "    .compact-dashboard table.three-rank-table th, .compact-dashboard table.three-rank-table td { height: 38px; padding: 3px 7px; font-size: .75rem; line-height: 1.2; }\n",
+            "    .compact-dashboard table.three-rank-table td:nth-last-child(-n+2) { line-height: 1.2; }\n",
+            "    .compact-dashboard .company-line { gap: 3px; }\n",
+            "    .compact-dashboard .row-meta { margin-top: 1px; font-size: .6875rem; line-height: 1.15; }\n",
+            "    .compact-dashboard .rank-mark { padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }\n",
+            "    .compact-dashboard .truth-badge { min-height: 16px; padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }\n",
+            "    .compact-dashboard .compact-disclosure > summary { padding: 6px 8px; font-size: .75rem; }\n",
+            "    @media(max-width:800px) { .compact-dashboard .controls { top: 7px; } }\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "d33bbd0288ce909f2364ebb5f55bddd487d0ba7d1d09e1ed2ea6068eea2624c9",
+      "current_sha256": "52c063c7ff1738d86d4ac4f2d5ed3e1f80fa6b4a8fa9b2bed9ff6a53576d7700",
+      "baseline_bytes": 51529,
+      "current_bytes": 51529,
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"53e61994cb32852dfa94a74e7f581764f31aac0da0d350f568b157531ae16989\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"68d4db390ac7cc34d13af74df72b2bed63dc53c2e8704672d5ac15a541781535\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_manifest_canonical_sha256": "9719cc9939b23a59de6e3faeaf82b721a2c105594c3a703d0c637ebe06d3d3dd",
+  "baseline_manifest_canonical_sha256": "354aca28f08bffa9d65493fdd1b1a1b77412eff0924e30c16274d09e412f7a13",
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    }
+  ],
+  "regression_test": {
+    "path": "tests/test_decision_two_rank_frontend.py",
+    "sha256": "53c69b350082b271a48fc787813f0060f0ca6e54bf4c23512d8bc2b4a234ebf5"
+  },
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "bb59432ee3f5eeb92349484e49b25dadc05b88fcd7ebccc33e06463d83343608",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d",
+      "approved_base_commit": "6711188bb31d93e485b9903871f92932e348ada8",
+      "scope": "Only the non-model freeze-manifest dependency follows the reviewed column layout and matching public DOM acceptance; all other 41 assets and the inactive forward epoch are unchanged."
+    },
+    "protected_canonical_sha256": "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c",
+    "current_scope": "Only the non-model freeze-manifest dependency follows reviewed CSS density; all other 41 assets, runtime logic, HTML semantics and the inactive forward epoch are unchanged."
+  }
+}

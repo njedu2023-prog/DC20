@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_columns.json",
-    "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d",
-    "approved_base_commit": "6711188bb31d93e485b9903871f92932e348ada8",
-    "scope": "Only the non-model freeze-manifest dependency follows the reviewed column layout and matching public DOM acceptance; all other 41 assets and the inactive forward epoch are unchanged."
+    "path": "models/decision_source_surface_review_20260911_density.json",
+    "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c",
+    "approved_base_commit": "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d",
+    "scope": "Only the non-model freeze-manifest dependency follows reviewed CSS density; all other 41 assets, runtime logic, HTML semantics and the inactive forward epoch are unchanged."
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "d33bbd0288ce909f2364ebb5f55bddd487d0ba7d1d09e1ed2ea6068eea2624c9",
+      "sha256": "52c063c7ff1738d86d4ac4f2d5ed3e1f80fa6b4a8fa9b2bed9ff6a53576d7700",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

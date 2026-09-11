@@ -33,6 +33,8 @@ DAILY_DISPATCH_REVIEW = ROOT / "models/decision_source_surface_review_20260911_d
 DAILY_DISPATCH_REVIEW_SHA = "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
 LOADING_REVIEW = ROOT / "models/decision_source_surface_review_20260911_loading.json"
 LOADING_REVIEW_SHA = "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+REFERENCE_DENSITY_REVIEW = ROOT / "models/decision_source_surface_review_20260911_density.json"
+REFERENCE_DENSITY_REVIEW_SHA = "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
 COLUMNS_REVIEW = ROOT / "models/decision_source_surface_review_20260911_columns.json"
 COLUMNS_REVIEW_SHA = "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
 COLUMNS_PIN_PATHS = {"decision.html", ".github/workflows/run_primary_profit_rankings.yml",
@@ -105,6 +107,97 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _density_review() -> dict:
+    assert _sha256(REFERENCE_DENSITY_REVIEW) == REFERENCE_DENSITY_REVIEW_SHA
+    review = json.loads(REFERENCE_DENSITY_REVIEW.read_text())
+    assert review["schema_version"] == "decision_frontend_density_review_v1"
+    assert review["approved_base_commit"] == "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d"
+    assert review["scope"] == "CSS_ONLY_REFERENCE_TABLE_DENSITY_NOT_MODEL_OR_DATA_RELEASE"
+    assert review["predecessor_evidence_path"] == COLUMNS_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(COLUMNS_REVIEW) == COLUMNS_REVIEW_SHA
+    assert len(review["boundaries"]) == 8 and all(value is False for value in review["boundaries"].values())
+    assert len(review["source_changes"]) == 2
+    assert {item["path"] for item in review["source_changes"]} == {"decision.html", "models/decision_model_freeze.json"}
+    assert len(review["preserved_evidence"]) == 12
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+def _source_before_density(path: str) -> bytes:
+    review = _density_review()
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    assert item["inverse_changes"]
+    for entry in reversed(item["inverse_changes"]):
+        assert set(entry) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(entry["current_start"]) is int and entry["current_start"] > 0
+        start = entry["current_start"] - 1
+        assert lines[start:start + len(entry["current_lines"])] == entry["current_lines"]
+        lines[start:start + len(entry["current_lines"])] = entry["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
+    review = _density_review()
+    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    before_manifest = _source_before_density(MANIFEST.relative_to(ROOT).as_posix())
+    restored = json.loads(before_manifest)
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    expected["pinned_files"]["decision.html"] = hashlib.sha256(_source_before_density("decision.html")).hexdigest()
+    assert expected == restored
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({asset["path"] for asset in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": REFERENCE_DENSITY_REVIEW.relative_to(ROOT).as_posix(), "sha256": REFERENCE_DENSITY_REVIEW_SHA,
+        "approved_base_commit": review["approved_base_commit"], "scope": dep["current_scope"],
+    }
+    for asset in inventory["assets"]:
+        assert not (ROOT / asset["path"]).is_symlink()
+        actual = (ROOT / asset["path"]).read_bytes()
+        assert hashlib.sha256(actual).hexdigest() == asset["sha256"] and len(actual) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    freeze = next(asset for asset in inventory["assets"] if asset["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    freeze.update(sha256=hashlib.sha256(before_manifest).hexdigest(), bytes=len(before_manifest))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_reference_density_changes_only_css_and_preserves_runtime_and_content():
+    _state_before_density()
+    current = (ROOT / "decision.html").read_text()
+    previous = _source_before_density("decision.html").decode()
+    assert re.sub(r"<style>.*?</style>", "", current, flags=re.S) == re.sub(r"<style>.*?</style>", "", previous, flags=re.S)
+    css = current.split("/* Reference-table density:", 1)[1].split("#compactLedger .stats-note", 1)[0]
+    assert "height: 38px; padding: 3px 7px; font-size: .75rem; line-height: 1.2;" in css
+    assert "font-size: .6875rem" in css
+    assert "max-height" not in css and "overflow: hidden" not in css and "text-overflow" not in css
+
+
 def _columns_review() -> dict:
     assert _sha256(COLUMNS_REVIEW) == COLUMNS_REVIEW_SHA
     review = json.loads(COLUMNS_REVIEW.read_text())
@@ -134,7 +227,7 @@ def _columns_review() -> dict:
 def _source_before_columns(path: str) -> bytes:
     review = _columns_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_density(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -158,7 +251,7 @@ def _inventory_before_columns() -> dict:
     review = _columns_review()
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
+    inventory = _state_before_density()[1]
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({asset["path"] for asset in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == {
@@ -167,7 +260,7 @@ def _inventory_before_columns() -> dict:
     }
     for asset in inventory["assets"]:
         assert not (ROOT / asset["path"]).is_symlink()
-        actual = (ROOT / asset["path"]).read_bytes()
+        actual = _source_before_density(asset["path"])
         assert hashlib.sha256(actual).hexdigest() == asset["sha256"] and len(actual) == asset["bytes"]
     protected = copy.deepcopy(inventory)
     del protected["dependency_successor_review"]
@@ -183,11 +276,12 @@ def _inventory_before_columns() -> dict:
 
 
 def _manifest_before_columns(manifest: dict) -> dict:
+    manifest = _state_before_density(manifest)[0]
     review = _columns_review()
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_density(path)).hexdigest() == expected
     for item in review["source_changes"]:
         _source_before_columns(item["path"])
     restored = json.loads(_source_before_columns(MANIFEST.relative_to(ROOT).as_posix()))
