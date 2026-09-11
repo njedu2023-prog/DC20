@@ -1,0 +1,257 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "6cd50a6e6659a674ae1a0bd7a44fb2ceaa80983806119ba89987110d7ae18a99",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20260911.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20260911.json",
+    "row_count": 6
+  },
+  "exec_date": "20260914",
+  "exit_date": "20260915",
+  "feature_as_of_date": "20260911",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "元件",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "超声电子",
+      "predicted_promotion_probability": 0.26713516432158246,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.3444139674250431,
+      "research_fill_proxy_score": 0.9865453804392117,
+      "research_joint_proxy_score": 0.3397800085219174,
+      "shadow_max_price": 20.57,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "000823.SZ"
+    },
+    {
+      "industry": "玻璃玻纤",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "凯盛新能",
+      "predicted_promotion_probability": 0.25689966685851123,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.3650155699741592,
+      "research_fill_proxy_score": 0.92701548131002,
+      "research_joint_proxy_score": 0.33837508428524643,
+      "shadow_max_price": 8.7,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "2→3",
+      "ts_code": "600876.SH"
+    },
+    {
+      "industry": "电力",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "闽东电力",
+      "predicted_promotion_probability": 0.4644032692263245,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.35125356199603086,
+      "research_fill_proxy_score": 0.9575389018014732,
+      "research_joint_proxy_score": 0.33633895000753505,
+      "shadow_max_price": 13.88,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "3→4",
+      "ts_code": "000993.SZ"
+    },
+    {
+      "industry": "玻璃玻纤",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "九鼎新材",
+      "predicted_promotion_probability": 0.35950470983467386,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.3439418800252939,
+      "research_fill_proxy_score": 0.9656939475492528,
+      "research_joint_proxy_score": 0.3321425918491376,
+      "shadow_max_price": 11.09,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "2→3",
+      "ts_code": "002201.SZ"
+    },
+    {
+      "industry": "通信设备",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "鼎信通讯",
+      "predicted_promotion_probability": 0.553893922342828,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.3377475094805339,
+      "research_fill_proxy_score": 0.9556437220428464,
+      "research_joint_proxy_score": 0.32276628707067895,
+      "shadow_max_price": 8.02,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "3→4",
+      "ts_code": "603421.SH"
+    },
+    {
+      "industry": "计算机设",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "中新赛克",
+      "predicted_promotion_probability": 0.47616711976708476,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.37069528277676717,
+      "research_fill_proxy_score": 0.5897834934024373,
+      "research_joint_proxy_score": 0.2186299588638861,
+      "shadow_max_price": 23.51,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "2→3",
+      "ts_code": "002912.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-09-11T11:27:25.950874Z",
+  "selection_identity_sha256": "693a38901dcc48ac9ba58cb06c6de4c91cde6f635121d6e2ad84e6d9f03501d0",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "超声电子",
+        "promotion_rank": 5,
+        "research_conditional_profit_score": 0.3444139674250431,
+        "research_fill_proxy_score": 0.9865453804392117,
+        "research_joint_proxy_score": 0.3397800085219174,
+        "shadow_max_price": 20.57,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+        "shadow_slot": 1,
+        "ts_code": "000823.SZ"
+      },
+      {
+        "name": "凯盛新能",
+        "promotion_rank": 6,
+        "research_conditional_profit_score": 0.3650155699741592,
+        "research_fill_proxy_score": 0.92701548131002,
+        "research_joint_proxy_score": 0.33837508428524643,
+        "shadow_max_price": 8.7,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a",
+        "shadow_slot": 2,
+        "ts_code": "600876.SH"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20260911",
+  "snapshot_sha256": "8919c94918c7a092ad5fcb16777f0a419123804312f5cf23c72ccb31e84c0931",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "92a08ce9b64add032d412832ddfd11d1703e2787dd5bc4c854940266cea41dec"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20260911.csv",
+      "csv_sha256": "0d08bab304df5cde1e2122b813238782515a4d1817fc971e4713dcbaecb43c26",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20260911.json",
+      "sha256": "25c1496d52834340a538a1d30263a6775b2b51ac1e3b59bbbd7c0eac408758b9",
+      "snapshot_sha256": "325b6d19c80ca44ec34c9db929628b1b16420463cbcb2d1ea54d4d0233f9ea42"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20260911.json",
+      "sha256": "55d46d16c5c0dba2649744926f03a600d646a8fa6e186ee92632d30d1a895a11"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "8c3910bc223c8cdbc86b017d364cf648e6cb90f44cb656166ceceea599eb73f2",
+      "identity_sha256": "3d9d00bbb2c56bc6a6bbdf3e22cd9309876655ae4926818cd0f9ed85505dd5c3",
+      "path": "outputs/decision/primary_d_runtime_features_20260911.csv",
+      "row_count": 6,
+      "selected_count": 6,
+      "sha256": "0e65485eb5cac60a9f43e634db55ce461d78d58e1e61a2b7edba1a5973da156a"
+    },
+    "three_rank": {
+      "bundle_sha256": "9254a2d5fdc37e7f75322be9ae63645ecfd69ee408ea6b68f2326d4562fc10a4",
+      "csv_path": "outputs/decision/three_rank_top10_20260911.csv",
+      "csv_sha256": "5a3e5dc7f9a5a0a4556315fc8fda1307f2198eca30b9e64b0b60dc189c71f31a",
+      "feature_snapshot_sha256": "8c3910bc223c8cdbc86b017d364cf648e6cb90f44cb656166ceceea599eb73f2",
+      "json_path": "outputs/decision/three_rank_top10_20260911.json",
+      "json_sha256": "7898f87a9e936ad85a83e98bf72331e846904d564a38c2d7c0b241bd89d6bf4e",
+      "top10_members_sha256": "254682e82b637439bc3fe5d1fea3b4e9d42920a97dc667e48df273f1bcb4f70b"
+    }
+  },
+  "source_generated_at_utc": "2026-09-11T11:21:57Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 6,
+  "top10_members_sha256": "254682e82b637439bc3fe5d1fea3b4e9d42920a97dc667e48df273f1bcb4f70b"
+}

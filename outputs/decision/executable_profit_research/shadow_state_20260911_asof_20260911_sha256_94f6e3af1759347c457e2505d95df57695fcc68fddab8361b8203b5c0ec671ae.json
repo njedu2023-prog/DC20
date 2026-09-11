@@ -1,0 +1,403 @@
+{
+  "artifact_kind": "immutable_primary_profit_forward_shadow_public_state",
+  "as_of_date": "20260911",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "candidate_count": 6,
+  "cohorts": {
+    "all_selected_slots": {
+      "blocked_exit_sessions": 0,
+      "blocked_exit_slots": 0,
+      "daily_portfolio": [
+        {
+          "drawdown": -0.003175925926,
+          "equal_weight_strategy_return": -0.003175925926,
+          "nav": 0.996824074074,
+          "signal_date": "20260828"
+        },
+        {
+          "drawdown": -0.014141066322,
+          "equal_weight_strategy_return": -0.011000075822,
+          "nav": 0.985858933678,
+          "signal_date": "20260902"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": -0.026202095808,
+          "nav": 0.960027363445,
+          "signal_date": "20260903"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260904"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260907"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260908"
+        }
+      ],
+      "delayed_exit_slots": 0,
+      "effective_dates": 6,
+      "equal_weight_cumulative_return": -0.039972636555,
+      "historically_blocked_exit_sessions": 0,
+      "historically_blocked_exit_slots": 0,
+      "maximum_drawdown": -0.039972636555,
+      "mean_net_return_after_cost": -0.020189048778,
+      "mean_stress_net_return_90bp": -0.024689048778,
+      "median_net_return_after_cost": -0.029378021734,
+      "pending_exit_slots": 1,
+      "pending_settlement_slots": 1,
+      "pending_slots": 5,
+      "pending_validation_slots": 4,
+      "proxy_buyable_rate": 0.357142857143,
+      "proxy_fill_slots": 5,
+      "proxy_no_fill_slots": 9,
+      "realized_big_loss_rate_at_minus_3pct": 0.5,
+      "selected_slots": 18,
+      "selection_dates": 9,
+      "t1_settled_slots": 4,
+      "t_validated_slots": 14,
+      "terminal_slots": 13,
+      "win_rate": 0.25,
+      "wins_after_cost": 1,
+      "worst_10pct_mean_net_return": -0.058606280193,
+      "worst_trade_net_return": -0.058606280193
+    },
+    "shadow_slot_1": {
+      "blocked_exit_sessions": 0,
+      "blocked_exit_slots": 0,
+      "daily_portfolio": [
+        {
+          "drawdown": 0.0,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 1.0,
+          "signal_date": "20260828"
+        },
+        {
+          "drawdown": 0.0,
+          "equal_weight_strategy_return": 0.03660612855,
+          "nav": 1.03660612855,
+          "signal_date": "20260902"
+        },
+        {
+          "drawdown": -0.052404191617,
+          "equal_weight_strategy_return": -0.052404191617,
+          "nav": 0.982283622358,
+          "signal_date": "20260903"
+        },
+        {
+          "drawdown": -0.052404191617,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.982283622358,
+          "signal_date": "20260904"
+        },
+        {
+          "drawdown": -0.052404191617,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.982283622358,
+          "signal_date": "20260907"
+        },
+        {
+          "drawdown": -0.052404191617,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.982283622358,
+          "signal_date": "20260908"
+        },
+        {
+          "drawdown": -0.052404191617,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.982283622358,
+          "signal_date": "20260909"
+        }
+      ],
+      "delayed_exit_slots": 0,
+      "effective_dates": 7,
+      "equal_weight_cumulative_return": -0.017716377642,
+      "historically_blocked_exit_sessions": 0,
+      "historically_blocked_exit_slots": 0,
+      "maximum_drawdown": -0.052404191617,
+      "mean_net_return_after_cost": -0.007899031533,
+      "mean_stress_net_return_90bp": -0.012399031533,
+      "median_net_return_after_cost": -0.007899031533,
+      "pending_exit_slots": 0,
+      "pending_settlement_slots": 0,
+      "pending_slots": 2,
+      "pending_validation_slots": 2,
+      "proxy_buyable_rate": 0.285714285714,
+      "proxy_fill_slots": 2,
+      "proxy_no_fill_slots": 5,
+      "realized_big_loss_rate_at_minus_3pct": 0.5,
+      "selected_slots": 9,
+      "selection_dates": 9,
+      "t1_settled_slots": 2,
+      "t_validated_slots": 7,
+      "terminal_slots": 7,
+      "win_rate": 0.5,
+      "wins_after_cost": 1,
+      "worst_10pct_mean_net_return": -0.052404191617,
+      "worst_trade_net_return": -0.052404191617
+    },
+    "shadow_slot_2": {
+      "blocked_exit_sessions": 0,
+      "blocked_exit_slots": 0,
+      "daily_portfolio": [
+        {
+          "drawdown": -0.006351851852,
+          "equal_weight_strategy_return": -0.006351851852,
+          "nav": 0.993648148148,
+          "signal_date": "20260828"
+        },
+        {
+          "drawdown": -0.064585873636,
+          "equal_weight_strategy_return": -0.058606280193,
+          "nav": 0.935414126364,
+          "signal_date": "20260902"
+        },
+        {
+          "drawdown": -0.064585873636,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.935414126364,
+          "signal_date": "20260903"
+        },
+        {
+          "drawdown": -0.064585873636,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.935414126364,
+          "signal_date": "20260904"
+        },
+        {
+          "drawdown": -0.064585873636,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.935414126364,
+          "signal_date": "20260907"
+        },
+        {
+          "drawdown": -0.064585873636,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.935414126364,
+          "signal_date": "20260908"
+        }
+      ],
+      "delayed_exit_slots": 0,
+      "effective_dates": 6,
+      "equal_weight_cumulative_return": -0.064585873636,
+      "historically_blocked_exit_sessions": 0,
+      "historically_blocked_exit_slots": 0,
+      "maximum_drawdown": -0.064585873636,
+      "mean_net_return_after_cost": -0.032479066023,
+      "mean_stress_net_return_90bp": -0.036979066023,
+      "median_net_return_after_cost": -0.032479066023,
+      "pending_exit_slots": 1,
+      "pending_settlement_slots": 1,
+      "pending_slots": 3,
+      "pending_validation_slots": 2,
+      "proxy_buyable_rate": 0.428571428571,
+      "proxy_fill_slots": 3,
+      "proxy_no_fill_slots": 4,
+      "realized_big_loss_rate_at_minus_3pct": 0.5,
+      "selected_slots": 9,
+      "selection_dates": 9,
+      "t1_settled_slots": 2,
+      "t_validated_slots": 7,
+      "terminal_slots": 6,
+      "win_rate": 0.0,
+      "wins_after_cost": 0,
+      "worst_10pct_mean_net_return": -0.058606280193,
+      "worst_trade_net_return": -0.058606280193
+    },
+    "stage_2_to_3": {
+      "blocked_exit_sessions": 0,
+      "blocked_exit_slots": 0,
+      "daily_portfolio": [
+        {
+          "drawdown": -0.003175925926,
+          "equal_weight_strategy_return": -0.003175925926,
+          "nav": 0.996824074074,
+          "signal_date": "20260828"
+        },
+        {
+          "drawdown": -0.014141066322,
+          "equal_weight_strategy_return": -0.011000075822,
+          "nav": 0.985858933678,
+          "signal_date": "20260902"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": -0.026202095808,
+          "nav": 0.960027363445,
+          "signal_date": "20260903"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260904"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260907"
+        },
+        {
+          "drawdown": -0.039972636555,
+          "equal_weight_strategy_return": 0.0,
+          "nav": 0.960027363445,
+          "signal_date": "20260908"
+        }
+      ],
+      "delayed_exit_slots": 0,
+      "effective_dates": 6,
+      "equal_weight_cumulative_return": -0.039972636555,
+      "historically_blocked_exit_sessions": 0,
+      "historically_blocked_exit_slots": 0,
+      "maximum_drawdown": -0.039972636555,
+      "mean_net_return_after_cost": -0.020189048778,
+      "mean_stress_net_return_90bp": -0.024689048778,
+      "median_net_return_after_cost": -0.029378021734,
+      "pending_exit_slots": 1,
+      "pending_settlement_slots": 1,
+      "pending_slots": 4,
+      "pending_validation_slots": 3,
+      "proxy_buyable_rate": 0.357142857143,
+      "proxy_fill_slots": 5,
+      "proxy_no_fill_slots": 9,
+      "realized_big_loss_rate_at_minus_3pct": 0.5,
+      "selected_slots": 17,
+      "selection_dates": 9,
+      "t1_settled_slots": 4,
+      "t_validated_slots": 14,
+      "terminal_slots": 13,
+      "win_rate": 0.25,
+      "wins_after_cost": 1,
+      "worst_10pct_mean_net_return": -0.058606280193,
+      "worst_trade_net_return": -0.058606280193
+    },
+    "stage_3_to_4": {
+      "blocked_exit_sessions": 0,
+      "blocked_exit_slots": 0,
+      "daily_portfolio": [],
+      "delayed_exit_slots": 0,
+      "effective_dates": 0,
+      "equal_weight_cumulative_return": null,
+      "historically_blocked_exit_sessions": 0,
+      "historically_blocked_exit_slots": 0,
+      "maximum_drawdown": null,
+      "mean_net_return_after_cost": null,
+      "mean_stress_net_return_90bp": null,
+      "median_net_return_after_cost": null,
+      "pending_exit_slots": 0,
+      "pending_settlement_slots": 0,
+      "pending_slots": 1,
+      "pending_validation_slots": 1,
+      "proxy_buyable_rate": null,
+      "proxy_fill_slots": 0,
+      "proxy_no_fill_slots": 0,
+      "realized_big_loss_rate_at_minus_3pct": null,
+      "selected_slots": 1,
+      "selection_dates": 1,
+      "t1_settled_slots": 0,
+      "t_validated_slots": 0,
+      "terminal_slots": 0,
+      "win_rate": null,
+      "wins_after_cost": 0,
+      "worst_10pct_mean_net_return": null,
+      "worst_trade_net_return": null
+    }
+  },
+  "exec_date": "20260914",
+  "exit_date": "20260915",
+  "forward_signal_date_progress_180": {
+    "observed_signal_dates": 9,
+    "progress_pct": 5.0,
+    "release_sample_reached": false,
+    "remaining_signal_dates": 171,
+    "target_signal_dates": 180
+  },
+  "latest_selected_rows": [
+    {
+      "actual_exit_date": null,
+      "name": "超声电子",
+      "net_return_after_cost": null,
+      "promotion_rank": 5,
+      "proxy_fill": null,
+      "scheduled_exit_date": "20260915",
+      "shadow_slot": 1,
+      "strategy_slot_return": null,
+      "t1_status": "PENDING_T1_NOT_REACHED",
+      "t_status": "PENDING_T_NOT_REACHED",
+      "t_truth_state": null,
+      "ts_code": "000823.SZ"
+    },
+    {
+      "actual_exit_date": null,
+      "name": "凯盛新能",
+      "net_return_after_cost": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "scheduled_exit_date": "20260915",
+      "shadow_slot": 2,
+      "strategy_slot_return": null,
+      "t1_status": "PENDING_T1_NOT_REACHED",
+      "t_status": "PENDING_T_NOT_REACHED",
+      "t_truth_state": null,
+      "ts_code": "600876.SH"
+    }
+  ],
+  "probability_diagnostics": {
+    "brier_score": null,
+    "expected_calibration_error": null,
+    "log_loss": null,
+    "reason": "research_joint_proxy_score is not a calibrated probability",
+    "status": "UNCALIBRATED"
+  },
+  "schema_version": "dc20_primary_profit_forward_shadow_public_state_v2",
+  "selected_slots": 2,
+  "signal_date": "20260911",
+  "snapshot_sha256": "94f6e3af1759347c457e2505d95df57695fcc68fddab8361b8203b5c0ec671ae",
+  "source_bindings": {
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20260911.csv",
+      "csv_sha256": "0d08bab304df5cde1e2122b813238782515a4d1817fc971e4713dcbaecb43c26",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20260911.json",
+      "sha256": "25c1496d52834340a538a1d30263a6775b2b51ac1e3b59bbbd7c0eac408758b9",
+      "snapshot_sha256": "325b6d19c80ca44ec34c9db929628b1b16420463cbcb2d1ea54d4d0233f9ea42"
+    },
+    "selection": {
+      "path": "data/decision_executable_profit/forward/selections/shadow_20260911.json",
+      "selection_identity_sha256": "693a38901dcc48ac9ba58cb06c6de4c91cde6f635121d6e2ad84e6d9f03501d0",
+      "sha256": "a36e0779d07b2da7b7346aec301aee5248c60ab716749f0c3597ec53588d3fd2",
+      "snapshot_sha256": "8919c94918c7a092ad5fcb16777f0a419123804312f5cf23c72ccb31e84c0931"
+    },
+    "statistics": {
+      "as_of_date": "20260911",
+      "path": "data/decision_executable_profit/forward/statistics/snapshots/summary_asof_20260911_sha256_9b533bf142175e5be1bc330f67a88e0c518a6aa03de70ea8ba37f0cc365520ce.json",
+      "sha256": "9b533bf142175e5be1bc330f67a88e0c518a6aa03de70ea8ba37f0cc365520ce",
+      "snapshot_sha256": "987505b4deeb1861f0f02413738275c5bbf9e8c9425f4bcbc3d568f54af4e3ba"
+    },
+    "t1_settlement": null,
+    "t_verification": null
+  },
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_members_sha256": "254682e82b637439bc3fe5d1fea3b4e9d42920a97dc667e48df273f1bcb4f70b"
+}
