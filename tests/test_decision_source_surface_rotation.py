@@ -30,7 +30,7 @@ PROFIT_SUMMARY_REVIEW_SHA = "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae49920
 NAVIGATION_REVIEW = ROOT / "models/decision_source_surface_review_20260910_navigation.json"
 NAVIGATION_REVIEW_SHA = "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
 DAILY_DISPATCH_REVIEW = ROOT / "models/decision_source_surface_review_20260911_daily_dispatch.json"
-DAILY_DISPATCH_REVIEW_SHA = "a76b8745e44af16a160001026cc83671ab960989fe18c9bbe5fa6cb85fce5c57"
+DAILY_DISPATCH_REVIEW_SHA = "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
 DAILY_DISPATCH_PATHS = {
     ".github/workflows/run_primary_d_daily.yml",
     ".github/workflows/run_primary_profit_rankings.yml",

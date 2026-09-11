@@ -5,7 +5,7 @@
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
     "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
-    "sha256": "a76b8745e44af16a160001026cc83671ab960989fe18c9bbe5fa6cb85fce5c57",
+    "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a",
     "approved_base_commit": "54a62f2293d26618abeca1942aa733e2448a0b9b",
     "scope": "Only the non-model freeze-manifest dependency follows the reviewed same-day controlled NATURAL dispatch and P1 handoff; all other 41 retained assets and the inactive forward epoch are unchanged."
   },
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "a6545180b78e43be3a7f71241863dc831f9759fdb775f819cb529ac4418657b5",
+      "sha256": "408311f0852892e7b175e589d40d649f56717f2b27de08cd6b5f6f4459b6c2e8",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

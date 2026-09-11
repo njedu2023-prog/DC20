@@ -5,10 +5,12 @@ import datetime as datetime_module
 import hashlib
 import io
 import json
+import re
 import shutil
 import textwrap
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -116,7 +118,9 @@ def _controlled_p1_target_fixture(tmp_path: Path, monkeypatch):
     run = {
         "id": 1234, "workflow_id": 343703608, "status": "completed",
         "conclusion": "success", "event": "workflow_dispatch", "run_attempt": 1,
-        "name": "DC2.0 · Publish Primary D List (P0)",
+        # GitHub's live run-name contract populates both API/event name and
+        # display_title, rather than leaving name as the static workflow name.
+        "name": "DC20 controlled daily NATURAL | D=20260911",
         "path": ".github/workflows/run_primary_d_daily.yml",
         "head_branch": "main", "head_sha": "a" * 40,
         "repository": {"full_name": "njedu2023-prog/DC20"},
@@ -192,6 +196,7 @@ def test_p1_controlled_daily_rejects_bad_time_or_nontrading_d(
 
 
 @pytest.mark.parametrize(("field", "value", "message"), [
+    ("name", "DC2.0 · Publish Primary D List (P0)", "API identity drifted"),
     ("head_sha", "b" * 40, "API identity drifted"),
     ("run_attempt", 2, "API identity drifted"),
     ("display_title", "DC20 controlled daily NATURAL | D=20260910", "title differs from event payload"),
@@ -212,7 +217,9 @@ def test_p1_controlled_daily_rejects_dry_run_recovery_title_and_wrong_d(
 ) -> None:
     run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
     run["display_title"] = title
+    run["name"] = title
     monkeypatch.setenv("UPSTREAM_DISPLAY_TITLE", title)
+    monkeypatch.setenv("UPSTREAM_NAME", title)
     with pytest.raises(SystemExit, match="not accepted|title differs from its exact D"):
         exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
 
@@ -261,9 +268,10 @@ def test_p1_existing_natural_schedule_day_resolution_is_unchanged(
     tmp_path: Path, monkeypatch, created: str,
 ) -> None:
     run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
-    run.update(event="schedule", created_at=created)
+    run.update(event="schedule", created_at=created, name="DC2.0 · Publish Primary D List (P0)")
     monkeypatch.setenv("UPSTREAM_EVENT", "schedule")
     monkeypatch.setenv("UPSTREAM_CREATED_AT", created)
+    monkeypatch.setenv("UPSTREAM_NAME", run["name"])
     exec(compile(_p1_target_script(), "<p1-target>", "exec"), {})
     assert (tmp_path / "github_output").read_text() == (
         "signal_date=20260911\ngeneration_mode=NATURAL\ncontrolled_daily=false\n"
@@ -302,6 +310,62 @@ def test_p1_controlled_daily_title_filters_exist_before_shared_writer_and_comput
         "inputs.confirm_recovery != true", "DC20 controlled daily NATURAL | D={0}",
     ):
         assert gate in run_name
+
+
+def _p1_front_gate_values(run):
+    """Evaluate both actual YAML front gates using recorded GitHub run fields."""
+    workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(encoding="utf-8")
+    group = workflow.split("  group: >-\n", 1)[1].split("  cancel-in-progress:", 1)[0].strip()
+    compute = workflow.split("  compute:", 1)[1].split("    if: >-\n", 1)[1].split("    permissions:", 1)[0].strip()
+    github = SimpleNamespace(
+        event_name="workflow_run", ref="refs/heads/main", repository="njedu2023-prog/DC20", run_id=999,
+        event=SimpleNamespace(workflow_run=json.loads(json.dumps(run), object_hook=lambda value: SimpleNamespace(**value))),
+    )
+
+    def evaluate(expression):
+        expression = expression.removeprefix("${{").removesuffix("}}")
+        expression = expression.replace("&&", " and ").replace("||", " or ")
+        expression = re.sub(r"!(?!=)", " not ", expression)
+        return eval(" ".join(expression.split()), {"__builtins__": {}}, {
+            "github": github, "startsWith": lambda value, prefix: value.startswith(prefix),
+            "format": lambda pattern, *args: pattern.format(*args),
+        })
+
+    return evaluate(group), evaluate(compute)
+
+
+@pytest.mark.parametrize("source_event", ["workflow_dispatch", "schedule", "workflow_run"])
+def test_p1_front_gates_accept_live_dynamic_daily_name_and_existing_static_events(
+    tmp_path: Path, monkeypatch, source_event: str,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    if source_event != "workflow_dispatch":
+        run.update(event=source_event, name="DC2.0 · Publish Primary D List (P0)", display_title="DC2.0 · Publish Primary D List (P0)")
+    assert _p1_front_gate_values(run) == ("decision-auction-main-writer", True)
+
+
+@pytest.mark.parametrize("changes", [
+    {"name": "DC2.0 · Publish Primary D List (P0)"},
+    {"name": "DC20 controlled daily NATURAL | D=20260910"},
+    {"name": "DC2.0 · Publish Primary D List (P0)", "display_title": "DC2.0 · Publish Primary D List (P0)"},
+    {"event": "workflow_run", "name": "DC20 P0 | workflow_run", "display_title": "DC20 P0 | workflow_run"},
+    {"workflow_id": 335484130}, {"path": ".github/workflows/other.yml"},
+    {"head_branch": "other"}, {"head_repository": {"full_name": "other/DC20"}},
+    {"run_attempt": 2}, {"conclusion": "failure"},
+])
+def test_p1_front_gates_reject_name_drift_unmarked_dispatch_and_wrong_identity(
+    tmp_path: Path, monkeypatch, changes,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run.update(changes)
+    assert _p1_front_gate_values(run) == ("dc20-p1-ignored-999", False)
+
+
+def test_p1_controlled_daily_event_name_must_match_exact_dynamic_title(tmp_path: Path, monkeypatch) -> None:
+    _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("UPSTREAM_NAME", "DC2.0 · Publish Primary D List (P0)")
+    with pytest.raises(SystemExit, match="not the exact successful natural P0 run"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
 
 
 @pytest.mark.parametrize(

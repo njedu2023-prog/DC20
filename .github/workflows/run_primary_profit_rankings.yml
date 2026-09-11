@@ -58,13 +58,18 @@ concurrency:
         !(
           (
             github.event.workflow_run.workflow_id == 343703608 &&
-            github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
             github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
             (
-              github.event.workflow_run.event == 'schedule' ||
-              github.event.workflow_run.event == 'workflow_run' ||
+              (
+                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
+                (
+                  github.event.workflow_run.event == 'schedule' ||
+                  github.event.workflow_run.event == 'workflow_run'
+                )
+              ) ||
               (
                 github.event.workflow_run.event == 'workflow_dispatch' &&
+                github.event.workflow_run.name == github.event.workflow_run.display_title &&
                 startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
               )
             )
@@ -99,13 +104,18 @@ jobs:
             (
               (
                 github.event.workflow_run.workflow_id == 343703608 &&
-                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
                 github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
                 (
-                  github.event.workflow_run.event == 'schedule' ||
-                  github.event.workflow_run.event == 'workflow_run' ||
+                  (
+                    github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
+                    (
+                      github.event.workflow_run.event == 'schedule' ||
+                      github.event.workflow_run.event == 'workflow_run'
+                    )
+                  ) ||
                   (
                     github.event.workflow_run.event == 'workflow_dispatch' &&
+                    github.event.workflow_run.name == github.event.workflow_run.display_title &&
                     startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
                   )
                 )
@@ -380,7 +390,9 @@ jobs:
                   'event':upstream_event,
                   'run_attempt':'1',
                   'workflow_id':workflow_id,
-                  'name':identity['name'],
+                  # GitHub REST/event run.name follows run-name when supplied,
+                  # so only the marked daily dispatch uses its dynamic title.
+                  'name':os.environ.get('UPSTREAM_DISPLAY_TITLE','') if controlled_daily else identity['name'],
                   'path':identity['path'],
                   'head_branch':'main',
                   'repository':os.environ['GITHUB_REPOSITORY'],

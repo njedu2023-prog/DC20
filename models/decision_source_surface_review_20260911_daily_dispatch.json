@@ -6,16 +6,16 @@
   "predecessor_evidence_sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293",
   "baseline_manifest_sha256": "40a8037909d6ad01fe59ed160264545989072df0fa2094dcd314f3bea63a782e",
   "baseline_manifest_canonical_sha256": "d1435ba8944d83127d2ecaba5288bf73289e0c7732bfe88561cdee0d0a8c4177",
-  "current_manifest_sha256": "a6545180b78e43be3a7f71241863dc831f9759fdb775f819cb529ac4418657b5",
-  "current_manifest_canonical_sha256": "010ad81333c4b4731c3dbad08987df57f166c047cfb1b360d5326c9e40a151ee",
+  "current_manifest_sha256": "408311f0852892e7b175e589d40d649f56717f2b27de08cd6b5f6f4459b6c2e8",
+  "current_manifest_canonical_sha256": "a5da84f3f78fe3e427d027bb6e4b4391fe319ba739820710629d25111ada069f",
   "pin_count": 224,
   "pin_changes": [
     {
       "path": ".github/workflows/run_primary_d_daily.yml",
       "baseline_sha256": "291260c4efc898be78beb2e2f494d1bc48ce0c113c3d1e4beb9fdb570677663d",
-      "current_sha256": "a9c4acda3b85882de37b2caf93a025c2c7ccf9a2a6ae2e1505f8915cdcf4276b",
+      "current_sha256": "951bd8e2189a4f588e613ac23009109b4663ce08b57d56b1c64b337a90d73c98",
       "baseline_bytes": 76562,
-      "current_bytes": 86116,
+      "current_bytes": 86399,
       "inverse_changes": [
         {
           "baseline_start": 1,
@@ -33,7 +33,7 @@
             "      inputs.generation_mode == 'NATURAL' && inputs.confirm_daily_generation == true &&\n",
             "      inputs.confirm_recovery != true &&\n",
             "      format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date) ||\n",
-            "      format('DC20 P0 | {0}', github.event_name) }}\n",
+            "      'DC2.0 · Publish Primary D List (P0)' }}\n",
             "\n",
             "on:\n",
             "  workflow_call:\n"
@@ -75,11 +75,7 @@
             "        description: \"恢复时固定 a-share-top3-data 的40位提交\"\n",
             "        required: false\n",
             "        type: string\n",
-            "      confirm_recovery:\n",
-            "        description: \"确认该结果标记为历史恢复而非当晚准时前向\"\n",
-            "        required: true\n",
-            "        default: false\n",
-            "        type: boolean\n"
+            "      confirm_recovery:\n"
           ],
           "current_lines": [
             "          - RETROSPECTIVE_RECOVERY\n",
@@ -92,8 +88,21 @@
             "        description: \"固定 a-share-top3-data 的40位提交；受控当日生成和恢复均必填\"\n",
             "        required: false\n",
             "        type: string\n",
-            "      confirm_recovery:\n",
-            "        description: \"确认该结果标记为历史恢复而非当晚准时前向\"\n",
+            "      confirm_recovery:\n"
+          ]
+        },
+        {
+          "baseline_start": 67,
+          "current_start": 73,
+          "baseline_lines": [
+            "        required: true\n",
+            "        default: false\n",
+            "        type: boolean\n",
+            "\n",
+            "permissions:\n",
+            "  contents: read\n"
+          ],
+          "current_lines": [
             "        required: true\n",
             "        default: false\n",
             "        type: boolean\n",
@@ -101,7 +110,10 @@
             "        description: \"确认当日上游已就绪；仅D日收盘后至23:30前受控NATURAL生成\"\n",
             "        required: true\n",
             "        default: false\n",
-            "        type: boolean\n"
+            "        type: boolean\n",
+            "\n",
+            "permissions:\n",
+            "  contents: read\n"
           ]
         },
         {
@@ -142,15 +154,20 @@
             "          sha_re = re.compile(r'[0-9a-f]{40}')\n",
             "          dispatch_created_at = ''\n",
             "\n",
-            "          def validate_daily_dispatch(run, signal_date, base_head, run_id, repository, now, confirmed, recovery):\n",
+            "          def validate_daily_dispatch(run, signal_date, base_head, run_id, repository, now, confirmed, recovery, *, publish=True):\n",
             "              if confirmed != 'true' or recovery == 'true':\n",
             "                  raise SystemExit('controlled daily P0 requires daily confirmation, not recovery confirmation')\n",
             "              if repository != 'njedu2023-prog/DC20' or re.fullmatch(r'[0-9a-f]{40}', base_head) is None:\n",
             "                  raise SystemExit('controlled daily P0 repository/base is invalid')\n",
+            "              expected_title = (\n",
+            "                  f'DC20 controlled daily NATURAL | D={signal_date}'\n",
+            "                  if publish else 'DC2.0 · Publish Primary D List (P0)'\n",
+            "              )\n",
             "              if re.fullmatch(r'[1-9][0-9]*', run_id) is None or (\n",
             "                  str(run.get('id') or '') != run_id\n",
             "                  or str(run.get('workflow_id') or '') != '343703608'\n",
-            "                  or run.get('name') != 'DC2.0 · Publish Primary D List (P0)'\n",
+            "                  or run.get('name') != expected_title\n",
+            "                  or run.get('display_title') != expected_title\n",
             "                  or run.get('path') != '.github/workflows/run_primary_d_daily.yml'\n",
             "                  or run.get('event') != 'workflow_dispatch'\n",
             "                  or str(run.get('run_attempt') or '') != '1'\n",
@@ -189,7 +206,7 @@
         },
         {
           "baseline_start": 519,
-          "current_start": 573,
+          "current_start": 578,
           "baseline_lines": [
             "                  raise SystemExit('manual P0 trade_date must be YYYYMMDD')\n",
             "              if mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:\n",
@@ -221,6 +238,7 @@
             "                      current_run, signal_date, os.environ['BASE_HEAD'], run_id, repository,\n",
             "                      datetime.now(timezone.utc), os.environ.get('INPUT_CONFIRM_DAILY_GENERATION'),\n",
             "                      os.environ.get('INPUT_CONFIRM_RECOVERY'),\n",
+            "                      publish=publish,\n",
             "                  )\n",
             "                  if sha_re.fullmatch(pred) is None or sha_re.fullmatch(market) is None:\n",
             "                      raise SystemExit('controlled daily P0 requires two immutable upstream commits')\n",
@@ -231,30 +249,30 @@
           ]
         },
         {
-          "baseline_start": 541,
-          "current_start": 612,
+          "baseline_start": 542,
+          "current_start": 619,
           "baseline_lines": [
-            "          if signal_date not in opened:\n",
             "              raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')\n",
             "          if event in {'schedule', 'workflow_run'}:\n",
             "              enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))\n",
             "\n",
-            "          output = Path('outputs/decision')\n"
+            "          output = Path('outputs/decision')\n",
+            "          json_path = output / f'three_rank_top10_{signal_date}.json'\n"
           ],
           "current_lines": [
-            "          if signal_date not in opened:\n",
             "              raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')\n",
             "          if event in {'schedule', 'workflow_run'}:\n",
             "              enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))\n",
             "          if dispatch_created_at:\n",
             "              enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))\n",
             "\n",
-            "          output = Path('outputs/decision')\n"
+            "          output = Path('outputs/decision')\n",
+            "          json_path = output / f'three_rank_top10_{signal_date}.json'\n"
           ]
         },
         {
           "baseline_start": 615,
-          "current_start": 688,
+          "current_start": 694,
           "baseline_lines": [
             "                  raise SystemExit('existing P0 D receipt generation mode is invalid')\n",
             "              if event in {'schedule', 'workflow_run'} and receipt_mode != 'NATURAL':\n",
@@ -276,7 +294,7 @@
         },
         {
           "baseline_start": 624,
-          "current_start": 699,
+          "current_start": 705,
           "baseline_lines": [
             "              'generation_mode': mode,\n",
             "              'pred_commit': pred,\n",
@@ -310,7 +328,7 @@
         },
         {
           "baseline_start": 641,
-          "current_start": 718,
+          "current_start": 724,
           "baseline_lines": [
             "          PINNED_PRED: ${{ steps.target.outputs.pred_commit }}\n",
             "          PINNED_MARKET: ${{ steps.target.outputs.market_commit }}\n",
@@ -355,7 +373,7 @@
         },
         {
           "baseline_start": 667,
-          "current_start": 757,
+          "current_start": 763,
           "baseline_lines": [
             "                      headers={'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','X-GitHub-Api-Version':'2022-11-28'},\n",
             "                  )\n",
@@ -378,18 +396,17 @@
           ]
         },
         {
-          "baseline_start": 708,
-          "current_start": 796,
+          "baseline_start": 709,
+          "current_start": 803,
           "baseline_lines": [
-            "            --trade-date \"${TRADE_DATE}\" \\\n",
             "            --strict-dated-source \\\n",
             "            --trade-calendar-file data/market/trade_cal_sse.csv\n",
             "\n",
             "      - name: Publish primary promotion list in the isolated scope\n",
-            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n",
+            "        env:\n"
           ],
           "current_lines": [
-            "            --trade-date \"${TRADE_DATE}\" \\\n",
             "            --strict-dated-source \\\n",
             "            --trade-calendar-file data/market/trade_cal_sse.csv\n",
             "\n",
@@ -442,12 +459,13 @@
             "          PY\n",
             "\n",
             "      - name: Publish primary promotion list in the isolated scope\n",
-            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n",
+            "        env:\n"
           ]
         },
         {
           "baseline_start": 983,
-          "current_start": 1119,
+          "current_start": 1125,
           "baseline_lines": [
             "          from pathlib import Path\n",
             "          from zoneinfo import ZoneInfo\n",
@@ -474,7 +492,7 @@
         },
         {
           "baseline_start": 1010,
-          "current_start": 1153,
+          "current_start": 1159,
           "baseline_lines": [
             "              )\n",
             "              safety_cutoff = deadline - timedelta(minutes=5)\n",
@@ -499,9 +517,9 @@
     {
       "path": ".github/workflows/run_primary_profit_rankings.yml",
       "baseline_sha256": "b10e9e80fb040e0e68accdfcdc7511bad18288b98d71217fd1b4d337d116d1d8",
-      "current_sha256": "43d45015a85e937692b6be3389dae2c741cadf710f39e62d517e6e8a1710bf1e",
+      "current_sha256": "7ae59c2cfdae0cd1a48c9e7834776fa2470f6faebc2b9fd9691dd8d7ec9502ab",
       "baseline_bytes": 51139,
-      "current_bytes": 57103,
+      "current_bytes": 57695,
       "inverse_changes": [
         {
           "baseline_start": 45,
@@ -529,9 +547,13 @@
           ]
         },
         {
-          "baseline_start": 61,
-          "current_start": 62,
+          "baseline_start": 57,
+          "current_start": 58,
           "baseline_lines": [
+            "        !(\n",
+            "          (\n",
+            "            github.event.workflow_run.workflow_id == 343703608 &&\n",
+            "            github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&\n",
             "            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&\n",
             "            (\n",
             "              github.event.workflow_run.event == 'schedule' ||\n",
@@ -541,12 +563,21 @@
             "          (\n"
           ],
           "current_lines": [
+            "        !(\n",
+            "          (\n",
+            "            github.event.workflow_run.workflow_id == 343703608 &&\n",
             "            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&\n",
             "            (\n",
-            "              github.event.workflow_run.event == 'schedule' ||\n",
-            "              github.event.workflow_run.event == 'workflow_run' ||\n",
+            "              (\n",
+            "                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&\n",
+            "                (\n",
+            "                  github.event.workflow_run.event == 'schedule' ||\n",
+            "                  github.event.workflow_run.event == 'workflow_run'\n",
+            "                )\n",
+            "              ) ||\n",
             "              (\n",
             "                github.event.workflow_run.event == 'workflow_dispatch' &&\n",
+            "                github.event.workflow_run.name == github.event.workflow_run.display_title &&\n",
             "                startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')\n",
             "              )\n",
             "            )\n",
@@ -555,9 +586,13 @@
           ]
         },
         {
-          "baseline_start": 98,
-          "current_start": 103,
+          "baseline_start": 94,
+          "current_start": 104,
           "baseline_lines": [
+            "            (\n",
+            "              (\n",
+            "                github.event.workflow_run.workflow_id == 343703608 &&\n",
+            "                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&\n",
             "                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&\n",
             "                (\n",
             "                  github.event.workflow_run.event == 'schedule' ||\n",
@@ -567,12 +602,21 @@
             "              (\n"
           ],
           "current_lines": [
+            "            (\n",
+            "              (\n",
+            "                github.event.workflow_run.workflow_id == 343703608 &&\n",
             "                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&\n",
             "                (\n",
-            "                  github.event.workflow_run.event == 'schedule' ||\n",
-            "                  github.event.workflow_run.event == 'workflow_run' ||\n",
+            "                  (\n",
+            "                    github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&\n",
+            "                    (\n",
+            "                      github.event.workflow_run.event == 'schedule' ||\n",
+            "                      github.event.workflow_run.event == 'workflow_run'\n",
+            "                    )\n",
+            "                  ) ||\n",
             "                  (\n",
             "                    github.event.workflow_run.event == 'workflow_dispatch' &&\n",
+            "                    github.event.workflow_run.name == github.event.workflow_run.display_title &&\n",
             "                    startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')\n",
             "                  )\n",
             "                )\n",
@@ -582,7 +626,7 @@
         },
         {
           "baseline_start": 124,
-          "current_start": 133,
+          "current_start": 143,
           "baseline_lines": [
             "      base_head: ${{ steps.mode.outputs.base_head }}\n",
             "      signal_date: ${{ steps.target.outputs.signal_date }}\n",
@@ -603,7 +647,7 @@
         },
         {
           "baseline_start": 189,
-          "current_start": 199,
+          "current_start": 209,
           "baseline_lines": [
             "          PUBLISH: ${{ steps.mode.outputs.publish }}\n",
             "          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}\n",
@@ -629,7 +673,7 @@
         },
         {
           "baseline_start": 203,
-          "current_start": 215,
+          "current_start": 225,
           "baseline_lines": [
             "          set -euo pipefail\n",
             "          python3 - <<'PY'\n",
@@ -675,7 +719,7 @@
         },
         {
           "baseline_start": 220,
-          "current_start": 246,
+          "current_start": 256,
           "baseline_lines": [
             "              if shanghai.hour < 20:\n",
             "                  signal_day -= timedelta(days=1)\n",
@@ -697,7 +741,8 @@
             "              return opened[-1]\n",
             "\n",
             "          def validate_primary_p0_jobs(payload, *, prefix):\n",
-            "              if not isinstance(payload,dict):\n"
+            "              if not isinstance(payload,dict):\n",
+            "                  raise SystemExit('P1 upstream P0 jobs payload is invalid')\n"
           ],
           "current_lines": [
             "              if shanghai.hour < 20:\n",
@@ -750,12 +795,13 @@
             "                  raise SystemExit('P1 controlled P0 missed the strict T 09:15 safety cutoff')\n",
             "\n",
             "          def validate_primary_p0_jobs(payload, *, prefix):\n",
-            "              if not isinstance(payload,dict):\n"
+            "              if not isinstance(payload,dict):\n",
+            "                  raise SystemExit('P1 upstream P0 jobs payload is invalid')\n"
           ]
         },
         {
           "baseline_start": 307,
-          "current_start": 363,
+          "current_start": 373,
           "baseline_lines": [
             "              if identity is None:\n",
             "                  raise SystemExit('P1 workflow_run is not an accepted P0 scheduler identity')\n",
@@ -784,8 +830,32 @@
           ]
         },
         {
+          "baseline_start": 318,
+          "current_start": 390,
+          "baseline_lines": [
+            "                  'event':upstream_event,\n",
+            "                  'run_attempt':'1',\n",
+            "                  'workflow_id':workflow_id,\n",
+            "                  'name':identity['name'],\n",
+            "                  'path':identity['path'],\n",
+            "                  'head_branch':'main',\n",
+            "                  'repository':os.environ['GITHUB_REPOSITORY'],\n"
+          ],
+          "current_lines": [
+            "                  'event':upstream_event,\n",
+            "                  'run_attempt':'1',\n",
+            "                  'workflow_id':workflow_id,\n",
+            "                  # GitHub REST/event run.name follows run-name when supplied,\n",
+            "                  # so only the marked daily dispatch uses its dynamic title.\n",
+            "                  'name':os.environ.get('UPSTREAM_DISPLAY_TITLE','') if controlled_daily else identity['name'],\n",
+            "                  'path':identity['path'],\n",
+            "                  'head_branch':'main',\n",
+            "                  'repository':os.environ['GITHUB_REPOSITORY'],\n"
+          ]
+        },
+        {
           "baseline_start": 341,
-          "current_start": 403,
+          "current_start": 415,
           "baseline_lines": [
             "              run_id=os.environ.get('UPSTREAM_RUN_ID','').strip()\n",
             "              if re.fullmatch(r'[1-9][0-9]*',run_id) is None:\n",
@@ -808,7 +878,7 @@
         },
         {
           "baseline_start": 361,
-          "current_start": 426,
+          "current_start": 438,
           "baseline_lines": [
             "                  and str(run.get('name') or '') == expected['name']\n",
             "                  and str(run.get('path') or '') == expected['path']\n",
@@ -843,7 +913,7 @@
         },
         {
           "baseline_start": 382,
-          "current_start": 450,
+          "current_start": 462,
           "baseline_lines": [
             "              )\n",
             "              with urlopen(jobs_request,timeout=30) as response: jobs_payload=json.load(response)\n",
@@ -871,7 +941,7 @@
         },
         {
           "baseline_start": 403,
-          "current_start": 477,
+          "current_start": 489,
           "baseline_lines": [
             "              raise SystemExit('P1 exact P0 receipt generation mode is invalid')\n",
             "          if event == 'workflow_dispatch' and receipt_mode != mode:\n",
@@ -899,7 +969,7 @@
         },
         {
           "baseline_start": 596,
-          "current_start": 672,
+          "current_start": 684,
           "baseline_lines": [
             "        id: publish\n",
             "        env:\n",
@@ -991,9 +1061,9 @@
     {
       "path": "tests/test_primary_profit_rankings_p1.py",
       "baseline_sha256": "74966f953a030a8c52c487d8e34c1a185df14d20f4071233ac68ae720367580d",
-      "current_sha256": "2eaa5f497bf90b69d250b7f49c47f69e66135b39f0b3a58af53a9e0ad998c5d6",
+      "current_sha256": "5de51bc30b1f8ca32b8acb24172cdef1c0503d872aadaee7bf6bf97d67d9601a",
       "baseline_bytes": 43605,
-      "current_bytes": 54158,
+      "current_bytes": 57697,
       "inverse_changes": [
         {
           "baseline_start": 1,
@@ -1008,7 +1078,8 @@
             "import textwrap\n",
             "from pathlib import Path\n",
             "\n",
-            "import pandas as pd\n"
+            "import pandas as pd\n",
+            "import pytest\n"
           ],
           "current_lines": [
             "from __future__ import annotations\n",
@@ -1018,17 +1089,20 @@
             "import hashlib\n",
             "import io\n",
             "import json\n",
+            "import re\n",
             "import shutil\n",
             "import textwrap\n",
             "import urllib.request\n",
             "from pathlib import Path\n",
+            "from types import SimpleNamespace\n",
             "\n",
-            "import pandas as pd\n"
+            "import pandas as pd\n",
+            "import pytest\n"
           ]
         },
         {
           "baseline_start": 35,
-          "current_start": 38,
+          "current_start": 40,
           "baseline_lines": [
             "FEATURE_SHA = \"f\" * 64\n",
             "\n",
@@ -1068,19 +1142,17 @@
           ]
         },
         {
-          "baseline_start": 84,
-          "current_start": 90,
+          "baseline_start": 86,
+          "current_start": 94,
           "baseline_lines": [
-            "        },\n",
-            "    ]\n",
             "    return {\"total_count\": len(jobs), \"jobs\": jobs}\n",
             "\n",
             "\n",
-            "@pytest.mark.parametrize(\n"
+            "@pytest.mark.parametrize(\n",
+            "    \"prefix\",\n",
+            "    [\"\", \"Invoke Action-independent primary D publication / \"],\n"
           ],
           "current_lines": [
-            "        },\n",
-            "    ]\n",
             "    return {\"total_count\": len(jobs), \"jobs\": jobs}\n",
             "\n",
             "\n",
@@ -1108,7 +1180,9 @@
             "    run = {\n",
             "        \"id\": 1234, \"workflow_id\": 343703608, \"status\": \"completed\",\n",
             "        \"conclusion\": \"success\", \"event\": \"workflow_dispatch\", \"run_attempt\": 1,\n",
-            "        \"name\": \"DC2.0 · Publish Primary D List (P0)\",\n",
+            "        # GitHub's live run-name contract populates both API/event name and\n",
+            "        # display_title, rather than leaving name as the static workflow name.\n",
+            "        \"name\": \"DC20 controlled daily NATURAL | D=20260911\",\n",
             "        \"path\": \".github/workflows/run_primary_d_daily.yml\",\n",
             "        \"head_branch\": \"main\", \"head_sha\": \"a\" * 40,\n",
             "        \"repository\": {\"full_name\": \"njedu2023-prog/DC20\"},\n",
@@ -1184,6 +1258,7 @@
             "\n",
             "\n",
             "@pytest.mark.parametrize((\"field\", \"value\", \"message\"), [\n",
+            "    (\"name\", \"DC2.0 · Publish Primary D List (P0)\", \"API identity drifted\"),\n",
             "    (\"head_sha\", \"b\" * 40, \"API identity drifted\"),\n",
             "    (\"run_attempt\", 2, \"API identity drifted\"),\n",
             "    (\"display_title\", \"DC20 controlled daily NATURAL | D=20260910\", \"title differs from event payload\"),\n",
@@ -1204,7 +1279,9 @@
             ") -> None:\n",
             "    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)\n",
             "    run[\"display_title\"] = title\n",
+            "    run[\"name\"] = title\n",
             "    monkeypatch.setenv(\"UPSTREAM_DISPLAY_TITLE\", title)\n",
+            "    monkeypatch.setenv(\"UPSTREAM_NAME\", title)\n",
             "    with pytest.raises(SystemExit, match=\"not accepted|title differs from its exact D\"):\n",
             "        exec(compile(_p1_target_script(), \"<p1-controlled-target>\", \"exec\"), {})\n",
             "\n",
@@ -1253,9 +1330,10 @@
             "    tmp_path: Path, monkeypatch, created: str,\n",
             ") -> None:\n",
             "    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)\n",
-            "    run.update(event=\"schedule\", created_at=created)\n",
+            "    run.update(event=\"schedule\", created_at=created, name=\"DC2.0 · Publish Primary D List (P0)\")\n",
             "    monkeypatch.setenv(\"UPSTREAM_EVENT\", \"schedule\")\n",
             "    monkeypatch.setenv(\"UPSTREAM_CREATED_AT\", created)\n",
+            "    monkeypatch.setenv(\"UPSTREAM_NAME\", run[\"name\"])\n",
             "    exec(compile(_p1_target_script(), \"<p1-target>\", \"exec\"), {})\n",
             "    assert (tmp_path / \"github_output\").read_text() == (\n",
             "        \"signal_date=20260911\\ngeneration_mode=NATURAL\\ncontrolled_daily=false\\n\"\n",
@@ -1296,7 +1374,65 @@
             "        assert gate in run_name\n",
             "\n",
             "\n",
-            "@pytest.mark.parametrize(\n"
+            "def _p1_front_gate_values(run):\n",
+            "    \"\"\"Evaluate both actual YAML front gates using recorded GitHub run fields.\"\"\"\n",
+            "    workflow = (ROOT / \".github/workflows/run_primary_profit_rankings.yml\").read_text(encoding=\"utf-8\")\n",
+            "    group = workflow.split(\"  group: >-\\n\", 1)[1].split(\"  cancel-in-progress:\", 1)[0].strip()\n",
+            "    compute = workflow.split(\"  compute:\", 1)[1].split(\"    if: >-\\n\", 1)[1].split(\"    permissions:\", 1)[0].strip()\n",
+            "    github = SimpleNamespace(\n",
+            "        event_name=\"workflow_run\", ref=\"refs/heads/main\", repository=\"njedu2023-prog/DC20\", run_id=999,\n",
+            "        event=SimpleNamespace(workflow_run=json.loads(json.dumps(run), object_hook=lambda value: SimpleNamespace(**value))),\n",
+            "    )\n",
+            "\n",
+            "    def evaluate(expression):\n",
+            "        expression = expression.removeprefix(\"${{\").removesuffix(\"}}\")\n",
+            "        expression = expression.replace(\"&&\", \" and \").replace(\"||\", \" or \")\n",
+            "        expression = re.sub(r\"!(?!=)\", \" not \", expression)\n",
+            "        return eval(\" \".join(expression.split()), {\"__builtins__\": {}}, {\n",
+            "            \"github\": github, \"startsWith\": lambda value, prefix: value.startswith(prefix),\n",
+            "            \"format\": lambda pattern, *args: pattern.format(*args),\n",
+            "        })\n",
+            "\n",
+            "    return evaluate(group), evaluate(compute)\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"source_event\", [\"workflow_dispatch\", \"schedule\", \"workflow_run\"])\n",
+            "def test_p1_front_gates_accept_live_dynamic_daily_name_and_existing_static_events(\n",
+            "    tmp_path: Path, monkeypatch, source_event: str,\n",
+            ") -> None:\n",
+            "    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)\n",
+            "    if source_event != \"workflow_dispatch\":\n",
+            "        run.update(event=source_event, name=\"DC2.0 · Publish Primary D List (P0)\", display_title=\"DC2.0 · Publish Primary D List (P0)\")\n",
+            "    assert _p1_front_gate_values(run) == (\"decision-auction-main-writer\", True)\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"changes\", [\n",
+            "    {\"name\": \"DC2.0 · Publish Primary D List (P0)\"},\n",
+            "    {\"name\": \"DC20 controlled daily NATURAL | D=20260910\"},\n",
+            "    {\"name\": \"DC2.0 · Publish Primary D List (P0)\", \"display_title\": \"DC2.0 · Publish Primary D List (P0)\"},\n",
+            "    {\"event\": \"workflow_run\", \"name\": \"DC20 P0 | workflow_run\", \"display_title\": \"DC20 P0 | workflow_run\"},\n",
+            "    {\"workflow_id\": 335484130}, {\"path\": \".github/workflows/other.yml\"},\n",
+            "    {\"head_branch\": \"other\"}, {\"head_repository\": {\"full_name\": \"other/DC20\"}},\n",
+            "    {\"run_attempt\": 2}, {\"conclusion\": \"failure\"},\n",
+            "])\n",
+            "def test_p1_front_gates_reject_name_drift_unmarked_dispatch_and_wrong_identity(\n",
+            "    tmp_path: Path, monkeypatch, changes,\n",
+            ") -> None:\n",
+            "    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)\n",
+            "    run.update(changes)\n",
+            "    assert _p1_front_gate_values(run) == (\"dc20-p1-ignored-999\", False)\n",
+            "\n",
+            "\n",
+            "def test_p1_controlled_daily_event_name_must_match_exact_dynamic_title(tmp_path: Path, monkeypatch) -> None:\n",
+            "    _controlled_p1_target_fixture(tmp_path, monkeypatch)\n",
+            "    monkeypatch.setenv(\"UPSTREAM_NAME\", \"DC2.0 · Publish Primary D List (P0)\")\n",
+            "    with pytest.raises(SystemExit, match=\"not the exact successful natural P0 run\"):\n",
+            "        exec(compile(_p1_target_script(), \"<p1-controlled-target>\", \"exec\"), {})\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\n",
+            "    \"prefix\",\n",
+            "    [\"\", \"Invoke Action-independent primary D publication / \"],\n"
           ]
         }
       ]
@@ -1304,9 +1440,9 @@
     {
       "path": "tests/test_primary_three_rank_p0.py",
       "baseline_sha256": "48413560bd264da0c24291ce5c7afcdc388f5e87226f52e5934f95dd145313cf",
-      "current_sha256": "66267a183218bfba670805967e8771b70b511322a79ac79e40851f6f1c1bd671",
+      "current_sha256": "d330d582be0bd0055833f2c7de7030bc73ebc5955a5e573b3bc95385f3ca6056",
       "baseline_bytes": 32467,
-      "current_bytes": 39634,
+      "current_bytes": 40472,
       "inverse_changes": [
         {
           "baseline_start": 47,
@@ -1339,26 +1475,26 @@
           ]
         },
         {
-          "baseline_start": 71,
-          "current_start": 73,
+          "baseline_start": 73,
+          "current_start": 75,
           "baseline_lines": [
-            "    module = ast.Module(body=matches, type_ignores=[])\n",
-            "    exec(compile(ast.fix_missing_locations(module), \"<p0-schedule-resolver>\", \"exec\"), namespace)\n",
             "    return namespace[name]\n",
             "\n",
             "\n",
-            "def _workflow_schedule_identities() -> dict[str, dict[str, object]]:\n"
+            "def _workflow_schedule_identities() -> dict[str, dict[str, object]]:\n",
+            "    workflow = WORKFLOW.read_text(encoding=\"utf-8\")\n",
+            "    block = workflow.split(\n"
           ],
           "current_lines": [
-            "    module = ast.Module(body=matches, type_ignores=[])\n",
-            "    exec(compile(ast.fix_missing_locations(module), \"<p0-schedule-resolver>\", \"exec\"), namespace)\n",
             "    return namespace[name]\n",
             "\n",
             "\n",
             "def _controlled_run(**changes):\n",
             "    run = {\n",
             "        \"id\": 1001, \"workflow_id\": 343703608,\n",
-            "        \"name\": \"DC2.0 · Publish Primary D List (P0)\",\n",
+            "        # Actual GitHub API name follows run-name, not the workflow's name.\n",
+            "        \"name\": \"DC20 controlled daily NATURAL | D=20260911\",\n",
+            "        \"display_title\": \"DC20 controlled daily NATURAL | D=20260911\",\n",
             "        \"path\": \".github/workflows/run_primary_d_daily.yml\",\n",
             "        \"event\": \"workflow_dispatch\", \"run_attempt\": 1,\n",
             "        \"head_branch\": \"main\", \"head_sha\": \"a\" * 40,\n",
@@ -1385,12 +1521,25 @@
             "    assert _validate_controlled() == \"2026-09-11T11:10:00+00:00\"\n",
             "\n",
             "\n",
+            "def test_controlled_daily_dry_run_keeps_non_production_run_name():\n",
+            "    title = \"DC2.0 · Publish Primary D List (P0)\"\n",
+            "    assert _validate_controlled(\n",
+            "        _controlled_run(name=title, display_title=title), publish=False\n",
+            "    ) == \"2026-09-11T11:10:00+00:00\"\n",
+            "    with pytest.raises(SystemExit, match=\"identity\"):\n",
+            "        _validate_controlled(publish=False)\n",
+            "\n",
+            "\n",
             "@pytest.mark.parametrize((\"field\", \"value\"), [\n",
             "    (\"id\", 2), (\"workflow_id\", 335484130), (\"name\", \"other\"), (\"path\", \"other\"),\n",
             "    (\"event\", \"schedule\"), (\"run_attempt\", 2), (\"head_branch\", \"feature\"),\n",
             "    (\"head_sha\", \"b\" * 40), (\"repository\", {\"full_name\": \"fork/DC20\"}),\n",
             "    (\"head_repository\", {\"full_name\": \"fork/DC20\"}), (\"created_at\", \"\"),\n",
             "    (\"created_at\", \"2026-09-11T11:10:00\"),\n",
+            "    (\"name\", \"DC2.0 · Publish Primary D List (P0)\"),\n",
+            "    (\"name\", \"DC20 controlled daily NATURAL | D=20260910\"),\n",
+            "    (\"display_title\", \"DC20 controlled daily NATURAL | D=20260910\"),\n",
+            "    (\"display_title\", \"\"),\n",
             "])\n",
             "def test_controlled_daily_dispatch_rejects_untrusted_run(field, value):\n",
             "    with pytest.raises(SystemExit):\n",
@@ -1492,6 +1641,8 @@
             "    assert \"confirm_daily_generation:\" in source\n",
             "    assert \"inputs.dry_run == false\" in source\n",
             "    assert \"format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date)\" in source\n",
+            "    assert \"'DC2.0 · Publish Primary D List (P0)' }}\" in source\n",
+            "    assert \"format('DC20 P0 | {0}'\" not in source\n",
             "    assert \"validate_daily_dispatch(\" in source\n",
             "    assert \"validate_manual_duplicate(receipt, mode, pred, market, bool(dispatch_created_at))\" in source\n",
             "    assert \"enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))\" in source\n",
@@ -1503,12 +1654,14 @@
             "    assert \"row.get('generated_at_utc')\" in source\n",
             "\n",
             "\n",
-            "def _workflow_schedule_identities() -> dict[str, dict[str, object]]:\n"
+            "def _workflow_schedule_identities() -> dict[str, dict[str, object]]:\n",
+            "    workflow = WORKFLOW.read_text(encoding=\"utf-8\")\n",
+            "    block = workflow.split(\n"
           ]
         },
         {
           "baseline_start": 633,
-          "current_start": 783,
+          "current_start": 800,
           "baseline_lines": [
             "    assert \"PrimaryDReadOnlyEngine\" in (\n",
             "        ROOT / \"scripts/publish_primary_three_rank.py\"\n",
@@ -1594,7 +1747,7 @@
     },
     "baseline_dependency_sha256": "40a8037909d6ad01fe59ed160264545989072df0fa2094dcd314f3bea63a782e",
     "baseline_dependency_bytes": 51529,
-    "current_dependency_sha256": "a6545180b78e43be3a7f71241863dc831f9759fdb775f819cb529ac4418657b5",
+    "current_dependency_sha256": "408311f0852892e7b175e589d40d649f56717f2b27de08cd6b5f6f4459b6c2e8",
     "current_dependency_bytes": 51529,
     "current_review_path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
     "current_scope": "Only the non-model freeze-manifest dependency follows the reviewed same-day controlled NATURAL dispatch and P1 handoff; all other 41 retained assets and the inactive forward epoch are unchanged.",

@@ -4,7 +4,7 @@ run-name: >-
       inputs.generation_mode == 'NATURAL' && inputs.confirm_daily_generation == true &&
       inputs.confirm_recovery != true &&
       format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date) ||
-      format('DC20 P0 | {0}', github.event_name) }}
+      'DC2.0 · Publish Primary D List (P0)' }}
 
 on:
   workflow_call:
@@ -296,15 +296,20 @@ jobs:
           sha_re = re.compile(r'[0-9a-f]{40}')
           dispatch_created_at = ''
 
-          def validate_daily_dispatch(run, signal_date, base_head, run_id, repository, now, confirmed, recovery):
+          def validate_daily_dispatch(run, signal_date, base_head, run_id, repository, now, confirmed, recovery, *, publish=True):
               if confirmed != 'true' or recovery == 'true':
                   raise SystemExit('controlled daily P0 requires daily confirmation, not recovery confirmation')
               if repository != 'njedu2023-prog/DC20' or re.fullmatch(r'[0-9a-f]{40}', base_head) is None:
                   raise SystemExit('controlled daily P0 repository/base is invalid')
+              expected_title = (
+                  f'DC20 controlled daily NATURAL | D={signal_date}'
+                  if publish else 'DC2.0 · Publish Primary D List (P0)'
+              )
               if re.fullmatch(r'[1-9][0-9]*', run_id) is None or (
                   str(run.get('id') or '') != run_id
                   or str(run.get('workflow_id') or '') != '343703608'
-                  or run.get('name') != 'DC2.0 · Publish Primary D List (P0)'
+                  or run.get('name') != expected_title
+                  or run.get('display_title') != expected_title
                   or run.get('path') != '.github/workflows/run_primary_d_daily.yml'
                   or run.get('event') != 'workflow_dispatch'
                   or str(run.get('run_attempt') or '') != '1'
@@ -589,6 +594,7 @@ jobs:
                       current_run, signal_date, os.environ['BASE_HEAD'], run_id, repository,
                       datetime.now(timezone.utc), os.environ.get('INPUT_CONFIRM_DAILY_GENERATION'),
                       os.environ.get('INPUT_CONFIRM_RECOVERY'),
+                      publish=publish,
                   )
                   if sha_re.fullmatch(pred) is None or sha_re.fullmatch(market) is None:
                       raise SystemExit('controlled daily P0 requires two immutable upstream commits')

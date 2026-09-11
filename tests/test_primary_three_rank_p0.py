@@ -78,7 +78,9 @@ def _workflow_step_function(step: str, name: str):
 def _controlled_run(**changes):
     run = {
         "id": 1001, "workflow_id": 343703608,
-        "name": "DC2.0 · Publish Primary D List (P0)",
+        # Actual GitHub API name follows run-name, not the workflow's name.
+        "name": "DC20 controlled daily NATURAL | D=20260911",
+        "display_title": "DC20 controlled daily NATURAL | D=20260911",
         "path": ".github/workflows/run_primary_d_daily.yml",
         "event": "workflow_dispatch", "run_attempt": 1,
         "head_branch": "main", "head_sha": "a" * 40,
@@ -105,12 +107,25 @@ def test_controlled_daily_dispatch_accepts_1910_without_previous_day_anchor():
     assert _validate_controlled() == "2026-09-11T11:10:00+00:00"
 
 
+def test_controlled_daily_dry_run_keeps_non_production_run_name():
+    title = "DC2.0 · Publish Primary D List (P0)"
+    assert _validate_controlled(
+        _controlled_run(name=title, display_title=title), publish=False
+    ) == "2026-09-11T11:10:00+00:00"
+    with pytest.raises(SystemExit, match="identity"):
+        _validate_controlled(publish=False)
+
+
 @pytest.mark.parametrize(("field", "value"), [
     ("id", 2), ("workflow_id", 335484130), ("name", "other"), ("path", "other"),
     ("event", "schedule"), ("run_attempt", 2), ("head_branch", "feature"),
     ("head_sha", "b" * 40), ("repository", {"full_name": "fork/DC20"}),
     ("head_repository", {"full_name": "fork/DC20"}), ("created_at", ""),
     ("created_at", "2026-09-11T11:10:00"),
+    ("name", "DC2.0 · Publish Primary D List (P0)"),
+    ("name", "DC20 controlled daily NATURAL | D=20260910"),
+    ("display_title", "DC20 controlled daily NATURAL | D=20260910"),
+    ("display_title", ""),
 ])
 def test_controlled_daily_dispatch_rejects_untrusted_run(field, value):
     with pytest.raises(SystemExit):
@@ -212,6 +227,8 @@ def test_controlled_daily_wiring_preserves_strict_and_protected_boundaries():
     assert "confirm_daily_generation:" in source
     assert "inputs.dry_run == false" in source
     assert "format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date)" in source
+    assert "'DC2.0 · Publish Primary D List (P0)' }}" in source
+    assert "format('DC20 P0 | {0}'" not in source
     assert "validate_daily_dispatch(" in source
     assert "validate_manual_duplicate(receipt, mode, pred, market, bool(dispatch_created_at))" in source
     assert "enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))" in source
