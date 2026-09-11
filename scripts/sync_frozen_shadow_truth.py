@@ -22,7 +22,9 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+# Direct CLI execution also needs repository-local scripts imported by the
+# dated P1 validator; PYTHONPATH=src alone does not expose that namespace.
+sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from top10decision.data.tushare_minute import TushareClient, write_auction_open_snapshot
 from top10decision.decision.executable_profit_shadow_settlement import (

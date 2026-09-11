@@ -91,7 +91,8 @@ def test_stock_code_industry_are_separate_and_ready_legend_is_removed():
     for row in output["rows"]:
         rendered = re.search(rf'<tr data-code="{re.escape(row["ts_code"])}".*?</tr>', output["html"], re.S).group()
         cells = re.findall(r'<td\b[^>]*>(.*?)</td>', rendered, re.S)
-        assert len(cells) == 12
+        assert len(cells) == 13
+        assert cells[11] == "待更新"
         assert cells[0] == row["ts_code"]
         assert row["name"] in cells[1] and row["ts_code"] not in cells[1]
         assert cells[2] == row["industry"] and "company-line" in cells[1]
@@ -100,6 +101,19 @@ def test_stock_code_industry_are_separate_and_ready_legend_is_removed():
         assert "<" not in cells[5]
     assert output["html"].count('aria-label="晋级排序第') == 3
     assert output["html"].count('aria-label="盈利排序第') == 2
+
+
+@pytest.mark.parametrize("value,expected,tone", [(0.0229, "+2.29% ↑", "positive"), (-0.081, "-8.10% ↓", "negative"), (0, "0.00%", "neutral"), (None, "待更新", "neutral")])
+def test_t_close_column_after_promotion_uses_compact_signed_percent(value, expected, tone):
+    output = _run("Date.now=()=>Date.parse('2026-09-07T08:00:00Z');"
+                  "state.currentThreeRankTTruth={...contract,status:'READY',rows:contract.rows.map(r=>({ts_code:r.ts_code,continuation_limit_up_hit:1,t_close_change:" + json.dumps(value) + "}))};"
+                  "renderThreeRankWatchlist({},contract);console.log(JSON.stringify({header:els.stageContent.innerHTML,html:bodyNode.innerHTML}));")
+    headers = re.findall(r'<th\b[^>]*>(.*?)</th>', output["header"], re.S)
+    assert headers[10:12] == ["T晋级结果", "T收盘"]
+    cells = re.findall(r'<td\b[^>]*data-field="t-close-change"[^>]*>(.*?)</td>', output["html"], re.S)
+    assert cells and all(cell == expected for cell in cells)
+    if value:
+        assert f'class="{tone}" data-field="t-close-change"' in output["html"]
 
 
 @pytest.mark.parametrize("status,now,expected", [

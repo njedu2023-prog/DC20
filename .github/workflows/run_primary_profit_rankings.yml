@@ -1025,7 +1025,7 @@ jobs:
           for rendered in parser.unified_rows:
               attrs, cells = rendered['attrs'], rendered['cells']
               row = expected_rows.get(attrs.get('data-code'))
-              if not row or len(cells) != 12:
+              if not row or len(cells) != 13:
                   unified_exact = False
                   continue
               unified_exact = unified_exact and (
@@ -1049,7 +1049,8 @@ jobs:
               and parser.single_buttons == 0
               and '单一盈利排序' not in parser.stage_headers
               and '模型分值' not in parser.stage_headers
-              and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'}.issubset(parser.stage_headers))
+              and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果', 'T收盘'}.issubset(parser.stage_headers))
+              and (expected_n == 0 or parser.stage_headers[10:12] == ['T晋级结果', 'T收盘'])
               and (expected_n == 0 or parser.stage_headers[:6] == ['代码', '股票', '行业', '晋级', '连板路径', '路径变化'])
               and (expected_n == 0 or any('T+1净收益' in header and 'T+1验证状态' in header for header in parser.stage_headers))
               and parser.stage_rows == expected_n

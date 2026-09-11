@@ -1188,6 +1188,8 @@
     .compact-dashboard table.three-rank-table { font-size: .75rem; }
     .compact-dashboard table.three-rank-table th, .compact-dashboard table.three-rank-table td { height: 38px; padding: 3px 7px; font-size: .75rem; line-height: 1.2; }
     .compact-dashboard table.three-rank-table td:nth-last-child(-n+2) { line-height: 1.2; }
+    .compact-dashboard table.three-rank-table td[data-field="t-promotion"] { max-width: 200px; white-space: normal; line-height: 1.2; }
+    .compact-dashboard table.three-rank-table td[data-field="t-close-change"] { white-space: nowrap; }
     .compact-dashboard .company-line { gap: 3px; }
     .compact-dashboard .row-meta { margin-top: 1px; font-size: .6875rem; line-height: 1.15; }
     .compact-dashboard .rank-mark { padding: 1px 4px; font-size: .6875rem; line-height: 1.1; }
@@ -2440,6 +2442,7 @@
         const daily = dailyByCode.get(code);
         const limit = limitByCode.get(code);
         const close = finiteNumber(daily?.close);
+        const preClose = finiteNumber(daily?.pre_close);
         const upLimit = finiteNumber(limit?.up_limit);
         if (!daily || !limit || close == null || upLimit == null || close <= 0 || upLimit <= 0) {
           throw new Error(`T日真值缺少冻结成员 ${code}`);
@@ -2448,6 +2451,7 @@
         return {
           ts_code: code,
           t_close: close,
+          t_close_change: preClose != null && preClose > 0 ? finiteNumber(close / preClose - 1) : null,
           t_up_limit: upLimit,
           continuation_limit_up_hit: Math.abs(close - upLimit) <= tolerance ? 1 : 0,
           validation_status: "T_VERIFIED_PENDING_T1",
@@ -2574,6 +2578,7 @@
         ? ` · 退出 ${dateText(observationRow.actual_exit_date)}` : "";
       return {
         continuation_limit_up_hit: hit,
+        t_close_change: clock.t_status === "MATURE" ? tRow?.t_close_change ?? null : null,
         continuation_status_label: hit == null ? threeRankTruthStatusLabel(tStatus, contract) : continuationLabel(hit),
         actual_net_return: net,
         validation_status: status,
@@ -4963,6 +4968,7 @@
           <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
           <td title="混合盈利研究联合代理分，非胜率或预期收益">${row.mixed_profit_score == null ? "—" : number(row.mixed_profit_score, 4)}</td>
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}" data-field="t-promotion" title="${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}">${escapeHtml(row.continuation_status_label === threeRankTruthStatusLabel("MISSING_T_TRUTH", contract) ? "待更新" : row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
+          <td class="${valueTone(row.t_close_change)}" data-field="t-close-change" title="T日收盘涨跌幅：收盘价 / 前收盘价 − 1；非买入收益">${finiteNumber(row.t_close_change) == null ? "待更新" : signedPct(row.t_close_change)}</td>
           <td><strong class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</strong><small class="row-meta"><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></small></td>
         </tr>`).join("");
         const table = els.stageContent.querySelector("tbody[data-three-rank-body]");
@@ -4995,7 +5001,7 @@
           <th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
           <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
-          <th scope="col">T晋级结果</th><th scope="col">T+1净收益<small class="row-meta">T+1验证状态</small></th>
+          <th scope="col">T晋级结果</th><th scope="col">T收盘</th><th scope="col">T+1净收益<small class="row-meta">T+1验证状态</small></th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
         ${independentTruth ? `<details class="compact-disclosure"><summary>验证日期与收益口径：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</summary><p class="stats-note">D ${dateText(contract.signal_date)}；T收盘核验晋级，T+1收盘后核验退出。上表净收益为独立晋级名单的事后日开盘代理观察、扣除45bp（0.45%）成本，非实际成交或混合Shadow成绩。不能退出时顺延，缺失不按0收益。${state.index !== 0 ? "本历史视图未加载独立逐行验证，不借用当前D或旧Action结果。" : ""}</p></details>` : ""}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {

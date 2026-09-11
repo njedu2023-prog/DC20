@@ -1293,7 +1293,7 @@ def test_p1_public_acceptance_revalidates_bytes_and_executes_dynamic_dom() -> No
         "'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'",
         "parser.mixed_hidden is None",
         "parser.text('stageSignalDate')",
-        "len(cells) != 12",
+        "len(cells) != 13",
         "parser.stage_headers[:6] == ['代码', '股票', '行业', '晋级', '连板路径', '路径变化']",
     ):
         assert token in dom
@@ -1365,14 +1365,14 @@ def test_p1_public_acceptance_embedded_scripts_run_against_real_fixture(
         f'<tr data-code="{row["ts_code"]}" data-promotion-rank="{row["promotion_rank"]}" data-profit-rank="{row["executable_profit_research_rank"]}">'
         f'<td>{row["ts_code"]}</td><td>{row["name"]}</td><td>{row["industry"]}</td><td>{row["stage_transition"]}</td><td>路径</td><td>0.00%</td>'
         f'<td>{row["promotion_rank"]}</td><td>50%</td><td>{row["executable_profit_research_rank"]}</td>'
-        f'<td>{row["research_joint_proxy_score"]:.4f}</td><td>待验证</td><td>待验证</td></tr>'
+        f'<td>{row["research_joint_proxy_score"]:.4f}</td><td>待验证</td><td>待更新</td><td>待验证</td></tr>'
         for row in projection["rows"]
     )
     rendered = f"""<!doctype html><html><body>
     <h2 id="statusTitle">晋级榜与盈利排序已生成</h2>
     <section id="stagePanel"><span id="stageSignalDate">D：2026-08-26</span><span id="stageCount">{n}</span>
       <div id="stageContent"><button data-three-rank-sort="promotion_rank">晋级榜</button><button data-three-rank-sort="mixed_profit_rank">盈利排序</button>
-        <table><thead><tr><th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small>非概率</small></th><th>T晋级结果</th><th>T+1净收益<small>T+1验证状态</small></th></tr></thead>
+        <table><thead><tr><th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small>非概率</small></th><th>T晋级结果</th><th>T收盘</th><th>T+1净收益<small>T+1验证状态</small></th></tr></thead>
         <tbody data-three-rank-body>{stage_rows}</tbody></table></div></section>
     </body></html>"""
     dom_path = tmp_path / "rendered.html"

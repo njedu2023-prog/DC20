@@ -1,0 +1,445 @@
+{
+  "schema_version": "decision_verify_import_and_close_column_review_v1",
+  "approved_base_commit": "9736747e842f95f0fac0f641ae513a2083f2c1ec",
+  "scope": "CLI_IMPORT_REPAIR_AND_T_CLOSE_DISPLAY_FULL_VALIDATION_GATES_UNCHANGED",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260911_density.json",
+  "predecessor_evidence_sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "forward_epoch_activated": false,
+    "validation_gates_bypassed": false
+  },
+  "pin_count": 224,
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "68d4db390ac7cc34d13af74df72b2bed63dc53c2e8704672d5ac15a541781535",
+      "current_sha256": "61c6b2c9cb64c9bcc13a94b2d1aed7e1443599944e14099130666d3f09becd71",
+      "baseline_bytes": 393225,
+      "current_bytes": 394001,
+      "inverse_changes": [
+        {
+          "baseline_start": 1191,
+          "current_start": 1191,
+          "baseline_lines": [],
+          "current_lines": [
+            "    .compact-dashboard table.three-rank-table td[data-field=\"t-promotion\"] { max-width: 200px; white-space: normal; line-height: 1.2; }\n",
+            "    .compact-dashboard table.three-rank-table td[data-field=\"t-close-change\"] { white-space: nowrap; }\n"
+          ]
+        },
+        {
+          "baseline_start": 2443,
+          "current_start": 2445,
+          "baseline_lines": [],
+          "current_lines": [
+            "        const preClose = finiteNumber(daily?.pre_close);\n"
+          ]
+        },
+        {
+          "baseline_start": 2451,
+          "current_start": 2454,
+          "baseline_lines": [],
+          "current_lines": [
+            "          t_close_change: preClose != null && preClose > 0 ? finiteNumber(close / preClose - 1) : null,\n"
+          ]
+        },
+        {
+          "baseline_start": 2577,
+          "current_start": 2581,
+          "baseline_lines": [],
+          "current_lines": [
+            "        t_close_change: clock.t_status === \"MATURE\" ? tRow?.t_close_change ?? null : null,\n"
+          ]
+        },
+        {
+          "baseline_start": 4966,
+          "current_start": 4971,
+          "baseline_lines": [],
+          "current_lines": [
+            "          <td class=\"${valueTone(row.t_close_change)}\" data-field=\"t-close-change\" title=\"T日收盘涨跌幅：收盘价 / 前收盘价 − 1；非买入收益\">${finiteNumber(row.t_close_change) == null ? \"待更新\" : signedPct(row.t_close_change)}</td>\n"
+          ]
+        },
+        {
+          "baseline_start": 4998,
+          "current_start": 5004,
+          "baseline_lines": [
+            "          <th scope=\"col\">T晋级结果</th><th scope=\"col\">T+1净收益<small class=\"row-meta\">T+1验证状态</small></th>\n"
+          ],
+          "current_lines": [
+            "          <th scope=\"col\">T晋级结果</th><th scope=\"col\">T收盘</th><th scope=\"col\">T+1净收益<small class=\"row-meta\">T+1验证状态</small></th>\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/run_primary_profit_rankings.yml",
+      "baseline_sha256": "b18053f100a72b8151b040e97826764e8532c77f698986b00cc5f5a303e14e27",
+      "current_sha256": "c0a32e417e8b25e6c67b215b4a9b6d837874fbe7e0122a04e1719f59cdfd4420",
+      "baseline_bytes": 57858,
+      "current_bytes": 57968,
+      "inverse_changes": [
+        {
+          "baseline_start": 1028,
+          "current_start": 1028,
+          "baseline_lines": [
+            "              if not row or len(cells) != 12:\n"
+          ],
+          "current_lines": [
+            "              if not row or len(cells) != 13:\n"
+          ]
+        },
+        {
+          "baseline_start": 1052,
+          "current_start": 1052,
+          "baseline_lines": [
+            "              and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'}.issubset(parser.stage_headers))\n"
+          ],
+          "current_lines": [
+            "              and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果', 'T收盘'}.issubset(parser.stage_headers))\n",
+            "              and (expected_n == 0 or parser.stage_headers[10:12] == ['T晋级结果', 'T收盘'])\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/sync_frozen_shadow_truth.py",
+      "baseline_sha256": "aa7b99887bc1e49ed2405301114fd0b94443664c95c50798c5dc32715f45c532",
+      "current_sha256": "4c153c26956ff35193e68c5620ff569d36681140949d316501993fecff9f61b6",
+      "baseline_bytes": 9479,
+      "current_bytes": 9637,
+      "inverse_changes": [
+        {
+          "baseline_start": 25,
+          "current_start": 25,
+          "baseline_lines": [
+            "sys.path.insert(0, str(ROOT / \"src\"))\n"
+          ],
+          "current_lines": [
+            "# Direct CLI execution also needs repository-local scripts imported by the\n",
+            "# dated P1 validator; PYTHONPATH=src alone does not expose that namespace.\n",
+            "sys.path[:0] = [str(ROOT), str(ROOT / \"src\")]\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_sync_frozen_shadow_truth.py",
+      "baseline_sha256": "d26f75e0cb0926eed0f1920cd9cb786932cda4a726c02684c13bf30ce76eaff6",
+      "current_sha256": "0f569f6719f18240fbb4e139ff76e966571db11ab45350e3d93b084794a7c314",
+      "baseline_bytes": 6639,
+      "current_bytes": 8677,
+      "inverse_changes": [
+        {
+          "baseline_start": 5,
+          "current_start": 5,
+          "baseline_lines": [],
+          "current_lines": [
+            "import os\n",
+            "import subprocess\n",
+            "import sys\n"
+          ]
+        },
+        {
+          "baseline_start": 153,
+          "current_start": 156,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_real_cli_with_src_only_pythonpath_loads_dated_p1_validator(tmp_path):\n",
+            "    \"\"\"Exercise the Actions script entrypoint, not pytest's expanded sys.path.\"\"\"\n",
+            "    root = Path(__file__).resolve().parents[1]\n",
+            "    selections = root / \"data/decision_executable_profit/forward/selections\"\n",
+            "    # required_partitions validates frozen selections before excluding future\n",
+            "    # sessions. Keep at least one real v2 fixture so an empty plan cannot hide\n",
+            "    # the nested scripts.publish_primary_profit_rankings import regression.\n",
+            "    primary_selections = [\n",
+            "        path for path in selections.glob(\"shadow_20??????.json\")\n",
+            "        if path.stem.removeprefix(\"shadow_\") >= sync.START_D\n",
+            "        and json.loads(path.read_text(encoding=\"utf-8\")).get(\"schema_version\")\n",
+            "        == \"dc20_primary_profit_forward_shadow_selection_v2\"\n",
+            "    ]\n",
+            "    assert primary_selections, \"real CLI regression requires a frozen primary P1 selection\"\n",
+            "\n",
+            "    outside = tmp_path / \"outside-repository\"\n",
+            "    outside.mkdir()\n",
+            "    report = outside / \"truth-sync.json\"\n",
+            "    env = dict(os.environ)\n",
+            "    env.update(PYTHONPATH=str(root / \"src\"), PYTHONDONTWRITEBYTECODE=\"1\", TUSHARE_TOKEN=\"\")\n",
+            "    result = subprocess.run(\n",
+            "        [sys.executable, str(root / \"scripts/sync_frozen_shadow_truth.py\"),\n",
+            "         \"--root\", str(root), \"--as-of-date\", sync.START_D, \"--report\", str(report)],\n",
+            "        cwd=outside, env=env, capture_output=True, text=True, timeout=60,\n",
+            "    )\n",
+            "    assert result.returncode == 0, result.stderr\n",
+            "    payload = json.loads(report.read_text(encoding=\"utf-8\"))\n",
+            "    # T is strictly later than this cutoff for every post-cutover selection;\n",
+            "    # no network request, market write, selection, or settlement is permitted.\n",
+            "    assert payload[\"as_of_date\"] == sync.START_D\n",
+            "    assert payload[\"status\"] == \"COMPLETE\"\n",
+            "    assert payload[\"network_requests\"] == 0\n",
+            "    assert payload[\"written_paths\"] == []\n",
+            "    assert payload[\"partitions\"] == []\n",
+            "    assert payload[\"selection_created\"] is False\n",
+            "    assert payload[\"existing_truth_overwritten\"] is False\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_primary_profit_rankings_p1.py",
+      "baseline_sha256": "d0b7de6d5fa847fc2a21e62238860f55e9ff3dae2e565e682beec2b19f45cba5",
+      "current_sha256": "99e072d98bfb56518dcea442dd44af497eb98f5a0c813733959ad2e8306c7ddd",
+      "baseline_bytes": 57975,
+      "current_bytes": 58009,
+      "inverse_changes": [
+        {
+          "baseline_start": 1296,
+          "current_start": 1296,
+          "baseline_lines": [
+            "        \"len(cells) != 12\",\n"
+          ],
+          "current_lines": [
+            "        \"len(cells) != 13\",\n"
+          ]
+        },
+        {
+          "baseline_start": 1368,
+          "current_start": 1368,
+          "baseline_lines": [
+            "        f'<td>{row[\"research_joint_proxy_score\"]:.4f}</td><td>待验证</td><td>待验证</td></tr>'\n"
+          ],
+          "current_lines": [
+            "        f'<td>{row[\"research_joint_proxy_score\"]:.4f}</td><td>待验证</td><td>待更新</td><td>待验证</td></tr>'\n"
+          ]
+        },
+        {
+          "baseline_start": 1375,
+          "current_start": 1375,
+          "baseline_lines": [
+            "        <table><thead><tr><th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small>非概率</small></th><th>T晋级结果</th><th>T+1净收益<small>T+1验证状态</small></th></tr></thead>\n"
+          ],
+          "current_lines": [
+            "        <table><thead><tr><th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small>非概率</small></th><th>T晋级结果</th><th>T收盘</th><th>T+1净收益<small>T+1验证状态</small></th></tr></thead>\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_three_rank_truth_frontend.py",
+      "baseline_sha256": "f8963be85c2f82fc2a2d78db2a4529a9e597a2ace2f491fdfd3626c5cdc37039",
+      "current_sha256": "25519c62730976c0d4ee57a0a6f8dba6f0a3c613e984976b640e0c174bd7717d",
+      "baseline_bytes": 9145,
+      "current_bytes": 10608,
+      "inverse_changes": [
+        {
+          "baseline_start": 101,
+          "current_start": 101,
+          "baseline_lines": [
+            "    out = run(\"for(const path of Object.keys(files)){if(path.startsWith('data/market/raw/'))delete files[path];}await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));\", date=\"20260904\", now=\"2026-09-08T08:00:00Z\")\n"
+          ],
+          "current_lines": [
+            "    out = run(\"for(const path of Object.keys(files)){if(path.startsWith('data/market/raw/'))delete files[path];}await refreshCurrentThreeRankTTruth(plan);const stale={status:'READY',rows:[{ts_code:contract.rows[0].ts_code,validation_status:'PENDING_T1',actual_net_return:null}]};console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,stale)}));\", date=\"20260904\", now=\"2026-09-08T08:00:00Z\")\n"
+          ]
+        },
+        {
+          "baseline_start": 133,
+          "current_start": 133,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_t_close_change_uses_same_t_preclose_not_entry_price():\n",
+            "    result = run(\"const before=JSON.stringify(contract);await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({unchanged:before===JSON.stringify(contract),row:threeRankRowTruth(contract,'600354.SH',state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));\", date=\"20260908\", now=\"2026-09-11T08:00:00Z\")\n",
+            "    assert result[\"unchanged\"]\n",
+            "    assert result[\"row\"][\"t_close_change\"] == pytest.approx(10.98 / 10.48 - 1)\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"preclose\", [\"0\", \"\", \"NaN\", \"Infinity\"])\n",
+            "def test_missing_preclose_does_not_break_promotion_truth(preclose):\n",
+            "    result = run(\"for(const p of Object.keys(files)){if(p.endsWith('/daily.csv')){const lines=files[p].trim().split('\\\\n'), head=lines[0].split(','), i=head.indexOf('pre_close');files[p]=[lines[0],...lines.slice(1).map(line=>{const cells=line.split(',');cells[i]=\" + json.dumps(preclose) + \";return cells.join(',')})].join('\\\\n');}}await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));\")\n",
+            "    assert result[\"t\"][\"status\"] == \"READY\"\n",
+            "    assert result[\"row\"][\"continuation_limit_up_hit\"] is not None\n",
+            "    assert result[\"row\"][\"t_close_change\"] is None\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_two_rank_frontend.py",
+      "baseline_sha256": "53c69b350082b271a48fc787813f0060f0ca6e54bf4c23512d8bc2b4a234ebf5",
+      "current_sha256": "53063c0094eda277ffcfd191b17a9be785b740e1859cb9fafabd31f3952b5ca0",
+      "baseline_bytes": 20555,
+      "current_bytes": 21673,
+      "inverse_changes": [
+        {
+          "baseline_start": 94,
+          "current_start": 94,
+          "baseline_lines": [
+            "        assert len(cells) == 12\n"
+          ],
+          "current_lines": [
+            "        assert len(cells) == 13\n",
+            "        assert cells[11] == \"待更新\"\n"
+          ]
+        },
+        {
+          "baseline_start": 103,
+          "current_start": 104,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"value,expected,tone\", [(0.0229, \"+2.29% ↑\", \"positive\"), (-0.081, \"-8.10% ↓\", \"negative\"), (0, \"0.00%\", \"neutral\"), (None, \"待更新\", \"neutral\")])\n",
+            "def test_t_close_column_after_promotion_uses_compact_signed_percent(value, expected, tone):\n",
+            "    output = _run(\"Date.now=()=>Date.parse('2026-09-07T08:00:00Z');\"\n",
+            "                  \"state.currentThreeRankTTruth={...contract,status:'READY',rows:contract.rows.map(r=>({ts_code:r.ts_code,continuation_limit_up_hit:1,t_close_change:\" + json.dumps(value) + \"}))};\"\n",
+            "                  \"renderThreeRankWatchlist({},contract);console.log(JSON.stringify({header:els.stageContent.innerHTML,html:bodyNode.innerHTML}));\")\n",
+            "    headers = re.findall(r'<th\\b[^>]*>(.*?)</th>', output[\"header\"], re.S)\n",
+            "    assert headers[10:12] == [\"T晋级结果\", \"T收盘\"]\n",
+            "    cells = re.findall(r'<td\\b[^>]*data-field=\"t-close-change\"[^>]*>(.*?)</td>', output[\"html\"], re.S)\n",
+            "    assert cells and all(cell == expected for cell in cells)\n",
+            "    if value:\n",
+            "        assert f'class=\"{tone}\" data-field=\"t-close-change\"' in output[\"html\"]\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "52c063c7ff1738d86d4ac4f2d5ed3e1f80fa6b4a8fa9b2bed9ff6a53576d7700",
+      "current_sha256": "706a9d2c76ca3ed3da15050bca96379f86430b7e3183064d299fbc72d9d6132d",
+      "baseline_bytes": 51529,
+      "current_bytes": 51529,
+      "inverse_changes": [
+        {
+          "baseline_start": 639,
+          "current_start": 639,
+          "baseline_lines": [
+            "    \".github/workflows/run_primary_profit_rankings.yml\": \"b18053f100a72b8151b040e97826764e8532c77f698986b00cc5f5a303e14e27\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/run_primary_profit_rankings.yml\": \"c0a32e417e8b25e6c67b215b4a9b6d837874fbe7e0122a04e1719f59cdfd4420\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"68d4db390ac7cc34d13af74df72b2bed63dc53c2e8704672d5ac15a541781535\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"61c6b2c9cb64c9bcc13a94b2d1aed7e1443599944e14099130666d3f09becd71\",\n"
+          ]
+        },
+        {
+          "baseline_start": 730,
+          "current_start": 730,
+          "baseline_lines": [
+            "    \"scripts/sync_frozen_shadow_truth.py\": \"aa7b99887bc1e49ed2405301114fd0b94443664c95c50798c5dc32715f45c532\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/sync_frozen_shadow_truth.py\": \"4c153c26956ff35193e68c5620ff569d36681140949d316501993fecff9f61b6\",\n"
+          ]
+        },
+        {
+          "baseline_start": 838,
+          "current_start": 838,
+          "baseline_lines": [
+            "    \"tests/test_primary_profit_rankings_p1.py\": \"d0b7de6d5fa847fc2a21e62238860f55e9ff3dae2e565e682beec2b19f45cba5\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_primary_profit_rankings_p1.py\": \"99e072d98bfb56518dcea442dd44af497eb98f5a0c813733959ad2e8306c7ddd\",\n"
+          ]
+        },
+        {
+          "baseline_start": 842,
+          "current_start": 842,
+          "baseline_lines": [
+            "    \"tests/test_sync_frozen_shadow_truth.py\": \"d26f75e0cb0926eed0f1920cd9cb786932cda4a726c02684c13bf30ce76eaff6\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_sync_frozen_shadow_truth.py\": \"0f569f6719f18240fbb4e139ff76e966571db11ab45350e3d93b084794a7c314\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_manifest_canonical_sha256": "73ffd553e1dcd876204b8c074fe246cdb96d8506fe7cfb15a691a30b38847db7",
+  "baseline_manifest_canonical_sha256": "9719cc9939b23a59de6e3faeaf82b721a2c105594c3a703d0c637ebe06d3d3dd",
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    }
+  ],
+  "regression_test": {
+    "path": "tests/test_decision_two_rank_frontend.py",
+    "sha256": "53063c0094eda277ffcfd191b17a9be785b740e1859cb9fafabd31f3952b5ca0"
+  },
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "f454d68d7e4f805061ecd8a581d29ff9dd9699841e6f3743e79cf2ba09c71696",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c",
+      "approved_base_commit": "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d",
+      "scope": "Only the non-model freeze-manifest dependency follows reviewed CSS density; all other 41 assets, runtime logic, HTML semantics and the inactive forward epoch are unchanged."
+    },
+    "protected_canonical_sha256": "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c",
+    "current_scope": "Only the freeze-manifest dependency follows the reviewed CLI import fix and T close column with matching DOM acceptance. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
+  }
+}

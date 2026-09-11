@@ -35,6 +35,12 @@ LOADING_REVIEW = ROOT / "models/decision_source_surface_review_20260911_loading.
 LOADING_REVIEW_SHA = "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
 REFERENCE_DENSITY_REVIEW = ROOT / "models/decision_source_surface_review_20260911_density.json"
 REFERENCE_DENSITY_REVIEW_SHA = "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+VERIFY_CLOSE_REVIEW = ROOT / "models/decision_source_surface_review_20260911_verify_close.json"
+VERIFY_CLOSE_REVIEW_SHA = "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+VERIFY_CLOSE_PATHS = {"decision.html", ".github/workflows/run_primary_profit_rankings.yml",
+    "scripts/sync_frozen_shadow_truth.py", "tests/test_sync_frozen_shadow_truth.py",
+    "tests/test_primary_profit_rankings_p1.py", "tests/test_three_rank_truth_frontend.py",
+    "tests/test_decision_two_rank_frontend.py"}
 COLUMNS_REVIEW = ROOT / "models/decision_source_surface_review_20260911_columns.json"
 COLUMNS_REVIEW_SHA = "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
 COLUMNS_PIN_PATHS = {"decision.html", ".github/workflows/run_primary_profit_rankings.yml",
@@ -107,29 +113,27 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _density_review() -> dict:
-    assert _sha256(REFERENCE_DENSITY_REVIEW) == REFERENCE_DENSITY_REVIEW_SHA
-    review = json.loads(REFERENCE_DENSITY_REVIEW.read_text())
-    assert review["schema_version"] == "decision_frontend_density_review_v1"
-    assert review["approved_base_commit"] == "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d"
-    assert review["scope"] == "CSS_ONLY_REFERENCE_TABLE_DENSITY_NOT_MODEL_OR_DATA_RELEASE"
-    assert review["predecessor_evidence_path"] == COLUMNS_REVIEW.relative_to(ROOT).as_posix()
-    assert review["predecessor_evidence_sha256"] == _sha256(COLUMNS_REVIEW) == COLUMNS_REVIEW_SHA
+def _verify_close_review() -> dict:
+    assert _sha256(VERIFY_CLOSE_REVIEW) == VERIFY_CLOSE_REVIEW_SHA
+    review = json.loads(VERIFY_CLOSE_REVIEW.read_text())
+    assert review["schema_version"] == "decision_verify_import_and_close_column_review_v1"
+    assert review["approved_base_commit"] == "9736747e842f95f0fac0f641ae513a2083f2c1ec"
+    assert review["scope"] == "CLI_IMPORT_REPAIR_AND_T_CLOSE_DISPLAY_FULL_VALIDATION_GATES_UNCHANGED"
+    assert review["predecessor_evidence_path"] == REFERENCE_DENSITY_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(REFERENCE_DENSITY_REVIEW) == REFERENCE_DENSITY_REVIEW_SHA
     assert len(review["boundaries"]) == 8 and all(value is False for value in review["boundaries"].values())
-    assert len(review["source_changes"]) == 2
-    assert {item["path"] for item in review["source_changes"]} == {"decision.html", "models/decision_model_freeze.json"}
-    assert len(review["preserved_evidence"]) == 12
+    assert {item["path"] for item in review["source_changes"]} == VERIFY_CLOSE_PATHS | {"models/decision_model_freeze.json"}
+    assert len(review["source_changes"]) == 8 and len(review["preserved_evidence"]) == 13
     for item in review["preserved_evidence"]:
         assert (ROOT / item["path"]).parent == ROOT / "models"
-        assert not (ROOT / item["path"]).is_symlink()
-        assert _sha256(ROOT / item["path"]) == item["sha256"]
+        assert not (ROOT / item["path"]).is_symlink() and _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
     assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
     return review
 
 
-def _source_before_density(path: str) -> bytes:
-    review = _density_review()
+def _source_before_verify_close(path: str) -> bytes:
+    review = _verify_close_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
     source = (ROOT / path).read_bytes()
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
@@ -149,13 +153,100 @@ def _source_before_density(path: str) -> bytes:
     return restored
 
 
-def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
-    review = _density_review()
+def _state_before_verify_close(manifest: dict | None = None) -> tuple[dict, dict]:
+    review = _verify_close_review()
     manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
         assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    before = _source_before_verify_close("models/decision_model_freeze.json")
+    restored = json.loads(before)
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in VERIFY_CLOSE_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_verify_close(path)).hexdigest()
+    assert expected == restored
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({a["path"] for a in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(path=VERIFY_CLOSE_REVIEW.relative_to(ROOT).as_posix(), sha256=VERIFY_CLOSE_REVIEW_SHA, approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = (ROOT / asset["path"]).read_bytes()
+        assert not (ROOT / asset["path"]).is_symlink()
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(a for a in protected["assets"] if a["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(a for a in inventory["assets"] if a["path"] == "models/decision_model_freeze.json").update(sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_verify_import_fix_and_close_column_do_not_change_models_or_validation_policy():
+    _state_before_verify_close()
+    previous = _source_before_verify_close("scripts/sync_frozen_shadow_truth.py").decode()
+    current = (ROOT / "scripts/sync_frozen_shadow_truth.py").read_text()
+    assert current.split("from top10decision", 1)[1] == previous.split("from top10decision", 1)[1]
+    assert 'sys.path[:0] = [str(ROOT), str(ROOT / "src")]' in current
+    for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py"):
+        assert _source_before_verify_close(path) == (ROOT / path).read_bytes()
+
+
+def _density_review() -> dict:
+    assert _sha256(REFERENCE_DENSITY_REVIEW) == REFERENCE_DENSITY_REVIEW_SHA
+    review = json.loads(REFERENCE_DENSITY_REVIEW.read_text())
+    assert review["schema_version"] == "decision_frontend_density_review_v1"
+    assert review["approved_base_commit"] == "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d"
+    assert review["scope"] == "CSS_ONLY_REFERENCE_TABLE_DENSITY_NOT_MODEL_OR_DATA_RELEASE"
+    assert review["predecessor_evidence_path"] == COLUMNS_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(COLUMNS_REVIEW) == COLUMNS_REVIEW_SHA
+    assert len(review["boundaries"]) == 8 and all(value is False for value in review["boundaries"].values())
+    assert len(review["source_changes"]) == 2
+    assert {item["path"] for item in review["source_changes"]} == {"decision.html", "models/decision_model_freeze.json"}
+    assert len(review["preserved_evidence"]) == 12
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
+    assert hashlib.sha256(_source_before_verify_close(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
+    return review
+
+
+def _source_before_density(path: str) -> bytes:
+    review = _density_review()
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = _source_before_verify_close(path)
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    assert item["inverse_changes"]
+    for entry in reversed(item["inverse_changes"]):
+        assert set(entry) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(entry["current_start"]) is int and entry["current_start"] > 0
+        start = entry["current_start"] - 1
+        assert lines[start:start + len(entry["current_lines"])] == entry["current_lines"]
+        lines[start:start + len(entry["current_lines"])] = entry["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
+    review = _density_review()
+    manifest, inventory = _state_before_verify_close(manifest)
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_verify_close(path)).hexdigest() == expected
     before_manifest = _source_before_density(MANIFEST.relative_to(ROOT).as_posix())
     restored = json.loads(before_manifest)
     assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
@@ -164,7 +255,6 @@ def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
     assert expected == restored
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({asset["path"] for asset in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == {
@@ -173,7 +263,7 @@ def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
     }
     for asset in inventory["assets"]:
         assert not (ROOT / asset["path"]).is_symlink()
-        actual = (ROOT / asset["path"]).read_bytes()
+        actual = _source_before_verify_close(asset["path"])
         assert hashlib.sha256(actual).hexdigest() == asset["sha256"] and len(actual) == asset["bytes"]
     protected = copy.deepcopy(inventory)
     del protected["dependency_successor_review"]
@@ -189,7 +279,7 @@ def _state_before_density(manifest: dict | None = None) -> tuple[dict, dict]:
 
 def test_reference_density_changes_only_css_and_preserves_runtime_and_content():
     _state_before_density()
-    current = (ROOT / "decision.html").read_text()
+    current = _source_before_verify_close("decision.html").decode()
     previous = _source_before_density("decision.html").decode()
     assert re.sub(r"<style>.*?</style>", "", current, flags=re.S) == re.sub(r"<style>.*?</style>", "", previous, flags=re.S)
     css = current.split("/* Reference-table density:", 1)[1].split("#compactLedger .stats-note", 1)[0]
@@ -220,7 +310,7 @@ def _columns_review() -> dict:
         assert not (ROOT / item["path"]).is_symlink()
         assert _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
-    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    assert hashlib.sha256(_source_before_verify_close(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
     return review
 
 
@@ -296,7 +386,7 @@ def _manifest_before_columns(manifest: dict) -> dict:
 
 def test_columns_change_only_renderer_css_and_public_dom_acceptance():
     _manifest_before_columns(json.loads(MANIFEST.read_text()))
-    current = (ROOT / "decision.html").read_text()
+    current = _source_before_verify_close("decision.html").decode()
     previous = _source_before_columns("decision.html").decode()
     def logic_without_renderer(text):
         script = re.search(r"<script>(.*?)</script>", text, re.S).group(1)

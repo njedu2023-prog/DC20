@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_density.json",
-    "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c",
-    "approved_base_commit": "765228a8b70fd486d432cb83edb0fd9ea2a9fc3d",
-    "scope": "Only the non-model freeze-manifest dependency follows reviewed CSS density; all other 41 assets, runtime logic, HTML semantics and the inactive forward epoch are unchanged."
+    "path": "models/decision_source_surface_review_20260911_verify_close.json",
+    "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3",
+    "approved_base_commit": "9736747e842f95f0fac0f641ae513a2083f2c1ec",
+    "scope": "Only the freeze-manifest dependency follows the reviewed CLI import fix and T close column with matching DOM acceptance. All other 41 inventory assets, models, frozen records, truth policies, complete validation gates and the inactive forward epoch remain unchanged."
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "52c063c7ff1738d86d4ac4f2d5ed3e1f80fa6b4a8fa9b2bed9ff6a53576d7700",
+      "sha256": "706a9d2c76ca3ed3da15050bca96379f86430b7e3183064d299fbc72d9d6132d",
       "bytes": 51529,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false

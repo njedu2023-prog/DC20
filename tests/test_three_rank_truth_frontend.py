@@ -98,7 +98,7 @@ def test_observation_bad_date_sha_or_missing_member_is_explicit_and_not_zero(mut
 def test_mature_missing_t_csv_is_not_pending_and_stale_t1_cannot_be_zero():
     # Explicitly simulate HTTP 404: committed market history grows over time,
     # so a fixed historical date must not implicitly serve as a missing fixture.
-    out = run("for(const path of Object.keys(files)){if(path.startsWith('data/market/raw/'))delete files[path];}await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));", date="20260904", now="2026-09-08T08:00:00Z")
+    out = run("for(const path of Object.keys(files)){if(path.startsWith('data/market/raw/'))delete files[path];}await refreshCurrentThreeRankTTruth(plan);const stale={status:'READY',rows:[{ts_code:contract.rows[0].ts_code,validation_status:'PENDING_T1',actual_net_return:null}]};console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,stale)}));", date="20260904", now="2026-09-08T08:00:00Z")
     assert out["t"]["status"] == "MISSING_T_TRUTH"
     assert "已到期" in out["row"]["continuation_status_label"]
     assert out["row"]["validation_status"] == "OBSERVATION_STALE"
@@ -130,3 +130,17 @@ def test_proxy_settlement_badge_tones_preserve_pending_and_legacy_states():
     result = run("console.log(JSON.stringify(" + json.dumps(statuses) + ".map(truthClass)));")
     assert result == ["final", "no-fill", "pending", "pending", "pending", "pending", "pending", "pending",
                       "final", "no-fill", "no-fill"]
+
+
+def test_t_close_change_uses_same_t_preclose_not_entry_price():
+    result = run("const before=JSON.stringify(contract);await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({unchanged:before===JSON.stringify(contract),row:threeRankRowTruth(contract,'600354.SH',state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));", date="20260908", now="2026-09-11T08:00:00Z")
+    assert result["unchanged"]
+    assert result["row"]["t_close_change"] == pytest.approx(10.98 / 10.48 - 1)
+
+
+@pytest.mark.parametrize("preclose", ["0", "", "NaN", "Infinity"])
+def test_missing_preclose_does_not_break_promotion_truth(preclose):
+    result = run("for(const p of Object.keys(files)){if(p.endsWith('/daily.csv')){const lines=files[p].trim().split('\\n'), head=lines[0].split(','), i=head.indexOf('pre_close');files[p]=[lines[0],...lines.slice(1).map(line=>{const cells=line.split(',');cells[i]=" + json.dumps(preclose) + ";return cells.join(',')})].join('\\n');}}await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,row:threeRankRowTruth(contract,contract.rows[0].ts_code,state.currentThreeRankTTruth,state.currentThreeRankObservationTruth)}));")
+    assert result["t"]["status"] == "READY"
+    assert result["row"]["continuation_limit_up_hit"] is not None
+    assert result["row"]["t_close_change"] is None

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -150,3 +153,41 @@ def test_date_plan_uses_only_existing_frozen_post_cutover_due_sessions(tmp_path,
     assert ("20260907", "stk_auction_o") not in result
     assert ("20260901", "daily") in result
     assert all(codes == {CODE} for codes in result.values())
+
+
+def test_real_cli_with_src_only_pythonpath_loads_dated_p1_validator(tmp_path):
+    """Exercise the Actions script entrypoint, not pytest's expanded sys.path."""
+    root = Path(__file__).resolve().parents[1]
+    selections = root / "data/decision_executable_profit/forward/selections"
+    # required_partitions validates frozen selections before excluding future
+    # sessions. Keep at least one real v2 fixture so an empty plan cannot hide
+    # the nested scripts.publish_primary_profit_rankings import regression.
+    primary_selections = [
+        path for path in selections.glob("shadow_20??????.json")
+        if path.stem.removeprefix("shadow_") >= sync.START_D
+        and json.loads(path.read_text(encoding="utf-8")).get("schema_version")
+        == "dc20_primary_profit_forward_shadow_selection_v2"
+    ]
+    assert primary_selections, "real CLI regression requires a frozen primary P1 selection"
+
+    outside = tmp_path / "outside-repository"
+    outside.mkdir()
+    report = outside / "truth-sync.json"
+    env = dict(os.environ)
+    env.update(PYTHONPATH=str(root / "src"), PYTHONDONTWRITEBYTECODE="1", TUSHARE_TOKEN="")
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts/sync_frozen_shadow_truth.py"),
+         "--root", str(root), "--as-of-date", sync.START_D, "--report", str(report)],
+        cwd=outside, env=env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    # T is strictly later than this cutoff for every post-cutover selection;
+    # no network request, market write, selection, or settlement is permitted.
+    assert payload["as_of_date"] == sync.START_D
+    assert payload["status"] == "COMPLETE"
+    assert payload["network_requests"] == 0
+    assert payload["written_paths"] == []
+    assert payload["partitions"] == []
+    assert payload["selection_created"] is False
+    assert payload["existing_truth_overwritten"] is False
