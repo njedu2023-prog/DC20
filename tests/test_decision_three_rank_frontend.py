@@ -404,7 +404,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     ):
         assert removed not in renderer
     assert "下载 CSV" in renderer
-    assert '连板路径<small class="row-meta">路径变化</small>' in renderer
+    assert '<th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>' in renderer
+    assert 'data-field="board-path"' in renderer and 'data-field="path-change"' in renderer
     assert "pathClass(row.path_label_code)" in renderer
     assert 'row.path_label || "路径数据不足"' in renderer
     assert "const truth = truthByCode.get(String(row.ts_code)) || {};" in renderer

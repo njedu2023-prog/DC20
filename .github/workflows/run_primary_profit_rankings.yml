@@ -1025,36 +1025,38 @@ jobs:
           for rendered in parser.unified_rows:
               attrs, cells = rendered['attrs'], rendered['cells']
               row = expected_rows.get(attrs.get('data-code'))
-              if not row or len(cells) != 9:
+              if not row or len(cells) != 12:
                   unified_exact = False
                   continue
               unified_exact = unified_exact and (
                   attrs.get('data-promotion-rank') == str(row['promotion_rank'])
                   and attrs.get('data-profit-rank') == str(row['executable_profit_research_rank'])
-                  and row['ts_code'] in cells[0] and row['name'] in cells[0]
-                  and cells[3] == str(row['promotion_rank'])
-                  and cells[5].removesuffix('并列分').strip() == str(row['executable_profit_research_rank'])
+                  and row['ts_code'] == cells[0] and row['name'] in cells[1]
+                  and cells[2] == row['industry']
+                  and cells[3] == row['stage_transition']
+                  and cells[6] == str(row['promotion_rank'])
+                  and cells[8].removesuffix('并列分').strip() == str(row['executable_profit_research_rank'])
               )
               try:
-                  unified_exact = unified_exact and abs(float(cells[6]) - row['research_joint_proxy_score']) <= 0.000050000001
+                  unified_exact = unified_exact and abs(float(cells[9]) - row['research_joint_proxy_score']) <= 0.000050000001
               except ValueError:
                   unified_exact = False
           if not (
               status == '晋级榜与盈利排序已生成'
               and parser.stage_hidden is False
-              and parser.mixed_hidden is False
+              and parser.mixed_hidden is None
+              and parser.text('stageSignalDate') == f'D：{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}'
               and parser.single_buttons == 0
               and '单一盈利排序' not in parser.stage_headers
               and '模型分值' not in parser.stage_headers
               and (expected_n == 0 or {'晋级排序', '晋级概率', '盈利排序', 'T晋级结果'}.issubset(parser.stage_headers))
-              and (expected_n == 0 or any('连板路径' in header and '路径变化' in header for header in parser.stage_headers))
+              and (expected_n == 0 or parser.stage_headers[:6] == ['代码', '股票', '行业', '晋级', '连板路径', '路径变化'])
               and (expected_n == 0 or any('T+1净收益' in header and 'T+1验证状态' in header for header in parser.stage_headers))
               and parser.stage_rows == expected_n
               and parser.stage_tables == (1 if expected_n else 0)
               and (expected_n == 0 or parser.profit_sort_buttons == 1)
               and parser.mixed_rows == 0
               and unified_exact
-              and f'真实候选 {expected_n} 支' in mixed_state
               and not any(value in stage_text or value in mixed_text or value in mixed_state for value in failures)
           ):
               raise SystemExit(

@@ -33,6 +33,10 @@ DAILY_DISPATCH_REVIEW = ROOT / "models/decision_source_surface_review_20260911_d
 DAILY_DISPATCH_REVIEW_SHA = "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
 LOADING_REVIEW = ROOT / "models/decision_source_surface_review_20260911_loading.json"
 LOADING_REVIEW_SHA = "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+COLUMNS_REVIEW = ROOT / "models/decision_source_surface_review_20260911_columns.json"
+COLUMNS_REVIEW_SHA = "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+COLUMNS_PIN_PATHS = {"decision.html", ".github/workflows/run_primary_profit_rankings.yml",
+                     "tests/test_decision_three_rank_frontend.py", "tests/test_primary_profit_rankings_p1.py"}
 DAILY_DISPATCH_PATHS = {
     ".github/workflows/run_primary_d_daily.yml",
     ".github/workflows/run_primary_profit_rankings.yml",
@@ -101,6 +105,116 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _columns_review() -> dict:
+    assert _sha256(COLUMNS_REVIEW) == COLUMNS_REVIEW_SHA
+    review = json.loads(COLUMNS_REVIEW.read_text())
+    assert review["schema_version"] == "decision_frontend_columns_review_v1"
+    assert review["approved_base_commit"] == "6711188bb31d93e485b9903871f92932e348ada8"
+    assert review["scope"] == "DISPLAY_COLUMNS_AND_MATCHING_PUBLIC_DOM_ACCEPTANCE_NOT_MODEL_OR_DATA_RELEASE"
+    assert review["predecessor_evidence_path"] == LOADING_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(LOADING_REVIEW) == LOADING_REVIEW_SHA
+    assert review["boundaries"] == {
+        **{key: False for key in ("model_weights_changed", "ranking_algorithm_changed", "frozen_members_changed",
+                                 "truth_policy_changed", "historical_ledger_rewritten", "workflow_scheduling_changed", "forward_epoch_activated")},
+        "publication_dom_acceptance_changed": True,
+    }
+    assert len(review["source_changes"]) == 6
+    assert {item["path"] for item in review["source_changes"]} == COLUMNS_PIN_PATHS | {
+        "models/decision_model_freeze.json", "tests/test_decision_two_rank_frontend.py"}
+    assert len(review["preserved_evidence"]) == 11
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
+    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    return review
+
+
+def _source_before_columns(path: str) -> bytes:
+    review = _columns_review()
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [entry["current_start"] for entry in changes] == sorted(entry["current_start"] for entry in changes)
+    for entry in reversed(changes):
+        assert set(entry) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(entry["current_start"]) is int and entry["current_start"] > 0
+        assert type(entry["baseline_start"]) is int and entry["baseline_start"] > 0
+        start = entry["current_start"] - 1
+        assert lines[start:start + len(entry["current_lines"])] == entry["current_lines"]
+        lines[start:start + len(entry["current_lines"])] = entry["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _inventory_before_columns() -> dict:
+    review = _columns_review()
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({asset["path"] for asset in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": COLUMNS_REVIEW.relative_to(ROOT).as_posix(), "sha256": COLUMNS_REVIEW_SHA,
+        "approved_base_commit": review["approved_base_commit"], "scope": dep["current_scope"],
+    }
+    for asset in inventory["assets"]:
+        assert not (ROOT / asset["path"]).is_symlink()
+        actual = (ROOT / asset["path"]).read_bytes()
+        assert hashlib.sha256(actual).hexdigest() == asset["sha256"] and len(actual) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    freeze = next(asset for asset in inventory["assets"] if asset["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    before = _source_before_columns(freeze["path"])
+    freeze.update(sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return inventory
+
+
+def _manifest_before_columns(manifest: dict) -> dict:
+    review = _columns_review()
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+    for item in review["source_changes"]:
+        _source_before_columns(item["path"])
+    restored = json.loads(_source_before_columns(MANIFEST.relative_to(ROOT).as_posix()))
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in COLUMNS_PIN_PATHS:
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_columns(path)).hexdigest()
+    assert expected == restored
+    _inventory_before_columns()
+    return restored
+
+
+def test_columns_change_only_renderer_css_and_public_dom_acceptance():
+    _manifest_before_columns(json.loads(MANIFEST.read_text()))
+    current = (ROOT / "decision.html").read_text()
+    previous = _source_before_columns("decision.html").decode()
+    def logic_without_renderer(text):
+        script = re.search(r"<script>(.*?)</script>", text, re.S).group(1)
+        return re.sub(r"^    function renderThreeRankWatchlist\(.*?^    }", "", script, flags=re.M | re.S)
+    assert logic_without_renderer(current) == logic_without_renderer(previous)
+    path = ".github/workflows/run_primary_profit_rankings.yml"
+    current, previous = (ROOT / path).read_text(), _source_before_columns(path).decode()
+    marker = "- name: Execute public dashboard and verify rendered P1 DOM"
+    assert current.split(marker)[0] == previous.split(marker)[0]
+    assert current.split(marker)[1].split("\n          PY", 1)[1] == previous.split(marker)[1].split("\n          PY", 1)[1]
+
+
 def _loading_review() -> dict:
     assert _sha256(LOADING_REVIEW) == LOADING_REVIEW_SHA
     review = json.loads(LOADING_REVIEW.read_text())
@@ -128,7 +242,7 @@ def _source_before_loading(path: str) -> bytes:
     """Validate current bytes, then reverse the read-only frontend successor."""
     review = _loading_review()
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_columns(path)
     matches = [item for item in review["source_changes"] if item["path"] == path]
     if not matches:
         return source
@@ -157,7 +271,7 @@ def _inventory_before_loading() -> dict:
     review = _loading_review()
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
+    inventory = _inventory_before_columns()
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({asset["path"] for asset in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == {
@@ -166,7 +280,7 @@ def _inventory_before_loading() -> dict:
     }
     for asset in inventory["assets"]:
         assert not (ROOT / asset["path"]).is_symlink()
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_columns(asset["path"])
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)
     del protected["dependency_successor_review"]
@@ -183,12 +297,13 @@ def _inventory_before_loading() -> dict:
 
 
 def _manifest_before_loading(manifest: dict) -> dict:
+    manifest = _manifest_before_columns(manifest)
     review = _loading_review()
     assert len(manifest["pinned_files"]) == review["pin_count"] == 224
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
         assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-        assert _sha256(ROOT / path) == expected
+        assert hashlib.sha256(_source_before_columns(path)).hexdigest() == expected
     before = _source_before_loading(MANIFEST.relative_to(ROOT).as_posix())
     assert hashlib.sha256(before).hexdigest() == "408311f0852892e7b175e589d40d649f56717f2b27de08cd6b5f6f4459b6c2e8"
     restored = json.loads(before)

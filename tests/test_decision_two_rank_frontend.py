@@ -84,17 +84,40 @@ def test_stock_code_industry_are_separate_and_ready_legend_is_removed():
     output = _run("renderThreeRankWatchlist({},contract);console.log(JSON.stringify({header:els.stageContent.innerHTML,html:bodyNode.innerHTML,rows:contract.rows}));", count=6)
     for label in ("股票", "代码", "行业"):
         assert f'<th scope="col" class="left">{label}</th>' in output["header"]
+    headers = re.findall(r'<th\b[^>]*>(.*?)</th>', output["header"], re.S)
+    assert headers[:6] == ["代码", "股票", "行业", "晋级", "连板路径", "路径变化"]
     for removed in ("股票 / 代码 / 行业", "rank-legend", "晋1–3", "盈1–2", "同D盈利已校验"):
         assert removed not in output["header"]
     for row in output["rows"]:
         rendered = re.search(rf'<tr data-code="{re.escape(row["ts_code"])}".*?</tr>', output["html"], re.S).group()
         cells = re.findall(r'<td\b[^>]*>(.*?)</td>', rendered, re.S)
-        assert len(cells) == 11
-        assert row["name"] in cells[0] and row["ts_code"] not in cells[0]
-        assert cells[1] == row["ts_code"] and cells[2] == row["industry"]
-        assert "company-line" in cells[0]
+        assert len(cells) == 12
+        assert cells[0] == row["ts_code"]
+        assert row["name"] in cells[1] and row["ts_code"] not in cells[1]
+        assert cells[2] == row["industry"] and "company-line" in cells[1]
+        assert cells[3] == row["stage_transition"]
+        assert "truth-badge" in cells[4] and "<small" not in cells[4]
+        assert "<" not in cells[5]
     assert output["html"].count('aria-label="晋级排序第') == 3
     assert output["html"].count('aria-label="盈利排序第') == 2
+
+
+@pytest.mark.parametrize("status,now,expected", [
+    ("MISSING_T_TRUTH", "2026-09-07T08:00:00Z", "待更新"),
+    ("INVALID_T_TRUTH", "2026-09-07T08:00:00Z", "T 真值读取或校验失败"),
+    ("MISSING_T_TRUTH", "2026-09-07T01:00:00Z", "T 2026-09-07 尚未收盘"),
+    ("READY", "2026-09-07T08:00:00Z", "晋级涨停"),
+])
+def test_t_result_shortens_only_due_missing_truth_without_changing_validation(status, now, expected):
+    output = _run(f"Date.now=()=>Date.parse('{now}');"
+                  f"state.currentThreeRankTTruth={{...contract,status:'{status}',rows:contract.rows.map(r=>({{ts_code:r.ts_code,continuation_limit_up_hit:1}}))}};"
+                  "const before=JSON.stringify(state.currentThreeRankTTruth);renderThreeRankWatchlist({},contract);"
+                  "console.log(JSON.stringify({html:bodyNode.innerHTML,unchanged:before===JSON.stringify(state.currentThreeRankTTruth)}));")
+    cells = re.findall(r'<td[^>]*data-field="t-promotion"[^>]*>(.*?)</td>', output["html"], re.S)
+    assert cells and all(cell == expected for cell in cells)
+    assert output["unchanged"]
+    if expected == "待更新":
+        assert 'title="T 2026-09-07 已到期，行情待更新"' in output["html"]
 
 
 def test_independent_rank_never_borrows_old_action_or_wrong_bundle_returns():
@@ -287,7 +310,7 @@ def test_p1_empty_day_dom_acceptance_does_not_require_padded_tables(tmp_path, mo
     output = tmp_path / "outputs/decision/executable_profit_research"
     output.mkdir(parents=True)
     (output / "projection_20260904.json").write_text('{"candidate_count":0}')
-    html = '<h2 id="statusTitle">晋级榜与盈利排序已生成</h2><section id="stagePanel"><div id="stageContent">D日没有符合硬范围的候选</div></section><section id="executableProfitResearchPanel"><span id="executableProfitResearchState">真实候选 0 支</span><div id="executableProfitResearchContent">展示真实N=0，不从池外补票。</div></section>'
+    html = '<h2 id="statusTitle">晋级榜与盈利排序已生成</h2><section id="stagePanel"><span id="stageSignalDate">D：2026-09-04</span><div id="stageContent">D日没有符合硬范围的候选</div></section>'
     path = tmp_path / "empty.html"
     path.write_text(html)
     monkeypatch.setenv("PUBLIC_ROOT", str(tmp_path))

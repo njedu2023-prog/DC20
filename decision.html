@@ -1170,6 +1170,8 @@
       .compact-dashboard table.three-rank-table th:first-child, .compact-dashboard table.three-rank-table td:first-child { min-width: 200px; }
     }
     [hidden] { display: none !important; }
+    .compact-dashboard #stagePanel .three-rank-table th:first-child, .compact-dashboard #stagePanel .three-rank-table td:first-child { min-width: 104px; }
+    .compact-dashboard #stagePanel .three-rank-table th:nth-child(2), .compact-dashboard #stagePanel .three-rank-table td:nth-child(2) { min-width: 136px; }
     #compactLedger .stats-note, #compactStatistics .stats-note { margin: 8px 12px; font-size: 12px; }
     #compactLedger table { min-width: 1080px; }
     #compactLedger .profit-summary-table { min-width: 780px; }
@@ -4928,16 +4930,17 @@
           return String(left?.ts_code || "").localeCompare(String(right?.ts_code || ""));
         });
         const body = sorted.map(row => `<tr data-code="${escapeHtml(row.ts_code)}" data-promotion-rank="${row.promotion_rank}" data-profit-rank="${row.mixed_profit_rank ?? ""}">
-          <td class="left name" data-field="stock"><span class="company-line">${escapeHtml(row.name || "-")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class="rank-mark rank-promotion" aria-label="晋级排序第${row.promotion_rank}名">晋${row.promotion_rank}</span>` : ""}${[1, 2].includes(row.mixed_profit_rank) ? `<span class="rank-mark rank-profit" aria-label="盈利排序第${row.mixed_profit_rank}名">盈${row.mixed_profit_rank}</span>` : ""}</span></td>
           <td class="left" data-field="code">${escapeHtml(row.ts_code || "-")}</td>
+          <td class="left name" data-field="stock"><span class="company-line">${escapeHtml(row.name || "-")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class="rank-mark rank-promotion" aria-label="晋级排序第${row.promotion_rank}名">晋${row.promotion_rank}</span>` : ""}${[1, 2].includes(row.mixed_profit_rank) ? `<span class="rank-mark rank-profit" aria-label="盈利排序第${row.mixed_profit_rank}名">盈${row.mixed_profit_rank}</span>` : ""}</span></td>
           <td class="left" data-field="industry">${escapeHtml(row.industry || "未分类")}</td>
-          <td>${escapeHtml(row.stage_transition || "-")}</td>
-          <td class="left"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span><small class="row-meta ${valueTone(row.path_strength_delta)}">${signedPct(row.path_strength_delta)}</small></td>
+          <td data-field="stage-transition">${escapeHtml(row.stage_transition || "-")}</td>
+          <td class="left" data-field="board-path"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
+          <td class="${valueTone(row.path_strength_delta)}" data-field="path-change">${signedPct(row.path_strength_delta)}</td>
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
           <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
           <td title="混合盈利研究联合代理分，非胜率或预期收益">${row.mixed_profit_score == null ? "—" : number(row.mixed_profit_score, 4)}</td>
-          <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}">${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
+          <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}" data-field="t-promotion" title="${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}">${escapeHtml(row.continuation_status_label === threeRankTruthStatusLabel("MISSING_T_TRUTH", contract) ? "待更新" : row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
           <td><strong class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</strong><small class="row-meta"><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></small></td>
         </tr>`).join("");
         const table = els.stageContent.querySelector("tbody[data-three-rank-body]");
@@ -4966,8 +4969,8 @@
         ${!profitView.ready || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
           <caption class="sr-only">D ${dateText(contract.signal_date)} 晋级与盈利同表；排序切换不改变冻结名次</caption><thead><tr>
-          <th scope="col" class="left">股票</th><th scope="col" class="left">代码</th><th scope="col" class="left">行业</th><th scope="col">晋级</th>
-          <th scope="col" class="left">连板路径<small class="row-meta">路径变化</small></th>
+          <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业</th><th scope="col">晋级</th>
+          <th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
           <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
           <th scope="col">T晋级结果</th><th scope="col">T+1净收益<small class="row-meta">T+1验证状态</small></th>
