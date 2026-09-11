@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import ast
+import datetime as datetime_module
 import hashlib
+import io
 import json
 import shutil
 import textwrap
+import urllib.request
 from pathlib import Path
 
 import pandas as pd
@@ -35,15 +38,18 @@ T1 = "20260828"
 FEATURE_SHA = "f" * 64
 
 
-def _load_primary_p0_jobs_validator():
+def _p1_target_script() -> str:
     workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(
         encoding="utf-8"
     )
     target = workflow.split("      - name: Resolve exact P0-owned D and mode", 1)[1]
     target = target.split("      - name: Set up pinned Python runtime", 1)[0]
     script = target.split("          python3 - <<'PY'\n", 1)[1]
-    script = textwrap.dedent(script.split("\n          PY", 1)[0])
-    module = ast.parse(script)
+    return textwrap.dedent(script.split("\n          PY", 1)[0])
+
+
+def _load_primary_p0_jobs_validator():
+    module = ast.parse(_p1_target_script())
     function = next(
         node
         for node in module.body
@@ -84,6 +90,218 @@ def _p0_jobs_payload(
         },
     ]
     return {"total_count": len(jobs), "jobs": jobs}
+
+
+def _controlled_p1_target_fixture(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    calendar = tmp_path / "data/market/trade_cal_sse.csv"
+    calendar.parent.mkdir(parents=True)
+    calendar.write_text(
+        "exchange,cal_date,is_open\n"
+        "SSE,20260910,1\nSSE,20260911,1\nSSE,20260912,0\n"
+        "SSE,20260913,0\nSSE,20260914,1\nSSE,20260915,1\n",
+        encoding="utf-8",
+    )
+    receipt = {
+        "signal_date": "20260911", "exec_date": "20260914", "exit_date": "20260915",
+        "generation_mode": "NATURAL", "prospective": True,
+        "forward_eligible": True, "not_forward_generated": False,
+    }
+    output = tmp_path / "outputs/decision"
+    output.mkdir(parents=True)
+    for suffix in ("primary_d_runtime_features_20260911.csv", "three_rank_top10_20260911.json"):
+        (output / suffix).write_text("{}\n", encoding="utf-8")
+    receipt_path = output / "primary_d_receipt_20260911.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    run = {
+        "id": 1234, "workflow_id": 343703608, "status": "completed",
+        "conclusion": "success", "event": "workflow_dispatch", "run_attempt": 1,
+        "name": "DC2.0 · Publish Primary D List (P0)",
+        "path": ".github/workflows/run_primary_d_daily.yml",
+        "head_branch": "main", "head_sha": "a" * 40,
+        "repository": {"full_name": "njedu2023-prog/DC20"},
+        "head_repository": {"full_name": "njedu2023-prog/DC20"},
+        "created_at": "2026-09-11T11:10:00Z",
+        "display_title": "DC20 controlled daily NATURAL | D=20260911",
+    }
+    env = {
+        "GITHUB_EVENT_NAME": "workflow_run", "PUBLISH": "true",
+        "GITHUB_REPOSITORY": "njedu2023-prog/DC20", "GH_API_TOKEN": "test-only",
+        "RUNNER_TEMP": str(tmp_path), "GITHUB_OUTPUT": str(tmp_path / "github_output"),
+    }
+    for key in (
+        "status", "conclusion", "event", "run_attempt", "workflow_id", "name",
+        "path", "head_branch", "head_sha", "created_at", "display_title",
+    ):
+        env[f"UPSTREAM_{key.upper()}"] = str(run[key])
+    env.update({
+        "UPSTREAM_RUN_ID": str(run["id"]),
+        "UPSTREAM_REPOSITORY": "njedu2023-prog/DC20",
+        "UPSTREAM_HEAD_REPOSITORY": "njedu2023-prog/DC20",
+    })
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    jobs = _p0_jobs_payload(deploy_suffix=" / deploy")
+    calls = []
+
+    def urlopen(request, *, timeout):
+        calls.append(request.full_url)
+        return io.StringIO(json.dumps(jobs if "/jobs?" in request.full_url else run))
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    class FixedDatetime(datetime_module.datetime):
+        current = datetime_module.datetime(2026, 9, 11, 12, tzinfo=datetime_module.timezone.utc)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current.astimezone(tz) if tz is not None else cls.current.replace(tzinfo=None)
+
+    monkeypatch.setattr(datetime_module, "datetime", FixedDatetime)
+    return run, jobs, receipt, receipt_path, calls, FixedDatetime
+
+
+@pytest.mark.parametrize("created", ["2026-09-11T07:00:01Z", "2026-09-11T11:10:00Z", "2026-09-11T15:29:59Z"])
+@pytest.mark.parametrize("publish", ["success", "skipped"])
+def test_p1_controlled_daily_accepts_exact_same_day_before_20_and_reused_natural_bundle(
+    tmp_path: Path, monkeypatch, created: str, publish: str,
+) -> None:
+    run, jobs, _, _, calls, _ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run["created_at"] = created
+    monkeypatch.setenv("UPSTREAM_CREATED_AT", created)
+    jobs["jobs"][1]["conclusion"] = publish
+    exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+    assert (tmp_path / "github_output").read_text() == (
+        "signal_date=20260911\ngeneration_mode=NATURAL\ncontrolled_daily=true\n"
+    )
+    assert len(calls) == 2 and calls[1].endswith("/jobs?filter=latest&per_page=100")
+
+
+@pytest.mark.parametrize("created", [
+    "2026-09-11T06:59:59Z", "2026-09-11T07:00:00Z", "2026-09-11T15:30:00Z",
+    "2026-09-12T11:10:00Z", "2026-09-11T11:10:00", "not-a-date",
+])
+def test_p1_controlled_daily_rejects_bad_time_or_nontrading_d(
+    tmp_path: Path, monkeypatch, created: str,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run["created_at"] = created
+    monkeypatch.setenv("UPSTREAM_CREATED_AT", created)
+    with pytest.raises(SystemExit, match="P1 controlled P0"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+@pytest.mark.parametrize(("field", "value", "message"), [
+    ("head_sha", "b" * 40, "API identity drifted"),
+    ("run_attempt", 2, "API identity drifted"),
+    ("display_title", "DC20 controlled daily NATURAL | D=20260910", "title differs from event payload"),
+    ("created_at", "2026-09-11T11:11:00Z", "created_at differs from event payload"),
+])
+def test_p1_controlled_daily_rejects_event_api_drift(
+    tmp_path: Path, monkeypatch, field: str, value, message: str,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run[field] = value
+    with pytest.raises(SystemExit, match=message):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+@pytest.mark.parametrize("title", ["DC20 P0 | workflow_dispatch", "DC20 controlled daily NATURAL | D=20260910"])
+def test_p1_controlled_daily_rejects_dry_run_recovery_title_and_wrong_d(
+    tmp_path: Path, monkeypatch, title: str,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run["display_title"] = title
+    monkeypatch.setenv("UPSTREAM_DISPLAY_TITLE", title)
+    with pytest.raises(SystemExit, match="not accepted|title differs from its exact D"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("generation_mode", "RETROSPECTIVE_RECOVERY"), ("prospective", False),
+    ("forward_eligible", False), ("not_forward_generated", True),
+    ("signal_date", "20260910"), ("exec_date", "20260912"), ("exit_date", "20260914"),
+])
+def test_p1_controlled_daily_rejects_nonforward_or_wrong_calendar_receipt(
+    tmp_path: Path, monkeypatch, field: str, value,
+) -> None:
+    _, _, receipt, receipt_path, _, _ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    receipt[field] = value
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(SystemExit, match="P1 controlled P0"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+def test_p1_controlled_daily_rejects_dry_run_skipped_deploy(tmp_path: Path, monkeypatch) -> None:
+    _, jobs, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    jobs["jobs"][2]["conclusion"] = "skipped"
+    with pytest.raises(SystemExit, match="completion contract"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+@pytest.mark.parametrize("minute", [15, 16])
+def test_p1_controlled_daily_rejects_t_morning_safety_cutoff(tmp_path: Path, monkeypatch, minute: int) -> None:
+    *_, clock = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    clock.current = clock(2026, 9, 14, 1, minute, tzinfo=datetime_module.timezone.utc)
+    with pytest.raises(SystemExit, match="T 09:15 safety cutoff"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+def test_p1_own_manual_publication_stays_recovery_only(tmp_path: Path, monkeypatch) -> None:
+    _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
+    monkeypatch.setenv("INPUT_TRADE_DATE", "20260911")
+    monkeypatch.setenv("INPUT_GENERATION_MODE", "NATURAL")
+    with pytest.raises(SystemExit, match="real manual P1 publication is recovery-only"):
+        exec(compile(_p1_target_script(), "<p1-controlled-target>", "exec"), {})
+
+
+@pytest.mark.parametrize("created", ["2026-09-11T13:15:00Z", "2026-09-11T16:15:00Z"])
+def test_p1_existing_natural_schedule_day_resolution_is_unchanged(
+    tmp_path: Path, monkeypatch, created: str,
+) -> None:
+    run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    run.update(event="schedule", created_at=created)
+    monkeypatch.setenv("UPSTREAM_EVENT", "schedule")
+    monkeypatch.setenv("UPSTREAM_CREATED_AT", created)
+    exec(compile(_p1_target_script(), "<p1-target>", "exec"), {})
+    assert (tmp_path / "github_output").read_text() == (
+        "signal_date=20260911\ngeneration_mode=NATURAL\ncontrolled_daily=false\n"
+    )
+
+
+@pytest.mark.parametrize(("minute", "allowed"), [(14, True), (15, False)])
+def test_p1_controlled_daily_rechecks_safety_cutoff_immediately_before_cas(
+    tmp_path: Path, monkeypatch, minute: int, allowed: bool,
+) -> None:
+    *_, clock = _controlled_p1_target_fixture(tmp_path, monkeypatch)
+    clock.current = clock(2026, 9, 14, 1, minute, tzinfo=datetime_module.timezone.utc)
+    monkeypatch.setenv("CONTROLLED_DAILY", "true")
+    monkeypatch.setenv("SIGNAL_DATE", "20260911")
+    workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(encoding="utf-8")
+    publish = workflow.split("      - name: Publish exact CAS commit", 1)[1]
+    script = publish.split("          python3 - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+    code = compile(textwrap.dedent(script), "<p1-controlled-cas>", "exec")
+    if allowed:
+        exec(code, {})
+    else:
+        with pytest.raises(SystemExit, match="CAS missed the strict T 09:15"):
+            exec(code, {})
+
+
+def test_p1_controlled_daily_title_filters_exist_before_shared_writer_and_compute() -> None:
+    workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(encoding="utf-8")
+    controlled_title = "startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')"
+    assert controlled_title in workflow.split("jobs:", 1)[0]
+    assert controlled_title in workflow.split("  compute:", 1)[1].split("    permissions:", 1)[0]
+    p0 = (ROOT / ".github/workflows/run_primary_d_daily.yml").read_text(encoding="utf-8")
+    run_name = p0.split("run-name:", 1)[1].split("\non:", 1)[0]
+    for gate in (
+        "github.event_name == 'workflow_dispatch'", "inputs.dry_run == false",
+        "inputs.generation_mode == 'NATURAL'", "inputs.confirm_daily_generation == true",
+        "inputs.confirm_recovery != true", "DC20 controlled daily NATURAL | D={0}",
+    ):
+        assert gate in run_name
 
 
 @pytest.mark.parametrize(

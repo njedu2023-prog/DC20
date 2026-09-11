@@ -47,10 +47,12 @@ def _sha256(path: Path) -> str:
 
 
 def _workflow_resolver_function(name: str):
+    return _workflow_step_function("Resolve exact D and reject a completed duplicate", name)
+
+
+def _workflow_step_function(step: str, name: str):
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    block = workflow.split(
-        "- name: Resolve exact D and reject a completed duplicate", 1
-    )[1]
+    block = workflow.split(f"- name: {step}", 1)[1]
     source = block.split("python - <<'PY'", 1)[1].split("\n          PY", 1)[0]
     tree = ast.parse(textwrap.dedent(source))
     matches = [
@@ -71,6 +73,154 @@ def _workflow_resolver_function(name: str):
     module = ast.Module(body=matches, type_ignores=[])
     exec(compile(ast.fix_missing_locations(module), "<p0-schedule-resolver>", "exec"), namespace)
     return namespace[name]
+
+
+def _controlled_run(**changes):
+    run = {
+        "id": 1001, "workflow_id": 343703608,
+        "name": "DC2.0 · Publish Primary D List (P0)",
+        "path": ".github/workflows/run_primary_d_daily.yml",
+        "event": "workflow_dispatch", "run_attempt": 1,
+        "head_branch": "main", "head_sha": "a" * 40,
+        "repository": {"full_name": "njedu2023-prog/DC20"},
+        "head_repository": {"full_name": "njedu2023-prog/DC20"},
+        "created_at": "2026-09-11T11:10:00Z",
+    }
+    run.update(changes)
+    return run
+
+
+def _validate_controlled(run=None, **changes):
+    args = {
+        "run": run or _controlled_run(), "signal_date": "20260911",
+        "base_head": "a" * 40, "run_id": "1001", "repository": "njedu2023-prog/DC20",
+        "now": datetime(2026, 9, 11, 11, 11, tzinfo=timezone.utc),
+        "confirmed": "true", "recovery": "false",
+    }
+    args.update(changes)
+    return _workflow_resolver_function("validate_daily_dispatch")(**args)
+
+
+def test_controlled_daily_dispatch_accepts_1910_without_previous_day_anchor():
+    assert _validate_controlled() == "2026-09-11T11:10:00+00:00"
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("id", 2), ("workflow_id", 335484130), ("name", "other"), ("path", "other"),
+    ("event", "schedule"), ("run_attempt", 2), ("head_branch", "feature"),
+    ("head_sha", "b" * 40), ("repository", {"full_name": "fork/DC20"}),
+    ("head_repository", {"full_name": "fork/DC20"}), ("created_at", ""),
+    ("created_at", "2026-09-11T11:10:00"),
+])
+def test_controlled_daily_dispatch_rejects_untrusted_run(field, value):
+    with pytest.raises(SystemExit):
+        _validate_controlled(_controlled_run(**{field: value}))
+
+
+@pytest.mark.parametrize("changes", [
+    {"confirmed": None}, {"confirmed": "false"}, {"recovery": "true"},
+    {"signal_date": "20260910"}, {"run_id": "../1001"}, {"base_head": "main"},
+    {"repository": "njedu2023-prog/top10-decision"},
+    {"now": datetime(2026, 9, 11, 11, 9, tzinfo=timezone.utc)},
+    {"now": datetime(2026, 9, 11, 11, 11)},
+])
+def test_controlled_daily_dispatch_requires_exact_confirmed_target(changes):
+    with pytest.raises(SystemExit):
+        _validate_controlled(**changes)
+
+
+@pytest.mark.parametrize("raw", [
+    "2026-09-11T06:59:59Z", "2026-09-11T07:00:00Z",
+    "2026-09-11T15:30:00Z", "2026-09-11T16:00:00Z", "2026-09-10T11:10:00Z",
+])
+def test_controlled_daily_dispatch_rejects_preclose_or_delayed_cross_day(raw):
+    with pytest.raises(SystemExit):
+        _validate_controlled(_controlled_run(created_at=raw), now=datetime.fromisoformat(raw.replace("Z", "+00:00")))
+
+
+@pytest.mark.parametrize("raw", ["2026-09-11T15:30:00Z", "2026-09-12T01:00:00Z"])
+def test_controlled_daily_dispatch_rechecks_current_time_after_queue(raw):
+    with pytest.raises(SystemExit):
+        _validate_controlled(now=datetime.fromisoformat(raw.replace("Z", "+00:00")))
+
+
+@pytest.mark.parametrize(("raw", "bj", "valid"), [
+    ("2026-09-11T10:00:00Z", False, True),
+    ("2026-09-11 18:00:00", True, True),
+    ("2026-09-11T11:10:00Z", False, True),
+    ("2026-09-11T11:10:01Z", False, False),
+    ("2026-09-10T10:00:00Z", False, False),
+    ("2026-09-11T07:00:00Z", False, False),
+    ("2026-09-11T10:00:00", False, False),
+    (None, False, False),
+])
+def test_controlled_daily_requires_upstream_production_before_dispatch(raw, bj, valid):
+    validate = _workflow_step_function("Verify controlled daily upstream production times", "validate_source_time")
+    cutoff = datetime(2026, 9, 11, 11, 10, tzinfo=timezone.utc)
+    if valid:
+        validate(raw, "20260911", cutoff, beijing=bj)
+    else:
+        with pytest.raises(SystemExit):
+            validate(raw, "20260911", cutoff, beijing=bj)
+
+
+def test_controlled_daily_commit_cutoff_is_dispatch_not_delayed_runner_time():
+    validate = _workflow_step_function("Resolve immutable upstream commits", "validate_upstream_commit")
+    payload = {"sha": "b" * 40, "commit": {"committer": {"date": "2026-09-11T11:10:01Z"}}}
+    with pytest.raises(SystemExit, match="after controlled dispatch"):
+        validate(payload, "b" * 40, "20260911", "2026-09-11T11:10:00Z")
+    validate(payload, "b" * 40, "20260911", "")  # Existing recovery D21:15 rule is unchanged.
+    payload["commit"]["committer"]["date"] = "2026-09-11T14:00:00Z"
+    with pytest.raises(SystemExit):
+        validate(payload, "b" * 40, "20260911", "")
+    validate(payload, "b" * 40, "20260911", "2026-09-11T14:01:00Z")
+    with pytest.raises(SystemExit, match="identity"):
+        validate(payload, "c" * 40, "20260911", "2026-09-11T14:01:00Z")
+
+
+def test_controlled_daily_duplicate_cannot_relabel_recovery_or_replace_sources():
+    validate = _workflow_resolver_function("validate_manual_duplicate")
+    receipt = {"generation_mode": "NATURAL", "inputs": {
+        "candidate": {"resolved_commit": "a" * 40}, "market": {"resolved_commit": "b" * 40}}}
+    validate(receipt, "NATURAL", "a" * 40, "b" * 40, True)
+    for mode, pred, market in [("RETROSPECTIVE_RECOVERY", "a" * 40, "b" * 40),
+                               ("NATURAL", "c" * 40, "b" * 40), ("NATURAL", "a" * 40, "c" * 40)]:
+        with pytest.raises(SystemExit):
+            validate(receipt, mode, pred, market, True)
+    receipt["generation_mode"] = "RETROSPECTIVE_RECOVERY"
+    with pytest.raises(SystemExit):
+        validate(receipt, "NATURAL", "a" * 40, "b" * 40, True)
+
+
+@pytest.mark.parametrize(("raw", "valid"), [
+    ("2026-09-11T11:20:00Z", True), ("2026-09-11T15:29:59Z", True),
+    ("2026-09-11T15:30:00Z", False), ("2026-09-11T07:00:00Z", False),
+    ("2026-09-12T00:00:00Z", False), ("2026-09-11T11:20:00", False),
+])
+def test_controlled_daily_rechecks_cas_window(raw, valid):
+    validate = _workflow_step_function("Publish exact CAS commit", "enforce_daily_cas_window")
+    now = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if valid:
+        validate("20260911", now)
+    else:
+        with pytest.raises(SystemExit):
+            validate("20260911", now)
+
+
+def test_controlled_daily_wiring_preserves_strict_and_protected_boundaries():
+    source = WORKFLOW.read_text()
+    assert "confirm_daily_generation:" in source
+    assert "inputs.dry_run == false" in source
+    assert "format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date)" in source
+    assert "validate_daily_dispatch(" in source
+    assert "validate_manual_duplicate(receipt, mode, pred, market, bool(dispatch_created_at))" in source
+    assert "enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))" in source
+    assert "P0 target is not a strict SSE open day" in source
+    assert "controlled daily candidate contains a different D" in source
+    assert "controlled daily P0 CAS missed its same-D 15:00-23:30 window" in source
+    assert source.index("Verify controlled daily upstream production times") < source.index("- name: Publish primary promotion list")
+    assert "upstream.get('generated_at_bj')" in source
+    assert "row.get('generated_at_utc')" in source
 
 
 def _workflow_schedule_identities() -> dict[str, dict[str, object]]:
@@ -633,7 +783,8 @@ def test_primary_workflow_owns_staggered_evening_slots_and_established_bridge() 
     assert "PrimaryDReadOnlyEngine" in (
         ROOT / "scripts/publish_primary_three_rank.py"
     ).read_text(encoding="utf-8")
-    assert "real manual P0 publication is recovery-only" in workflow
+    assert "controlled daily P0 requires daily confirmation, not recovery confirmation" in workflow
+    assert "real P0 recovery requires explicit confirmation" in workflow
     assert "partial immutable P0 D bundle exists" in workflow
     assert "P0 candidate lacks the immutable dated bundle" in workflow
     assert "non-P0 path staged" in workflow

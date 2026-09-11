@@ -1,4 +1,10 @@
 name: DC2.0 · Publish Primary D List (P0)
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false &&
+      inputs.generation_mode == 'NATURAL' && inputs.confirm_daily_generation == true &&
+      inputs.confirm_recovery != true &&
+      format('DC20 controlled daily NATURAL | D={0}', inputs.trade_date) ||
+      format('DC20 P0 | {0}', github.event_name) }}
 
 on:
   workflow_call:
@@ -43,7 +49,7 @@ on:
         default: true
         type: boolean
       trade_date:
-        description: "D日 YYYYMMDD；真实手动恢复时必填"
+        description: "D日 YYYYMMDD；受控当日生成和恢复均必填"
         required: false
         type: string
       generation_mode:
@@ -55,15 +61,20 @@ on:
           - RETROSPECTIVE_RECOVERY
           - NATURAL
       pred_commit:
-        description: "恢复时固定 a-top10 的40位提交"
+        description: "固定 a-top10 的40位提交；受控当日生成和恢复均必填"
         required: false
         type: string
       market_commit:
-        description: "恢复时固定 a-share-top3-data 的40位提交"
+        description: "固定 a-share-top3-data 的40位提交；受控当日生成和恢复均必填"
         required: false
         type: string
       confirm_recovery:
         description: "确认该结果标记为历史恢复而非当晚准时前向"
+        required: true
+        default: false
+        type: boolean
+      confirm_daily_generation:
+        description: "确认当日上游已就绪；仅D日收盘后至23:30前受控NATURAL生成"
         required: true
         default: false
         type: boolean
@@ -246,6 +257,7 @@ jobs:
           INPUT_PRED_COMMIT: ${{ inputs.pred_commit }}
           INPUT_MARKET_COMMIT: ${{ inputs.market_commit }}
           INPUT_CONFIRM_RECOVERY: ${{ inputs.confirm_recovery }}
+          INPUT_CONFIRM_DAILY_GENERATION: ${{ inputs.confirm_daily_generation }}
           PUBLISH: ${{ steps.mode.outputs.publish }}
           PYTHONPATH: src
           UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
@@ -282,6 +294,48 @@ jobs:
           market = str(os.environ.get('INPUT_MARKET_COMMIT') or '').strip().lower()
           date_re = re.compile(r'20\d{6}')
           sha_re = re.compile(r'[0-9a-f]{40}')
+          dispatch_created_at = ''
+
+          def validate_daily_dispatch(run, signal_date, base_head, run_id, repository, now, confirmed, recovery):
+              if confirmed != 'true' or recovery == 'true':
+                  raise SystemExit('controlled daily P0 requires daily confirmation, not recovery confirmation')
+              if repository != 'njedu2023-prog/DC20' or re.fullmatch(r'[0-9a-f]{40}', base_head) is None:
+                  raise SystemExit('controlled daily P0 repository/base is invalid')
+              if re.fullmatch(r'[1-9][0-9]*', run_id) is None or (
+                  str(run.get('id') or '') != run_id
+                  or str(run.get('workflow_id') or '') != '343703608'
+                  or run.get('name') != 'DC2.0 · Publish Primary D List (P0)'
+                  or run.get('path') != '.github/workflows/run_primary_d_daily.yml'
+                  or run.get('event') != 'workflow_dispatch'
+                  or str(run.get('run_attempt') or '') != '1'
+                  or run.get('head_branch') != 'main'
+                  or run.get('head_sha') != base_head
+                  or (run.get('repository') or {}).get('full_name') != repository
+                  or (run.get('head_repository') or {}).get('full_name') != repository
+              ):
+                  raise SystemExit('controlled daily P0 GitHub API identity drifted')
+              try:
+                  created = datetime.fromisoformat(str(run.get('created_at') or '').replace('Z', '+00:00'))
+              except ValueError as exc:
+                  raise SystemExit('controlled daily P0 created_at is invalid') from exc
+              for stamp in (created, now):
+                  if stamp.tzinfo is None or stamp.utcoffset() is None:
+                      raise SystemExit('controlled daily P0 timestamps must be timezone-aware')
+                  bj = stamp.astimezone(ZoneInfo('Asia/Shanghai'))
+                  if bj.strftime('%Y%m%d') != signal_date or not time(15, 0) < bj.time() < time(23, 30):
+                      raise SystemExit('controlled daily P0 requires the same D after 15:00 and before 23:30')
+              if created > now:
+                  raise SystemExit('controlled daily P0 created_at is in the future')
+              return created.astimezone(timezone.utc).isoformat()
+
+          def validate_manual_duplicate(receipt, mode, pred, market, controlled):
+              if receipt.get('generation_mode') != mode:
+                  raise SystemExit('manual P0 cannot adopt a different generation mode')
+              if controlled and (
+                  (receipt.get('inputs', {}).get('candidate') or {}).get('resolved_commit') != pred
+                  or (receipt.get('inputs', {}).get('market') or {}).get('resolved_commit') != market
+              ):
+                  raise SystemExit('controlled daily duplicate upstream commits differ from the frozen receipt')
 
           def resolve_nominal_schedule_slot(schedule, created_at):
               match = re.fullmatch(
@@ -519,9 +573,26 @@ jobs:
                   raise SystemExit('manual P0 trade_date must be YYYYMMDD')
               if mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
                   raise SystemExit('manual P0 generation_mode is invalid')
-              if publish:
-                  if mode != 'RETROSPECTIVE_RECOVERY':
-                      raise SystemExit('real manual P0 publication is recovery-only')
+              if mode == 'NATURAL':
+                  token = str(os.environ.get('GH_API_TOKEN') or '').strip()
+                  repository = str(os.environ.get('GITHUB_REPOSITORY') or '').strip()
+                  run_id = str(os.environ.get('GITHUB_RUN_ID') or '').strip()
+                  if not token or repository != 'njedu2023-prog/DC20' or re.fullmatch(r'[1-9][0-9]*', run_id) is None:
+                      raise SystemExit('controlled daily P0 API inputs are invalid')
+                  request = Request(
+                      f'https://api.github.com/repos/{repository}/actions/runs/{run_id}',
+                      headers={'Accept': 'application/vnd.github+json', 'Authorization': f'Bearer {token}', 'X-GitHub-Api-Version': '2022-11-28'},
+                  )
+                  with urlopen(request, timeout=30) as response:
+                      current_run = json.load(response)
+                  dispatch_created_at = validate_daily_dispatch(
+                      current_run, signal_date, os.environ['BASE_HEAD'], run_id, repository,
+                      datetime.now(timezone.utc), os.environ.get('INPUT_CONFIRM_DAILY_GENERATION'),
+                      os.environ.get('INPUT_CONFIRM_RECOVERY'),
+                  )
+                  if sha_re.fullmatch(pred) is None or sha_re.fullmatch(market) is None:
+                      raise SystemExit('controlled daily P0 requires two immutable upstream commits')
+              elif publish:
                   if os.environ.get('INPUT_CONFIRM_RECOVERY') != 'true':
                       raise SystemExit('real P0 recovery requires explicit confirmation')
                   if sha_re.fullmatch(pred) is None or sha_re.fullmatch(market) is None:
@@ -541,6 +612,8 @@ jobs:
           if signal_date not in opened:
               raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')
           if event in {'schedule', 'workflow_run'}:
+              enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))
+          if dispatch_created_at:
               enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))
 
           output = Path('outputs/decision')
@@ -615,6 +688,8 @@ jobs:
                   raise SystemExit('existing P0 D receipt generation mode is invalid')
               if event in {'schedule', 'workflow_run'} and receipt_mode != 'NATURAL':
                   raise SystemExit('natural P0 cannot adopt a retrospective recovery receipt')
+              if event == 'workflow_dispatch':
+                  validate_manual_duplicate(receipt, mode, pred, market, bool(dispatch_created_at))
               mode = receipt_mode
               already = True
 
@@ -624,12 +699,14 @@ jobs:
               'generation_mode': mode,
               'pred_commit': pred,
               'market_commit': market,
+              'dispatch_created_at': dispatch_created_at,
           }, sort_keys=True) + '\n', encoding='utf-8')
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
               handle.write(f'signal_date={signal_date}\n')
               handle.write(f'generation_mode={mode}\n')
               handle.write(f'pred_commit={pred}\n')
               handle.write(f'market_commit={market}\n')
+              handle.write(f'dispatch_created_at={dispatch_created_at}\n')
               handle.write(f"already_complete={'true' if already else 'false'}\n")
           PY
 
@@ -641,12 +718,25 @@ jobs:
           PINNED_PRED: ${{ steps.target.outputs.pred_commit }}
           PINNED_MARKET: ${{ steps.target.outputs.market_commit }}
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          DISPATCH_CREATED_AT: ${{ steps.target.outputs.dispatch_created_at }}
         run: |
           set -euo pipefail
           python - <<'PY'
           import json, os, re
           from datetime import datetime
           from urllib.request import Request, urlopen
+          def validate_upstream_commit(payload, sha, signal_date, dispatch_created_at):
+              if str(payload.get('sha') or '').lower() != sha:
+                  raise SystemExit('upstream commit API identity drifted')
+              committed=datetime.fromisoformat(str(payload['commit']['committer']['date']).replace('Z','+00:00'))
+              cutoff=(
+                  datetime.fromisoformat(dispatch_created_at) if dispatch_created_at else
+                  datetime.strptime(signal_date+'T13:15:00+0000','%Y%m%dT%H:%M:%S%z')
+              )
+              if committed.tzinfo is None or committed.utcoffset() is None:
+                  raise SystemExit('upstream commit time is not timezone-aware')
+              if committed > cutoff:
+                  raise SystemExit('upstream commit is after controlled dispatch or recovery nominal D cutoff')
           token=os.environ['GH_API_TOKEN'].strip(); result=[]
           for key, repo, pinned in (
               ('pred_sha','njedu2023-prog/a-top10',os.environ.get('PINNED_PRED','').strip()),
@@ -667,9 +757,7 @@ jobs:
                       headers={'Accept':'application/vnd.github+json','Authorization':f'Bearer {token}','X-GitHub-Api-Version':'2022-11-28'},
                   )
                   with urlopen(request,timeout=30) as response: payload=json.load(response)
-                  committed=datetime.fromisoformat(str(payload['commit']['committer']['date']).replace('Z','+00:00'))
-                  cutoff=datetime.strptime(os.environ['SIGNAL_DATE']+'T13:15:00+0000','%Y%m%dT%H:%M:%S%z')
-                  if committed > cutoff: raise SystemExit(f'recovery upstream commit is after nominal D cutoff: {repo}')
+                  validate_upstream_commit(payload, sha, os.environ['SIGNAL_DATE'], os.environ.get('DISPATCH_CREATED_AT', ''))
               result.append(f'{key}={sha}')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as handle: handle.write('\n'.join(result)+'\n')
           PY
@@ -708,6 +796,54 @@ jobs:
             --trade-date "${TRADE_DATE}" \
             --strict-dated-source \
             --trade-calendar-file data/market/trade_cal_sse.csv
+
+      - name: Verify controlled daily upstream production times
+        if: ${{ steps.target.outputs.dispatch_created_at != '' && steps.target.outputs.already_complete != 'true' }}
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+          DISPATCH_CREATED_AT: ${{ steps.target.outputs.dispatch_created_at }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, json, os
+          from datetime import datetime, time, timezone
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          def validate_source_time(raw, signal_date, cutoff, *, beijing=False):
+              try:
+                  stamp = (
+                      datetime.strptime(str(raw), '%Y-%m-%d %H:%M:%S').replace(tzinfo=ZoneInfo('Asia/Shanghai'))
+                      if beijing else datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+                  )
+              except ValueError as exc:
+                  raise SystemExit('controlled daily source generation time is missing or invalid') from exc
+              if stamp.tzinfo is None or stamp.utcoffset() is None:
+                  raise SystemExit('controlled daily source generation time is not timezone-aware')
+              bj = stamp.astimezone(ZoneInfo('Asia/Shanghai'))
+              if bj.strftime('%Y%m%d') != signal_date or bj.time() <= time(15, 0) or stamp > cutoff:
+                  raise SystemExit('controlled daily source was not produced after D close and before dispatch')
+
+          d = os.environ['SIGNAL_DATE']
+          cutoff = datetime.fromisoformat(os.environ['DISPATCH_CREATED_AT'])
+          now = datetime.now(ZoneInfo('Asia/Shanghai'))
+          if now.strftime('%Y%m%d') != d or not time(15, 0) < now.time() < time(23, 30):
+              raise SystemExit('controlled daily P0 computation missed its same-D window')
+          # These are upstream production times, not the later local sync time.
+          with Path(f'data/pred/archive/pred_source_{d}.csv').open(newline='', encoding='utf-8-sig') as handle:
+              reader = csv.DictReader(handle)
+              if not {'trade_date', 'generated_at_utc'}.issubset(reader.fieldnames or []):
+                  raise SystemExit('controlled daily candidate production fields are missing')
+              for row in reader:
+                  if row.get('trade_date') != d:
+                      raise SystemExit('controlled daily candidate contains a different D')
+                  validate_source_time(row.get('generated_at_utc'), d, cutoff)
+          meta = json.loads(Path(f'data/market/raw/{d[:4]}/{d}/_sync_meta.json').read_text())
+          upstream = meta.get('upstream_meta') or {}
+          if upstream.get('resolved_trade_date') != d:
+              raise SystemExit('controlled daily market production metadata is not exact-D')
+          validate_source_time(upstream.get('generated_at_bj'), d, cutoff, beijing=True)
+          PY
 
       - name: Publish primary promotion list in the isolated scope
         if: ${{ steps.target.outputs.already_complete != 'true' }}
@@ -983,6 +1119,13 @@ jobs:
           from pathlib import Path
           from zoneinfo import ZoneInfo
 
+          def enforce_daily_cas_window(signal_date, now):
+              if now.tzinfo is None or now.utcoffset() is None:
+                  raise SystemExit('controlled daily P0 CAS time must be timezone-aware')
+              bj = now.astimezone(ZoneInfo('Asia/Shanghai'))
+              if bj.strftime('%Y%m%d') != signal_date or not time(15, 0) < bj.time() < time(23, 30):
+                  raise SystemExit('controlled daily P0 CAS missed its same-D 15:00-23:30 window')
+
           mode = os.environ['GENERATION_MODE']
           signal_date = os.environ['SIGNAL_DATE']
           if mode not in {'NATURAL', 'RETROSPECTIVE_RECOVERY'}:
@@ -1010,6 +1153,8 @@ jobs:
               )
               safety_cutoff = deadline - timedelta(minutes=5)
               now = datetime.now(ZoneInfo('Asia/Shanghai'))
+              if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch':
+                  enforce_daily_cas_window(signal_date, now)
               if now >= safety_cutoff:
                   raise SystemExit(
                       'P0 CAS publication missed the T 09:15 safety cutoff '

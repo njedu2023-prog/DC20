@@ -1537,7 +1537,13 @@ def test_dashboard_hides_history_archive_while_pages_preserves_data() -> None:
         "threeRankHistoryDownloads",
         "pFillHistorySummary",
         "loadThreeRankHistorySummary",
-        "dc20_three_rank_history_index_v2",
     ):
         assert token not in text
+    # The removed research panel and the exact-D navigation inventory are
+    # different consumers. Navigation still verifies this archive schema;
+    # banning its identifier from all JavaScript would break every new release.
+    assert 'dc20_three_rank_history_index_v2' not in text.split('<script>', 1)[0]
+    assert 'async function loadDailyNavigation()' in text
+    assert 'primary_only_non_shadow_records' in text
+    assert 'entry.receipt?.path === `outputs/decision/primary_d_receipt_${d}.json`' in text
     assert "历史覆盖 910 个D日 · 6753 行" not in text

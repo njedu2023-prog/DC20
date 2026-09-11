@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 import re
 import shutil
@@ -204,19 +205,64 @@ def test_real_daily_ledger_unifies_identity_and_only_joins_exact_current_shadow(
     assert "<td>自然冻结</td>" not in mismatch
 
 
-def profit_fixture():
-    data = fixture()
+def profit_fixture(daily_archive=None):
+    """Keep denominator mutations on the audited 09/08 six-day cohort.
+
+    Production ``latest`` pointers advance every trading day.  These rendering
+    tests intentionally exercise 6 natural slots versus 16 archive slots, not
+    whichever cohort happens to be current when CI runs.
+    """
+    data = {}
     base = ROOT / "outputs/decision/executable_profit_research"
-    data["daily"] = json.loads((base / "daily_mixed_top2_index.json").read_text())
-    index = json.loads((base / "index.json").read_text())
-    shadow_index = json.loads((base / "shadow_index.json").read_text())
-    shadow = json.loads((ROOT / shadow_index["latest_state_url"]).read_text())
+    archive = daily_archive if daily_archive is not None else json.loads((base / "daily_mixed_top2_index.json").read_text())
+    entries = copy.deepcopy([row for row in archive["entries"] if row["signal_date"] <= "20260908"])
+    assert [row["signal_date"] for row in entries] == [
+        "20260828", "20260831", "20260901", "20260902",
+        "20260903", "20260904", "20260907", "20260908",
+    ]
+    data["daily"] = dict(
+        public_start_signal_date="20260828", entries=entries,
+        recorded_days=len(entries), recorded_slots=sum(len(row["rows"]) for row in entries),
+    )
+    shadow_bytes = (base / "shadow_state_20260908_asof_20260908.json").read_bytes()
+    assert hashlib.sha256(shadow_bytes).hexdigest() == "5a18bbfa8ecb10b249ca7f94e726a143c56ea9f5fb45dddc877d1d3dd9d83feb"
+    shadow = json.loads(shadow_bytes)
+    projection_sha = hashlib.sha256((base / "projection_20260908.json").read_bytes()).hexdigest()
+    assert projection_sha == entries[-1]["projection_json_sha256"] == shadow["source_bindings"]["mixed_projection"]["sha256"]
+    index = dict(latest_signal_date="20260908", latest_projection_json_sha256=projection_sha)
     data["profit"] = dict(status="ready", kind="primary_core", index=index, shadow=dict(publicWindowReady=True, selectionOnlyCutover=False, state=shadow))
     return data
 
 
 def profit_html(data, before=""):
     return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;renderCompactDashboard();console.log(JSON.stringify(els.compactLedgerContent.innerHTML))", data)
+
+
+def test_profit_fixture_and_denominators_ignore_later_trading_days():
+    base = ROOT / "outputs/decision/executable_profit_research"
+    archive = json.loads((base / "daily_mixed_top2_index.json").read_text())
+    # Simulate another successful future publication without editing artifacts.
+    later = copy.deepcopy(archive["entries"][-1])
+    later.update(signal_date="20990105", exec_date="20990106", exit_date="20990107")
+    archive["entries"].append(later)
+    archive.update(latest_signal_date="20990105", recorded_days=999, recorded_slots=1998)
+    fixed = profit_fixture(archive)
+    assert fixed == profit_fixture()
+    assert fixed["daily"]["recorded_days"] == 8 and fixed["daily"]["recorded_slots"] == 16
+    for slot in (1, 2):
+        cohort = fixed["profit"]["shadow"]["state"]["cohorts"][f"shadow_slot_{slot}"]
+        assert cohort["selected_slots"] == 6
+        cohort.update(
+            t_validated_slots=4, proxy_fill_slots=2, proxy_no_fill_slots=2, terminal_slots=4,
+            t1_settled_slots=2, wins_after_cost=1, win_rate=0.5, mean_net_return_after_cost=0.02,
+            pending_validation_slots=2, pending_settlement_slots=0, pending_slots=2,
+            effective_dates=4, equal_weight_cumulative_return=0.039, maximum_drawdown=-0.02,
+        )
+    summary = profit_html(fixed).split('<details')[0]
+    assert summary.count('<td>1 / 2</td><td>50.00%</td>') == 2
+    assert "校验失败" not in summary
+    fixed["profit"]["shadow"]["state"]["cohorts"]["shadow_slot_1"]["win_rate"] = 1 / 6
+    assert "盈利累计统计校验失败" in profit_html(fixed)
 
 
 def test_profit_summary_uses_natural_cohorts_not_sixteen_daily_archive_seats():
@@ -350,4 +396,15 @@ const window={location,addEventListener(){}};
     if drift:
         assert "summary分组不一致" in payload["error"]
     else:
-        assert payload == {"ready": True, "selected": 6}
+        # This integration test deliberately follows real latest pointers, so
+        # compare against the real SHA-bound summary rather than a dated count.
+        base = ROOT / "outputs/decision/executable_profit_research"
+        shadow_index = json.loads((base / "shadow_index.json").read_text())
+        state_bytes = (ROOT / shadow_index["latest_state_url"]).read_bytes()
+        assert hashlib.sha256(state_bytes).hexdigest() == shadow_index["latest_state_sha256"]
+        shadow = json.loads(state_bytes)
+        binding = shadow["source_bindings"]["statistics"]
+        summary_bytes = (ROOT / binding["path"]).read_bytes()
+        assert hashlib.sha256(summary_bytes).hexdigest() == binding["sha256"]
+        selected = json.loads(summary_bytes)["cohorts"]["shadow_slot_1"]["selected_slots"]
+        assert payload == {"ready": True, "selected": selected}

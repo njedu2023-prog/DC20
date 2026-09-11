@@ -45,8 +45,9 @@ env:
   LOKY_MAX_CPU_COUNT: "1"
 
 concurrency:
-  # Invalid/manual P0 completions must not replace a pending P0 writer.  Only a
-  # successful natural P0 completion and explicit P1 recovery share the writer.
+  # Invalid/dry-run/recovery P0 completions must not replace a pending writer.
+  # The pinned P0 run-name marks only its confirmed natural daily dispatches;
+  # the API, critical jobs and same-D receipt are independently checked below.
   group: >-
     ${{
       github.event_name == 'workflow_run' &&
@@ -61,7 +62,11 @@ concurrency:
             github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
             (
               github.event.workflow_run.event == 'schedule' ||
-              github.event.workflow_run.event == 'workflow_run'
+              github.event.workflow_run.event == 'workflow_run' ||
+              (
+                github.event.workflow_run.event == 'workflow_dispatch' &&
+                startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
+              )
             )
           ) ||
           (
@@ -98,7 +103,11 @@ jobs:
                 github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
                 (
                   github.event.workflow_run.event == 'schedule' ||
-                  github.event.workflow_run.event == 'workflow_run'
+                  github.event.workflow_run.event == 'workflow_run' ||
+                  (
+                    github.event.workflow_run.event == 'workflow_dispatch' &&
+                    startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
+                  )
                 )
               ) ||
               (
@@ -124,6 +133,7 @@ jobs:
       base_head: ${{ steps.mode.outputs.base_head }}
       signal_date: ${{ steps.target.outputs.signal_date }}
       generation_mode: ${{ steps.target.outputs.generation_mode }}
+      controlled_daily: ${{ steps.target.outputs.controlled_daily }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
     steps:
       - name: Checkout immutable main base without writer credentials
@@ -189,8 +199,10 @@ jobs:
           PUBLISH: ${{ steps.mode.outputs.publish }}
           UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPSTREAM_DISPLAY_TITLE: ${{ github.event.workflow_run.display_title }}
           UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
           UPSTREAM_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
           UPSTREAM_NAME: ${{ github.event.workflow_run.name }}
           UPSTREAM_PATH: ${{ github.event.workflow_run.path }}
@@ -203,12 +215,26 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import csv, json, os, re
-          from datetime import datetime, timedelta
+          from datetime import datetime, time, timedelta
           from pathlib import Path
           from urllib.request import Request, urlopen
           from zoneinfo import ZoneInfo
 
           event=os.environ['GITHUB_EVENT_NAME']; publish=os.environ['PUBLISH']=='true'
+          controlled_daily=False
+
+          def strict_sse_open_dates():
+              calendar_path=Path('data/market/trade_cal_sse.csv')
+              if calendar_path.is_symlink() or not calendar_path.is_file():
+                  raise SystemExit('P1 strict SSE calendar is missing or unsafe')
+              with calendar_path.open('r',encoding='utf-8-sig',newline='') as handle:
+                  return sorted({
+                      str(row.get('cal_date') or '')
+                      for row in csv.DictReader(handle)
+                      if row.get('exchange') == 'SSE'
+                      and row.get('is_open') == '1'
+                      and re.fullmatch(r'20\d{6}',str(row.get('cal_date') or ''))
+                  })
 
           def beijing_run_date(raw, label):
               try:
@@ -220,21 +246,51 @@ jobs:
               if shanghai.hour < 20:
                   signal_day -= timedelta(days=1)
               anchor=signal_day.strftime('%Y%m%d')
-              calendar_path=Path('data/market/trade_cal_sse.csv')
-              if calendar_path.is_symlink() or not calendar_path.is_file():
-                  raise SystemExit('P1 strict SSE calendar is missing or unsafe')
-              with calendar_path.open('r',encoding='utf-8-sig',newline='') as handle:
-                  opened=sorted(
-                      str(row.get('cal_date') or '')
-                      for row in csv.DictReader(handle)
-                      if row.get('exchange') == 'SSE'
-                      and row.get('is_open') == '1'
-                      and re.fullmatch(r'20\d{6}',str(row.get('cal_date') or ''))
-                      and str(row.get('cal_date') or '') <= anchor
-                  )
+              opened=[day for day in strict_sse_open_dates() if day <= anchor]
               if not opened:
                   raise SystemExit(f'{label} has no preceding strict SSE open day')
               return opened[-1]
+
+          def controlled_daily_run_date(raw):
+              try:
+                  created=datetime.fromisoformat(str(raw).replace('Z','+00:00'))
+              except (TypeError, ValueError) as exc:
+                  raise SystemExit('P1 controlled P0 created_at is invalid') from exc
+              if created.tzinfo is None or created.utcoffset() is None:
+                  raise SystemExit('P1 controlled P0 created_at must include a timezone')
+              shanghai=created.astimezone(ZoneInfo('Asia/Shanghai'))
+              if not time(15,0) < shanghai.time() < time(23,30):
+                  raise SystemExit('P1 controlled P0 must be created during D 15:00-23:30 Beijing')
+              signal_date=shanghai.strftime('%Y%m%d')
+              if signal_date not in strict_sse_open_dates():
+                  raise SystemExit('P1 controlled P0 D is not a strict SSE open day')
+              return signal_date
+
+          def validate_controlled_daily_receipt(receipt, *, signal_date, now=None):
+              opened=strict_sse_open_dates()
+              if signal_date not in opened:
+                  raise SystemExit('P1 controlled P0 D is not a strict SSE open day')
+              index=opened.index(signal_date)
+              if index+2 >= len(opened):
+                  raise SystemExit('P1 controlled P0 requires strict SSE T and T+1 dates')
+              expected_dates=(signal_date,opened[index+1],opened[index+2])
+              actual_dates=tuple(str(receipt.get(key) or '') for key in ('signal_date','exec_date','exit_date'))
+              if actual_dates != expected_dates:
+                  raise SystemExit('P1 controlled P0 receipt D/T/T+1 differs from strict SSE calendar')
+              if not (
+                  receipt.get('generation_mode') == 'NATURAL'
+                  and receipt.get('prospective') is True
+                  and receipt.get('forward_eligible') is True
+                  and receipt.get('not_forward_generated') is False
+              ):
+                  raise SystemExit('P1 controlled P0 requires an exact prospective NATURAL receipt')
+              cutoff=datetime.combine(
+                  datetime.strptime(expected_dates[1],'%Y%m%d').date(),
+                  time(9,15),tzinfo=ZoneInfo('Asia/Shanghai'),
+              )
+              current=now if now is not None else datetime.now(ZoneInfo('Asia/Shanghai'))
+              if current.tzinfo is None or current.utcoffset() is None or current >= cutoff:
+                  raise SystemExit('P1 controlled P0 missed the strict T 09:15 safety cutoff')
 
           def validate_primary_p0_jobs(payload, *, prefix):
               if not isinstance(payload,dict):
@@ -307,8 +363,14 @@ jobs:
               if identity is None:
                   raise SystemExit('P1 workflow_run is not an accepted P0 scheduler identity')
               upstream_event=os.environ.get('UPSTREAM_EVENT','')
+              controlled_daily=(
+                  workflow_id == '343703608'
+                  and upstream_event == 'workflow_dispatch'
+                  and os.environ.get('UPSTREAM_DISPLAY_TITLE','').startswith('DC20 controlled daily NATURAL | D=')
+              )
               if not (
                   (workflow_id == '343703608' and upstream_event in {'schedule','workflow_run'})
+                  or controlled_daily
                   or (workflow_id == '335484130' and upstream_event == 'schedule')
               ):
                   raise SystemExit('P1 workflow_run P0 event is not accepted')
@@ -341,6 +403,9 @@ jobs:
               run_id=os.environ.get('UPSTREAM_RUN_ID','').strip()
               if re.fullmatch(r'[1-9][0-9]*',run_id) is None:
                   raise SystemExit('P1 upstream P0 run id is invalid')
+              head_sha=os.environ.get('UPSTREAM_HEAD_SHA','').strip().lower()
+              if re.fullmatch(r'[0-9a-f]{40}',head_sha) is None:
+                  raise SystemExit('P1 upstream P0 head SHA is invalid')
               token=os.environ.get('GH_API_TOKEN','').strip()
               request=Request(
                   f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}",
@@ -361,12 +426,15 @@ jobs:
                   and str(run.get('name') or '') == expected['name']
                   and str(run.get('path') or '') == expected['path']
                   and str(run.get('head_branch') or '') == expected['head_branch']
+                  and str(run.get('head_sha') or '').lower() == head_sha
                   and str((run.get('repository') or {}).get('full_name') or '') == expected['repository']
                   and str((run.get('head_repository') or {}).get('full_name') or '') == expected['head_repository']
               ):
                   raise SystemExit('P1 upstream P0 API identity drifted')
               if str(run.get('created_at') or '') != str(os.environ.get('UPSTREAM_CREATED_AT') or ''):
                   raise SystemExit('P1 upstream P0 created_at differs from event payload')
+              if controlled_daily and str(run.get('display_title') or '') != os.environ.get('UPSTREAM_DISPLAY_TITLE',''):
+                  raise SystemExit('P1 controlled P0 display title differs from event payload')
               job_prefix=(
                   ''
                   if workflow_id == '343703608'
@@ -382,7 +450,13 @@ jobs:
               )
               with urlopen(jobs_request,timeout=30) as response: jobs_payload=json.load(response)
               validate_primary_p0_jobs(jobs_payload,prefix=job_prefix)
-              d=beijing_run_date(run.get('created_at'),'upstream P0 run'); mode=''
+              if controlled_daily:
+                  d=controlled_daily_run_date(run.get('created_at'))
+                  if run.get('display_title') != f'DC20 controlled daily NATURAL | D={d}':
+                      raise SystemExit('P1 controlled P0 display title differs from its exact D')
+              else:
+                  d=beijing_run_date(run.get('created_at'),'upstream P0 run')
+              mode=''
           elif event == 'workflow_dispatch':
               d=str(os.environ.get('INPUT_TRADE_DATE') or '').strip()
               mode=str(os.environ.get('INPUT_GENERATION_MODE') or '').strip().upper()
@@ -403,9 +477,11 @@ jobs:
               raise SystemExit('P1 exact P0 receipt generation mode is invalid')
           if event == 'workflow_dispatch' and receipt_mode != mode:
               raise SystemExit('P1 mode differs from exact P0 receipt')
+          if event == 'workflow_run' and controlled_daily:
+              validate_controlled_daily_receipt(receipt,signal_date=d)
           mode=receipt_mode
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
-              out.write(f'signal_date={d}\ngeneration_mode={mode}\n')
+              out.write(f'signal_date={d}\ngeneration_mode={mode}\ncontrolled_daily={str(controlled_daily).lower()}\n')
           Path(os.environ['RUNNER_TEMP'],'p1-target.json').write_text(json.dumps({'signal_date':d,'generation_mode':mode},sort_keys=True)+'\n',encoding='utf-8')
           PY
 
@@ -596,11 +672,33 @@ jobs:
         id: publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTROLLED_DAILY: ${{ needs.compute.outputs.controlled_daily }}
+          SIGNAL_DATE: ${{ needs.compute.outputs.signal_date }}
         run: |
           set -euo pipefail
           expected="$(cat "${RUNNER_TEMP}/candidate/base_sha.txt")"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "${expected}"
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, time
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          if os.environ.get('CONTROLLED_DAILY') == 'true':
+              d=os.environ['SIGNAL_DATE']
+              # The exact-base receipt and its strict SSE D/T/T+1 were already
+              # validated by compute and are protected from the P1 patch.
+              receipt=json.loads(Path(f'outputs/decision/primary_d_receipt_{d}.json').read_text(encoding='utf-8'))
+              if receipt.get('signal_date') != d or receipt.get('generation_mode') != 'NATURAL':
+                  raise SystemExit('P1 controlled daily CAS lost the exact NATURAL P0 receipt')
+              cutoff=datetime.combine(
+                  datetime.strptime(receipt['exec_date'],'%Y%m%d').date(),
+                  time(9,15),tzinfo=ZoneInfo('Asia/Shanghai'),
+              )
+              if datetime.now(ZoneInfo('Asia/Shanghai')) >= cutoff:
+                  raise SystemExit('P1 controlled daily CAS missed the strict T 09:15 safety cutoff')
+          PY
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
           echo "published_head=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 

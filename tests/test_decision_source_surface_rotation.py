@@ -29,6 +29,16 @@ PROFIT_SUMMARY_REVIEW = ROOT / "models/decision_source_surface_review_20260909_p
 PROFIT_SUMMARY_REVIEW_SHA = "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
 NAVIGATION_REVIEW = ROOT / "models/decision_source_surface_review_20260910_navigation.json"
 NAVIGATION_REVIEW_SHA = "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+DAILY_DISPATCH_REVIEW = ROOT / "models/decision_source_surface_review_20260911_daily_dispatch.json"
+DAILY_DISPATCH_REVIEW_SHA = "a76b8745e44af16a160001026cc83671ab960989fe18c9bbe5fa6cb85fce5c57"
+DAILY_DISPATCH_PATHS = {
+    ".github/workflows/run_primary_d_daily.yml",
+    ".github/workflows/run_primary_profit_rankings.yml",
+    "tests/test_decision_three_rank_history_projection.py",
+    "tests/test_primary_profit_rankings_p1.py",
+    "tests/test_primary_three_rank_p0.py",
+}
+DAILY_DISPATCH_UNPINNED_TEST_PATHS = {"tests/test_compact_rank_statistics.py"}
 COMPACT_REVIEW_PATHS = {
     ".github/workflows/run_primary_profit_rankings.yml", "decision.html",
     "tests/test_dashboard_research_projection.py",
@@ -89,6 +99,144 @@ def _canonical_sha256(payload: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _source_before_daily_dispatch(path: str, review: dict | None = None) -> bytes:
+    """Reverse only the reviewed source/test changes, without touching disk."""
+    assert _sha256(DAILY_DISPATCH_REVIEW) == DAILY_DISPATCH_REVIEW_SHA
+    assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+    source = (ROOT / path).read_bytes()
+    if path not in DAILY_DISPATCH_PATHS | DAILY_DISPATCH_UNPINNED_TEST_PATHS:
+        return source
+    review = review if review is not None else json.loads(DAILY_DISPATCH_REVIEW.read_text())
+    matches = [item for item in review["pin_changes"] + review["unpinned_test_changes"] if item["path"] == path]
+    assert len(matches) == 1
+    item = matches[0]
+    assert len(source) == item["current_bytes"]
+    assert hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode("utf-8").splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [change["current_start"] for change in changes] == sorted(
+        change["current_start"] for change in changes
+    )
+    for change in reversed(changes):
+        assert set(change) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(change["baseline_start"]) is int and change["baseline_start"] > 0
+        assert type(change["current_start"]) is int and change["current_start"] > 0
+        assert all(isinstance(line, str) for line in change["baseline_lines"] + change["current_lines"])
+        start = change["current_start"] - 1
+        end = start + len(change["current_lines"])
+        assert lines[start:end] == change["current_lines"]
+        lines[start:end] = change["baseline_lines"]
+    restored = "".join(lines).encode("utf-8")
+    assert len(restored) == item["baseline_bytes"]
+    assert hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    if path.endswith(".yml"):
+        assert re.findall(rb"^\s*- cron:.*$", source, re.M) == re.findall(rb"^\s*- cron:.*$", restored, re.M)
+    return restored
+
+
+def _manifest_before_daily_dispatch(manifest: dict, review: dict | None = None) -> dict:
+    """Validate actual current pins, then restore the approved 54a62 audit baseline."""
+    assert _sha256(DAILY_DISPATCH_REVIEW) == DAILY_DISPATCH_REVIEW_SHA
+    review = review if review is not None else json.loads(DAILY_DISPATCH_REVIEW.read_text())
+    assert review["schema_version"] == "decision_controlled_daily_dispatch_review_v1"
+    assert review["approved_base_commit"] == "54a62f2293d26618abeca1942aa733e2448a0b9b"
+    assert review["scope"] == "CONTROLLED_SAME_DAY_NATURAL_DISPATCH_AND_P1_HANDOFF_NOT_MODEL_OR_LEDGER_RELEASE"
+    assert review["predecessor_evidence_path"] == NAVIGATION_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(NAVIGATION_REVIEW) == NAVIGATION_REVIEW_SHA
+    assert review["boundaries"] == {
+        "controlled_manual_natural_generation_enabled": True,
+        "p1_controlled_source_handoff_enabled": True,
+        **{key: False for key in (
+            "cron_schedules_changed", "model_inference_changed", "model_weights_changed",
+            "frozen_schema_changed", "historical_ledger_or_truth_rewritten",
+            "ranking_algorithm_changed", "forward_epoch_activated", "production_run_performed",
+        )},
+    }
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 224
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    current_bytes = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(current_bytes).hexdigest() == _sha256(MANIFEST) == review["current_manifest_sha256"]
+    for path, expected in manifest["pinned_files"].items():
+        assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
+        assert _sha256(ROOT / path) == expected
+    assert [item["path"] for item in review["pin_changes"]] == sorted(DAILY_DISPATCH_PATHS)
+    assert [item["path"] for item in review["unpinned_test_changes"]] == sorted(DAILY_DISPATCH_UNPINNED_TEST_PATHS)
+    assert not DAILY_DISPATCH_UNPINNED_TEST_PATHS & set(manifest["pinned_files"])
+    for item in review["unpinned_test_changes"]:
+        assert hashlib.sha256(_source_before_daily_dispatch(item["path"], review)).hexdigest() == item["baseline_sha256"]
+    restored = copy.deepcopy(manifest)
+    for item in review["pin_changes"]:
+        assert restored["pinned_files"][item["path"]] == item["current_sha256"]
+        old_bytes = _source_before_daily_dispatch(item["path"], review)
+        assert hashlib.sha256(old_bytes).hexdigest() == item["baseline_sha256"]
+        restored["pinned_files"][item["path"]] = item["baseline_sha256"]
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"] == "d1435ba8944d83127d2ecaba5288bf73289e0c7732bfe88561cdee0d0a8c4177"
+    baseline_bytes = (json.dumps(restored, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(baseline_bytes).hexdigest() == review["baseline_manifest_sha256"] == "40a8037909d6ad01fe59ed160264545989072df0fa2094dcd314f3bea63a782e"
+    assert len(review["preserved_evidence"]) == 9
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory = json.loads((ROOT / dep["path"]).read_text())
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": DAILY_DISPATCH_REVIEW.relative_to(ROOT).as_posix(),
+        "sha256": DAILY_DISPATCH_REVIEW_SHA,
+        "approved_base_commit": review["approved_base_commit"],
+        "scope": dep["current_scope"],
+    }
+    assert dep["current_review_path"] == inventory["dependency_successor_review"]["path"]
+    assert dep["all_other_41_assets_unchanged"] is True
+    for item in inventory["assets"]:
+        assert not (ROOT / item["path"]).is_symlink()
+        assert _sha256(ROOT / item["path"]) == item["sha256"]
+        assert (ROOT / item["path"]).stat().st_size == item["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(item for item in protected["assets"] if item["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    assert freeze.pop("sha256") == dep["current_dependency_sha256"] == review["current_manifest_sha256"]
+    assert freeze.pop("bytes") == dep["current_dependency_bytes"] == len(current_bytes)
+    assert _canonical_sha256(protected) == review["protected_inventory_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    old_inventory = copy.deepcopy(inventory)
+    old_inventory["dependency_successor_review"] = dep["baseline_review"]
+    old_freeze = next(item for item in old_inventory["assets"] if item["path"] == MANIFEST.relative_to(ROOT).as_posix())
+    old_freeze["sha256"] = dep["baseline_dependency_sha256"]
+    old_freeze["bytes"] = dep["baseline_dependency_bytes"]
+    assert old_freeze["sha256"] == review["baseline_manifest_sha256"] and old_freeze["bytes"] == len(baseline_bytes)
+    assert hashlib.sha256((json.dumps(old_inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"] == "1eca8fc27e8f4595246a1be4998181138724bf7243ff0ab8e8264264889d0ad8"
+    return restored
+
+
+def test_daily_dispatch_review_preserves_predecessor_sources_and_model_policies():
+    manifest = json.loads(MANIFEST.read_text())
+    restored = _manifest_before_daily_dispatch(manifest)
+    assert {path for path in manifest["pinned_files"] if manifest["pinned_files"][path] != restored["pinned_files"][path]} == DAILY_DISPATCH_PATHS
+    assert {key: value for key, value in manifest.items() if key != "pinned_files"} == {key: value for key, value in restored.items() if key != "pinned_files"}
+
+
+@pytest.mark.parametrize("mutation", ["base", "scope", "boundary", "extra_pin", "baseline", "current", "inverse_preimage", "inverse_postimage", "model_policy", "evidence", "inventory"])
+def test_daily_dispatch_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_text())
+    review = json.loads(DAILY_DISPATCH_REVIEW.read_text())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "scope": review["scope"] = "MODEL_RELEASE"
+    elif mutation == "boundary": review["boundaries"]["model_inference_changed"] = True
+    elif mutation == "extra_pin": review["pin_changes"].append(dict(review["pin_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "baseline": review["pin_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "current": review["pin_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "inverse_preimage": review["pin_changes"][0]["inverse_changes"][0]["baseline_lines"][0] = "unreviewed\n"
+    elif mutation == "inverse_postimage": review["pin_changes"][0]["inverse_changes"][0]["current_lines"][0] = "unreviewed\n"
+    elif mutation == "model_policy": manifest["training_cutoff_signal_date"] = "20260911"
+    elif mutation == "evidence": review["preserved_evidence"][0]["sha256"] = "0" * 64
+    else: review["inventory_update"]["current_scope"] = "MODEL_RELEASE"
+    with pytest.raises(AssertionError):
+        _manifest_before_daily_dispatch(manifest, review)
+
+
 def _source_before_navigation(review: dict | None = None) -> str:
     assert _sha256(NAVIGATION_REVIEW) == NAVIGATION_REVIEW_SHA
     review = review if review is not None else json.loads(NAVIGATION_REVIEW.read_text())
@@ -103,6 +251,7 @@ def _source_before_navigation(review: dict | None = None) -> str:
 
 
 def _manifest_before_navigation(manifest: dict, review: dict | None = None) -> dict:
+    manifest = _manifest_before_daily_dispatch(manifest)
     review = review if review is not None else json.loads(NAVIGATION_REVIEW.read_text())
     _source_before_navigation(review)
     assert review["schema_version"] == "decision_daily_navigation_ui_review_v1"
@@ -113,10 +262,10 @@ def _manifest_before_navigation(manifest: dict, review: dict | None = None) -> d
     assert review["boundaries"] == {key: False for key in ("models_changed", "workflows_changed", "frozen_ledger_or_truth_changed", "entry_or_settlement_policy_changed", "ranking_algorithm_changed")}
     assert review["tests"]["path"] == "tests/test_primary_d_navigation.py"
     assert _sha256(ROOT / review["tests"]["path"]) == review["tests"]["sha256"]
-    assert _sha256(MANIFEST) == review["current_manifest_sha256"]
+    assert hashlib.sha256((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["current_manifest_sha256"]
     assert len(manifest["pinned_files"]) == 224
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_daily_dispatch(path)).hexdigest() == expected
     restored = copy.deepcopy(manifest)
     assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
     restored["pinned_files"]["decision.html"] = review["baseline_html_sha256"]
@@ -162,7 +311,7 @@ def _manifest_before_profit_summary_review(manifest: dict, review: dict) -> dict
     assert hashlib.sha256((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == review["current_manifest_sha256"]
     assert len(manifest["pinned_files"]) == 224
     for path, expected in manifest["pinned_files"].items():
-        actual = hashlib.sha256(_source_before_navigation().encode()).hexdigest() if path == "decision.html" else _sha256(ROOT / path)
+        actual = hashlib.sha256(_source_before_navigation().encode()).hexdigest() if path == "decision.html" else hashlib.sha256(_source_before_daily_dispatch(path)).hexdigest()
         assert not (ROOT / path).is_symlink() and actual == expected
     restored = copy.deepcopy(manifest)
     assert restored["pinned_files"]["decision.html"] == review["current_html_sha256"]
@@ -266,8 +415,8 @@ def _manifest_before_success_rate_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == NAVIGATION_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == NAVIGATION_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == DAILY_DISPATCH_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == DAILY_DISPATCH_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]
@@ -325,8 +474,8 @@ def _manifest_before_statistics_review(manifest: dict, review: dict) -> dict:
     assert dep["all_other_41_assets_unchanged"] is True
     inventory = json.loads((ROOT / "forward/model_inventory.json").read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
-    assert inventory["dependency_successor_review"]["path"] == NAVIGATION_REVIEW.relative_to(ROOT).as_posix()
-    assert inventory["dependency_successor_review"]["sha256"] == NAVIGATION_REVIEW_SHA
+    assert inventory["dependency_successor_review"]["path"] == DAILY_DISPATCH_REVIEW.relative_to(ROOT).as_posix()
+    assert inventory["dependency_successor_review"]["sha256"] == DAILY_DISPATCH_REVIEW_SHA
     for item in inventory["assets"]:
         assert _sha256(ROOT / item["path"]) == item["sha256"]
         assert (ROOT / item["path"]).stat().st_size == item["bytes"]
