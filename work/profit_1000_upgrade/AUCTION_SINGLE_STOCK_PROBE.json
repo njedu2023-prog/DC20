@@ -1,0 +1,93 @@
+{
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "base_archive_sha256": "f35140230a777b58276e58e861ec63076f375a27b0f11d32bd170174658d44ad",
+  "branch": "main",
+  "calls_per_pair": 1,
+  "candidate_identity_basis": "PINNED_BASE_FROZEN_GAP_CANDIDATE_CODES_NOT_OLD_OUTCOMES",
+  "capacity_qualification_performed": false,
+  "codec_allowlist_modified": false,
+  "credential_persisted": false,
+  "detail_value_saved": false,
+  "diagnostic_only": true,
+  "documentation": "https://tushare.pro/document/2?doc_id=369",
+  "entry_price_qualification_performed": false,
+  "entry_source_eligible": false,
+  "fallback_generated": false,
+  "frozen_dependencies": {
+    "auction_truth.py": "b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af",
+    "auction_envelope_probe.py": "a61919ad87a098bb60b3d494eda699c2d075f1ca1ad9ab9080c9b000e8a3a929",
+    "auction_http_v3.py": "289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c",
+    "auction_pagination_probe.py": "a04bbf123339a3fffa51120566565bc1582ba36cb9974b27b0ff631ce5f25f04",
+    "auction_truth_v3.py": "889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665"
+  },
+  "label_source_eligible": false,
+  "market_table_saved": false,
+  "max_api_calls": 2,
+  "max_http_response_bytes": 4000000,
+  "output_file": "auction_single_stock_probe.json",
+  "pagination_or_request_fallback_allowed": false,
+  "production_activation_allowed": false,
+  "production_writes": false,
+  "raw_response_saved": false,
+  "redirects_allowed": false,
+  "request_id": "canonical_two_single_stock_days_20260912_v1",
+  "request_id_value_saved": false,
+  "requests": [
+    {
+      "api_name": "stk_auction",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "price",
+        "vol",
+        "amount",
+        "pre_close"
+      ],
+      "params": {
+        "trade_date": "20250319",
+        "ts_code": "000612.SZ"
+      }
+    },
+    {
+      "api_name": "stk_auction",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "price",
+        "vol",
+        "amount",
+        "pre_close"
+      ],
+      "params": {
+        "trade_date": "20260203",
+        "ts_code": "000995.SZ"
+      }
+    }
+  ],
+  "research_only": true,
+  "response_persistence": "STRUCTURE_BOOLEAN_COUNTS_SAFE_REASONS_AND_ORIGINAL_HTTP_SHA_ONLY",
+  "response_values_saved": false,
+  "retries": 0,
+  "run_attempt": 1,
+  "schema_version": "dc20_auction_single_stock_shape_probe_20260912_v1",
+  "server_message_saved": false,
+  "settlement_performed": false,
+  "socket_timeout_seconds": 20,
+  "source_files_written": false,
+  "source_import_allowed": false,
+  "table_validation_is_source_qualification": false,
+  "training_performed": false,
+  "verified_stocks_scope_failure": {
+    "api_calls": 1,
+    "archive_sha256": "cb9c59a99bed0fb19f83bac21a6ec7bbd8eeb0f5e4f8fac9953bbb5c8d17a746",
+    "artifact_id": "10295762271",
+    "http_response_bytes": 384539,
+    "http_response_sha256": "6fc0d8a9761fe51e6504cdee76ae0cf5abbd44a11c8c4672c226610e68814e78",
+    "individual_pagination_predicate_failure_known": false,
+    "reason": "STOCKS_TABLE_REQUIRES_EXPLICIT_COMPLETE_PAGINATION",
+    "run_commit": "25fc20006763338e445933357edc435a6522e22a",
+    "run_id": "34686515444",
+    "trade_date": "20250319"
+  }
+}
