@@ -1,0 +1,66 @@
+name: DC20 · bounded failed-auction pagination diagnostic (no source import)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/AUCTION_PAGINATION_PROBE.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-research-auction-pagination-probe
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  diagnose-only:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact version without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install existing hash-locked dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test isolated upgrade contracts before the two diagnostic calls
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
+        run: python -B -m pytest -q work/profit_1000_upgrade -p no:cacheprovider
+      - name: Verify production freeze
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: python -B scripts/validate_decision_model_freeze.py --root .
+      - name: Diagnose only two registered failed dates with zero retries
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: >-
+          python -B work/profit_1000_upgrade/auction_pagination_probe.py
+          --output "${RUNNER_TEMP}/auction-pagination-diagnostic"
+      - name: Verify no checkout source model or ledger changed
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Retain bounded structure diagnostic only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-auction-pagination-diagnostic-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/auction-pagination-diagnostic/auction_pagination_probe.json
+          if-no-files-found: error
+          retention-days: 30
