@@ -1,6 +1,8 @@
 """Bounded offline checks; timeout stubs test the shell boundary, not GNU timeout."""
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from pathlib import Path
 import shlex
@@ -12,7 +14,8 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github/workflows/test_decision_core.yml"
+WORKFLOW = ROOT / ".github/workflows/diagnose_decision_core.yml"
+FROZEN_WORKFLOW = ROOT / ".github/workflows/test_decision_core.yml"
 
 
 def _core():
@@ -31,6 +34,43 @@ def _environment(tmp_path):
 def _executable(path, body):
     path.write_text(f"#!{sys.executable}\n" + body)
     path.chmod(0o700)
+
+
+def test_frozen_ci_files_remain_exact_reviewed_bytes():
+    review = json.loads((ROOT / "models/decision_source_surface_review_20260912_ci_partition.json").read_bytes())
+    for name in (".github/workflows/test_decision_core.yml", "tests/test_decision_core_ci_partition.py"):
+        entry = next(item for item in review["source_changes"] if item["path"] == name)
+        raw = (ROOT / name).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == entry["current_sha256"]
+        assert len(raw) == entry["current_bytes"]
+
+
+def test_supplemental_diagnostic_keeps_original_test_selector_and_numeric_environment():
+    original = yaml.safe_load(FROZEN_WORKFLOW.read_text())
+    diagnostic = yaml.safe_load(WORKFLOW.read_text())
+    assert diagnostic["env"] == original["env"]
+    assert diagnostic["permissions"] == {"contents": "read"}
+    events = diagnostic.get("on", diagnostic.get(True))
+    assert set(events) == {"push", "workflow_dispatch"}
+    assert events["push"] == {"branches": ["main"], "paths": [".github/workflows/diagnose_decision_core.yml"]}
+    assert set(diagnostic["jobs"]) == {"test-decision-core"}
+    base_job = original["jobs"]["test-decision-core"]
+    job, step = _core()
+    base_step = next(item for item in base_job["steps"] if item.get("name") == step["name"])
+    def pytest_words(run):
+        line = next(line.strip() for line in run.splitlines() if " -m pytest " in line)
+        words = shlex.split(line.split(" 2>&1 | tee ")[0])
+        words = words[words.index("pytest") + 1:]
+        if "-o" in words:
+            index = words.index("-o")
+            assert words[index + 1] == "faulthandler_timeout=120"
+            del words[index:index + 2]
+        return words
+    assert pytest_words(step["run"]) == pytest_words(base_step["run"])
+    assert step["env"]["PYTHONPATH"] == base_step["env"]["PYTHONPATH"]
+    for name in ("Setup Python", "Install deps"):
+        assert next(item for item in job["steps"] if item["name"] == name) == next(item for item in base_job["steps"] if item["name"] == name)
+    assert not any("secrets." in str(item) for item in job["steps"])
 
 
 def test_core_has_process_group_cutoff_before_job_deadline_and_stack_diagnostics():

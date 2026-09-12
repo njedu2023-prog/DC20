@@ -1,0 +1,83 @@
+name: DC20 · Read-only core timeout diagnosis
+
+# Supplemental diagnostics only. The frozen core/source/replay jobs remain
+# unchanged and required; this job cannot replace or bypass those checks.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/diagnose_decision_core.yml"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OMP_THREAD_LIMIT: "1"
+  OMP_DYNAMIC: "FALSE"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_CORETYPE: "Haswell"
+  GOTO_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  MKL_DYNAMIC: "FALSE"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  NPY_ENABLE_CPU_FEATURES: "X86_V3"
+
+jobs:
+  test-decision-core:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify checkout is byte-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+          eol_violations="$(git ls-files --eol | awk '($1 == "i/crlf" || $1 == "i/mixed") && /attr\/text.*eol=lf/')"
+          test -z "${eol_violations}"
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+          cache: "pip"
+          cache-dependency-path: requirements-dev.lock
+      - name: Install deps
+        run: |
+          set -e
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+          python -c "import pip; assert pip.__version__ == '26.2.1', pip.__version__"
+          python -m pip check
+      - name: Run decision core regression tests
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+        run: |
+          set -euo pipefail
+          node --version
+          # Kill the entire pytest process group before job expiry so logs can
+          # be uploaded. Timeout exit 124/137 remains a failed diagnostic run.
+          timeout --verbose --signal=TERM --kill-after=30s 50m python -u -m pytest -vv --tb=short --durations=25 -o faulthandler_timeout=120 --ignore=tests/test_decision_source_surface_rotation.py --junitxml="$RUNNER_TEMP/core-regression.xml" 2>&1 | tee "$RUNNER_TEMP/core-regression.log"
+      - name: Preserve core regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-timeout-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/core-regression.log
+            ${{ runner.temp }}/core-regression.xml
+          if-no-files-found: warn
+          retention-days: 14
