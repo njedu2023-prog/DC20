@@ -1,0 +1,16 @@
+{
+  "schema_version": "dc20_profit_1000_probe_request_v1",
+  "request_id": "profit_1000_entitlement_20260912_v1",
+  "approved_base_commit": "b84acfe2d7dbd029a98446e8d19cabfbbea7ad84",
+  "max_api_calls": 2,
+  "timeout_seconds": 20,
+  "minute_adapter_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+  "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+  "probes": [
+    {"ts_code": "600000.SH", "trade_date": "20260911"},
+    {"ts_code": "600000.SH", "trade_date": "20221114"}
+  ],
+  "purpose": "Read-only entitlement and complete-session history probe, not a training dataset",
+  "production_writes": false,
+  "purchase_permission": false
+}
