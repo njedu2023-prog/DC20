@@ -87,3 +87,33 @@ def test_capital_followup_is_bound_to_reviewed_run_and_cannot_trade():
     assert '--expected-source-run-id 34671477608' in replay['run']
     assert '--expected-source-commit 4675fab984050fa32be875fff07e0285e8903ebb' in replay['run']
     assert steps[0]['with']['persist-credentials'] == 'false'
+
+
+def test_price_and_minute_diagnostics_are_fixed_read_only_requests():
+    root = Path(__file__).resolve().parents[2]
+    for kind, trigger, script in (("price", "PRICE_REQUEST.json", "price_probe.py"),
+                                  ("minute_gap", "MINUTE_GAP_REQUEST.json", "minute_gap_probe.py")):
+        workflow = yaml.load(
+            (root / f'.github/workflows/research_profit_1000_{kind}.yml').read_text(),
+            Loader=yaml.BaseLoader,
+        )
+        assert workflow['on'] == {'push': {'branches': ['main'], 'paths': [
+            'work/profit_1000_upgrade/' + trigger]}}
+        assert workflow['permissions'] == {'contents': 'read'}
+        job = workflow['jobs']['probe']
+        assert 'github.run_attempt == 1' in job['if']
+        assert 'njedu2023-prog/DC20' in job['if'] and "refs/heads/main" in job['if']
+        assert int(job['timeout-minutes']) <= 8
+        steps = job['steps']
+        tests = next(i for i, s in enumerate(steps) if 'unittest discover' in s.get('run', ''))
+        credentials = [i for i, s in enumerate(steps) if 'secrets.' in str(s)]
+        assert len(credentials) == 1 and tests < credentials[0]
+        assert script in steps[credentials[0]]['run']
+        assert '${RUNNER_TEMP}' in steps[credentials[0]]['run']
+        assert steps[0]['with']['persist-credentials'] == 'false'
+        assert steps[0]['with']['ref'] == '${{ github.sha }}'
+        for step in steps:
+            if 'uses' in step:
+                assert re.fullmatch(r'.+@[0-9a-f]{40}', step['uses'])
+            assert isinstance(step.get('run', ''), str)
+        assert steps[-1]['if'] == 'always()'

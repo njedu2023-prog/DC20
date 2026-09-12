@@ -1,0 +1,25 @@
+{
+  "schema_version": "dc20_fixed_minute_gap_diagnostic_v1",
+  "request_id": "six_rejected_minute_tables_20260912_v1",
+  "endpoint": "stk_mins",
+  "max_api_calls": 6,
+  "timeout_seconds": 20,
+  "max_seconds": 180,
+  "request_interval_seconds": 1.0,
+  "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+  "minute_adapter_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+  "original_history_archive_sha256": "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29",
+  "original_request_status": "PENDING_INVALID_RESPONSE_NOT_IMPUTED",
+  "cases": [
+    {"trade_date": "20221124", "ts_code": "600302.SH"},
+    {"trade_date": "20230109", "ts_code": "002401.SZ"},
+    {"trade_date": "20240103", "ts_code": "605118.SH"},
+    {"trade_date": "20250102", "ts_code": "002868.SZ"},
+    {"trade_date": "20260106", "ts_code": "603667.SH"},
+    {"trade_date": "20260106", "ts_code": "001299.SZ"}
+  ],
+  "production_writes": false,
+  "purchase_permission": false,
+  "synthesize_minutes": false,
+  "automatic_settlement": false
+}

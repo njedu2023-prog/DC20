@@ -1,0 +1,53 @@
+name: DC20 · rejected minute table diagnostic (read only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/MINUTE_GAP_REQUEST.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-profit-1000-minute-gap-probe
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  probe:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact source without write credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python standard library only
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Test exact diagnostic without credentials or network
+        run: python -m unittest discover -s work/profit_1000_upgrade -p 'test_minute_gap_probe.py' -v
+      - name: Diagnose six rejected stock sessions without relaxing minute validation
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: >-
+          python work/profit_1000_upgrade/minute_gap_probe.py
+          --output "${RUNNER_TEMP}/dc20-profit-1000-minute-gap"
+      - name: Verify checkout unchanged
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Save original safe tables and strict diagnostic evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-profit-1000-minute-gap-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/dc20-profit-1000-minute-gap
+          if-no-files-found: warn
+          retention-days: 30
