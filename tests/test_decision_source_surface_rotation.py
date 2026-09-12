@@ -257,7 +257,34 @@ DEV_YAML_BOUNDARIES = {
 }
 
 
-def _dev_yaml_live_source(path: str) -> bytes:
+CI_PARTITION_REVIEW = ROOT / "models/decision_source_surface_review_20260912_ci_partition.json"
+CI_PARTITION_REVIEW_SHA = "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395"
+CI_PARTITION_SCOPE = "CI_ONLY_COMPLETE_TEST_PARTITION_AND_CLEAN_CHECKOUT_HISTORY_FIXTURE_NO_RUNTIME_OR_MODEL_CHANGE"
+CI_PARTITION_EXISTING_PATHS = {
+    ".github/workflows/test_decision_core.yml", "tests/test_compact_statistics_window_frontend.py",
+}
+CI_PARTITION_ADDED_PATHS = {"tests/test_decision_core_ci_partition.py"}
+CI_PARTITION_BOUNDARIES = {
+    "ci_partition_changed": True,
+    "test_fixture_generation_changed": True,
+    "test_coverage_reduced": False,
+    "validation_gates_bypassed": False,
+    "production_requirements_changed": False,
+    "dev_dependencies_changed": False,
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "promotion_model_changed": False,
+    "entry_policy_changed": False,
+    "exit_policy_changed": False,
+    "historical_ledger_rewritten": False,
+    "production_workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _ci_partition_live_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
     target = ROOT / path
@@ -265,6 +292,181 @@ def _dev_yaml_live_source(path: str) -> bytes:
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
     return target.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _parse_ci_partition_review(raw: bytes) -> dict:
+    # Parsing alone may be cached, never the current file or its digest.
+    return json.loads(raw)
+
+
+def _ci_partition_review(review: dict | None = None) -> dict:
+    raw = _ci_partition_live_source(CI_PARTITION_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw).hexdigest() == CI_PARTITION_REVIEW_SHA
+    approved = _parse_ci_partition_review(raw)
+    review = approved if review is None else review
+    assert review == approved
+    assert review["schema_version"] == "decision_ci_partition_source_review_v1"
+    assert review["approved_base_commit"] == "6ea9616014da3850ae4064c89e56e832608180d3"
+    assert review["scope"] == CI_PARTITION_SCOPE
+    assert review["boundaries"] == CI_PARTITION_BOUNDARIES
+    assert review["predecessor_evidence_path"] == DEV_YAML_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(DEV_YAML_REVIEW) == DEV_YAML_REVIEW_SHA
+    predecessor = json.loads(DEV_YAML_REVIEW.read_bytes())
+    assert len(review["preserved_evidence"]) == 21
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": DEV_YAML_REVIEW.relative_to(ROOT).as_posix(), "sha256": DEV_YAML_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert hashlib.sha256(_ci_partition_live_source(item["path"])).hexdigest() == item["sha256"]
+    paths = [item["path"] for item in review["source_changes"]]
+    assert len(paths) == len(set(paths)) == 3
+    assert set(paths) == CI_PARTITION_EXISTING_PATHS | CI_PARTITION_ADDED_PATHS
+    assert review["pin_count"] == 231
+    assert review["pin_changes"] == [{
+        "path": ".github/workflows/test_decision_core.yml",
+        "baseline_sha256": "f38b2b0ab78be89dd7992c49582b9991703f7bcb384ff30a90090ab6c9a6fba6",
+        "current_sha256": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
+    }]
+    return review
+
+
+def _source_before_ci_partition(path: str, review: dict | None = None) -> bytes:
+    source = _ci_partition_live_source(path)
+    sources = CI_PARTITION_EXISTING_PATHS | CI_PARTITION_ADDED_PATHS
+    if path not in sources | {"models/decision_model_freeze.json", "forward/model_inventory.json"}:
+        return source
+    review = _ci_partition_review(review)
+    if path in sources:
+        item = next(entry for entry in review["source_changes"] if entry["path"] == path)
+        assert item["baseline_exists"] is (path in CI_PARTITION_EXISTING_PATHS)
+        assert item["reason"] and len(source) == item["current_bytes"]
+        assert hashlib.sha256(source).hexdigest() == item["current_sha256"]
+        lines = source.decode().splitlines(keepends=True)
+        changes = item["inverse_changes"]
+        assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+        previous_end = baseline_offset = 0
+        for part in changes:
+            assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+            assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+            assert type(part["current_start"]) is int and part["current_start"] > 0
+            start = part["current_start"] - 1
+            assert previous_end <= start <= len(lines)
+            assert part["baseline_start"] - 1 == start + baseline_offset
+            assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+            previous_end = start + len(part["current_lines"])
+            baseline_offset += len(part["baseline_lines"]) - len(part["current_lines"])
+        for part in reversed(changes):
+            start = part["current_start"] - 1
+            lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+        restored = "".join(lines).encode()
+        assert len(restored) == item["baseline_bytes"]
+        assert hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+        if path in CI_PARTITION_ADDED_PATHS:
+            assert restored == b"" and item["baseline_bytes"] == 0
+        return restored
+    if path == "models/decision_model_freeze.json":
+        assert hashlib.sha256(source).hexdigest() == review["current_manifest_sha256"]
+        manifest = json.loads(source)
+        assert len(manifest["pinned_files"]) == review["pin_count"] == 231
+        change = review["pin_changes"][0]
+        assert manifest["pinned_files"][change["path"]] == change["current_sha256"]
+        assert hashlib.sha256(_ci_partition_live_source(change["path"])).hexdigest() == change["current_sha256"]
+        manifest["pinned_files"][change["path"]] = change["baseline_sha256"]
+        restored = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+        assert hashlib.sha256(restored).hexdigest() == review["baseline_manifest_sha256"] == "f383aad6ec12d8c54c3c2956ba74e478db9fbc3436c63cf656ac1806c7dc32c8"
+        return restored
+    inventory = json.loads(source)
+    assert source == (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    dep = review["inventory_update"]
+    assert dep["path"] == path and dep["current_scope"] == CI_PARTITION_SCOPE
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": CI_PARTITION_REVIEW.relative_to(ROOT).as_posix(), "sha256": CI_PARTITION_REVIEW_SHA,
+        "approved_base_commit": review["approved_base_commit"], "scope": CI_PARTITION_SCOPE,
+    }
+    for asset in inventory["assets"]:
+        raw = _ci_partition_live_source(asset["path"])
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    before_manifest = _source_before_ci_partition("models/decision_model_freeze.json", review)
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(item for item in inventory["assets"] if item["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before_manifest).hexdigest(), bytes=len(before_manifest))
+    restored = (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(restored).hexdigest() == dep["baseline_sha256"] == "3dd57156fd73a5788d79307946b03a87942c1340bd0f4b0010b7bfdb212902cd"
+    return restored
+
+
+def _state_before_ci_partition(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _ci_partition_review(review)
+    live = json.loads(_ci_partition_live_source("models/decision_model_freeze.json"))
+    manifest = live if manifest is None else manifest
+    assert manifest == live
+    assert len(manifest["pinned_files"]) == 231
+    for path, expected in manifest["pinned_files"].items():
+        assert hashlib.sha256(_ci_partition_live_source(path)).hexdigest() == expected
+    for path in CI_PARTITION_EXISTING_PATHS | CI_PARTITION_ADDED_PATHS:
+        _source_before_ci_partition(path, review)
+    return (json.loads(_source_before_ci_partition("models/decision_model_freeze.json", review)),
+            json.loads(_source_before_ci_partition("forward/model_inventory.json", review)))
+
+
+def _dev_yaml_live_source(path: str) -> bytes:
+    # Preserve the signed dev-dependency review; rewind only this CI repair.
+    return _source_before_ci_partition(path)
+
+
+def test_ci_partition_repair_restores_exact_predecessor_models_inventory_and_sources():
+    manifest, inventory = _state_before_ci_partition()
+    assert len(manifest["pinned_files"]) == 231 and len(inventory["assets"]) == 42
+    assert inventory["dependency_successor_review"]["sha256"] == DEV_YAML_REVIEW_SHA
+    assert _source_before_ci_partition("tests/test_decision_core_ci_partition.py") == b""
+    before = _source_before_ci_partition(".github/workflows/test_decision_core.yml")
+    after = _ci_partition_live_source(".github/workflows/test_decision_core.yml")
+    assert before.split(b"  frozen-canonical-replay:\n", 1)[1] == after.split(b"  frozen-canonical-replay:\n", 1)[1]
+    assert before.split(b"jobs:\n", 1)[0] == after.split(b"jobs:\n", 1)[0]
+
+
+@pytest.mark.parametrize("target", ["review", "workflow", "frontend", "partition_test", "lock",
+                                     "model", "manifest", "inventory", "old_review"])
+def test_ci_partition_repair_rechecks_every_live_boundary_after_cache_warmup(monkeypatch, target):
+    targets = {"review": CI_PARTITION_REVIEW, "workflow": ROOT / ".github/workflows/test_decision_core.yml",
+               "frontend": ROOT / "tests/test_compact_statistics_window_frontend.py",
+               "partition_test": ROOT / "tests/test_decision_core_ci_partition.py",
+               "lock": ROOT / "requirements-dev.lock", "model": ROOT / "models/decision_three_engines/promotion.joblib",
+               "manifest": MANIFEST, "inventory": ROOT / "forward/model_inventory.json", "old_review": DEV_YAML_REVIEW}
+    _state_before_ci_partition()
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == targets[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _state_before_ci_partition()
+
+
+@pytest.mark.parametrize("mutation", ["scope", "base", "coverage", "dependency", "runtime", "extra_source",
+                                     "source_sha", "inverse", "added_exists", "drop_evidence", "remove_pin", "extra_pin", "model_identity"])
+def test_ci_partition_repair_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_bytes())
+    review = json.loads(CI_PARTITION_REVIEW.read_bytes())
+    if mutation == "scope": review["scope"] = "runtime"
+    elif mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "coverage": review["boundaries"]["test_coverage_reduced"] = True
+    elif mutation == "dependency": review["boundaries"]["dev_dependencies_changed"] = True
+    elif mutation == "runtime": review["boundaries"]["ranking_algorithm_changed"] = True
+    elif mutation == "extra_source": review["source_changes"].append(dict(review["source_changes"][0], path="requirements.lock"))
+    elif mutation == "source_sha": review["source_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "added_exists": next(item for item in review["source_changes"] if item["path"] in CI_PARTITION_ADDED_PATHS)["baseline_exists"] = True
+    elif mutation == "drop_evidence": review["preserved_evidence"].pop()
+    elif mutation == "remove_pin": del manifest["pinned_files"]["requirements-dev.lock"]
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    else: manifest["training_cutoff_signal_date"] = "20260911"
+    with pytest.raises(AssertionError):
+        _state_before_ci_partition(manifest, review)
 
 
 @lru_cache(maxsize=1)
@@ -360,6 +562,8 @@ def _source_before_dev_yaml(path: str, review: dict | None = None) -> bytes:
 
 
 def _state_before_dev_yaml(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None:
+        manifest = _state_before_ci_partition(manifest)[0]
     review = _dev_yaml_review(review)
     live = json.loads(_dev_yaml_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest

@@ -159,6 +159,15 @@ class PriceProbeTests(unittest.TestCase):
                     return json.dumps(payload).encode()
                 self.assertEqual(self.run_probe(call)["status_counts"], {"INVALID_RESPONSE_NOT_INTERPRETED": 12})
 
+    def test_observed_count_zero_preserved_without_dropping_real_items(self):
+        def call(endpoint, params, fields, *args):
+            payload = json.loads(successful(endpoint, params, fields))
+            payload["data"].update(count=0, has_more=False)
+            return json.dumps(payload).encode()
+        result = self.run_probe(call)
+        self.assertEqual(result["status_counts"], {"SOURCE_ROW_PRESENT": 12})
+        self.assertTrue(all(r["reported_count"] == 0 and r["row_count"] == 1 and r["count_zero_with_nonempty_items"] for r in result["requests"]))
+
     def test_cannot_overwrite_existing_or_aliased_output(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp).resolve()

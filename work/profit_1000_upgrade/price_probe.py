@@ -42,7 +42,7 @@ def contract():
         raise ValueError("aliased request contract")
     raw = trigger.read_bytes()
     if json.loads(raw) != {"schema_version": SCHEMA,
-                           "request_id": "20260912-cross-source-price-v1",
+                           "request_id": "20260912-cross-source-price-v2-observed-count-zero",
                            "max_api_calls": MAX_CALLS,
                            "production_writes": False, "purchase_permission": False}:
         raise ValueError("fixed request contract changed")
@@ -54,6 +54,8 @@ def contract():
             "endpoints": {k: list(v) for k, v in FIELDS.items()},
             "history_artifact_sha256": "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29",
             "history_run_id": "34671477608", "source_as_of_date": "20260911",
+            "predecessor_diagnostic_run_id": "34674667561",
+            "predecessor_diagnostic_sha256": "a0807823197d28bbde9cfd4d3f5785eaacd6cede4c732ca70ee0e848cc40f645",
             "documentation": ["https://tushare.pro/document/2?doc_id=353", "https://tushare.pro/document/2?doc_id=369"],
             "production_writes": False, "settlement_allowed": False,
             "entry_price_selected": False, "purchase_permission": False}
@@ -70,7 +72,10 @@ def _rows(payload, endpoint, case):
         raise ValueError("unexpected row count")
     if "has_more" in data and (type(data["has_more"]) is not bool or data["has_more"]):
         raise ValueError("truncated response")
-    if "count" in data and (type(data["count"]) is not int or data["count"] != len(items)):
+    # Observed official responses use count=0 even with nonempty items and
+    # has_more=false. The official SDK builds rows from fields/items, not count.
+    # A positive contradictory count or actual has_more still rejects the table.
+    if "count" in data and (type(data["count"]) is not int or data["count"] not in {0, len(items)}):
         raise ValueError("unexpected count")
     rows = []
     for item in items:
@@ -181,7 +186,8 @@ def probe(output, *, token, runner_temp=None, call=official_call, clock=time.mon
                                         "diagnostic_only": True, "data_values_modified": False, "immutable": True}
                             pair = [binding, _write(out, stem + ".meta.json", _json(metadata), token)]
                             files.extend(pair)
-                            receipt.update(source_files=pair, row_count=len(rows),
+                            receipt.update(source_files=pair, row_count=len(rows), reported_count=data.get("count"),
+                                           count_zero_with_nonempty_items=(data.get("count") == 0 and bool(rows)),
                                            status="SOURCE_ROW_PRESENT" if rows else "SOURCE_ROW_ABSENT")
                             if rows:
                                 observations[endpoint] = rows[0]

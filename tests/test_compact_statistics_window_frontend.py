@@ -15,11 +15,23 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
 WINDOW_PATH = "outputs/decision/compact_statistics_window.json"
+HISTORY_PREFIX = "outputs/decision/three_rank_history/"
 pytestmark = pytest.mark.skipif(not NODE, reason="Node required")
 
 
 @pytest.fixture(scope="module")
-def window_data():
+def history_archive(tmp_path_factory):
+    # Pages produces these files; a clean Git checkout deliberately has none.
+    # Exercise the real builder instead of relying on a developer's cache.
+    from scripts.build_decision_three_rank_history import build_history_archive
+
+    output = tmp_path_factory.mktemp("compact-frontend-history")
+    build_history_archive(ROOT, output)
+    return output
+
+
+@pytest.fixture(scope="module")
+def window_data(history_archive):
     from scripts.build_compact_statistics_window import build_window
 
     base = ROOT / "outputs/decision/executable_profit_research"
@@ -42,7 +54,8 @@ def window_data():
         primary_mixed_daily_top2_recorded_days=daily["recorded_days"],
         primary_mixed_daily_top2_recorded_slots=daily["recorded_slots"],
     )
-    return dict(window=window, raw=raw.decode(), revision=revision, now=now.isoformat())
+    return dict(window=window, raw=raw.decode(), revision=revision, now=now.isoformat(),
+                history_root=str(history_archive))
 
 
 def run(window_data, body):
@@ -66,7 +79,9 @@ const calls=[],revision=input.revision,windowPayload=input.window;
 let windowBytes=new TextEncoder().encode(input.raw),readHook=async()=>{};
 fetchPagesOnlyPath=async(path,kind='json')=>{
   calls.push(path);await readHook(path);
-  const bytes=path===COMPACT_STATISTICS_WINDOW_PATH?windowBytes:new Uint8Array(fs.readFileSync(root+'/'+path));
+  const historyPrefix='outputs/decision/three_rank_history/';
+  const file=path.startsWith(historyPrefix)?input.history_root+'/'+path.slice(historyPrefix.length):root+'/'+path;
+  const bytes=path===COMPACT_STATISTICS_WINDOW_PATH?windowBytes:new Uint8Array(fs.readFileSync(file));
   return kind==='bytes'?bytes:kind==='text'?new TextDecoder().decode(bytes):JSON.parse(new TextDecoder().decode(bytes));
 };
 fetchPublishedBytes=path=>fetchPagesOnlyPath(path,'bytes');
@@ -312,3 +327,26 @@ await refreshCompactStatisticsWindow();location.search='?view=research';state.in
 console.log(JSON.stringify({ledger:nodes.get('compactLedger').hidden,promotion:nodes.get('compactStatistics').hidden}));
 """)
     assert rendered == {"ledger": True, "promotion": True}
+
+
+def test_history_navigation_does_not_require_checkout_generated_files(window_data):
+    archive = Path(window_data["history_root"])
+    assert not archive.is_relative_to(ROOT)
+    index = json.loads((archive / "index.json").read_bytes())
+    assert index["statistics_sha256"] == hashlib.sha256((archive / "statistics.json").read_bytes()).hexdigest()
+    rendered = run(window_data, r"""
+// Reproduce a clean checkout even if a local developer has cached Pages files.
+const readFile=fs.readFileSync,blocked=root+'/outputs/decision/three_rank_history/';
+fs.readFileSync=(path,...args)=>{
+  if(String(path).startsWith(blocked))throw Object.assign(new Error('Pages files are absent in a clean checkout'),{code:'ENOENT'});
+  return readFile(path,...args);
+};
+location.search='?d=20260908';
+let windowPending;const refresh=refreshCompactStatisticsWindow;
+refreshCompactStatisticsWindow=()=>(windowPending=refresh());
+await initialize();await windowPending;
+console.log(JSON.stringify({...result(),selectedD:validatedThreeRankContract(state.currentThreeRank).signal_date}));
+""")
+    assert rendered["ready"] and rendered["selectedD"] == "20260908"
+    assert HISTORY_PREFIX + "index.json" in rendered["calls"]
+    assert HISTORY_PREFIX + "statistics.json" in rendered["calls"]
