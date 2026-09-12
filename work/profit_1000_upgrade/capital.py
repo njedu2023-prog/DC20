@@ -18,6 +18,10 @@ from typing import Mapping
 from zoneinfo import ZoneInfo
 
 from top10decision.decision.shadow_exit_1000 import EXIT_POLICY_ID
+try:
+    from . import policy_v2
+except ImportError:
+    from work.profit_1000_upgrade import policy_v2
 
 SCHEMA = "dc20_profit_1000_capital_diagnostic_v1"
 INITIAL_CASH = 1_000_000.0
@@ -25,7 +29,7 @@ TARGET_NOTIONAL = 100_000.0
 COST_RATE = .0045
 LOT_SIZE = 100
 SETTLED = "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY"
-ENTRY_POLICIES = {"research_auction_or_open_no_cap_v1", "research_auction_or_open_frozen_cap_v1"}
+ENTRY_POLICIES = {"research_auction_or_open_no_cap_v1", "research_auction_or_open_frozen_cap_v1", policy_v2.ENTRY_POLICY_ID}
 SH = ZoneInfo("Asia/Shanghai")
 
 
@@ -128,6 +132,10 @@ def replay_capital(ranked_rows, label_rows, *, open_dates, as_of_date, load_dail
         key = _key(label)
         if key in labels:
             raise ValueError("duplicate label identity")
+        if entry_policy_id == policy_v2.ENTRY_POLICY_ID:
+            policy_v2.validate_label_contract(label)
+        elif set(label) & (set(policy_v2.CONTRACT) - {"entry_policy_id"}) or "source_policy_contract" in label:
+            raise ValueError("v2 source policy cannot enter legacy capital replay")
         labels[key] = label
     sources = {}
     accounts = {}
@@ -287,7 +295,9 @@ def replay_capital(ranked_rows, label_rows, *, open_dates, as_of_date, load_dail
             "capital_unavailable_slots": sum(r["status"] == "CAPITAL_UNAVAILABLE" for r in records),
             "no_frozen_candidate_dates": [d for d, ranks in sorted(day_ranks.items()) if rank not in ranks],
         }
-    return {"schema_version": SCHEMA, "research_only": True, "production_activation_allowed": False,
+    return {**(dict(policy_v2.CONTRACT, source_policy_contract=policy_v2.source_policy_contract(),
+                    provider_timestamp_semantics_confirmed=False) if entry_policy_id == policy_v2.ENTRY_POLICY_ID else {}),
+            "schema_version": SCHEMA, "research_only": True, "production_activation_allowed": False,
             "label_verification": "CALLER_VERIFIED_LABELS_REQUIRED_NOT_INDEPENDENT_SOURCE_REPLAY",
             "ranking_verification": "CALLER_MUST_BIND_FROZEN_RANKING",
             "diagnostic_status": "CAPITAL_PROXY_REPLAY" if frozen else "NO_RANKED_COHORT",
@@ -317,6 +327,10 @@ def replay_capital_from_repository(repo_root, ranked_rows, label_rows=None, *, c
     from top10decision.decision import executable_profit_shadow_settlement as s
     from work.profit_1000_upgrade.labels import _binding, build_labels
     root = Path(repo_root).resolve(strict=True)
+    if entry_policy_id == policy_v2.ENTRY_POLICY_ID:
+        policy_v2.validate_contract(candidate_manifest)
+    elif policy_v2.has_v2_policy(candidate_manifest):
+        raise ValueError("v2 source manifest cannot enter legacy capital replay")
     dates = s._strict_open_dates(root)
     rebuilt = build_labels(root, candidate_manifest, as_of_date=as_of_date)
     canonical = lambda rows: json.dumps(rows, sort_keys=True, separators=(",", ":"), allow_nan=False)

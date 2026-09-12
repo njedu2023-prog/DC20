@@ -11,6 +11,11 @@ from datetime import datetime
 import math
 import re
 
+try:
+    from . import policy_v2
+except ImportError:
+    from work.profit_1000_upgrade import policy_v2
+
 
 POLICY_ID = "dc20_exit_1000_limit_hold_20260912_v1"
 SCHEMA = "dc20_profit_1000_candidate_v1"
@@ -86,7 +91,13 @@ def _prepare(frozen_rows, labels, manifest, as_of, holdout_start):
     _expect(manifest.get("source_provenance_verified") is True, "FROZEN_SOURCE_PROVENANCE_NOT_VERIFIED")
     _expect(manifest.get("feature_timestamp_semantics") == "RETROSPECTIVE_D_ONLY_BOUND", "D_ONLY_FEATURE_PROVENANCE_REQUIRED")
     _expect(manifest.get("promotion_prediction_provenance") == "HISTORICAL_OOF", "PROMOTION_OOF_PROVENANCE_REQUIRED")
-    _expect(manifest.get("entry_policy_id") in {"research_auction_or_open_no_cap_v1", "research_auction_or_open_frozen_cap_v1"}, "REGISTERED_RESEARCH_ENTRY_POLICY_REQUIRED")
+    _expect(manifest.get("entry_policy_id") in {"research_auction_or_open_no_cap_v1", "research_auction_or_open_frozen_cap_v1", policy_v2.ENTRY_POLICY_ID}, "REGISTERED_RESEARCH_ENTRY_POLICY_REQUIRED")
+    source_v2 = policy_v2.has_v2_policy(manifest)
+    if source_v2:
+        policy_v2.validate_contract(manifest)
+    else:
+        _expect(not (set(manifest) & (set(policy_v2.CONTRACT) - {"entry_policy_id"}))
+                and "source_policy_contract" not in manifest, "V2_SOURCE_FIELDS_WITH_LEGACY_ENTRY_FORBIDDEN")
     _expect(manifest.get("cost_rate") == 0.0045, "REGISTERED_COST_RATE_MUST_BE_45BP")
     expected = manifest.get("day_candidate_counts")
     _expect(isinstance(expected, dict), "FROZEN_DAY_COUNTS_REQUIRED")
@@ -137,6 +148,11 @@ def _prepare(frozen_rows, labels, manifest, as_of, holdout_start):
             continue  # Do not inspect future holdout outcomes or use them in any gate.
         _expect(supplied.get("label_policy_id") == POLICY_ID, "OLD_OR_UNKNOWN_EXIT_LABEL_FORBIDDEN")
         _expect(supplied.get("entry_policy_id") == manifest["entry_policy_id"], "MIXED_OR_UNKNOWN_ENTRY_LABEL_FORBIDDEN")
+        if source_v2:
+            policy_v2.validate_label_contract(supplied)
+        else:
+            _expect(not (set(supplied) & (set(policy_v2.CONTRACT) - {"entry_policy_id"}))
+                    and "source_policy_contract" not in supplied, "V2_LABEL_SOURCE_WITH_LEGACY_ENTRY_FORBIDDEN")
         _expect(type(supplied.get("round_trip_cost_rate")) in (int, float)
                 and supplied["round_trip_cost_rate"] == manifest["cost_rate"], "MIXED_OR_UNKNOWN_COST_LABEL_FORBIDDEN")
     prepared = []
@@ -330,9 +346,13 @@ def run_candidate(frozen_rows, label_rows, *, as_of_date, training_cutoff_date,
         rows, ignored_holdout = _prepare(list(frozen_rows), list(label_rows), frozen_manifest, as_of_date, holdout_start_date)
         report["frozen_source_sha256"] = frozen_manifest["source_sha256"]
         report["entry_policy_id"] = frozen_manifest["entry_policy_id"]
+        if policy_v2.has_v2_policy(frozen_manifest):
+            report.update(policy_v2.validate_contract(frozen_manifest))
+            report["source_policy_contract"] = policy_v2.source_policy_contract()
+            report["provider_timestamp_semantics_confirmed"] = False
         report["round_trip_cost_rate"] = frozen_manifest["cost_rate"]
         report["entry_policy_production_compatibility"] = (
-            "ENTRY_POLICY_DIFFERENT_FROM_FORMAL_FROZEN_CAP" if frozen_manifest["entry_policy_id"] == "research_auction_or_open_no_cap_v1"
+            "ENTRY_POLICY_DIFFERENT_FROM_FORMAL_FROZEN_CAP" if frozen_manifest["entry_policy_id"] in {"research_auction_or_open_no_cap_v1", policy_v2.ENTRY_POLICY_ID}
             else "FORMAL_COMPATIBILITY_NOT_AUTOMATICALLY_ESTABLISHED"
         )
         report["holdout_rows_excluded_without_outcome_evaluation"] = ignored_holdout
@@ -396,6 +416,12 @@ def run_candidate(frozen_rows, label_rows, *, as_of_date, training_cutoff_date,
         model.update({"frozen_source_sha256": frozen_manifest["source_sha256"],
                       "entry_policy_id": frozen_manifest["entry_policy_id"], "round_trip_cost_rate": frozen_manifest["cost_rate"],
                       "training_cutoff_date": training_cutoff_date, "holdout_start_date": holdout_start_date})
+        if policy_v2.has_v2_policy(frozen_manifest):
+            model.update(policy_v2.source_policy_contract())
+            model["source_policy_contract"] = policy_v2.source_policy_contract()
+            model["provider_timestamp_semantics_confirmed"] = False
+            for prediction in predictions:
+                prediction.update(policy_v2.source_policy_contract())
         result.update({"status": "DEVELOPMENT_ONLY_FITTED", "candidate_model": model, "predictions": predictions})
         return result
     except (ValueError, TypeError, KeyError) as exc:

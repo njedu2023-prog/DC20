@@ -8,6 +8,7 @@ import pytest
 from work.profit_1000_upgrade.capital import (
     COST_RATE, EXIT_POLICY_ID, SETTLED, replay_capital, replay_capital_from_repository,
 )
+from work.profit_1000_upgrade import policy_v2
 
 
 DATES = ["20260901", "20260902", "20260903", "20260904", "20260907", "20260908", "20260909", "20260910", "20260911", "20260914", "20260915", "20260916", "20260917"]
@@ -45,6 +46,61 @@ def mark(day, code, *, close=10, pre=10, corroboration=None):
 def replay(rows=None, labels=None, *, as_of=T1, loader=mark):
     return replay_capital(rows if rows is not None else [row()], labels if labels is not None else [label()],
                           open_dates=DATES, as_of_date=as_of, load_daily=loader)
+
+
+def v2_label(**kwargs):
+    value = label(**kwargs)
+    value.update(policy_v2.source_policy_contract(), minute_source_observed=value["label_status"] == SETTLED,
+                 entry_price_source="TUSHARE_STK_AUCTION")
+    return value
+
+
+def test_v2_capital_keeps_losses_and_binds_exact_source_policy():
+    out = replay_capital([row()], [v2_label()], open_dates=DATES, as_of_date=T1,
+                         load_daily=mark, entry_policy_id=policy_v2.ENTRY_POLICY_ID)
+    policy_v2.validate_contract(out)
+    assert out["provider_timestamp_semantics_confirmed"] is False
+    assert out["accounts"]["top1"]["equity"] == 997550
+    assert not out["production_activation_allowed"]
+
+
+@pytest.mark.parametrize("field", list(policy_v2.CONTRACT) + ["minute_source_observed"])
+def test_v2_capital_rejects_missing_source_contract(field):
+    value = v2_label()
+    del value[field]
+    with pytest.raises(ValueError):
+        replay_capital([row()], [value], open_dates=DATES, as_of_date=T1,
+                       load_daily=mark, entry_policy_id=policy_v2.ENTRY_POLICY_ID)
+
+
+def test_v2_capital_source_conflict_is_pending_not_a_zero_slot():
+    value = v2_label(status="PENDING_ENTRY_SOURCE_CONFLICT")
+    value.update(proxy_fill=None, entry_price=None, entry_price_source=None)
+    out = replay_capital([row()], [value], open_dates=DATES, as_of_date=T1,
+                         load_daily=mark, entry_policy_id=policy_v2.ENTRY_POLICY_ID)
+    account = out["accounts"]["top1"]
+    assert account["equity"] is None
+    assert account["records"][0]["status"] == "PENDING_ENTRY_TRUTH"
+    value.update(label_status="NO_FILL_AUCTION_DAILY_CONFLICT", proxy_fill=0, slot_net_return=0)
+    with pytest.raises(ValueError):
+        replay_capital([row()], [value], open_dates=DATES, as_of_date=T1,
+                       load_daily=mark, entry_policy_id=policy_v2.ENTRY_POLICY_ID)
+
+
+def test_legacy_capital_rejects_new_source_policy_fields():
+    value = v2_label()
+    value["entry_policy_id"] = POLICY
+    with pytest.raises(ValueError, match="v2 source policy"):
+        replay(labels=[value])
+
+
+@pytest.mark.parametrize("status", ["NO_FILL_API_ERROR", "NO_FILL_SOURCE_UNAVAILABLE", "NO_FILL_PRICE_MISMATCH"])
+def test_v2_unknown_no_fill_never_creates_zero_capital_slot(status):
+    value = v2_label(status=status)
+    value.update(proxy_fill=0, minute_source_observed=False, slot_net_return=0)
+    with pytest.raises(ValueError, match="unknown no-fill"):
+        replay_capital([row()], [value], open_dates=DATES, as_of_date=T1,
+                       load_daily=mark, entry_policy_id=policy_v2.ENTRY_POLICY_ID)
 
 
 def test_negative_score_trades_and_net_cost_charged_once():

@@ -50,7 +50,10 @@ def _expect(condition, reason):
         raise ValueError(reason)
 
 
-def _research_root(value):
+def _research_root(value, plan_version="v1"):
+    if plan_version == "v2":
+        from work.profit_1000_upgrade.run import require_research_mirror
+        return require_research_mirror(value, plan_version="v2")
     path = Path(value)
     _expect(not any(component.is_symlink() for component in (path, *path.parents)), "RESEARCH_ROOT_SYMLINK_FORBIDDEN")
     root = path.resolve(strict=True)
@@ -95,6 +98,19 @@ def official_call(endpoint, params, fields, token, timeout):
         raw = response.read(8_000_001)
         _expect(len(raw) <= 8_000_000, "API_RESPONSE_TOO_LARGE")
         return json.loads(raw)
+
+
+def official_call_v2(endpoint, params, fields, token, timeout):
+    """Exact bounded HTTP bytes; never reconstruct a provider envelope."""
+    _expect(endpoint in {"stk_auction", "stk_mins", "daily", "stk_limit"}, "V2_ENDPOINT_FORBIDDEN")
+    body = json.dumps({"api_name": endpoint, "token": token,
+                       "params": params, "fields": ",".join(fields)}).encode()
+    req = request.Request("https://api.tushare.pro", data=body,
+                          headers={"Content-Type": "application/json"}, method="POST")
+    with request.urlopen(req, timeout=timeout) as response:
+        raw = response.read(8_000_001)
+        _expect(len(raw) <= 8_000_000, "API_RESPONSE_TOO_LARGE")
+        return raw
 
 
 class RequestBudget:
@@ -254,16 +270,145 @@ def _fetch_one(root, item, *, token, limiter, call):
     return receipt
 
 
+def _fetch_one_v2(root, item, *, token, limiter, call):
+    from work.profit_1000_upgrade import auction_truth as auction, minute_truth as minutes, run
+    day, code, endpoint = item["trade_date"], item.get("ts_code"), item["endpoint"]
+    receipt = {"trade_date": day, "endpoint": endpoint, "ts_code": code,
+               "status": "PENDING_UNKNOWN", "network_request_performed": False,
+               "new_source_files": [], "existing_source_files": []}
+    if endpoint == "stk_auction" and day < auction.COVERAGE_START:
+        # An actual file, even corrupted, cannot be hidden by a declaration.
+        if any(p.exists() or p.is_symlink() for p in auction.source_paths(root, day)):
+            receipt["status"] = "PENDING_PRE_COVERAGE_SOURCE_CONFLICT"
+        else:
+            receipt.update(status="HISTORY_BEFORE_CANONICAL_COVERAGE",
+                           source_policy_id=auction.SOURCE_POLICY_ID, plan_sha256=run.sha(run.plan_path("v2")))
+        return receipt
+    try:
+        if endpoint == "stk_auction":
+            paths = auction.source_paths(root, day)
+            params, fields = auction.request_parameters(day), auction.FIELDS
+            try:
+                existing = auction.load(root, day)
+            except auction.AuctionSourceMissing:
+                existing = None
+            if existing is not None:
+                meta = json.loads(paths[1].read_text())
+                receipt.update(status="EXISTING_TRUTH_NOT_OVERWRITTEN", network_request_performed=False,
+                               source_network_request_performed=True,
+                               request=meta["request"], http_response_sha256=meta["http_response_sha256"],
+                               source_status=meta["status"], existing_source_files=[dict(b) for b in existing.source_files])
+                return receipt
+        elif endpoint == "stk_mins":
+            paths = minutes.paths(root, day, code)
+            params, fields = minutes.request_parameters(day, code), minutes.FIELDS
+            existing = minutes.load(root, day, code)
+            if existing is not None:
+                meta = json.loads(paths[1].read_text())
+                receipt.update(status="EXISTING_TRUTH_NOT_OVERWRITTEN", request={"api_name": endpoint, "params": params, "fields": list(fields)},
+                               http_response_sha256=meta["response_body_sha256"], existing_source_files=existing["source_files"])
+                return receipt
+        elif endpoint in {"daily", "stk_limit"}:
+            existing_path = settlement._find_market_file(root, day, endpoint)
+            if existing_path is not None:
+                settlement._market_rows(existing_path, day)
+                receipt.update(status="EXISTING_TRUTH_NOT_OVERWRITTEN",
+                               existing_source_files=[settlement._source_binding(root, existing_path)])
+                return receipt
+            path = root / f"data/market/raw/{day[:4]}/{day}/{endpoint}.csv"
+            paths = path, path.with_suffix(".meta.json")
+            params, fields = {"trade_date": day}, MARKET_FIELDS[endpoint]
+        else:
+            raise ValueError("V2_ENDPOINT_FORBIDDEN")
+        for path in paths:
+            _safe_target(root, path)
+    except (ValueError, OSError, settlement.ExecutableProfitSettlementError):
+        receipt["status"] = "PENDING_EXISTING_INVALID_NOT_OVERWRITTEN"
+        return receipt
+    if not token.strip():
+        receipt["status"] = "PENDING_CREDENTIAL_ABSENT"
+        return receipt
+    if not limiter.take():
+        receipt["status"] = "PENDING_BUDGET_EXHAUSTED"
+        return receipt
+    receipt.update(network_request_performed=True,
+                   request={"api_name": endpoint, "params": params, "fields": list(fields)})
+    try:
+        raw = call(endpoint, params, fields, token, limiter.budget["timeout_seconds"])
+        _expect(type(raw) is bytes and 0 < len(raw) <= 8_000_000, "ORIGINAL_BOUNDED_HTTP_BYTES_REQUIRED")
+    except error.HTTPError as exc:
+        receipt.update(status="PENDING_HTTP_ERROR", http_status=exc.code)
+        return receipt
+    except Exception:
+        receipt["status"] = "PENDING_NETWORK_OR_RESPONSE_ERROR"
+        return receipt
+    receipt.update(http_response_sha256=hashlib.sha256(raw).hexdigest(), http_response_bytes=len(raw))
+    try:
+        payload = minutes._parse(raw)
+        _expect(isinstance(payload, dict), "API_ENVELOPE_INVALID")
+        status = classify(payload)
+        if status != "SUCCESS" and not (endpoint == "stk_auction" and status == "ENTITLEMENT_DENIED"):
+            receipt["status"] = "PENDING_" + status
+            return receipt
+        stamp = datetime.now(timezone.utc).isoformat()
+        receipt["fetched_at_utc"] = stamp
+        if endpoint == "stk_auction":
+            bodies = auction.source_bytes(raw, day, request=receipt["request"], fetched_at_utc=stamp,
+                                          network_request_performed=True, token=token)
+            receipt["source_status"] = json.loads(bodies[1])["status"]
+        elif endpoint == "stk_mins":
+            bodies = minutes.source_bytes(raw, day, code, request_params=params, fetched_at_utc=stamp, token=token)
+        else:
+            data = payload.get("data", {})
+            count, more = data.get("count", 0), data.get("has_more", False)
+            _expect(type(count) is int and count in (0, len(data.get("items", [])))
+                    and more is False, "DAILY_TABLE_TRUNCATED_OR_PAGINATED")
+            rows = _table(payload, fields)
+            if not rows:
+                receipt["status"] = "PENDING_EMPTY_RESPONSE"
+                return receipt
+            bodies = _market_bytes(rows, day, endpoint, item.get("required_codes", []), stamp)
+        _expect(not token or all(token.encode() not in body for body in bodies), "CREDENTIAL_LIKE_SOURCE_FORBIDDEN")
+        receipt["new_source_files"] = _write_pair(root, paths, bodies)
+        if endpoint == "stk_auction":
+            auction.load(root, day)
+        elif endpoint == "stk_mins":
+            _expect(minutes.load(root, day, code) is not None, "WRITTEN_MINUTES_INVALID")
+        else:
+            settlement._market_rows(paths[0], day)
+        receipt["status"] = "EXACT_TRUTH_WRITTEN"
+    except (ValueError, TypeError, KeyError, OSError, settlement.ExecutableProfitSettlementError):
+        receipt["status"] = "PENDING_INVALID_RESPONSE_NOT_IMPUTED"
+    return receipt
+
+
 def collect_history(root, manifest, *, as_of_date, token, budget=None,
-                    progress=None, call=official_call, build_labels_fn=build_labels):
-    root = _research_root(root)
+                    progress=None, call=official_call, build_labels_fn=build_labels, plan_version="v1"):
+    _expect(plan_version in {"v1", "v2"}, "UNKNOWN_COLLECTION_PLAN_VERSION")
+    if plan_version == "v1":
+        v2_fields = {"entry_policy_id", "auction_source_policy_id", "minute_source_policy_id",
+                     "minute_time_semantics", "source_policy_contract"}
+        _expect(not v2_fields.intersection(manifest) and manifest.get("plan_version") in (None, "v1"),
+                "V2_MANIFEST_REQUIRES_EXPLICIT_V2_COLLECTOR")
+    root = _research_root(root, plan_version=plan_version)
+    v2 = plan_version == "v2"
+    if v2:
+        from work.profit_1000_upgrade import run as runner
+        from work.profit_1000_upgrade.policy_v2 import CONTRACT, validate_contract
+        validate_contract(manifest)
+        if call is official_call:
+            call = official_call_v2
+        base_path = root / "research_inputs/base_archive_import.json"
+        _expect(base_path.is_file() and not any(p.is_symlink() for p in (base_path, *base_path.parents)), "V2_BASE_IMPORT_RECEIPT_REQUIRED")
+        base_binding = {"path": "research_inputs/base_archive_import.json", "sha256": runner.sha(base_path)}
+    fetch = _fetch_one_v2 if v2 else _fetch_one
     limiter = RequestBudget(DEFAULT_BUDGET if budget is None else budget)
     dates = settlement._strict_open_dates(root)
     _expect(as_of_date in dates, "AS_OF_NOT_EXCHANGE_SESSION")
     candidates, bindings = _load_candidates(root, manifest, dates)
     _expect(all(row["signal_date"] <= as_of_date for row in candidates), "FUTURE_CANDIDATE_FORBIDDEN")
     allowed_codes = {row["ts_code"] for row in candidates}
-    attempted, receipts, written = set(), [], {}
+    attempted, receipts, written, existing_files = set(), [], {}, {}
     # Incremental sanitized receipts survive a timeout or later replay failure.
     journal = root / "collection_requests.jsonl"
     _safe_target(root, journal)
@@ -281,7 +426,7 @@ def collect_history(root, manifest, *, as_of_date, token, budget=None,
         items = [item for item in items if key(item) not in attempted]
         attempted.update(key(item) for item in items)
         with ThreadPoolExecutor(max_workers=limiter.budget["workers"]) as executor:
-            futures = [executor.submit(_fetch_one, root, item, token=token, limiter=limiter, call=call) for item in items]
+            futures = [executor.submit(fetch, root, item, token=token, limiter=limiter, call=call) for item in items]
             for future in as_completed(futures):
                 receipt = future.result()
                 receipts.append(receipt)
@@ -289,13 +434,16 @@ def collect_history(root, manifest, *, as_of_date, token, budget=None,
                     handle.write(json.dumps(receipt, sort_keys=True, allow_nan=False) + "\n")
                 for binding in receipt["new_source_files"]:
                     written[binding["path"]] = binding
+                for binding in receipt.get("existing_source_files", []):
+                    existing_files[binding["path"]] = binding
                 if progress and len(receipts) % 100 == 0:
                     progress({"event": "COLLECTION_PROGRESS", "receipts": len(receipts),
                               "api_calls": limiter.calls, "new_source_files": len(written),
                               "elapsed_seconds": round(limiter.clock() - limiter.started, 2)})
 
     # Attempt each distinct T once before any entry labels can become final.
-    batch([{"endpoint": "stk_auction_o", "trade_date": date, "required_codes": sorted(codes)}
+    auction_endpoint = "stk_auction" if v2 else "stk_auction_o"
+    batch([{"endpoint": auction_endpoint, "trade_date": date, "required_codes": sorted(codes)}
            for date, codes in sorted(auction_by_day.items())])
     rounds, labels = 0, None
     while True:
@@ -304,10 +452,11 @@ def collect_history(root, manifest, *, as_of_date, token, budget=None,
         pending = {}
         for row in labels["rows"]:
             day, code, kind = (row.get("missing_evidence_date"), row.get("missing_evidence_code"), row.get("missing_evidence_kind"))
-            if not day or kind not in {"daily", "stk_limit", "exit_1000_1m"}:
+            minute_kind = "research_exit_1000_1m_0931" if v2 else "exit_1000_1m"
+            if not day or kind not in {"daily", "stk_limit", minute_kind}:
                 continue
             _expect(day in dates and day <= as_of_date and code in allowed_codes, "LABEL_REQUEST_OUTSIDE_RESEARCH_SCOPE")
-            endpoint = "stk_mins" if kind == "exit_1000_1m" else kind
+            endpoint = "stk_mins" if kind == minute_kind else kind
             item = {"endpoint": endpoint, "trade_date": day}
             if endpoint == "stk_mins":
                 item["ts_code"] = code
@@ -321,10 +470,11 @@ def collect_history(root, manifest, *, as_of_date, token, budget=None,
         if not pending or limiter.expired():
             break
         batch([pending[key] for key in sorted(pending)])
-    auction_receipts = [row for row in receipts if row["endpoint"] == "stk_auction_o"]
+    auction_receipts = [row for row in receipts if row["endpoint"] == auction_endpoint]
     unavailable_auction = [row for row in auction_receipts if row["status"] not in {"EXACT_TRUTH_WRITTEN", "EXISTING_TRUTH_NOT_OVERWRITTEN"}]
     auction_attempts_complete = all(row.get("network_request_performed") is True
                                     or row["status"] == "EXISTING_TRUTH_NOT_OVERWRITTEN"
+                                    or v2 and row["status"] == "HISTORY_BEFORE_CANONICAL_COVERAGE"
                                     for row in auction_receipts)
     all_cohorts_complete = all(row["complete"] for row in labels["cohorts_by_date"].values())
     result = {
@@ -344,6 +494,16 @@ def collect_history(root, manifest, *, as_of_date, token, budget=None,
         "existing_truth_overwritten": False, "training_performed": False, "release_allowed": False,
         "actual_execution_claimed": False,
     }
+    if v2:
+        qualified = all(row["status"] in {"EXACT_TRUTH_WRITTEN", "EXISTING_TRUTH_NOT_OVERWRITTEN", "HISTORY_BEFORE_CANONICAL_COVERAGE"} for row in auction_receipts)
+        result.update(dict(CONTRACT), schema_version="dc20_profit_1000_collection_receipt_v2",
+                      plan_version="v2", plan_sha256=runner.sha(runner.plan_path("v2")),
+                      collection_request_sha256=runner.sha(HERE / "COLLECTION_V2.json"),
+                      base_archive_import_binding=base_binding, auction_evidence_complete=qualified,
+                      existing_source_files=sorted(existing_files.values(), key=lambda b: b["path"]),
+                      auction_missing_policy="CANONICAL_OR_VALIDATED_UNAVAILABLE_OR_PRE_COVERAGE_ONLY")
+        if not qualified:
+            result["status"] = "BLOCKED_CANONICAL_EVIDENCE_INCOMPLETE"
     if progress:
         progress({"event": "COLLECTION_FINISHED", "status": result["status"],
                   "api_calls": limiter.calls, "label_status_counts": result["label_status_counts"]})
@@ -355,22 +515,34 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--plan-version", choices=("v1", "v2"), default="v1")
     args = parser.parse_args()
-    contract = json.loads((HERE / "COLLECTION.json").read_text())
-    _expect(contract.get("schema_version") == "dc20_profit_1000_collection_request_v1"
+    contract_path = HERE / ("COLLECTION_V2.json" if args.plan_version == "v2" else "COLLECTION.json")
+    contract = json.loads(contract_path.read_text())
+    _expect(contract.get("schema_version") == "dc20_profit_1000_collection_request_" + args.plan_version
             and contract.get("production_writes") is False and contract.get("purchase_permission") is False
             and contract.get("budget") == DEFAULT_BUDGET, "COLLECTION_REQUEST_CONTRACT_CHANGED")
+    if args.plan_version == "v2":
+        from work.profit_1000_upgrade.policy_v2 import validate_contract
+        from work.profit_1000_upgrade.run import load_plan
+        validate_contract(contract)
+        plan = load_plan("v2")
+        _expect(contract.get("as_of_date") == plan["as_of_date"] and contract.get("base_archive_sha256") == plan["base_archive"]["zip_sha256"]
+                and contract.get("max_http_response_bytes") == 8000000, "V2_COLLECTION_PLAN_DRIFT")
     report_path = args.report.resolve()
+    if args.plan_version == "v2":
+        _expect(report_path == args.root.resolve() / "collection_receipt.json", "V2_RECEIPT_MUST_STAY_IN_NEW_RESEARCH_MIRROR")
     _expect(report_path != CHECKOUT and CHECKOUT not in report_path.parents
             and not args.report.is_symlink(), "REPORT_MUST_BE_OUTSIDE_CHECKOUT")
     for path in (args.report, *args.report.parents):
         _expect(not path.is_symlink(), "REPORT_SYMLINK_FORBIDDEN")
     _expect(not report_path.exists(), "EXISTING_RECEIPT_CANNOT_BE_OVERWRITTEN")
-    manifest, _, _ = prepare_history(args.root)
+    manifest, _, _ = prepare_history(args.root, plan_version=args.plan_version)
     result = collect_history(args.root, manifest, as_of_date=contract["as_of_date"],
                              token=os.environ.get("TUSHARE_TOKEN", ""), budget=contract["budget"],
+                             plan_version=args.plan_version,
                              progress=lambda item: print(json.dumps(item, sort_keys=True), flush=True))
-    result["collection_request_sha256"] = hashlib.sha256((HERE / "COLLECTION.json").read_bytes()).hexdigest()
+    result["collection_request_sha256"] = hashlib.sha256(contract_path.read_bytes()).hexdigest()
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with report_path.open("x") as handle:
         handle.write(json.dumps(result, sort_keys=True, indent=2, allow_nan=False) + "\n")

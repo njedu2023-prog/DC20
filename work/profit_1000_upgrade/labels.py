@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 from top10decision.decision import executable_profit_shadow_settlement as settlement
 from top10decision.decision.shadow_exit_1000 import EXIT_POLICY_ID, resolve_exit_1000
 from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes
+from work.profit_1000_upgrade import auction_truth, minute_truth, policy_v2
 
 SCHEMA = "dc20_profit_1000_research_candidates_v1"
 LABEL_SCHEMA = "dc20_profit_1000_research_labels_v1"
@@ -29,6 +30,27 @@ SETTLED = "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY"
 COST_RATE = 0.0045
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 _FEATURE_FORBIDDEN = re.compile(r"(?:^|_)(?:label|target|exit|profit|future|t1|tplus1|outcome|net|fill|pnl)(?:_|$)", re.I)
+
+
+class _ResearchSourceFailure(RuntimeError):
+    def __init__(self, status: str, error_type: str):
+        super().__init__(status)
+        self.status, self.error_type = status, error_type
+
+
+def _source_policy(manifest: Mapping[str, Any]) -> dict | None:
+    """Any explicit policy field opts into validation, never a silent v1 path."""
+    known = set(policy_v2.CONTRACT)
+    if any(isinstance(key, str) and key.endswith("source_policy_id") and key not in known for key in manifest):
+        raise ValueError("unrecognized research source policy field")
+    if known.intersection(manifest) or "source_policy_contract" in manifest or manifest.get("plan_version") == "v2":
+        contract = policy_v2.validate_contract(manifest)
+        if (contract["auction_source_policy_id"] != auction_truth.SOURCE_POLICY_ID
+                or contract["minute_source_policy_id"] != minute_truth.ADAPTER
+                or contract["minute_time_semantics"] != minute_truth.TIME_SEMANTICS):
+            raise ValueError("research source adapter policy changed")
+        return contract
+    return None
 
 
 def _date(value: Any) -> str:
@@ -171,12 +193,15 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
     the previous build's source bytes; a changed or new unbound source fails.
     No promotion rank, outcome, weight, selection, or ledger is written.
     """
+    source_policy = _source_policy(manifest)
     root = Path(repo_root).resolve(strict=True)
     dates = settlement._strict_open_dates(root)
     as_of = _date(as_of_date)
     if as_of not in dates:
         raise ValueError("as-of must be a completed strict exchange session")
     candidates, feature_bindings = _load_candidates(root, manifest, dates)
+    if source_policy is not None and any(row["shadow_max_price"] is not None for row in candidates):
+        raise ValueError("v2 no-cap policy cannot silently consume a frozen entry cap")
     if any(row["signal_date"] > as_of for row in candidates):
         raise ValueError("candidate features are beyond as-of cutoff")
     sources = {b["path"]: dict(b) for b in feature_bindings}
@@ -229,6 +254,40 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
             missing(day, name, code)
         return value
 
+    def canonical_price(day, code, daily_path, opening):
+        try:
+            if day not in auction_cache:
+                # Sorted D cohorts never need the previous T again. Keep only
+                # one full-market immutable preload, not 915 market tables.
+                auction_cache.clear()
+                try:
+                    loaded = auction_truth.load(root, day)
+                except auction_truth.AuctionSourceMissing:
+                    loaded = None
+                if loaded is not None:
+                    for binding in loaded.source_files:
+                        bind(binding)
+                auction_cache[day] = loaded
+            loaded = auction_cache[day]
+            if loaded is None and day >= auction_truth.COVERAGE_START:
+                missing(day, "canonical_auction_0925", code)
+                row["label_status"] = "PENDING_T_MISSING_CANONICAL_AUCTION"
+                return None
+            row["auction_request_receipt_observed"] = loaded is not None
+            result = auction_truth.entry_price(
+                loaded, day, code, opening,
+                daily_source_binding=settlement._source_binding(root, daily_path))
+            row["auction_trade_observed"] = result["auction_trade_observed"]
+            row["capacity_evidence"] = result["capacity_evidence"]
+            row["entry_price_fallback_reason"] = result["fallback_reason"]
+            return result
+        except auction_truth.AuctionSourceError as exc:
+            status = ("PENDING_ENTRY_SOURCE_CONFLICT" if str(exc) == "CANONICAL_PRICE_DAILY_OPEN_CONFLICT"
+                      else "PENDING_INVALID_CANONICAL_AUCTION_SOURCE")
+            raise _ResearchSourceFailure(status, type(exc).__name__) from None
+        except (ValueError, OSError, TypeError, settlement.ExecutableProfitSettlementError) as exc:
+            raise _ResearchSourceFailure("PENDING_INVALID_CANONICAL_AUCTION_SOURCE", type(exc).__name__) from None
+
     output = []
     for candidate in candidates:
         row = {**candidate, "label_policy_id": EXIT_POLICY_ID,
@@ -243,6 +302,11 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
                "research_only": True, "actual_execution_claimed": False,
                "feature_evidence_kind": manifest["evidence_kind"], "cohort_complete": False,
                "missing_evidence_date": None, "missing_evidence_code": None, "missing_evidence_kind": None}
+        if source_policy is not None:
+            row.update(**source_policy, minute_source_observed=False, minute_source_observed_dates=[],
+                       auction_request_receipt_observed=False, auction_trade_observed=None,
+                       capacity_evidence="UNKNOWN", entry_price_fallback_reason=None,
+                       production_activation_allowed=False)
         output.append(row)
         t, t1, code = row["exec_date"], row["scheduled_exit_date"], row["ts_code"]
         if t > as_of:
@@ -260,7 +324,11 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
             up, down = _finite(limits.get("up_limit"), positive=True), _finite(limits.get("down_limit"), positive=True)
             if volume < 0 or not prices["low"] <= min(prices["open"], prices["close"]) <= max(prices["open"], prices["close"]) <= prices["high"] or down >= up or prices["high"] > up + 1e-8 or prices["low"] < down - 1e-8:
                 raise ValueError("invalid T daily OHLC/limit/volume")
-            if t not in auction_cache:
+            if source_policy is not None:
+                price = canonical_price(t, code, daily_path, prices["open"])
+                if price is None:
+                    continue
+            elif t not in auction_cache:
                 auction_sources = settlement._verified_auction_sources_v2(root, t)
                 for auction in auction_sources:
                     bind(auction["file"])
@@ -275,12 +343,19 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
                                          if candidate_code in auction["rows"]}}
                     for auction in auction_sources
                 ]
-            auction_sources = auction_cache[t]
-            price = settlement._entry_price_v2(code, daily_path, prices["open"], root, auction_sources)
+            if source_policy is None:
+                auction_sources = auction_cache[t]
+                price = settlement._entry_price_v2(code, daily_path, prices["open"], root, auction_sources)
             row.update(entry_price=price["price"], entry_price_source=price["entry_price_source"],
-                       entry_price_evidence=price, capacity_proxy_verified=price["amount"] is not None)
+                       entry_price_evidence=price,
+                       capacity_proxy_verified=price["capacity_proxy_verified"] if source_policy is not None else price["amount"] is not None)
             status = None
-            if volume == 0:
+            if source_policy is not None and volume == 0 and price["auction_trade_observed"] is True:
+                row["label_status"] = "PENDING_ENTRY_SOURCE_CONFLICT"
+                continue
+            if source_policy is not None and price["status"] == "OBSERVED_NO_AUCTION_TRADE":
+                status = "NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME"
+            elif volume == 0:
                 status = "NO_FILL_SUSPENDED"
             elif not settlement._same_rounded_price(price["price"], prices["open"]):
                 row["label_status"] = "PENDING_ENTRY_SOURCE_CONFLICT"
@@ -299,12 +374,30 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
             def minutes(day):
                 if day > as_of:
                     raise ValueError("future minute truth forbidden")
-                payload = load_exit_minutes(root, day, code)
-                if payload is None:
-                    missing(day, "exit_1000_1m", code)
+                if source_policy is not None:
+                    try:
+                        payload = minute_truth.load(root, day, code)
+                        if payload is not None:
+                            if (payload.get("time_semantics") != source_policy["minute_time_semantics"]
+                                    or payload.get("provider_timestamp_semantics_confirmed") is not False
+                                    or payload.get("production_activation_allowed") is not False
+                                    or payload.get("research_only") is not True):
+                                raise ValueError("research minute semantic qualification missing")
+                            for binding in payload["source_files"]:
+                                bind(binding)
+                    except (ValueError, OSError, TypeError, KeyError) as exc:
+                        raise _ResearchSourceFailure("PENDING_EXIT_INVALID_RESEARCH_MINUTE_SOURCE", type(exc).__name__) from None
                 else:
-                    for binding in payload["source_files"]:
-                        bind(binding)
+                    payload = load_exit_minutes(root, day, code)
+                if payload is None:
+                    missing(day, "research_exit_1000_1m_0931" if source_policy is not None else "exit_1000_1m", code)
+                else:
+                    if source_policy is not None:
+                        row["minute_source_observed"] = True
+                        row["minute_source_observed_dates"] = sorted(set(row["minute_source_observed_dates"]) | {day})
+                    else:
+                        for binding in payload["source_files"]:
+                            bind(binding)
                 return payload
             result, status = resolve_exit_1000(
                 dates, t1, as_of, code, price["price"], prices["close"],
@@ -313,12 +406,17 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
             )
             row["label_status"] = status
             if result is not None:
+                if source_policy is not None and row["minute_source_observed"] is not True:
+                    raise _ResearchSourceFailure("PENDING_EXIT_INVALID_RESEARCH_MINUTE_SOURCE", "MissingMinuteEvidence")
                 net = result["gross_return"] - COST_RATE
                 row.update(label_status=SETTLED, net_return=net, conditional_net_return=net, slot_net_return=net,
                            actual_exit_date=result["actual_exit_date"], actual_exit_time=result["actual_exit_time"],
                            decision_time=result["decision_time"], held_limit_up_sessions=result["held_limit_up_sessions"],
                            label_maturity_at=result["actual_exit_time"], label_available_date=result["actual_exit_date"],
                            label_available_at=_at(result["actual_exit_date"], "15:00:00"), exit_evidence=result)
+        except _ResearchSourceFailure as exc:
+            row.update(label_status=exc.status, error_type=exc.error_type,
+                       net_return=None, conditional_net_return=None, slot_net_return=None)
         except (ValueError, OSError, TypeError, settlement.ExecutableProfitSettlementError) as exc:
             row.update(label_status="PENDING_INVALID_SOURCE", error_type=type(exc).__name__,
                        net_return=None, conditional_net_return=None, slot_net_return=None)
@@ -334,10 +432,13 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
     # Detect source changes even when another candidate did not revisit a file.
     for binding in sources.values():
         _binding(root, binding)
-    return {"schema_version": LABEL_SCHEMA, "label_policy_id": EXIT_POLICY_ID,
+    result = {"schema_version": LABEL_SCHEMA, "label_policy_id": EXIT_POLICY_ID,
             "candidate_manifest_sha256": hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
             "as_of_date": as_of, "research_only": True, "historical_counterfactual": True,
             "natural_forward_ledger_rewritten": False, "old_open_exit_labels_consumed": False,
             "actual_execution_claimed": False, "round_trip_cost_rate": COST_RATE,
             "feature_evidence_kind": manifest["evidence_kind"], "feature_columns": manifest["feature_columns"],
             "rows": output, "cohorts_by_date": cohorts, "source_files": sorted(sources.values(), key=lambda b: b["path"])}
+    if source_policy is not None:
+        result.update(**source_policy, source_policy_contract=dict(source_policy), production_activation_allowed=False)
+    return result

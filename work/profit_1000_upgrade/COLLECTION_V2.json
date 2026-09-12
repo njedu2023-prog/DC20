@@ -1,0 +1,19 @@
+{
+  "schema_version": "dc20_profit_1000_collection_request_v2",
+  "request_id": "profit_1000_canonical_0931_resume_20260912_v2",
+  "plan_version": "v2", "as_of_date": "20260911",
+  "entry_policy_id": "research_canonical_auction_or_open_no_cap_v2",
+  "auction_source_policy_id": "dc20_research_canonical_stk_auction_20260912_v2",
+  "minute_source_policy_id": "dc20_research_stk_mins_query_0931_v1",
+  "minute_time_semantics": "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED",
+  "base_archive_sha256": "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29",
+  "base_run_id": "34671477608", "base_run_commit": "4675fab984050fa32be875fff07e0285e8903ebb",
+  "budget": {"max_api_calls": 9000, "max_seconds": 5400, "requests_per_second": 2.0, "workers": 4, "timeout_seconds": 20},
+  "max_http_response_bytes": 8000000,
+  "canonical_coverage_start": "20250101",
+  "pre_coverage_T_dates": 517, "canonical_T_dates": 393,
+  "old_source_files_overwritten": false, "old_minute_queries_relabelled": false,
+  "production_writes": false, "purchase_permission": false, "research_only": true,
+  "historical_outcomes_are_not_untouched_holdout": true,
+  "missing_truth_as_zero": false, "replace_production_model": false
+}

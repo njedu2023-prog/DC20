@@ -25,6 +25,7 @@ from work.profit_1000_upgrade import run
 from work.profit_1000_upgrade.candidate import DEFAULT_GATES, MODEL_SPEC, run_candidate
 from work.profit_1000_upgrade.capital import replay_capital_from_repository
 from work.profit_1000_upgrade.labels import build_labels
+from work.profit_1000_upgrade import policy_v2
 
 SCHEMA = "dc20_profit_1000_capital_report_v1"
 OUTPUT_NAMES = ("capital.json", "candidate_replay.json")
@@ -84,6 +85,8 @@ def _validate_upstream(root, expected_run_id, expected_commit):
 
 
 def _validate_collection(root, manifest, plan):
+    if plan.get("entry_policy_id") == policy_v2.ENTRY_POLICY_ID:
+        return run.validate_collection_evidence(root, manifest, plan, plan_version="v2")
     receipt, binding = _existing_json(root, "collection_receipt.json", "BLOCKED_COLLECTION_EVIDENCE")
     _expect(receipt.get("schema_version") == "dc20_profit_1000_collection_receipt_v1"
             and receipt.get("as_of_date") == plan["as_of_date"]
@@ -127,6 +130,16 @@ def _prediction_cohorts(result, frozen, plan):
             "BLOCKED_CANDIDATE_DATA", "CANDIDATE_NOT_GENUINELY_FITTED")
     predictions = result.get("predictions")
     _expect(isinstance(predictions, list) and predictions, "BLOCKED_CANDIDATE_DATA", "VALIDATION_PREDICTIONS_MISSING")
+    if plan.get("entry_policy_id") == policy_v2.ENTRY_POLICY_ID:
+        try:
+            policy_v2.validate_contract(plan)
+            for value in (result["report"], result["candidate_model"], *predictions):
+                policy_v2.validate_contract(value)
+            _expect(result["report"].get("provider_timestamp_semantics_confirmed") is False
+                    and result["candidate_model"].get("provider_timestamp_semantics_confirmed") is False,
+                    "BLOCKED_CANDIDATE_DATA", "RESEARCH_TIMESTAMP_ASSUMPTION_NOT_DISCLOSED")
+        except (ValueError, TypeError, KeyError) as exc:
+            raise Blocked("BLOCKED_CANDIDATE_DATA", "V2_CANDIDATE_SOURCE_POLICY_MISMATCH") from exc
     expected = {(row["signal_date"], row["ts_code"]): row for row in frozen
                 if plan["training_cutoff_date"] <= row["signal_date"] <= plan["validation_end_date"]}
     observed, ranks = set(), {}
@@ -148,8 +161,11 @@ def _prediction_cohorts(result, frozen, plan):
     return predictions, promotion_rows, sorted(ranks)
 
 
-def _source_provenance():
+def _source_provenance(plan_version="v1"):
     files = [HERE / name for name in ("capital_report.py", "capital.py", "run.py", "labels.py", "candidate.py", "collect.py", "PLAN.json", "COLLECTION.json")]
+    if plan_version == "v2":
+        files += [HERE / name for name in ("PLAN_V2.json", "COLLECTION_V2.json", "policy_v2.py",
+                                          "auction_truth.py", "minute_truth.py", "resume_v2.py")]
     files += [CHECKOUT / relative for relative in (
         "src/top10decision/decision/shadow_exit_1000.py",
         "src/top10decision/decision/shadow_exit_minute_truth.py",
@@ -167,15 +183,16 @@ def generate_capital_report(root, *, expected_source_run_id=None, expected_sourc
         path = output / name
         if path.exists() or any(p.is_symlink() for p in (path, *path.parents)):
             raise ValueError("capital research outputs are immutable; use a new run directory")
-    provenance = _source_provenance()
-    plan = run.load_plan()
+    version = run.plan_version_for(root)
+    provenance = _source_provenance(version)
+    plan = run.load_plan() if version == "v1" else run.load_plan(version)
     report = {
         "schema_version": SCHEMA, "status": "BLOCKED_INPUT", "research_only": True,
         "production_activation_allowed": False, "production_weights_changed": False,
         "data_collected": False, "old_saved_labels_consumed": False,
         "actual_execution_claimed": False, "profitability_improvement_proven": False,
         "as_of_date": plan["as_of_date"], "label_policy_id": plan["label_policy_id"],
-        "entry_policy_id": plan["research_entry_policy_id"], "plan_sha256": run.sha(HERE / "PLAN.json"),
+        "entry_policy_id": plan["research_entry_policy_id"], "plan_sha256": run.sha(run.plan_path(version)),
         "validation_window": {"start": plan["training_cutoff_date"], "end": plan["validation_end_date"],
                               "evidence_role": "DEVELOPMENT_NOT_UNTOUCHED_FORWARD_TEST"},
         "forward_holdout_start_date": plan["future_holdout_start_date"], "forward_holdout_evaluated": False,
@@ -184,6 +201,10 @@ def generate_capital_report(root, *, expected_source_run_id=None, expected_sourc
     }
     candidate = {"status": "BLOCKED_INPUT", "candidate_model": None, "predictions": [],
                  "report": {"training_performed": False, "production_activation_allowed": False}}
+    if version == "v2":
+        report.update(**policy_v2.validate_contract(plan), plan_version="v2",
+                      source_policy_contract=policy_v2.source_policy_contract(),
+                      provider_timestamp_semantics_confirmed=False)
     marker = root / ".dc20-profit-1000-research-root.json"
     stage, data_sources = "BLOCKED_INPUT", {
         marker.name: {"path": marker.name, "sha256": run.sha(marker)}
@@ -231,6 +252,10 @@ def generate_capital_report(root, *, expected_source_run_id=None, expected_sourc
             _expect(value.get("label_verification") == "REBUILT_FROM_BOUND_REPOSITORY_PRICE_SOURCES"
                     and value.get("production_activation_allowed") is False,
                     "BLOCKED_CAPITAL_REPLAY", "CAPITAL_LABELS_NOT_INDEPENDENTLY_REBUILT")
+            if version == "v2":
+                policy_v2.validate_contract(value)
+                _expect(value.get("provider_timestamp_semantics_confirmed") is False,
+                        "BLOCKED_CAPITAL_REPLAY", "RESEARCH_TIMESTAMP_ASSUMPTION_NOT_DISCLOSED")
             comparisons[name] = value
             for binding in value["source_files"]:
                 binding = _binding(root, binding)

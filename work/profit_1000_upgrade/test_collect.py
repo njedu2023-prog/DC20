@@ -224,3 +224,149 @@ def test_daily_metadata_supports_explicit_limit_preclose(case):
     raw, meta = collect._market_bytes(rows, T1, "stk_limit", {CODE}, "2026-09-14T08:00:00Z")
     assert b"pre_close" in raw and b"9.7" in raw
     assert json.loads(meta)["immutable"] is True
+
+
+def mirror_v2(case):
+    from work.profit_1000_upgrade import run as runner
+    from work.profit_1000_upgrade.policy_v2 import CONTRACT
+    root, manifest = case
+    manifest = dict(copy.deepcopy(manifest), **dict(CONTRACT))
+    for row in manifest['rows']:
+        row['shadow_max_price'] = None
+    (root / collect.MARKER).write_text(json.dumps({"schema_version": "dc20_profit_1000_research_mirror_v2",
+        "plan_version": "v2", "production_writes": False, "plan_sha256": runner.sha(runner.plan_path("v2")), **dict(CONTRACT)}))
+    base = root / "research_inputs/base_archive_import.json"
+    base.parent.mkdir(parents=True, exist_ok=True)
+    base.write_text('{}')
+    return root, manifest
+
+
+@pytest.fixture(autouse=True)
+def simulated_v2_fetch_time(request, monkeypatch):
+    if request.node.name.startswith('test_v2_'):
+        from datetime import datetime, timezone
+        class FixedClock:
+            @staticmethod
+            def now(tz):
+                return datetime(2026,9,15,9,0,tzinfo=timezone.utc)
+        monkeypatch.setattr(collect,'datetime',FixedClock)
+
+
+def v2_payload(rows, fields, **data_extra):
+    value = payload(rows, fields)
+    value['data'].update(count=0, has_more=False, **data_extra)
+    return json.dumps(value).encode()
+
+
+def v2_run(root, manifest, call, **kwargs):
+    return collect.collect_history(root, manifest, as_of_date=T1, token="secret-v2-not-output",
+        budget=BUDGET, call=call, plan_version="v2", **kwargs)
+
+
+def test_v2_actual_requests_new_paths_and_old_sources_unchanged(case):
+    from work.profit_1000_upgrade import auction_truth, minute_truth
+    root, manifest = mirror_v2(case)
+    auction(root)
+    old = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    calls = []
+    def call(endpoint, params, fields, *_):
+        calls.append((endpoint, params))
+        assert endpoint != 'stk_auction_o'
+        if endpoint == 'stk_mins':
+            assert params['start_date'].endswith('09:31:00')
+        return v2_payload([] if endpoint == 'stk_auction' else minute_rows(), fields)
+    result = v2_run(root, manifest, call)
+    assert [c[0] for c in calls] == ['stk_auction', 'stk_mins']
+    assert result['auction_evidence_complete'] is True
+    assert result['status'] == 'RESEARCH_LABEL_COHORTS_COMPLETE'
+    assert len(result['new_source_files']) == 4
+    assert auction_truth.load(root, T).status == 'CANONICAL_TABLE_EMPTY'
+    assert minute_truth.load(root, T1, CODE)['complete_session'] is True
+    assert all(Path(p).read_bytes() == raw for p, raw in old.items())
+    assert 'secret-v2-not-output' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('response', [b'null', b'[]', b'{"code":0,"code":0,"data":null}',
+    b'{"code":0,"data":{"fields":[],"items":[],"count":NaN}}',
+    b'{"code":-1,"msg":"rate limit secret-v2-not-output"}'])
+def test_v2_invalid_canonical_cannot_qualify_or_fall_back(case, response):
+    root, manifest = mirror_v2(case)
+    result = v2_run(root, manifest, lambda *_: response)
+    assert result['auction_evidence_complete'] is False
+    assert result['status'] == 'BLOCKED_CANONICAL_EVIDENCE_INCOMPLETE'
+    assert result['label_status_counts'] != {'SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY': 1}
+    assert not result['new_source_files']
+    assert 'secret-v2-not-output' not in json.dumps(result)
+
+
+def test_v2_canonical_permission_receipt_is_persisted_before_fallback(case):
+    from work.profit_1000_upgrade import auction_truth
+    root, manifest = mirror_v2(case)
+    def call(endpoint, params, fields, *_):
+        if endpoint == 'stk_auction':
+            return b'{"code":-2001,"msg":"permission denied","data":null}'
+        return v2_payload(minute_rows(), fields)
+    result = v2_run(root, manifest, call)
+    assert result['auction_evidence_complete']
+    assert auction_truth.load(root, T).status == 'ENTITLEMENT_DENIED'
+
+
+def test_v2_canonical_zero_volume_is_no_fill_not_open_fallback(case):
+    root, manifest = mirror_v2(case)
+    def call(endpoint, params, fields, *_):
+        assert endpoint == 'stk_auction'
+        return v2_payload([{'ts_code':CODE,'trade_date':T,'price':10,'vol':0,'amount':0,'pre_close':9.7}],fields)
+    result = v2_run(root, manifest, call)
+    assert result['label_status_counts'] == {'NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME':1}
+    assert result['api_calls'] == 1
+
+
+def test_v2_corrupt_pair_never_overwritten_or_recaptured(case):
+    from work.profit_1000_upgrade import auction_truth
+    root, manifest = mirror_v2(case)
+    path, meta = auction_truth.source_paths(root,T)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'broken immutable source')
+    result = v2_run(root,manifest,lambda *_:pytest.fail('network'))
+    assert result['status'] == 'BLOCKED_CANONICAL_EVIDENCE_INCOMPLETE'
+    assert path.read_bytes() == b'broken immutable source' and not meta.exists()
+
+
+def test_v2_precoverage_declaration_never_sends_fake_request(case):
+    from work.profit_1000_upgrade import run as runner
+    root,_ = mirror_v2(case)
+    item={'endpoint':'stk_auction','trade_date':'20221114','required_codes':[CODE]}
+    result=collect._fetch_one_v2(root,item,token='',limiter=collect.RequestBudget(BUDGET),call=lambda *_:pytest.fail('network'))
+    assert result['status']=='HISTORY_BEFORE_CANONICAL_COVERAGE'
+    assert result['network_request_performed'] is False
+    assert result['plan_sha256']==runner.sha(runner.plan_path('v2'))
+
+
+def test_v2_original_bytes_required_not_reconstructed_dict(case):
+    root,manifest=mirror_v2(case)
+    result=v2_run(root,manifest,lambda endpoint,params,fields,*_:payload([],fields))
+    assert result['auction_evidence_complete'] is False
+    assert not result['new_source_files']
+
+
+def test_v2_minute_0930_extra_row_is_not_silently_filtered(case):
+    root,manifest=mirror_v2(case)
+    def call(endpoint,params,fields,*_):
+        rows=minute_rows()
+        rows.insert(0,dict(rows[0],trade_time=rows[0]['trade_time'].replace('09:31','09:30')))
+        return v2_payload([] if endpoint=='stk_auction' else rows,fields)
+    result=v2_run(root,manifest,call)
+    assert result['status']=='PENDING_RESEARCH_TRUTH'
+    assert len(result['new_source_files'])==2
+
+
+@pytest.mark.parametrize('field',['entry_policy_id','auction_source_policy_id','minute_source_policy_id',
+                                  'minute_time_semantics','source_policy_contract','plan_version'])
+def test_v1_collector_rejects_any_v2_intent_before_request_or_journal(case,field):
+    from work.profit_1000_upgrade.policy_v2 import CONTRACT
+    root,manifest=mirror(case)
+    manifest=copy.deepcopy(manifest)
+    manifest[field]=dict(CONTRACT) if field=='source_policy_contract' else ('v2' if field=='plan_version' else CONTRACT[field])
+    with pytest.raises(ValueError,match='EXPLICIT_V2'):
+        run(root,manifest,lambda *_:pytest.fail('v1 _o request before rejection'))
+    assert not (root/'collection_requests.jsonl').exists()

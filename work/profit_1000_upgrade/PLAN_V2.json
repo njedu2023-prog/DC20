@@ -1,0 +1,50 @@
+{
+  "schema_version": "dc20_profit_1000_upgrade_plan_v2",
+  "registered_on": "2026-09-12",
+  "source_commit": "b84acfe2d7dbd029a98446e8d19cabfbbea7ad84",
+  "supersedes_plan_sha256": "73e3873ae88b5f44b0f7528b4ee2664ac1fe5a1c683b64e9b7122fe4d86ac221",
+  "label_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "entry_policy_id": "research_canonical_auction_or_open_no_cap_v2",
+  "research_entry_policy_id": "research_canonical_auction_or_open_no_cap_v2",
+  "auction_source_policy_id": "dc20_research_canonical_stk_auction_20260912_v2",
+  "minute_source_policy_id": "dc20_research_stk_mins_query_0931_v1",
+  "minute_time_semantics": "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED",
+  "scope": ["2_to_3", "3_to_4"],
+  "source_inputs": {
+    "ledger": {"path": "data/decision_executable_profit/historical_oof_top10_ledger.csv.gz", "sha256": "b3addf99a0f30c784b6a2ae190c3bf6f67f9b1b4a64325193b8d962d6ee2dedd"},
+    "manifest": {"path": "data/decision_executable_profit/historical_oof_top10_ledger_manifest.json", "sha256": "3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5"},
+    "calendar": {"path": "data/market/trade_cal_sse.csv", "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"}
+  },
+  "adapter_sources": [
+    {"path": "work/profit_1000_upgrade/auction_truth.py", "sha256": "b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af"},
+    {"path": "work/profit_1000_upgrade/minute_truth.py", "sha256": "69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268"},
+    {"path": "src/top10decision/decision/shadow_exit_1000.py", "sha256": "23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af"},
+    {"path": "src/top10decision/decision/shadow_exit_minute_truth.py", "sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65"}
+  ],
+  "base_archive": {
+    "zip_sha256": "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29",
+    "run_id": "34671477608", "run_commit": "4675fab984050fa32be875fff07e0285e8903ebb",
+    "collection_receipt_sha256": "c43882cdd22815d5e700d2e89bad6ae4a834eb8bddfe0cef47e0b9cacf9361bd",
+    "plan_sha256": "73e3873ae88b5f44b0f7528b4ee2664ac1fe5a1c683b64e9b7122fe4d86ac221",
+    "daily_partitions": 926, "limit_partitions": 926,
+    "old_auction_and_minute_sources_imported": false,
+    "old_outcome_labels_imported": false
+  },
+  "historical_rows": 6753, "historical_D_dates": 910,
+  "historical_D_start": "20221111", "historical_D_end": "20260814", "as_of_date": "20260911",
+  "training_cutoff_date": "20251111",
+  "candidate_model": {"estimator": "Ridge", "alpha": 10.0, "solver": "svd", "target": "slot_net_return", "hyperparameter_search": false},
+  "data_gates": {"min_train_dates": 252, "min_train_rows": 1000, "min_validation_dates": 60, "min_validation_rows": 300, "min_validation_filled_rows": 50, "min_training_complete_day_fraction": 0.95, "min_validation_complete_day_fraction": 1.0},
+  "validation_end_date": "20260814", "future_holdout_start_date": "20260914",
+  "historical_evidence_role": "RETROSPECTIVE_DEVELOPMENT_ALREADY_INSPECTED_NOT_UNTOUCHED_TEST",
+  "promotion_model_changed": false,
+  "promotion_rank_use": "Historical OOF rank with training end before D is an explicit new research feature and baseline; promotion probability and named path remain missing if unavailable",
+  "buy_rule": "Canonical stk_auction price; declared daily-open price proxy only for documented pre-20250101 coverage or validated unavailable canonical receipt; old stk_auction_o excluded including capacity",
+  "research_entry_matches_current_capped_shadow": false,
+  "sell_rule": "10:00 decision next-minute-open proxy, observed sealed-limit hold and first observed break exit, T+1 strict",
+  "cost_rate": 0.0045, "stress_cost_rate": 0.009,
+  "always_record_top1_top2": true, "negative_score_skip_allowed": false,
+  "missing_truth_is_zero": false, "actual_execution_claimed": false, "production_release_allowed": false,
+  "release_requires": ["new-policy data quality", "chronological development comparison", "untouched prospective validation", "overlapping position capital accounting", "independent source and release review"],
+  "capital_validation": {"total_CNY": 1000000, "planned_single_trade_CNY": 100000, "manual_trades_per_day": 1, "independent_shadow_ranks": [1, 2], "compound_slot_returns_are_account_NAV": false}
+}

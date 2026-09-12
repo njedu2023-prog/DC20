@@ -228,3 +228,77 @@ def test_cli_paired_upstream_arguments_and_status_exit_code(case, monkeypatch, c
                                    "--expected-source-run-id", SOURCE_RUN, "--expected-source-commit", SOURCE_COMMIT])
     assert report.main() == 2
     assert json.loads(capsys.readouterr().out)["status"] == "BLOCKED_UPSTREAM_OUTPUT"
+
+
+@pytest.fixture
+def v2_case(case, monkeypatch):
+    contract = report.policy_v2.source_policy_contract()
+    # Keep this orchestration fixture independent of ZIP/HTTP parsing, which is
+    # exercised by the shared collector and source-codec tests.
+    monkeypatch.setattr(report.run, "require_research_mirror", lambda root: root)
+    monkeypatch.setattr(report.run, "plan_version_for", lambda root: "v2")
+    plan = report.run.load_plan()
+    plan.update(**contract, research_entry_policy_id=contract["entry_policy_id"])
+    monkeypatch.setattr(report.run, "load_plan", lambda version: plan)
+    case["manifest"].update(contract)
+    for item in (case["candidate"]["report"], case["candidate"]["candidate_model"]):
+        item.update(**contract, source_policy_contract=dict(contract), provider_timestamp_semantics_confirmed=False)
+    for item in case["candidate"]["predictions"]:
+        item.update(contract)
+    def collection(root, manifest, actual_plan, *, plan_version):
+        assert root == case["root"] and manifest is case["manifest"] and actual_plan is plan
+        assert plan_version == "v2"
+        case["calls"].append(("v2_collection", {}))
+        return {"evidence.json": case["binding"]}, {"verified_auction_dates": 1}
+    monkeypatch.setattr(report.run, "validate_collection_evidence", collection)
+    original = report.replay_capital_from_repository
+    def capital(*args, **kwargs):
+        value = original(*args, **kwargs)
+        value.update(**contract, source_policy_contract=dict(contract), provider_timestamp_semantics_confirmed=False)
+        return value
+    monkeypatch.setattr(report, "replay_capital_from_repository", capital)
+    return case
+
+
+def test_v2_reuses_shared_source_gate_and_preserves_source_contract(v2_case):
+    result = output(v2_case)
+    assert result["status"] == "CAPITAL_REPLAY_COMPLETE"
+    assert v2_case["calls"][0][0] == "v2_collection"
+    assert result["entry_policy_id"] == report.policy_v2.ENTRY_POLICY_ID
+    assert result["provider_timestamp_semantics_confirmed"] is False
+    assert result["source_policy_contract"] == report.policy_v2.source_policy_contract()
+    assert result["plan_sha256"] == report.run.sha(report.run.plan_path("v2"))
+    paths = {item["path"] for item in result["execution_provenance"]["source_files"]}
+    assert "work/profit_1000_upgrade/auction_truth.py" in paths
+    assert "work/profit_1000_upgrade/minute_truth.py" in paths
+    assert "work/profit_1000_upgrade/resume_v2.py" in paths
+    assert all(args["entry_policy_id"] == report.policy_v2.ENTRY_POLICY_ID
+               for name, args in v2_case["calls"] if name == "capital")
+
+
+@pytest.mark.parametrize("target", ["report", "candidate_model", "prediction"])
+@pytest.mark.parametrize("key", list(report.policy_v2.CONTRACT))
+def test_v2_candidate_requires_every_bound_policy_before_nav(v2_case, target, key):
+    value = (v2_case["candidate"]["predictions"][0] if target == "prediction"
+             else v2_case["candidate"][target])
+    value.pop(key)
+    result = output(v2_case)
+    assert result["status"] == "BLOCKED_CANDIDATE_DATA"
+    assert result["capital_comparisons"] is None
+    assert not any(name == "capital" for name, _ in v2_case["calls"])
+
+
+def test_v2_unconfirmed_time_cannot_be_reported_as_confirmed(v2_case):
+    v2_case["candidate"]["candidate_model"]["provider_timestamp_semantics_confirmed"] = True
+    result = output(v2_case)
+    assert result["status"] == "BLOCKED_CANDIDATE_DATA"
+    assert result["capital_comparisons"] is None
+
+
+def test_v2_collection_failure_blocks_before_training(v2_case, monkeypatch):
+    def reject(*args, **kwargs):
+        raise ValueError("operational failure is not qualified canonical absence")
+    monkeypatch.setattr(report.run, "validate_collection_evidence", reject)
+    result = output(v2_case)
+    assert result["status"] == "BLOCKED_COLLECTION_EVIDENCE"
+    assert v2_case["calls"] == [] and result["capital_comparisons"] is None

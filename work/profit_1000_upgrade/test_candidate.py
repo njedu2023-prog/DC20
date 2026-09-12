@@ -55,6 +55,71 @@ def run(rows=None, labels=None, manifest=None, **kwargs):
                                    validation_end_date="20260825", gates=GATES, **kwargs)
 
 
+def v2_sample():
+    rows, labels, manifest = sample()
+    contract = candidate.policy_v2.source_policy_contract()
+    manifest.update(contract)
+    manifest["source_policy_contract"] = dict(contract)
+    for label in labels:
+        label.update(contract, minute_source_observed=True, entry_price_source="TUSHARE_STK_AUCTION")
+    return rows, labels, manifest
+
+
+def test_v2_candidate_binds_sources_without_claiming_provider_timing_or_activation():
+    rows, labels, manifest = v2_sample()
+    result = run(rows, labels, manifest)
+    assert result["status"] == "DEVELOPMENT_ONLY_FITTED"
+    for payload in [result["report"], result["candidate_model"], *result["predictions"]]:
+        candidate.policy_v2.validate_contract(payload)
+    assert result["report"]["provider_timestamp_semantics_confirmed"] is False
+    assert result["candidate_model"]["production_activation_allowed"] is False
+    assert result["report"]["entry_policy_production_compatibility"] == "ENTRY_POLICY_DIFFERENT_FROM_FORMAL_FROZEN_CAP"
+    assert len(result["predictions"]) == 4
+    assert all(row["candidate_score"] < 0 for row in result["predictions"])
+
+
+@pytest.mark.parametrize("field", list(candidate.policy_v2.CONTRACT))
+@pytest.mark.parametrize("target", ["manifest", "label"])
+def test_v2_candidate_missing_policy_field_blocks_fit(monkeypatch, field, target):
+    rows, labels, manifest = v2_sample()
+    del (manifest if target == "manifest" else labels[0])[field]
+    monkeypatch.setattr(candidate, "_fit_ridge", lambda *_: pytest.fail("fit attempted"))
+    assert run(rows, labels, manifest)["status"] == "BLOCKED_INPUT"
+
+
+@pytest.mark.parametrize("change", ["old_price", "unobserved_minutes", "false_no_fill", "missing_nested"])
+def test_v2_candidate_rejects_legacy_or_uncertain_labels(monkeypatch, change):
+    rows, labels, manifest = v2_sample()
+    if change == "old_price":
+        labels[0]["entry_price_source"] = "TUSHARE_STK_AUCTION_O"
+    elif change == "unobserved_minutes":
+        labels[0]["minute_source_observed"] = False
+    elif change == "missing_nested":
+        manifest["source_policy_contract"] = None
+    else:
+        labels[0].update(label_status="NO_FILL_AUCTION_DAILY_CONFLICT", proxy_fill=0,
+                         minute_source_observed=False, slot_net_return=0,
+                         actual_exit_date=None, conditional_net_return=None)
+    monkeypatch.setattr(candidate, "_fit_ridge", lambda *_: pytest.fail("fit attempted"))
+    assert run(rows, labels, manifest)["status"] == "BLOCKED_INPUT"
+
+
+def test_v2_policy_fields_cannot_hide_behind_legacy_entry(monkeypatch):
+    rows, labels, manifest = sample()
+    manifest["auction_source_policy_id"] = candidate.policy_v2.AUCTION_SOURCE_POLICY_ID
+    monkeypatch.setattr(candidate, "_fit_ridge", lambda *_: pytest.fail("fit attempted"))
+    assert run(rows, labels, manifest)["status"] == "BLOCKED_INPUT"
+
+
+@pytest.mark.parametrize("status", ["NO_FILL_API_ERROR", "NO_FILL_SOURCE_UNAVAILABLE", "NO_FILL_PRICE_MISMATCH"])
+def test_v2_unknown_no_fill_cannot_become_zero_training_target(monkeypatch, status):
+    rows, labels, manifest = v2_sample()
+    labels[0].update(label_status=status, proxy_fill=0, minute_source_observed=False,
+                     slot_net_return=0, actual_exit_date=None, conditional_net_return=None)
+    monkeypatch.setattr(candidate, "_fit_ridge", lambda *_: pytest.fail("fit attempted"))
+    assert run(rows, labels, manifest)["status"] == "BLOCKED_INPUT"
+
+
 def test_empty_labels_fail_closed_before_any_fit(monkeypatch):
     monkeypatch.setattr(candidate, "_fit_ridge", lambda *_: pytest.fail("fit attempted"))
     result = run(labels=[])
