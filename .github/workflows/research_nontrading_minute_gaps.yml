@@ -1,0 +1,108 @@
+name: DC20 · registered nontrading-resumption minute gaps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/NONTRADING_MINUTE_GAP_COLLECTION.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-research-exit-minute-gaps
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  minute-sources:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact registered plan without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test all research contracts before data access
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
+        run: python -B -m pytest -q work/profit_1000_upgrade -p no:cacheprovider
+      - name: Verify unchanged production freeze
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: python -B scripts/validate_decision_model_freeze.py --root .
+      - name: Read exact checkout registration and its bound prior label SHA
+        id: registration
+        run: |
+          python -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          from work.profit_1000_upgrade import minute_gap_collect as c
+          path = Path("work/profit_1000_upgrade/NONTRADING_MINUTE_GAP_COLLECTION.json")
+          raw = path.read_bytes()
+          plan = c.source._parse(raw)
+          plan_sha = hashlib.sha256(raw).hexdigest()
+          label_sha = plan["label_report_sha256"]
+          c.read_plan(path, plan_sha, label_sha)
+          assert 1 <= plan["planned_pair_count"] <= 6
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print("plan_sha=" + plan_sha, file=output)
+              print("label_sha=" + label_sha, file=output)
+          PY
+      - name: Unique preflights then at most six registered resumption pairs without retries
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          PLAN_SHA: ${{ steps.registration.outputs.plan_sha }}
+          LABEL_SHA: ${{ steps.registration.outputs.label_sha }}
+        run: |
+          set -euo pipefail
+          collection_exit=0
+          timeout --signal=TERM --kill-after=30s 5m \
+            python -u -B work/profit_1000_upgrade/minute_gap_collect.py \
+            --plan work/profit_1000_upgrade/NONTRADING_MINUTE_GAP_COLLECTION.json \
+            --output "${RUNNER_TEMP}/nontrading-minute-gaps" \
+            --expected-plan-sha256 "${PLAN_SHA}" \
+            --expected-label-report-sha256 "${LABEL_SHA}" || collection_exit=$?
+          if [ "${collection_exit}" -ne 0 ] && [ "${collection_exit}" -ne 2 ]; then
+            exit "${collection_exit}"
+          fi
+          test -s "${RUNNER_TEMP}/nontrading-minute-gaps/minute_gap_receipt.json"
+      - name: Independent source receipt validation with external run identity
+        env:
+          PLAN_SHA: ${{ steps.registration.outputs.plan_sha }}
+          LABEL_SHA: ${{ steps.registration.outputs.label_sha }}
+        run: >-
+          python -B work/profit_1000_upgrade/minute_gap_verify.py
+          --registered-plan work/profit_1000_upgrade/NONTRADING_MINUTE_GAP_COLLECTION.json
+          --output "${RUNNER_TEMP}/nontrading-minute-gaps"
+          --expected-run-id "${GITHUB_RUN_ID}"
+          --expected-run-commit "${GITHUB_SHA}"
+          --expected-plan-sha256 "${PLAN_SHA}"
+          --expected-label-report-sha256 "${LABEL_SHA}"
+      - name: Verify no checkout source model or ledger changed
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Preserve sources and all explicit pending or blocked slots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-nontrading-minute-gaps-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/nontrading-minute-gaps/
+          if-no-files-found: error
+          retention-days: 30
