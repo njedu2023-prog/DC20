@@ -1,35 +1,34 @@
-# 原始分钟主链补采登记 · 第四轮
+# 原始分钟主链补采登记 · 第五轮
 
-仅登记来源采集，不能视为结算、模型或生产验收。非交易日补充分支保持独立，不把组合标签传给本原始主链。
+仅登记来源采集，不能视为结算、模型或生产验收。非交易日补充分支保持独立，不把组合标签传给原始主链。
 
 ## 已完成的真实回放
 
-三轮主链全部验收后重放完整6753条／910个D日：4864条结算、2883条负收益、899个完整D；旧6713条终态全字段保持不变（只允许重算cohort）。仍有5条缺分钟、6条需独立非交易日证据续算、10条无效入场价格。未知收益仍为null。
+四轮主链全部验收后重放完整 6753 条／910 个 D 日：4868 条结算、2883 条负收益、903 个完整 D；旧 6732 条终态保持不变（只允许重算 cohort）。新增 4 条结算，仍有 1 条缺分钟、6 条需独立非交易日证据续算、10 条无效入场价格。未知收益仍为 null。
 
-实际根：`upgrade-candidate-evidence-20260913.VdRAd5/minute-chain-replay-_ts5gcwn`。
+实际根：`upgrade-candidate-evidence-20260913.VdRAd5/minute-chain-replay-6kkmkdon`。
 
 | 文件 | SHA-256 |
 | --- | --- |
-| minute_chain_labels.json | `f706cc3d19a0b3b67f898fe4b51fc40187fa6b78555e579448dd070f5d2a5c1e` |
-| acceptance.json | `990d840778379ab1bf95f58e942699a22142ff95c64552f4fd594f77a5c43701` |
-| source_provenance.json | `dd637a636122540e2e326f63436522c5cc6fdbce1c2c4a1e0663dd27e1ea4f74` |
-| minute_source_chain.json | `18d3edcc209553545b79ac41c3da26eb92f7a5342f6924ed2c110e226fe2ab08` |
-| 第三轮来源ZIP | `8585c10c5cf3e00e97cb728f28ea78b7a047d256208e6c2cdbc6d4d802c17cd8` |
+| minute_chain_labels.json | `a04efbf38b8f3120c7e75be8f69d6ace2526e209851c6a1713906d3f1f883e33` |
+| acceptance.json | `46d8dd275dd97666a244eac64638c4e0b1318f8b8bce4328e92049dae7a2b994` |
+| source_provenance.json | `103e159959a540f1014e9ca55fb589e8ae5cf86074722bcfe27baf35774aa58c` |
+| minute_source_chain.json | `78023988625c2dfb97e245465a085301b586f152874d6d663def211a01ff2237` |
+| 第四轮来源 ZIP | `fc2a13cf85ea84c87219f60e799f215f49f058432b85d897109d4f7cef343145` |
 
-第三轮真实run34712858807／head e388b436bb6f7f8fa7bce6605f2288825e43296b，24对全部成功，零重试；本轮仅补其实际回放继续暴露的缺口，不重复旧24对。
+第四轮真实 run 34714233675／head ecc3bd080c84c4c6aa2db69c36e9274b3381ced7，5 对全部成功，零重试；本轮只补完整回放继续暴露的一对，不重复之前请求。
 
 ## 本轮计划
 
-- `MINUTE_GAP_COLLECTION.json` SHA `2c7fd25169fc9ac340608f48c68bca8083521732d65ef88574f77dac2530bb25`，2765 bytes。
-- label_report_sha256 精确绑定本次raw三轮标签，不是独立非交易日组合报告。
-- 五对：20250221／601177.SH、20251106／603122.SH、20251202／003018.SZ、20260407／600488.SH、20260805／003032.SZ。
-- 预检唯一首／中／末三对，全部合格后才请求另外两对；每对最多一次，零重试。
-- 沿用冻结expected_plan和canonical JSON；stk_mins 09:31–15:00恰240行，45bp／原10:00封板延持标签规则不变。提供方时间戳语义仍未确认，研究数据不能证明实际成交。
+- `MINUTE_GAP_COLLECTION.json` SHA `5597bb15a71cb9374fc4e5115171f88ba7a64cbd789b39f52bfe1cdf8836ce89`，2471 bytes。
+- label_report_sha256 绑定本次 raw 四轮标签，不是非交易日组合报告。
+- 唯一 pair：20251203／003018.SZ；对应信号 D=20251125，T=20251126，原定 T+1=20251127，前四个延持日的分钟已经保存。
+- 首／中／末去重后只有这一对，预检即全部采集；最多一次、零重试。
+- 沿用冻结 expected_plan 和 canonical JSON；stk_mins 09:31–15:00 恰 240 行。45bp／原 10:00 封板延持标签规则不变。
+- 提供方时间戳语义仍未确认，研究数据不证明实际成交。
 
-## 独立复核边界
+## 复核与后续
 
-全6753条身份、T日、顺序和910个D范围完整；未来D>=20260914不读取结果。五条实际pending的三种收益字段均为null。原日历包含全部五日期；增强根相应data/meta不存在，不覆盖旧证据。
+完整 6753 条身份、顺序、910 个 D 范围与旧 6732 条终态保持；不读取 D>=20260914 结果。该 pending 的 net_return、conditional_net_return、slot_net_return 都为 null。原日历包含缺失日，当前来源根无对应 data/meta，不覆盖旧证据。与前四轮主链 2547 对及两轮独立补充 9 对合计 2556 对无交集。
 
-与之前已完成2548对（2384+134+24原始主链及第一轮独立补充6）和已登记第二轮独立补充3合计2551对无交集。所有历史artifact各自保留原计划，不用可变checkout计划冒充旧run资格。
-
-发布后仍须绑定真实run／commit／artifact ZIP SHA和每轮prior，对全部原始数据及标签重新验收。来源采集成功不等于模型通过；不得删除不完整验证日或把缺失填零。原晋级模型、冻结名次、前台与生产账本保持不变。
+发布后仍需绑定真实 run／commit／artifact ZIP SHA 和每轮 prior，全量重建后才能判断是否结算或继续延持。不允许删掉不完整验证日，也不允许缺失填零。原晋级模型、冻结名次、前台、正式账本保持不变。

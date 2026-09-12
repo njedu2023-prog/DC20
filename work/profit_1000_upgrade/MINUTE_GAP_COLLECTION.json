@@ -23,7 +23,7 @@
     "work/profit_1000_upgrade/minute_truth.py": "69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268"
   },
   "label_rebuild_performed": false,
-  "label_report_sha256": "f706cc3d19a0b3b67f898fe4b51fc40187fa6b78555e579448dd070f5d2a5c1e",
+  "label_report_sha256": "a04efbf38b8f3120c7e75be8f69d6ace2526e209851c6a1713906d3f1f883e33",
   "label_source_eligible": false,
   "max_api_calls": 5000,
   "max_http_response_bytes": 1000000,
@@ -36,39 +36,15 @@
   "pagination_or_request_fallback_allowed": false,
   "pairs": [
     [
-      "20250221",
-      "601177.SH"
-    ],
-    [
-      "20251106",
-      "603122.SH"
-    ],
-    [
-      "20251202",
+      "20251203",
       "003018.SZ"
-    ],
-    [
-      "20260407",
-      "600488.SH"
-    ],
-    [
-      "20260805",
-      "003032.SZ"
     ]
   ],
-  "planned_pair_count": 5,
+  "planned_pair_count": 1,
   "preflight_pairs": [
     [
-      "20250221",
-      "601177.SH"
-    ],
-    [
-      "20251202",
+      "20251203",
       "003018.SZ"
-    ],
-    [
-      "20260805",
-      "003032.SZ"
     ]
   ],
   "preflight_rule": "ALL_UNIQUE_FIRST_MIDDLE_LAST_EXACT_240_BARS_BEFORE_BULK",

@@ -1,39 +1,37 @@
-# 非交易日续算后的独立分钟来源补采登记 · 第二轮
+# 非交易日续算后的独立分钟来源补采登记 · 第三轮
 
-仅登记研究数据采集，不执行结算、模型训练或生产替换。原始分钟主链和本独立非交易日补充分支分开验收；组合标签绝不作为原始分钟主链的 prior。
+仅登记研究来源采集，不执行结算、训练或生产替换。原始分钟主链与本非交易日补充分支分开验收；组合标签不能作为原始分钟主链的 prior。
 
-## 当前精确范围
+## 本轮范围
 
-- 计划 `NONTRADING_MINUTE_GAP_COLLECTION.json`；SHA-256 `aaed4d1e50056cbb9c56f3821cde7e2f8c373f84b4fd74459681df52f03e82ec`，2667 bytes。
-- 绑定已完成真实组合回放标签 SHA `dbc2a10b96da03ef0ca3a32887380258282a5eac417853b26ec382f40e0bbc43`。
-- 仅三对：20240506／600234.SH、20240507／600083.SH、20260715／603580.SH；全部为唯一预检，每对一次、零重试。
-- 沿用冻结 `minute_gap_collect.expected_plan` 和 canonical JSON，`stk_mins` 09:31–15:00 恰240行。BAR_END 仍为研究假设，未获得提供方确认。
-- 工作流显式使用本独立计划，不修改正常主链 `MINUTE_GAP_COLLECTION.json`。
+- `NONTRADING_MINUTE_GAP_COLLECTION.json` SHA `ce015ac1b719c992e26e773a1dc2ae3c49950a52c1378d6f82352bd86712d471`，2667 bytes。
+- 绑定已完整完成的组合标签 `2f3bc39862e8e26048fb90ff47fcfd0679d734960e3e7a2d4e8715c090620dde`。
+- 三对：20240507／600234.SH、20240508／600083.SH、20260716／603580.SH。三对均为唯一预检，每对最多一次、零重试。
+- 沿用冻结 expected_plan 与 canonical JSON；stk_mins 09:31–15:00 恰 240 行。BAR_END 仍为未获提供方确认的研究假设。
 
-## 真实依据与完整性
+## 已完成的真实依据
 
-本轮来源是完整结束的组合回放，不是运行中临时文件。6753行／910个D日完整保留；旧6713条终态除cohort标志外全字段不变，其余非固定六病例的6747行与原始两轮主链完全相同。
+本轮 prior 是原始三轮分钟主链加两轮独立非交易日补充的完整回放，不是运行中临时文件。6753 行／910 个 D 日完整保留，4867 条结算、2884 条负收益、902 个完整 D。原始主链 6732 条旧终态保持；固定六病例中已结算的三条也完整保留，另外三条延持后出现本次缺口。其他 6747 行与对应 raw 三轮结果一致。
 
-原六个非交易日病例中三条已实际得到10:00／封板延持规则的结算，另三条因继续持有暴露上述新分钟缺口。三条 pending 的净收益、条件净收益、席位净收益均为 null；未将缺失或停牌视为0。原买入价、scheduled T+1、45bp费用保持不变。
+三条 pending 的 net_return、conditional_net_return、slot_net_return 均为 null。买入价、scheduled T+1 和 45bp 未改变。增强来源根无目标 data/meta，不能覆盖原证据；日期必须在原始日历内，不读取 D>=20260914 的结果。
 
-三对与先前正常2384+134+24及独立补充6共2548次唯一请求无交集。实际组合根三对 data/meta 文件均不存在，来源清单也未登记，禁止覆盖原文件。各日期必须在原始交易日历内；未来D>=20260914的结果不读取。
+这三对与已完成四轮普通分钟 2547 对、两轮独立补充 9 对，共 2556 对无交集；也不与同期登记的普通第五轮 20251203／003018.SZ 重复。组合报告中的其他五个旧普通缺口已经由第四轮原始主链处理，本次不得重采。
 
-## 冻结来源
+## 冻结证据
 
-实际已验收目录：`upgrade-candidate-evidence-20260913.VdRAd5/nontrading-replay-9wv9pcqv`。
+实际根：`upgrade-candidate-evidence-20260913.VdRAd5/nontrading-replay-l0kp8enq`。
 
 | 文件 | SHA-256 |
 | --- | --- |
-| combined_labels.json | `dbc2a10b96da03ef0ca3a32887380258282a5eac417853b26ec382f40e0bbc43` |
-| acceptance.json | `90d3b500ffd17c92ed69811652caa1d66008810f42cf1c7a8537c7d49057dcb1` |
-| source_provenance.json | `5f10972ae62eafabf5e6c910d4d5ef15277f72c3135f540264c499a65468b8f0` |
-| combined_source_admission.json | `ec1426435c0f1d60e7d3bf7e972710ff5edc53a7a8993b62bb1a11448bcdfcc1` |
-| 原始两轮主链标签 | `d159a22b72d0e485fd4c82351170e9861f5d059a25379b67026ee8cc7942159e` |
-| 第一轮独立补充计划 | `6023bef2a3e88cc434eb2d7b479a18d4d5b92a9cace8a6c85900dcd853b2d400` |
-| 第一轮独立补充ZIP | `a87d711591afdac624ab93f370542d1935fb2f4dee12ebf66c7ce8a44c9bac71` |
+| combined_labels.json | `2f3bc39862e8e26048fb90ff47fcfd0679d734960e3e7a2d4e8715c090620dde` |
+| acceptance.json | `5bd26cd0ff045fb597f1440a516ef23bdf39a3265bee5ccb34a5238c9fa4a0f9` |
+| source_provenance.json | `ab459e988ca2138734775ef6e89b8325246dc6fbbd9ebd1e72acf4e5d147ac74` |
+| combined_source_admission.json | `b7ab854fdd9540f43ae9e55b6f280cea9117e999ea8bb7e3d334127b0c231937` |
+| 独立补充链摘要 | `9ac80284047234bf5d640ac80ea879002b34dc5c62fdca518d62fc75b0c48d74` |
+| 第二轮独立补充 ZIP | `9e003eeb1b2bcfa83ee36d03dc97a795bfc32ecb03dc9bf33b3e7592920ee8a4` |
 
-第一轮独立补充 run34711597028（head e49144b79be894d79a99a06f28a821fb098a8976）六对全部来源验收通过，原artifact内计划保持不可变。本轮是其后的独立精确补采，不重跑旧计划，不更改旧收据身份。
+第二轮补充 run34713888288／head36d49ad32a6e9d8ee4d905088b868fedc5dc82a4，三对全部合格、零重试。本轮继续独立登记，每份旧 artifact 内的原计划与回执保持不可变，多轮摘要不冒充单一 GitHub 收据。
 
-## 后续验收
+对应固定评估已完成，训练完整 718／724 日、验证完整 182／186 日，仍为 BLOCKED_DATA_QUALITY，未训练新模型；不能删去四个不完整验证日来放行。之后要纳入最新原始主链再评估，本节不将旧组合快照冒充最新合并结果。
 
-新来源必须独立绑定真实run／commit／ZIP摘要及每轮原计划。新补充分支消费者须逐轮验收先前组合标签和来源，只重放固定六病例，保留全部既有终态和负收益；原18个非交易日证明上下文不能延长或伪造。不得把多轮摘要冒充单一GitHub收据。当前固定评估训练数据已达门槛，但验证期173／186日不完整，训练仍被阻止；不能为获得模型而删除这13日。
+原 18 个非交易日证明上下文不能扩大或伪造；新补充必须绑定真实 run／commit／ZIP、各轮 prior 后，再在固定六病例中续算，保留全部终态与亏损。原晋级模型、前台与正式账本不改。
