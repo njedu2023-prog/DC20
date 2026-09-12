@@ -12,6 +12,7 @@ import re
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from statistics import median
@@ -64,6 +65,37 @@ SHA256_RE = re.compile(r"[0-9a-f]{64}")
 PRICE_TICK = Decimal("0.01")
 T_VERIFICATION_SCHEMA_V2 = "dc20_executable_profit_shadow_t_verification_v2"
 SETTLEMENT_SCHEMA_V2 = "dc20_executable_profit_shadow_t1_settlement_v2"
+SETTLEMENT_SCHEMA_V3 = "dc20_executable_profit_shadow_t1_settlement_v3"
+EXIT_POLICY_ID_1000 = "dc20_exit_1000_limit_hold_20260912_v1"
+EXIT_POLICY_PATH_1000 = Path("models/decision_shadow_exit_policy_1000_v1.json")
+EXIT_POLICY_EFFECTIVE_DATE = "20260914"
+EXIT_POLICY_SPEC_1000 = {
+    "schema_version": "dc20_shadow_exit_policy_v1",
+    "policy_id": EXIT_POLICY_ID_1000,
+    "status": "ACTIVE_RULE_NEW_MODEL_TRAINING_REQUIRED",
+    "effective_scheduled_exit_date": EXIT_POLICY_EFFECTIVE_DATE,
+    "timezone": "Asia/Shanghai",
+    "ordinary_exit_decision_time": "10:00:00",
+    "first_sell_eligible_session": "T_PLUS_1_STRICT_EXCHANGE_SESSION",
+    "limit_up_hold": "HOLD_WHILE_OBSERVED_SEALED_USING_EACH_SESSION_LIMIT",
+    "seal_break_exit": "FIRST_OBSERVED_BREAK_AFTER_SEAL_FROM_SELL_ELIGIBLE_DAY",
+    "execution_price": "NEXT_BAR_OPEN_MINUTE_PROXY_NOT_ACTUAL_FILL",
+    "missing_minute_truth": "PENDING_NO_DAILY_OPEN_FALLBACK",
+    "blocked_exit": "RETAIN_POSITION_AND_PENDING_SELL_UNTIL_TRADABLE",
+    "legacy_open_exit": "ARCHIVE_ONLY_FOR_EXITS_BEFORE_20260914",
+    "existing_terminal_records": "IMMUTABLE",
+    "always_record_frozen_top1_top2": True,
+    "profit_threshold_skip_allowed": False,
+    "entry_policy_changed": False,
+    "promotion_model_changed": False,
+    "new_profit_model_trained": False,
+    "old_open_exit_labels_allowed_for_new_model": False,
+    "actual_execution_claimed": False,
+}
+EXIT_ROW_FIELDS_1000 = {
+    "exit_price", "actual_exit_time", "decision_time", "execution_bar_start",
+    "execution_bar_end", "exit_time_semantics", "held_limit_up_sessions",
+}
 PRICE_POLICY_ID_V2 = "dc20_primary_profit_shadow_auction_or_open_20260911_v2"
 PRICE_POLICY_PATH_V2 = Path("models/decision_primary_profit_shadow_entry_price_policy_v2.json")
 PRICE_POLICY_V2_SPEC = {
@@ -889,14 +921,17 @@ def _validate_selection_binding(value: Any) -> Mapping[str, Any]:
     return value
 
 
-def _validate_source_files(value: Any) -> None:
+def _validate_source_files(value: Any, *, allow_exit_minutes: bool = False) -> None:
     _expect(isinstance(value, list), "artifact source files missing")
     paths: list[str] = []
     for item in value:
         _expect(
             isinstance(item, Mapping)
             and set(item) == {"path", "sha256"}
-            and str(item.get("path") or "").startswith("data/market/raw/")
+            and (str(item.get("path") or "").startswith("data/market/raw/")
+                 or allow_exit_minutes and re.fullmatch(
+                     r"data/market/exit_1000_1m/20\d{2}/20\d{6}/\d{6}_(?:SH|SZ)\.(?:csv|meta\.json)",
+                     str(item.get("path") or "")) is not None)
             and SHA256_RE.fullmatch(str(item.get("sha256") or "")) is not None,
             "artifact market source binding invalid",
         )
@@ -1446,6 +1481,140 @@ def _resolve_delayed_public_exit(
     )
 
 
+def _load_exit_policy_1000(repo_root: Path) -> dict[str, Any]:
+    path = _safe_existing_file(repo_root, EXIT_POLICY_PATH_1000, label="10:00 exit policy")
+    policy = _read_json(path, label="10:00 exit policy")
+    _expect(_canonical_bytes(policy) == _canonical_bytes(EXIT_POLICY_SPEC_1000),
+            "10:00 exit policy contract drifted")
+    return {**_source_binding(repo_root, path), "policy_id": EXIT_POLICY_ID_1000,
+            "effective_scheduled_exit_date": EXIT_POLICY_EFFECTIVE_DATE}
+
+
+def _resolve_public_exit_1000(*, repo_root: Path, open_dates: Sequence[str],
+                             scheduled_exit_date: str, as_of_date: str, code: str,
+                             entry_price: float, t_close_price: float,
+                             table_cache: dict) -> tuple[dict[str, Any] | None, str, list[dict[str, Any]]]:
+    from top10decision.decision.shadow_exit_1000 import resolve_exit_1000
+    from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes
+
+    sources: dict[str, dict[str, Any]] = {}
+
+    def table(date: str, name: str):
+        _expect(date <= as_of_date, "future exit truth forbidden")
+        key = (date, name)
+        if key not in table_cache:
+            path = _find_market_file(repo_root, date, name)
+            if path is None:
+                return None
+            binding = _source_binding(repo_root, path)
+            rows = _market_rows(path, date)
+            _expect(_source_binding(repo_root, path) == binding, "exit daily source changed during read")
+            table_cache[key] = (path, rows, binding)
+        path, rows, binding = table_cache[key]
+        _expect(_source_binding(repo_root, path) == binding, "cached exit daily source bytes changed")
+        sources[binding["path"]] = binding
+        return rows.get(code)
+
+    def minutes(date: str):
+        _expect(date <= as_of_date, "future minute truth forbidden")
+        value = load_exit_minutes(repo_root, date, code)
+        if value is not None:
+            for binding in value["source_files"]:
+                sources[binding["path"]] = binding
+        return value
+
+    try:
+        result, status = resolve_exit_1000(
+            open_dates=open_dates, scheduled_exit_date=scheduled_exit_date,
+            as_of_date=as_of_date, code=code, entry_price=entry_price,
+            t_close_price=t_close_price, load_daily=lambda d: table(d, "daily"),
+            load_limits=lambda d: table(d, "stk_limit"), load_minutes=minutes,
+        )
+    except ValueError as exc:
+        return None, f"PENDING_EXIT_MINUTE_TRUTH_INVALID:{type(exc).__name__}", list(sources.values())
+    if result is not None:
+        result = {**result, "scheduled_exit_date": scheduled_exit_date}
+    return result, status, list(sources.values())
+
+
+def _validate_bound_sources_1000(repo_root: Path, sources: Sequence[Mapping[str, Any]], *, label: str) -> None:
+    for binding in sources:
+        path = _safe_existing_file(repo_root, Path(binding["path"]), label=label)
+        _expect(_sha256(path) == binding["sha256"], f"{label} source bytes changed")
+
+
+def _validate_existing_exit_1000(
+    repo_root: Path, existing: Mapping[str, Any], verification: Mapping[str, Any],
+    verification_file_sha: str, selection_binding: Mapping[str, Any],
+    exit_policy: Mapping[str, Any], open_dates: Sequence[str],
+) -> None:
+    """Verify a terminal record against its frozen sources without repricing T."""
+    validate_t1_settlement(existing)
+    signal_date = verification["signal_date"]
+    _expect(existing["selection"] == selection_binding
+            and (existing["signal_date"], existing["exec_date"], existing["exit_date"])
+            == (signal_date, verification["exec_date"], verification["exit_date"]),
+            "existing settlement frozen dates/selection changed")
+    _expect(existing["t_verification"] == {
+        "path": (VERIFICATION_ROOT / f"t_verification_{signal_date}.json").as_posix(),
+        "file_sha256": verification_file_sha,
+        "snapshot_sha256": verification["snapshot_sha256"],
+    }, "existing settlement T verification binding changed")
+    v3 = existing["schema_version"] == SETTLEMENT_SCHEMA_V3
+    _expect(v3 or all(row["proxy_fill"] == 0 for row in existing["rows"]),
+            "legacy open settlement cannot cover the new exit policy")
+    _expect(existing.get("entry_price_policy") == verification.get("entry_price_policy"),
+            "existing settlement entry price policy changed")
+    if v3:
+        _expect(existing["exit_policy"] == exit_policy, "existing settlement exit policy bytes changed")
+    _validate_bound_sources_1000(repo_root, existing["source_files"], label="existing exit truth")
+    expected_sources: dict[str, dict[str, Any]] = {}
+    cache: dict = {}
+    # Replay exactly the immutable raw paths, not a newly arrived higher-priority
+    # alias of the same session. Minute paths are already exact stock/day paths.
+    for binding in existing["source_files"]:
+        match = re.fullmatch(r"data/market/raw/(?:(?:20\d{2})/)?(20\d{6})/(daily|stk_limit)\.csv", binding["path"])
+        if match:
+            day, name = match.groups()
+        else:
+            match = re.fullmatch(r"data/market/raw/(daily|stk_limit)_(20\d{6})\.csv", binding["path"])
+            if match is None:
+                continue
+            name, day = match.groups()
+        path = repo_root / binding["path"]
+        cache[day, name] = (path, _market_rows(path, day), dict(binding))
+    verified_by_slot = {row["shadow_slot"]: row for row in verification["rows"]}
+    for row in existing["rows"]:
+        verified = verified_by_slot[row["shadow_slot"]]
+        _expect(row["proxy_fill"] == verified["proxy_fill"]
+                and row["entry_open_price"] == verified["entry_open_price"],
+                "existing settlement frozen entry changed")
+        if "entry_price_policy" in existing:
+            _expect(all(row[key] == verified[key] for key in PRICE_ROW_FIELDS_V2),
+                    "existing settlement entry source changed")
+        if row["proxy_fill"] == 0:
+            continue
+        truth, status, sources = _resolve_public_exit_1000(
+            repo_root=repo_root, open_dates=open_dates,
+            scheduled_exit_date=existing["exit_date"], as_of_date=row["actual_exit_date"],
+            code=row["ts_code"], entry_price=verified["entry_open_price"],
+            t_close_price=verified["t_close_price"], table_cache=cache,
+        )
+        _expect(truth is not None, f"existing exit source replay incomplete: {status}")
+        exact_fields = EXIT_ROW_FIELDS_1000 | {
+            "scheduled_exit_date", "actual_exit_date", "delayed_trading_days",
+            "exit_reason", "blocked_exit_sessions", "suspended_exit_sessions",
+        }
+        _expect(all(row[key] == truth[key] for key in exact_fields)
+                and math.isclose(row["gross_return"], truth["gross_return"], rel_tol=0, abs_tol=1e-15),
+                "existing exit differs from bound minute replay")
+        for binding in sources:
+            expected_sources[binding["path"]] = binding
+    _expect(existing["source_files"] == [expected_sources[key] for key in sorted(expected_sources)],
+            "existing settlement exit source set changed")
+    _validate_bound_sources_1000(repo_root, existing["source_files"], label="existing exit truth")
+
+
 def build_t1_settlement(
     repo_root: Path,
     signal_date: str,
@@ -1466,6 +1635,9 @@ def build_t1_settlement(
         as_of_date,
         signal_date=signal_date,
     )
+    use_exit_1000 = exit_date >= EXIT_POLICY_EFFECTIVE_DATE
+    exit_policy = _load_exit_policy_1000(repo_root) if use_exit_1000 else None
+    existing_path = repo_root / SETTLEMENT_ROOT / f"settlement_{signal_date}.json"
     if selected and exec_date > as_of_date:
         return None, "PENDING_T_NOT_REACHED"
     verification_path = repo_root / VERIFICATION_ROOT / f"t_verification_{signal_date}.json"
@@ -1511,11 +1683,48 @@ def build_t1_settlement(
                 "T+1 price policy binding drifted")
     selection_binding = _selection_binding(selection_path, selection, selected)
     _expect(verification.get("selection") == selection_binding, "T verification no longer binds the immutable selection")
+    if use_exit_1000:
+        _expect(verification_file_bytes is not None, "10:00 settlement needs immutable T verification bytes")
+        _expect((verification["signal_date"], verification["exec_date"], verification["exit_date"])
+                == (signal_date, exec_date, exit_date), "10:00 T verification exact dates changed")
+        _validate_bound_sources_1000(repo_root, verification["source_files"], label="10:00 T truth")
     verification_file_sha = (
         _sha256_bytes(verification_file_bytes)
         if verification_file_bytes is not None
         else _sha256_bytes(_canonical_bytes(verification))
     )
+    if use_exit_1000 and (existing_path.exists() or existing_path.is_symlink()):
+        existing_path = _safe_existing_file(repo_root, existing_path.relative_to(repo_root),
+                                            label="immutable existing settlement")
+        existing_bytes = existing_path.read_bytes()
+        existing = _read_json(existing_path, label="immutable existing settlement")
+        _expect(existing_bytes == _canonical_bytes(existing), "immutable settlement bytes are not canonical")
+        validate_t1_settlement(existing)
+        _expect(existing["selection"] == selection_binding
+                and existing["t_verification"] == {
+                    "path": verification_path.relative_to(repo_root).as_posix(),
+                    "file_sha256": verification_file_sha,
+                    "snapshot_sha256": verification["snapshot_sha256"],
+                }, "existing settlement frozen T/selection binding changed")
+        _expect(existing["schema_version"] == SETTLEMENT_SCHEMA_V3
+                or all(row["proxy_fill"] == 0 for row in existing["rows"]),
+                "legacy open settlement cannot cover the new exit policy")
+        if any(row["proxy_fill"] == 1 and row["actual_exit_date"] > as_of_date
+               for row in existing["rows"]):
+            return None, "PENDING_EXIT_AS_OF_CUTOFF"
+        _validate_existing_exit_1000(repo_root, existing, verification, verification_file_sha,
+                                    selection_binding, exit_policy, open_dates)
+        _expect(existing_path.read_bytes() == existing_bytes, "existing settlement changed during validation")
+        _expect(verification_path.read_bytes() == verification_file_bytes,
+                "immutable T verification changed during exit validation")
+        _expect(_sha256(selection_path) == selection_binding["file_sha256"], "frozen selection changed during exit validation")
+        _validate_bound_sources_1000(repo_root, verification["source_files"], label="10:00 T truth")
+        _expect(_load_exit_policy_1000(repo_root) == exit_policy, "exit policy changed during validation")
+        if v2:
+            _expect(_load_price_policy_v2(repo_root) == verification["entry_price_policy"],
+                    "entry policy changed during exit validation")
+        # Additional auction files cannot reprice an immutable T verification.
+        return existing, "FINAL_SETTLED_IMMUTABLE_EXISTING"
 
     verified_rows = verification.get("rows")
     _expect(isinstance(verified_rows, list), "T verification rows missing")
@@ -1558,7 +1767,8 @@ def build_t1_settlement(
         t_close = _finite(verified.get("t_close_price"))
         _expect(entry is not None and entry > 0, "verified entry price is invalid")
         _expect(t_close is not None and t_close > 0, "verified T close price is invalid")
-        exit_truth, exit_status, examined_sources = _resolve_delayed_public_exit(
+        resolver = _resolve_public_exit_1000 if use_exit_1000 else _resolve_delayed_public_exit
+        exit_truth, exit_status, examined_sources = resolver(
             repo_root=repo_root,
             open_dates=open_dates,
             scheduled_exit_date=exit_date,
@@ -1567,7 +1777,7 @@ def build_t1_settlement(
             entry_price=float(entry),
             t_close_price=float(t_close),
             table_cache=table_cache,
-            strict_exit_volume_v2=v2,
+            **({} if use_exit_1000 else {"strict_exit_volume_v2": v2}),
         )
         for binding in examined_sources:
             source_file_map[str(binding["path"])] = binding
@@ -1580,14 +1790,14 @@ def build_t1_settlement(
             {
                 "shadow_slot": slot,
                 "ts_code": code,
-                "settlement_status": "FINAL_FIRST_TRADABLE_OPEN_PUBLIC_MARKET_PROXY",
+                "settlement_status": "FINAL_1000_LIMIT_HOLD_MINUTE_PROXY" if use_exit_1000 else "FINAL_FIRST_TRADABLE_OPEN_PUBLIC_MARKET_PROXY",
                 "proxy_fill": 1,
                 "entry_open_price": float(entry),
                 "scheduled_exit_date": exit_truth["scheduled_exit_date"],
                 "actual_exit_date": exit_truth["actual_exit_date"],
                 "delayed_trading_days": exit_truth["delayed_trading_days"],
                 "exit_reason": exit_truth["exit_reason"],
-                "exit_open_price": exit_truth["exit_open_price"],
+                "exit_open_price": exit_truth.get("exit_open_price"),
                 "gross_return": gross,
                 "net_return_after_cost": net,
                 "stress_net_return": stress_net,
@@ -1598,15 +1808,24 @@ def build_t1_settlement(
                 "actual_human_trade_return": None,
             }
         )
+        if use_exit_1000:
+            rows[-1].pop("exit_open_price")
+            rows[-1].update({key: exit_truth[key] for key in EXIT_ROW_FIELDS_1000})
 
+    if use_exit_1000:
+        for row in rows:
+            if row["proxy_fill"] == 0:
+                row.pop("exit_open_price")
+                row.update({key: 0 if key == "held_limit_up_sessions" else None
+                            for key in EXIT_ROW_FIELDS_1000})
     if v2:
         verification_by_slot = {row["shadow_slot"]: row for row in verified_rows}
         for row in rows:
             row.update({key: verification_by_slot[row["shadow_slot"]][key] for key in PRICE_ROW_FIELDS_V2})
     payload: dict[str, Any] = {
-        "schema_version": SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA,
+        "schema_version": SETTLEMENT_SCHEMA_V3 if use_exit_1000 else SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA,
         "artifact_kind": "immutable_t1_public_market_proxy_settlement",
-        "contract_id": PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID,
+        "contract_id": EXIT_POLICY_ID_1000 if use_exit_1000 else PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID,
         "status": "FINAL_RESEARCH_PROXY_SETTLEMENT",
         "signal_date": signal_date,
         "exec_date": str(selection["exec_date"]),
@@ -1636,13 +1855,119 @@ def build_t1_settlement(
     }
     if v2:
         payload["entry_price_policy"] = copy.deepcopy(verification["entry_price_policy"])
+    if use_exit_1000:
+        payload["exit_policy"] = exit_policy
+        _validate_bound_sources_1000(repo_root, payload["source_files"], label="10:00 exit truth")
+        _validate_bound_sources_1000(repo_root, verification["source_files"], label="10:00 T truth")
+        _expect(verification_path.read_bytes() == verification_file_bytes,
+                "immutable T verification changed during exit replay")
+        _expect(_sha256(selection_path) == selection_binding["file_sha256"], "frozen selection changed during exit replay")
+        _expect(_load_exit_policy_1000(repo_root) == exit_policy, "exit policy changed during replay")
+        if v2:
+            _expect(_load_price_policy_v2(repo_root) == verification["entry_price_policy"],
+                    "entry policy changed during exit replay")
     payload["snapshot_sha256"] = _payload_snapshot(payload)
     validate_t1_settlement(payload)
     return payload, "FINAL_SETTLED"
 
 
+def _exit_timestamp_1000(value: Any) -> datetime:
+    _expect(isinstance(value, str) and re.fullmatch(
+        r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:00\+08:00", value) is not None,
+        "10:00 timestamp must be exact ISO minute +08:00")
+    try:
+        stamp = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ExecutableProfitSettlementError("10:00 timestamp date invalid") from exc
+    _expect(stamp.utcoffset() == timedelta(hours=8), "10:00 timestamp timezone changed")
+    return stamp
+
+
+def _validate_exit_row_1000(row: Mapping[str, Any], exit_date: str) -> None:
+    _expect(type(row["proxy_fill"]) is int and row["proxy_fill"] in (0, 1),
+            "10:00 proxy-fill type invalid")
+    for key in ("held_limit_up_sessions", "blocked_exit_sessions", "suspended_exit_sessions"):
+        _expect(type(row[key]) is int and row[key] >= 0, "10:00 session count invalid")
+    if row["proxy_fill"] == 0:
+        _expect(all(row[key] is None for key in EXIT_ROW_FIELDS_1000 - {"held_limit_up_sessions"})
+                and row["held_limit_up_sessions"] == row["blocked_exit_sessions"] == row["suspended_exit_sessions"] == 0
+                and row["gross_return"] is None and row["profit_after_cost"] is None
+                and row["settlement_status"] == "FINAL_PROXY_NO_FILL",
+                "10:00 no-fill has fabricated exit evidence")
+        return
+    _expect(row["scheduled_exit_date"] == exit_date
+            and row["actual_exit_date"] == _normal_date(row["actual_exit_date"]),
+            "10:00 exit dates must be exact YYYYMMDD")
+    for key in ("entry_open_price", "exit_price", "gross_return", "net_return_after_cost", "stress_net_return", "strategy_slot_return"):
+        _expect(type(row[key]) in (int, float) and _finite(row[key]) is not None,
+                "10:00 price/return must be a finite number")
+    _expect(row["entry_open_price"] > 0 and row["exit_price"] > 0 and row["gross_return"] > -1
+            and type(row["profit_after_cost"]) is int, "10:00 economic value invalid")
+    decision = _exit_timestamp_1000(row["decision_time"])
+    start = _exit_timestamp_1000(row["execution_bar_start"])
+    end = _exit_timestamp_1000(row["execution_bar_end"])
+    start_minute, decision_minute = start.hour * 60 + start.minute, decision.hour * 60 + decision.minute
+    _expect(row["actual_exit_time"] == row["execution_bar_start"]
+            and start.strftime("%Y%m%d") == end.strftime("%Y%m%d") == row["actual_exit_date"]
+            and exit_date <= decision.strftime("%Y%m%d") <= row["actual_exit_date"]
+            and decision <= start and end - start == timedelta(minutes=1)
+            and (570 <= start_minute < 690 or 780 <= start_minute < 900)
+            and (571 <= decision_minute <= 690 or 781 <= decision_minute <= 900),
+            "10:00 execution is not a causal exact-session next-minute open")
+    _expect(row["exit_reason"] in {"TIME_1000_NEXT_BAR_OPEN", "LIMIT_UP_BREAK_NEXT_BAR_OPEN"}
+            and (row["exit_reason"] != "TIME_1000_NEXT_BAR_OPEN" or decision_minute == 600),
+            "10:00 decision reason/time mismatch")
+
+
+def _validate_exit_source_layout_1000(payload: Mapping[str, Any]) -> None:
+    """Reject missing stock/day minute pairs; bytes and suspension need repo validation."""
+    daily: dict[tuple[str, str], str] = {}
+    minutes: dict[tuple[str, str], set[str]] = {}
+    for source in payload["source_files"]:
+        path = source["path"]
+        minute = re.fullmatch(r"data/market/exit_1000_1m/(20\d{2})/(20\d{6})/(\d{6})_(SH|SZ)\.(csv|meta\.json)", path)
+        if minute:
+            year, day, code, suffix, kind = minute.groups()
+            _expect(year == day[:4] and day >= EXIT_POLICY_EFFECTIVE_DATE, "10:00 minute source date invalid")
+            minutes.setdefault((day, f"{code}.{suffix}"), set()).add(kind)
+            continue
+        match = re.fullmatch(r"data/market/raw/(?:(20\d{2})/)?(20\d{6})/(daily|stk_limit)\.csv", path)
+        if match:
+            year, day, kind = match.groups()
+            _expect(year is None or year == day[:4], "10:00 raw source year invalid")
+        else:
+            match = re.fullmatch(r"data/market/raw/(daily|stk_limit)_(20\d{6})\.csv", path)
+            _expect(match is not None, "10:00 exit source path invalid")
+            kind, day = match.groups()
+        _expect((day, kind) not in daily, "10:00 duplicate daily source partition")
+        daily[day, kind] = path
+    _expect(all(kinds == {"csv", "meta.json"} for kinds in minutes.values()),
+            "10:00 minute CSV/metadata source pair missing")
+    all_dates = sorted({day for day, _ in daily})
+    _expect(all((day, "daily") in daily and (day, "stk_limit") in daily for day in all_dates),
+            "10:00 daily/limits source pair missing")
+    expected_minute_keys: set[tuple[str, str]] = set()
+    expected_dates: set[str] = set()
+    for row in payload["rows"]:
+        if row["proxy_fill"] == 0:
+            continue
+        days = [day for day in all_dates if payload["exit_date"] <= day <= row["actual_exit_date"]]
+        _expect(len(days) == row["delayed_trading_days"] + 1
+                and days[0] == payload["exit_date"] and days[-1] == row["actual_exit_date"],
+                "10:00 exit omitted a daily source partition")
+        keys = {(day, row["ts_code"]) for day in days if (day, row["ts_code"]) in minutes}
+        _expect((row["actual_exit_date"], row["ts_code"]) in keys
+                and len(days) - len(keys) == row["suspended_exit_sessions"],
+                "10:00 exit omitted a stock/day minute source pair")
+        expected_minute_keys.update(keys)
+        expected_dates.update(days)
+    _expect(set(minutes) == expected_minute_keys and set(all_dates) == expected_dates,
+            "10:00 unrelated exit source partition")
+
+
 def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
-    v2 = payload.get("schema_version") == SETTLEMENT_SCHEMA_V2
+    v3 = payload.get("schema_version") == SETTLEMENT_SCHEMA_V3
+    v2 = payload.get("schema_version") == SETTLEMENT_SCHEMA_V2 or (v3 and "entry_price_policy" in payload)
     expected = {
         "schema_version",
         "artifact_kind",
@@ -1662,16 +1987,32 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
     if v2:
         expected.add("entry_price_policy")
         _validate_price_policy_binding(payload.get("entry_price_policy"))
+    if v3:
+        expected.add("exit_policy")
+        policy = payload.get("exit_policy", {})
+        _expect(isinstance(policy, Mapping) and set(policy) == {"path", "sha256", "policy_id", "effective_scheduled_exit_date"}
+                and policy["path"] == EXIT_POLICY_PATH_1000.as_posix()
+                and SHA256_RE.fullmatch(str(policy["sha256"])) is not None
+                and policy["policy_id"] == EXIT_POLICY_ID_1000
+                and policy["effective_scheduled_exit_date"] == EXIT_POLICY_EFFECTIVE_DATE,
+                "10:00 exit policy binding invalid")
     _expect(set(payload) == expected, "T+1 settlement surface drifted")
     _expect(
-        payload.get("schema_version") == (SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA)
-        and payload.get("contract_id") == (PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID)
+        payload.get("schema_version") == (SETTLEMENT_SCHEMA_V3 if v3 else SETTLEMENT_SCHEMA_V2 if v2 else SETTLEMENT_SCHEMA)
+        and payload.get("contract_id") == (EXIT_POLICY_ID_1000 if v3 else PRICE_POLICY_ID_V2 if v2 else CONTRACT_ID)
         and payload.get("status") == "FINAL_RESEARCH_PROXY_SETTLEMENT",
         "T+1 settlement identity drifted",
     )
     signal_date = _normal_date(payload.get("signal_date"))
     exec_date = _normal_date(payload.get("exec_date"))
     exit_date = _normal_date(payload.get("exit_date"))
+    if v3:
+        _expect(exit_date >= EXIT_POLICY_EFFECTIVE_DATE, "10:00 policy predates activation")
+        for value in (signal_date, exec_date, exit_date):
+            try:
+                datetime.strptime(value, "%Y%m%d")
+            except ValueError as exc:
+                raise ExecutableProfitSettlementError("10:00 settlement calendar date invalid") from exc
     _expect(
         signal_date >= MINIMUM_SIGNAL_DATE
         and payload.get("signal_date") == signal_date
@@ -1725,7 +2066,8 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
                 "blocked_exit_sessions",
                 "suspended_exit_sessions",
                 "actual_human_trade_return",
-            } | (PRICE_ROW_FIELDS_V2 if v2 else set()),
+            } - ({"exit_open_price"} if v3 else set())
+            | (EXIT_ROW_FIELDS_1000 if v3 else set()) | (PRICE_ROW_FIELDS_V2 if v2 else set()),
             "T+1 settlement row surface drifted",
         )
         if v2:
@@ -1734,6 +2076,8 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
                     and row.get("capacity_evidence") in {
                         "OBSERVED_AUCTION_AMOUNT", "UNVERIFIED_NO_AUCTION_AMOUNT"},
                     "v2 settlement entry provenance invalid")
+        if v3:
+            _validate_exit_row_1000(row, exit_date)
         if row.get("proxy_fill") == 1:
             gross = _finite(row.get("gross_return"))
             net = _finite(row.get("net_return_after_cost"))
@@ -1759,11 +2103,22 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
                 and int(row.get("suspended_exit_sessions") or 0) >= 0
                 and int(row.get("blocked_exit_sessions") or 0)
                 + int(row.get("suspended_exit_sessions") or 0)
+                + (int(row.get("held_limit_up_sessions") or 0) if v3 else 0)
                 == delay
                 and str(row.get("exit_reason") or ""),
                 "filled settlement delayed-exit contract invalid",
             )
             _expect(row.get("profit_after_cost") == int(net > 0.0), "filled settlement profit label invalid")
+            if v3:
+                _expect(row.get("settlement_status") == "FINAL_1000_LIMIT_HOLD_MINUTE_PROXY"
+                        and _finite(row.get("exit_price")) is not None and row["exit_price"] > 0
+                        and row.get("exit_time_semantics") == "NEXT_BAR_OPEN_MINUTE_PROXY"
+                        and str(row.get("actual_exit_time") or "")
+                        and row.get("actual_exit_time") == row.get("execution_bar_start")
+                        and str(row.get("decision_time") or "") <= str(row["execution_bar_start"])
+                        and str(row["execution_bar_start"]) < str(row.get("execution_bar_end") or "")
+                        and int(row.get("held_limit_up_sessions") or 0) >= 0,
+                        "10:00 minute execution evidence invalid")
         else:
             _expect(
                 row.get("proxy_fill") == 0
@@ -1793,14 +2148,23 @@ def validate_t1_settlement(payload: Mapping[str, Any]) -> None:
         and SHA256_RE.fullmatch(str(verification.get("snapshot_sha256") or "")) is not None,
         "T+1 settlement T verification binding invalid",
     )
-    _validate_source_files(payload.get("source_files"))
+    _validate_source_files(payload.get("source_files"), allow_exit_minutes=v3)
+    if v3:
+        _expect(verification["path"] == (VERIFICATION_ROOT / f"t_verification_{signal_date}.json").as_posix(),
+                "10:00 T verification is not exact-D")
+        _validate_exit_source_layout_1000(payload)
     if any(row.get("proxy_fill") == 1 for row in rows):
         names = {Path(item["path"]).name for item in payload["source_files"]}
         _expect(
-            names == {"daily.csv", "stk_limit.csv"},
+            v3 or names == {"daily.csv", "stk_limit.csv"},
             "T+1 settlement does not bind both exit truth sources",
         )
     boundaries = payload.get("boundaries", {})
+    if v3:
+        _expect(payload["artifact_kind"] == "immutable_t1_public_market_proxy_settlement"
+                and boundaries == {"research_only": True, "official_trade_action_allowed": False,
+                    "actual_execution_claimed": False, "actual_human_trade_included": False,
+                    "selection_changed": False}, "10:00 settlement boundaries changed")
     _expect(
         boundaries.get("official_trade_action_allowed") is False
         and boundaries.get("actual_execution_claimed") is False
@@ -1820,9 +2184,47 @@ def materialize_t_verification(repo_root: Path, payload: Mapping[str, Any]) -> P
         return _install_immutable(path, payload)
 
 
+def _validate_live_settlement_1000(repo_root: Path, payload: Mapping[str, Any]) -> None:
+    """V3 publication/read gate: complete bound sources, not a self-hash alone."""
+    validate_t1_settlement(payload)
+    _load_contract(repo_root)
+    selection_path, selection, selected = load_selection(repo_root, payload["signal_date"])
+    dates = _strict_open_dates(repo_root)
+    _validate_adjacent_dates(dates, selection["signal_date"], selection["exec_date"], selection["exit_date"])
+    verification_path = _safe_existing_file(repo_root, Path(payload["t_verification"]["path"]),
+                                            label="10:00 immutable T verification")
+    raw = verification_path.read_bytes()
+    verification = _read_json(verification_path, label="10:00 immutable T verification")
+    validate_t_verification(verification)
+    binding = _selection_binding(selection_path, selection, selected)
+    _expect(raw == _canonical_bytes(verification) and verification["selection"] == binding
+            and (verification["signal_date"], verification["exec_date"], verification["exit_date"])
+            == (selection["signal_date"], selection["exec_date"], selection["exit_date"]),
+            "10:00 immutable T dates/selection/canonical bytes changed")
+    if verification.get("schema_version") == T_VERIFICATION_SCHEMA_V2:
+        _expect(verification["entry_price_policy"] == _load_price_policy_v2(repo_root),
+                "10:00 entry policy bytes changed")
+    _validate_bound_sources_1000(repo_root, verification["source_files"], label="10:00 T truth")
+    exit_policy = _load_exit_policy_1000(repo_root)
+    _validate_existing_exit_1000(repo_root, payload, verification, _sha256_bytes(raw), binding, exit_policy, dates)
+    _expect(verification_path.read_bytes() == raw and _sha256(selection_path) == binding["file_sha256"],
+            "10:00 frozen evidence changed during validation")
+    _expect(_load_exit_policy_1000(repo_root) == exit_policy, "10:00 exit policy changed during validation")
+    _validate_bound_sources_1000(repo_root, verification["source_files"], label="10:00 T truth")
+    if verification.get("schema_version") == T_VERIFICATION_SCHEMA_V2:
+        _expect(_load_price_policy_v2(repo_root) == verification["entry_price_policy"],
+                "10:00 entry policy changed during validation")
+
+
 def materialize_t1_settlement(repo_root: Path, payload: Mapping[str, Any]) -> Path:
     validate_t1_settlement(payload)
     repo_root = repo_root.resolve(strict=True)
+    _expect(payload["schema_version"] == SETTLEMENT_SCHEMA_V3
+            or payload["exit_date"] < EXIT_POLICY_EFFECTIVE_DATE
+            or all(row["proxy_fill"] == 0 for row in payload["rows"]),
+            "legacy open settlement cannot cover the new exit policy")
+    if payload.get("schema_version") == SETTLEMENT_SCHEMA_V3:
+        _validate_live_settlement_1000(repo_root, payload)
     output = _ensure_directory(repo_root, SETTLEMENT_ROOT)
     path = output / f"settlement_{payload['signal_date']}.json"
     with _locked(output):
@@ -1904,7 +2306,7 @@ def _cohort_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                 )
             )
     portfolio = _portfolio_metrics(daily)
-    return {
+    result = {
         "selection_dates": len(selection_dates),
         "effective_dates": len(effective_dates),
         "selected_slots": len(records),
@@ -1958,6 +2360,27 @@ def _cohort_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         ),
         **portfolio,
     }
+    policies = sorted({str(row.get("exit_policy_id") or "LEGACY_T1_OPEN") for row in records})
+    if EXIT_POLICY_ID_1000 in policies:
+        result["exit_policy_ids"] = policies
+        if len(policies) > 1:
+            result["return_policy_status"] = "MIXED_EXIT_POLICIES_NOT_COMBINED"
+            result["by_exit_policy"] = {
+                policy: _cohort_metrics([r for r in records if (r.get("exit_policy_id") or "LEGACY_T1_OPEN") == policy])
+                for policy in policies
+            }
+            for key in ("win_rate", "mean_net_return_after_cost", "median_net_return_after_cost",
+                        "realized_big_loss_rate_at_minus_3pct", "worst_10pct_mean_net_return",
+                        "worst_trade_net_return", "mean_stress_net_return_90bp",
+                        "equal_weight_cumulative_return", "maximum_drawdown"):
+                result[key] = None
+            result["daily_portfolio"] = []
+        elif any(r.get("proxy_fill") == 1 and (r.get("exit_overdue_or_held") is True or int(r.get("delayed_trading_days") or 0) > 0)
+                 for r in records):
+            result["return_policy_status"] = "OPEN_OR_DELAYED_POSITIONS_NOT_CAPITAL_NAV"
+            result["equal_weight_cumulative_return"] = result["maximum_drawdown"] = None
+            result["daily_portfolio"] = []
+    return result
 
 
 def _build_statistics(
@@ -2024,6 +2447,12 @@ def _build_statistics(
             if settlement is None:
                 settlement_rows = {}
             else:
+                _expect(settlement["schema_version"] == SETTLEMENT_SCHEMA_V3
+                        or settlement["exit_date"] < EXIT_POLICY_EFFECTIVE_DATE
+                        or all(row["proxy_fill"] == 0 for row in settlement["rows"]),
+                        "legacy open settlement cannot cover the new exit policy")
+                if settlement.get("schema_version") == SETTLEMENT_SCHEMA_V3:
+                    _validate_live_settlement_1000(repo_root, settlement)
                 _expect(
                     settlement.get("selection") == _selection_binding(selection_path, selection, selected),
                     "statistics found a settlement with a stale selection binding",
@@ -2092,6 +2521,8 @@ def _build_statistics(
                     "strategy_slot_return": strategy_slot_return,
                     "delayed_trading_days": settled.get("delayed_trading_days") if settled is not None else None,
                     "blocked_exit_sessions": settled.get("blocked_exit_sessions") if settled is not None else 0,
+                    "exit_policy_id": EXIT_POLICY_ID_1000 if selection["exit_date"] >= EXIT_POLICY_EFFECTIVE_DATE else "LEGACY_T1_OPEN",
+                    "exit_overdue_or_held": proxy_fill == 1 and not terminal and as_of_date >= selection["exit_date"],
                 }
             )
 
@@ -2151,7 +2582,7 @@ def _build_statistics(
         ],
         "pending_definitions": {
             "pending_validation_slots": "frozen selected slots without immutable complete T truth",
-            "pending_exit_slots": "proxy-filled slots without a resolved first tradable open from scheduled T+1 onward",
+            "pending_exit_slots": "proxy-filled slots without a resolved exit under their dated exit policy",
             "historically_blocked_exit_slots": "settled slots that crossed at least one observed one-price limit-down session",
         },
         "input_files": input_files,

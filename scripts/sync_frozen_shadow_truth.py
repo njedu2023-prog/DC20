@@ -47,6 +47,17 @@ def required_partitions(root: Path, as_of_date: str) -> dict[tuple[str, str], se
     dates = _strict_open_dates(root)
     _strict_as_of_date(dates, as_of_date, signal_date=START_D)
     required: dict[tuple[str, str], set[str]] = {}
+    if as_of_date >= "20260914":
+        # The P0 planner validates natural frozen receipts and the unchanged
+        # entry rule. Delayed exits require every intervening daily/limit
+        # partition as well as minutes; never jump a missing session.
+        from scripts.settle_primary_observations import plan_exit_minute_requests
+        for request in plan_exit_minute_requests(root, as_of_date):
+            day, code = request["trade_date"], request["ts_code"]
+            if day not in dates or not "20260914" <= day <= as_of_date:
+                raise ValueError("P0 exit truth plan has an invalid session")
+            for name in ("daily", "stk_limit"):
+                required.setdefault((day, name), set()).add(code)
     for path in sorted((root / "data/decision_executable_profit/forward/selections").glob("shadow_*.json")):
         match = re.fullmatch(r"shadow_(20\d{6})\.json", path.name)
         if match is None:

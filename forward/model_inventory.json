@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260911_window_0910.json",
-    "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db",
-    "approved_base_commit": "1c7b7345800f163e7c0eefc272deba321fc30d9d",
-    "scope": "Only the freeze-manifest reference follows the independent D20260910-inclusive public statistics projection and its authenticated Pages/frontend integration, including latest cumulative statistics during historical navigation. Public statistics scope changes explicitly; original D28 ledgers, truth/settlement calculations, model weights, ranking algorithms, frozen selections, the other 41 inventory assets, inactive forward epoch and all validation gates remain unchanged."
+    "path": "models/decision_source_surface_review_20260912_exit1000.json",
+    "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+    "approved_base_commit": "bd6103a674ff24fd8db54dc3832afcbc983f6de5",
+    "scope": "Only the freeze-manifest reference follows the explicitly versioned 10:00/limit-up-hold exit policy for scheduled exits from 20260914, exact-stock complete-session minute truth collection/publication and policy-separated return statistics. Legacy terminal ledgers remain immutable. Entry policy, promotion model, all existing weights and ranking algorithms, frozen selections, the other 41 inventory assets, inactive forward epoch and all validation gates are preserved. This changes exit truth policy, not model training, calibration or actual trading authority."
   },
   "active_source_models": {
     "promotion": {
@@ -105,8 +105,8 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "a8ee4a68fda9345aa4c69ffb21c54ea42a83047c22b7b5234b42d0df903d2755",
-      "bytes": 51912,
+      "sha256": "5382c25246abaa0f0c7a0fef78d0171cac005589465deb2ea8f095031f8cd20f",
+      "bytes": 52401,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
     },

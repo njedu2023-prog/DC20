@@ -199,6 +199,238 @@ COMPACT_WINDOW_BOUNDARIES = {
 }
 
 
+EXIT1000_REVIEW = ROOT / "models/decision_source_surface_review_20260912_exit1000.json"
+EXIT1000_REVIEW_SHA = "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9"
+EXIT1000_EXISTING_PATHS = {
+    ".github/workflows/deploy_dc20_pages.yml", ".github/workflows/verify_decision_observations.yml",
+    "decision.html", "scripts/build_compact_statistics_window.py", "scripts/settle_primary_observations.py",
+    "scripts/sync_frozen_shadow_truth.py", "src/top10decision/decision/executable_profit_shadow_settlement.py",
+    "tests/test_primary_observation_summary.py", "tests/test_compact_statistics_window.py",
+}
+EXIT1000_ADDED_PINS = {
+    "models/decision_shadow_exit_policy_1000_v1.json", "scripts/sync_exit_1000_minute_truth.py",
+    "src/top10decision/decision/shadow_exit_1000.py", "src/top10decision/decision/shadow_exit_minute_truth.py",
+}
+EXIT1000_ADDED_PATHS = EXIT1000_ADDED_PINS | {
+    "tests/test_exit_1000_minute_truth.py", "tests/test_shadow_exit_1000.py",
+    "tests/test_shadow_exit_1000_settlement.py", "tests/test_exit_1000_frontend_window.py",
+    "docs/shadow_exit_1000_migration.md",
+}
+EXIT1000_BOUNDARIES = {
+    "model_weights_changed": False,
+    "new_profit_model_trained": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "promotion_model_changed": False,
+    "entry_policy_changed": False,
+    "truth_policy_changed": True,
+    "scheduled_exit_1000_limit_hold_policy_added": True,
+    "minute_truth_collection_and_publication_added": True,
+    "return_statistics_separated_by_exit_policy": True,
+    "historical_terminal_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _exit1000_live_source(path: str) -> bytes:
+    assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
+    assert all(part not in ("", ".", "..") for part in path.split("/"))
+    target = ROOT / path
+    assert ROOT in target.resolve().parents
+    assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
+    assert target.is_file()
+    return target.read_bytes()
+
+
+def _exit1000_review(review: dict | None = None) -> dict:
+    raw = _exit1000_live_source(EXIT1000_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw).hexdigest() == EXIT1000_REVIEW_SHA
+    review = json.loads(raw) if review is None else review
+    assert review["schema_version"] == "decision_exit_1000_policy_source_review_v1"
+    assert review["approved_base_commit"] == "bd6103a674ff24fd8db54dc3832afcbc983f6de5"
+    assert review["scope"] == "VERSIONED_1000_LIMIT_HOLD_EXIT_TRUTH_NO_NEW_MODEL_TRAINING_OR_HISTORICAL_REWRITE"
+    assert review["boundaries"] == EXIT1000_BOUNDARIES
+    assert review["exit_policy_id"] == "dc20_exit_1000_limit_hold_20260912_v1"
+    assert review["effective_scheduled_exit_date"] == "20260914"
+    assert review["publication_scope"] == "PUBLICATION_EXCLUDES_DATA_AND_OUTPUTS_TREE_MUTATIONS"
+    assert review["predecessor_evidence_path"] == COMPACT_WINDOW_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(COMPACT_WINDOW_REVIEW) == COMPACT_WINDOW_REVIEW_SHA
+    paths = [item["path"] for item in review["source_changes"]]
+    expected = EXIT1000_EXISTING_PATHS | EXIT1000_ADDED_PATHS | {"models/decision_model_freeze.json"}
+    assert len(paths) == len(set(paths)) == len(expected) and set(paths) == expected
+    assert review["added_runtime_pins"] == sorted(EXIT1000_ADDED_PINS)
+    predecessor = json.loads(COMPACT_WINDOW_REVIEW.read_bytes())
+    assert len(review["preserved_evidence"]) == 19
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": COMPACT_WINDOW_REVIEW.relative_to(ROOT).as_posix(), "sha256": COMPACT_WINDOW_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert hashlib.sha256(_exit1000_live_source(item["path"])).hexdigest() == item["sha256"]
+    tests = review["regression_tests"]
+    assert len(tests) == len({item["path"] for item in tests})
+    assert {item["path"] for item in tests} == {path for path in expected if path.startswith("tests/")}
+    for item in tests:
+        assert hashlib.sha256(_exit1000_live_source(item["path"])).hexdigest() == item["sha256"]
+    return review
+
+
+def _source_before_exit1000(path: str, review: dict | None = None) -> bytes:
+    raw_review = _exit1000_live_source(EXIT1000_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw_review).hexdigest() == EXIT1000_REVIEW_SHA
+    review = _parse_exit1000_review(raw_review) if review is None else review
+    source = _exit1000_live_source(path)
+    item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
+    if item is None:
+        return source
+    assert item["baseline_exists"] is (path not in EXIT1000_ADDED_PATHS)
+    assert item["reason"] and len(source) == item["current_bytes"]
+    assert hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+    previous_end = baseline_offset = 0
+    for part in changes:
+        assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+        assert type(part["current_start"]) is int and part["current_start"] > 0
+        start = part["current_start"] - 1
+        assert start >= previous_end and start <= len(lines)
+        assert part["baseline_start"] - 1 == start + baseline_offset
+        assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+        previous_end = start + len(part["current_lines"])
+        baseline_offset += len(part["baseline_lines"]) - len(part["current_lines"])
+    for part in reversed(changes):
+        start = part["current_start"] - 1
+        lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    if path in EXIT1000_ADDED_PATHS:
+        assert restored == b"" and item["baseline_bytes"] == 0
+    return restored
+
+
+@lru_cache(maxsize=1)
+def _parse_exit1000_review(raw: bytes) -> dict:
+    # Cache decoding only; every use rechecks live review/source bytes and SHA.
+    return json.loads(raw)
+
+
+def _state_before_exit1000(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _exit1000_review(review)
+    live_manifest = _exit1000_live_source("models/decision_model_freeze.json")
+    manifest = json.loads(live_manifest) if manifest is None else manifest
+    assert len(manifest["pinned_files"]) == review["pin_count"] == 231
+    assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
+    for path, expected_sha in manifest["pinned_files"].items():
+        assert hashlib.sha256(_exit1000_live_source(path)).hexdigest() == expected_sha
+    for item in review["source_changes"]:
+        _source_before_exit1000(item["path"], review)
+    before = _source_before_exit1000("models/decision_model_freeze.json", review)
+    restored = json.loads(before)
+    assert len(restored["pinned_files"]) == 227
+    assert _canonical_sha256(restored) == review["baseline_manifest_canonical_sha256"]
+    expected = copy.deepcopy(manifest)
+    for path in EXIT1000_ADDED_PINS:
+        assert path not in restored["pinned_files"]
+        assert expected["pinned_files"].pop(path) == hashlib.sha256(_exit1000_live_source(path)).hexdigest()
+    for path in EXIT1000_EXISTING_PATHS & set(expected["pinned_files"]):
+        expected["pinned_files"][path] = hashlib.sha256(_source_before_exit1000(path, review)).hexdigest()
+    assert expected == restored  # Complete prior pins AND every model/identity field.
+    assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
+    dep = review["inventory_update"]
+    assert dep["path"] == "forward/model_inventory.json"
+    inventory_raw = _exit1000_live_source(dep["path"])
+    inventory = json.loads(inventory_raw)
+    assert inventory_raw == (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == dict(
+        path=EXIT1000_REVIEW.relative_to(ROOT).as_posix(), sha256=EXIT1000_REVIEW_SHA,
+        approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
+    for asset in inventory["assets"]:
+        raw = _exit1000_live_source(asset["path"])
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    protected = copy.deepcopy(inventory)
+    del protected["dependency_successor_review"]
+    freeze = next(asset for asset in protected["assets"] if asset["path"] == "models/decision_model_freeze.json")
+    del freeze["sha256"], freeze["bytes"]
+    assert _canonical_sha256(protected) == dep["protected_canonical_sha256"] == "afc4241cc4655eeca3cfa95bcda9956f04f0489d6f95b2776c40bb876456844c"
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(asset for asset in inventory["assets"] if asset["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before).hexdigest(), bytes=len(before))
+    assert hashlib.sha256((json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()).hexdigest() == dep["baseline_sha256"]
+    return restored, inventory
+
+
+def test_exit1000_review_restores_complete_predecessor_without_model_or_history_changes():
+    manifest, inventory = _state_before_exit1000()
+    review = _exit1000_review()
+    assert _canonical_sha256(manifest) == _compact_window_review()["current_manifest_canonical_sha256"]
+    assert inventory["dependency_successor_review"]["sha256"] == COMPACT_WINDOW_REVIEW_SHA
+    assert all(_source_before_exit1000(path) == b"" for path in EXIT1000_ADDED_PATHS)
+    assert review["boundaries"]["truth_policy_changed"] is True
+    assert review["boundaries"]["new_profit_model_trained"] is False
+    assert len(inventory["assets"]) == 42 and len(review["preserved_evidence"]) == 19
+
+
+@pytest.mark.parametrize("target", [
+    "review", "html", "engine", "loader", "collector", "config", "model", "inventory", "manifest",
+])
+def test_exit1000_review_checks_live_bytes_after_decode_cache_warmup(monkeypatch, target):
+    targets = {
+        "review": EXIT1000_REVIEW, "html": ROOT / "decision.html",
+        "engine": ROOT / "src/top10decision/decision/shadow_exit_1000.py",
+        "loader": ROOT / "src/top10decision/decision/shadow_exit_minute_truth.py",
+        "collector": ROOT / "scripts/sync_exit_1000_minute_truth.py",
+        "config": ROOT / "models/decision_shadow_exit_policy_1000_v1.json",
+        "model": ROOT / "models/decision_three_engines/promotion.joblib",
+        "inventory": ROOT / "forward/model_inventory.json", "manifest": MANIFEST,
+    }
+    _state_before_exit1000()
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == targets[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _state_before_exit1000()
+
+
+@pytest.mark.parametrize("mutation", [
+    "base", "scope", "policy", "effective_date", "truth_policy", "training", "history", "entry",
+    "extra_path", "current_sha", "baseline_sha", "inverse", "extra_pin", "remove_pin",
+    "model_identity", "added_exists", "drop_evidence", "inventory_protection", "inventory_baseline",
+])
+def test_exit1000_review_rejects_unreviewed_policy_source_and_inventory_changes(mutation):
+    manifest = json.loads(MANIFEST.read_bytes())
+    review = json.loads(EXIT1000_REVIEW.read_bytes())
+    if mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "scope": review["scope"] = "DISPLAY_ONLY"
+    elif mutation == "policy": review["exit_policy_id"] = "old_open"
+    elif mutation == "effective_date": review["effective_scheduled_exit_date"] = "20260911"
+    elif mutation == "truth_policy": review["boundaries"]["truth_policy_changed"] = False
+    elif mutation == "training": review["boundaries"]["new_profit_model_trained"] = True
+    elif mutation == "history": review["boundaries"]["historical_terminal_ledger_rewritten"] = True
+    elif mutation == "entry": review["boundaries"]["entry_policy_changed"] = True
+    elif mutation == "extra_path": review["source_changes"].append(dict(review["source_changes"][0], path="scripts/publish_primary_three_rank.py"))
+    elif mutation == "current_sha": review["source_changes"][0]["current_sha256"] = "0" * 64
+    elif mutation == "baseline_sha": review["source_changes"][0]["baseline_sha256"] = "0" * 64
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "remove_pin": del manifest["pinned_files"]["scripts/sync_exit_1000_minute_truth.py"]
+    elif mutation == "model_identity": manifest["training_cutoff_signal_date"] = "20260911"
+    elif mutation == "added_exists": next(item for item in review["source_changes"] if item["path"] in EXIT1000_ADDED_PATHS)["baseline_exists"] = True
+    elif mutation == "drop_evidence": review["preserved_evidence"].pop()
+    elif mutation == "inventory_protection": review["inventory_update"]["protected_canonical_sha256"] = "0" * 64
+    else: review["inventory_update"]["baseline_sha256"] = "0" * 64
+    with pytest.raises(AssertionError):
+        _state_before_exit1000(manifest, review)
+
+
 def _compact_window_review(review: dict | None = None) -> dict:
     assert not COMPACT_WINDOW_REVIEW.is_symlink()
     assert _sha256(COMPACT_WINDOW_REVIEW) == COMPACT_WINDOW_REVIEW_SHA
@@ -229,7 +461,7 @@ def _compact_window_review(review: dict | None = None) -> dict:
     assert len(regressions) == len({item["path"] for item in regressions})
     for item in regressions:
         assert not (ROOT / item["path"]).is_symlink()
-        assert _sha256(ROOT / item["path"]) == item["sha256"]
+        assert hashlib.sha256(_source_before_exit1000(item["path"])).hexdigest() == item["sha256"]
     return review
 
 
@@ -245,7 +477,7 @@ def _source_before_compact_window(path: str, review: dict | None = None) -> byte
     assert hashlib.sha256(raw_review).hexdigest() == COMPACT_WINDOW_REVIEW_SHA
     review = _parse_compact_window_review(raw_review) if review is None else review
     assert not (ROOT / path).is_symlink() and (ROOT / path).is_file()
-    source = (ROOT / path).read_bytes()
+    source = _source_before_exit1000(path)
     item = next((entry for entry in review["source_changes"] if entry["path"] == path), None)
     if item is None:
         return source
@@ -271,11 +503,11 @@ def _source_before_compact_window(path: str, review: dict | None = None) -> byte
 
 def _state_before_compact_window(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     review = _compact_window_review(review)
-    manifest = json.loads(MANIFEST.read_text()) if manifest is None else manifest
+    manifest, inventory = _state_before_exit1000(manifest)
     assert len(manifest["pinned_files"]) == review["pin_count"] == 227
     assert _canonical_sha256(manifest) == review["current_manifest_canonical_sha256"]
     for path, expected in manifest["pinned_files"].items():
-        assert not (ROOT / path).is_symlink() and _sha256(ROOT / path) == expected
+        assert not (ROOT / path).is_symlink() and hashlib.sha256(_source_before_exit1000(path)).hexdigest() == expected
     for item in review["source_changes"]:
         _source_before_compact_window(item["path"], review)
     before = _source_before_compact_window("models/decision_model_freeze.json", review)
@@ -285,21 +517,20 @@ def _state_before_compact_window(manifest: dict | None = None, review: dict | No
     expected = copy.deepcopy(manifest)
     for path in COMPACT_WINDOW_ADDED_PINS:
         assert path not in restored["pinned_files"]
-        assert expected["pinned_files"].pop(path) == _sha256(ROOT / path)
+        assert expected["pinned_files"].pop(path) == hashlib.sha256(_source_before_exit1000(path)).hexdigest()
     for path in COMPACT_WINDOW_EXISTING_PATHS & set(expected["pinned_files"]):
         expected["pinned_files"][path] = hashlib.sha256(_source_before_compact_window(path, review)).hexdigest()
     assert expected == restored  # Complete prior map and non-pin model identity.
     assert restored["source_surface_rotation"] == manifest["source_surface_rotation"]
     dep = review["inventory_update"]
     assert dep["path"] == "forward/model_inventory.json"
-    inventory = json.loads((ROOT / dep["path"]).read_text())
     assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
     assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
     assert inventory["dependency_successor_review"] == dict(
         path=COMPACT_WINDOW_REVIEW.relative_to(ROOT).as_posix(), sha256=COMPACT_WINDOW_REVIEW_SHA,
         approved_base_commit=review["approved_base_commit"], scope=dep["current_scope"])
     for asset in inventory["assets"]:
-        raw = (ROOT / asset["path"]).read_bytes()
+        raw = _source_before_exit1000(asset["path"])
         assert not (ROOT / asset["path"]).is_symlink()
         assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
     protected = copy.deepcopy(inventory)
@@ -925,7 +1156,7 @@ def _state_before_verify_close(manifest: dict | None = None) -> tuple[dict, dict
 def test_verify_import_fix_and_close_column_do_not_change_models_or_validation_policy():
     _state_before_verify_close()
     previous = _source_before_verify_close("scripts/sync_frozen_shadow_truth.py").decode()
-    current = (ROOT / "scripts/sync_frozen_shadow_truth.py").read_text()
+    current = _source_before_exit1000("scripts/sync_frozen_shadow_truth.py").decode()
     assert current.split("from top10decision", 1)[1] == previous.split("from top10decision", 1)[1]
     assert 'sys.path[:0] = [str(ROOT), str(ROOT / "src")]' in current
     for path in ("scripts/validate_verify_forecast_inputs.py", ".github/workflows/verify_decision_observations.yml", "scripts/settle_primary_observations.py"):

@@ -25,6 +25,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 from scripts.publish_primary_three_rank import build_primary_d_runtime_index
 from scripts.settle_primary_observations import observation_row
 from top10decision.decision import executable_profit_shadow_settlement as settlement
+from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes
 from top10decision.decision.primary_profit_forward_shadow_bridge import (
     validate_primary_profit_forward_shadow_public_index,
     validate_primary_profit_forward_shadow_public_state,
@@ -181,6 +182,7 @@ def profit_section(sources, signal_date, dates, closed):
     require(len(paths) == len(items) == len(set(paths)), "statistics manifest duplicate")
     inputs = {item["path"]: item["sha256"] for item in items}
     records, recorded_days = [], 0
+    new_policy_window = asof >= settlement.EXIT_POLICY_EFFECTIVE_DATE
     for path in sorted(inputs):
         match = re.fullmatch(r"data/decision_executable_profit/forward/selections/shadow_(20\d{6})\.json", path)
         if not match or not START <= match[1] <= asof:
@@ -189,6 +191,8 @@ def profit_section(sources, signal_date, dates, closed):
         require(d <= signal_date, "statistics contain a selection after report D")
         sources.read(path, inputs[path])
         selection_path, selection, selected = original_validator(settlement.load_selection, sources.root, d)
+        if new_policy_window and selection["exit_date"] < settlement.EXIT_POLICY_EFFECTIVE_DATE:
+            continue  # Legacy evidence is preserved, not mixed into the new exit cohort.
         original_validator(settlement._validate_adjacent_dates, dates, d, selection["exec_date"], selection["exit_date"])
         require(selection.get("schema_version") == settlement.PRIMARY_MIXED_SELECTION_SCHEMA
                 and selection.get("source_bindings", {}).get("mixed_projection", {}).get("generation_mode") == "NATURAL"
@@ -212,6 +216,8 @@ def profit_section(sources, signal_date, dates, closed):
                 date = re.search(r"/(20\d{6})/", raw["path"])
                 require(date is not None and date[1] <= asof, "future market source")
             if relative == t1_path:
+                if truth.get("schema_version") == settlement.SETTLEMENT_SCHEMA_V3:
+                    sources.read(truth["exit_policy"]["path"], truth["exit_policy"]["sha256"])
                 require(t_path in inputs and truth.get("t_verification", {}).get("file_sha256") == inputs[t_path], "settlement T SHA mismatch")
                 for row in truth["rows"]:
                     if row.get("proxy_fill") == 1:
@@ -233,7 +239,12 @@ def profit_section(sources, signal_date, dates, closed):
                 stress_net_return=t1.get("stress_net_return") if t1 else None,
                 strategy_slot_return=t1.get("strategy_slot_return") if t1 else 0.0 if fill == 0 else None,
                 delayed_trading_days=t1.get("delayed_trading_days") if t1 else None,
-                blocked_exit_sessions=t1.get("blocked_exit_sessions") if t1 else 0))
+                blocked_exit_sessions=t1.get("blocked_exit_sessions") if t1 else 0,
+                exit_overdue_or_held=fill == 1 and t1 is None and asof >= selection["exit_date"],
+                exit_policy_id=settlement.EXIT_POLICY_ID_1000 if selection["exit_date"] >= settlement.EXIT_POLICY_EFFECTIVE_DATE else "LEGACY_T1_OPEN"))
+    if any(row["exit_policy_id"] == settlement.EXIT_POLICY_ID_1000 for row in records):
+        policy = settlement._load_exit_policy_1000(sources.root)
+        sources.read(policy["path"], policy["sha256"])
     groups = {"all_selected_slots": records, "shadow_slot_1": [r for r in records if r["shadow_slot"] == 1],
               "shadow_slot_2": [r for r in records if r["shadow_slot"] == 2],
               "stage_2_to_3": [r for r in records if r["stage_transition"] == "2→3"],
@@ -259,14 +270,22 @@ def numeric(value):
 
 def promotion_section(sources, signal_date, dates, closed):
     summary = sources.json(PRIMARY_SUMMARY)
-    require(summary.get("schema_version") == "dc20_primary_observation_summary_v1"
+    require(summary.get("schema_version") in ("dc20_primary_observation_summary_v1", "dc20_primary_observation_summary_v2")
             and summary.get("public_start_signal_date") == "20260828" and summary.get("scope") == "frozen_primary_topn", "primary observation identity mismatch")
     policy = summary.get("policy", {})
-    require(policy.get("id") == "p0_daily_open_observation_proxy_v1" and policy.get("round_trip_cost_rate") == 0.0045
+    versioned_exit = summary.get("schema_version") == "dc20_primary_observation_summary_v2"
+    require(policy.get("id") == ("p0_daily_open_entry_versioned_exit_observation_proxy_v2" if versioned_exit else "p0_daily_open_observation_proxy_v1"), "observation schema and policy mismatch")
+    require(policy.get("id") in ("p0_daily_open_observation_proxy_v1", "p0_daily_open_entry_versioned_exit_observation_proxy_v2") and policy.get("round_trip_cost_rate") == 0.0045
             and policy.get("mixed_shadow_ledger_included") is False and policy.get("retrospective_recovery_included") is False
             and policy.get("official_trade_action_created") is False, "primary observation policy mismatch")
     require(summary.get("rows_path") == PRIMARY_ROWS, "primary row path mismatch")
     asof = valid_asof(summary.get("as_of_date"), dates, closed)
+    if versioned_exit:
+        exit_binding = policy.get("exit_policy_config", {})
+        require(exit_binding.get("path") == settlement.EXIT_POLICY_PATH_1000.as_posix(), "exit policy config path mismatch")
+        sources.read(exit_binding["path"], exit_binding.get("sha256"))
+    else:
+        require(asof < settlement.EXIT_POLICY_EFFECTIVE_DATE, "legacy observation cannot settle new-policy dates")
     require(asof >= START, "promotion source predates display window")
     raw = sources.read(PRIMARY_ROWS, summary.get("rows_sha256"))
     reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig"), newline=""))
@@ -283,7 +302,17 @@ def promotion_section(sources, signal_date, dates, closed):
     require(isinstance(raw_inputs, list) and all(isinstance(i, dict) for i in raw_inputs), "primary truth sources missing")
     raw_paths = [item.get("path") for item in raw_inputs]
     require(len(raw_paths) == len(set(raw_paths)), "primary raw manifest duplicate")
+    if versioned_exit:
+        require(exit_binding in raw_inputs, "exit policy missing from observation source manifest")
     table_cache = {}
+    def minutes(date, code):
+        require(date <= asof, "future observation minute source read")
+        loaded = original_validator(load_exit_minutes, sources.root, date, code)
+        if loaded:
+            for item in loaded["source_files"]:
+                require(item in raw_inputs, "minute truth missing from bound observation source manifest")
+                sources.read(item["path"], item["sha256"])
+        return loaded
     def tables(date, name):
         require(date <= asof, "future observation source read")
         key = (date, name)
@@ -344,15 +373,16 @@ def promotion_section(sources, signal_date, dates, closed):
             pending_t = status in ("PENDING_T", "MISSING_T_TRUTH")
             require(identity and row.get("name") == identity["name"] and rank == identity["promotion_rank"]
                     and (row.get("exec_date"), row.get("exit_date")) == (t, t1)
-                    and row.get("truth_source") == "daily_open_proxy" and row.get("actual_order_fill_observed") == "False", "observation identity mismatch")
-            require(status in ("PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"), "unknown observation status")
+                    and row.get("truth_source") == ("daily_open_entry_minute_exit_proxy" if versioned_exit and t1 >= settlement.EXIT_POLICY_EFFECTIVE_DATE else "daily_open_proxy")
+                    and row.get("actual_order_fill_observed") == "False", "observation identity mismatch")
+            require(status in ("PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "PENDING_EXIT_PROXY", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"), "unknown observation status")
             require((hit is None and fill is None) if pending_t else (hit in (0, 1) and fill in (0, 1)), "T truth/status conflict")
             require((net is not None and slot == net and fill == 1) if status == "FINAL_VERIFIED_PROXY" else net is None, "observation filled return conflict")
             require((slot == 0 and fill == 0) if status == "FINAL_NO_FILL_PROXY" else (status == "FINAL_VERIFIED_PROXY" or slot is None), "observation no-fill return conflict")
             require(not ((not pending_t and asof < t) or (status == "PENDING_T" and asof >= t)
                 or (status == "MISSING_T_TRUTH" and asof < t) or (status == "PENDING_T1" and asof >= t1)
                 or (status in ("MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY") and asof < t1)), "observation maturity mismatch")
-            reproduced = observation_row(identity, d, t, t1, asof, tables, dates)
+            reproduced = observation_row(identity, d, t, t1, asof, tables, dates, minute_loader=minutes)
             require(status == reproduced["validation_status"], "observation status differs from bound daily truth")
             for key, value in (("continuation_limit_up_hit", hit), ("proxy_fill", fill), ("actual_net_return", net), ("slot_net_return", slot)):
                 expected = reproduced.get(key)
@@ -361,12 +391,20 @@ def promotion_section(sources, signal_date, dates, closed):
             if status == "FINAL_VERIFIED_PROXY":
                 require(row.get("actual_exit_date") in dates and t1 <= row["actual_exit_date"] <= asof
                         and row["actual_exit_date"] == reproduced["actual_exit_date"], "future observation exit")
+            if versioned_exit and t1 >= settlement.EXIT_POLICY_EFFECTIVE_DATE:
+                for key in ("exit_policy_id", "actual_exit_time", "decision_time", "execution_bar_start", "execution_bar_end", "exit_time_semantics"):
+                    require((row.get(key) or None) == reproduced.get(key), "observation exit policy or timing differs from bound minute truth")
+                price = numeric(row.get("actual_exit_price"))
+                expected_price = reproduced.get("actual_exit_price")
+                require(price is None if expected_price is None else price is not None and abs(price - expected_price) < 1e-12,
+                        "observation exit price differs from bound minute truth")
             clean.append(dict(rank=int(rank), hit=hit, net=net, slot=slot, status=status))
         counts = dict(t_validated_rows=sum(r["hit"] is not None for r in clean),
                       final_verified_trades=sum(r["net"] is not None for r in clean), settled_rows=sum(r["slot"] is not None for r in clean))
         counts.update({key: sum(r["status"] == status for r in clean) for key, status in (
             ("pending_t_rows", "PENDING_T"), ("pending_t1_rows", "PENDING_T1"), ("missing_t_truth_rows", "MISSING_T_TRUTH"),
             ("missing_t1_truth_rows", "MISSING_T1_TRUTH"), ("unresolved_exit_rows", "UNRESOLVED_EXIT_PROXY"))})
+        counts["pending_t1_rows"] += sum(r["status"] == "PENDING_EXIT_PROXY" for r in clean)
         require(all(day.get(key) == count for key, count in counts.items()), "observation daily counts mismatch")
         rows_for_window.extend(clean)
     ranks = []
@@ -402,7 +440,11 @@ def validate_window(payload):
                 cohorts = section["cohorts"]
                 require(isinstance(cohorts, dict) and set(cohorts) == {"all_selected_slots", "shadow_slot_1", "shadow_slot_2", "stage_2_to_3", "stage_3_to_4"}, "profit cohort surface invalid")
                 for cohort in cohorts.values():
-                    require(isinstance(cohort, dict) and set(cohort) == set(settlement._cohort_metrics([])), "profit cohort fields invalid")
+                    extra = {"exit_policy_ids", "return_policy_status"}
+                    require(isinstance(cohort, dict) and set(settlement._cohort_metrics([])) <= set(cohort)
+                            and set(cohort) <= set(settlement._cohort_metrics([])) | extra, "profit cohort fields invalid")
+                    if "exit_policy_ids" in cohort:
+                        require(cohort["exit_policy_ids"] == [settlement.EXIT_POLICY_ID_1000], "mixed exit policies in active profit window")
                     for key in ("selected_slots", "selection_dates", "effective_dates", "t_validated_slots", "proxy_fill_slots", "proxy_no_fill_slots", "t1_settled_slots", "wins_after_cost", "terminal_slots", "pending_slots", "pending_validation_slots", "pending_settlement_slots"):
                         require(type(cohort[key]) is int and cohort[key] >= 0, "profit count invalid")
                     require(cohort["wins_after_cost"] <= cohort["t1_settled_slots"] <= cohort["proxy_fill_slots"]
@@ -413,7 +455,8 @@ def validate_window(payload):
                     require((cohort["win_rate"] is None and cohort["mean_net_return_after_cost"] is None) if not settled else
                             (cohort["mean_net_return_after_cost"] is not None and abs(cohort["win_rate"]-cohort["wins_after_cost"]/settled) < 1e-10), "profit win/mean invalid")
                     daily = cohort["daily_portfolio"]
-                    require(isinstance(daily, list) and len(daily) == cohort["effective_dates"], "profit completed days invalid")
+                    pending_capital = cohort.get("return_policy_status") == "OPEN_OR_DELAYED_POSITIONS_NOT_CAPITAL_NAV"
+                    require(isinstance(daily, list) and (not daily if pending_capital else len(daily) == cohort["effective_dates"]), "profit completed days invalid")
                     dates = [row.get("signal_date") for row in daily]
                     require(dates == sorted(set(dates)) and all(START <= d <= min(section["as_of_date"], payload["report_signal_date"]) for d in dates), "profit portfolio dates invalid")
                     rebuilt = settlement._portfolio_metrics([(row["signal_date"], row["equal_weight_strategy_return"]) for row in daily])

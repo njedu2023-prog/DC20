@@ -495,6 +495,21 @@ jobs:
                           relative=binding['path']
                           if as_of_date not in Path(relative).parts:
                               continue
+                          minute_match=re.fullmatch(
+                              r'data/market/exit_1000_1m/(20[0-9]{2})/(20[0-9]{6})/'
+                              r'([0-9]{6})_(SH|SZ)\.(?:csv|meta\.json)', relative,
+                          )
+                          if minute_match is not None:
+                              if minute_match[1] != as_of_date[:4] or minute_match[2] != as_of_date or as_of_date < '20260914':
+                                  raise ValueError('Verify bound minute source path/date is not exact')
+                              from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes
+                              minutes=load_exit_minutes(root,as_of_date,f'{minute_match[3]}.{minute_match[4]}')
+                              if minutes is None or binding not in minutes['source_files']:
+                                  raise ValueError('Verify bound minute source pair/SHA drifted')
+                              # Minutes must remain valid, but do not establish
+                              # that the separate daily/auction raw partition
+                              # is already bound and may skip its strict sync.
+                              continue
                           match=re.fullmatch(
                               r'data/market/raw/(20[0-9]{2})/(20[0-9]{6})/'
                               r'(daily\.csv|stk_limit\.csv|stk_auction_o\.csv|'
@@ -623,6 +638,16 @@ jobs:
           set -euo pipefail
           python scripts/sync_frozen_shadow_truth.py --root . --as-of-date "${AS_OF_DATE}" \
             --report "${RUNNER_TEMP}/verify-frozen-shadow-truth-sync.json"
+      - name: Sync exact minute sessions for verified open proxy positions
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date "${AS_OF_DATE}" \
+            --report "${RUNNER_TEMP}/verify-exit-1000-minute-sync.json"
       - name: Settle observation truth without changing action ownership
         if: ${{ steps.session.outputs.is_open == 'true' && steps.forecast_gate.outputs.contract_mode == 'LEGACY_AUCTION' }}
         env:
@@ -1039,6 +1064,21 @@ jobs:
                       raise SystemExit('Verify frozen truth sync bytes drifted')
                   subprocess.run(['git','add','--',relative],check=True)
           PY
+      - name: Stage validated exact exit-minute source pairs
+        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' && steps.forecast_gate.outputs.contract_mode == 'PRIMARY_FROZEN_FORECASTS' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+          AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
+        run: |
+          set -euo pipefail
+          EXIT_MINUTE_REPORT="${RUNNER_TEMP}/verify-exit-1000-minute-sync.json" python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from scripts.sync_exit_1000_minute_truth import validated_written_paths
+          report = json.loads(Path(os.environ['EXIT_MINUTE_REPORT']).read_text(encoding='utf-8'))
+          for relative in validated_written_paths(Path('.'), report, os.environ['AS_OF_DATE']):
+              subprocess.run(['git', 'add', '--', relative], check=True)
+          PY
       - name: Build exact allowlisted Verify candidate patch
         id: candidate
         if: ${{ steps.session.outputs.is_open == 'true' }}
@@ -1074,6 +1114,15 @@ jobs:
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
+          def exit_minute_path_is_valid(path):
+              import re
+              match = re.fullmatch(r'data/market/exit_1000_1m/(20\d{2})/(20\d{6})/\d{6}_(?:SH|SZ)\.(?:csv|meta\.json)', path)
+              if match is None or match[1] != match[2][:4] or match[2] < '20260914':
+                  return False
+              try:
+                  return datetime.strptime(match[2], '%Y%m%d').strftime('%Y%m%d') == match[2]
+              except ValueError:
+                  return False
           allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
@@ -1081,6 +1130,7 @@ jobs:
           allowed += ('outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????_sha256_????????????????????????????????????????????????????????????????.json', 'data/decision_executable_profit/forward/statistics/snapshots/summary_asof_20??????_sha256_????????????????????????????????????????????????????????????????.json')
           allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}.meta.json' for name in ('daily','stk_limit'))
           allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}' for name in ('stk_auction.csv','_sync_meta.json'))
+          allowed += tuple(f'data/market/exit_1000_1m/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/*{suffix}' for suffix in ('.csv','.meta.json'))
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -1135,7 +1185,7 @@ jobs:
               except ValueError:
                   return False
           paths=[p.decode() for p in Path(os.environ['STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p) or not snapshot_path_is_valid(p)]
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p) or not snapshot_path_is_valid(p) or (p.startswith('data/market/exit_1000_1m/') and not exit_minute_path_is_valid(p))]
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden_selection))
           if bad: raise SystemExit(f'non-allowlisted Verify paths staged: {bad}')
@@ -1234,6 +1284,15 @@ jobs:
           import fnmatch, os
           from datetime import datetime
           from pathlib import Path
+          def exit_minute_path_is_valid(path):
+              import re
+              match = re.fullmatch(r'data/market/exit_1000_1m/(20\d{2})/(20\d{6})/\d{6}_(?:SH|SZ)\.(?:csv|meta\.json)', path)
+              if match is None or match[1] != match[2][:4] or match[2] < '20260914':
+                  return False
+              try:
+                  return datetime.strptime(match[2], '%Y%m%d').strftime('%Y%m%d') == match[2]
+              except ValueError:
+                  return False
           allowed=('outputs/auction_v3/verification/observation_*.csv','outputs/auction_v3/verification/manual_actual_latest.csv','outputs/auction_v3/metrics/observation_cumulative_latest.json','outputs/auction_v3/metrics/manual_actual_cumulative_latest.json','data/market/trade_cal_sse.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/daily.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_limit.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.csv','data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/stk_auction_o.meta.json','data/decision_executable_profit/forward/verifications/t_verification_20??????.json','data/decision_executable_profit/forward/settlements/settlement_20??????.json','data/decision_executable_profit/forward/statistics/summary.json','outputs/decision/executable_profit_research/projection_20??????.json','outputs/decision/executable_profit_research/projection_20??????.csv','outputs/decision/executable_profit_research/shadow_statistics_20??????_asof_20??????.json','outputs/decision/executable_profit_research/index.json','outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????.json','outputs/decision/executable_profit_research/shadow_index.json')
           forbidden=('outputs/decision/action_plan_*.json','outputs/decision/report_index.json')
           forbidden_selection=('data/decision_executable_profit/forward/selections/**',)
@@ -1241,6 +1300,7 @@ jobs:
           allowed += ('outputs/decision/executable_profit_research/shadow_state_20??????_asof_20??????_sha256_????????????????????????????????????????????????????????????????.json', 'data/decision_executable_profit/forward/statistics/snapshots/summary_asof_20??????_sha256_????????????????????????????????????????????????????????????????.json')
           allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}.meta.json' for name in ('daily','stk_limit'))
           allowed += tuple(f'data/market/raw/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/{name}' for name in ('stk_auction.csv','_sync_meta.json'))
+          allowed += tuple(f'data/market/exit_1000_1m/20[0-9][0-9]/20[0-9][0-9][0-9][0-9][0-9][0-9]/*{suffix}' for suffix in ('.csv','.meta.json'))
           def matches(path, pattern):
               path_parts=path.split('/')
               pattern_parts=pattern.split('/')
@@ -1295,7 +1355,7 @@ jobs:
               except ValueError:
                   return False
           paths=[p.decode() for p in Path(os.environ['PUBLISH_STAGED_PATHS']).read_bytes().split(b'\0') if p]
-          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p) or not snapshot_path_is_valid(p)]
+          bad=[p for p in paths if not any(matches(p,a) for a in allowed) or not dated_raw_path_is_valid(p) or not snapshot_path_is_valid(p) or (p.startswith('data/market/exit_1000_1m/') and not exit_minute_path_is_valid(p))]
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden))
           bad.extend(p for p in paths if any(matches(p,a) for a in forbidden_selection))
           if bad: raise SystemExit(f'non-allowlisted Verify publish paths staged: {bad}')

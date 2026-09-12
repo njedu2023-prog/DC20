@@ -1,0 +1,23 @@
+{
+  "schema_version": "dc20_shadow_exit_policy_v1",
+  "policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "status": "ACTIVE_RULE_NEW_MODEL_TRAINING_REQUIRED",
+  "effective_scheduled_exit_date": "20260914",
+  "timezone": "Asia/Shanghai",
+  "ordinary_exit_decision_time": "10:00:00",
+  "first_sell_eligible_session": "T_PLUS_1_STRICT_EXCHANGE_SESSION",
+  "limit_up_hold": "HOLD_WHILE_OBSERVED_SEALED_USING_EACH_SESSION_LIMIT",
+  "seal_break_exit": "FIRST_OBSERVED_BREAK_AFTER_SEAL_FROM_SELL_ELIGIBLE_DAY",
+  "execution_price": "NEXT_BAR_OPEN_MINUTE_PROXY_NOT_ACTUAL_FILL",
+  "missing_minute_truth": "PENDING_NO_DAILY_OPEN_FALLBACK",
+  "blocked_exit": "RETAIN_POSITION_AND_PENDING_SELL_UNTIL_TRADABLE",
+  "legacy_open_exit": "ARCHIVE_ONLY_FOR_EXITS_BEFORE_20260914",
+  "existing_terminal_records": "IMMUTABLE",
+  "always_record_frozen_top1_top2": true,
+  "profit_threshold_skip_allowed": false,
+  "entry_policy_changed": false,
+  "promotion_model_changed": false,
+  "new_profit_model_trained": false,
+  "old_open_exit_labels_allowed_for_new_model": false,
+  "actual_execution_claimed": false
+}

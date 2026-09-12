@@ -1504,7 +1504,7 @@
 
     function validatedPublicObservationStatistics(payload) {
       if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-      if (payload.schema_version !== "dc20_primary_observation_summary_v1") return null;
+      if (!["dc20_primary_observation_summary_v1", "dc20_primary_observation_summary_v2"].includes(payload.schema_version)) return null;
       if (payload.scope !== "frozen_primary_topn") return null;
       if (canonicalYmd(payload.public_start_signal_date) !== PUBLIC_STATISTICS_START_SIGNAL_DATE) return null;
       if (!["READY", "PARTIAL_TRUTH", "PENDING_DATES"].includes(payload.status)) return null;
@@ -1527,8 +1527,9 @@
       if (!Array.isArray(rows) || !Array.isArray(payload.bindings)) return null;
       const policy = payload.policy;
       if (!policy || policy.missing_truth_is_zero_return !== false || policy.mixed_shadow_ledger_included !== false || policy.retrospective_recovery_included !== false || policy.official_trade_action_created !== false) return null;
+      if (payload.schema_version === "dc20_primary_observation_summary_v2" && (policy.id !== "p0_daily_open_entry_versioned_exit_observation_proxy_v2" || policy.current_exit_policy_id !== "dc20_exit_1000_limit_hold_20260912_v1" || policy.exit_policy_effective_scheduled_date !== "20260914" || policy.exit_policy_config?.path !== "models/decision_shadow_exit_policy_1000_v1.json" || !/^[0-9a-f]{64}$/.test(policy.exit_policy_config?.sha256 || ""))) return null;
       if (policy.performance_role !== "historical_reconstruction_of_frozen_P0_predictions" || policy.return_strategy_forward_evidence !== false || !canonicalYmd(policy.policy_definition_date)) return null;
-      const curveReasons = ["UNRESOLVED_OR_MISSING_MATURE_TRUTH", "DELAYED_EXIT_CAPITAL_OVERLAP_NOT_MODELED", "NO_COMPLETE_COHORT", "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV"];
+      const curveReasons = ["UNRESOLVED_OR_MISSING_MATURE_TRUTH", "DELAYED_EXIT_CAPITAL_OVERLAP_NOT_MODELED", "NO_COMPLETE_COHORT", "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV", "MIXED_EXIT_POLICIES_RETURNS_NOT_COMBINED"];
       if (!curveReasons.includes(statistics.portfolio_curve_reason)) return null;
       if (statistics.portfolio_curve_reason !== "SYNTHETIC_PER_D_RESEARCH_ONLY_NOT_CAPITAL_NAV" && (statistics.equal_slot_cumulative_return !== null || statistics.equal_slot_max_drawdown !== null)) return null;
       let previousDate = "";
@@ -1700,7 +1701,7 @@
       state.promotionSlotStatistics = null;
       state.promotionSlotError = "晋级分席统计尚未发布";
       try {
-        if (!summary || summary.policy?.id !== "p0_daily_open_observation_proxy_v1" ||
+        if (!summary || !["p0_daily_open_observation_proxy_v1", "p0_daily_open_entry_versioned_exit_observation_proxy_v2"].includes(summary.policy?.id) ||
             summary.policy.round_trip_cost_rate !== 0.0045 ||
             summary.rows_path !== "outputs/decision/primary_observation/rows.csv" || !isSha256(summary.rows_sha256)) throw new Error("晋级分席来源或扣费口径未通过校验");
         const bytes = await fetchPublishedBytes(summary.rows_path);
@@ -1829,7 +1830,7 @@
           executableProfitExpect(c.t1_settled_slots ? c.win_rate != null && Math.abs(c.win_rate - c.wins_after_cost / c.t1_settled_slots) < 0.000001 && c.mean_net_return_after_cost != null : c.win_rate == null && c.mean_net_return_after_cost == null, "盈利胜率与结算样本不一致");
           const pending = `${c.pending_validation_slots} / ${c.pending_settlement_slots}`;
           const noSettled = c.pending_slots ? "待验证" : c.selected_slots ? "暂无成交结算" : "暂无入选";
-          const blocked = c.blocked_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0;
+          const blocked = c.blocked_exit_slots > 0 || c.delayed_exit_slots > 0 || c.blocked_exit_sessions > 0 || c.return_policy_status === "OPEN_OR_DELAYED_POSITIONS_NOT_CAPITAL_NAV";
           const cumulative = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.equal_weight_cumulative_return);
           const drawdown = blocked ? "暂不累计" : !c.effective_dates ? "待验证" : signedPct(c.maximum_drawdown);
           return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit" aria-label="盈利排序第${slot}名">盈${slot}</span></th><td>${c.selected_slots}</td><td>${pending}</td><td>${c.wins_after_cost} / ${c.t1_settled_slots}</td><td>${c.t1_settled_slots ? pct(c.win_rate) : noSettled}</td><td class="${valueTone(c.t1_settled_slots ? c.mean_net_return_after_cost : null)}">${c.t1_settled_slots ? signedPct(c.mean_net_return_after_cost) : noSettled}</td><td><span class="profit-cumulative-inline"><span class="${valueTone(!blocked && c.effective_dates ? c.equal_weight_cumulative_return : null)}">${cumulative}</span><span class="score-secondary">${c.effective_dates} 个完整日</span></span></td><td class="${valueTone(!blocked && c.effective_dates ? c.maximum_drawdown : null)}">${drawdown}</td></tr>`;
@@ -2492,7 +2493,8 @@
         PENDING_T1: `等待 T+1 ${dateText(contract.exit_date)}`,
         PENDING_T1_CLOSE: `T+1 ${dateText(contract.exit_date)} 收盘后核验`,
         MISSING_T1_TRUTH: "到期退出行情待更新",
-        UNRESOLVED_EXIT_PROXY: "退出不可执行，等待顺延核验",
+        UNRESOLVED_EXIT_PROXY: "退出受阻",
+        PENDING_EXIT_PROXY: "封板延持",
         FINAL_VERIFIED_PROXY: "已结算（日开盘代理）",
         FINAL_NO_FILL_PROXY: "开盘代理未买入（非0成交收益）",
         OBSERVATION_MISSING: "逐行验证尚未发布",
@@ -2589,10 +2591,11 @@
         throw new Error("逐行观察与D/T/T+1或冻结名单SHA不一致");
       }
       if (binding.status === "EXCLUDED_RETROSPECTIVE") return { ...base, status: "EXCLUDED_RETROSPECTIVE", rows: [] };
-      if (binding.status !== "PROSPECTIVE" || summary.policy?.id !== "p0_daily_open_observation_proxy_v1" || summary.policy?.round_trip_cost_rate !== 0.0045 ||
+      if (binding.status !== "PROSPECTIVE" || !["p0_daily_open_observation_proxy_v1", "p0_daily_open_entry_versioned_exit_observation_proxy_v2"].includes(summary.policy?.id) || summary.policy?.round_trip_cost_rate !== 0.0045 ||
           summary.rows_path !== "outputs/decision/primary_observation/rows.csv" || !isSha256(summary.rows_sha256)) {
         throw new Error("逐行观察来源合同无效");
       }
+      if (contract.exit_date >= "20260914" && summary.as_of_date >= "20260914" && (summary.schema_version !== "dc20_primary_observation_summary_v2" || summary.policy.id !== "p0_daily_open_entry_versioned_exit_observation_proxy_v2")) throw new Error("新退出日期不能发布旧开盘结果");
       const raw = await fetchPublishedBytes(summary.rows_path);
       if (await sha256Hex(raw) !== summary.rows_sha256) throw new Error("逐行观察CSV SHA256不一致");
       const all = parseStrictCsvBytes(raw, ["signal_date", "exec_date", "exit_date", "ts_code", "name", "promotion_rank", "continuation_limit_up_hit", "actual_net_return", "slot_net_return", "validation_status", "actual_order_fill_observed", "truth_source"], "晋级名单逐行观察");
@@ -2608,7 +2611,7 @@
         if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) || !Number.isFinite(Number(value))) throw new Error(`${label}不是有限数值`);
         return Number(value);
       };
-      const allowed = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
+      const allowed = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "PENDING_EXIT_PROXY", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
       const beijingNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
       if (beijingNow.getUTCHours() < 15) beijingNow.setUTCDate(beijingNow.getUTCDate() - 1);
       const closedThrough = beijingNow.toISOString().slice(0, 10).replaceAll("-", "");
@@ -2616,7 +2619,10 @@
         const row = byCode.get(frozen.ts_code);
         if (!row || row.exec_date !== contract.exec_date || row.exit_date !== contract.exit_date || row.name !== frozen.name ||
             numeric(row.promotion_rank, "晋级名次") !== frozen.promotion_rank || row.actual_order_fill_observed !== "False" ||
-            row.truth_source !== "daily_open_proxy" || !allowed.includes(row.validation_status)) throw new Error("逐行观察证券身份、名次或代理合同不一致");
+            row.truth_source !== (row.exit_policy_id === "dc20_exit_1000_limit_hold_20260912_v1" ? "daily_open_entry_minute_exit_proxy" : "daily_open_proxy") || !allowed.includes(row.validation_status)) throw new Error("逐行观察证券身份、名次或代理合同不一致");
+        if (summary.schema_version === "dc20_primary_observation_summary_v2" && contract.exit_date >= "20260914" &&
+            row.exit_policy_id !== "dc20_exit_1000_limit_hold_20260912_v1") throw new Error("新退出日期不能使用旧开盘规则");
+        if (row.validation_status === "PENDING_EXIT_PROXY" && (summary.as_of_date < contract.exit_date || row.exit_policy_id !== "dc20_exit_1000_limit_hold_20260912_v1")) throw new Error("封板延持日期或政策无效");
         const hit = numeric(row.continuation_limit_up_hit, "T晋级真值"), net = numeric(row.actual_net_return, "代理净收益"), slot = numeric(row.slot_net_return, "槽位收益");
         const tPending = ["PENDING_T", "MISSING_T_TRUTH"].includes(row.validation_status);
         if ((tPending ? hit !== null : ![0, 1].includes(hit)) ||
@@ -2628,8 +2634,13 @@
             (row.validation_status.startsWith("FINAL_") && summary.as_of_date < contract.exit_date)) throw new Error("逐行观察使用未来日期真值");
         const actualExit = canonicalYmd(row.actual_exit_date);
         if (row.validation_status === "FINAL_VERIFIED_PROXY" && (!actualExit || actualExit < contract.exit_date || actualExit > summary.as_of_date || actualExit > closedThrough)) throw new Error("代理实际退出日期不在已验证窗口内");
+        if (row.exit_policy_id === "dc20_exit_1000_limit_hold_20260912_v1" && row.validation_status === "FINAL_VERIFIED_PROXY") {
+          const stamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+08:00$/;
+          if (![row.actual_exit_time, row.decision_time, row.execution_bar_start, row.execution_bar_end].every(value => stamp.test(value || "") && Number.isFinite(Date.parse(value))) || row.actual_exit_time !== row.execution_bar_start || row.actual_exit_time.slice(0,10).replaceAll("-", "") !== actualExit || Date.parse(row.execution_bar_start) < Date.parse(row.decision_time) || Date.parse(row.execution_bar_end) - Date.parse(row.execution_bar_start) !== 60000 || row.exit_time_semantics !== "NEXT_BAR_OPEN_MINUTE_PROXY") throw new Error("10:00退出时间口径无效");
+        }
         return { ts_code: row.ts_code, continuation_limit_up_hit: hit, actual_net_return: net,
-          validation_status: row.validation_status, actual_exit_date: actualExit };
+          validation_status: row.validation_status, actual_exit_date: actualExit,
+          exit_policy_id: row.exit_policy_id || null, actual_exit_time: row.actual_exit_time || null };
       });
       return { ...base, status: "READY", as_of_date: summary.as_of_date, rows };
     }

@@ -24,6 +24,7 @@ on:
       - models/decision_three_engines/validation_latest.json
       - models/decision_three_rank_history_sources.json
       - models/decision_compact_statistics_window_v1.json
+      - models/decision_shadow_exit_policy_1000_v1.json
       - src/top10decision/decision/legacy_profit_relative_research.py
       - requirements.lock
       - scripts/build_decision_three_rank_history.py
@@ -1751,6 +1752,8 @@ jobs:
                   r'data/decision_executable_profit/forward/settlements/settlement_20[0-9]{6}\.json',
                   r'data/decision_executable_profit/forward/statistics/snapshots/summary_asof_20[0-9]{6}_sha256_[0-9a-f]{64}\.json',
                   r'data/market/raw/20[0-9]{2}/20[0-9]{6}/(?:(?:daily|stk_limit|stk_auction|stk_auction_o)\.csv|stk_auction_o\.meta\.json|_sync_meta\.json)',
+                  r'data/market/exit_1000_1m/20[0-9]{2}/20[0-9]{6}/[0-9]{6}_(?:SH|SZ)\.(?:csv|meta\.json)',
+                  r'models/decision_shadow_exit_policy_1000_v1\.json',
               )
               exact_sources={}
               for binding in payload['source_files']:

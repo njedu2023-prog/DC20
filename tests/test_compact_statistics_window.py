@@ -33,6 +33,8 @@ def binding(root, path, value):
 @pytest.fixture
 def empty_root(tmp_path):
     put(tmp_path, window.CONFIG_PATH, window.CONFIG)
+    exit_policy = window.settlement.EXIT_POLICY_PATH_1000.as_posix()
+    put(tmp_path, exit_policy, (ROOT / exit_policy).read_bytes())
     calendar = tmp_path / window.settlement.CALENDAR_PATH
     calendar.parent.mkdir(parents=True, exist_ok=True)
     calendar.write_bytes((ROOT / window.settlement.CALENDAR_PATH).read_bytes())
