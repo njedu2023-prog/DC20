@@ -184,7 +184,7 @@ def test_invalid_json_has_only_safe_reason_digest_and_size(raw, reason):
     assert "top_level_fields" not in result
 
 
-@pytest.mark.parametrize("raw", [b"", b"x" * 4_000_001, {}, "non-original string"])
+@pytest.mark.parametrize("raw", [b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), {}, "non-original string"])
 def test_oversized_or_non_original_response_has_no_false_whole_body_digest(raw):
     result = diagnose(raw=raw)
     assert result["status"] == "INVALID_BOUNDED_RESPONSE"

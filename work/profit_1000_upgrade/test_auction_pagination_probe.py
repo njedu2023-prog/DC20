@@ -150,7 +150,7 @@ def test_nonzero_api_message_only_becomes_finite_diagnostic_category(message, ca
     assert diagnose(payload(code=0, msg=message))["server_error_category"] is None
 
 
-@pytest.mark.parametrize("response", [None, "not bytes", b"", b"x" * 4_000_001, b"not json", b"\xff",
+@pytest.mark.parametrize("response", [None, "not bytes", b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), b"not json", b"\xff",
     b'{"count":0,"count":1}', b'{"data":{"count":NaN}}', b'{"data":{"count":1e400}}'])
 def test_invalid_original_response_has_no_parsed_pagination_or_source_claim(response):
     result = probe.diagnose_response(response, probe.DATES[0], token=TOKEN)

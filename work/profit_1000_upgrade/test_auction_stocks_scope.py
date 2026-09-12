@@ -348,7 +348,7 @@ def test_real_network_attempt_flag_is_exact_true(value):
         pair(network_request_performed=value)
 
 
-@pytest.mark.parametrize("response", [b"", "not bytes", bytearray(b"{}"), b" " * 4_000_001])
+@pytest.mark.parametrize("response", [b"", "not bytes", bytearray(b"{}"), pytest.param(b" " * 4_000_001, id="oversized-4mb")])
 def test_bounded_original_http_bytes_only(response):
     with pytest.raises(stocks.AuctionSourceError, match="HTTP_RESPONSE_BYTES"):
         pair(response)

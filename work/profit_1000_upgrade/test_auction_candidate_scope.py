@@ -197,7 +197,7 @@ def test_original_reordered_fields_and_all_numeric_errors_are_only_structural(tm
     assert not json.loads(bodies[1])["capacity_qualification_performed"]
 
 
-@pytest.mark.parametrize("original", [None, "raw", b"", b"x" * 4_000_001, b"notjson", b"\xff",
+@pytest.mark.parametrize("original", [None, "raw", b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), b"notjson", b"\xff",
     b'{"code":0,"code":0}', b'{"data":{"count":NaN}}', b'{"data":{"count":1e400}}'])
 def test_raw_bounded_strict_json_required(original):
     with pytest.raises(candidate.AuctionSourceError):

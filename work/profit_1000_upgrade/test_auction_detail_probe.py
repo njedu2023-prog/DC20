@@ -152,7 +152,7 @@ def test_original_shape_helper_is_reused_purely_and_reports_each_actual_date(mon
         assert PRIVATE_CELL not in json.dumps(result)
 
 
-@pytest.mark.parametrize("response", [None, "not bytes", b"", b"x" * 4_000_001, b"not json",
+@pytest.mark.parametrize("response", [None, "not bytes", b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), b"not json",
     b'{"detail":"a","detail":"b"}', b'{"detail":NaN}', b'{"detail":1e400}', b"\xff"])
 def test_invalid_original_response_never_retains_detail_or_claims_source(response):
     result = probe.diagnose_response(response, probe.DATES[0])

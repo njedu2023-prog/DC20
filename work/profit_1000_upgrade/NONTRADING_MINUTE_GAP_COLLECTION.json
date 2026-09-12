@@ -23,7 +23,7 @@
     "work/profit_1000_upgrade/minute_truth.py": "69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268"
   },
   "label_rebuild_performed": false,
-  "label_report_sha256": "1834f2043c2b2a12a7fd39dbbcbd3928340e930fdc010f8a8a8cb9d677c0179a",
+  "label_report_sha256": "dbc2a10b96da03ef0ca3a32887380258282a5eac417853b26ec382f40e0bbc43",
   "label_source_eligible": false,
   "max_api_calls": 5000,
   "max_http_response_bytes": 1000000,
@@ -36,43 +36,31 @@
   "pagination_or_request_fallback_allowed": false,
   "pairs": [
     [
-      "20240430",
+      "20240506",
       "600234.SH"
     ],
     [
-      "20240506",
+      "20240507",
       "600083.SH"
     ],
     [
-      "20250613",
-      "603226.SH"
-    ],
-    [
-      "20251120",
-      "603122.SH"
-    ],
-    [
-      "20260714",
+      "20260715",
       "603580.SH"
-    ],
-    [
-      "20260730",
-      "002036.SZ"
     ]
   ],
-  "planned_pair_count": 6,
+  "planned_pair_count": 3,
   "preflight_pairs": [
     [
-      "20240430",
+      "20240506",
       "600234.SH"
     ],
     [
-      "20251120",
-      "603122.SH"
+      "20240507",
+      "600083.SH"
     ],
     [
-      "20260730",
-      "002036.SZ"
+      "20260715",
+      "603580.SH"
     ]
   ],
   "preflight_rule": "ALL_UNIQUE_FIRST_MIDDLE_LAST_EXACT_240_BARS_BEFORE_BULK",

@@ -168,7 +168,7 @@ def test_numeric_errors_are_not_price_qualification():
     assert not result["entry_price_qualification_performed"] and not result["capacity_qualification_performed"]
 
 
-@pytest.mark.parametrize("original", [None, "notbytes", b"", b"x" * 4_000_001, b"bad", b"\xff",
+@pytest.mark.parametrize("original", [None, "notbytes", b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), b"bad", b"\xff",
     b'{"code":0,"code":0}', b'{"data":{"count":NaN}}', b'{"data":{"count":Infinity}}', b'{"data":{"count":1e400}}'])
 def test_malformed_duplicate_nonfinite_or_oversized_response_not_parsed(original):
     result = probe.diagnose_response(original, DAY, CODE, token=TOKEN)
@@ -259,7 +259,7 @@ def test_transport_scope_rejects_any_unregistered_filter_or_endpoint(change):
         probe.official_call(endpoint, params, fields, TOKEN, timeout)
 
 
-@pytest.mark.parametrize("body", [b"", b"x" * 4_000_001, None, "not bytes"])
+@pytest.mark.parametrize("body", [b"", pytest.param(b"x" * 4_000_001, id="oversized-4mb"), None, "not bytes"])
 def test_official_transport_bounded_body_without_retry(monkeypatch, body):
     calls = []
     class Reply:

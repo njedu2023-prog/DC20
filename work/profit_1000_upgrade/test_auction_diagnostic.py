@@ -191,7 +191,7 @@ def test_api_failure_keeps_only_code_allowlisted_rejection(code, msg, reason):
                                      (b'{"code":0,"data":NaN}', "NONFINITE_JSON_NUMBER"),
                                      (b'{"code":0,"data":1e9999}', "NONFINITE_JSON_NUMBER"),
                                      (b"not json", "INVALID_RESPONSE_JSON"),
-                                     (b"x" * (diag.MAX_BYTES + 1), "RESPONSE_EXCEEDS_4MB")])
+                                     pytest.param(b"x" * (diag.MAX_BYTES + 1), "RESPONSE_EXCEEDS_4MB", id="oversized-4mb")])
 def test_bounded_strict_json_failures_are_fixed_enums(raw, reason):
     data, report = diagnose(raw=raw)
     assert data is None and report["reason"] == reason
