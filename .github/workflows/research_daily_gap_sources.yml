@@ -1,0 +1,105 @@
+name: DC20 · registered daily-gap source supplement
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/DAILY_GAP_COLLECTION.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-research-daily-gap-sources
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  daily-sources:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact registered plan without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test all research contracts before data access
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
+        run: python -B -m pytest -q work/profit_1000_upgrade -p no:cacheprovider
+      - name: Verify unchanged production freeze
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: python -B scripts/validate_decision_model_freeze.py --root .
+      - name: Validate exact checkout registration
+        id: registration
+        run: |
+          python -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          from work.profit_1000_upgrade import daily_gap_collect as c
+          path = Path("work/profit_1000_upgrade/DAILY_GAP_COLLECTION.json")
+          raw = path.read_bytes()
+          plan = json.loads(raw)
+          plan_sha = hashlib.sha256(raw).hexdigest()
+          label_sha = plan["label_report_sha256"]
+          c.read_plan(path, plan_sha, label_sha)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print("plan_sha=" + plan_sha, file=output)
+              print("label_sha=" + label_sha, file=output)
+          PY
+      - name: Collect only fourteen exact daily and suspension requests without retries
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          PLAN_SHA: ${{ steps.registration.outputs.plan_sha }}
+          LABEL_SHA: ${{ steps.registration.outputs.label_sha }}
+        run: |
+          set -euo pipefail
+          collection_exit=0
+          timeout --signal=TERM --kill-after=30s 12m \
+            python -u -B work/profit_1000_upgrade/daily_gap_collect.py \
+            --output "${RUNNER_TEMP}/daily-gap-sources" \
+            --expected-plan-sha256 "${PLAN_SHA}" \
+            --expected-label-report-sha256 "${LABEL_SHA}" || collection_exit=$?
+          if [ "${collection_exit}" -ne 0 ] && [ "${collection_exit}" -ne 2 ]; then
+            exit "${collection_exit}"
+          fi
+          test -s "${RUNNER_TEMP}/daily-gap-sources/daily_gap_receipt.json"
+      - name: Independently verify source receipt with external run identity
+        env:
+          PLAN_SHA: ${{ steps.registration.outputs.plan_sha }}
+          LABEL_SHA: ${{ steps.registration.outputs.label_sha }}
+        run: >-
+          python -B work/profit_1000_upgrade/daily_gap_verify.py
+          --output "${RUNNER_TEMP}/daily-gap-sources"
+          --expected-run-id "${GITHUB_RUN_ID}"
+          --expected-run-commit "${GITHUB_SHA}"
+          --expected-plan-sha256 "${PLAN_SHA}"
+          --expected-label-report-sha256 "${LABEL_SHA}"
+      - name: Verify no checkout source model or ledger changed
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Preserve sources including explicit failures and empty responses
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-daily-gap-sources-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/daily-gap-sources/
+          if-no-files-found: error
+          retention-days: 30

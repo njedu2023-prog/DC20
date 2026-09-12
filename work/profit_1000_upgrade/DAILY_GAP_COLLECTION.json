@@ -1,0 +1,373 @@
+{
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "allowed_run_attempt": 1,
+  "as_of_date": "20260911",
+  "calls_per_request": 1,
+  "credential_persisted": false,
+  "daily_empty_rule": "RETAIN_EXACT_QUERY_EVIDENCE_NOT_AUTOMATIC_SUSPENSION",
+  "diagnostic_archive": {
+    "bytes": 19600,
+    "run_commit": "6ea9616014da3850ae4064c89e56e832608180d3",
+    "run_id": "34672430723",
+    "sha256": "760e70f707559cf92353f97cda7bfc17aec40aabbd528957e0640cec7e0c49d9"
+  },
+  "diagnostic_archive_imported": false,
+  "endpoint_counts": {
+    "daily": 13,
+    "suspend_d": 1
+  },
+  "fallback_generated": false,
+  "forward_holdout_touched": false,
+  "label_rebuild_performed": false,
+  "label_report_sha256": "2cca1e928b92a6cd46dabf7090714cfbc5e88682f2d93ecbc481c01ecd910609",
+  "label_source_eligible": false,
+  "max_api_calls": 14,
+  "max_http_response_bytes": 1000000,
+  "max_rows_per_exact_query": 1,
+  "max_workers": 1,
+  "maximum_signal_date": "20260814",
+  "minimum_request_start_interval_seconds": 0.5,
+  "missing_daily_cases": [
+    {
+      "exec_date": "20240426",
+      "missing_date": "20240430",
+      "signal_date": "20240425",
+      "ts_code": "600083.SH"
+    },
+    {
+      "exec_date": "20240426",
+      "missing_date": "20240429",
+      "signal_date": "20240425",
+      "ts_code": "600234.SH"
+    },
+    {
+      "exec_date": "20250609",
+      "missing_date": "20250610",
+      "signal_date": "20250606",
+      "ts_code": "603226.SH"
+    },
+    {
+      "exec_date": "20251114",
+      "missing_date": "20251117",
+      "signal_date": "20251113",
+      "ts_code": "603122.SH"
+    },
+    {
+      "exec_date": "20260706",
+      "missing_date": "20260707",
+      "signal_date": "20260703",
+      "ts_code": "603580.SH"
+    },
+    {
+      "exec_date": "20260722",
+      "missing_date": "20260723",
+      "signal_date": "20260721",
+      "ts_code": "002036.SZ"
+    }
+  ],
+  "missing_values_imputed": false,
+  "nontrading_session_qualified": false,
+  "old_sources_overwritten": false,
+  "pagination_or_request_fallback_allowed": false,
+  "planned_request_count": 14,
+  "production_activation_allowed": false,
+  "production_writes": false,
+  "raw_response_envelope_saved": false,
+  "redirects_allowed": false,
+  "request_start_budget_seconds": 600,
+  "request_start_headroom_seconds": 21,
+  "requests": [
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 1,
+      "params": {
+        "trade_date": "20240430",
+        "ts_code": "600083.SH"
+      }
+    },
+    {
+      "api_name": "suspend_d",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "suspend_timing",
+        "suspend_type"
+      ],
+      "ordinal": 2,
+      "params": {
+        "trade_date": "20240430",
+        "ts_code": "600083.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 3,
+      "params": {
+        "trade_date": "20250611",
+        "ts_code": "603226.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 4,
+      "params": {
+        "trade_date": "20250612",
+        "ts_code": "603226.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 5,
+      "params": {
+        "trade_date": "20251118",
+        "ts_code": "603122.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 6,
+      "params": {
+        "trade_date": "20251119",
+        "ts_code": "603122.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 7,
+      "params": {
+        "trade_date": "20260708",
+        "ts_code": "603580.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 8,
+      "params": {
+        "trade_date": "20260709",
+        "ts_code": "603580.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 9,
+      "params": {
+        "trade_date": "20260710",
+        "ts_code": "603580.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 10,
+      "params": {
+        "trade_date": "20260713",
+        "ts_code": "603580.SH"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 11,
+      "params": {
+        "trade_date": "20260724",
+        "ts_code": "002036.SZ"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 12,
+      "params": {
+        "trade_date": "20260727",
+        "ts_code": "002036.SZ"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 13,
+      "params": {
+        "trade_date": "20260728",
+        "ts_code": "002036.SZ"
+      }
+    },
+    {
+      "api_name": "daily",
+      "fields": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "vol",
+        "amount",
+        "pct_chg"
+      ],
+      "ordinal": 14,
+      "params": {
+        "trade_date": "20260729",
+        "ts_code": "002036.SZ"
+      }
+    }
+  ],
+  "research_only": true,
+  "retries": 0,
+  "schema_version": "dc20_research_daily_gap_collection_20260913_v1",
+  "scope_basis": "FROZEN_SIX_MISSING_DAILY_CASES_AND_EXPLICIT_DIAGNOSTIC_S_DATES",
+  "server_messages_persisted": false,
+  "settlement_performed": false,
+  "socket_timeout_seconds": 20,
+  "source_namespace": "research_inputs/daily_gap_sources_v1",
+  "source_only": true,
+  "source_schema": "dc20_research_daily_gap_source_20260913_v1",
+  "source_values_modified": false,
+  "suspend_event_rule": "RETAIN_EXACT_DATE_CODE_EVENT_NOT_NONTRADING_ADMISSION",
+  "synthetic_ohlc_created": false,
+  "training_performed": false,
+  "transport_timeout_semantics": "PARENT_PROCESS_RESPONSE_DEADLINE_PLUS_SOCKET_TIMEOUT",
+  "transport_wall_timeout_seconds": 20,
+  "upstream_label_report_verified_by_collector": false
+}
