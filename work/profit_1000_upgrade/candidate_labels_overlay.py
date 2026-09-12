@@ -14,6 +14,8 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
+import stat
 
 from work.profit_1000_upgrade import auction_candidate_scope as candidate_source
 from work.profit_1000_upgrade import auction_truth_v3 as qualification
@@ -73,9 +75,17 @@ def _authority(value):
     return value
 
 
+def _market_authority(value):
+    from work.profit_1000_upgrade.minute_gap_verify import VerifiedMinuteCollection
+    _require(type(value) is VerifiedMinuteCollection, "VERIFIED_MINUTE_COLLECTION_REQUIRED")
+    value.assert_unchanged()
+    return value
+
+
 def _root(path):
     value = Path(path)
-    _require(value.is_dir() and not any(p.is_symlink() for p in (value, *value.parents)), "UNALIASED_SOURCE_ROOT_REQUIRED")
+    _require(".." not in value.parts and value.is_dir()
+             and not any(p.is_symlink() for p in (value, *value.parents)), "UNALIASED_SOURCE_ROOT_REQUIRED")
     return value.resolve(strict=True)
 
 
@@ -90,11 +100,117 @@ def _base_inventory(root, bindings):
     for path in root.rglob("*"):
         _require(not path.is_symlink(), "BASE_SYMLINK_FORBIDDEN")
         if path.is_file():
+            _require(stat.S_ISREG(path.stat().st_mode) and path.stat().st_nlink == 1, "BASE_HARDLINK_FORBIDDEN")
             actual.add(path.relative_to(root).as_posix())
         else:
             _require(path.is_dir(), "BASE_NONREGULAR_FILE_FORBIDDEN")
     _require(actual == set(expected), "BASE_EXTRA_OR_MISSING_FILES")
     return expected
+
+
+def _prior_report(path, expected_sha):
+    path = Path(path)
+    _require(type(expected_sha) is str and re.fullmatch(r"[0-9a-f]{64}", expected_sha), "PRIOR_LABEL_SHA_REQUIRED")
+    _require(".." not in path.parts and not any(p.is_symlink() for p in (path, *path.parents))
+             and path.is_file(), "UNALIASED_PRIOR_LABEL_FILE_REQUIRED")
+    info = path.stat()
+    _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and 0 < info.st_size <= 128 * 1024**2,
+             "BOUNDED_REGULAR_PRIOR_LABEL_FILE_REQUIRED")
+    with path.open("rb") as handle:
+        raw = handle.read(128 * 1024**2 + 1)
+    _require(hashlib.sha256(raw).hexdigest() == expected_sha, "REGISTERED_PRIOR_LABEL_SHA_CHANGED")
+    report = minute_truth._parse(raw)
+    _require(type(report) is dict, "PRIOR_LABEL_REPORT_OBJECT_REQUIRED")
+    _digest(report)  # Reject nonfinite JSON numbers anywhere, not just outcomes.
+    return report
+
+
+def _minute_payload(root, pair):
+    payload = minute_truth.load(root, *pair)
+    _require(payload is not None and payload.get("time_semantics") == policy_v3.MINUTE_TIME_SEMANTICS
+             and payload.get("timestamp_semantics") == "BAR_END" and payload.get("complete_session") is True
+             and payload.get("provider_timestamp_semantics_confirmed") is False
+             and payload.get("production_activation_allowed") is False and payload.get("research_only") is True,
+             "UNQUALIFIED_REGISTERED_MINUTE_SOURCE")
+    return payload
+
+
+def _market_admission(root, candidate_root, authority, manifest, as_of, *,
+                      verified_market_scope, market_source_root, prior_label_report):
+    """Admit only byte-bound, newly absent minute pairs; no source rewriting."""
+    market = _market_authority(verified_market_scope)
+    market_root = _root(market_source_root)
+    roots = (root, candidate_root, market_root)
+    _require(market_root == _root(market.root)
+             and all(a != b and a not in b.parents and b not in a.parents
+                     for index, a in enumerate(roots) for b in roots[index + 1:]), "MINUTE_SOURCE_ROOT_MISMATCH")
+    _require(market.as_of_date == as_of, "MINUTE_AS_OF_DATE_CHANGED")
+    for digest in (market.receipt_sha256, market.plan_sha256, market.label_report_sha256):
+        _require(type(digest) is str and re.fullmatch(r"[0-9a-f]{64}", digest), "MINUTE_AUTHORITY_SHA_REQUIRED")
+    prior = _prior_report(prior_label_report, market.label_report_sha256)
+    expected = {"schema_version": LABEL_SCHEMA, "source_overlay_contract": CONTRACT,
+                "candidate_manifest_sha256": _digest(manifest), "base_archive_sha256": authority.base_archive_sha256,
+                "candidate_collection_receipt_sha256": authority.receipt_sha256, "as_of_date": as_of,
+                "entry_policy_id": policy_v3.ENTRY_POLICY_ID, "label_policy_id": base_labels.EXIT_POLICY_ID,
+                "round_trip_cost_rate": .0045, "feature_evidence_kind": manifest["evidence_kind"],
+                "feature_columns": manifest["feature_columns"], "research_only": True,
+                "historical_counterfactual": True, "training_performed": False,
+                "production_activation_allowed": False, "actual_execution_claimed": False,
+                "source_only_metadata_rewritten": False, "files_written": 0}
+    for key, value in expected.items():
+        _require(key in prior and _digest(prior[key]) == _digest(value), "PRIOR_LABEL_CONTRACT_OR_AUTHORITY_CHANGED")
+    _require(all(prior.get(k) is None for k in ("market_collection_receipt_sha256", "market_registered_plan_sha256",
+                                               "market_registered_label_report_sha256")), "MULTIPLE_MINUTE_ADMISSION_CHAIN_NOT_REGISTERED")
+    prior_rows = prior.get("rows")
+    _require(type(prior_rows) is list and all(type(r) is dict for r in prior_rows), "PRIOR_LABEL_ROWS_REQUIRED")
+    members = {(d, c) for d, codes in manifest["expected_candidate_codes"].items() for c in codes}
+    identities = [(r.get("signal_date"), r.get("ts_code")) for r in prior_rows]
+    _require(len(identities) == len(set(identities)) and set(identities) == members, "PRIOR_FULL_CANDIDATE_IDENTITIES_CHANGED")
+    missing = set()
+    for row in prior_rows:
+        validate_label_contract(row)
+        if row.get("label_status") != "PENDING_EXIT_MISSING_MINUTES":
+            continue
+        _require(row.get("missing_evidence_kind") == "research_exit_1000_1m_0931"
+                 and row.get("missing_evidence_code") == row["ts_code"], "PRIOR_MISSING_MINUTE_IDENTITY_CHANGED")
+        pair = (row.get("missing_evidence_date"), row["ts_code"])
+        minute_truth._identity(*pair)
+        _require(row["scheduled_exit_date"] <= pair[0] <= as_of, "PRIOR_MISSING_MINUTE_OUTSIDE_HOLDING_WINDOW")
+        missing.add(pair)
+    pairs, successes = tuple(market.gap_pairs), tuple(market.successful_pairs)
+    _require(pairs == tuple(sorted(set(pairs))) and set(pairs) == missing
+             and successes == tuple(sorted(set(successes))) and set(successes) <= missing,
+             "REGISTERED_MINUTE_PAIRS_NOT_EXACT_PRIOR_GAPS")
+    old_files = {b["path"]: b["sha256"] for b in authority.base_file_bindings}
+    candidate_files = {b["path"]: b["sha256"] for b in authority.source_bindings}
+    seen = set()
+    _require(type(prior.get("source_files")) is list and prior["source_files"], "PRIOR_SOURCE_BINDINGS_REQUIRED")
+    for item in prior["source_files"]:
+        _require(type(item) is dict and set(item) == {"origin", "path", "sha256"}, "PRIOR_SOURCE_BINDING_CHANGED")
+        key = (item["origin"], item["path"])
+        allowed = old_files if item["origin"] == "base" else candidate_files if item["origin"] == "candidate" else {}
+        _require(key not in seen and allowed.get(item["path"]) == item["sha256"], "PRIOR_SOURCE_NOT_IN_ORIGINAL_AUTHORITIES")
+        seen.add(key)
+    bound = {(b["path"], b["sha256"]) for b in market.source_bindings}
+    _require(len(bound) == len(market.source_bindings), "DUPLICATE_MINUTE_SOURCE_BINDING")
+    expected_paths, additions = set(), {}
+    for pair in pairs:
+        names = [p.relative_to(root).as_posix() for p in minute_truth.paths(root, *pair)]
+        _require(not any(name in old_files for name in names), "MINUTE_OVERLAY_CANNOT_REPLACE_EXISTING_OR_ORPHAN_SOURCE")
+        if pair not in successes:
+            continue
+        expected_paths.update(names)
+        original, copied = _minute_payload(market_root, pair), _minute_payload(root, pair)
+        _require(_digest(original) == _digest(copied), "AUGMENTED_MINUTE_BYTES_OR_SEMANTICS_CHANGED")
+        for item in original["source_files"]:
+            _require((item["path"], item["sha256"]) in bound, "UNBOUND_REGISTERED_MINUTE_SOURCE")
+            for source_root in (market_root, root):
+                file, _ = base_labels._binding(source_root, item)
+                _require(file.stat().st_nlink == 1, "MINUTE_SOURCE_HARDLINK_FORBIDDEN")
+            additions[item["path"]] = item["sha256"]
+    _require({p for p, _ in bound} == expected_paths == set(additions)
+             and len(bound) == len(additions), "MINUTE_SOURCE_BINDINGS_NOT_EXACT_SUCCESS_PAIRS")
+    return market, market_root, prior, additions
 
 
 def qualify_candidate(loaded, day, code, daily_open, *, daily_source_binding):
@@ -358,7 +474,8 @@ def validate_label_contract(row):
     return deepcopy(CONTRACT)
 
 
-def build_labels(base_root, manifest, *, as_of_date, candidate_source_root, verified_scope):
+def build_labels(base_root, manifest, *, as_of_date, candidate_source_root, verified_scope,
+                 verified_market_scope=None, market_source_root=None, prior_label_report=None):
     """Read-only full-cohort replay under a verifier-issued immutable authority."""
     _guard()
     authority = _authority(verified_scope)
@@ -366,7 +483,16 @@ def build_labels(base_root, manifest, *, as_of_date, candidate_source_root, veri
     _require(root != overlay_root and overlay_root == _root(authority.root), "CANDIDATE_SOURCE_ROOT_MISMATCH")
     _require(as_of_date == authority.as_of_date, "VERIFIED_AS_OF_DATE_CHANGED")
     _require(_digest(manifest) == authority.frozen_manifest_sha256, "FROZEN_CANDIDATE_MANIFEST_CHANGED")
-    base_files = _base_inventory(root, authority.base_file_bindings)
+    market, market_root, prior, minute_files = None, None, None, {}
+    optional = (verified_market_scope, market_source_root, prior_label_report)
+    _require(all(v is None for v in optional) or all(v is not None for v in optional), "COMPLETE_MINUTE_ADMISSION_ARGUMENTS_REQUIRED")
+    if verified_market_scope is not None:
+        market, market_root, prior, minute_files = _market_admission(
+            root, overlay_root, authority, manifest, as_of_date, verified_market_scope=verified_market_scope,
+            market_source_root=market_source_root, prior_label_report=prior_label_report)
+    inventory = [dict(b) for b in authority.base_file_bindings] + [
+        {"path": path, "sha256": digest} for path, digest in sorted(minute_files.items())]
+    base_files = _base_inventory(root, inventory)
     gaps, successes = set(authority.gap_pairs), set(authority.successful_pairs)
     _require(len(gaps) == len(authority.gap_pairs) and successes <= gaps, "VERIFIED_PAIR_SCOPE_CHANGED")
     candidate_bindings = {(b["path"], b["sha256"]) for b in authority.source_bindings}
@@ -374,12 +500,27 @@ def build_labels(base_root, manifest, *, as_of_date, candidate_source_root, veri
     actual_pairs = {(r["exec_date"], r["ts_code"]) for r in baseline["rows"]}
     _require(gaps <= actual_pairs, "OVERLAY_PAIR_OUTSIDE_FROZEN_UNIVERSE")
     dates, sources, updated = base_labels.settlement._strict_open_dates(root), {}, []
-
+    if prior is not None:
+        prior_by_id = {(r["signal_date"], r["ts_code"]): r for r in prior["rows"]}
+        _require(all(pair[0] in dates for pair in market.gap_pairs),
+                 "REGISTERED_MINUTE_DAY_NOT_IN_STRICT_CALENDAR")
+        identity_fields = ("signal_date", "ts_code", "stage_transition", "promotion_rank", "exec_date", "scheduled_exit_date",
+                           "feature_as_of_date", "feature_available_at", "features", "shadow_max_price")
+        for seed in baseline["rows"]:
+            old = prior_by_id[(seed["signal_date"], seed["ts_code"])]
+            _require(_digest({k: seed.get(k) for k in identity_fields}) == _digest({k: old.get(k) for k in identity_fields}),
+                     "PRIOR_FROZEN_FEATURES_RANKS_OR_DATES_CHANGED")
     def bind(origin, item):
         binding = {key: item[key] for key in ("path", "sha256")}
+        if origin == "base" and binding["path"] in minute_files:
+            origin = "minute_overlay"
         if origin == "base":
             _require(base_files.get(binding["path"]) == binding["sha256"], "UNBOUND_BASE_TRUTH")
             base_labels._binding(root, binding)
+        elif origin == "minute_overlay":
+            _require(market is not None and minute_files.get(binding["path"]) == binding["sha256"], "UNBOUND_MINUTE_OVERLAY_TRUTH")
+            base_labels._binding(root, binding)
+            base_labels._binding(market_root, binding)
         else:
             _require(origin == "candidate" and (binding["path"], binding["sha256"]) in candidate_bindings,
                      "UNBOUND_CANDIDATE_TRUTH")
@@ -412,14 +553,26 @@ def build_labels(base_root, manifest, *, as_of_date, candidate_source_root, veri
         cohorts[day] = {"expected_rows": len(rows), "terminal_rows": sum(r["label_status"] == base_labels.SETTLED or r["label_status"] in policy_v3.NO_FILL_STATUSES for r in rows),
                         "complete": complete, "statuses": dict(Counter(r["label_status"] for r in rows)),
                         "label_available_date": max(r["label_available_date"] for r in rows) if complete else None}
+    if prior is not None:
+        for row in output:
+            old = prior_by_id[(row["signal_date"], row["ts_code"])]
+            if old["label_status"] == base_labels.SETTLED or old["label_status"] in policy_v3.NO_FILL_STATUSES:
+                _require(_digest({k: v for k, v in old.items() if k != "cohort_complete"})
+                         == _digest({k: v for k, v in row.items() if k != "cohort_complete"}), "PRIOR_TERMINAL_ECONOMICS_OR_IDENTITY_CHANGED")
     for item in tuple(sources.values()):
         bind(item["origin"], item)
-    _base_inventory(root, authority.base_file_bindings)
+    _base_inventory(root, inventory)
+    if market is not None:
+        _require(_digest(_prior_report(prior_label_report, market.label_report_sha256)) == _digest(prior), "PRIOR_LABEL_CHANGED_DURING_REPLAY")
+        market.assert_unchanged()
     authority.assert_unchanged()
     _guard()
     return {"schema_version": LABEL_SCHEMA, "source_overlay_contract": deepcopy(CONTRACT),
             "candidate_manifest_sha256": _digest(manifest), "base_archive_sha256": authority.base_archive_sha256,
             "candidate_collection_receipt_sha256": authority.receipt_sha256,
+            "market_collection_receipt_sha256": market.receipt_sha256 if market is not None else None,
+            "market_registered_plan_sha256": market.plan_sha256 if market is not None else None,
+            "market_registered_label_report_sha256": market.label_report_sha256 if market is not None else None,
             "baseline_label_content_sha256": _digest(baseline), "as_of_date": as_of_date,
             "rows": output, "cohorts_by_date": cohorts, "source_files": [sources[k] for k in sorted(sources)],
             "overlay_consumed_pairs": sorted(updated), "unresolved_source_pairs": [list(p) for p in sorted(gaps - successes)],
