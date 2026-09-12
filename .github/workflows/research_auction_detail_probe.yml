@@ -1,0 +1,66 @@
+name: DC20 · two canonical auction detail diagnostics (not source truth)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/AUCTION_DETAIL_PROBE.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-two-auction-detail-diagnostic
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  diagnostic:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact version without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install existing hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test isolated contracts without source credentials
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
+        run: python -m pytest -q work/profit_1000_upgrade -p no:cacheprovider
+      - name: Verify production freeze is intact
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: python scripts/validate_decision_model_freeze.py --root .
+      - name: Request exactly two dates once each and retain only safe detail diagnostics
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: >-
+          python work/profit_1000_upgrade/auction_detail_probe.py
+          --output "${RUNNER_TEMP}/dc20-two-auction-detail-probe"
+      - name: Verify no production source model or ledger changed
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Retain sanitized diagnostic JSON only, never original responses or tables
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-two-auction-detail-probe-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/dc20-two-auction-detail-probe/auction_detail_probe.json
+          if-no-files-found: warn
+          retention-days: 30
