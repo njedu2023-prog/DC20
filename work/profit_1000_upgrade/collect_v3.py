@@ -24,10 +24,11 @@ HERE = Path(__file__).resolve().parent
 CHECKOUT = HERE.parents[1]
 sys.path[:0] = [str(CHECKOUT), str(CHECKOUT / "src")]
 
-from work.profit_1000_upgrade import auction_truth_v3 as auction, collect as old, policy_v3, research_v3
+from work.profit_1000_upgrade import auction_truth_v3 as auction, auction_http_v3 as http_adapter, collect as old, policy_v3, research_v3
 
 SCHEMA = "dc20_profit_1000_canonical_collection_v3"
 PHASE = "CANONICAL_AUCTION_ONLY"
+PREFLIGHT_T_DATES = ("20250102", "20250116", "20260817")
 OLD_COLLECT_SHA = "9885bb417779638bb85f5a03893137508a17d21ae3ba93d25732cbb4e83af9fa"
 OLD_AUCTION_SHA = "b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af"
 V2_SHA = "58467518002c587349587eebb32681b1d81c3c8850ca5595b342818157ebfc64"
@@ -44,7 +45,7 @@ FLAGS = {"research_only": True, "production_writes": False,
          "forward_holdout_evaluated": False, "credential_persisted": False,
          "server_messages_persisted": False, "missing_truth_as_zero": False}
 _IMPLEMENTATIONS = tuple(HERE / name for name in (
-    "collect_v3.py", "research_v3.py", "policy_v3.py", "auction_truth_v3.py", "collect.py", "auction_truth.py",
+    "collect_v3.py", "research_v3.py", "policy_v3.py", "auction_truth_v3.py", "auction_http_v3.py", "collect.py", "auction_truth.py",
     "labels_v3.py", "minute_truth.py", "PLAN_V3.json", "COLLECTION_V3.json")) + tuple(
         CHECKOUT / "src/top10decision/decision" / name for name in (
             "executable_profit_shadow_settlement.py", "shadow_exit_1000.py", "shadow_exit_minute_truth.py"))
@@ -79,6 +80,7 @@ def expected_contract():
             "phase": PHASE, "as_of_date": "20260911", **dict(policy_v3.CONTRACT),
             "base_archive_sha256": V2_SHA, "base_run_id": V2_RUN, "base_run_commit": V2_COMMIT,
             "budget": dict(DEFAULT_BUDGET), "allowed_endpoints": ["stk_auction"], "retries": 0,
+            "http_envelope_adapter_id": http_adapter.ADAPTER_ID, "preflight_T_dates": list(PREFLIGHT_T_DATES),
             "max_http_response_bytes": 4_000_000, "canonical_coverage_start": "20250101",
             "pre_coverage_T_dates": 517, "canonical_T_dates": 393, "candidate_rows": 6753, "T_dates": 910,
             **FLAGS}
@@ -151,11 +153,18 @@ def _scope(manifest, contract):
     covered = [day for day in dates if day >= auction.COVERAGE_START]
     _require(len(pre) == contract["pre_coverage_T_dates"] and len(covered) == contract["canonical_T_dates"],
              "V3_FROZEN_COVERAGE_SPLIT_CHANGED")
+    _require(all(day in covered for day in PREFLIGHT_T_DATES), "V3_PREFLIGHT_DATE_NOT_IN_FROZEN_COVERAGE")
     return dates, by_date
 
 
 _SAFE_REASONS = frozenset(re.findall(r'"([A-Z][A-Z0-9_]{3,100})"',
-    (HERE / "auction_truth_v3.py").read_text() + (HERE / "auction_truth.py").read_text()))
+    (HERE / "auction_truth_v3.py").read_text() + (HERE / "auction_truth.py").read_text() +
+    (HERE / "auction_http_v3.py").read_text()))
+
+
+def _adapter_binding():
+    return {"http_envelope_adapter_id": http_adapter.ADAPTER_ID,
+            "http_envelope_adapter_sha256": _IMPORTED_HASHES[HERE / "auction_http_v3.py"]}
 
 
 def _reason(exc):
@@ -168,7 +177,7 @@ def _receipt(day, plan_sha, contract_sha, candidate_codes):
             "candidate_codes": sorted(candidate_codes), "status": "PENDING_UNKNOWN",
             "reason": None, "network_request_performed": False,
             "new_source_files": [], "source_policy_id": auction.SOURCE_POLICY_ID,
-            "plan_sha256": plan_sha, "collection_contract_sha256": contract_sha}
+            "plan_sha256": plan_sha, "collection_contract_sha256": contract_sha, **_adapter_binding()}
 
 
 def _fetch(root, day, codes, *, token, limiter, call, plan_sha, contract_sha):
@@ -197,8 +206,8 @@ def _fetch(root, day, codes, *, token, limiter, call, plan_sha, contract_sha):
     result.update(http_response_sha256=_sha(raw), http_response_bytes=len(raw))
     stamp = datetime.now(timezone.utc).isoformat()
     try:
-        bodies = auction.source_bytes(raw, day, request=request, fetched_at_utc=stamp,
-                                      network_request_performed=True, token=token)
+        bodies = http_adapter.source_bytes(raw, day, request=request, fetched_at_utc=stamp,
+                                          network_request_performed=True, token=token)
         metadata = auction._strict_json(bodies[1])
         _require(not token or all(token.encode() not in body for body in bodies), "CREDENTIAL_LIKE_SOURCE_NOT_PERSISTED")
         bindings = old._write_pair(root, paths, bodies)
@@ -238,6 +247,8 @@ def collect_history(root, manifest, token, budget=None, call=None, progress=None
     call = old.official_call_v2 if call is None else call
     _require(callable(call) and (progress is None or callable(progress)), "INVALID_COLLECTION_CALLBACK")
     receipts, written = [], {}
+    preflight = {"trade_dates": list(PREFLIGHT_T_DATES), "attempted_T_dates": [],
+                 "qualified_T_dates": [], "status": "BLOCKED", "aborted_at_T_date": None}
     journal_digest = hashlib.sha256()
     with journal.open("xb") as handle:
         def retain(receipt):
@@ -262,11 +273,30 @@ def collect_history(root, manifest, token, budget=None, call=None, progress=None
                               plan_sha=plan_sha, contract_sha=contract_sha))
             else:
                 covered.append(day)
-        with ThreadPoolExecutor(max_workers=limiter.budget["workers"]) as pool:
-            futures = [pool.submit(_fetch, root, day, by_date[day], token=token, limiter=limiter,
-                                   call=call, plan_sha=plan_sha, contract_sha=contract_sha) for day in covered]
-            for future in as_completed(futures):
-                retain(future.result())
+        # Preflight uses the same limiter as the remaining collection. Attempted
+        # means _fetch was entered, not necessarily that an HTTP call was made.
+        for day in PREFLIGHT_T_DATES:
+            preflight["attempted_T_dates"].append(day)
+            receipt = _fetch(root, day, by_date[day], token=token, limiter=limiter,
+                             call=call, plan_sha=plan_sha, contract_sha=contract_sha)
+            retain(receipt)
+            if receipt["status"] != "EXACT_TRUTH_WRITTEN":
+                preflight["aborted_at_T_date"] = day
+                break
+            preflight["qualified_T_dates"].append(day)
+        else:
+            preflight["status"] = "PASS"
+        remaining = [day for day in covered if day not in preflight["attempted_T_dates"]]
+        if preflight["status"] == "BLOCKED":
+            for day in remaining:
+                retain({**_receipt(day, plan_sha, contract_sha, by_date[day]),
+                        "status": "PENDING_PREFLIGHT_ABORTED", "reason": "PREFLIGHT_ABORTED"})
+        else:
+            with ThreadPoolExecutor(max_workers=limiter.budget["workers"]) as pool:
+                futures = [pool.submit(_fetch, root, day, by_date[day], token=token, limiter=limiter,
+                                       call=call, plan_sha=plan_sha, contract_sha=contract_sha) for day in remaining]
+                for future in as_completed(futures):
+                    retain(future.result())
     _code_guard()
     _require(research_v3.require_research_mirror(root) == root, "RESEARCH_ROOT_CHANGED_DURING_COLLECTION")
     _require(_file_sha(research_v3.plan_path()) == plan_sha and _file_sha(HERE / "COLLECTION_V3.json") == contract_sha,
@@ -286,6 +316,7 @@ def collect_history(root, manifest, token, budget=None, call=None, progress=None
               **dict(policy_v3.CONTRACT), "source_policy_contract": dict(policy_v3.CONTRACT),
               "plan_sha256": plan_sha, "collection_contract_sha256": contract_sha,
               "collection_request_sha256": contract_sha, "budget": dict(limiter.budget),
+              **_adapter_binding(), "preflight": preflight,
               "api_calls": limiter.calls, "retries": 0, "minute_api_calls": 0, "daily_api_calls": 0,
               "candidate_rows": len(manifest["rows"]), "T_dates": len(dates),
               "precoverage_dates": 517, "covered_dates": 393,

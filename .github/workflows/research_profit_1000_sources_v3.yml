@@ -23,7 +23,7 @@ env:
 
 jobs:
   collect-and-rebuild:
-    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main'
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -63,7 +63,7 @@ jobs:
           python -B work/profit_1000_upgrade/research_v3.py initialize \
             --root "${RUNNER_TEMP}/v3-canonical-research" \
             --v2-archive "${RUNNER_TEMP}/history-v2.zip"
-      - name: At most 393 new canonical auction requests with zero retries
+      - name: Three-date preflight before the remaining canonical requests (393 total, zero retries)
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |

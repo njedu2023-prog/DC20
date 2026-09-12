@@ -87,7 +87,9 @@ def load_plan():
             or plan.get("supersedes_plan_sha256") != V2_PLAN_SHA
             or plan.get("training_performed") is not False
             or plan.get("research_entry_policy_id") != CONTRACT["entry_policy_id"]
-            or plan.get("source_commit") != "ff78c105228d5fbb62a1c1e82dcf03981642472f"
+            or plan.get("source_commit") != "6bbf56c2e6f11d3ea880e7dcff011ef7c3fb501c"
+            or plan.get("revises_v3_plan_sha256") != "344b6e87c95665bb08d41c6f328488ab49c5edeb4723347f0706704289c6b8cf"
+            or plan.get("http_envelope_adapter_id") != "dc20_canonical_http_empty_detail_v1"
             or plan.get("collection_contract_sha256") != sha(HERE / "COLLECTION_V3.json")):
         raise ValueError("v3 registered stage identity changed")
     if plan.get("base_archive") != {"zip_sha256": BASE_SHA, "run_id": BASE_RUN,
@@ -95,7 +97,7 @@ def load_plan():
             "daily_partitions": 926, "limit_partitions": 926, "minute_pairs": 2726}:
         raise ValueError("wrong registered v2 source archive")
     expected = {b["path"] for b in old["adapter_sources"]} | {"src/top10decision/decision/executable_profit_shadow_settlement.py"} | {
-        "work/profit_1000_upgrade/" + name for name in ("auction_truth_v3.py", "collect.py", "acceptance.py")}
+        "work/profit_1000_upgrade/" + name for name in ("auction_truth_v3.py", "auction_http_v3.py", "collect.py", "acceptance.py")}
     if len(plan["adapter_sources"]) != len(expected) or {b["path"] for b in plan["adapter_sources"]} != expected:
         raise ValueError("incomplete pinned adapter sources")
     for binding in plan["adapter_sources"]:
@@ -258,9 +260,59 @@ def verify_import(root):
     return value
 
 
+_RESPONSE_FIELDS = ("request", "http_response_sha256", "http_response_bytes", "source_status",
+                    "source_rows", "fetched_at_utc", "api_code", "http_status", "candidate_rows_present")
+
+
+def _validate_source_response_receipt(item, meta):
+    mapping = {"http_response_sha256": "http_response_sha256", "http_response_bytes": "http_response_bytes",
+               "api_code": "api_code", "source_rows": "rows", "fetched_at_utc": "fetched_at_utc"}
+    if any(type(item.get(key)) is not type(meta[source]) or item[key] != meta[source]
+           for key, source in mapping.items()):
+        raise ValueError("auction receipt and source response metadata disagree")
+
+
+def _validate_preflight(receipt, journal, contract):
+    """Verify the sequential probe barrier from the bound original journal.
+
+    Attempted here means the collector evaluated that date; HTTP attempts are
+    separately counted. Missing credentials/budget must still stop the barrier.
+    """
+    dates = contract["preflight_T_dates"]
+    covered = [item for item in journal if item["trade_date"] >= auction.COVERAGE_START]
+    if not covered:
+        raise ValueError("missing sequential canonical preflight")
+    attempted, qualified, failure = [], [], None
+    for day, item in zip(dates, covered):
+        if item["trade_date"] != day:
+            raise ValueError("canonical preflight order changed")
+        if item["status"] == "PENDING_PREFLIGHT_ABORTED":
+            raise ValueError("preflight attempt cannot itself be skipped")
+        attempted.append(day)
+        if item["status"] != "EXACT_TRUTH_WRITTEN":
+            failure = day
+            break
+        qualified.append(day)
+    passed = len(qualified) == len(dates)
+    if not passed and failure is None:
+        raise ValueError("incomplete canonical preflight journal")
+    expected = {"trade_dates": dates, "attempted_T_dates": attempted,
+                "qualified_T_dates": qualified, "status": "PASS" if passed else "BLOCKED",
+                "aborted_at_T_date": failure}
+    if receipt.get("preflight") != expected:
+        raise ValueError("canonical preflight receipt does not match journal")
+    for item in covered[len(attempted):]:
+        aborted = item["status"] == "PENDING_PREFLIGHT_ABORTED"
+        if (passed and aborted) or (not passed and not aborted) or not passed and (
+                item.get("network_request_performed") is not False or item.get("new_source_files") != []
+                or any(key in item for key in _RESPONSE_FIELDS)):
+            raise ValueError("request crossed failed preflight barrier")
+    return expected
+
+
 def validate_collection(root, manifest):
     """Source integrity and completeness are separate; pending is not zero."""
-    from work.profit_1000_upgrade import collect_v3
+    from work.profit_1000_upgrade import collect_v3, auction_http_v3
     root = require_research_mirror(root)
     verify_import(root)
     plan = load_plan()
@@ -272,6 +324,8 @@ def validate_collection(root, manifest):
             or receipt.get("plan_sha256") != sha(plan_path())
             or receipt.get("collection_contract_sha256") != plan["collection_contract_sha256"]
             or receipt.get("as_of_date") != plan["as_of_date"]
+            or receipt.get("http_envelope_adapter_id") != auction_http_v3.ADAPTER_ID
+            or receipt.get("http_envelope_adapter_sha256") != sha(HERE / "auction_http_v3.py")
             or any(type(receipt.get(k)) is not type(v) or receipt[k] != v for k, v in collect_v3.FLAGS.items())
             or receipt.get("retries") != 0 or receipt.get("minute_api_calls") != 0 or receipt.get("daily_api_calls") != 0
             or receipt.get("source_files") != receipt.get("new_source_files")):
@@ -328,18 +382,28 @@ def validate_collection(root, manifest):
     if (len(requests) != 910 or [r["trade_date"] for r in requests] != dates
             or sorted(journal, key=lambda r: r["trade_date"]) != requests):
         raise ValueError("candidate/request/journal date coverage changed")
+    preflight = _validate_preflight(receipt, journal, contract)
     qualified, pre, seen_paths = 0, 0, set()
     pending_statuses = {"PENDING_CREDENTIAL_ABSENT", "PENDING_BUDGET_EXHAUSTED", "PENDING_HTTP_ERROR",
-                        "PENDING_NETWORK_OR_RESPONSE_ERROR", "PENDING_INVALID_HTTP_BYTES", "PENDING_INVALID_SOURCE_NOT_IMPUTED"}
+                        "PENDING_NETWORK_OR_RESPONSE_ERROR", "PENDING_INVALID_HTTP_BYTES", "PENDING_INVALID_SOURCE_NOT_IMPUTED",
+                        "PENDING_PREFLIGHT_ABORTED"}
     for item in requests:
         day = item["trade_date"]
         if (item["endpoint"] != "stk_auction" or item["ts_code"] is not None
                 or item.get("candidate_codes") != sorted(by_date[day])
                 or item.get("source_policy_id") != auction.SOURCE_POLICY_ID
+                or item.get("http_envelope_adapter_id") != auction_http_v3.ADAPTER_ID
+                or item.get("http_envelope_adapter_sha256") != sha(HERE / "auction_http_v3.py")
                 or item.get("plan_sha256") != sha(plan_path())
                 or item.get("collection_contract_sha256") != plan["collection_contract_sha256"]
                 or type(item.get("network_request_performed")) is not bool):
             raise ValueError("auction request identity changed")
+        non_network = item["status"] in {"HISTORY_BEFORE_CANONICAL_COVERAGE", "PENDING_CREDENTIAL_ABSENT",
+                                         "PENDING_BUDGET_EXHAUSTED", "PENDING_PREFLIGHT_ABORTED"}
+        if (item["network_request_performed"] is non_network
+                or non_network and any(key in item for key in _RESPONSE_FIELDS)
+                or not non_network and item.get("request") != auction.request_contract(day)):
+            raise ValueError("request attempt status or provenance changed")
         if day < auction.COVERAGE_START:
             if (item["status"] != "HISTORY_BEFORE_CANONICAL_COVERAGE" or item["network_request_performed"] is not False
                     or item["new_source_files"] != [] or any(p.exists() for p in auction.source_paths(root, day))):
@@ -348,6 +412,7 @@ def validate_collection(root, manifest):
         elif item["status"] == "EXACT_TRUTH_WRITTEN":
             source = auction.load(root, day)
             meta = _json(auction.source_paths(root, day)[1].read_bytes())
+            _validate_source_response_receipt(item, meta)
             source_bindings = [dict(b) for b in source.source_files]
             if (source.requested_code is not None or item["network_request_performed"] is not True
                     or item.get("request") != auction.request_contract(day) or item["request"] != meta["request"]
@@ -363,7 +428,9 @@ def validate_collection(root, manifest):
             raise ValueError("failed request silently became source truth")
     complete = qualified == 393 and pre == 517
     calls = sum(r["network_request_performed"] for r in requests)
-    if (receipt.get("api_calls") != calls or calls > receipt["budget"]["max_api_calls"]
+    attempted_all = all(r["network_request_performed"] or r["status"] == "HISTORY_BEFORE_CANONICAL_COVERAGE" for r in requests)
+    if (type(receipt.get("api_calls")) is not int or receipt["api_calls"] != calls or calls > receipt["budget"]["max_api_calls"]
+            or receipt.get("auction_attempts_complete") is not attempted_all
             or receipt.get("auction_evidence_complete") is not complete
             or receipt.get("status") != ("COMPLETE" if complete else "BLOCKED")
             or receipt.get("request_status_counts") != dict(Counter(r["status"] for r in requests))
@@ -377,7 +444,7 @@ def validate_collection(root, manifest):
     bindings[receipt_binding["path"]] = receipt_binding
     return bindings, {"integrity": "PASS", "canonical_dates_qualified": qualified,
                       "precoverage_declarations": pre, "reused_minute_pairs": len(observed_minutes),
-                      "auction_evidence_complete": complete, "api_calls": calls}
+                      "auction_evidence_complete": complete, "api_calls": calls, "preflight": preflight}
 
 
 def evaluate(root):

@@ -57,6 +57,9 @@ def test_registered_plan_preserves_prior_scope_and_never_authorizes_training():
     assert research.sha(research.HERE / "PLAN_V2.json") == research.V2_PLAN_SHA
     assert plan["base_archive"]["zip_sha256"] == research.BASE_SHA
     assert plan["base_archive"]["run_id"] == research.BASE_RUN
+    assert plan["source_commit"] == "6bbf56c2e6f11d3ea880e7dcff011ef7c3fb501c"
+    assert plan["revises_v3_plan_sha256"] == "344b6e87c95665bb08d41c6f328488ab49c5edeb4723347f0706704289c6b8cf"
+    assert plan["http_envelope_adapter_id"] == "dc20_canonical_http_empty_detail_v1"
     assert {"src/top10decision/decision/executable_profit_shadow_settlement.py",
             "src/top10decision/decision/shadow_exit_1000.py",
             "work/profit_1000_upgrade/minute_truth.py"} <= {b["path"] for b in plan["adapter_sources"]}
@@ -68,6 +71,7 @@ def test_registered_plan_preserves_prior_scope_and_never_authorizes_training():
     ("promotion_model_changed", True), ("training_performed", True), ("production_release_allowed", True),
     ("entry_policy_id", "research_auction_first_open_proxy_no_cap_v2"),
     ("phase", "TRAIN_AND_ACTIVATE"), ("collection_contract_sha256", "0" * 64),
+    ("revises_v3_plan_sha256", "0" * 64), ("http_envelope_adapter_id", "ALLOW_ANY_DETAIL"),
 ])
 def test_plan_contract_mutations_fail_closed(tmp_path, monkeypatch, key, value):
     plan = research.load_plan()
@@ -77,6 +81,106 @@ def test_plan_contract_mutations_fail_closed(tmp_path, monkeypatch, key, value):
     monkeypatch.setattr(research, "plan_path", lambda: path)
     with pytest.raises(ValueError):
         research.load_plan()
+
+
+def _preflight_fixture(failed_at=None, failure_status="PENDING_INVALID_SOURCE_NOT_IMPUTED"):
+    dates = ["20250102", "20250116", "20260817"]
+    attempted = dates if failed_at is None else dates[:failed_at + 1]
+    qualified = dates if failed_at is None else dates[:failed_at]
+    pre = {"trade_dates": dates, "attempted_T_dates": attempted, "qualified_T_dates": qualified,
+           "status": "PASS" if failed_at is None else "BLOCKED",
+           "aborted_at_T_date": None if failed_at is None else dates[failed_at]}
+    journal = [{"trade_date": "20241231", "status": "HISTORY_BEFORE_CANONICAL_COVERAGE"}]
+    for day in attempted:
+        status = failure_status if day == pre["aborted_at_T_date"] else "EXACT_TRUTH_WRITTEN"
+        journal.append({"trade_date": day, "status": status})
+    remaining = [day for day in dates if day not in attempted] + ["20250103"]
+    for day in remaining:
+        journal.append({"trade_date": day, "status": "EXACT_TRUTH_WRITTEN" if failed_at is None else "PENDING_PREFLIGHT_ABORTED",
+                        "network_request_performed": failed_at is None, "new_source_files": []})
+    return {"preflight": pre}, journal, {"preflight_T_dates": dates}
+
+
+@pytest.mark.parametrize("failed_at", [None, 0, 1, 2])
+def test_preflight_acceptance_reconstructs_actual_sequential_barrier(failed_at):
+    receipt, journal, contract = _preflight_fixture(failed_at)
+    assert research._validate_preflight(receipt, journal, contract) == receipt["preflight"]
+
+
+@pytest.mark.parametrize("failure_status", ["PENDING_CREDENTIAL_ABSENT", "PENDING_BUDGET_EXHAUSTED", "PENDING_HTTP_ERROR"])
+def test_preflight_non_http_attempt_or_http_error_still_aborts(failure_status):
+    receipt, journal, contract = _preflight_fixture(0, failure_status)
+    assert research._validate_preflight(receipt, journal, contract)["attempted_T_dates"] == ["20250102"]
+
+
+@pytest.mark.parametrize("mutation", ["wrong_first", "wrong_second", "fake_pass", "fake_failure_day",
+    "fake_qualified", "drop_attempt", "late_call", "late_source", "late_request", "late_hash", "skip_first"])
+def test_preflight_rejects_changed_sequence_or_network_after_failure(mutation):
+    receipt, journal, contract = _preflight_fixture(1)
+    if mutation == "wrong_first":
+        journal[1]["trade_date"] = "20250103"
+    elif mutation == "wrong_second":
+        journal[2]["trade_date"] = "20260817"
+    elif mutation == "fake_pass":
+        receipt["preflight"]["status"] = "PASS"
+    elif mutation == "fake_failure_day":
+        receipt["preflight"]["aborted_at_T_date"] = "20260817"
+    elif mutation == "fake_qualified":
+        receipt["preflight"]["qualified_T_dates"].append("20250116")
+    elif mutation == "drop_attempt":
+        receipt["preflight"]["attempted_T_dates"].pop()
+    elif mutation == "late_call":
+        journal[-1]["network_request_performed"] = True
+    elif mutation == "late_source":
+        journal[-1]["new_source_files"] = [{"path": "fabricated"}]
+    elif mutation == "late_request":
+        journal[-1]["request"] = {"fabricated": True}
+    elif mutation == "late_hash":
+        journal[-1]["http_response_sha256"] = "0" * 64
+    else:
+        journal[1]["status"] = "PENDING_PREFLIGHT_ABORTED"
+    with pytest.raises(ValueError):
+        research._validate_preflight(receipt, journal, contract)
+
+
+def test_passed_preflight_cannot_hide_aborted_unrequested_date():
+    receipt, journal, contract = _preflight_fixture()
+    journal[-1]["status"] = "PENDING_PREFLIGHT_ABORTED"
+    with pytest.raises(ValueError):
+        research._validate_preflight(receipt, journal, contract)
+
+
+@pytest.mark.parametrize("field", research._RESPONSE_FIELDS)
+def test_aborted_date_cannot_carry_any_provider_response_claim(field):
+    receipt, journal, contract = _preflight_fixture(0)
+    journal[-1][field] = None
+    with pytest.raises(ValueError):
+        research._validate_preflight(receipt, journal, contract)
+
+
+def _response_metadata_fixture():
+    meta = {"http_response_sha256": "a" * 64, "http_response_bytes": 200,
+            "api_code": 0, "rows": 1, "fetched_at_utc": "2026-09-12T08:30:00+00:00"}
+    item = {**meta, "source_rows": meta["rows"]}
+    del item["rows"]
+    return item, meta
+
+
+def test_response_receipt_matches_exact_original_metadata():
+    item, meta = _response_metadata_fixture()
+    research._validate_source_response_receipt(item, meta)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("http_response_sha256", "b" * 64), ("http_response_bytes", 201), ("http_response_bytes", "200"),
+    ("api_code", False), ("source_rows", True), ("source_rows", 1.0),
+    ("fetched_at_utc", "2026-09-12T08:30:01+00:00"), ("source_rows", None),
+])
+def test_response_receipt_rejects_type_coercion_or_inconsistent_value(field, value):
+    item, meta = _response_metadata_fixture()
+    item[field] = value
+    with pytest.raises(ValueError):
+        research._validate_source_response_receipt(item, meta)
 
 
 def test_missing_or_changed_adapter_binding_rejected(tmp_path, monkeypatch):

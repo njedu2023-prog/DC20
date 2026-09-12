@@ -35,6 +35,32 @@ workers and a 20-second request timeout, with no retries or minute/daily request
 Token and server messages are not retained. No diagnostic object is wrapped or
 reconstructed as an HTTP response. All new sources use a separate v3 namespace.
 
+### Empty-detail HTTP compatibility revision
+
+The first full v3 run (34681595017, commit `22ac819`) retained all candidates but
+qualified zero auction dates: every response failed the strict outer-envelope
+allowlist. Independent replay reproduced the entire blocked result. A subsequent
+single-call shape-only probe (34682522136, commit `6bbf56c`) identified exactly one
+extra outer field, `detail`, of type string. That probe saved no response values
+or market table and is never imported as source truth.
+
+`auction_http_v3.py` parses original HTTP bytes directly and permits only an
+optional, exactly empty string `detail`. Nonempty detail, other new keys and
+incorrect types fail closed. The frozen `auction_truth_v3.py` remains unchanged;
+its table checks, data/metadata format, per-candidate price/capacity qualification
+and exact original-response digest remain in force. Adapter ID and SHA are bound
+in the plan and current request receipts, not injected into frozen source metadata.
+
+The collector now evaluates T 2025-01-02, 2025-01-16 and 2026-08-17 sequentially
+before starting the remaining dates. These requests count inside the same 393-call
+budget and are never repeated. Any preflight failure, including missing credentials
+or budget, stops new calls; every unattempted covered date receives an explicit
+`PENDING_PREFLIGHT_ABORTED` record with no source or fallback. The bound journal
+must prove this ordering and barrier during acceptance. Only a real successful
+preflight establishes compatibility; the shape-only probe did not prove that the
+provider's `detail` was empty. A new request contract, not an Actions rerun, is
+required for another collection attempt.
+
 Price qualification and capacity qualification are distinct. Positive auction
 price/volume and matching daily-open cents can qualify a posthoc entry-price
 observation even when reported amount arithmetic is invalid. Such a sample has

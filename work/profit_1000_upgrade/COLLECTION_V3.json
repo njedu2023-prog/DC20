@@ -2,6 +2,8 @@
   "schema_version": "dc20_profit_1000_collection_request_v3",
   "plan_version": "v3",
   "phase": "CANONICAL_AUCTION_ONLY",
+  "http_envelope_adapter_id": "dc20_canonical_http_empty_detail_v1",
+  "preflight_T_dates": ["20250102", "20250116", "20260817"],
   "as_of_date": "20260911",
   "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
   "auction_source_policy_id": "dc20_research_canonical_price_capacity_split_20260912_v3",

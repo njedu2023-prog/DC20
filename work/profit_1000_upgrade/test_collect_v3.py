@@ -73,7 +73,7 @@ def mirror(tmp_path, monkeypatch):
     root.mkdir()
     (root / "old-original-source.bin").write_bytes(b"pinned synthetic historical source, do not change")
     (root / ".dc20-profit-1000-research-root.json").write_text('{"synthetic_fixture_only":true}')
-    days = _weekdays(date(2022, 11, 14), 517) + _weekdays(date(2025, 1, 1), 393)
+    days = _weekdays(date(2022, 11, 14), 517) + _weekdays(date(2025, 1, 1), 392) + [date(2026, 8, 17)]
     rows = []
     for index, day in enumerate(days):
         for rank in range(1, 9 if index < 383 else 8):
@@ -98,6 +98,8 @@ def test_registered_contract_exact_scope_endpoints_and_no_training():
     assert expected["allowed_endpoints"] == ["stk_auction"] and expected["retries"] == 0
     assert expected["candidate_rows"] == 6753 and expected["T_dates"] == 910
     assert expected["pre_coverage_T_dates"] == 517 and expected["canonical_T_dates"] == 393
+    assert expected["http_envelope_adapter_id"] == "dc20_canonical_http_empty_detail_v1"
+    assert expected["preflight_T_dates"] == ["20250102", "20250116", "20260817"]
     assert expected["training_performed"] is expected["labels_rebuilt"] is expected["settlement_performed"] is False
     assert collect._file_sha(collect.HERE / "collect.py") == collect.OLD_COLLECT_SHA
     assert collect._file_sha(collect.HERE / "auction_truth.py") == collect.OLD_AUCTION_SHA
@@ -136,6 +138,8 @@ def test_fetch_original_http_exact_canonical_endpoint_and_bound_source_pair(tmp_
     assert result["source_rows"] == result["candidate_rows_present"] == 1
     assert result["http_response_sha256"] == hashlib.sha256(raw).hexdigest()
     assert result["http_response_bytes"] == len(raw)
+    assert result["http_envelope_adapter_id"] == collect.http_adapter.ADAPTER_ID
+    assert result["http_envelope_adapter_sha256"] == collect._IMPORTED_HASHES[collect.HERE / "auction_http_v3.py"]
     loaded = collect.auction.load(tmp_path, DAY)
     assert loaded.requested_code is None and loaded.rows[CODE]["price"] == 10
     assert list(map(dict, loaded.source_files)) == result["new_source_files"]
@@ -145,6 +149,47 @@ def test_fetch_original_http_exact_canonical_endpoint_and_bound_source_pair(tmp_
     assert metadata["diagnostic_table_imported"] is False
     assert TOKEN.encode() not in data.read_bytes() + meta.read_bytes() + json.dumps(result).encode()
     assert "net_return" not in result and "proxy_fill" not in result
+
+
+def test_fetch_routes_unchanged_original_http_bytes_through_adapter(tmp_path, monkeypatch):
+    payload = json.loads(_payload(values=["10.001", 100, "1000.1", 9.5]))
+    payload["detail"] = ""
+    raw = json.dumps(payload, indent=3).encode()
+    observed = []
+    adapter_source_bytes = collect.http_adapter.source_bytes
+    def observed_adapter(original, *args, **kwargs):
+        observed.append(original)
+        return adapter_source_bytes(original, *args, **kwargs)
+    monkeypatch.setattr(collect.http_adapter, "source_bytes", observed_adapter)
+    result = _fetch(tmp_path, call=lambda *args: raw)
+    assert result["status"] == "EXACT_TRUTH_WRITTEN" and observed == [raw]
+    assert result["http_response_sha256"] == hashlib.sha256(raw).hexdigest()
+    metadata = json.loads(collect.auction.source_paths(tmp_path, DAY)[1].read_bytes())
+    assert metadata["http_response_sha256"] == hashlib.sha256(raw).hexdigest()
+    loaded = collect.auction.load(tmp_path, DAY)
+    assert loaded.rows[CODE]["price"] == "10.001" and loaded.rows[CODE]["amount"] == "1000.1"
+
+
+@pytest.mark.parametrize("detail", ["private server details", None, False, 0, [], {}])
+def test_fetch_rejects_nonempty_or_nonstr_detail_without_source_or_values(tmp_path, detail):
+    payload = json.loads(_payload())
+    payload["detail"] = detail
+    raw = json.dumps(payload).encode()
+    result = _fetch(tmp_path, call=lambda *args: raw)
+    assert result["status"] == "PENDING_INVALID_SOURCE_NOT_IMPUTED"
+    assert result["reason"] in collect._SAFE_REASONS
+    assert result["reason"] != "UNCLASSIFIED_CODEC_REJECTION"
+    assert result["new_source_files"] == [] and _snapshot(tmp_path) == {}
+    assert "private server details" not in json.dumps(result)
+
+
+def test_fetch_extra_unknown_key_still_rejected_not_blindly_ignored(tmp_path):
+    payload = json.loads(_payload())
+    payload.update(detail="", next_page="untrusted secret server contents")
+    result = _fetch(tmp_path, call=lambda *args: json.dumps(payload).encode())
+    assert result["status"] == "PENDING_INVALID_SOURCE_NOT_IMPUTED"
+    assert result["new_source_files"] == [] and _snapshot(tmp_path) == {}
+    assert "untrusted secret server contents" not in json.dumps(result)
 
 
 @pytest.mark.parametrize("values", [[10, 100, 999, 9.5], [None, 100, 1000, 9.5],
@@ -220,7 +265,7 @@ def test_exception_messages_credentials_never_persist(tmp_path, monkeypatch, kin
     if kind == "malicious_codec":
         def bad_codec(*args, **kwargs):
             raise ValueError(TOKEN)
-        monkeypatch.setattr(collect.auction, "source_bytes", bad_codec)
+        monkeypatch.setattr(collect.http_adapter, "source_bytes", bad_codec)
         call = lambda *args: _payload()
     result = _fetch(tmp_path, call=call)
     assert TOKEN not in json.dumps(result) and result["new_source_files"] == []
@@ -254,7 +299,11 @@ def test_all_910_dates_stay_in_journal_when_credential_absent(mirror):
     result = collect.collect_history(root, manifest, "", call=_forbidden, progress=progress.append)
     assert result["status"] == "BLOCKED" and result["api_calls"] == 0
     assert len(result["request_receipts"]) == 910
-    assert result["request_status_counts"] == {"HISTORY_BEFORE_CANONICAL_COVERAGE": 517, "PENDING_CREDENTIAL_ABSENT": 393}
+    assert result["request_status_counts"] == {"HISTORY_BEFORE_CANONICAL_COVERAGE": 517,
+                                                "PENDING_CREDENTIAL_ABSENT": 1, "PENDING_PREFLIGHT_ABORTED": 392}
+    assert result["preflight"] == {"trade_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "attempted_T_dates": ["20250102"], "qualified_T_dates": [],
+                                    "status": "BLOCKED", "aborted_at_T_date": "20250102"}
     assert result["precoverage_dates"] == 517 and result["covered_dates"] == 393
     assert result["source_files"] == result["new_source_files"] == []
     journal = root / "collection_requests.jsonl"
@@ -279,11 +328,84 @@ def test_lower_call_budget_has_no_retry_and_keeps_every_unrequested_date(mirror)
     assert len(calls) == result["api_calls"] == 2
     assert len({params["trade_date"] for _, params in calls}) == 2
     assert all(endpoint == "stk_auction" and set(params) == {"trade_date"} for endpoint, params in calls)
-    assert result["request_status_counts"] == {"HISTORY_BEFORE_CANONICAL_COVERAGE": 517, "EXACT_TRUTH_WRITTEN": 2, "PENDING_BUDGET_EXHAUSTED": 391}
+    assert result["request_status_counts"] == {"HISTORY_BEFORE_CANONICAL_COVERAGE": 517, "EXACT_TRUTH_WRITTEN": 2,
+                                                "PENDING_BUDGET_EXHAUSTED": 1, "PENDING_PREFLIGHT_ABORTED": 390}
+    assert [params["trade_date"] for _, params in calls] == list(collect.PREFLIGHT_T_DATES[:2])
+    assert result["preflight"] == {"trade_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "attempted_T_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "qualified_T_dates": list(collect.PREFLIGHT_T_DATES[:2]),
+                                    "status": "BLOCKED", "aborted_at_T_date": "20260817"}
     assert result["status"] == "BLOCKED" and result["auction_attempts_complete"] is False
     assert len(result["source_files"]) == 4
     assert len(result["request_receipts"]) == 910 and result["retries"] == 0
     assert TOKEN.encode() not in b"".join(_snapshot(root).values()) + json.dumps(result).encode()
+
+
+@pytest.mark.parametrize("failed_index", [0, 1, 2])
+def test_first_failed_preflight_stops_http_and_retains_every_untouched_date(mirror, monkeypatch, failed_index):
+    root, manifest = mirror
+    calls = []
+    def fake(endpoint, params, *args):
+        day = params["trade_date"]
+        calls.append(day)
+        return b"not json" if day == collect.PREFLIGHT_T_DATES[failed_index] else _payload(day)
+    monkeypatch.setattr(collect, "ThreadPoolExecutor", _forbidden)
+    result = collect.collect_history(root, manifest, TOKEN, call=fake)
+    attempted = list(collect.PREFLIGHT_T_DATES[:failed_index + 1])
+    assert calls == attempted and result["api_calls"] == failed_index + 1
+    assert result["status"] == "BLOCKED" and result["auction_attempts_complete"] is False
+    assert result["preflight"] == {"trade_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "attempted_T_dates": attempted,
+                                    "qualified_T_dates": list(collect.PREFLIGHT_T_DATES[:failed_index]),
+                                    "status": "BLOCKED", "aborted_at_T_date": attempted[-1]}
+    assert len(result["request_receipts"]) == len({r["trade_date"] for r in result["request_receipts"]}) == 910
+    assert result["request_status_counts"]["PENDING_PREFLIGHT_ABORTED"] == 392 - failed_index
+    forbidden_keys = {"request", "http_response_sha256", "http_response_bytes", "fetched_at_utc",
+                      "source_status", "source_rows", "fallback_price", "net_return", "source_files"}
+    for receipt in result["request_receipts"]:
+        if receipt["status"] == "PENDING_PREFLIGHT_ABORTED":
+            assert receipt["trade_date"] not in calls
+            assert receipt["network_request_performed"] is False and receipt["new_source_files"] == []
+            assert receipt["reason"] == "PREFLIGHT_ABORTED" and not forbidden_keys & receipt.keys()
+            assert all(not path.exists() for path in collect.auction.source_paths(root, receipt["trade_date"]))
+    assert len(result["new_source_files"]) == failed_index * 2
+
+
+@pytest.mark.parametrize("failure", ["http_error", "network_error", "invalid_bytes", "detail_rejection"])
+def test_preflight_transport_and_adapter_failures_do_not_launch_bulk_collection(mirror, monkeypatch, failure):
+    root, manifest = mirror
+    calls = []
+    def fake(*args):
+        calls.append(args[1]["trade_date"])
+        if failure == "http_error":
+            raise error.HTTPError("https://invalid.test/" + TOKEN, 500, TOKEN, {}, None)
+        if failure == "network_error":
+            raise RuntimeError(TOKEN)
+        if failure == "invalid_bytes":
+            return None
+        return json.dumps({**json.loads(_payload()), "detail": "unknown provider text"}).encode()
+    monkeypatch.setattr(collect, "ThreadPoolExecutor", _forbidden)
+    result = collect.collect_history(root, manifest, TOKEN, call=fake)
+    assert calls == ["20250102"] and result["api_calls"] == 1
+    assert result["preflight"]["attempted_T_dates"] == ["20250102"]
+    assert result["preflight"]["qualified_T_dates"] == []
+    assert result["preflight"]["status"] == result["status"] == "BLOCKED"
+    assert result["request_status_counts"]["PENDING_PREFLIGHT_ABORTED"] == 392
+    assert result["new_source_files"] == [] and TOKEN not in json.dumps(result)
+    assert "unknown provider text" not in json.dumps(result)
+
+
+def test_missing_fixed_preflight_date_rejected_before_journal_or_http(mirror, monkeypatch):
+    root, manifest = mirror
+    changed = copy.deepcopy(manifest)
+    for row in changed["rows"]:
+        if row["exec_date"] == "20260817":
+            row.update(exec_date="20260818", signal_date="20260817")
+    monkeypatch.setattr(collect.research_v3, "prepare_history", lambda value: copy.deepcopy(changed))
+    before = _snapshot(root)
+    with pytest.raises(ValueError, match="V3_PREFLIGHT_DATE_NOT_IN_FROZEN_COVERAGE"):
+        collect.collect_history(root, changed, TOKEN, call=_forbidden)
+    assert _snapshot(root) == before
 
 
 def test_full_phase_calls_each_covered_date_once_no_minutes_daily_or_labels(mirror, monkeypatch):
@@ -295,10 +417,24 @@ def test_full_phase_calls_each_covered_date_once_no_minutes_daily_or_labels(mirr
     monkeypatch.setattr(candidate, "run_candidate", _forbidden)
     def fake(endpoint, params, fields, token, timeout):
         calls.append((endpoint, params["trade_date"]))
+        if params["trade_date"] not in collect.PREFLIGHT_T_DATES:
+            assert [day for _, day in calls[:3]] == list(collect.PREFLIGHT_T_DATES)
+            assert all(collect.auction.load(root, day).status == "CANONICAL_TABLE_EMPTY"
+                       for day in collect.PREFLIGHT_T_DATES)
         return _payload(params["trade_date"], rows=[])
     result = collect.collect_history(root, manifest, TOKEN, call=fake)
     assert result["status"] == "COMPLETE" and result["api_calls"] == len(calls) == 393
     assert len(set(calls)) == 393 and {endpoint for endpoint, day in calls} == {"stk_auction"}
+    assert [day for _, day in calls[:3]] == list(collect.PREFLIGHT_T_DATES)
+    assert result["preflight"] == {"trade_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "attempted_T_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "qualified_T_dates": list(collect.PREFLIGHT_T_DATES),
+                                    "status": "PASS", "aborted_at_T_date": None}
+    adapter_sha = result["execution_file_bindings"]["work/profit_1000_upgrade/auction_http_v3.py"]
+    assert result["http_envelope_adapter_id"] == collect.http_adapter.ADAPTER_ID
+    assert result["http_envelope_adapter_sha256"] == adapter_sha
+    assert all(row["http_envelope_adapter_id"] == collect.http_adapter.ADAPTER_ID and
+               row["http_envelope_adapter_sha256"] == adapter_sha for row in result["request_receipts"])
     assert result["minute_api_calls"] == result["daily_api_calls"] == 0
     assert len(result["source_files"]) == 786
     assert result["auction_evidence_complete"] and result["auction_attempts_complete"]
@@ -396,10 +532,11 @@ def test_partial_pair_write_is_hard_failure_not_completed_evidence(mirror, monke
 
 
 @pytest.mark.parametrize("where", ["before", "during"])
-def test_collector_implementation_change_is_detected_without_editing_code(mirror, monkeypatch, where):
+@pytest.mark.parametrize("filename", ["collect_v3.py", "auction_http_v3.py"])
+def test_collector_implementation_change_is_detected_without_editing_code(mirror, monkeypatch, where, filename):
     root, manifest = mirror
     original = collect._file_sha
-    target = collect.HERE / "collect_v3.py"
+    target = collect.HERE / filename
     changed = [where == "before"]
     def sha(path):
         return "0" * 64 if Path(path) == target and changed[0] else original(path)
