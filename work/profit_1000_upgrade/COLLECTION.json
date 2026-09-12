@@ -1,0 +1,16 @@
+{
+  "schema_version": "dc20_profit_1000_collection_request_v1",
+  "request_id": "profit_1000_history_20260912_v1",
+  "as_of_date": "20260911",
+  "production_writes": false,
+  "purchase_permission": false,
+  "budget": {"max_api_calls": 9000, "max_seconds": 5400, "requests_per_second": 2.0, "workers": 4, "timeout_seconds": 20},
+  "entitlement_probe_run_id": 34670144882,
+  "entitlement_probe_commit": "c508ac00e54391459359761fabe58b1222e2cecf",
+  "source_artifact_id": 9987577487,
+  "tail_artifact_id": 9987956113,
+  "research_only": true,
+  "historical_outcomes_are_not_untouched_holdout": true,
+  "missing_truth_as_zero": false,
+  "replace_production_model": false
+}

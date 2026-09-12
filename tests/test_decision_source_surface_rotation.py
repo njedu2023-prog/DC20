@@ -235,7 +235,29 @@ EXIT1000_BOUNDARIES = {
 }
 
 
-def _exit1000_live_source(path: str) -> bytes:
+DEV_YAML_REVIEW = ROOT / "models/decision_source_surface_review_20260912_dev_yaml.json"
+DEV_YAML_REVIEW_SHA = "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1"
+DEV_YAML_SCOPE = "DEV_ONLY_HASH_LOCKED_PYYAML_COLLECTION_DEPENDENCY_NO_RUNTIME_MODEL_OR_TRUTH_CHANGE"
+DEV_YAML_SOURCE_PATHS = {"requirements-dev.in", "requirements-dev.lock"}
+DEV_YAML_BOUNDARIES = {
+    "dev_test_dependency_added": True,
+    "production_requirements_changed": False,
+    "other_dependencies_changed": False,
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "frozen_members_changed": False,
+    "promotion_model_changed": False,
+    "entry_policy_changed": False,
+    "exit_policy_changed": False,
+    "historical_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _dev_yaml_live_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
     target = ROOT / path
@@ -243,6 +265,162 @@ def _exit1000_live_source(path: str) -> bytes:
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
     return target.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _parse_dev_yaml_review(raw: bytes) -> dict:
+    # Only decoding is cached; live bytes and their hash are always rechecked.
+    return json.loads(raw)
+
+
+def _dev_yaml_review(review: dict | None = None) -> dict:
+    raw = _dev_yaml_live_source(DEV_YAML_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw).hexdigest() == DEV_YAML_REVIEW_SHA
+    approved = _parse_dev_yaml_review(raw)
+    review = approved if review is None else review
+    assert review == approved
+    assert review["schema_version"] == "decision_dev_yaml_dependency_source_review_v1"
+    assert review["approved_base_commit"] == "b84acfe2d7dbd029a98446e8d19cabfbbea7ad84"
+    assert review["scope"] == DEV_YAML_SCOPE
+    assert review["boundaries"] == DEV_YAML_BOUNDARIES
+    assert review["predecessor_evidence_path"] == EXIT1000_REVIEW.relative_to(ROOT).as_posix()
+    assert review["predecessor_evidence_sha256"] == _sha256(EXIT1000_REVIEW) == EXIT1000_REVIEW_SHA
+    predecessor = json.loads(EXIT1000_REVIEW.read_bytes())
+    assert len(review["preserved_evidence"]) == 20
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": EXIT1000_REVIEW.relative_to(ROOT).as_posix(), "sha256": EXIT1000_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert hashlib.sha256(_dev_yaml_live_source(item["path"])).hexdigest() == item["sha256"]
+    assert review["package"] == {
+        "name": "PyYAML", "version": "6.0.3", "scope": "TEST_ONLY",
+        "metadata_url": "https://pypi.org/pypi/PyYAML/6.0.3/json",
+        "wheel_filename": "pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+        "wheel_sha256": "ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc",
+        "yanked": False,
+    }
+    paths = [item["path"] for item in review["source_changes"]]
+    assert len(paths) == len(set(paths)) == 2 and set(paths) == DEV_YAML_SOURCE_PATHS
+    assert review["pin_count"] == 231
+    assert review["pin_changes"] == [{
+        "path": "requirements-dev.lock",
+        "baseline_sha256": "a63cc07e54091c4c7c35801a02c800d7294f73acbe66f6cddd0351ea74cf19d0",
+        "current_sha256": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
+    }]
+    return review
+
+
+def _source_before_dev_yaml(path: str, review: dict | None = None) -> bytes:
+    source = _dev_yaml_live_source(path)
+    if path not in DEV_YAML_SOURCE_PATHS | {"models/decision_model_freeze.json", "forward/model_inventory.json"}:
+        return source
+    review = _dev_yaml_review(review)
+    if path in DEV_YAML_SOURCE_PATHS:
+        item = next(entry for entry in review["source_changes"] if entry["path"] == path)
+        assert hashlib.sha256(source).hexdigest() == item["current_sha256"]
+        assert len(source) == item["current_bytes"]
+        added = item["added_text"].encode()
+        assert source.count(added) == 1
+        restored = source.replace(added, b"", 1)
+        assert len(restored) == item["baseline_bytes"]
+        assert hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+        return restored
+    if path == "models/decision_model_freeze.json":
+        assert hashlib.sha256(source).hexdigest() == review["current_manifest_sha256"]
+        manifest = json.loads(source)
+        assert len(manifest["pinned_files"]) == review["pin_count"] == 231
+        change = review["pin_changes"][0]
+        assert manifest["pinned_files"][change["path"]] == change["current_sha256"]
+        assert hashlib.sha256(_dev_yaml_live_source(change["path"])).hexdigest() == change["current_sha256"]
+        manifest["pinned_files"][change["path"]] = change["baseline_sha256"]
+        restored = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+        assert hashlib.sha256(restored).hexdigest() == review["baseline_manifest_sha256"] == "5382c25246abaa0f0c7a0fef78d0171cac005589465deb2ea8f095031f8cd20f"
+        return restored
+    inventory = json.loads(source)
+    assert source == (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    dep = review["inventory_update"]
+    assert dep["path"] == path
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": DEV_YAML_REVIEW.relative_to(ROOT).as_posix(), "sha256": DEV_YAML_REVIEW_SHA,
+        "approved_base_commit": review["approved_base_commit"], "scope": DEV_YAML_SCOPE,
+    }
+    for asset in inventory["assets"]:
+        raw = _dev_yaml_live_source(asset["path"])
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    before_manifest = _source_before_dev_yaml("models/decision_model_freeze.json", review)
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(item for item in inventory["assets"] if item["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before_manifest).hexdigest(), bytes=len(before_manifest))
+    restored = (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(restored).hexdigest() == dep["baseline_sha256"] == "f56bdee5629abf11302eb2a0ba02b18a1ac1bf27ea407f8631f85115816da167"
+    return restored
+
+
+def _state_before_dev_yaml(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _dev_yaml_review(review)
+    live = json.loads(_dev_yaml_live_source("models/decision_model_freeze.json"))
+    manifest = live if manifest is None else manifest
+    assert manifest == live
+    assert len(manifest["pinned_files"]) == 231
+    for path, expected in manifest["pinned_files"].items():
+        assert hashlib.sha256(_dev_yaml_live_source(path)).hexdigest() == expected
+    for path in DEV_YAML_SOURCE_PATHS:
+        _source_before_dev_yaml(path, review)
+    return (json.loads(_source_before_dev_yaml("models/decision_model_freeze.json", review)),
+            json.loads(_source_before_dev_yaml("forward/model_inventory.json", review)))
+
+
+def _exit1000_live_source(path: str) -> bytes:
+    # The old review remains immutable and sees only the precisely restored
+    # predecessor bytes. The new dev dependency is verified before this rewind.
+    return _source_before_dev_yaml(path)
+
+
+def test_dev_yaml_repair_is_dev_only_and_restores_all_previous_pins_and_assets():
+    manifest, inventory = _state_before_dev_yaml()
+    assert len(manifest["pinned_files"]) == 231 and len(inventory["assets"]) == 42
+    assert inventory["dependency_successor_review"]["sha256"] == EXIT1000_REVIEW_SHA
+    assert _source_before_dev_yaml("requirements-dev.in") == b"-r requirements.txt\n\npytest==9.1.1\n"
+    assert b"pyyaml" not in _source_before_dev_yaml("requirements-dev.lock").lower()
+    assert b"pyyaml" not in _dev_yaml_live_source("requirements.lock").lower()
+
+
+@pytest.mark.parametrize("target", ["review", "input", "lock", "production_lock", "model", "manifest", "inventory"])
+def test_dev_yaml_repair_rechecks_live_bytes_after_cache_warmup(monkeypatch, target):
+    targets = {"review": DEV_YAML_REVIEW, "input": ROOT / "requirements-dev.in",
+               "lock": ROOT / "requirements-dev.lock", "production_lock": ROOT / "requirements.lock",
+               "model": ROOT / "models/decision_three_engines/promotion.joblib",
+               "manifest": MANIFEST, "inventory": ROOT / "forward/model_inventory.json"}
+    _state_before_dev_yaml()
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == targets[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _state_before_dev_yaml()
+
+
+@pytest.mark.parametrize("mutation", ["scope", "version", "wheel_sha", "base", "extra_dependency",
+                                    "runtime_change", "remove_pin", "extra_pin", "model_identity", "evidence"])
+def test_dev_yaml_repair_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_bytes())
+    review = json.loads(DEV_YAML_REVIEW.read_bytes())
+    if mutation == "scope": review["scope"] = "runtime"
+    elif mutation == "version": review["package"]["version"] = "0"
+    elif mutation == "wheel_sha": review["package"]["wheel_sha256"] = "0" * 64
+    elif mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "extra_dependency": review["source_changes"].append(dict(review["source_changes"][0], path="requirements.lock"))
+    elif mutation == "runtime_change": review["boundaries"]["production_requirements_changed"] = True
+    elif mutation == "remove_pin": del manifest["pinned_files"]["requirements-dev.lock"]
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "model_identity": manifest["training_cutoff_signal_date"] = "20260911"
+    else: review["preserved_evidence"].pop()
+    with pytest.raises(AssertionError):
+        _state_before_dev_yaml(manifest, review)
 
 
 def _exit1000_review(review: dict | None = None) -> dict:
@@ -320,6 +498,8 @@ def _parse_exit1000_review(raw: bytes) -> dict:
 
 
 def _state_before_exit1000(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None:
+        manifest = _state_before_dev_yaml(manifest)[0]
     review = _exit1000_review(review)
     live_manifest = _exit1000_live_source("models/decision_model_freeze.json")
     manifest = json.loads(live_manifest) if manifest is None else manifest

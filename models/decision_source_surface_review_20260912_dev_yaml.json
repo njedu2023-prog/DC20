@@ -1,0 +1,153 @@
+{
+  "schema_version": "decision_dev_yaml_dependency_source_review_v1",
+  "approved_base_commit": "b84acfe2d7dbd029a98446e8d19cabfbbea7ad84",
+  "scope": "DEV_ONLY_HASH_LOCKED_PYYAML_COLLECTION_DEPENDENCY_NO_RUNTIME_MODEL_OR_TRUTH_CHANGE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260912_exit1000.json",
+  "predecessor_evidence_sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+  "boundaries": {
+    "dev_test_dependency_added": true,
+    "production_requirements_changed": false,
+    "other_dependencies_changed": false,
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "promotion_model_changed": false,
+    "entry_policy_changed": false,
+    "exit_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "forward_epoch_activated": false,
+    "validation_gates_bypassed": false,
+    "actual_trading_enabled": false
+  },
+  "package": {
+    "name": "PyYAML",
+    "version": "6.0.3",
+    "scope": "TEST_ONLY",
+    "metadata_url": "https://pypi.org/pypi/PyYAML/6.0.3/json",
+    "wheel_filename": "pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+    "wheel_sha256": "ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc",
+    "yanked": false
+  },
+  "source_changes": [
+    {
+      "path": "requirements-dev.in",
+      "baseline_sha256": "e0379cfae7b41e1c239fda787db76b33ea3e27729cf884dc4f71de4ff33d19a1",
+      "current_sha256": "f10356457876a19241861979d73a323c5c58c90b7c02119d45f4c07073355e50",
+      "baseline_bytes": 35,
+      "current_bytes": 49,
+      "added_text": "PyYAML==6.0.3\n"
+    },
+    {
+      "path": "requirements-dev.lock",
+      "baseline_sha256": "a63cc07e54091c4c7c35801a02c800d7294f73acbe66f6cddd0351ea74cf19d0",
+      "current_sha256": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
+      "baseline_bytes": 3006,
+      "current_bytes": 3172,
+      "added_text": "pyyaml==6.0.3 \\\n    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc\n    # via requirements-dev.in; CPython 3.12 manylinux x86_64 wheel\n"
+    }
+  ],
+  "pin_count": 231,
+  "pin_changes": [
+    {
+      "path": "requirements-dev.lock",
+      "baseline_sha256": "a63cc07e54091c4c7c35801a02c800d7294f73acbe66f6cddd0351ea74cf19d0",
+      "current_sha256": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2"
+    }
+  ],
+  "baseline_manifest_sha256": "5382c25246abaa0f0c7a0fef78d0171cac005589465deb2ea8f095031f8cd20f",
+  "current_manifest_sha256": "f383aad6ec12d8c54c3c2956ba74e478db9fbc3436c63cf656ac1806c7dc32c8",
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "f56bdee5629abf11302eb2a0ba02b18a1ac1bf27ea407f8631f85115816da167",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+      "approved_base_commit": "bd6103a674ff24fd8db54dc3832afcbc983f6de5",
+      "scope": "Only the freeze-manifest reference follows the explicitly versioned 10:00/limit-up-hold exit policy for scheduled exits from 20260914, exact-stock complete-session minute truth collection/publication and policy-separated return statistics. Legacy terminal ledgers remain immutable. Entry policy, promotion model, all existing weights and ranking algorithms, frozen selections, the other 41 inventory assets, inactive forward epoch and all validation gates are preserved. This changes exit truth policy, not model training, calibration or actual trading authority."
+    },
+    "current_scope": "DEV_ONLY_HASH_LOCKED_PYYAML_COLLECTION_DEPENDENCY_NO_RUNTIME_MODEL_OR_TRUTH_CHANGE"
+  },
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_exit_label.json",
+      "sha256": "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+      "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9"
+    }
+  ]
+}

@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260912_exit1000.json",
-    "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
-    "approved_base_commit": "bd6103a674ff24fd8db54dc3832afcbc983f6de5",
-    "scope": "Only the freeze-manifest reference follows the explicitly versioned 10:00/limit-up-hold exit policy for scheduled exits from 20260914, exact-stock complete-session minute truth collection/publication and policy-separated return statistics. Legacy terminal ledgers remain immutable. Entry policy, promotion model, all existing weights and ranking algorithms, frozen selections, the other 41 inventory assets, inactive forward epoch and all validation gates are preserved. This changes exit truth policy, not model training, calibration or actual trading authority."
+    "path": "models/decision_source_surface_review_20260912_dev_yaml.json",
+    "sha256": "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1",
+    "approved_base_commit": "b84acfe2d7dbd029a98446e8d19cabfbbea7ad84",
+    "scope": "DEV_ONLY_HASH_LOCKED_PYYAML_COLLECTION_DEPENDENCY_NO_RUNTIME_MODEL_OR_TRUTH_CHANGE"
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "5382c25246abaa0f0c7a0fef78d0171cac005589465deb2ea8f095031f8cd20f",
+      "sha256": "f383aad6ec12d8c54c3c2956ba74e478db9fbc3436c63cf656ac1806c7dc32c8",
       "bytes": 52401,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
