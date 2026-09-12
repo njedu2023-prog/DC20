@@ -21,21 +21,30 @@ def _jobs():
 
 
 def _test_step(job):
-    matches = [step for step in job["steps"] if "python -m pytest " in step.get("run", "")]
+    matches = [step for step in job["steps"] if " -m pytest " in step.get("run", "")]
     assert len(matches) == 1
     return matches[0]
 
 
 def _selection(job):
     step = _test_step(job)
-    lines = [line.strip() for line in step["run"].splitlines() if line.strip().startswith("python -m pytest ")]
+    lines = [line.strip() for line in step["run"].splitlines() if " -m pytest " in line]
     assert len(lines) == 1
     command = lines[0].split(" 2>&1 | tee ")[0]
     words = shlex.split(command)
-    assert words[:3] == ["python", "-m", "pytest"]
+    if words[0] == "timeout":
+        assert words[:5] == ["timeout", "--verbose", "--signal=TERM", "--kill-after=30s", "50m"]
+        words = words[5:]
+        assert words[:4] == ["python", "-u", "-m", "pytest"]
+        words = words[4:]
+        assert words[3:5] == ["-o", "faulthandler_timeout=120"]
+        words = words[:3] + words[5:]
+    else:
+        assert words[:3] == ["python", "-m", "pytest"]
+        words = words[3:]
     allowed = {"-vv", "--tb=short", "--durations=25"}
     selection = []
-    for word in words[3:]:
+    for word in words:
         if word in allowed or word.startswith("--junitxml=$RUNNER_TEMP/"):
             continue
         assert word in {AUDIT, "--ignore=" + AUDIT}, f"unreviewed test selector: {word}"

@@ -98,10 +98,15 @@ jobs:
         shell: bash
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
         run: |
           set -euo pipefail
           node --version
-          python -m pytest -vv --tb=short --durations=25 --ignore=tests/test_decision_source_surface_rotation.py --junitxml="$RUNNER_TEMP/core-regression.xml" 2>&1 | tee "$RUNNER_TEMP/core-regression.log"
+          # Stop the entire pytest process group before the 60-minute job limit,
+          # preserving time for the always() diagnostics upload. Exit 124/137 is
+          # a failure, never a successful or skipped regression run.
+          timeout --verbose --signal=TERM --kill-after=30s 50m python -u -m pytest -vv --tb=short --durations=25 -o faulthandler_timeout=120 --ignore=tests/test_decision_source_surface_rotation.py --junitxml="$RUNNER_TEMP/core-regression.xml" 2>&1 | tee "$RUNNER_TEMP/core-regression.log"
 
       - name: Preserve core regression diagnostics
         if: always()
