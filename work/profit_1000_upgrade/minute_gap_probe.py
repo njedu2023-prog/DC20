@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Six exact, read-only retries diagnosing rejected historical minute tables.
+"""Six exact, read-only 09:31 queries following the bound first diagnostic.
 
 Keep the original safe data table and complete response-body SHA, never the
 server envelope/message. No grid filling, timestamp shifting, source import,
@@ -25,14 +25,17 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import suspension_probe as safe
+import minute_truth as research_adapter
 from probe import classify
 
-SCHEMA = "dc20_fixed_minute_gap_diagnostic_v1"
+SCHEMA = "dc20_fixed_minute_gap_diagnostic_v2"
 MAX_CALLS, TIMEOUT_SECONDS, MAX_SECONDS = 6, 20, 180
 REQUEST_INTERVAL_SECONDS = 1.0
 CALENDAR_SHA = "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
 ADAPTER_SHA = "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65"
 ARCHIVE_SHA = "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29"
+PREVIOUS_PROBE_SHA = "5e2dc0eb7ef3ca6f198c96010eabe7bcb120f77717cedba75a18ed536ac9e775"
+TIME_SEMANTICS = "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED"
 CASES = (("20221124", "600302.SH"), ("20230109", "002401.SZ"),
          ("20240103", "605118.SH"), ("20250102", "002868.SZ"),
          ("20260106", "603667.SH"), ("20260106", "001299.SZ"))
@@ -58,12 +61,17 @@ ADAPTER_ERRORS = {
 
 
 def _expected_contract():
-    return {"schema_version": SCHEMA, "request_id": "six_rejected_minute_tables_20260912_v1",
+    return {"schema_version": SCHEMA, "request_id": "six_strict_0931_minute_queries_20260912_v2",
             "endpoint": "stk_mins", "max_api_calls": MAX_CALLS,
             "timeout_seconds": TIMEOUT_SECONDS, "max_seconds": MAX_SECONDS,
             "request_interval_seconds": REQUEST_INTERVAL_SECONDS,
             "calendar_sha256": CALENDAR_SHA, "minute_adapter_sha256": ADAPTER_SHA,
             "original_history_archive_sha256": ARCHIVE_SHA,
+            "previous_probe_archive_sha256": PREVIOUS_PROBE_SHA,
+            "previous_probe_run_id": "34674667545",
+            "previous_probe_commit": "9c5da90fdd11d4bbbd429e704a425e8c0b0cae95",
+            "query_window": {"start_time": "09:31:00", "end_time": "15:00:00", "exact_continuous_rows": 240},
+            "time_semantics": TIME_SEMANTICS,
             "original_request_status": "PENDING_INVALID_RESPONSE_NOT_IMPUTED",
             "cases": [{"trade_date": day, "ts_code": code} for day, code in CASES],
             "production_writes": False, "purchase_permission": False,
@@ -76,7 +84,7 @@ def contract():
     for source in (path, calendar, ADAPTER_PATH):
         if any(p.is_symlink() for p in (source, *source.parents)):
             raise ValueError("aliased diagnostic contract")
-    plan = json.loads(path.read_bytes())
+    plan = research_adapter._parse(path.read_bytes())
     if plan != _expected_contract():
         raise ValueError("fixed diagnostic request changed")
     if safe._sha(calendar.read_bytes()) != CALENDAR_SHA or safe._sha(ADAPTER_PATH.read_bytes()) != ADAPTER_SHA:
@@ -86,6 +94,13 @@ def contract():
     if any(day not in dates or day > "20260911" for day, _ in CASES):
         raise ValueError("fixed diagnostic date invalid")
     return plan
+
+
+def request_parameters(trade_date, code):
+    """Narrow only this diagnostic's HTTP query; never change the old adapter."""
+    params = minute.request_parameters(trade_date, code)
+    params["start_date"] = params["start_date"].replace(" 09:30:00", " 09:31:00")
+    return params
 
 
 def _safe_data(payload):
@@ -121,11 +136,12 @@ def diagnose(data, case):
     fields, items = data["fields"], data["items"]
     issues = set()
     result = {"row_count": len(items), "strict_adapter_accepts": False,
-              "table_contract_valid": False, "source_contract_accepts": False,
+              "table_contract_valid": False, "query_window_valid": False,
+              "source_contract_accepts": False, "time_semantics": TIME_SEMANTICS,
               "strict_adapter_error_category": None, "strict_adapter_error": None,
               "source_values_modified": False, "source_import_allowed": False,
               "settlement_allowed": False}
-    if data.get("has_more") is True or ("count" in data and data["count"] != len(items)):
+    if data.get("has_more") is True or (data.get("count", 0) > 0 and data["count"] != len(items)):
         issues.add("PAGINATION_OR_COUNT_MISMATCH")
     if len(fields) != len(minute.FIELDS) or set(fields) != set(minute.FIELDS):
         result.update(issues=sorted(issues | {"FIELD_SCHEMA"}), strict_adapter_error_category="FIELD_SCHEMA")
@@ -147,6 +163,9 @@ def diagnose(data, case):
     lunch = sorted(s for s in safe_stamps if s[:10] == iso_day and "11:30:00" < s[11:] < "13:01:00")
     wrong_code_count = sum(r["ts_code"] != code for r in rows)
     wrong_date_count = sum(s[:10] != iso_day for s in safe_stamps)
+    result["query_window_valid"] = all(isinstance(r["trade_time"], str) and r["trade_time"] in expected for r in rows) and wrong_code_count == 0
+    if not result["query_window_valid"]:
+        issues.add("QUERY_WINDOW_MISMATCH")
     if not rows:
         issues.add("EMPTY_TABLE")
     if missing:
@@ -204,7 +223,7 @@ def diagnose(data, case):
         message = str(exc)
         result["strict_adapter_error_category"] = ADAPTER_ERRORS.get(message, "UNCLASSIFIED_ADAPTER_REJECTION")
         result["strict_adapter_error"] = message if message in ADAPTER_ERRORS else None
-    result["source_contract_accepts"] = result["strict_adapter_accepts"] and result["table_contract_valid"]
+    result["source_contract_accepts"] = result["strict_adapter_accepts"] and result["table_contract_valid"] and result["query_window_valid"]
     result["issues"] = sorted(issues)
     return result
 
@@ -216,14 +235,16 @@ def probe(output, *, token, runner_temp=None, call=safe.official_call, clock=tim
     report = {"schema_version": SCHEMA, "run_commit": os.environ.get("GITHUB_SHA"),
               "run_id": os.environ.get("GITHUB_RUN_ID"), "contract_sha256": safe._sha(safe._json(plan)),
               "source_sha256": safe._sha(Path(__file__).read_bytes()), "api_calls": 0,
+              "research_adapter_sha256": safe._sha(Path(research_adapter.__file__).read_bytes()),
               "max_api_calls": MAX_CALLS, "requests": [], "source_files": files,
               "production_writes": False, "purchase_permission": False, "credential_persisted": False,
               "server_messages_persisted": False, "source_values_modified": False,
               "minute_grid_relaxed": False, "minute_truth_imported": False,
+              "time_semantics": TIME_SEMANTICS, "provider_timestamp_semantics_confirmed": False,
               "training_performed": False, "settlement_performed": False, "release_allowed": False}
     started, next_request, stopped = clock(), clock(), None
     for case in plan["cases"]:
-        params = minute.request_parameters(case["trade_date"], case["ts_code"])
+        params = request_parameters(case["trade_date"], case["ts_code"])
         receipt = {**case, "query_number": len(report["requests"]) + 1, "endpoint": "stk_mins",
                    "params": params, "fields": list(minute.FIELDS), "status": "PENDING_UNKNOWN",
                    "network_request_performed": False, "source_files": []}
@@ -248,7 +269,7 @@ def probe(output, *, token, runner_temp=None, call=safe.official_call, clock=tim
                     if not isinstance(raw, bytes) or len(raw) > safe.MAX_RESPONSE_BYTES:
                         raise ValueError("invalid response bytes")
                     receipt.update(http_response_sha256=safe._sha(raw), http_response_bytes=len(raw))
-                    payload = json.loads(raw)
+                    payload = research_adapter._parse(raw)
                     receipt["status"] = classify(payload)
                     if receipt["status"] in {"ENTITLEMENT_DENIED", "CREDENTIAL_REJECTED", "RATE_LIMITED"}:
                         stopped = receipt["status"]
@@ -260,19 +281,41 @@ def probe(output, *, token, runner_temp=None, call=safe.official_call, clock=tim
                             receipt["status"] = "CREDENTIAL_LIKE_DATA_NOT_PERSISTED"
                         else:
                             receipt["diagnosis"] = diagnose(data, case)
+                            receipt["diagnosis"]["research_adapter_sha256"] = report["research_adapter_sha256"]
+                            try:
+                                encoded_data, encoded_meta = research_adapter.source_bytes(
+                                    raw, case["trade_date"], case["ts_code"], request_params=params,
+                                    fetched_at_utc=receipt["fetched_at_utc"], token=token)
+                                receipt["diagnosis"].update(
+                                    research_adapter_accepts=True,
+                                    research_adapter_error_category=None,
+                                    research_data_encoding_sha256=safe._sha(encoded_data),
+                                    research_meta_encoding_sha256=safe._sha(encoded_meta))
+                            except (ValueError, TypeError, OSError, OverflowError):
+                                receipt["diagnosis"].update(
+                                    research_adapter_accepts=False,
+                                    research_adapter_error_category="RESEARCH_ADAPTER_REJECTED",
+                                    research_data_encoding_sha256=None,
+                                    research_meta_encoding_sha256=None)
                             stem = "responses/" + str(receipt["query_number"]).zfill(2) + "_stk_mins"
                             binding = safe._write(out, stem + ".data.json", body, token)
-                            meta = {"schema_version": "dc20_minute_diagnostic_table_v1", "source": "tushare:stk_mins",
+                            meta = {"schema_version": "dc20_minute_diagnostic_table_v2", "source": "tushare:stk_mins",
                                     "params": params, "data_sha256": binding["sha256"],
                                     "http_response_sha256": receipt["http_response_sha256"],
                                     "fetched_at_utc": receipt["fetched_at_utc"],
                                     "encoding": "ORIGINAL_DATA_TABLE_CANONICAL_JSON_NO_ENVELOPE_MESSAGES",
                                     "diagnostic_only": True, "immutable": True,
+                                    "time_semantics": TIME_SEMANTICS,
                                     "source_values_modified": False, "credential_persisted": False}
                             pair = [binding, safe._write(out, stem + ".meta.json", safe._json(meta), token)]
                             receipt["source_files"] = pair
                             files.extend(pair)
-                            receipt["status"] = "DIAGNOSED_STRICT_ACCEPTED_NOT_IMPORTED" if receipt["diagnosis"]["source_contract_accepts"] else "DIAGNOSED_STRICT_REJECTED_NOT_IMPUTED"
+                            if "QUERY_WINDOW_MISMATCH" in receipt["diagnosis"]["issues"]:
+                                receipt["status"] = "DIAGNOSED_QUERY_WINDOW_MISMATCH_NOT_IMPORTED"
+                            elif receipt["diagnosis"]["source_contract_accepts"] and not receipt["diagnosis"]["research_adapter_accepts"]:
+                                receipt["status"] = "DIAGNOSED_RESEARCH_ADAPTER_REJECTED_NOT_IMPORTED"
+                            else:
+                                receipt["status"] = "DIAGNOSED_STRICT_ACCEPTED_NOT_IMPORTED" if receipt["diagnosis"]["source_contract_accepts"] else "DIAGNOSED_STRICT_REJECTED_NOT_IMPUTED"
                 except error.HTTPError as exc:
                     receipt.update(status="HTTP_ERROR", http_status=exc.code)
                 except (ValueError, TypeError, KeyError, UnicodeError, OverflowError):

@@ -1,6 +1,6 @@
 {
-  "schema_version": "dc20_fixed_minute_gap_diagnostic_v1",
-  "request_id": "six_rejected_minute_tables_20260912_v1",
+  "schema_version": "dc20_fixed_minute_gap_diagnostic_v2",
+  "request_id": "six_strict_0931_minute_queries_20260912_v2",
   "endpoint": "stk_mins",
   "max_api_calls": 6,
   "timeout_seconds": 20,
@@ -9,6 +9,11 @@
   "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
   "minute_adapter_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
   "original_history_archive_sha256": "d004f6decba35d6148082333764ba0988bc3fa25062224492d485ac031fe2a29",
+  "previous_probe_archive_sha256": "5e2dc0eb7ef3ca6f198c96010eabe7bcb120f77717cedba75a18ed536ac9e775",
+  "previous_probe_run_id": "34674667545",
+  "previous_probe_commit": "9c5da90fdd11d4bbbd429e704a425e8c0b0cae95",
+  "query_window": {"start_time": "09:31:00", "end_time": "15:00:00", "exact_continuous_rows": 240},
+  "time_semantics": "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED",
   "original_request_status": "PENDING_INVALID_RESPONSE_NOT_IMPUTED",
   "cases": [
     {"trade_date": "20221124", "ts_code": "600302.SH"},

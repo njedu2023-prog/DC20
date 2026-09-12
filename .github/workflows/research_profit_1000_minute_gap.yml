@@ -33,7 +33,11 @@ jobs:
         with:
           python-version: "3.12.13"
       - name: Test exact diagnostic without credentials or network
-        run: python -m unittest discover -s work/profit_1000_upgrade -p 'test_minute_gap_probe.py' -v
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s work/profit_1000_upgrade -p 'test_minute_gap_probe.py' -v
+          python -m unittest discover -s work/profit_1000_upgrade -p 'test_auction_truth.py' -v
+          python -m unittest discover -s work/profit_1000_upgrade -p 'test_minute_truth.py' -v
       - name: Diagnose six rejected stock sessions without relaxing minute validation
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
