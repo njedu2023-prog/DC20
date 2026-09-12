@@ -33,7 +33,7 @@ jobs:
   test-decision-core:
     if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -59,6 +59,14 @@ jobs:
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
           python -c "import pip; assert pip.__version__ == '26.2.1', pip.__version__"
           python -m pip check
+      - name: Validate supervisor on actual Linux process groups
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python -m pytest tests/test_core_diagnostic_supervisor.py -q --tb=short --junitxml="$RUNNER_TEMP/core-supervisor-selftest.xml"
+          python -c 'import os,sys,xml.etree.ElementTree as E; assert sys.platform.startswith("linux") and callable(getattr(os,"waitid",None)); r=E.parse(os.environ["RUNNER_TEMP"]+"/core-supervisor-selftest.xml").getroot(); s=list(r.iter("testsuite")); assert sum(int(x.get("tests","0")) for x in s)==30; assert all(int(x.get(k,"0"))==0 for x in s for k in ("skipped","failures","errors"))'
       - name: Run decision core regression tests
         shell: bash
         env:
@@ -68,16 +76,20 @@ jobs:
         run: |
           set -euo pipefail
           node --version
-          # Kill the entire pytest process group before job expiry so logs can
-          # be uploaded. Timeout exit 124/137 remains a failed diagnostic run.
-          timeout --verbose --signal=TERM --kill-after=30s 50m python -u -m pytest -vv --tb=short --durations=25 -o faulthandler_timeout=120 --ignore=tests/test_decision_source_surface_rotation.py --junitxml="$RUNNER_TEMP/core-regression.xml" 2>&1 | tee "$RUNNER_TEMP/core-regression.log"
+          # A ten-minute observation window is NOT the required core CI gate.
+          # Direct regular-file logs avoid a descendant keeping tee/PIPE open.
+          # Timeout remains exit 124; cleanup only signals its own child group.
+          python -u scripts/diagnose_core_supervisor.py --output "$RUNNER_TEMP/core-timeout-diagnostic"
       - name: Preserve core regression diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: core-timeout-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/core-regression.log
-            ${{ runner.temp }}/core-regression.xml
+            ${{ runner.temp }}/core-supervisor-selftest.xml
+            ${{ runner.temp }}/core-timeout-diagnostic/core-regression.log
+            ${{ runner.temp }}/core-timeout-diagnostic/core-regression.xml
+            ${{ runner.temp }}/core-timeout-diagnostic/core-progress.jsonl
+            ${{ runner.temp }}/core-timeout-diagnostic/core-supervisor.json
           if-no-files-found: warn
           retention-days: 14
