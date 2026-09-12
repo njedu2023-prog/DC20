@@ -1,0 +1,88 @@
+name: DC20 · frozen candidate auction sources
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "work/profit_1000_upgrade/CANDIDATE_AUCTION_COLLECTION.json"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dc20-research-candidate-auction-gaps
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+
+jobs:
+  candidate-sources:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout exact version without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Pinned Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test upgrade contracts before data access
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
+        run: python -B -m pytest -q work/profit_1000_upgrade -p no:cacheprovider
+      - name: Verify production freeze
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: python -B scripts/validate_decision_model_freeze.py --root .
+      - name: Read exactly the replay-accepted base artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 180 --max-filesize 50000000 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/njedu2023-prog/DC20/actions/artifacts/10295337206/zip \
+            --output "${RUNNER_TEMP}/base-v3.zip"
+      - name: Two real preflights then only frozen gap candidates (1860 calls, no retries)
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: |
+          set -euo pipefail
+          collection_exit=0
+          timeout --signal=TERM --kill-after=30s 55m \
+            python -u -B work/profit_1000_upgrade/candidate_scope_collect.py \
+            --base-archive "${RUNNER_TEMP}/base-v3.zip" \
+            --output "${RUNNER_TEMP}/candidate-auction-gaps" || collection_exit=$?
+          if [ "${collection_exit}" -ne 0 ] && [ "${collection_exit}" -ne 2 ]; then
+            exit "${collection_exit}"
+          fi
+          test -s "${RUNNER_TEMP}/candidate-auction-gaps/candidate_scope_receipt.json"
+      - name: Independently verify all collected source pairs or explicit blocked evidence
+        run: >-
+          python -B work/profit_1000_upgrade/candidate_scope_verify.py
+          --output "${RUNNER_TEMP}/candidate-auction-gaps"
+      - name: Verify no checkout source model or ledger changed
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Retain immutable base and candidate source evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-candidate-auction-gaps-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-auction-gaps/
+          if-no-files-found: error
+          retention-days: 30
