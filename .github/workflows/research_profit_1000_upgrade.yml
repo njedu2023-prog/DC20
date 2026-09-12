@@ -37,7 +37,9 @@ jobs:
         with:
           python-version: "3.12.13"
       - name: Install existing hash-locked research runtime
-        run: python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
       - name: Test new research contracts before credentials
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/work/profit_1000_upgrade
