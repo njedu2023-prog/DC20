@@ -61,7 +61,7 @@ jobs:
       writer_states_b64: ${{ steps.writer_snapshot.outputs.writer_states_b64 }}
     steps:
       - name: Checkout immutable main base without writer credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 1
@@ -125,7 +125,7 @@ jobs:
           PY
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip
@@ -158,7 +158,7 @@ jobs:
           exit 1
 
       - name: Restore best-effort Tencent market-data download cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ${{ runner.temp }}/dc20-three-engine-tencent-cache
           key: >-
@@ -664,7 +664,7 @@ jobs:
 
       - name: Upload one-day immutable candidate envelope
         if: ${{ steps.release.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: three-engine-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -723,14 +723,14 @@ jobs:
       published_head: ${{ steps.publish.outputs.published_head }}
     steps:
       - name: Checkout current main without persisted credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 1
           persist-credentials: false
 
       - name: Download validated candidate envelope
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: three-engine-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate
@@ -806,7 +806,7 @@ jobs:
           PY
 
       - name: Setup publisher Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip

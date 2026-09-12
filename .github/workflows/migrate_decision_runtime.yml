@@ -61,7 +61,7 @@ jobs:
       # frozen replay reads current and prior-session raw files. Never use a
       # sparse checkout here; the wrapper also rejects sparse/skip-worktree.
       - name: Checkout immutable main base without writer credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 1
@@ -102,7 +102,7 @@ jobs:
           echo "base_sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
       - name: Require remote main still equals checkout base
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
         with:
@@ -117,7 +117,7 @@ jobs:
             }
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip
@@ -186,7 +186,7 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Require remote main unchanged at compute completion
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
         with:
@@ -202,7 +202,7 @@ jobs:
 
       - name: Upload immutable migration candidate only for real publication
         if: ${{ steps.mode.outputs.publish == 'true' && steps.candidate.outputs.has_changes == 'true' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: decision-runtime-migration-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/decision-runtime-candidate
@@ -222,14 +222,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout the receipt base without persisted credentials
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.compute.outputs.base_sha }}
           fetch-depth: 1
           persist-credentials: false
 
       - name: Download validated migration bundle
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: decision-runtime-migration-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/decision-runtime-candidate
@@ -238,7 +238,7 @@ jobs:
       # Jobs do not share Python environments, so use the same interpreter and
       # hash-locked dependencies as compute before any publication is possible.
       - name: Setup Python for independent envelope verification
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip
@@ -265,7 +265,7 @@ jobs:
 
       - name: Publish one retrospective migration commit by GitHub API CAS
         id: publish
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           BASE_SHA: ${{ needs.compute.outputs.base_sha }}
           CANDIDATE_ROOT: ${{ runner.temp }}/decision-runtime-candidate
