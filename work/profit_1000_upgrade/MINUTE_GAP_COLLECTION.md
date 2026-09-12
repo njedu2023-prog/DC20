@@ -31,7 +31,7 @@ It registers 2,384 unique date/stock pairs. First/middle/last preflights are:
 - `20251112 / 002759.SZ`
 - `20260818 / 603118.SH`
 
-## Current registration: second collection, 134 new pairs
+## Second registration: 134 pairs (preserved in commit e49144b7 and its artifact)
 
 The first minute collection run `34708814087`, commit
 `c9e6883b9a0d14bfe05058f0c78b225494429a73`, completed all 2,384 source pairs.
@@ -65,6 +65,45 @@ Each round is independently verified against its own external run, commit,
 archive, plan and prior-label SHA. A composite source-chain digest is explicitly
 not a single GitHub collection receipt. Nontrading supplements are not admitted
 as raw minute-chain priors and cannot silently alter earlier economics.
+
+## Current registration: third collection, 24 new pairs
+
+Second minute collection `34711597029`, commit
+`e49144b79be894d79a99a06f28a821fb098a8976`, completed 134/134 requests.
+Artifact `10303517856`, ZIP SHA256:
+`fe6e8fa56b66cc769c7d12c9f2a6d9d676069ae4a1876ea5d12fab1c42ba3200`.
+Receipt SHA256:
+`8e2f024b0a591e7367819864da5ae24b5306d662dc2a9ae8097ca14ca9fe0dc5`.
+
+Independent full two-round replay preserved 6,753 rows / 910 D cohorts and all
+6,594 prior terminal rows. It added 119 settlements: 4,845 settled, including
+2,874 negative rows; 881 complete D cohorts. There remain 24 minute gaps, six
+separate daily gaps and ten invalid entry prices. No outcome is filled with zero.
+Exact raw label SHA256:
+`d159a22b72d0e485fd4c82351170e9861f5d059a25379b67026ee8cc7942159e`.
+Acceptance SHA256:
+`0786e88983341de512e9d887ee500edde63f3a12578e87c49c80e0a82265257f`.
+Raw source-chain digest (not a single GitHub receipt):
+`437be2431cf83ca3c187e2ad06219b71c0f74dc84116bac5bf218b183e8aafd9`.
+
+Current `MINUTE_GAP_COLLECTION.json` is derived from all 24 actual pending rows
+and binds that exact raw label report. SHA256:
+`67d5b385c3a4a87223457d0c02663d9a1f28fa6a47d18b958fc365c2372020c2`.
+All 24 pairs are distinct, within the original exchange calendar, and have no
+existing data/meta or orphan files in the verified augmented base. They are
+disjoint from the first 2,384, second 134 and independent nontrading six requests.
+Preflights:
+
+- `20250127 / 003030.SZ`
+- `20251201 / 003018.SZ`
+- `20260812 / 600721.SH`
+
+The separate six-pair nontrading collection completed in run `34711597028`,
+but this normal raw registration does not consume its supplemental label report.
+It continues only the raw chain; original archives and prior registrations stay
+immutable. More held-day gaps, if actually observed, require another explicit
+deduplicated registration. Training, production activation and profitability
+improvement are not implied by source completeness or this registration.
 
 ## Unchanged collection and acceptance constraints
 
