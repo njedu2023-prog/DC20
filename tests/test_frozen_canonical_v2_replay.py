@@ -696,6 +696,26 @@ def test_forced_replay_rejects_invalid_explicit_date_binding(
         )
 
 
+# These exact additions were approved by the shadow-price-v2, D0910-window,
+# and exit1000 source reviews. REQUIRED_ACTIVE_PIN_PATHS remains the original
+# mandatory runtime baseline, not the complete successor manifest inventory.
+_REVIEWED_FORWARD_EXTENSION_PINS = frozenset({
+    "models/decision_primary_profit_shadow_entry_price_policy_v2.json",
+    "models/decision_compact_statistics_window_v1.json",
+    "scripts/build_compact_statistics_window.py",
+    "models/decision_shadow_exit_policy_1000_v1.json",
+    "scripts/sync_exit_1000_minute_truth.py",
+    "src/top10decision/decision/shadow_exit_1000.py",
+    "src/top10decision/decision/shadow_exit_minute_truth.py",
+})
+
+
+def _assert_exact_current_pin_inventory(manifest: dict) -> None:
+    assert REQUIRED_ACTIVE_PIN_PATHS.isdisjoint(_REVIEWED_FORWARD_EXTENSION_PINS)
+    expected = REQUIRED_ACTIVE_PIN_PATHS | _REVIEWED_FORWARD_EXTENSION_PINS
+    assert set(manifest["pinned_files"]) == expected
+
+
 def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> None:
     manifest_path = ROOT / "models" / "decision_model_freeze.json"
     before = manifest_path.read_bytes()
@@ -729,9 +749,26 @@ def test_current_manifest_uses_exact_schema_loader_without_mutating_disk() -> No
         assert pinned_files["forced_enforcement"] is (not current["active"])
         assert pinned_files["validated"] is True
         assert pinned_files["enforced"] is True
-        assert set(current["pinned_files"]) == REQUIRED_ACTIVE_PIN_PATHS
-        assert set(manifest["pinned_files"]) == REQUIRED_ACTIVE_PIN_PATHS
+        _assert_exact_current_pin_inventory(current)
+        _assert_exact_current_pin_inventory(manifest)
         assert pinned_files["pinned_files"] == len(current["pinned_files"])
+
+
+@pytest.mark.parametrize("missing_path", sorted(_REVIEWED_FORWARD_EXTENSION_PINS) + [sorted(REQUIRED_ACTIVE_PIN_PATHS)[0]])
+def test_current_pin_inventory_rejects_missing_baseline_or_reviewed_extensions(missing_path: str) -> None:
+    manifest = json.loads((ROOT / "models/decision_model_freeze.json").read_bytes())
+    _assert_exact_current_pin_inventory(manifest)
+    del manifest["pinned_files"][missing_path]
+    with pytest.raises(AssertionError):
+        _assert_exact_current_pin_inventory(manifest)
+
+
+def test_current_pin_inventory_rejects_unknown_additional_pin() -> None:
+    manifest = json.loads((ROOT / "models/decision_model_freeze.json").read_bytes())
+    _assert_exact_current_pin_inventory(manifest)
+    manifest["pinned_files"]["scripts/unreviewed_extension.py"] = "0" * 64
+    with pytest.raises(AssertionError):
+        _assert_exact_current_pin_inventory(manifest)
 
 
 def test_exact_legacy_v1_fixture_bootstrap_is_independent_of_current_manifest(

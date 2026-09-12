@@ -4,10 +4,10 @@
   "source_commit": "15423ced302ab19b17f459fb3006e0af2b764f24",
   "status": "INACTIVE_MIGRATION_REPLAY_ONLY",
   "dependency_successor_review": {
-    "path": "models/decision_source_surface_review_20260912_ci_partition.json",
-    "sha256": "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395",
-    "approved_base_commit": "6ea9616014da3850ae4064c89e56e832608180d3",
-    "scope": "CI_ONLY_COMPLETE_TEST_PARTITION_AND_CLEAN_CHECKOUT_HISTORY_FIXTURE_NO_RUNTIME_OR_MODEL_CHANGE"
+    "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+    "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14",
+    "approved_base_commit": "763ac86e8db225d363612f7a0a4792b29bd5237f",
+    "scope": "TEST_ONLY_EXACT_REVIEWED_SEVEN_PIN_SUCCESSOR_INVENTORY_NO_LOADER_MODEL_OR_TRUTH_CHANGE"
   },
   "active_source_models": {
     "promotion": {
@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "ad34499be8e4c7a2e87e76736c1cd8a3599eda644e69a0bdbd1a854fe3c3b34c",
+      "sha256": "f3fb59e303a95e92874e3c6015f6ac9ea0430d9cb4088fc2037fab8806117c3c",
       "bytes": 52401,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
