@@ -98,7 +98,7 @@ def test_registered_contract_exact_scope_endpoints_and_no_training():
     assert expected["allowed_endpoints"] == ["stk_auction"] and expected["retries"] == 0
     assert expected["candidate_rows"] == 6753 and expected["T_dates"] == 910
     assert expected["pre_coverage_T_dates"] == 517 and expected["canonical_T_dates"] == 393
-    assert expected["http_envelope_adapter_id"] == "dc20_canonical_http_empty_detail_v1"
+    assert expected["http_envelope_adapter_id"] == "dc20_canonical_http_placeholder_detail_v2"
     assert expected["preflight_T_dates"] == ["20250102", "20250116", "20260817"]
     assert expected["training_performed"] is expected["labels_rebuilt"] is expected["settlement_performed"] is False
     assert collect._file_sha(collect.HERE / "collect.py") == collect.OLD_COLLECT_SHA

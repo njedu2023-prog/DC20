@@ -1,9 +1,9 @@
 {
   "schema_version": "dc20_profit_1000_upgrade_plan_v3",
   "registered_on": "2026-09-12",
-  "source_commit": "6bbf56c2e6f11d3ea880e7dcff011ef7c3fb501c",
-  "revises_v3_plan_sha256": "344b6e87c95665bb08d41c6f328488ab49c5edeb4723347f0706704289c6b8cf",
-  "http_envelope_adapter_id": "dc20_canonical_http_empty_detail_v1",
+  "source_commit": "784ff93b638919929b176ae588f00986bbb66946",
+  "revises_v3_plan_sha256": "b39d0fcf7ce3bca3af31a338cea32b27fcb72c7be124c91a3de6edfe8fb7f6e5",
+  "http_envelope_adapter_id": "dc20_canonical_http_placeholder_detail_v2",
   "supersedes_plan_sha256": "5c666ece8f7f153004c485959449828b45b249668783f047ff24d7906faea75f",
   "label_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
   "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
@@ -56,7 +56,7 @@
     },
     {
       "path": "work/profit_1000_upgrade/auction_http_v3.py",
-      "sha256": "2f91a04b68f8ae208c511995733ee486558c6978eb8fdca7a2b7e8da22675655"
+      "sha256": "289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c"
     },
     {
       "path": "work/profit_1000_upgrade/collect.py",
@@ -133,5 +133,5 @@
   "plan_version": "v3",
   "phase": "CANONICAL_AUCTION_ONLY",
   "training_performed": false,
-  "collection_contract_sha256": "7f2b087a8fded6f6001a6a7a23427a3731ea00caaa67604d4357fc74455053c9"
+  "collection_contract_sha256": "ad73156aa59d595fc9ec3102987e77a0722ebe791f8839b74f455900cd5f231e"
 }

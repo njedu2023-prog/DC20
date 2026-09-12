@@ -87,9 +87,9 @@ def load_plan():
             or plan.get("supersedes_plan_sha256") != V2_PLAN_SHA
             or plan.get("training_performed") is not False
             or plan.get("research_entry_policy_id") != CONTRACT["entry_policy_id"]
-            or plan.get("source_commit") != "6bbf56c2e6f11d3ea880e7dcff011ef7c3fb501c"
-            or plan.get("revises_v3_plan_sha256") != "344b6e87c95665bb08d41c6f328488ab49c5edeb4723347f0706704289c6b8cf"
-            or plan.get("http_envelope_adapter_id") != "dc20_canonical_http_empty_detail_v1"
+            or plan.get("source_commit") != "784ff93b638919929b176ae588f00986bbb66946"
+            or plan.get("revises_v3_plan_sha256") != "b39d0fcf7ce3bca3af31a338cea32b27fcb72c7be124c91a3de6edfe8fb7f6e5"
+            or plan.get("http_envelope_adapter_id") != "dc20_canonical_http_placeholder_detail_v2"
             or plan.get("collection_contract_sha256") != sha(HERE / "COLLECTION_V3.json")):
         raise ValueError("v3 registered stage identity changed")
     if plan.get("base_archive") != {"zip_sha256": BASE_SHA, "run_id": BASE_RUN,

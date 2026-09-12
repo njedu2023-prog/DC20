@@ -1,7 +1,9 @@
 """Narrow original-HTTP envelope adapter for the frozen v3 auction codec.
 
-Only an optional ``detail`` whose exact type is str and value is "" is newly
-accepted. Nonempty detail is unknown evidence, not a message to discard. The
+An optional ``detail`` may be absent or an exact empty str. The only accepted
+nonempty value is the observed three ASCII periods "...", and only with code
+0 plus explicit complete pagination/row-count evidence. Other nonempty detail
+remains unknown evidence, not a message to discard. The
 ORIGINAL response bytes are parsed directly and bound by SHA/length; no keys
 are deleted and no rewritten envelope is passed to the frozen codec. The
 existing data/metadata schema, candidate qualification and source policy are
@@ -14,7 +16,7 @@ from pathlib import Path
 
 from work.profit_1000_upgrade import auction_truth_v3 as codec
 
-ADAPTER_ID = "dc20_canonical_http_empty_detail_v1"
+ADAPTER_ID = "dc20_canonical_http_placeholder_detail_v2"
 CODEC_SHA256 = "889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665"
 CODEC_PATH = Path(__file__).with_name("auction_truth_v3.py")
 
@@ -47,8 +49,16 @@ def source_bytes(raw_response, trade_date, *, request, fetched_at_utc,
     codec._fail(isinstance(payload, dict) and type(payload.get("code")) is int
                 and not set(payload) - {"code", "msg", "data", "request_id", "detail"},
                 "INVALID_API_ENVELOPE_OR_DIAGNOSTIC_INPUT")
-    codec._fail("detail" not in payload or (type(payload["detail"]) is str and payload["detail"] == ""),
+    codec._fail("detail" not in payload or (type(payload["detail"]) is str and payload["detail"] in ("", "...")),
                 "NONEMPTY_OR_INVALID_API_DETAIL")
+    if payload.get("detail") == "...":
+        # This exact placeholder was observed in bounded real diagnostics.
+        # It is not pagination authority or permission to ignore error detail.
+        data = payload.get("data")
+        codec._fail(payload["code"] == 0 and type(data) is dict
+                    and data.get("has_more") is False and type(data.get("items")) is list
+                    and type(data.get("count")) is int and data["count"] in (0, len(data["items"])),
+                    "PLACEHOLDER_DETAIL_REQUIRES_SUCCESS_AND_COMPLETE_TABLE")
     # Keep exact-token detection over all original bytes and parsed envelope,
     # including escaped strings; persisted-table guards remain in table_rows.
     if token:

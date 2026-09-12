@@ -35,7 +35,7 @@ workers and a 20-second request timeout, with no retries or minute/daily request
 Token and server messages are not retained. No diagnostic object is wrapped or
 reconstructed as an HTTP response. All new sources use a separate v3 namespace.
 
-### Empty-detail HTTP compatibility revision
+### HTTP envelope compatibility revisions
 
 The first full v3 run (34681595017, commit `22ac819`) retained all candidates but
 qualified zero auction dates: every response failed the strict outer-envelope
@@ -60,6 +60,27 @@ must prove this ordering and barrier during acceptance. Only a real successful
 preflight establishes compatibility; the shape-only probe did not prove that the
 provider's `detail` was empty. A new request contract, not an Actions rerun, is
 required for another collection attempt.
+
+The empty-detail revision (commit `3505888`, run 34683016401) stopped after one
+real request on 2025-01-02; the returned detail did not satisfy that assumption.
+All other 392 covered dates remained explicitly unattempted. Complete independent
+replay reproduced the blocked labels and summary with no input/code changes.
+
+A second bounded diagnostic (commit `784ff93`, run 34683711622, artifact SHA256
+`d48cc94c76ca5be7509e987d5ee2bfe458a0be9b7dc1966641732ad5b8c1d29f`)
+made exactly two calls. Both the empty 2025-01-02 table and the 5,472-row
+2025-01-16 table had exact integer code 0 and exact three-ASCII-period `detail`
+value `...`. Only screened detail text and structure were retained, not sources.
+
+The current adapter revision `dc20_canonical_http_placeholder_detail_v2` adds
+only that exact literal, and only for code 0 with explicit `has_more: false`
+and an exact non-boolean integer `count` of zero or the actual item count. The
+entire original table must still pass the unchanged frozen codec. Other nonempty
+details, ellipsis variants, missing pagination metadata, nonzero codes, wrong
+dates, duplicates and possible truncation fail closed. Original response SHA,
+data bytes and price/capacity rules remain unchanged. The three-date preflight
+and 393-call total budget remain mandatory; actual collection acceptance, not
+either diagnostic, determines whether the source gap has been resolved.
 
 Price qualification and capacity qualification are distinct. Positive auction
 price/volume and matching daily-open cents can qualify a posthoc entry-price

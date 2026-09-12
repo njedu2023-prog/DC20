@@ -46,8 +46,9 @@ def test_all_legacy_accepted_http_bytes_produce_identical_source_pair(kind):
     assert pair(response, token="synthetic_access_value_12345") == pair(response, target=codec, token="synthetic_access_value_12345")
 
 
-def test_empty_detail_parses_original_http_without_rewriting_or_calling_old_source_bytes(tmp_path, monkeypatch):
-    response = b'  \n' + raw(detail="", request_id="ab73dfee" * 4) + b'\n\t'
+@pytest.mark.parametrize("detail", ["", "..."])
+def test_compatible_detail_parses_original_http_without_rewriting_or_calling_old_source_bytes(tmp_path, monkeypatch, detail):
+    response = b'  \n' + raw(detail=detail, request_id="ab73dfee" * 4) + b'\n\t'
     with pytest.raises(codec.AuctionSourceError, match="INVALID_API_ENVELOPE"):
         pair(response, target=codec)
     original_parse = codec._strict_json
@@ -78,11 +79,91 @@ def test_empty_detail_parses_original_http_without_rewriting_or_calling_old_sour
     assert qualified["production_activation_allowed"] is False
 
 
-@pytest.mark.parametrize("detail", [" ", "\n", "more rows", "permission denied", "token=secret", "{}", None,
+@pytest.mark.parametrize("detail", ["…", "....", " ...", "... ", "..", "．．．", " ", "\n", "more rows", "permission denied", "token=secret", "{}", None,
                                      False, True, 0, 1, [], {}, [""]])
-def test_only_exact_empty_string_detail_is_allowed(detail):
+def test_other_detail_values_are_not_generalized_or_normalized(detail):
     with pytest.raises(codec.AuctionSourceError, match="NONEMPTY_OR_INVALID_API_DETAIL"):
         pair(raw(detail=detail))
+
+
+@pytest.mark.parametrize("items,count", [([], 0), ([row()], 0), ([row()], 1),
+                                       ([row(), row(code=OTHER)], 2)])
+def test_exact_ascii_placeholder_with_explicit_complete_table_loads_unchanged(tmp_path, items, count):
+    data = table(items)
+    data["count"] = count
+    response = raw(data, detail="...")
+    bodies = pair(response)
+    assert json.loads(bodies[0]) == data
+    assert json.loads(bodies[1])["http_response_sha256"] == hashlib.sha256(response).hexdigest()
+    paths = codec.source_paths(tmp_path, DAY)
+    paths[0].parent.mkdir(parents=True)
+    for path, body in zip(paths, bodies):
+        path.write_bytes(body)
+    loaded = codec.load(tmp_path, DAY)
+    assert len(loaded.rows) == len(items)
+    assert loaded.status == ("CANONICAL_TABLE_PRESENT" if items else "CANONICAL_TABLE_EMPTY")
+
+
+@pytest.mark.parametrize("change", ["missing_has_more", "has_more_true", "has_more_zero", "has_more_null",
+    "missing_count", "count_mismatch", "count_bool", "count_float", "count_negative", "count_null",
+    "missing_items", "items_null", "data_null", "data_array", "data_string"])
+def test_placeholder_requires_explicit_successful_complete_table_before_codec(change):
+    data = table()
+    if change == "missing_has_more":
+        del data["has_more"]
+    elif change.startswith("has_more_"):
+        data["has_more"] = {"has_more_true": True, "has_more_zero": 0, "has_more_null": None}[change]
+    elif change == "missing_count":
+        del data["count"]
+    elif change.startswith("count_"):
+        data["count"] = {"count_mismatch": 2, "count_bool": False, "count_float": 0.0,
+                         "count_negative": -1, "count_null": None}[change]
+    elif change == "missing_items":
+        del data["items"]
+    elif change == "items_null":
+        data["items"] = None
+    else:
+        data = {"data_null": None, "data_array": [], "data_string": "no data"}[change]
+    response = json.dumps({"code": 0, "msg": "", "data": data, "detail": "..."}).encode()
+    with pytest.raises(codec.AuctionSourceError, match="PLACEHOLDER_DETAIL_REQUIRES_SUCCESS_AND_COMPLETE_TABLE"):
+        pair(response)
+
+
+@pytest.mark.parametrize("code,message", [(2002, "没有权限"), (-1, "unknown error"), (1, "rate limit")])
+@pytest.mark.parametrize("data", [None, table()])
+def test_placeholder_never_expands_nonzero_api_error_or_unavailability_semantics(code, message, data):
+    response = json.dumps({"code": code, "msg": message, "data": data, "detail": "..."}).encode()
+    with pytest.raises(codec.AuctionSourceError, match="PLACEHOLDER_DETAIL_REQUIRES_SUCCESS_AND_COMPLETE_TABLE"):
+        pair(response)
+
+
+@pytest.mark.parametrize("code", [False, True, 0.0, "0", None])
+def test_placeholder_still_requires_exact_integer_code(code):
+    with pytest.raises(codec.AuctionSourceError, match="INVALID_API_ENVELOPE"):
+        pair(raw(code=code, detail="..."))
+
+
+def test_empty_detail_preserves_optional_pagination_compatibility():
+    data = table()
+    del data["has_more"], data["count"]
+    body, metadata = pair(raw(data, detail=""))
+    assert json.loads(body) == data and json.loads(metadata)["status"] == "CANONICAL_TABLE_PRESENT"
+
+
+def test_placeholder_still_runs_strict_table_guards_not_just_pagination():
+    variants = []
+    duplicate = table([row(), row()])
+    variants.append(duplicate)
+    wrong_day = table([row(day="20260814")])
+    variants.append(wrong_day)
+    wrong_fields = table()
+    wrong_fields["fields"][2] = "wrong_field"
+    variants.append(wrong_fields)
+    credential = table([row(), row(code=OTHER, amount="secret-value")])
+    variants.append(credential)
+    for data in variants:
+        with pytest.raises(codec.AuctionSourceError):
+            pair(raw(data, detail="..."))
 
 
 @pytest.mark.parametrize("extra", [{"cursor": ""}, {"has_more": False}, {"total": 1}, {"details": ""},

@@ -280,6 +280,10 @@ def collect_history(root, manifest, token, budget=None, call=None, progress=None
             receipt = _fetch(root, day, by_date[day], token=token, limiter=limiter,
                              call=call, plan_sha=plan_sha, contract_sha=contract_sha)
             retain(receipt)
+            if progress:
+                progress({"event": "CANONICAL_PREFLIGHT_DATE", "trade_date": day,
+                          "status": receipt["status"], "reason": receipt["reason"],
+                          "api_calls": limiter.calls, "source_status": receipt.get("source_status")})
             if receipt["status"] != "EXACT_TRUTH_WRITTEN":
                 preflight["aborted_at_T_date"] = day
                 break
@@ -333,7 +337,9 @@ def collect_history(root, manifest, token, budget=None, call=None, progress=None
     _require(not token or token.encode() not in _json(result), "CREDENTIAL_LIKE_RECEIPT_VALUE_FORBIDDEN")
     if progress:
         progress({"event": "CANONICAL_COLLECTION_FINISHED", "status": result["status"],
-                  "api_calls": limiter.calls, "request_status_counts": result["request_status_counts"]})
+                  "api_calls": limiter.calls, "preflight": preflight,
+                  "rejection_reason_counts": dict(Counter(r["reason"] for r in receipts if r["reason"])),
+                  "request_status_counts": result["request_status_counts"]})
     return result
 
 

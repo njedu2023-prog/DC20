@@ -57,9 +57,9 @@ def test_registered_plan_preserves_prior_scope_and_never_authorizes_training():
     assert research.sha(research.HERE / "PLAN_V2.json") == research.V2_PLAN_SHA
     assert plan["base_archive"]["zip_sha256"] == research.BASE_SHA
     assert plan["base_archive"]["run_id"] == research.BASE_RUN
-    assert plan["source_commit"] == "6bbf56c2e6f11d3ea880e7dcff011ef7c3fb501c"
-    assert plan["revises_v3_plan_sha256"] == "344b6e87c95665bb08d41c6f328488ab49c5edeb4723347f0706704289c6b8cf"
-    assert plan["http_envelope_adapter_id"] == "dc20_canonical_http_empty_detail_v1"
+    assert plan["source_commit"] == "784ff93b638919929b176ae588f00986bbb66946"
+    assert plan["revises_v3_plan_sha256"] == "b39d0fcf7ce3bca3af31a338cea32b27fcb72c7be124c91a3de6edfe8fb7f6e5"
+    assert plan["http_envelope_adapter_id"] == "dc20_canonical_http_placeholder_detail_v2"
     assert {"src/top10decision/decision/executable_profit_shadow_settlement.py",
             "src/top10decision/decision/shadow_exit_1000.py",
             "work/profit_1000_upgrade/minute_truth.py"} <= {b["path"] for b in plan["adapter_sources"]}
