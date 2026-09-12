@@ -1,0 +1,62 @@
+{
+  "actual_execution_claimed": false,
+  "api_name": "stk_auction",
+  "base_archive_bytes": 43248418,
+  "base_archive_sha256": "f35140230a777b58276e58e861ec63076f375a27b0f11d32bd170174658d44ad",
+  "base_artifact_id": 10295337206,
+  "credential_persisted": false,
+  "documentation": "https://tushare.pro/document/2?doc_id=369",
+  "fallback_generated": false,
+  "fields": [
+    "ts_code",
+    "trade_date",
+    "price",
+    "vol",
+    "amount",
+    "pre_close"
+  ],
+  "forward_holdout_touched": false,
+  "label_rebuild_performed": false,
+  "max_api_calls": 212,
+  "request_start_budget_seconds": 1200,
+  "request_start_headroom_seconds": 20,
+  "transport_timeout_semantics": "SOCKET_TIMEOUT_NOT_ABSOLUTE_RESPONSE_DEADLINE",
+  "max_http_response_bytes": 4000000,
+  "max_workers": 2,
+  "minimum_request_start_interval_seconds": 1.0,
+  "old_labels_used_as_new_outcomes": false,
+  "old_source_overwrite_allowed": false,
+  "pagination_or_filter_fallback_allowed": false,
+  "params": {
+    "trade_date": "FROZEN_GAP_T_DATE",
+    "ts_type": "STK"
+  },
+  "preflight_T_dates": [
+    "20250319",
+    "20250826",
+    "20260203"
+  ],
+  "preflight_rule": "COMPLETE_NONEMPTY_TABLE_WITH_AT_LEAST_ONE_FROZEN_CANDIDATE",
+  "production_activation_allowed": false,
+  "production_writes": false,
+  "raw_response_envelope_saved": false,
+  "redirects_allowed": false,
+  "request_id": "stocks_only_frozen_212_gaps_20260912_v1",
+  "research_only": true,
+  "retries": 0,
+  "schema_version": "dc20_research_stocks_scope_collection_20260912_v1",
+  "scope_counts": {
+    "T_dates": 910,
+    "candidate_rows": 6753,
+    "gap_candidate_pairs": 1860,
+    "gap_dates": 212,
+    "precoverage_dates": 517,
+    "reused_dates": 181
+  },
+  "settlement_performed": false,
+  "source_import_into_labels_performed": false,
+  "source_only": true,
+  "source_policy_id": "dc20_research_stocks_scoped_auction_source_20260912_v1",
+  "timeout_seconds": 20,
+  "training_performed": false
+}
