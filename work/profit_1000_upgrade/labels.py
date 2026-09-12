@@ -200,6 +200,9 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
 
     table_cache = {}
     auction_cache = {}
+    candidate_codes_by_t = {}
+    for candidate in candidates:
+        candidate_codes_by_t.setdefault(candidate["exec_date"], set()).add(candidate["ts_code"])
     def missing(day, name, code):
         row.update(missing_evidence_date=day, missing_evidence_code=code, missing_evidence_kind=name)
 
@@ -262,7 +265,16 @@ def build_labels(repo_root: Path, manifest: Mapping[str, Any], *, as_of_date: st
                 for auction in auction_sources:
                     bind(auction["file"])
                     bind(auction["metadata"])
-                auction_cache[t] = auction_sources
+                # Verify every full-market row and its original file/metadata
+                # first, then retain only this T's entire candidate cohort.
+                # Caching 5,000 rows for each historical T would otherwise keep
+                # millions of dictionaries alive during a label replay.
+                auction_cache[t] = [
+                    {**auction, "rows": {candidate_code: auction["rows"][candidate_code]
+                                         for candidate_code in sorted(candidate_codes_by_t[t])
+                                         if candidate_code in auction["rows"]}}
+                    for auction in auction_sources
+                ]
             auction_sources = auction_cache[t]
             price = settlement._entry_price_v2(code, daily_path, prices["open"], root, auction_sources)
             row.update(entry_price=price["price"], entry_price_source=price["entry_price_source"],

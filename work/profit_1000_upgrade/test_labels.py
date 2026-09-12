@@ -284,3 +284,105 @@ def test_market_identity_mismatch_and_duplicates_cannot_settle(case, kind):
     path.write_text(data)
     row = build_labels(root, manifest, as_of_date=T1)["rows"][0]
     assert row["label_status"].startswith("PENDING_") and row["slot_net_return"] is None
+
+
+@pytest.fixture
+def full_market_auction_case(case):
+    root, manifest = case
+    second, unrelated = "600001.SH", "600999.SH"
+    candidate = copy.deepcopy(manifest["rows"][0])
+    candidate.update(ts_code=second, promotion_rank=2)
+    manifest["rows"].append(candidate)
+    manifest["expected_candidate_codes"][D].append(second)
+    for day in (T, T1):
+        for kind in ("daily", "stk_limit"):
+            path = root / f"data/market/raw/2026/{day}/{kind}.csv"
+            with path.open(newline="") as handle:
+                original = list(csv.DictReader(handle))
+            write_csv(path, original + [dict(original[0], ts_code=second)])
+    minutes(root, code=second)
+    path = root / f"data/market/raw/2026/{T}/stk_auction_o.csv"
+    rows = [{"ts_code": code, "trade_date": T, "close": 10, "amount": 20_000_000}
+            for code in (CODE, second, unrelated)]
+    write_csv(path, rows)
+    meta = {"schema_version": "decision_auction_truth_v1", "source": "tushare:stk_auction_o",
+            "trade_date": T, "immutable": True, "credential_persisted": False, "rows": len(rows),
+            "fields": list(rows[0]), "sha256": hashlib.sha256(path.read_text().encode()).hexdigest()}
+    path.with_suffix(".meta.json").write_text(json.dumps(meta))
+    return root, manifest, path, second, unrelated
+
+
+def test_auction_cache_retains_all_same_t_candidates_only_after_full_validation(full_market_auction_case, monkeypatch):
+    from work.profit_1000_upgrade.labels import settlement
+    root, manifest, path, second, unrelated = full_market_auction_case
+    verifier, entry = settlement._verified_auction_sources_v2, settlement._entry_price_v2
+    validated, consumed = [], []
+    def verify(actual_root, day):
+        sources = verifier(actual_root, day)
+        assert set(sources[0]["rows"]) == {CODE, second, unrelated}
+        validated.append(sources)
+        return sources
+    def price(code, daily_path, daily_open, actual_root, sources):
+        assert set(sources[0]["rows"]) == {CODE, second}
+        assert unrelated not in sources[0]["rows"]
+        # Exact original file and metadata bindings are retained, not replaced
+        # with a SHA of the reduced in-memory row set.
+        assert sources[0]["file"] == validated[0][0]["file"]
+        assert sources[0]["metadata"] == validated[0][0]["metadata"]
+        actual = entry(code, daily_path, daily_open, actual_root, sources)
+        assert actual == entry(code, daily_path, daily_open, actual_root, validated[0])
+        consumed.append(code)
+        return actual
+    monkeypatch.setattr(settlement, "_verified_auction_sources_v2", verify)
+    monkeypatch.setattr(settlement, "_entry_price_v2", price)
+    result = build_labels(root, manifest, as_of_date=T1)
+    assert len(validated) == 1 and consumed == [CODE, second]
+    assert all(row["label_status"] == SETTLED and row["net_return"] == pytest.approx(-.0245) for row in result["rows"])
+    assert binding(root, path) in result["source_files"]
+
+
+@pytest.mark.parametrize("corruption", ["wrong_unrelated_date", "source_sha"])
+def test_auction_cache_cannot_hide_bad_non_candidate_source_row(full_market_auction_case, corruption):
+    root, manifest, path, _, unrelated = full_market_auction_case
+    raw = path.read_text()
+    if corruption == "wrong_unrelated_date":
+        path.write_text(raw.replace(f"{unrelated},{T}", f"{unrelated},{T1}"))
+        metadata = json.loads(path.with_suffix(".meta.json").read_text())
+        metadata["sha256"] = hashlib.sha256(path.read_text().encode()).hexdigest()
+        path.with_suffix(".meta.json").write_text(json.dumps(metadata))
+    else:
+        # Even a change in an uncached, non-candidate row invalidates the whole
+        # source's original SHA; filtering must not make it disappear.
+        path.write_text(raw.replace(f"{unrelated},{T},10,", f"{unrelated},{T},11,"))
+    result = build_labels(root, manifest, as_of_date=T1)
+    assert all(row["label_status"] == "PENDING_INVALID_SOURCE" for row in result["rows"])
+    assert all(row["slot_net_return"] is None for row in result["rows"])
+
+
+def test_auction_cache_preserves_final_whole_source_sha_recheck(full_market_auction_case, monkeypatch):
+    from work.profit_1000_upgrade.labels import settlement
+    root, manifest, path, _, unrelated = full_market_auction_case
+    original = settlement._entry_price_v2
+    calls = []
+    def change_after_verified_read(*args):
+        result = original(*args)
+        if not calls:
+            path.write_text(path.read_text().replace(f"{unrelated},{T},10,", f"{unrelated},{T},11,"))
+        calls.append(args[0])
+        return result
+    monkeypatch.setattr(settlement, "_entry_price_v2", change_after_verified_read)
+    with pytest.raises(ValueError, match="source SHA mismatch"):
+        build_labels(root, manifest, as_of_date=T1)
+
+
+def test_candidate_auction_daily_conflict_is_unchanged_with_reduced_cache(full_market_auction_case):
+    root, manifest, path, second, _ = full_market_auction_case
+    path.write_text(path.read_text().replace(f"{second},{T},10,", f"{second},{T},10.1,"))
+    metadata = json.loads(path.with_suffix(".meta.json").read_text())
+    metadata["sha256"] = hashlib.sha256(path.read_text().encode()).hexdigest()
+    path.with_suffix(".meta.json").write_text(json.dumps(metadata))
+    result = build_labels(root, manifest, as_of_date=T1)
+    assert result["rows"][0]["label_status"] == SETTLED
+    assert result["rows"][1]["label_status"] == "PENDING_ENTRY_SOURCE_CONFLICT"
+    assert result["rows"][1]["slot_net_return"] is None
+    assert not result["cohorts_by_date"][D]["complete"]
