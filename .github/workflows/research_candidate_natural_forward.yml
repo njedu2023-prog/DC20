@@ -1,0 +1,122 @@
+name: DC20 · Fixed candidate natural forward (research)
+
+on:
+  workflow_run:
+    workflows:
+      - DC2.0 · Publish Primary D List (P0)
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      p0_run_id:
+        description: "已成功自然发布本日名单的原始 P0 run ID；不接受历史恢复"
+        required: true
+        type: string
+      dry_run:
+        description: "只读演练，不提交新模型研究冻表"
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/research_candidate_natural_forward.yml"
+      - "work/profit_1000_upgrade/candidate_natural_*.py"
+      - "work/profit_1000_upgrade/test_candidate_natural_*.py"
+      - "work/profit_1000_upgrade/candidate_natural_forward_registration.json"
+      - "work/profit_1000_upgrade/candidate_natural_model/evaluation.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-candidate-natural-research-${{ github.event_name == 'push' && github.run_id || 'daily' }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+
+jobs:
+  validate:
+    name: Validate fixed natural candidate contracts
+    if: >-
+      github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.status == 'completed' &&
+        github.event.workflow_run.workflow_id == 343703608 && github.event.workflow_run.run_attempt == 1 &&
+        github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.repository.full_name == github.repository &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact main code without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Validate new components and unchanged formal freeze
+        run: |
+          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py
+          python scripts/validate_decision_model_freeze.py --root .
+          test -z "$(git status --porcelain=v1)"
+  freeze:
+    name: Freeze original P0 bound new model research slots
+    needs: validate
+    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact validated main code without persisted credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Import exact original run and freeze four independent research slots
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+          P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}
+          PUBLISH_RESEARCH: ${{ github.event_name == 'workflow_run' || inputs.dry_run == false }}
+        run: |
+          args=(--p0-run-id "$P0_RUN_ID" --work-parent "$RUNNER_TEMP")
+          if [ "$PUBLISH_RESEARCH" = "true" ]; then args+=(--publish); fi
+          python -m work.profit_1000_upgrade.candidate_natural_workflow "${args[@]}"
+      - name: Verify local formal files remain untouched
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Retain original source bindings and publication acknowledgement
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-candidate-natural-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dc20-candidate-natural-*
+          if-no-files-found: warn
+          retention-days: 90
+          include-hidden-files: false
+          compression-level: 6

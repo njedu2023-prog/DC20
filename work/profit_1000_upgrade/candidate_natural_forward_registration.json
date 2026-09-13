@@ -1,0 +1,91 @@
+{
+  "schema_version": "dc20_fixed_candidate_natural_registration_v1",
+  "registration_id": "dc20_fixed_ridge_999666_forward_research_20260913_v1",
+  "status": "RESEARCH_SNAPSHOT_ONLY_NOT_PRODUCTION",
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "evaluation_file_sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
+  "model_specification": {
+    "estimator": "Ridge",
+    "alpha": 10.0,
+    "fit_intercept": true,
+    "solver": "svd",
+    "target": "slot_net_return",
+    "hyperparameter_search": false
+  },
+  "feature_order": [
+    "promotion_probability",
+    "promotion_rank",
+    "path_change",
+    "d_pct_change",
+    "volume_ratio",
+    "ret_2d",
+    "ret_5d",
+    "ret_10d",
+    "volatility_5d",
+    "volatility_20d",
+    "stage_pool_share",
+    "five_year_board_stage_delta",
+    "five_year_streak_runup",
+    "five_year_pre_streak_1d_return",
+    "five_year_recent_20d_rate",
+    "five_year_recent_60d_rate",
+    "five_year_stock_prior_rate",
+    "focus_pool_size",
+    "stage2_pool_size",
+    "stage3_pool_size",
+    "stage_2",
+    "stage_3",
+    "path_持续强势",
+    "path_弱转强",
+    "path_加速一致",
+    "path_强转弱",
+    "path_持续弱势",
+    "path_分歧回封",
+    "path_路径混合"
+  ],
+  "missing_signals_must_be_none": [
+    "promotion_probability",
+    "path_change",
+    "path_label",
+    "existing_profit_rank"
+  ],
+  "start_signal_date": "20260914",
+  "training_cutoff_date": "20251111",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "round_trip_cost_rate": 0.0045,
+  "stress_round_trip_cost_rate": 0.009,
+  "shadow_notional_cny": 100000,
+  "maximum_auction_participation": 0.01,
+  "prediction_window": "D_CLOSE_THROUGH_STRICTLY_BEFORE_T_0925_ASIA_SHANGHAI",
+  "candidate_and_promotion_slots": [
+    1,
+    2
+  ],
+  "negative_score_skip_allowed": false,
+  "missing_candidate_or_truth_is_zero": false,
+  "same_D_replacement_allowed": false,
+  "code_dependencies": {
+    "work/profit_1000_upgrade/candidate_d_source_adapter.py": "bb9b32de5be84b55793d8e8c19dd6960727e90de83605c4f5a1c360dbd3d982e",
+    "work/profit_1000_upgrade/candidate_forward_predict.py": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719",
+    "forward/storage.py": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098"
+  },
+  "source_overlay_contract": {
+    "overlay_policy_id": "dc20_candidate_auction_label_overlay_20260913_v1",
+    "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+    "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+    "auction_source_policy_ids": [
+      "dc20_research_canonical_price_capacity_split_20260912_v3",
+      "dc20_research_candidate_auction_source_20260913_v1"
+    ],
+    "auction_qualification_policy_id": "dc20_research_canonical_price_capacity_split_20260912_v3",
+    "minute_source_policy_id": "dc20_research_stk_mins_query_0931_v1",
+    "minute_time_semantics": "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED",
+    "complete_empty_response_rule": "DAILY_OPEN_PROXY_CAPACITY_UNKNOWN",
+    "missing_rejected_invalid_response_rule": "PENDING_NOT_FALLBACK_NOT_ZERO",
+    "round_trip_cost_rate": 0.0045
+  },
+  "replacement_review_thresholds": "NOT_CONFIGURED",
+  "production_activation_allowed": false,
+  "publication_requirement": "WORKFLOW_MUST_BIND_SNAPSHOT_AND_LOCAL_RECEIPT_TO_REAL_PRE_T0925_PUBLICATION"
+}
