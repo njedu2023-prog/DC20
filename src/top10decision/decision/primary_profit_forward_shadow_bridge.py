@@ -1268,10 +1268,10 @@ def _rebuild_forward_statistics(repo_root: Path, *, as_of_date: str) -> tuple[Pa
         from top10decision.decision.executable_profit_shadow_settlement import (
             ExecutableProfitSettlementError,
             PUBLIC_CUMULATIVE_MINIMUM_SIGNAL_DATE as SETTLEMENT_PUBLIC_START,
-            build_public_statistics,
             materialize_statistics,
             validate_statistics,
         )
+        from top10decision.decision.primary_profit_shadow_statistics import build_public_statistics
     except ImportError as exc:
         raise PrimaryProfitForwardShadowError("Shadow statistics runtime is unavailable") from exc
     try:

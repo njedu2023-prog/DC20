@@ -769,7 +769,7 @@
     "src/top10decision/decision/legacy_profit_relative_research.py": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2",
     "src/top10decision/decision/model_freeze.py": "bde5bda8813f4c76f8cfc1807566aa59dd2d4ead474d463feb412776ca9fc01b",
     "src/top10decision/decision/observation.py": "577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713",
-    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "d7ebfffe64a5912ea8be709def7dce06d59d69bb10250085b8cc7f56f433b1d9",
+    "src/top10decision/decision/primary_profit_forward_shadow_bridge.py": "bd40f40a4a660d8326254bf2a437de67281a7b8d08d7850a458186fea7686ff5",
     "src/top10decision/decision/research_context.py": "72da2fee9863ff807e01c067d43b0715a18de94515e4ccbc8d130e366cb9335d",
     "src/top10decision/decision/run_receipt.py": "198211cc88ad1ed932c801c9634b6479ea9ceb9c7de531ead6a5803fb3827777",
     "src/top10decision/decision/three_engine_models.py": "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c",
@@ -827,7 +827,7 @@
     "tests/test_deterministic_numeric_runtime.py": "cea81e4e530b8727386a9db571945b1f77c1e042ded9a5f720195e1c44fb9efc",
     "tests/test_eret_safety.py": "7387a797d1e94077de03fba59c8894414a9d2b6e2b7f4d584fd47b185af5d160",
     "tests/test_executable_profit_workflow_wiring.py": "2204490e3eb0bb4ddacf4599f64a841db92d21ecb59f0e1d471554cd1467dc7b",
-    "tests/test_frozen_canonical_v2_replay.py": "718a24d19f6758a634c1d28280d352f6e05113410db89af53957ab48140b3f89",
+    "tests/test_frozen_canonical_v2_replay.py": "d3b92c01b89785eaab7d5e474ccf413ff556f41f64284e3752a1879856e22e4b",
     "tests/test_migrate_decision_runtime.py": "8c61e583da2d3011f5d2e2dd7a5b6335309383e581a27e0fff10e563a1ccbc3b",
     "tests/test_pages_truthfulness_workflow.py": "70b6351413474b6ab50bf523895eec1485ce24ea71580f0f6036e31a2655c790",
     "tests/test_pfill_shadow_pages_truth.py": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",
@@ -857,6 +857,8 @@
     "models/decision_shadow_exit_policy_1000_v1.json": "2a4feb3937aa9ad221d7b9f7a089c6968fe8a3ce13e949023ae7207f5cbccc31",
     "scripts/sync_exit_1000_minute_truth.py": "bb7f213c99ebec393ed2d861c0233d2bb36e6ad4b1686de175eb4c5464145751",
     "src/top10decision/decision/shadow_exit_1000.py": "23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af",
-    "src/top10decision/decision/shadow_exit_minute_truth.py": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65"
+    "src/top10decision/decision/shadow_exit_minute_truth.py": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+    "src/top10decision/decision/primary_profit_shadow_statistics.py": "9ddacf0573fd704cea59c210800c744ec171b682376b273c19146f35c38f090f",
+    "tests/test_primary_profit_shadow_statistics.py": "743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1"
   }
 }

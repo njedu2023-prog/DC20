@@ -300,7 +300,43 @@ REPLAY_PIN_BOUNDARIES = {
 }
 
 
-def _replay_pin_live_source(path: str) -> bytes:
+HISTORICAL_STATS_REVIEW = ROOT / "models/decision_source_surface_review_20260914_historical_statistics.json"
+HISTORICAL_STATS_REVIEW_SHA = "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75"
+HISTORICAL_STATS_SCOPE = "EXPLICIT_PRE_POLICY_PUBLIC_STATISTICS_COMPATIBILITY_NO_SETTLEMENT_MODEL_POLICY_OR_TRUTH_CHANGE"
+HISTORICAL_STATS_BASE = "b70cef6121b86cdc13f1f943014a1616247c5537"
+HISTORICAL_STATS_BRIDGE = "src/top10decision/decision/primary_profit_forward_shadow_bridge.py"
+HISTORICAL_STATS_ADAPTER = "src/top10decision/decision/primary_profit_shadow_statistics.py"
+HISTORICAL_STATS_TEST = "tests/test_primary_profit_shadow_statistics.py"
+HISTORICAL_STATS_ADDED_PINS = {HISTORICAL_STATS_ADAPTER, HISTORICAL_STATS_TEST}
+HISTORICAL_STATS_SOURCES = [HISTORICAL_STATS_BRIDGE, REPLAY_PIN_SOURCE,
+                            HISTORICAL_STATS_ADAPTER, HISTORICAL_STATS_TEST]
+HISTORICAL_STATS_BOUNDARIES = {
+    "historical_statistics_compatibility_adapter_added": True,
+    "bridge_statistics_builder_import_changed_only": True,
+    "pre_policy_statistics_bytes_preserved": True,
+    "post_policy_builder_result_preserved": True,
+    "immutable_truth_validation_preserved": True,
+    "same_as_of_no_new_truth_rejection_preserved": True,
+    "exact_pin_set_assertion_preserved": True,
+    "settlement_source_changed": False,
+    "production_loader_changed": False,
+    "production_required_pin_constant_changed": False,
+    "model_weights_changed": False,
+    "ranking_algorithm_changed": False,
+    "promotion_model_changed": False,
+    "entry_policy_changed": False,
+    "exit_policy_changed": False,
+    "frozen_members_changed": False,
+    "historical_ledger_rewritten": False,
+    "workflow_scheduling_changed": False,
+    "persistent_settlement_enabled": False,
+    "forward_epoch_activated": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+
+
+def _historical_stats_live_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
     target = ROOT / path
@@ -308,6 +344,182 @@ def _replay_pin_live_source(path: str) -> bytes:
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
     return target.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _parse_historical_stats_review(raw: bytes) -> dict:
+    # Cache parsed immutable bytes, never a live file or a verification result.
+    return json.loads(raw)
+
+
+def _historical_stats_review(review: dict | None = None) -> dict:
+    raw = _historical_stats_live_source(HISTORICAL_STATS_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw).hexdigest() == HISTORICAL_STATS_REVIEW_SHA
+    approved = _parse_historical_stats_review(raw)
+    review = approved if review is None else review
+    assert review == approved
+    assert review["schema_version"] == "decision_historical_statistics_adapter_source_review_v1"
+    assert review["approved_base_commit"] == HISTORICAL_STATS_BASE
+    assert review["scope"] == HISTORICAL_STATS_SCOPE
+    assert review["boundaries"] == HISTORICAL_STATS_BOUNDARIES
+    assert review["predecessor_evidence_path"] == REPLAY_PIN_REVIEW.relative_to(ROOT).as_posix()
+    predecessor_raw = _historical_stats_live_source(review["predecessor_evidence_path"])
+    assert hashlib.sha256(predecessor_raw).hexdigest() == review["predecessor_evidence_sha256"] == REPLAY_PIN_REVIEW_SHA
+    predecessor = json.loads(predecessor_raw)
+    assert len(review["preserved_evidence"]) == 23
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": REPLAY_PIN_REVIEW.relative_to(ROOT).as_posix(), "sha256": REPLAY_PIN_REVIEW_SHA,
+    }]
+    for item in review["preserved_evidence"]:
+        assert (ROOT / item["path"]).parent == ROOT / "models"
+        assert hashlib.sha256(_historical_stats_live_source(item["path"])).hexdigest() == item["sha256"]
+    assert review["approved_extension_reviews"] == predecessor["approved_extension_reviews"]
+    assert [item["path"] for item in review["source_changes"]] == HISTORICAL_STATS_SOURCES
+    assert review["baseline_pin_count"] == 231 and review["pin_count"] == 233
+    assert set(review["added_source_pins"]) == HISTORICAL_STATS_ADDED_PINS
+    assert [item["path"] for item in review["pin_changes"]] == [HISTORICAL_STATS_BRIDGE, REPLAY_PIN_SOURCE]
+    return review
+
+
+def _source_before_historical_stats(path: str, review: dict | None = None) -> bytes:
+    source = _historical_stats_live_source(path)
+    if path not in {*HISTORICAL_STATS_SOURCES, "models/decision_model_freeze.json", "forward/model_inventory.json"}:
+        return source
+    review = _historical_stats_review(review)
+    if path in HISTORICAL_STATS_SOURCES:
+        item = next(item for item in review["source_changes"] if item["path"] == path)
+        assert item["baseline_exists"] is (path not in HISTORICAL_STATS_ADDED_PINS) and item["reason"]
+        assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+        lines = source.decode().splitlines(keepends=True)
+        changes = item["inverse_changes"]
+        assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+        previous_end = baseline_offset = 0
+        for part in changes:
+            assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+            assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+            assert type(part["current_start"]) is int and part["current_start"] > 0
+            start = part["current_start"] - 1
+            assert previous_end <= start <= len(lines)
+            assert part["baseline_start"] - 1 == start + baseline_offset
+            assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+            previous_end = start + len(part["current_lines"])
+            baseline_offset += len(part["baseline_lines"]) - len(part["current_lines"])
+        for part in reversed(changes):
+            start = part["current_start"] - 1
+            lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+        restored = "".join(lines).encode()
+        assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+        if path in HISTORICAL_STATS_ADDED_PINS:
+            assert restored == b""
+        return restored
+    if path == "models/decision_model_freeze.json":
+        assert hashlib.sha256(source).hexdigest() == review["current_manifest_sha256"]
+        manifest = json.loads(source)
+        assert source == (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+        assert len(manifest["pinned_files"]) == review["pin_count"] == 233
+        for change in review["pin_changes"]:
+            assert manifest["pinned_files"][change["path"]] == change["current_sha256"]
+            assert hashlib.sha256(_historical_stats_live_source(change["path"])).hexdigest() == change["current_sha256"]
+            manifest["pinned_files"][change["path"]] = change["baseline_sha256"]
+        for added, digest in review["added_source_pins"].items():
+            assert manifest["pinned_files"].pop(added) == digest
+            assert hashlib.sha256(_historical_stats_live_source(added)).hexdigest() == digest
+        restored = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+        assert hashlib.sha256(restored).hexdigest() == review["baseline_manifest_sha256"] == "f3fb59e303a95e92874e3c6015f6ac9ea0430d9cb4088fc2037fab8806117c3c"
+        return restored
+    inventory = json.loads(source)
+    assert source == (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    dep = review["inventory_update"]
+    assert dep["path"] == path and dep["current_scope"] == HISTORICAL_STATS_SCOPE
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": HISTORICAL_STATS_REVIEW.relative_to(ROOT).as_posix(), "sha256": HISTORICAL_STATS_REVIEW_SHA,
+        "approved_base_commit": HISTORICAL_STATS_BASE, "scope": HISTORICAL_STATS_SCOPE,
+    }
+    for asset in inventory["assets"]:
+        raw = _historical_stats_live_source(asset["path"])
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    before_manifest = _source_before_historical_stats("models/decision_model_freeze.json", review)
+    inventory["dependency_successor_review"] = dep["baseline_review"]
+    next(item for item in inventory["assets"] if item["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before_manifest).hexdigest(), bytes=len(before_manifest))
+    restored = (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(restored).hexdigest() == dep["baseline_sha256"]
+    return restored
+
+
+def _state_before_historical_stats(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _historical_stats_review(review)
+    live = json.loads(_historical_stats_live_source("models/decision_model_freeze.json"))
+    manifest = live if manifest is None else manifest
+    assert manifest == live
+    previous_extensions = set().union(*(item["added_runtime_pins"] for item in review["approved_extension_reviews"]))
+    assert len(previous_extensions) == 7
+    assert HISTORICAL_STATS_ADDED_PINS.isdisjoint(REQUIRED_ACTIVE_PIN_PATHS | previous_extensions)
+    expected_paths = REQUIRED_ACTIVE_PIN_PATHS | previous_extensions | HISTORICAL_STATS_ADDED_PINS
+    assert set(manifest["pinned_files"]) == expected_paths and len(expected_paths) == 233
+    for path, expected in manifest["pinned_files"].items():
+        assert hashlib.sha256(_historical_stats_live_source(path)).hexdigest() == expected
+    for path in HISTORICAL_STATS_SOURCES:
+        _source_before_historical_stats(path, review)
+    return (json.loads(_source_before_historical_stats("models/decision_model_freeze.json", review)),
+            json.loads(_source_before_historical_stats("forward/model_inventory.json", review)))
+
+
+def _replay_pin_live_source(path: str) -> bytes:
+    # Old signed reviews see their exact reviewed source and inventory bytes.
+    return _source_before_historical_stats(path)
+
+
+def test_historical_statistics_review_restores_complete_predecessor_without_model_or_truth_changes():
+    manifest, inventory = _state_before_historical_stats()
+    assert len(manifest["pinned_files"]) == 231 and len(inventory["assets"]) == 42
+    assert inventory["dependency_successor_review"]["sha256"] == REPLAY_PIN_REVIEW_SHA
+    bridge = _source_before_historical_stats(HISTORICAL_STATS_BRIDGE)
+    assert hashlib.sha256(bridge).hexdigest() == "d7ebfffe64a5912ea8be709def7dce06d59d69bb10250085b8cc7f56f433b1d9"
+    assert _source_before_historical_stats(HISTORICAL_STATS_ADAPTER) == b""
+    assert _source_before_historical_stats(HISTORICAL_STATS_TEST) == b""
+
+
+@pytest.mark.parametrize("target", ["review", "bridge", "adapter", "test", "replay", "loader", "model",
+                                    "policy", "settlement", "manifest", "inventory", "old_review"])
+def test_historical_statistics_review_rechecks_live_bytes_after_cache_warmup(monkeypatch, target):
+    targets = {"review": HISTORICAL_STATS_REVIEW, "bridge": ROOT / HISTORICAL_STATS_BRIDGE,
+               "adapter": ROOT / HISTORICAL_STATS_ADAPTER, "test": ROOT / HISTORICAL_STATS_TEST,
+               "replay": ROOT / REPLAY_PIN_SOURCE, "loader": ROOT / "src/top10decision/decision/model_freeze.py",
+               "model": ROOT / "models/decision_three_engines/promotion.joblib",
+               "policy": ROOT / "models/decision_shadow_exit_policy_1000_v1.json",
+               "settlement": ROOT / "src/top10decision/decision/executable_profit_shadow_settlement.py",
+               "manifest": MANIFEST, "inventory": ROOT / "forward/model_inventory.json",
+               "old_review": REPLAY_PIN_REVIEW}
+    _state_before_historical_stats()
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == targets[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _state_before_historical_stats()
+
+
+@pytest.mark.parametrize("mutation", ["scope", "base", "boundary", "extra_source", "inverse", "added_source",
+                                     "drop_evidence", "remove_pin", "extra_pin", "model_identity"])
+def test_historical_statistics_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_bytes())
+    review = json.loads(HISTORICAL_STATS_REVIEW.read_bytes())
+    if mutation == "scope": review["scope"] = "runtime"
+    elif mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "boundary": review["boundaries"]["settlement_source_changed"] = True
+    elif mutation == "extra_source": review["source_changes"].append(dict(review["source_changes"][0], path="requirements.lock"))
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "added_source": review["added_source_pins"]["unreviewed.py"] = "0" * 64
+    elif mutation == "drop_evidence": review["preserved_evidence"].pop()
+    elif mutation == "remove_pin": del manifest["pinned_files"][HISTORICAL_STATS_ADAPTER]
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    else: manifest["training_cutoff_signal_date"] = "20260911"
+    with pytest.raises(AssertionError):
+        _state_before_historical_stats(manifest, review)
 
 
 @lru_cache(maxsize=1)
@@ -419,6 +631,8 @@ def _source_before_replay_pin(path: str, review: dict | None = None) -> bytes:
 
 def _state_before_replay_pin(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     review = _replay_pin_review(review)
+    if manifest is not None:
+        manifest = _state_before_historical_stats(manifest)[0]
     live = json.loads(_replay_pin_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest
     assert manifest == live

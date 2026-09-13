@@ -1,0 +1,489 @@
+{
+  "schema_version": "decision_historical_statistics_adapter_source_review_v1",
+  "approved_base_commit": "b70cef6121b86cdc13f1f943014a1616247c5537",
+  "scope": "EXPLICIT_PRE_POLICY_PUBLIC_STATISTICS_COMPATIBILITY_NO_SETTLEMENT_MODEL_POLICY_OR_TRUTH_CHANGE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+  "predecessor_evidence_sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14",
+  "rationale": "Reconstruct pre-20260914 public statistics through an explicit adapter while retaining the existing builder validation, exact post-policy output, and the same-as-of new-immutable-truth requirement. This review does not activate a model, change settlement policies, rewrite truth, or enable any workflow.",
+  "boundaries": {
+    "historical_statistics_compatibility_adapter_added": true,
+    "bridge_statistics_builder_import_changed_only": true,
+    "pre_policy_statistics_bytes_preserved": true,
+    "post_policy_builder_result_preserved": true,
+    "immutable_truth_validation_preserved": true,
+    "same_as_of_no_new_truth_rejection_preserved": true,
+    "exact_pin_set_assertion_preserved": true,
+    "settlement_source_changed": false,
+    "production_loader_changed": false,
+    "production_required_pin_constant_changed": false,
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "promotion_model_changed": false,
+    "entry_policy_changed": false,
+    "exit_policy_changed": false,
+    "frozen_members_changed": false,
+    "historical_ledger_rewritten": false,
+    "workflow_scheduling_changed": false,
+    "persistent_settlement_enabled": false,
+    "forward_epoch_activated": false,
+    "validation_gates_bypassed": false,
+    "actual_trading_enabled": false
+  },
+  "source_changes": [
+    {
+      "path": "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
+      "reason": "Route the public statistics builder through the explicit historical-as-of adapter; retain every other bridge byte and immutable-truth gate.",
+      "baseline_exists": true,
+      "baseline_sha256": "d7ebfffe64a5912ea8be709def7dce06d59d69bb10250085b8cc7f56f433b1d9",
+      "current_sha256": "bd40f40a4a660d8326254bf2a437de67281a7b8d08d7850a458186fea7686ff5",
+      "baseline_bytes": 100977,
+      "current_bytes": 101040,
+      "inverse_changes": [
+        {
+          "baseline_start": 1271,
+          "current_start": 1271,
+          "baseline_lines": [
+            "            build_public_statistics,\n",
+            "            materialize_statistics,\n",
+            "            validate_statistics,\n",
+            "        )\n"
+          ],
+          "current_lines": [
+            "            materialize_statistics,\n",
+            "            validate_statistics,\n",
+            "        )\n",
+            "        from top10decision.decision.primary_profit_shadow_statistics import build_public_statistics\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_frozen_canonical_v2_replay.py",
+      "reason": "Extend the exact reviewed source inventory by only the adapter and its focused regression tests; preserve runtime required pins.",
+      "baseline_exists": true,
+      "baseline_sha256": "718a24d19f6758a634c1d28280d352f6e05113410db89af53957ab48140b3f89",
+      "current_sha256": "d3b92c01b89785eaab7d5e474ccf413ff556f41f64284e3752a1879856e22e4b",
+      "baseline_bytes": 74666,
+      "current_bytes": 74815,
+      "inverse_changes": [
+        {
+          "baseline_start": 700,
+          "current_start": 700,
+          "baseline_lines": [
+            "# and exit1000 source reviews. REQUIRED_ACTIVE_PIN_PATHS remains the original\n",
+            "# mandatory runtime baseline, not the complete successor manifest inventory.\n",
+            "_REVIEWED_FORWARD_EXTENSION_PINS = frozenset({\n",
+            "    \"models/decision_primary_profit_shadow_entry_price_policy_v2.json\",\n",
+            "    \"models/decision_compact_statistics_window_v1.json\",\n",
+            "    \"scripts/build_compact_statistics_window.py\",\n",
+            "    \"models/decision_shadow_exit_policy_1000_v1.json\",\n",
+            "    \"scripts/sync_exit_1000_minute_truth.py\",\n",
+            "    \"src/top10decision/decision/shadow_exit_1000.py\",\n",
+            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\",\n"
+          ],
+          "current_lines": [
+            "# exit1000, and historical-statistics source reviews. REQUIRED_ACTIVE_PIN_PATHS\n",
+            "# remains the original\n",
+            "# mandatory runtime baseline, not the complete successor manifest inventory.\n",
+            "_REVIEWED_FORWARD_EXTENSION_PINS = frozenset({\n",
+            "    \"models/decision_primary_profit_shadow_entry_price_policy_v2.json\",\n",
+            "    \"models/decision_compact_statistics_window_v1.json\",\n",
+            "    \"scripts/build_compact_statistics_window.py\",\n",
+            "    \"models/decision_shadow_exit_policy_1000_v1.json\",\n",
+            "    \"scripts/sync_exit_1000_minute_truth.py\",\n",
+            "    \"src/top10decision/decision/shadow_exit_1000.py\",\n",
+            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\",\n",
+            "    \"src/top10decision/decision/primary_profit_shadow_statistics.py\",\n",
+            "    \"tests/test_primary_profit_shadow_statistics.py\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/primary_profit_shadow_statistics.py",
+      "reason": "Add a validated pre-policy statistics presentation adapter without changing the frozen settlement implementation.",
+      "baseline_exists": false,
+      "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "9ddacf0573fd704cea59c210800c744ec171b682376b273c19146f35c38f090f",
+      "baseline_bytes": 0,
+      "current_bytes": 5246,
+      "inverse_changes": [
+        {
+          "baseline_start": 1,
+          "current_start": 1,
+          "baseline_lines": [],
+          "current_lines": [
+            "\"\"\"Rebuild pre-10:00-policy public statistics from their validated raw inputs.\n",
+            "\n",
+            "The settlement engine remains unchanged. Historical projections retain their\n",
+            "original format and unrounded accounting; policy-era projections pass through.\n",
+            "No archived summary is an input to this adapter.\n",
+            "\"\"\"\n",
+            "from __future__ import annotations\n",
+            "\n",
+            "import copy\n",
+            "import json\n",
+            "from pathlib import Path\n",
+            "import re\n",
+            "from typing import Any\n",
+            "\n",
+            "from top10decision.decision import executable_profit_shadow_settlement as settlement\n",
+            "\n",
+            "\n",
+            "_INPUT_PATH = re.compile(\n",
+            "    r\"data/decision_executable_profit/forward/(?:selections/shadow_|\"\n",
+            "    r\"verifications/t_verification_|settlements/settlement_)20\\d{6}\\.json\"\n",
+            ")\n",
+            "\n",
+            "\n",
+            "def _bound_inputs(root: Path, summary: dict[str, Any]) -> dict[str, dict[str, Any]]:\n",
+            "    payloads = {}\n",
+            "    for binding in summary[\"input_files\"]:\n",
+            "        relative = binding[\"path\"]\n",
+            "        settlement._expect(_INPUT_PATH.fullmatch(relative) is not None and relative not in payloads,\n",
+            "                           \"historical statistics input path is foreign or duplicated\")\n",
+            "        path = settlement._safe_existing_file(root, Path(relative), label=\"historical statistics input\")\n",
+            "        raw = path.read_bytes()\n",
+            "        settlement._expect(settlement._sha256_bytes(raw) == binding[\"sha256\"],\n",
+            "                           \"historical statistics input changed after validation\")\n",
+            "        payloads[relative] = json.loads(raw)\n",
+            "    return payloads\n",
+            "\n",
+            "\n",
+            "def _historical_records(payloads: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:\n",
+            "    records = []\n",
+            "    prefix = settlement.SELECTION_ROOT.as_posix() + \"/\"\n",
+            "    for relative, selection in sorted(payloads.items()):\n",
+            "        if not relative.startswith(prefix):\n",
+            "            continue\n",
+            "        day = selection[\"signal_date\"]\n",
+            "        verification = payloads.get((settlement.VERIFICATION_ROOT / f\"t_verification_{day}.json\").as_posix())\n",
+            "        settled = payloads.get((settlement.SETTLEMENT_ROOT / f\"settlement_{day}.json\").as_posix())\n",
+            "        verification_rows = {int(row[\"shadow_slot\"]): row for row in verification[\"rows\"]} if verification else {}\n",
+            "        settlement_rows = {int(row[\"shadow_slot\"]): row for row in settled[\"rows\"]} if settled else {}\n",
+            "        for frozen in settlement._selected_rows(selection):\n",
+            "            slot = int(frozen[\"shadow_slot\"])\n",
+            "            verified = verification_rows.get(slot)\n",
+            "            terminal_row = settlement_rows.get(slot)\n",
+            "            proxy_fill = verified.get(\"proxy_fill\") if verified is not None else None\n",
+            "            records.append({\n",
+            "                \"signal_date\": day,\n",
+            "                \"shadow_slot\": slot,\n",
+            "                \"stage_transition\": str(frozen[\"stage_transition\"]),\n",
+            "                \"t_validated\": verified is not None,\n",
+            "                \"proxy_fill\": proxy_fill,\n",
+            "                \"terminal\": bool(terminal_row is not None or proxy_fill == 0),\n",
+            "                \"net_return_after_cost\": terminal_row.get(\"net_return_after_cost\") if terminal_row is not None else None,\n",
+            "                \"stress_net_return\": terminal_row.get(\"stress_net_return\") if terminal_row is not None else None,\n",
+            "                \"strategy_slot_return\": terminal_row.get(\"strategy_slot_return\") if terminal_row is not None else 0.0 if proxy_fill == 0 else None,\n",
+            "                \"delayed_trading_days\": terminal_row.get(\"delayed_trading_days\") if terminal_row is not None else None,\n",
+            "                \"blocked_exit_sessions\": terminal_row.get(\"blocked_exit_sessions\") if terminal_row is not None else 0,\n",
+            "            })\n",
+            "    return records\n",
+            "\n",
+            "\n",
+            "def build_public_statistics(repo_root: Path, *, as_of_date: str) -> dict[str, Any]:\n",
+            "    # The original builder validates the calendar, selections, truth bindings,\n",
+            "    # dated exit policy and complete input scope before compatibility work.\n",
+            "    summary = settlement.build_public_statistics(repo_root, as_of_date=as_of_date)\n",
+            "    if summary[\"as_of_date\"] >= settlement.EXIT_POLICY_EFFECTIVE_DATE:\n",
+            "        return summary\n",
+            "\n",
+            "    root = repo_root.resolve(strict=True)\n",
+            "    payloads = _bound_inputs(root, summary)\n",
+            "    records = _historical_records(payloads)\n",
+            "    historical = copy.deepcopy(summary)\n",
+            "    historical[\"cohorts\"] = {\n",
+            "        \"all_selected_slots\": settlement._cohort_metrics(records),\n",
+            "        \"shadow_slot_1\": settlement._cohort_metrics([row for row in records if row[\"shadow_slot\"] == 1]),\n",
+            "        \"shadow_slot_2\": settlement._cohort_metrics([row for row in records if row[\"shadow_slot\"] == 2]),\n",
+            "        \"stage_2_to_3\": settlement._cohort_metrics([row for row in records if row[\"stage_transition\"] == \"2→3\"]),\n",
+            "        \"stage_3_to_4\": settlement._cohort_metrics([row for row in records if row[\"stage_transition\"] == \"3→4\"]),\n",
+            "    }\n",
+            "    historical[\"pending_definitions\"][\"pending_exit_slots\"] = (\n",
+            "        \"proxy-filled slots without a resolved first tradable open from scheduled T+1 onward\"\n",
+            "    )\n",
+            "    historical[\"snapshot_sha256\"] = settlement._payload_snapshot(historical)\n",
+            "    for binding in summary[\"input_files\"]:\n",
+            "        path = settlement._safe_existing_file(root, Path(binding[\"path\"]), label=\"historical statistics input\")\n",
+            "        settlement._expect(settlement._sha256(path) == binding[\"sha256\"],\n",
+            "                           \"historical statistics input changed during reconstruction\")\n",
+            "    settlement.validate_statistics(historical, require_public_cumulative=True)\n",
+            "    return historical\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_primary_profit_shadow_statistics.py",
+      "reason": "Cover byte-identical historical reconstruction, post-policy passthrough, and immutable-input protections.",
+      "baseline_exists": false,
+      "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1",
+      "baseline_bytes": 0,
+      "current_bytes": 4838,
+      "inverse_changes": [
+        {
+          "baseline_start": 1,
+          "current_start": 1,
+          "baseline_lines": [],
+          "current_lines": [
+            "\"\"\"Historical compatibility must reconstruct raw truth, not copy an old summary.\"\"\"\n",
+            "from __future__ import annotations\n",
+            "\n",
+            "import copy\n",
+            "import hashlib\n",
+            "import json\n",
+            "from pathlib import Path\n",
+            "\n",
+            "import pytest\n",
+            "\n",
+            "from top10decision.decision import executable_profit_shadow_settlement as settlement\n",
+            "from top10decision.decision import primary_profit_shadow_statistics as adapter\n",
+            "\n",
+            "\n",
+            "ROOT = Path(__file__).resolve().parents[1]\n",
+            "ARCHIVES = {\n",
+            "    \"20260910\": \"21af0c5b9b77609622e28153d07c4bf21eaf61ea06dc6af671880744804ca647\",\n",
+            "    \"20260911\": \"b76147f4c8b0d10a348c4097192b68717d2bb6f9ae0aac05efbca8ee6e265534\",\n",
+            "}\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"day\", ARCHIVES)\n",
+            "def test_historical_raw_reconstruction_matches_exact_immutable_archive(day):\n",
+            "    digest = ARCHIVES[day]\n",
+            "    archive = ROOT / settlement.STATISTICS_PATH.parent / \"snapshots\" / f\"summary_asof_{day}_sha256_{digest}.json\"\n",
+            "    raw = archive.read_bytes()\n",
+            "    assert hashlib.sha256(raw).hexdigest() == digest\n",
+            "    historical = adapter.build_public_statistics(ROOT, as_of_date=day)\n",
+            "    assert settlement._canonical_bytes(historical) == raw\n",
+            "    assert historical[\"input_files\"] == json.loads(raw)[\"input_files\"]\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"day\", [\"20260914\", \"20260915\"])\n",
+            "def test_policy_era_statistics_pass_through_without_mixing_returns(day, monkeypatch):\n",
+            "    original = settlement.build_public_statistics(ROOT, as_of_date=day)\n",
+            "    calls = []\n",
+            "    def validated(root, *, as_of_date):\n",
+            "        calls.append((root, as_of_date))\n",
+            "        return original\n",
+            "    monkeypatch.setattr(settlement, \"build_public_statistics\", validated)\n",
+            "    monkeypatch.setattr(adapter, \"_bound_inputs\", lambda *args: pytest.fail(\"policy-era projection entered historical adapter\"))\n",
+            "    assert adapter.build_public_statistics(ROOT, as_of_date=day) is original\n",
+            "    assert calls == [(ROOT, day)]\n",
+            "    cohort = original[\"cohorts\"][\"all_selected_slots\"]\n",
+            "    assert cohort[\"return_policy_status\"] == \"MIXED_EXIT_POLICIES_NOT_COMBINED\"\n",
+            "    assert cohort[\"mean_net_return_after_cost\"] is None\n",
+            "    assert cohort[\"equal_weight_cumulative_return\"] is None\n",
+            "    assert settlement.EXIT_POLICY_ID_1000 in cohort[\"by_exit_policy\"]\n",
+            "\n",
+            "\n",
+            "@pytest.fixture\n",
+            "def bound_inputs_only(tmp_path, monkeypatch):\n",
+            "    summary = settlement.build_public_statistics(ROOT, as_of_date=\"20260911\")\n",
+            "    for binding in summary[\"input_files\"]:\n",
+            "        path = tmp_path / binding[\"path\"]\n",
+            "        path.parent.mkdir(parents=True, exist_ok=True)\n",
+            "        path.write_bytes((ROOT / binding[\"path\"]).read_bytes())\n",
+            "    monkeypatch.setattr(settlement, \"build_public_statistics\", lambda *args, **kwargs: copy.deepcopy(summary))\n",
+            "    return tmp_path, summary\n",
+            "\n",
+            "\n",
+            "def test_adapter_uses_only_bound_inputs_without_any_archive_or_future_truth(bound_inputs_only, monkeypatch):\n",
+            "    root, summary = bound_inputs_only\n",
+            "    future = root / settlement.VERIFICATION_ROOT / \"t_verification_20260911.json\"\n",
+            "    future.parent.mkdir(parents=True, exist_ok=True)\n",
+            "    future.write_bytes(b\"future truth deliberately excluded from the validated input scope\")\n",
+            "    read_bytes = Path.read_bytes\n",
+            "    def only_bound(path):\n",
+            "        assert path != future, \"adapter read future unbound truth\"\n",
+            "        return read_bytes(path)\n",
+            "    monkeypatch.setattr(Path, \"read_bytes\", only_bound)\n",
+            "    actual = adapter.build_public_statistics(root, as_of_date=\"20260911\")\n",
+            "    assert hashlib.sha256(settlement._canonical_bytes(actual)).hexdigest() == ARCHIVES[\"20260911\"]\n",
+            "    assert actual[\"input_files\"] == summary[\"input_files\"]\n",
+            "    assert not (root / settlement.STATISTICS_PATH.parent).exists()\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"stage\", [\"before\", \"during\"])\n",
+            "@pytest.mark.parametrize(\"kind\", [\"selections\", \"verifications\", \"settlements\"])\n",
+            "def test_input_bytes_cannot_change_after_validation_or_during_rebuild(bound_inputs_only, monkeypatch, kind, stage):\n",
+            "    root, summary = bound_inputs_only\n",
+            "    binding = next(item for item in summary[\"input_files\"] if f\"/{kind}/\" in item[\"path\"])\n",
+            "    path = root / binding[\"path\"]\n",
+            "    if stage == \"before\":\n",
+            "        path.write_bytes(path.read_bytes() + b\" \")\n",
+            "    else:\n",
+            "        original = settlement._cohort_metrics\n",
+            "        def changed(records):\n",
+            "            path.write_bytes(path.read_bytes() + b\" \")\n",
+            "            return original(records)\n",
+            "        monkeypatch.setattr(settlement, \"_cohort_metrics\", changed)\n",
+            "    with pytest.raises(settlement.ExecutableProfitSettlementError, match=\"input changed\"):\n",
+            "        adapter.build_public_statistics(root, as_of_date=\"20260911\")\n",
+            "\n",
+            "\n",
+            "def test_original_validation_failure_is_not_adapted_or_hidden(monkeypatch):\n",
+            "    def rejected(*args, **kwargs):\n",
+            "        raise settlement.ExecutableProfitSettlementError(\"original validation rejected\")\n",
+            "    monkeypatch.setattr(settlement, \"build_public_statistics\", rejected)\n",
+            "    with pytest.raises(settlement.ExecutableProfitSettlementError, match=\"original validation rejected\"):\n",
+            "        adapter.build_public_statistics(ROOT, as_of_date=\"20260911\")\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "baseline_pin_count": 231,
+  "pin_count": 233,
+  "pin_changes": [
+    {
+      "path": "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
+      "baseline_sha256": "d7ebfffe64a5912ea8be709def7dce06d59d69bb10250085b8cc7f56f433b1d9",
+      "current_sha256": "bd40f40a4a660d8326254bf2a437de67281a7b8d08d7850a458186fea7686ff5"
+    },
+    {
+      "path": "tests/test_frozen_canonical_v2_replay.py",
+      "baseline_sha256": "718a24d19f6758a634c1d28280d352f6e05113410db89af53957ab48140b3f89",
+      "current_sha256": "d3b92c01b89785eaab7d5e474ccf413ff556f41f64284e3752a1879856e22e4b"
+    }
+  ],
+  "added_source_pins": {
+    "src/top10decision/decision/primary_profit_shadow_statistics.py": "9ddacf0573fd704cea59c210800c744ec171b682376b273c19146f35c38f090f",
+    "tests/test_primary_profit_shadow_statistics.py": "743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1"
+  },
+  "approved_extension_reviews": [
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5",
+      "added_runtime_pins": [
+        "models/decision_primary_profit_shadow_entry_price_policy_v2.json"
+      ]
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db",
+      "added_runtime_pins": [
+        "models/decision_compact_statistics_window_v1.json",
+        "scripts/build_compact_statistics_window.py"
+      ]
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+      "added_runtime_pins": [
+        "models/decision_shadow_exit_policy_1000_v1.json",
+        "scripts/sync_exit_1000_minute_truth.py",
+        "src/top10decision/decision/shadow_exit_1000.py",
+        "src/top10decision/decision/shadow_exit_minute_truth.py"
+      ]
+    }
+  ],
+  "baseline_manifest_sha256": "f3fb59e303a95e92874e3c6015f6ac9ea0430d9cb4088fc2037fab8806117c3c",
+  "current_manifest_sha256": "fe2422a3b6dff04f7ace96dde1c976731791a47b7fca7d5f1a9bb082a7c3aa5b",
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "eff62afd5067008b7806eacccefe3fcc2c81b5c4ea3fdec05f123fb5ea091fba",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+      "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14",
+      "approved_base_commit": "763ac86e8db225d363612f7a0a4792b29bd5237f",
+      "scope": "TEST_ONLY_EXACT_REVIEWED_SEVEN_PIN_SUCCESSOR_INVENTORY_NO_LOADER_MODEL_OR_TRUTH_CHANGE"
+    },
+    "current_scope": "EXPLICIT_PRE_POLICY_PUBLIC_STATISTICS_COMPATIBILITY_NO_SETTLEMENT_MODEL_POLICY_OR_TRUTH_CHANGE"
+  },
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_exit_label.json",
+      "sha256": "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+      "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_dev_yaml.json",
+      "sha256": "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_ci_partition.json",
+      "sha256": "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+      "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14"
+    }
+  ]
+}

@@ -697,7 +697,8 @@ def test_forced_replay_rejects_invalid_explicit_date_binding(
 
 
 # These exact additions were approved by the shadow-price-v2, D0910-window,
-# and exit1000 source reviews. REQUIRED_ACTIVE_PIN_PATHS remains the original
+# exit1000, and historical-statistics source reviews. REQUIRED_ACTIVE_PIN_PATHS
+# remains the original
 # mandatory runtime baseline, not the complete successor manifest inventory.
 _REVIEWED_FORWARD_EXTENSION_PINS = frozenset({
     "models/decision_primary_profit_shadow_entry_price_policy_v2.json",
@@ -707,6 +708,8 @@ _REVIEWED_FORWARD_EXTENSION_PINS = frozenset({
     "scripts/sync_exit_1000_minute_truth.py",
     "src/top10decision/decision/shadow_exit_1000.py",
     "src/top10decision/decision/shadow_exit_minute_truth.py",
+    "src/top10decision/decision/primary_profit_shadow_statistics.py",
+    "tests/test_primary_profit_shadow_statistics.py",
 })
 
 
