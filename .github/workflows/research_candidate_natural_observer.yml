@@ -1,0 +1,121 @@
+name: DC20 · Preserve natural candidate publication (research)
+
+on:
+  workflow_run:
+    workflows: ["DC20 · Fixed candidate natural forward (research)"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      freeze_run_id:
+        description: "已经成功冻结本日研究名单的原始 run ID"
+        required: true
+        type: string
+      dry_run:
+        description: "只读保全演练，不提交研究证据"
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/research_candidate_natural_observer.yml"
+      - "work/profit_1000_upgrade/candidate_natural_evidence*.py"
+      - "work/profit_1000_upgrade/test_candidate_natural_evidence*.py"
+      - "work/profit_1000_upgrade/candidate_natural_observer.py"
+      - "work/profit_1000_upgrade/test_candidate_natural_observer.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-natural-observer-${{ github.event_name == 'push' && github.run_id || 'preserve' }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+
+jobs:
+  validate:
+    name: Validate publication evidence preservation
+    if: >-
+      github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.status == 'completed' &&
+        github.event.workflow_run.workflow_id == 357010624 && github.event.workflow_run.run_attempt == 1 &&
+        github.event.workflow_run.path == '.github/workflows/research_candidate_natural_forward.yml' &&
+        github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event != 'push' &&
+        github.event.workflow_run.repository.full_name == github.repository &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact code without persisted credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Check original verifier preservation and immutable Git contracts
+        run: |
+          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/test_candidate_natural_publication.py work/profit_1000_upgrade/test_candidate_natural_evidence.py work/profit_1000_upgrade/test_candidate_natural_evidence_git.py work/profit_1000_upgrade/test_candidate_natural_observer.py
+          python scripts/validate_decision_model_freeze.py --root .
+          test -z "$(git status --porcelain=v1)"
+  observe:
+    name: Verify and preserve original publication evidence
+    needs: validate
+    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact validated code without persisted credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Verify original publication and append isolated evidence capsule
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+          FREEZE_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.freeze_run_id }}
+          PUBLISH_RESEARCH: ${{ github.event_name == 'workflow_run' || inputs.dry_run == false }}
+        run: |
+          args=(--freeze-run-id "$FREEZE_RUN_ID" --work-parent "$RUNNER_TEMP")
+          if [ "$PUBLISH_RESEARCH" = "true" ]; then args+=(--publish); fi
+          python -m work.profit_1000_upgrade.candidate_natural_observer "${args[@]}"
+      - name: Check formal files remain untouched
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - name: Retain capsule and non-authoritative Git acknowledgement
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-candidate-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dc20-candidate-observer-*
+          if-no-files-found: warn
+          retention-days: 90
+          include-hidden-files: false
+          compression-level: 6
