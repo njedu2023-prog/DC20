@@ -208,7 +208,7 @@ def test_transport_rejects_altered_request_before_network(change):
         collect.official_call(contract, TOKEN)
 
 
-@pytest.mark.parametrize("raw", [b"", b"x" * 4_000_001, None, "text"])
+@pytest.mark.parametrize("raw", [b"", pytest.param(b"x" * 4_000_001, id="oversized-bytes"), None, "text"])
 def test_transport_response_limit_is_checked_without_retry(monkeypatch, raw):
     opens = []
     class Reply:

@@ -257,7 +257,7 @@ def test_transport_rejects_envelope_changes(monkeypatch, change):
     with pytest.raises(ValueError): ORIGINAL_OFFICIAL(contract, TOKEN)
 
 
-@pytest.mark.parametrize("raw", [b"", b"x" * 1_000_001, {}, bytearray(b"{}")])
+@pytest.mark.parametrize("raw", [b"", pytest.param(b"x" * 1_000_001, id="oversized-bytes"), {}, bytearray(b"{}")])
 def test_transport_bound_and_bytes(monkeypatch, raw):
     class Reply:
         def __enter__(self): return self
@@ -328,7 +328,7 @@ def test_bad_minutes_never_drop_repair_or_persist_partial(tmp_path, monkeypatch,
     assert TOKEN not in json.dumps(item)
 
 
-@pytest.mark.parametrize("raw", [b'{}', b'{"code":0,"code":0,"data":{}}', b'{"x":NaN}', b'{"x":1e400}', b'bad', b'\xff', b"x" * 1_000_001])
+@pytest.mark.parametrize("raw", [b'{}', b'{"code":0,"code":0,"data":{}}', b'{"x":NaN}', b'{"x":1e400}', b'bad', b'\xff', pytest.param(b"x" * 1_000_001, id="oversized-bytes")])
 def test_malformed_response_fails_closed_without_sources(tmp_path, monkeypatch, raw):
     item = one(tmp_path, monkeypatch, raw)
     assert item["status"] == "PENDING_INVALID_MINUTE_SOURCE" and item["source_files"] == []

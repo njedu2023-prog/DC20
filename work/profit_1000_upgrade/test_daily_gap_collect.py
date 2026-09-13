@@ -203,7 +203,7 @@ def test_credentials_in_any_response_location_not_persisted(location):
     with pytest.raises(ValueError, match="CREDENTIAL"): c.qualified_table(body, contract, TOKEN)
 
 
-@pytest.mark.parametrize("body", [b'{"code":0,"code":1,"data":{}}', b'NaN', b'Infinity', b'{"code":0,"data":{},"msg":1e999}', b'', b'x' * (c.MAX_BYTES + 1)])
+@pytest.mark.parametrize("body", [b'{"code":0,"code":1,"data":{}}', b'NaN', b'Infinity', b'{"code":0,"data":{},"msg":1e999}', b'', pytest.param(b'x' * (c.MAX_BYTES + 1), id="oversized-bytes")])
 def test_duplicate_nonfinite_and_oversize_json(body):
     with pytest.raises(ValueError): c.qualified_table(body, c.request_contract(*c.SCOPE[0]), TOKEN)
 

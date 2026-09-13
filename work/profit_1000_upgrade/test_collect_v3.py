@@ -249,7 +249,7 @@ def test_codec_errors_are_exact_safe_enums_not_server_text(tmp_path, raw, reason
     assert b"private" not in json.dumps(result).encode()
 
 
-@pytest.mark.parametrize("raw", [None, {}, "raw string", b"", b"x" * 4_000_001])
+@pytest.mark.parametrize("raw", [None, {}, "raw string", b"", pytest.param(b"x" * 4_000_001, id="oversized-bytes")])
 def test_only_original_bounded_http_bytes_allowed(tmp_path, raw):
     result = _fetch(tmp_path, call=lambda *args: raw)
     assert result["status"] == "PENDING_INVALID_HTTP_BYTES"
