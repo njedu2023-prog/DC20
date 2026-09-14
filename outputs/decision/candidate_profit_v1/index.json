@@ -7,15 +7,23 @@
   },
   "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
   "actual_execution_claimed": false,
-  "days": [],
+  "days": [
+    {
+      "p0_file_sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7",
+      "path": "outputs/decision/candidate_profit_v1/day_20260914.json",
+      "sha256": "8bc1aaf1842f705c20f9f6b785c5c808c36632513dd5735f042d9536051f8da7",
+      "signal_date": "20260914",
+      "snapshot_file_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+    }
+  ],
   "effective_from_signal_date": "20260914",
   "enabled": true,
-  "generated_at_utc": "2026-09-14T07:26:37.795915+00:00",
-  "latest_signal_date": null,
+  "generated_at_utc": "2026-09-14T11:55:49.222800+00:00",
+  "latest_signal_date": "20260914",
   "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
   "old_model_statistics_merged": false,
   "profitability_improvement_proven": false,
   "schema_version": "dc20_candidate_formal_profit_index_v1",
-  "source_main_sha": "306039a3b9c0f3350f01b0ec23f03dd79e004d3a",
-  "status": "ACTIVE_WAITING_FIRST_NATURAL_D"
+  "source_main_sha": "f6b97012b9be1981c8ea5b2762cd933b502cd849",
+  "status": "ACTIVE_FORWARD_VALIDATION"
 }

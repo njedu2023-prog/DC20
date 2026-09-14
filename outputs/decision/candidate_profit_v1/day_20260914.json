@@ -1,0 +1,178 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 10,
+  "candidate_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 1,
+      "candidate_score": -0.007431956336869289,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000823.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.008611728112677616,
+      "net_return": null,
+      "promotion_rank": 8,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "605058.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20260915",
+  "exit_date": "20260916",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-09-15T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "p0_file_sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20260914.json",
+    "sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7"
+  },
+  "pre_cas_freeze_at_utc": "2026-09-14T11:51:09.238285+00:00",
+  "prediction_generated_at_utc": "2026-09-14T11:51:09.212333+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-09-14T11:55:49.067778+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 9,
+      "candidate_score": -0.018985359519409967,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002912.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 3,
+      "candidate_score": -0.011074954212262305,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600876.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "f6b97012b9be1981c8ea5b2762cd933b502cd849",
+    "evidence_manifest_sha256": "054eced66c53d92da19e327c36ee340d4137cd457605f2f3ef41e89468851499",
+    "observer_run_id": 34840311266,
+    "publication_observation_sha256": "85accafa9aef213c7b951cca7dff62aea289b8198efb63ce115ab3b096f84129"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.007431956336869289,
+      "industry": "元件",
+      "name": "超声电子",
+      "promotion_rank": 6,
+      "ts_code": "000823.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.008611728112677616,
+      "industry": "元件",
+      "name": "澳弘电子",
+      "promotion_rank": 8,
+      "ts_code": "605058.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.011074954212262305,
+      "industry": "玻璃玻纤",
+      "name": "凯盛新能",
+      "promotion_rank": 2,
+      "ts_code": "600876.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.011501436370046152,
+      "industry": "塑料",
+      "name": "双星新材",
+      "promotion_rank": 7,
+      "ts_code": "002585.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.011708284186150913,
+      "industry": "电网设备",
+      "name": "通达股份",
+      "promotion_rank": 4,
+      "ts_code": "002560.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.014386470911731546,
+      "industry": "中药Ⅱ",
+      "name": "三力制药",
+      "promotion_rank": 10,
+      "ts_code": "603439.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.017053487983433188,
+      "industry": "环境治理",
+      "name": "正和生态",
+      "promotion_rank": 3,
+      "ts_code": "605069.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01711152945000021,
+      "industry": "影视院线",
+      "name": "中视传媒",
+      "promotion_rank": 9,
+      "ts_code": "600088.SH"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.018985359519409967,
+      "industry": "计算机设",
+      "name": "中新赛克",
+      "promotion_rank": 1,
+      "ts_code": "002912.SZ"
+    },
+    {
+      "candidate_rank": 10,
+      "candidate_score": -0.022561188028784887,
+      "industry": "汽车零部件",
+      "name": "众泰汽车",
+      "promotion_rank": 5,
+      "ts_code": "000980.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v1",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20260914",
+  "snapshot_file_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260914.json",
+    "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+  },
+  "source_main_sha": "f6b97012b9be1981c8ea5b2762cd933b502cd849",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
