@@ -38,14 +38,14 @@
           "formal_projection_sha256": "c09c0ce72e83f8a7064fc054d47c98f5943d6e4e0bbdaa00c650e447cf449cf2",
           "held_limit_up_sessions": null,
           "label_available_date": null,
-          "ledger_as_of_date": null,
+          "ledger_as_of_date": "20260914",
           "promotion_rank": 6,
           "proxy_fill": null,
           "signal_date": "20260914",
           "slot": 1,
           "slot_net_return": null,
           "snapshot_file_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
-          "status": "PENDING_T_NOT_DUE",
+          "status": "PENDING_T",
           "terminal_economic_source_sha256": null,
           "ts_code": "000823.SZ"
         }
@@ -66,7 +66,7 @@
       "pending_slots": 1,
       "positive_filled_slots": 0,
       "status_counts": {
-        "PENDING_T_NOT_DUE": 1
+        "PENDING_T": 1
       },
       "synthetic_cumulative_net_return": null,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
@@ -94,14 +94,14 @@
           "formal_projection_sha256": "c09c0ce72e83f8a7064fc054d47c98f5943d6e4e0bbdaa00c650e447cf449cf2",
           "held_limit_up_sessions": null,
           "label_available_date": null,
-          "ledger_as_of_date": null,
+          "ledger_as_of_date": "20260914",
           "promotion_rank": 8,
           "proxy_fill": null,
           "signal_date": "20260914",
           "slot": 2,
           "slot_net_return": null,
           "snapshot_file_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
-          "status": "PENDING_T_NOT_DUE",
+          "status": "PENDING_T",
           "terminal_economic_source_sha256": null,
           "ts_code": "605058.SH"
         }
@@ -122,7 +122,7 @@
       "pending_slots": 1,
       "positive_filled_slots": 0,
       "status_counts": {
-        "PENDING_T_NOT_DUE": 1
+        "PENDING_T": 1
       },
       "synthetic_cumulative_net_return": null,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
@@ -136,14 +136,14 @@
     {
       "evidence_commit": "f6b97012b9be1981c8ea5b2762cd933b502cd849",
       "evidence_manifest_sha256": "054eced66c53d92da19e327c36ee340d4137cd457605f2f3ef41e89468851499",
-      "ledger_as_of_date": null,
-      "ledger_file_sha256": null,
-      "ledger_version_count": 0,
+      "ledger_as_of_date": "20260914",
+      "ledger_file_sha256": "6a52f389117c1637fb18e7800b830e640e97108d470533e07f763733164074f0",
+      "ledger_version_count": 1,
       "observer_run_id": 34840311266,
       "publication_observation_sha256": "85accafa9aef213c7b951cca7dff62aea289b8198efb63ce115ab3b096f84129",
       "signal_date": "20260914",
       "snapshot_file_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
-      "source_collection_receipt_sha256": null
+      "source_collection_receipt_sha256": "fe6e83dbf7269d9b4d4b80e57dbe728c30a23289220fe9f2dad68483542ca1c6"
     }
   ],
   "missing_or_pending_is_zero": false,
@@ -166,9 +166,9 @@
     "20260914"
   ],
   "status": "FULL_ENUMERATED_SHADOW_STATISTICS",
-  "summary_sha256": "eff5bcb21507ce6cbaf95ba8d284b748f4f9bba02f03da5fc59f62664b3bf842",
+  "summary_sha256": "71893cbecff0545fdb2e260eea525da5e431fa1e9136b01ef9ce98c9c26db648",
   "test_only": false,
   "universe_scope": "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF",
-  "verified_native_inputs_sha256": "12dceef8e3dc26b16459f5dd84ff09be0e4e04a8c3c7e9806a3214ff5a791992",
+  "verified_native_inputs_sha256": "15869a3eec598896c362e9e9d160ccc25d5ffc999272ea9f55c06b3b46187bd2",
   "win_rate_denominator": "FILLED_SETTLED_SLOTS_ONLY_ZERO_NOT_WIN"
 }
