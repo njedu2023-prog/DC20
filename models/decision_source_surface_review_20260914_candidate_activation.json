@@ -1,0 +1,873 @@
+{
+  "schema_version": "decision_candidate_formal_activation_source_review_v1",
+  "approved_base_commit": "306039a3b9c0f3350f01b0ec23f03dd79e004d3a",
+  "scope": "EXPLICIT_FIXED_CANDIDATE_FORMAL_PROFIT_ACTIVATION_NO_PROMOTION_OR_HISTORICAL_TRUTH_CHANGE",
+  "predecessor_evidence_path": "models/decision_source_surface_review_20260914_historical_statistics.json",
+  "predecessor_evidence_sha256": "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75",
+  "rationale": "The user explicitly authorized formal connection of the fixed trained candidate model before natural forward settlement. Only the profit ranking and independent versioned presentation are activated from D 20260914. Existing research admission, promotion weights/ranks, training, entry/exit kernels and frozen history remain unchanged. New performance remains unproven.",
+  "boundaries": {
+    "explicit_formal_candidate_profit_adapter_enabled": true,
+    "separate_model_version_statistics_added": true,
+    "new_formal_publication_workflow_added": true,
+    "existing_pages_projection_wiring_changed": true,
+    "existing_test_version_labels_updated_only": true,
+    "exact_existing_233_pin_set_preserved": true,
+    "model_weights_changed": false,
+    "new_model_training_performed": false,
+    "promotion_model_changed": false,
+    "promotion_ranking_changed": false,
+    "frozen_members_changed": false,
+    "research_registration_changed": false,
+    "existing_entry_or_exit_kernel_changed": false,
+    "historical_ledger_rewritten": false,
+    "old_model_statistics_merged": false,
+    "profitability_improvement_proven": false,
+    "validation_gates_bypassed": false,
+    "actual_trading_enabled": false
+  },
+  "baseline_pin_count": 233,
+  "pin_count": 233,
+  "baseline_manifest_sha256": "fe2422a3b6dff04f7ace96dde1c976731791a47b7fca7d5f1a9bb082a7c3aa5b",
+  "current_manifest_sha256": "2a44ae95f352280d1c9d29dc218037dc3a65a128a41053727029755383ae0ad0",
+  "source_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "reason": "Explicit candidate activation presentation and exact source-pin binding; restore the approved remote predecessor byte for byte.",
+      "baseline_exists": true,
+      "baseline_sha256": "597dda7ebe68975d1cd86f2f6f67418bac5a87d7919352905f15ac9c0bdda1f6",
+      "current_sha256": "528c2d8a8e2fdc180217e5f85129baa38f7f68572a5d1ed519a5c559ae8e695f",
+      "baseline_bytes": 191834,
+      "current_bytes": 193476,
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - models/decision_candidate_profit_activation_v1.json\n",
+            "      - scripts/candidate_profit_pages.py\n",
+            "      - src/top10decision/decision/candidate_profit_publication.py\n",
+            "      - src/top10decision/decision/candidate_formal_shadow_summary.py\n"
+          ]
+        },
+        {
+          "baseline_start": 70,
+          "current_start": 74,
+          "baseline_lines": [
+            "            contains(github.event.head_commit.message, '[dc20-shadow-pages-owned]')\n"
+          ],
+          "current_lines": [
+            "            contains(github.event.head_commit.message, '[dc20-shadow-pages-owned]') ||\n",
+            "            contains(github.event.head_commit.message, '[dc20-candidate-pages-owned]')\n"
+          ]
+        },
+        {
+          "baseline_start": 1805,
+          "current_start": 1810,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - name: Bind active candidate ranking and independent versioned summary\n",
+            "        env:\n",
+            "          PYTHONPATH: .:src\n",
+            "        run: |\n",
+            "          python -c 'import json; from scripts.candidate_profit_pages import materialize; print(json.dumps(materialize(\".\", \"_site\"), ensure_ascii=False))'\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 1812,
+          "current_start": 1823,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "      - name: Verify public active candidate activation and versioned ledger\n",
+            "        env:\n",
+            "          PAGE_URL: ${{ steps.deployment.outputs.page_url }}\n",
+            "          PYTHONPATH: .:src\n",
+            "        run: |\n",
+            "          python - <<'PY'\n",
+            "          import json, os, time\n",
+            "          from urllib.request import Request, urlopen\n",
+            "          from scripts.candidate_profit_pages import verify_public\n",
+            "          base = os.environ['PAGE_URL'].rstrip('/')\n",
+            "          for attempt in range(1, 9):\n",
+            "              def fetch(relative):\n",
+            "                  url = f\"{base}/{relative}?candidate_verify={os.environ['GITHUB_RUN_ID']}-{attempt}\"\n",
+            "                  with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=30) as response:\n",
+            "                      return response.read(32 * 1024**2 + 1)\n",
+            "              try:\n",
+            "                  print(json.dumps(verify_public('_site', fetch)))\n",
+            "                  break\n",
+            "              except Exception:\n",
+            "                  if attempt == 8:\n",
+            "                      raise\n",
+            "                  time.sleep(15)\n",
+            "          PY\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "reason": "Explicit candidate activation presentation and exact source-pin binding; restore the approved remote predecessor byte for byte.",
+      "baseline_exists": true,
+      "baseline_sha256": "b0219deda15de31f86f7b634e5b23e89d05b301d1b846b039743251bc326dfd9",
+      "current_sha256": "8391e72d625288c812ba9702b9cfb717e673383fa9ea780da4952179cb2b7d6c",
+      "baseline_bytes": 408529,
+      "current_bytes": 435966,
+      "inverse_changes": [
+        {
+          "baseline_start": 1439,
+          "current_start": 1439,
+          "baseline_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v16-promotion-success\";\n"
+          ],
+          "current_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v17-candidate-activation\";\n",
+            "    const CANDIDATE_PROFIT_ROOT = \"outputs/decision/candidate_profit_v1\";\n",
+            "    const CANDIDATE_PROFIT_MODEL_SHA256 = \"999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589\";\n"
+          ]
+        },
+        {
+          "baseline_start": 1493,
+          "current_start": 1495,
+          "baseline_lines": [],
+          "current_lines": [
+            "      candidateProfitActivation: null,\n",
+            "      candidateProfitSummary: null,\n",
+            "      candidateProfitSummaryLoad: { status: \"loading\", message: \"新模型累计待验证\" },\n"
+          ]
+        },
+        {
+          "baseline_start": 1819,
+          "current_start": 1824,
+          "baseline_lines": [],
+          "current_lines": [
+            "    function candidateProfitApplies(signalDate) {\n",
+            "      const active = state.candidateProfitActivation;\n",
+            "      if (active?.invalidActivation) return signalDate >= \"20260914\";\n",
+            "      return !!active?.config && signalDate >= active.config.effective_from_signal_date\n",
+            "        && (active.config.enabled || active.index?.days.some(day => day.signal_date === signalDate)\n",
+            "          || active.status === \"invalid\" && active.hasIndexBinding);\n",
+            "    }\n",
+            "\n",
+            "    function validateCandidateProfitActivation(config) {\n",
+            "      executableProfitExpect(exactObjectKeys(config, [\"enabled\", \"activation_id\", \"effective_from_signal_date\", \"model_canonical_sha256\"])\n",
+            "        && typeof config.enabled === \"boolean\" && config.activation_id === \"dc20_profit_ridge_999666_auction_exit1000_v1\"\n",
+            "        && canonicalYmd(config.effective_from_signal_date) === config.effective_from_signal_date && config.effective_from_signal_date >= \"20260914\"\n",
+            "        && config.model_canonical_sha256 === CANDIDATE_PROFIT_MODEL_SHA256, \"新盈利模型激活配置无效\");\n",
+            "      return Object.freeze({...config});\n",
+            "    }\n",
+            "\n",
+            "    async function refreshCandidateProfitActivation() {\n",
+            "      const loadSequence = state.compactLoadSequence;\n",
+            "      const sequence = (state.candidateProfitActivationSequence || 0) + 1;\n",
+            "      state.candidateProfitActivationSequence = sequence;\n",
+            "      const current = () => loadSequence === state.compactLoadSequence && sequence === state.candidateProfitActivationSequence && !state.compactFatalError;\n",
+            "      let config = null;\n",
+            "      let hasIndexBinding = false;\n",
+            "      let configured = false;\n",
+            "      try {\n",
+            "        const revision = await publishedRevisionMetadata();\n",
+            "        if (!current()) return;\n",
+            "        if (!Object.hasOwn(revision, \"candidate_profit_activation\")) {\n",
+            "          state.candidateProfitActivation = {status: \"legacy_deployment\", config: null};\n",
+            "          return;\n",
+            "        }\n",
+            "        configured = true;\n",
+            "        config = validateCandidateProfitActivation(revision.candidate_profit_activation);\n",
+            "        hasIndexBinding = Object.hasOwn(revision, \"candidate_profit_index_url\") || Object.hasOwn(revision, \"candidate_profit_index_sha256\");\n",
+            "        state.candidateProfitActivation = {status: config.enabled ? \"loading\" : \"disabled\", config};\n",
+            "        if (!config.enabled && !hasIndexBinding) return;\n",
+            "        executableProfitExpect(revision.candidate_profit_index_url === `${CANDIDATE_PROFIT_ROOT}/index.json`\n",
+            "          && isSha256(revision.candidate_profit_index_sha256), \"新模型已启用，等待精确部署的盈利索引\");\n",
+            "        const loaded = await fetchPagesOnlyShaBoundJson(revision.candidate_profit_index_url, revision.candidate_profit_index_sha256, \"新盈利索引\");\n",
+            "        validateCandidateProfitIndex(loaded.payload, config);\n",
+            "        if (current()) state.candidateProfitActivation = {status: \"ready\", config, index: loaded.payload,\n",
+            "          indexSha256: revision.candidate_profit_index_sha256, revision};\n",
+            "      } catch (error) {\n",
+            "        if (current()) state.candidateProfitActivation = {status: \"invalid\", config, hasIndexBinding,\n",
+            "          invalidActivation: configured && config === null, message: String(error?.message || error)};\n",
+            "      }\n",
+            "    }\n",
+            "\n",
+            "    function validateCandidateProfitIndex(index, config) {\n",
+            "      executableProfitExpect(index?.schema_version === \"dc20_candidate_formal_profit_index_v1\"\n",
+            "        && canonicalJson(index.activation) === canonicalJson(config)\n",
+            "        && index.enabled === config.enabled\n",
+            "        && index.activation_id === config.activation_id && index.model_canonical_sha256 === config.model_canonical_sha256\n",
+            "        && index.effective_from_signal_date === config.effective_from_signal_date\n",
+            "        && Array.isArray(index.days) && index.days.length <= 4096 && index.profitability_improvement_proven === false\n",
+            "        && index.old_model_statistics_merged === false && index.actual_execution_claimed === false, \"新盈利索引版本或激活身份漂移\");\n",
+            "      executableProfitExpect(index.status === (config.enabled ? index.days.length ? \"ACTIVE_FORWARD_VALIDATION\" : \"ACTIVE_WAITING_FIRST_NATURAL_D\" : \"DISABLED\"), \"新盈利索引状态不一致\");\n",
+            "      const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10).replaceAll(\"-\", \"\");\n",
+            "      let previous = \"\";\n",
+            "      for (const day of index.days) {\n",
+            "        executableProfitExpect(exactObjectKeys(day, [\"signal_date\", \"path\", \"sha256\", \"snapshot_file_sha256\", \"p0_file_sha256\"])\n",
+            "          && canonicalYmd(day.signal_date) === day.signal_date && day.signal_date >= config.effective_from_signal_date\n",
+            "          && day.signal_date <= today && day.signal_date > previous\n",
+            "          && day.path === `${CANDIDATE_PROFIT_ROOT}/day_${day.signal_date}.json`\n",
+            "          && [day.sha256, day.snapshot_file_sha256, day.p0_file_sha256].every(isSha256), \"新盈利日期目录重复、越界或来源SHA无效\");\n",
+            "        previous = day.signal_date;\n",
+            "      }\n",
+            "      return index;\n",
+            "    }\n",
+            "\n",
+            "    async function loadCandidateProfitDay(currentThreeRank) {\n",
+            "      const active = state.candidateProfitActivation;\n",
+            "      executableProfitExpect(active?.status === \"ready\", active?.message || \"新模型等待部署索引\");\n",
+            "      const contract = validatedThreeRankContract(currentThreeRank);\n",
+            "      executableProfitExpect(contract && candidateProfitApplies(contract.signal_date), \"新模型不覆盖该历史D\");\n",
+            "      const entry = active.index.days.find(row => row.signal_date === contract.signal_date);\n",
+            "      executableProfitExpect(entry, \"新模型等待同D冻结；晋级名单保留\");\n",
+            "      const source = currentThreeRank.three_rank_source_index;\n",
+            "      executableProfitExpect(source?.json_path === `outputs/decision/three_rank_top10_${contract.signal_date}.json`\n",
+            "        && source.json_sha256 === entry.p0_file_sha256, \"新盈利未绑定当前P0原文件SHA\");\n",
+            "      const loaded = await fetchPagesOnlyShaBoundJson(entry.path, entry.sha256, \"新盈利同D冻结\");\n",
+            "      const day = loaded.payload;\n",
+            "      executableProfitExpect(day.schema_version === \"dc20_candidate_formal_profit_day_v1\"\n",
+            "        && day.status === \"FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION\"\n",
+            "        && day.activation_id === active.config.activation_id && day.model_canonical_sha256 === active.config.model_canonical_sha256\n",
+            "        && day.effective_from_signal_date === active.config.effective_from_signal_date\n",
+            "        && [\"signal_date\", \"exec_date\", \"exit_date\"].every(key => day[key] === contract[key])\n",
+            "        && day.p0_file_sha256 === source.json_sha256 && day.snapshot_file_sha256 === entry.snapshot_file_sha256\n",
+            "        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, \"新盈利冻结版本、日期、完整池或来源不一致\");\n",
+            "      executableProfitExpect(exactObjectKeys(day.p0_source, [\"path\", \"sha256\"]) && day.p0_source.path === source.json_path && day.p0_source.sha256 === source.json_sha256\n",
+            "        && exactObjectKeys(day.snapshot_source, [\"path\", \"sha256\"]) && day.snapshot_source.path === `work/profit_1000_upgrade/candidate_natural_forward/day_${day.signal_date}.json`\n",
+            "        && day.snapshot_source.sha256 === entry.snapshot_file_sha256, \"新盈利原冻结来源指纹漂移\");\n",
+            "      executableProfitExpect(day.entry_policy_id === \"research_canonical_price_capacity_split_no_cap_v3\" && day.exit_policy_id === \"dc20_exit_1000_limit_hold_20260912_v1\"\n",
+            "        && day.round_trip_cost_rate === 0.0045 && day.shadow_notional_cny === 100000 && day.promotion_ranking_unchanged === true\n",
+            "        && day.historical_reranking_performed === false && day.model_retrained === false && day.score_is_probability === false\n",
+            "        && day.profitability_improvement_proven === false && day.actual_execution_claimed === false && day.actual_capacity_verified === false\n",
+            "        && day.source_price_observation_only === true, \"新盈利规则或验证边界漂移\");\n",
+            "      const times = [day.prediction_generated_at_utc, day.pre_cas_freeze_at_utc, day.projection_generated_at_utc].map(Date.parse);\n",
+            "      const close = Date.parse(`${dateText(day.signal_date)}T15:00:00+08:00`), cutoff = Date.parse(`${dateText(day.exec_date)}T09:20:00+08:00`);\n",
+            "      executableProfitExpect(times.every(Number.isFinite) && times[0] >= close && times[0] <= times[1] && times[1] <= times[2] && times[2] < cutoff\n",
+            "        && Date.parse(day.formal_publication_deadline_utc) === cutoff, \"新盈利冻结不在正式事前时间窗口内\");\n",
+            "      const rows = new Map(day.rows.map(row => [row.ts_code, row]));\n",
+            "      executableProfitExpect(rows.size === contract.rows.length, \"新盈利候选重复或缺失\");\n",
+            "      const ranks = new Set();\n",
+            "      for (const original of contract.rows) {\n",
+            "        const row = rows.get(original.ts_code);\n",
+            "        executableProfitExpect(exactObjectKeys(row, [\"ts_code\", \"candidate_rank\", \"candidate_score\", \"promotion_rank\", \"name\", \"industry\"])\n",
+            "          && row.promotion_rank === original.promotion_rank && row.name === original.name\n",
+            "          && row.industry === original.industry && Number.isInteger(row.candidate_rank) && row.candidate_rank >= 1\n",
+            "          && row.candidate_rank <= day.rows.length && typeof row.candidate_score === \"number\" && Number.isFinite(row.candidate_score), \"新盈利候选身份、原晋级排名或分值无效\");\n",
+            "        ranks.add(row.candidate_rank);\n",
+            "      }\n",
+            "      executableProfitExpect(ranks.size === day.rows.length, \"新盈利名次重复\");\n",
+            "      const ordered = [...day.rows].sort((a, b) => a.candidate_rank - b.candidate_rank);\n",
+            "      executableProfitExpect(day.rows.every((row, i) => row.candidate_rank === i + 1) && ordered.every((row, i) => i === 0\n",
+            "        || ordered[i - 1].candidate_score > row.candidate_score || ordered[i - 1].candidate_score === row.candidate_score && ordered[i - 1].ts_code < row.ts_code), \"新盈利名次与冻结分值方向不一致\");\n",
+            "      executableProfitExpect(Array.isArray(day.candidate_slots) && day.candidate_slots.length === 2, \"新盈利必须保留两个影子席位\");\n",
+            "      for (const [key, rank] of [[\"candidate_slots\", \"candidate_rank\"], [\"promotion_slots\", \"promotion_rank\"]]) {\n",
+            "        executableProfitExpect(Array.isArray(day[key]) && day[key].length === 2, \"新盈利及晋级必须各保留两个席位\");\n",
+            "        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);\n",
+            "        day[key].forEach((slot, i) => {\n",
+            "          const row = sorted[i];\n",
+            "          executableProfitExpect(exactObjectKeys(slot, [\"slot\", \"status\", \"ts_code\", \"board_stage\", \"promotion_rank\", \"candidate_rank\", \"candidate_score\", \"proxy_fill\", \"net_return\", \"slot_net_return\"])\n",
+            "            && slot.slot === i + 1 && slot.status === (row ? \"PENDING_T\" : \"MISSING_CANDIDATE\")\n",
+            "            && slot.proxy_fill === null && slot.net_return === null && slot.slot_net_return === null\n",
+            "            && (row ? [2, 3].includes(slot.board_stage) : slot.board_stage === null)\n",
+            "            && [\"ts_code\", \"candidate_rank\", \"candidate_score\", \"promotion_rank\"].every(field => slot[field] === (row?.[field] ?? null)), \"新盈利前二不等于原冻结席位\");\n",
+            "        });\n",
+            "      }\n",
+            "      return {status: \"ready\", kind: \"candidate_fixed_ridge\", projection: day, index: active.index,\n",
+            "        activation: active.config, projectionSha256: entry.sha256};\n",
+            "    }\n",
+            "\n",
+            "    function candidateUnifiedProfitView(contract) {\n",
+            "      const loaded = state.currentExecutableProfitResearch;\n",
+            "      const unavailable = message => ({ready: false, rows: new Map(), message, candidate: true});\n",
+            "      if (loaded?.status !== \"ready\" || loaded.kind !== \"candidate_fixed_ridge\") return unavailable(loaded?.message || \"新模型等待同D冻结；晋级名单保留\");\n",
+            "      const p = loaded.projection;\n",
+            "      if (loaded.activation !== state.candidateProfitActivation?.config || !p\n",
+            "          || [\"signal_date\", \"exec_date\", \"exit_date\"].some(key => p[key] !== contract[key])) return unavailable(\"新模型与当前D不一致；等待校验\");\n",
+            "      const byCode = new Map(p.rows.map(row => [row.ts_code, row]));\n",
+            "      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable(\"新模型冻结候选身份不一致\");\n",
+            "      return {ready: true, candidate: true, message: \"新模型 · 验证中\", rows: new Map(p.rows.map(row => [row.ts_code, {\n",
+            "        executable_profit_research_rank: row.candidate_rank, research_joint_proxy_score: row.candidate_score, rank_tied: false\n",
+            "      }]))};\n",
+            "    }\n",
+            "\n",
+            "    function validateCandidateProfitSummary(summary, config) {\n",
+            "      executableProfitExpect(summary?.schema_version === \"dc20_candidate_formal_shadow_summary_v1\"\n",
+            "        && summary.activation_id === config.activation_id && summary.model_version === config.activation_id\n",
+            "        && summary.model_canonical_sha256 === config.model_canonical_sha256\n",
+            "        && summary.effective_from_signal_date === config.effective_from_signal_date && summary.activation_signal_date === config.effective_from_signal_date\n",
+            "        && summary.enabled === config.enabled && summary.publication_paused === !config.enabled\n",
+            "        && summary.test_only === false && [\"AWAITING_FIRST_ACTIVATED_D\", \"FULL_ENUMERATED_WITH_MISSING_D\", \"FULL_ENUMERATED_SHADOW_STATISTICS\", \"FORMAL_PUBLICATION_PAUSED\"].includes(summary.status)\n",
+            "        && canonicalYmd(summary.as_of_date) === summary.as_of_date\n",
+            "        && typeof summary.coverage_complete === \"boolean\" && Array.isArray(summary.signal_dates)\n",
+            "        && Array.isArray(summary.missing_signal_dates) && exactObjectKeys(summary.groups, [\"candidate_top1\", \"candidate_top2\"]), \"新模型累计版本、日期或字段无效\");\n",
+            "      executableProfitExpect(summary.round_trip_cost_rate === 0.0045 && summary.shadow_notional_cny === 100000\n",
+            "        && summary.entry_policy_id === \"research_canonical_price_capacity_split_no_cap_v3\" && summary.exit_policy_id === \"dc20_exit_1000_limit_hold_20260912_v1\"\n",
+            "        && summary.universe_scope === \"EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF\"\n",
+            "        && [\"actual_execution_claimed\", \"actual_capacity_verified\", \"capital_nav_claimed\", \"actual_account_drawdown_claimed\", \"profitability_improvement_proven\",\n",
+            "          \"old_model_results_consumed\", \"missing_or_pending_is_zero\", \"fees_subtracted_again\", \"scores_recalculated\", \"research_registration_changed\"].every(key => summary[key] === false), \"新模型累计规则或独立版本边界漂移\");\n",
+            "      const closed = new Date(Date.now() + 8 * 3600000);\n",
+            "      if (closed.getUTCHours() < 15) closed.setUTCDate(closed.getUTCDate() - 1);\n",
+            "      executableProfitExpect(summary.as_of_date <= closed.toISOString().slice(0, 10).replaceAll(\"-\", \"\"), \"新模型累计尚未到实际收盘时间\");\n",
+            "      executableProfitExpect(summary.signal_dates.every((d, i, days) => canonicalYmd(d) === d && d >= config.effective_from_signal_date\n",
+            "        && d <= summary.as_of_date && (i === 0 || d > days[i - 1])), \"新模型累计混入旧版本、未来或重复D\");\n",
+            "      executableProfitExpect(summary.missing_signal_dates.every((d, i, days) => summary.signal_dates.includes(d) && (i === 0 || d > days[i - 1]))\n",
+            "        && summary.coverage_complete === (summary.missing_signal_dates.length === 0)\n",
+            "        && summary.expected_day_count === summary.signal_dates.length && summary.expected_slot_count === summary.signal_dates.length * 2\n",
+            "        && canonicalJson(summary.published_signal_dates) === canonicalJson(summary.signal_dates.filter(d => !summary.missing_signal_dates.includes(d)))\n",
+            "        && summary.published_day_count === summary.published_signal_dates.length, \"新模型累计缺失日期范围不一致\");\n",
+            "      const near = (a, b) => typeof a === \"number\" && Number.isFinite(a) && Math.abs(a - b) <= 1e-10;\n",
+            "      const noFill = new Set([\"NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME\", \"NO_FILL_SUSPENDED\", \"NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED\", \"NO_FILL_CAPACITY\"]);\n",
+            "      for (const group of Object.values(summary.groups)) {\n",
+            "        executableProfitExpect(Array.isArray(group.daily_sequence) && group.daily_sequence.length === summary.signal_dates.length\n",
+            "          && Array.isArray(group.complete_daily_sequence), \"新模型累计逐日范围不完整\");\n",
+            "        const counts = {terminal_slots: 0, filled_settled_slots: 0, known_no_fill_slots: 0, pending_slots: 0,\n",
+            "          missing_ledger_slots: 0, missing_candidate_slots: 0, missing_publication_slots: 0, positive_filled_slots: 0};\n",
+            "        const filled = [], terminal = [];\n",
+            "        group.daily_sequence.forEach((row, i) => {\n",
+            "          executableProfitExpect(row.signal_date === summary.signal_dates[i] && typeof row.status === \"string\", \"新模型累计逐日身份或顺序漂移\");\n",
+            "          if (row.status === \"SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY\") {\n",
+            "            executableProfitExpect(typeof row.slot_net_return === \"number\" && Number.isFinite(row.slot_net_return) && row.proxy_fill === 1, \"新模型成交结算缺有效收益\");\n",
+            "            counts.filled_settled_slots++; counts.positive_filled_slots += Number(row.slot_net_return > 0); filled.push(row.slot_net_return); terminal.push(row);\n",
+            "          } else if (noFill.has(row.status)) {\n",
+            "            executableProfitExpect(row.slot_net_return === 0 && row.proxy_fill === 0, \"新模型未买状态与零席位收益不一致\");\n",
+            "            counts.known_no_fill_slots++; terminal.push(row);\n",
+            "          } else {\n",
+            "            executableProfitExpect(row.slot_net_return === null && (row.proxy_fill === null || row.proxy_fill === 1)\n",
+            "              && (row.status.startsWith(\"PENDING_\") || [\"MISSING_OUTCOME_LEDGER\", \"MISSING_CANDIDATE\", \"MISSING_D_PUBLICATION\"].includes(row.status)), \"新模型缺失或延持不得记零收益\");\n",
+            "            if (row.status.startsWith(\"PENDING_\")) counts.pending_slots++;\n",
+            "            else counts[row.status === \"MISSING_CANDIDATE\" ? \"missing_candidate_slots\" : row.status === \"MISSING_D_PUBLICATION\" ? \"missing_publication_slots\" : \"missing_ledger_slots\"]++;\n",
+            "          }\n",
+            "          executableProfitExpect(summary.missing_signal_dates.includes(row.signal_date) === (row.status === \"MISSING_D_PUBLICATION\"), \"新模型缺失D不得藏在已发布样本中\");\n",
+            "        });\n",
+            "        counts.terminal_slots = terminal.length;\n",
+            "        executableProfitExpect(group.expected_selection_days === summary.signal_dates.length && group.verified_selection_days === summary.published_day_count\n",
+            "          && Object.entries(counts).every(([key, count]) => group[key] === count)\n",
+            "          && group.complete_day_count === terminal.length && group.complete_daily_sequence.length === terminal.length, \"新模型累计分母不一致\");\n",
+            "        executableProfitExpect(filled.length ? near(group.filled_proxy_win_rate, counts.positive_filled_slots / filled.length)\n",
+            "          && near(group.mean_net_filled_proxy_return, filled.reduce((a, b) => a + b, 0) / filled.length)\n",
+            "          : group.filled_proxy_win_rate === null && group.mean_net_filled_proxy_return === null, \"新模型胜率或均值与实际结算分母不一致\");\n",
+            "        let nav = 1, peak = 1, drawdown = 0;\n",
+            "        terminal.forEach((row, i) => {\n",
+            "          nav *= 1 + row.slot_net_return; peak = Math.max(peak, nav); drawdown = Math.min(drawdown, nav / peak - 1);\n",
+            "          const c = group.complete_daily_sequence[i];\n",
+            "          executableProfitExpect(c.signal_date === row.signal_date && c.slot_net_return === row.slot_net_return\n",
+            "            && near(c.synthetic_cumulative_net_return, nav - 1), \"新模型合成序列与已结算日不一致\");\n",
+            "        });\n",
+            "        const available = summary.coverage_complete && terminal.length > 0;\n",
+            "        executableProfitExpect(group.cumulative_available === available && (available\n",
+            "          ? near(group.synthetic_cumulative_net_return, nav - 1) && near(group.synthetic_max_drawdown, drawdown)\n",
+            "          : group.synthetic_cumulative_net_return === null && group.synthetic_max_drawdown === null), \"新模型合成累计或回撤口径不一致\");\n",
+            "      }\n",
+            "      return summary;\n",
+            "    }\n",
+            "\n",
+            "    async function refreshCandidateProfitSummary() {\n",
+            "      const active = state.candidateProfitActivation;\n",
+            "      const sequence = (state.candidateProfitSummarySequence || 0) + 1;\n",
+            "      state.candidateProfitSummarySequence = sequence;\n",
+            "      const loadSequence = state.compactLoadSequence;\n",
+            "      const current = () => active === state.candidateProfitActivation && sequence === state.candidateProfitSummarySequence\n",
+            "        && loadSequence === state.compactLoadSequence && !state.compactFatalError;\n",
+            "      state.candidateProfitSummary = null;\n",
+            "      if (!active?.config || (!active.config.enabled && !active.index?.days.length)) return;\n",
+            "      state.candidateProfitSummaryLoad = {status: \"loading\", message: \"新模型累计待验证\"};\n",
+            "      try {\n",
+            "        executableProfitExpect(active.status === \"ready\", active.message || \"新模型索引待验证\");\n",
+            "        const revision = active.revision || await publishedRevisionMetadata();\n",
+            "        executableProfitExpect(revision.candidate_profit_summary_url === `${CANDIDATE_PROFIT_ROOT}/summary.json`\n",
+            "          && isSha256(revision.candidate_profit_summary_sha256), \"新模型累计尚未发布，不使用旧版本收益\");\n",
+            "        const loaded = await fetchPagesOnlyShaBoundJson(revision.candidate_profit_summary_url, revision.candidate_profit_summary_sha256, \"新模型累计\");\n",
+            "        const summary = validateCandidateProfitSummary(loaded.payload, active.config);\n",
+            "        if (current()) { state.candidateProfitSummary = {summary, activation: active.config}; state.candidateProfitSummaryLoad = {status: \"ready\", message: \"\"}; }\n",
+            "      } catch (error) {\n",
+            "        if (current()) state.candidateProfitSummaryLoad = {status: \"invalid\", message: String(error?.message || error)};\n",
+            "      }\n",
+            "    }\n",
+            "\n",
+            "    function renderCandidateProfitStatistics() {\n",
+            "      const active = state.candidateProfitActivation;\n",
+            "      const loaded = state.candidateProfitSummary;\n",
+            "      const summary = state.candidateProfitSummaryLoad?.status === \"ready\" && loaded?.activation === active?.config ? loaded.summary : null;\n",
+            "      const rows = [1, 2].map(slot => {\n",
+            "        const c = summary?.groups[`candidate_top${slot}`];\n",
+            "        const count = key => c ? c[key] : \"—\";\n",
+            "        const mean = c?.mean_net_filled_proxy_return ?? null, cumulative = c?.synthetic_cumulative_net_return ?? null, dd = c?.synthetic_max_drawdown ?? null;\n",
+            "        const cumulativeCell = `<span class=\"profit-cumulative-inline\"><span class=\"${valueTone(cumulative)}\">${cumulative == null ? \"待验证\" : signedPct(cumulative)}</span>${c ? `<span class=\"score-secondary\">${c.complete_day_count} 个完整日</span>` : \"\"}</span>`;\n",
+            "        return `<tr><th scope=\"row\" class=\"left\"><span class=\"rank-mark rank-profit\">盈${slot}</span></th><td>${count(\"verified_selection_days\")}</td><td>${count(\"known_no_fill_slots\")}</td><td>${c ? `${c.pending_slots} / ${c.missing_ledger_slots + c.missing_candidate_slots + c.missing_publication_slots}` : \"—\"}</td><td>${c ? `${c.positive_filled_slots} / ${c.filled_settled_slots}` : \"—\"}</td><td>${c?.filled_proxy_win_rate == null ? \"待验证\" : pct(c.filled_proxy_win_rate)}</td><td class=\"${valueTone(mean)}\">${mean == null ? \"待验证\" : signedPct(mean)}</td><td>${cumulativeCell}</td><td class=\"${valueTone(dd)}\">${dd == null ? \"待验证\" : signedPct(dd)}</td></tr>`;\n",
+            "      }).join(\"\");\n",
+            "      els.compactLedgerState.textContent = `新模型 · ${active.config.enabled ? \"验证中\" : \"暂停新增\"} · D ${dateText(active.config.effective_from_signal_date)}起 · 最新累计`\n",
+            "        + (summary ? ` · 截至 ${dateText(summary.as_of_date)}` : \" · 等待发布\");\n",
+            "      const note = summary ? \"仅新模型；未买与缺失分开。累计/回撤为已结算日合成，非资金净值；未结算不记零。\"\n",
+            "        + (summary.coverage_complete ? \"\" : \" 部分D冻结缺失，暂停累计。\") : state.candidateProfitSummaryLoad?.message || \"新模型累计等待验证，不使用旧模型成绩。\";\n",
+            "      els.compactLedgerContent.innerHTML = `<div class=\"table-wrap table-scroll-region\" tabindex=\"0\" role=\"region\" aria-label=\"新模型盈利Top1、Top2独立累计统计\"><table class=\"three-rank-table profit-summary-table\"><thead><tr><th scope=\"col\">盈利名次</th><th scope=\"col\">冻结</th><th scope=\"col\">未买</th><th scope=\"col\">待 / 缺</th><th scope=\"col\">盈利 / 成交</th><th scope=\"col\">胜率</th><th scope=\"col\">平均扣费收益</th><th scope=\"col\">已结算日合成累计</th><th scope=\"col\">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class=\"stats-note\">${escapeHtml(note)}</p>`;\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 1862,
+          "current_start": 2126,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (state.candidateProfitActivation?.config && (state.candidateProfitActivation.config.enabled || state.candidateProfitActivation.index?.days.length)) renderCandidateProfitStatistics();\n",
+            "      if (state.candidateProfitActivation?.invalidActivation) {\n",
+            "        els.compactLedgerState.textContent = \"新模型激活配置待核验\";\n",
+            "        els.compactLedgerContent.innerHTML = '<p class=\"stats-note warn\">激活配置校验失败；不使用旧累计替代新版本。</p>';\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 4037,
+          "current_start": 4306,
+          "baseline_lines": [],
+          "current_lines": [
+            "      const sequence = (state.profitLoadSequence || 0) + 1;\n",
+            "      state.profitLoadSequence = sequence;\n",
+            "      const loadSequence = state.compactLoadSequence;\n",
+            "      const current = () => state.profitLoadSequence === sequence && state.compactLoadSequence === loadSequence && !state.compactFatalError;\n"
+          ]
+        },
+        {
+          "baseline_start": 4038,
+          "current_start": 4311,
+          "baseline_lines": [
+            "        state.currentExecutableProfitResearch = await loadCurrentExecutableProfitResearch(currentThreeRank);\n"
+          ],
+          "current_lines": [
+            "        const result = candidateProfitApplies(currentThreeRank?.signal_date)\n",
+            "          ? await loadCandidateProfitDay(currentThreeRank) : await loadCurrentExecutableProfitResearch(currentThreeRank);\n",
+            "        if (current()) state.currentExecutableProfitResearch = result;\n"
+          ]
+        },
+        {
+          "baseline_start": 4041,
+          "current_start": 4316,
+          "baseline_lines": [
+            "        state.currentExecutableProfitResearch = {\n"
+          ],
+          "current_lines": [
+            "        if (current()) state.currentExecutableProfitResearch = {\n"
+          ]
+        },
+        {
+          "baseline_start": 4985,
+          "current_start": 5260,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if ((state.candidateProfitActivation?.config || state.candidateProfitActivation?.invalidActivation) && candidateProfitApplies(contract.signal_date)) return candidateUnifiedProfitView(contract);\n"
+          ]
+        },
+        {
+          "baseline_start": 5092,
+          "current_start": 5368,
+          "baseline_lines": [
+            "          <td title=\"混合盈利研究联合代理分，非胜率或预期收益\">${row.mixed_profit_score == null ? \"—\" : number(row.mixed_profit_score, 4)}</td>\n"
+          ],
+          "current_lines": [
+            "          <td title=\"${profitView.candidate ? \"固定Ridge扣费代理收益模型分；非概率、非实际成交收益\" : \"混合盈利研究联合代理分，非胜率或预期收益\"}\">${row.mixed_profit_score == null ? \"—\" : number(row.mixed_profit_score, 4)}</td>\n"
+          ]
+        },
+        {
+          "baseline_start": 5118,
+          "current_start": 5394,
+          "baseline_lines": [
+            "          <div class=\"three-rank-downloads\">${downloadButtons || '<span class=\"count\">下载工件待发布</span>'}</div>\n"
+          ],
+          "current_lines": [
+            "          <div class=\"three-rank-downloads\">${profitView.candidate ? '<span class=\"count\" title=\"新盈利模型已启用，自然样本仍在积累，不代表实盘表现\">新模型 · 验证中</span>' : \"\"}${downloadButtons || '<span class=\"count\">下载工件待发布</span>'}</div>\n"
+          ]
+        },
+        {
+          "baseline_start": 5127,
+          "current_start": 5403,
+          "baseline_lines": [
+            "          <th scope=\"col\">T晋级结果</th><th scope=\"col\">T收盘</th><th scope=\"col\">T+1净收益<small class=\"row-meta\">T+1验证状态</small></th>\n"
+          ],
+          "current_lines": [
+            "          <th scope=\"col\">T晋级结果</th><th scope=\"col\">T收盘</th><th scope=\"col\" title=\"晋级名单逐股观察（日开盘入场代理）；新盈利模型影子业绩见下方独立累计（竞价入场代理），两者不是实际成交收益\">T+1净收益<small class=\"row-meta\">T+1验证状态</small></th>\n"
+          ]
+        },
+        {
+          "baseline_start": 5850,
+          "current_start": 6126,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (candidateProfitApplies(currentThreeRank.signal_date)) return loadCandidateProfitDay(currentThreeRank);\n"
+          ]
+        },
+        {
+          "baseline_start": 5883,
+          "current_start": 6160,
+          "baseline_lines": [],
+          "current_lines": [
+            "      const candidate = refreshCandidateProfitActivation().then(() => {\n",
+            "        void refreshCandidateProfitSummary().then(() => {\n",
+            "          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();\n",
+            "        });\n",
+            "      });\n"
+          ]
+        },
+        {
+          "baseline_start": 5887,
+          "current_start": 6169,
+          "baseline_lines": [
+            "      const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {\n",
+            "        try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }\n",
+            "        catch (error) { state.currentExecutableProfitResearch = { status: \"invalid\", message: String(error.message || error) }; }\n"
+          ],
+          "current_lines": [
+            "      const profit = candidate.then(async () => {\n",
+            "        if (!candidateProfitApplies(date)) await refreshCurrentPrimaryMixedDailyTop2();\n",
+            "        const current = () => state.compactLoadSequence === compactLoadSequence && state.currentThreeRank === loaded.wrapper && !state.compactFatalError;\n",
+            "        try { const result = await loadDailyHistoricalProfit(loaded.wrapper); if (current()) state.currentExecutableProfitResearch = result; }\n",
+            "        catch (error) { if (current()) state.currentExecutableProfitResearch = { status: \"invalid\", message: String(error.message || error) }; }\n"
+          ]
+        },
+        {
+          "baseline_start": 6107,
+          "current_start": 6391,
+          "baseline_lines": [],
+          "current_lines": [
+            "      state.candidateProfitActivation = null;\n",
+            "      state.candidateProfitSummary = null;\n",
+            "      state.candidateProfitSummaryLoad = {status: \"loading\", message: \"新模型累计待验证\"};\n"
+          ]
+        },
+        {
+          "baseline_start": 6132,
+          "current_start": 6419,
+          "baseline_lines": [],
+          "current_lines": [
+            "        const candidate = refreshCandidateProfitActivation().then(() => {\n",
+            "          void refreshCandidateProfitSummary().then(() => {\n",
+            "            if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();\n",
+            "          });\n",
+            "          paint();\n",
+            "        });\n"
+          ]
+        },
+        {
+          "baseline_start": 6141,
+          "current_start": 6434,
+          "baseline_lines": [
+            "        const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {\n"
+          ],
+          "current_lines": [
+            "        const profit = candidate.then(async () => {\n",
+            "          if (!candidateProfitApplies(state.currentThreeRank?.signal_date)) await refreshCurrentPrimaryMixedDailyTop2();\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "reason": "Explicit candidate activation presentation and exact source-pin binding; restore the approved remote predecessor byte for byte.",
+      "baseline_exists": true,
+      "baseline_sha256": "fe2422a3b6dff04f7ace96dde1c976731791a47b7fca7d5f1a9bb082a7c3aa5b",
+      "current_sha256": "2a44ae95f352280d1c9d29dc218037dc3a65a128a41053727029755383ae0ad0",
+      "baseline_bytes": 52661,
+      "current_bytes": 52661,
+      "inverse_changes": [
+        {
+          "baseline_start": 632,
+          "current_start": 632,
+          "baseline_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"597dda7ebe68975d1cd86f2f6f67418bac5a87d7919352905f15ac9c0bdda1f6\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"528c2d8a8e2fdc180217e5f85129baa38f7f68572a5d1ed519a5c559ae8e695f\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"b0219deda15de31f86f7b634e5b23e89d05b301d1b846b039743251bc326dfd9\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"8391e72d625288c812ba9702b9cfb717e673383fa9ea780da4952179cb2b7d6c\",\n"
+          ]
+        },
+        {
+          "baseline_start": 810,
+          "current_start": 810,
+          "baseline_lines": [
+            "    \"tests/test_dashboard_research_projection.py\": \"f687856cf54c364f2d3fdf844f7e99fba632a4a308e6cf0629edebc0c5304d51\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_dashboard_research_projection.py\": \"a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "reason": "Explicit candidate activation presentation and exact source-pin binding; restore the approved remote predecessor byte for byte.",
+      "baseline_exists": true,
+      "baseline_sha256": "f687856cf54c364f2d3fdf844f7e99fba632a4a308e6cf0629edebc0c5304d51",
+      "current_sha256": "a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28",
+      "baseline_bytes": 10819,
+      "current_bytes": 10822,
+      "inverse_changes": [
+        {
+          "baseline_start": 104,
+          "current_start": 104,
+          "baseline_lines": [
+            "        'const DASHBOARD_VERSION = \"compact-two-ranks-v16-promotion-success\"'\n"
+          ],
+          "current_lines": [
+            "        'const DASHBOARD_VERSION = \"compact-two-ranks-v17-candidate-activation\"'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_two_rank_frontend.py",
+      "reason": "Explicit candidate activation presentation and exact source-pin binding; restore the approved remote predecessor byte for byte.",
+      "baseline_exists": true,
+      "baseline_sha256": "53063c0094eda277ffcfd191b17a9be785b740e1859cb9fafabd31f3952b5ca0",
+      "current_sha256": "89f9f0899741de44c6d5f74ec407afaf481328965f4380284b675ba33604e905",
+      "baseline_bytes": 21673,
+      "current_bytes": 21676,
+      "inverse_changes": [
+        {
+          "baseline_start": 274,
+          "current_start": 274,
+          "baseline_lines": [
+            "    assert 'compact-two-ranks-v16-promotion-success' in source\n"
+          ],
+          "current_lines": [
+            "    assert 'compact-two-ranks-v17-candidate-activation' in source\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "pin_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "baseline_sha256": "597dda7ebe68975d1cd86f2f6f67418bac5a87d7919352905f15ac9c0bdda1f6",
+      "current_sha256": "528c2d8a8e2fdc180217e5f85129baa38f7f68572a5d1ed519a5c559ae8e695f"
+    },
+    {
+      "path": "decision.html",
+      "baseline_sha256": "b0219deda15de31f86f7b634e5b23e89d05b301d1b846b039743251bc326dfd9",
+      "current_sha256": "8391e72d625288c812ba9702b9cfb717e673383fa9ea780da4952179cb2b7d6c"
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "baseline_sha256": "f687856cf54c364f2d3fdf844f7e99fba632a4a308e6cf0629edebc0c5304d51",
+      "current_sha256": "a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28"
+    }
+  ],
+  "inventory_update": {
+    "path": "forward/model_inventory.json",
+    "baseline_sha256": "a29a7ea9a32385599eef8aa6634e985ffefd8ca536669c936063926aa1b83133",
+    "baseline_review": {
+      "path": "models/decision_source_surface_review_20260914_historical_statistics.json",
+      "sha256": "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75",
+      "approved_base_commit": "b70cef6121b86cdc13f1f943014a1616247c5537",
+      "scope": "EXPLICIT_PRE_POLICY_PUBLIC_STATISTICS_COMPATIBILITY_NO_SETTLEMENT_MODEL_POLICY_OR_TRUTH_CHANGE"
+    },
+    "current_scope": "EXPLICIT_FIXED_CANDIDATE_FORMAL_PROFIT_ACTIVATION_NO_PROMOTION_OR_HISTORICAL_TRUTH_CHANGE"
+  },
+  "preserved_evidence": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_exit_label.json",
+      "sha256": "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+      "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_dev_yaml.json",
+      "sha256": "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_ci_partition.json",
+      "sha256": "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+      "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260914_historical_statistics.json",
+      "sha256": "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75"
+    }
+  ],
+  "approved_extension_reviews": [
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5",
+      "added_runtime_pins": [
+        "models/decision_primary_profit_shadow_entry_price_policy_v2.json"
+      ]
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db",
+      "added_runtime_pins": [
+        "models/decision_compact_statistics_window_v1.json",
+        "scripts/build_compact_statistics_window.py"
+      ]
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+      "added_runtime_pins": [
+        "models/decision_shadow_exit_policy_1000_v1.json",
+        "scripts/sync_exit_1000_minute_truth.py",
+        "src/top10decision/decision/shadow_exit_1000.py",
+        "src/top10decision/decision/shadow_exit_minute_truth.py"
+      ]
+    }
+  ],
+  "added_files": [
+    {
+      "path": ".github/workflows/publish_candidate_profit.yml",
+      "sha256": "574d73b7b2604411a7af550db242cf4f95d57298e0eea87c25afe23d366b5ae1",
+      "bytes": 5415
+    },
+    {
+      "path": "docs/candidate-profit-formal-activation-v1.md",
+      "sha256": "1aaf53fa88467a3e4edabd93b79de8f7fcadec2dd33723fa2705dc1a40b478cf",
+      "bytes": 4877
+    },
+    {
+      "path": "models/decision_candidate_profit_activation_v1.json",
+      "sha256": "bdd06edf427eb261ec27cdbf946545d19b052b004b5792c6860e5400703da131",
+      "bytes": 1006
+    },
+    {
+      "path": "scripts/candidate_profit_pages.py",
+      "sha256": "19b1ad8210288c8d455a41774bbb2f5d6986922480a9755854f97f7fd777cb11",
+      "bytes": 5476
+    },
+    {
+      "path": "scripts/publish_candidate_profit.py",
+      "sha256": "f448aeded80667efb65768f6173d4a0dab9aaa60d200c294e3c7138c42874396",
+      "bytes": 18417
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "sha256": "0e1b46c3044e5230e8f42cc870e8cdb284650677aafbdf458ad2047d7c10fc45",
+      "bytes": 25995
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "sha256": "0ece058aad5db0f59057ad2c55b2f76b5c7e255b5395397ba42214edabbd85aa",
+      "bytes": 25707
+    },
+    {
+      "path": "tests/test_candidate_formal_shadow_summary.py",
+      "sha256": "b14e5f2ff095cf6e5ccfe5d9199f453c34f2969b406744854ce293d9c1a5b98c",
+      "bytes": 18526
+    },
+    {
+      "path": "tests/test_candidate_profit_activation_frontend.py",
+      "sha256": "463ab9095ee2e6b8c6b178d6d72f0bdba41247443626c3989db07be434c54b0f",
+      "bytes": 21229
+    },
+    {
+      "path": "tests/test_candidate_profit_pages.py",
+      "sha256": "d10b1271805c88f88e321e9c3b21ac8c6d4cba18df06aaf53b8b79306f1cc69d",
+      "bytes": 4286
+    },
+    {
+      "path": "tests/test_candidate_profit_publication.py",
+      "sha256": "4d5ab4cc22a54dc3d18b723b30347505fea08f8485e767991e7881e13d0890bd",
+      "bytes": 14131
+    },
+    {
+      "path": "tests/test_candidate_profit_workflow.py",
+      "sha256": "ad395a58f9e4cea038c25ea56a3c7f47530d21ea2ea835b73f7759de0606af3e",
+      "bytes": 8865
+    }
+  ],
+  "bootstrap_outputs": [
+    {
+      "path": "outputs/decision/candidate_profit_v1/index.json",
+      "sha256": "e053fc856cde886c9de4d0892a56a02e33acdba25287356ed95ac69d00799635",
+      "bytes": 881
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/summary.json",
+      "sha256": "1ce64ee3006fc6f78e5de3ab34034c90a0970001710d9d871b2c54cef0e42ac6",
+      "bytes": 5885
+    }
+  ]
+}

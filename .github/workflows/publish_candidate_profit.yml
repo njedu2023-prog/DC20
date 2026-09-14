@@ -1,0 +1,129 @@
+name: DC20 · Publish active candidate profit
+
+on:
+  workflow_run:
+    workflows:
+      - DC20 · Preserve natural candidate publication (research)
+      - DC20 · Settle natural candidate research slots
+    branches: [main]
+    types: [completed]
+  schedule:
+    # Beijing 20:35/21:35/22:35 plus next-day 00:35. Independent schedules
+    # also cover GitHub's workflow_run chain-depth limit and late P0 recovery.
+    - cron: "35 12,13,14,16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只读核对正式盈利投影，不发布"
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish_candidate_profit.yml
+      - scripts/publish_candidate_profit.py
+      - scripts/candidate_profit_pages.py
+      - src/top10decision/decision/candidate_profit_publication.py
+      - src/top10decision/decision/candidate_formal_shadow_summary.py
+      - models/decision_candidate_profit_activation_v1.json
+      - tests/test_candidate_profit_*.py
+      - tests/test_candidate_formal_shadow_summary.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-active-candidate-${{ github.event_name == 'push' && github.run_id || 'public-view' }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+
+jobs:
+  validate:
+    if: >-
+      github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.status == 'completed' && github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.run_attempt == 1 && github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.event != 'push' &&
+        github.event.workflow_run.repository.full_name == github.repository &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        ((github.event.workflow_run.workflow_id == 357027830 &&
+          github.event.workflow_run.path == '.github/workflows/research_candidate_natural_observer.yml') ||
+         (github.event.workflow_run.workflow_id == 357485346 &&
+          github.event.workflow_run.path == '.github/workflows/research_candidate_natural_settlement.yml'))))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - name: Validate new ranking, versioned ledger and public-view boundaries
+        run: |
+          python -m pytest -q -p no:cacheprovider tests/test_candidate_profit_publication.py tests/test_candidate_formal_shadow_summary.py tests/test_candidate_profit_workflow.py tests/test_candidate_profit_pages.py tests/test_candidate_profit_activation_frontend.py
+          python scripts/validate_decision_model_freeze.py --root .
+          test -z "$(git status --porcelain=v1)"
+  publish:
+    needs: validate
+    if: github.event_name != 'push'
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      commit_sha: ${{ steps.publish.outputs.commit_sha }}
+      published: ${{ steps.publish.outputs.published }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - name: Publish already-frozen model ranks and independently verified journal view
+        id: publish
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+          PUBLISH_ACTIVE: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run == false }}
+        run: |
+          args=(--output-root "$RUNNER_TEMP/dc20-active-candidate-${GITHUB_RUN_ID}")
+          if [ "$PUBLISH_ACTIVE" = "true" ]; then args+=(--publish); fi
+          python scripts/publish_candidate_profit.py "${args[@]}"
+      - name: Confirm source checkout was not modified
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: dc20-active-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/dc20-active-candidate-${{ github.run_id }}
+          retention-days: 90
+          if-no-files-found: warn
+  deploy:
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.publish.outputs.commit_sha }}

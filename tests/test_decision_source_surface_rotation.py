@@ -336,7 +336,45 @@ HISTORICAL_STATS_BOUNDARIES = {
 }
 
 
-def _historical_stats_live_source(path: str) -> bytes:
+CANDIDATE_ACTIVATION_REVIEW = ROOT / "models/decision_source_surface_review_20260914_candidate_activation.json"
+# The root release step replaces this fail-closed marker with the SHA256 of the
+# final reviewed source/inventory inverse. No prior review digest is changed.
+CANDIDATE_ACTIVATION_REVIEW_SHA = "d6547c35704ed13e96891ece4a21b3de8fd977b5234f2a4cf0d8282493041a6e"
+CANDIDATE_ACTIVATION_BASE = "306039a3b9c0f3350f01b0ec23f03dd79e004d3a"
+CANDIDATE_ACTIVATION_SCOPE = "EXPLICIT_FIXED_CANDIDATE_FORMAL_PROFIT_ACTIVATION_NO_PROMOTION_OR_HISTORICAL_TRUTH_CHANGE"
+CANDIDATE_ACTIVATION_SOURCES = sorted({
+    "decision.html", ".github/workflows/deploy_dc20_pages.yml",
+    "tests/test_dashboard_research_projection.py", "tests/test_decision_two_rank_frontend.py",
+    "models/decision_model_freeze.json",
+})
+CANDIDATE_ACTIVATION_PIN_PATHS = {
+    "decision.html", ".github/workflows/deploy_dc20_pages.yml", "tests/test_dashboard_research_projection.py",
+}
+CANDIDATE_ACTIVATION_BOUNDARIES = {
+    "explicit_formal_candidate_profit_adapter_enabled": True,
+    "separate_model_version_statistics_added": True,
+    "new_formal_publication_workflow_added": True,
+    "existing_pages_projection_wiring_changed": True,
+    "existing_test_version_labels_updated_only": True,
+    "exact_existing_233_pin_set_preserved": True,
+    "model_weights_changed": False,
+    "new_model_training_performed": False,
+    "promotion_model_changed": False,
+    "promotion_ranking_changed": False,
+    "frozen_members_changed": False,
+    "research_registration_changed": False,
+    "existing_entry_or_exit_kernel_changed": False,
+    "historical_ledger_rewritten": False,
+    "old_model_statistics_merged": False,
+    "profitability_improvement_proven": False,
+    "validation_gates_bypassed": False,
+    "actual_trading_enabled": False,
+}
+CANDIDATE_ACTIVATION_BASE_MANIFEST_SHA = "fe2422a3b6dff04f7ace96dde1c976731791a47b7fca7d5f1a9bb082a7c3aa5b"
+CANDIDATE_ACTIVATION_BASE_INVENTORY_SHA = "a29a7ea9a32385599eef8aa6634e985ffefd8ca536669c936063926aa1b83133"
+
+
+def _candidate_activation_live_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
     target = ROOT / path
@@ -344,6 +382,247 @@ def _historical_stats_live_source(path: str) -> bytes:
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
     return target.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _parse_candidate_activation_review(raw: bytes) -> dict:
+    # Parsed exact bytes may be cached, but live file reads and SHA checks may
+    # not. Callers receive a deepcopy so they cannot mutate the parse cache.
+    return json.loads(raw)
+
+
+def _candidate_activation_review(review: dict | None = None) -> dict:
+    raw = _candidate_activation_live_source(CANDIDATE_ACTIVATION_REVIEW.relative_to(ROOT).as_posix())
+    assert re.fullmatch(r"[0-9a-f]{64}", CANDIDATE_ACTIVATION_REVIEW_SHA)
+    assert hashlib.sha256(raw).hexdigest() == CANDIDATE_ACTIVATION_REVIEW_SHA
+    approved = copy.deepcopy(_parse_candidate_activation_review(raw))
+    review = approved if review is None else review
+    assert review == approved
+    assert review["schema_version"] == "decision_candidate_formal_activation_source_review_v1"
+    assert review["approved_base_commit"] == CANDIDATE_ACTIVATION_BASE
+    assert review["scope"] == CANDIDATE_ACTIVATION_SCOPE
+    assert review["boundaries"] == CANDIDATE_ACTIVATION_BOUNDARIES
+    assert isinstance(review["rationale"], str) and review["rationale"]
+    assert review["predecessor_evidence_path"] == HISTORICAL_STATS_REVIEW.relative_to(ROOT).as_posix()
+    predecessor_raw = _candidate_activation_live_source(review["predecessor_evidence_path"])
+    assert hashlib.sha256(predecessor_raw).hexdigest() == review["predecessor_evidence_sha256"] == HISTORICAL_STATS_REVIEW_SHA
+    predecessor = json.loads(predecessor_raw)
+    assert review["preserved_evidence"] == predecessor["preserved_evidence"] + [{
+        "path": HISTORICAL_STATS_REVIEW.relative_to(ROOT).as_posix(), "sha256": HISTORICAL_STATS_REVIEW_SHA,
+    }]
+    assert len(review["preserved_evidence"]) == 24
+    for item in review["preserved_evidence"]:
+        assert set(item) == {"path", "sha256"} and (ROOT / item["path"]).parent == ROOT / "models"
+        assert hashlib.sha256(_candidate_activation_live_source(item["path"])).hexdigest() == item["sha256"]
+    assert review["approved_extension_reviews"] == predecessor["approved_extension_reviews"]
+    assert [item["path"] for item in review["source_changes"]] == CANDIDATE_ACTIVATION_SOURCES
+    assert review["baseline_pin_count"] == review["pin_count"] == 233
+    assert [item["path"] for item in review["pin_changes"]] == sorted(CANDIDATE_ACTIVATION_PIN_PATHS)
+    assert review["baseline_manifest_sha256"] == CANDIDATE_ACTIVATION_BASE_MANIFEST_SHA
+    manifest_change = next(item for item in review["source_changes"] if item["path"] == "models/decision_model_freeze.json")
+    assert manifest_change["baseline_sha256"] == review["baseline_manifest_sha256"]
+    assert manifest_change["current_sha256"] == review["current_manifest_sha256"]
+    inventory = review["inventory_update"]
+    assert set(inventory) == {"path", "baseline_sha256", "baseline_review", "current_scope"}
+    assert inventory["path"] == "forward/model_inventory.json"
+    assert inventory["baseline_sha256"] == CANDIDATE_ACTIVATION_BASE_INVENTORY_SHA
+    assert inventory["baseline_review"] == {
+        "path": HISTORICAL_STATS_REVIEW.relative_to(ROOT).as_posix(), "sha256": HISTORICAL_STATS_REVIEW_SHA,
+        "approved_base_commit": HISTORICAL_STATS_BASE, "scope": HISTORICAL_STATS_SCOPE,
+    }
+    assert inventory["current_scope"] == CANDIDATE_ACTIVATION_SCOPE
+    added = review["added_files"]
+    assert type(added) is list and len(added) == 12
+    paths = [item["path"] for item in added]
+    assert paths == sorted(set(paths))
+    old_pins = json.loads(_candidate_activation_live_source("models/decision_model_freeze.json"))["pinned_files"]
+    for item in added:
+        assert set(item) == {"path", "sha256", "bytes"}
+        path = item["path"]
+        assert type(path) is str and path not in old_pins
+        assert path not in {*CANDIDATE_ACTIVATION_SOURCES, "forward/model_inventory.json",
+                            "tests/test_decision_source_surface_rotation.py",
+                            CANDIDATE_ACTIVATION_REVIEW.relative_to(ROOT).as_posix()}
+        # Runtime index/summary are intentionally mutable; freezing their seed
+        # hashes here would break every later legitimate natural publication.
+        assert not path.startswith("outputs/")
+        assert type(item["bytes"]) is int and item["bytes"] > 0
+        assert type(item["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+        current = _candidate_activation_live_source(path)
+        assert len(current) == item["bytes"] and hashlib.sha256(current).hexdigest() == item["sha256"]
+    bootstrap = review["bootstrap_outputs"]
+    assert type(bootstrap) is list and [item["path"] for item in bootstrap] == [
+        "outputs/decision/candidate_profit_v1/index.json", "outputs/decision/candidate_profit_v1/summary.json",
+    ]
+    for item in bootstrap:
+        assert set(item) == {"path", "sha256", "bytes"}
+        assert type(item["bytes"]) is int and item["bytes"] > 0
+        assert type(item["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+    # Bootstrap bytes describe only the initial release. Their future live
+    # contents are independently schema/source validated by the public writer.
+    return review
+
+
+def _candidate_activation_inverse(source: bytes, item: dict) -> bytes:
+    assert item["baseline_exists"] is True and isinstance(item["reason"], str) and item["reason"]
+    assert type(item["current_bytes"]) is int and type(item["baseline_bytes"]) is int
+    assert len(source) == item["current_bytes"] and hashlib.sha256(source).hexdigest() == item["current_sha256"]
+    lines = source.decode().splitlines(keepends=True)
+    changes = item["inverse_changes"]
+    assert changes and [part["current_start"] for part in changes] == sorted(part["current_start"] for part in changes)
+    previous_end = baseline_offset = 0
+    for part in changes:
+        assert set(part) == {"baseline_start", "current_start", "baseline_lines", "current_lines"}
+        assert type(part["baseline_start"]) is int and part["baseline_start"] > 0
+        assert type(part["current_start"]) is int and part["current_start"] > 0
+        assert type(part["baseline_lines"]) is list and type(part["current_lines"]) is list
+        assert all(type(line) is str for line in part["baseline_lines"] + part["current_lines"])
+        assert part["baseline_lines"] or part["current_lines"]
+        start = part["current_start"] - 1
+        assert previous_end <= start <= len(lines)
+        assert part["baseline_start"] - 1 == start + baseline_offset
+        assert lines[start:start + len(part["current_lines"])] == part["current_lines"]
+        previous_end = start + len(part["current_lines"])
+        baseline_offset += len(part["baseline_lines"]) - len(part["current_lines"])
+    for part in reversed(changes):
+        start = part["current_start"] - 1
+        lines[start:start + len(part["current_lines"])] = part["baseline_lines"]
+    restored = "".join(lines).encode()
+    assert len(restored) == item["baseline_bytes"] and hashlib.sha256(restored).hexdigest() == item["baseline_sha256"]
+    return restored
+
+
+def _source_before_candidate_activation(path: str, review: dict | None = None) -> bytes:
+    source = _candidate_activation_live_source(path)
+    if path not in {*CANDIDATE_ACTIVATION_SOURCES, "forward/model_inventory.json"}:
+        return source
+    review = _candidate_activation_review(review)
+    if path in CANDIDATE_ACTIVATION_SOURCES:
+        item = next(item for item in review["source_changes"] if item["path"] == path)
+        return _candidate_activation_inverse(source, item)
+    inventory = json.loads(source)
+    assert source == (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert inventory["status"] == "INACTIVE_MIGRATION_REPLAY_ONLY"
+    assert len(inventory["assets"]) == len({item["path"] for item in inventory["assets"]}) == 42
+    assert inventory["dependency_successor_review"] == {
+        "path": CANDIDATE_ACTIVATION_REVIEW.relative_to(ROOT).as_posix(), "sha256": CANDIDATE_ACTIVATION_REVIEW_SHA,
+        "approved_base_commit": CANDIDATE_ACTIVATION_BASE, "scope": CANDIDATE_ACTIVATION_SCOPE,
+    }
+    for asset in inventory["assets"]:
+        raw = _candidate_activation_live_source(asset["path"])
+        assert hashlib.sha256(raw).hexdigest() == asset["sha256"] and len(raw) == asset["bytes"]
+    before_manifest = _source_before_candidate_activation("models/decision_model_freeze.json", review)
+    inventory["dependency_successor_review"] = review["inventory_update"]["baseline_review"]
+    next(item for item in inventory["assets"] if item["path"] == "models/decision_model_freeze.json").update(
+        sha256=hashlib.sha256(before_manifest).hexdigest(), bytes=len(before_manifest))
+    restored = (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode()
+    assert hashlib.sha256(restored).hexdigest() == CANDIDATE_ACTIVATION_BASE_INVENTORY_SHA
+    return restored
+
+
+def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    review = _candidate_activation_review(review)
+    live = json.loads(_candidate_activation_live_source("models/decision_model_freeze.json"))
+    manifest = live if manifest is None else manifest
+    assert manifest == live and len(manifest["pinned_files"]) == 233
+    restored = json.loads(_source_before_candidate_activation("models/decision_model_freeze.json", review))
+    assert set(manifest["pinned_files"]) == set(restored["pinned_files"])
+    expected = copy.deepcopy(manifest)
+    for path, expected_hash in manifest["pinned_files"].items():
+        assert hashlib.sha256(_candidate_activation_live_source(path)).hexdigest() == expected_hash
+    for change in review["pin_changes"]:
+        assert set(change) == {"path", "baseline_sha256", "current_sha256"}
+        assert manifest["pinned_files"][change["path"]] == change["current_sha256"]
+        assert restored["pinned_files"][change["path"]] == change["baseline_sha256"]
+        expected["pinned_files"][change["path"]] = change["baseline_sha256"]
+    assert expected == restored  # No policy, identity, rank or required-pin-set changes.
+    for path in CANDIDATE_ACTIVATION_SOURCES:
+        _source_before_candidate_activation(path, review)
+    return restored, json.loads(_source_before_candidate_activation("forward/model_inventory.json", review))
+
+
+def _historical_stats_live_source(path: str) -> bytes:
+    # Feed the immutable previous review only the exact 306039 source bytes.
+    return _source_before_candidate_activation(path)
+
+
+def test_candidate_activation_review_restores_exact_remote_predecessor_without_old_gate_changes():
+    manifest, inventory = _state_before_candidate_activation()
+    assert len(manifest["pinned_files"]) == 233
+    assert inventory["dependency_successor_review"]["sha256"] == HISTORICAL_STATS_REVIEW_SHA
+    assert hashlib.sha256(_source_before_candidate_activation("models/decision_model_freeze.json")).hexdigest() == CANDIDATE_ACTIVATION_BASE_MANIFEST_SHA
+    assert hashlib.sha256(_source_before_candidate_activation("forward/model_inventory.json")).hexdigest() == CANDIDATE_ACTIVATION_BASE_INVENTORY_SHA
+    assert b"compact-two-ranks-v16-promotion-success" in _source_before_candidate_activation("decision.html")
+    # The original predecessor state checks remain in place after the new inverse.
+    previous, _ = _state_before_historical_stats()
+    assert len(previous["pinned_files"]) == 231
+
+
+def test_candidate_activation_changes_only_two_existing_test_version_labels():
+    old = b"compact-two-ranks-v16-promotion-success"
+    new = b"compact-two-ranks-v17-candidate-activation"
+    for path in ("tests/test_dashboard_research_projection.py", "tests/test_decision_two_rank_frontend.py"):
+        current = _candidate_activation_live_source(path)
+        baseline = _source_before_candidate_activation(path)
+        assert current.count(new) == baseline.count(old) == 1
+        assert current.replace(new, old) == baseline
+
+
+def test_candidate_activation_does_not_freeze_mutable_natural_output_seed_bytes(monkeypatch):
+    _state_before_candidate_activation()
+    seeds = {ROOT / path for path in (
+        "outputs/decision/candidate_profit_v1/index.json", "outputs/decision/candidate_profit_v1/summary.json",
+    )}
+    read_bytes = Path.read_bytes
+    def changed_runtime_output(file):
+        return b'{"changed_by_next_natural_run":true}\n' if file in seeds else read_bytes(file)
+    monkeypatch.setattr(Path, "read_bytes", changed_runtime_output)
+    _state_before_candidate_activation()
+
+
+@pytest.mark.parametrize("target", ["review", "html", "deploy", "version_test", "unpin_version_test",
+                                    "manifest", "inventory", "old_review", "model", "policy", "settlement",
+                                    "added_module", "added_config"])
+def test_candidate_activation_review_rechecks_live_files_after_cache_warmup(monkeypatch, target):
+    targets = {"review": CANDIDATE_ACTIVATION_REVIEW, "html": ROOT / "decision.html",
+               "deploy": ROOT / ".github/workflows/deploy_dc20_pages.yml",
+               "version_test": ROOT / "tests/test_dashboard_research_projection.py",
+               "unpin_version_test": ROOT / "tests/test_decision_two_rank_frontend.py",
+               "manifest": MANIFEST, "inventory": ROOT / "forward/model_inventory.json",
+               "old_review": HISTORICAL_STATS_REVIEW,
+               "model": ROOT / "models/decision_three_engines/promotion.joblib",
+               "policy": ROOT / "models/decision_shadow_exit_policy_1000_v1.json",
+               "settlement": ROOT / "src/top10decision/decision/executable_profit_shadow_settlement.py",
+               "added_module": ROOT / "src/top10decision/decision/candidate_profit_publication.py",
+               "added_config": ROOT / "models/decision_candidate_profit_activation_v1.json"}
+    _state_before_candidate_activation()
+    read_bytes = Path.read_bytes
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == targets[target] else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _state_before_candidate_activation()
+
+
+@pytest.mark.parametrize("mutation", ["scope", "base", "boundary", "extra_source", "inverse", "drop_evidence",
+                                      "extra_pin", "drop_pin", "model_identity", "inventory", "added_source"])
+def test_candidate_activation_review_rejects_unreviewed_changes(mutation):
+    manifest = json.loads(MANIFEST.read_bytes())
+    review = json.loads(CANDIDATE_ACTIVATION_REVIEW.read_bytes())
+    if mutation == "scope": review["scope"] = "unrestricted"
+    elif mutation == "base": review["approved_base_commit"] = "0" * 40
+    elif mutation == "boundary": review["boundaries"]["promotion_model_changed"] = True
+    elif mutation == "extra_source": review["source_changes"].append(dict(review["source_changes"][0], path="requirements.lock"))
+    elif mutation == "inverse": review["source_changes"][0]["inverse_changes"][0]["baseline_lines"].append("unreviewed\n")
+    elif mutation == "drop_evidence": review["preserved_evidence"].pop()
+    elif mutation == "extra_pin": manifest["pinned_files"]["unreviewed.py"] = "0" * 64
+    elif mutation == "drop_pin": del manifest["pinned_files"]["decision.html"]
+    elif mutation == "inventory": review["inventory_update"]["baseline_review"]["sha256"] = "0" * 64
+    elif mutation == "added_source": review["added_files"][0]["sha256"] = "0" * 64
+    else: manifest["training_cutoff_signal_date"] = "20260914"
+    with pytest.raises(AssertionError):
+        _state_before_candidate_activation(manifest, review)
 
 
 @lru_cache(maxsize=1)
@@ -450,6 +729,8 @@ def _source_before_historical_stats(path: str, review: dict | None = None) -> by
 
 
 def _state_before_historical_stats(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None:
+        manifest = _state_before_candidate_activation(manifest)[0]
     review = _historical_stats_review(review)
     live = json.loads(_historical_stats_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest
@@ -1881,7 +2162,7 @@ def _verify_close_review() -> dict:
         assert (ROOT / item["path"]).parent == ROOT / "models"
         assert not (ROOT / item["path"]).is_symlink() and _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_decision_two_rank_frontend.py"
-    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    assert hashlib.sha256(_source_before_candidate_activation(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
     return review
 
 

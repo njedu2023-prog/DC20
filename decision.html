@@ -1436,7 +1436,9 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v16-promotion-success";
+    const DASHBOARD_VERSION = "compact-two-ranks-v17-candidate-activation";
+    const CANDIDATE_PROFIT_ROOT = "outputs/decision/candidate_profit_v1";
+    const CANDIDATE_PROFIT_MODEL_SHA256 = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
     const PUBLIC_STATISTICS_START_SIGNAL_DATE = "20260828";
     const PUBLIC_OBSERVATION_STATISTICS_PATH = "outputs/decision/primary_observation/summary.json";
@@ -1490,6 +1492,9 @@
       currentLegacyProfitRelativeResearch: null,
       legacyProfitBenchmarkLoad: { status: "loading", message: "正在读取同D研究基准。" },
       currentExecutableProfitResearch: null,
+      candidateProfitActivation: null,
+      candidateProfitSummary: null,
+      candidateProfitSummaryLoad: { status: "loading", message: "新模型累计待验证" },
       currentPrimaryMixedDailyTop2: null
     };
 
@@ -1816,6 +1821,265 @@
       return shadow ? {loaded, shadow} : null;
     }
 
+    function candidateProfitApplies(signalDate) {
+      const active = state.candidateProfitActivation;
+      if (active?.invalidActivation) return signalDate >= "20260914";
+      return !!active?.config && signalDate >= active.config.effective_from_signal_date
+        && (active.config.enabled || active.index?.days.some(day => day.signal_date === signalDate)
+          || active.status === "invalid" && active.hasIndexBinding);
+    }
+
+    function validateCandidateProfitActivation(config) {
+      executableProfitExpect(exactObjectKeys(config, ["enabled", "activation_id", "effective_from_signal_date", "model_canonical_sha256"])
+        && typeof config.enabled === "boolean" && config.activation_id === "dc20_profit_ridge_999666_auction_exit1000_v1"
+        && canonicalYmd(config.effective_from_signal_date) === config.effective_from_signal_date && config.effective_from_signal_date >= "20260914"
+        && config.model_canonical_sha256 === CANDIDATE_PROFIT_MODEL_SHA256, "新盈利模型激活配置无效");
+      return Object.freeze({...config});
+    }
+
+    async function refreshCandidateProfitActivation() {
+      const loadSequence = state.compactLoadSequence;
+      const sequence = (state.candidateProfitActivationSequence || 0) + 1;
+      state.candidateProfitActivationSequence = sequence;
+      const current = () => loadSequence === state.compactLoadSequence && sequence === state.candidateProfitActivationSequence && !state.compactFatalError;
+      let config = null;
+      let hasIndexBinding = false;
+      let configured = false;
+      try {
+        const revision = await publishedRevisionMetadata();
+        if (!current()) return;
+        if (!Object.hasOwn(revision, "candidate_profit_activation")) {
+          state.candidateProfitActivation = {status: "legacy_deployment", config: null};
+          return;
+        }
+        configured = true;
+        config = validateCandidateProfitActivation(revision.candidate_profit_activation);
+        hasIndexBinding = Object.hasOwn(revision, "candidate_profit_index_url") || Object.hasOwn(revision, "candidate_profit_index_sha256");
+        state.candidateProfitActivation = {status: config.enabled ? "loading" : "disabled", config};
+        if (!config.enabled && !hasIndexBinding) return;
+        executableProfitExpect(revision.candidate_profit_index_url === `${CANDIDATE_PROFIT_ROOT}/index.json`
+          && isSha256(revision.candidate_profit_index_sha256), "新模型已启用，等待精确部署的盈利索引");
+        const loaded = await fetchPagesOnlyShaBoundJson(revision.candidate_profit_index_url, revision.candidate_profit_index_sha256, "新盈利索引");
+        validateCandidateProfitIndex(loaded.payload, config);
+        if (current()) state.candidateProfitActivation = {status: "ready", config, index: loaded.payload,
+          indexSha256: revision.candidate_profit_index_sha256, revision};
+      } catch (error) {
+        if (current()) state.candidateProfitActivation = {status: "invalid", config, hasIndexBinding,
+          invalidActivation: configured && config === null, message: String(error?.message || error)};
+      }
+    }
+
+    function validateCandidateProfitIndex(index, config) {
+      executableProfitExpect(index?.schema_version === "dc20_candidate_formal_profit_index_v1"
+        && canonicalJson(index.activation) === canonicalJson(config)
+        && index.enabled === config.enabled
+        && index.activation_id === config.activation_id && index.model_canonical_sha256 === config.model_canonical_sha256
+        && index.effective_from_signal_date === config.effective_from_signal_date
+        && Array.isArray(index.days) && index.days.length <= 4096 && index.profitability_improvement_proven === false
+        && index.old_model_statistics_merged === false && index.actual_execution_claimed === false, "新盈利索引版本或激活身份漂移");
+      executableProfitExpect(index.status === (config.enabled ? index.days.length ? "ACTIVE_FORWARD_VALIDATION" : "ACTIVE_WAITING_FIRST_NATURAL_D" : "DISABLED"), "新盈利索引状态不一致");
+      const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10).replaceAll("-", "");
+      let previous = "";
+      for (const day of index.days) {
+        executableProfitExpect(exactObjectKeys(day, ["signal_date", "path", "sha256", "snapshot_file_sha256", "p0_file_sha256"])
+          && canonicalYmd(day.signal_date) === day.signal_date && day.signal_date >= config.effective_from_signal_date
+          && day.signal_date <= today && day.signal_date > previous
+          && day.path === `${CANDIDATE_PROFIT_ROOT}/day_${day.signal_date}.json`
+          && [day.sha256, day.snapshot_file_sha256, day.p0_file_sha256].every(isSha256), "新盈利日期目录重复、越界或来源SHA无效");
+        previous = day.signal_date;
+      }
+      return index;
+    }
+
+    async function loadCandidateProfitDay(currentThreeRank) {
+      const active = state.candidateProfitActivation;
+      executableProfitExpect(active?.status === "ready", active?.message || "新模型等待部署索引");
+      const contract = validatedThreeRankContract(currentThreeRank);
+      executableProfitExpect(contract && candidateProfitApplies(contract.signal_date), "新模型不覆盖该历史D");
+      const entry = active.index.days.find(row => row.signal_date === contract.signal_date);
+      executableProfitExpect(entry, "新模型等待同D冻结；晋级名单保留");
+      const source = currentThreeRank.three_rank_source_index;
+      executableProfitExpect(source?.json_path === `outputs/decision/three_rank_top10_${contract.signal_date}.json`
+        && source.json_sha256 === entry.p0_file_sha256, "新盈利未绑定当前P0原文件SHA");
+      const loaded = await fetchPagesOnlyShaBoundJson(entry.path, entry.sha256, "新盈利同D冻结");
+      const day = loaded.payload;
+      executableProfitExpect(day.schema_version === "dc20_candidate_formal_profit_day_v1"
+        && day.status === "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+        && day.activation_id === active.config.activation_id && day.model_canonical_sha256 === active.config.model_canonical_sha256
+        && day.effective_from_signal_date === active.config.effective_from_signal_date
+        && ["signal_date", "exec_date", "exit_date"].every(key => day[key] === contract[key])
+        && day.p0_file_sha256 === source.json_sha256 && day.snapshot_file_sha256 === entry.snapshot_file_sha256
+        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, "新盈利冻结版本、日期、完整池或来源不一致");
+      executableProfitExpect(exactObjectKeys(day.p0_source, ["path", "sha256"]) && day.p0_source.path === source.json_path && day.p0_source.sha256 === source.json_sha256
+        && exactObjectKeys(day.snapshot_source, ["path", "sha256"]) && day.snapshot_source.path === `work/profit_1000_upgrade/candidate_natural_forward/day_${day.signal_date}.json`
+        && day.snapshot_source.sha256 === entry.snapshot_file_sha256, "新盈利原冻结来源指纹漂移");
+      executableProfitExpect(day.entry_policy_id === "research_canonical_price_capacity_split_no_cap_v3" && day.exit_policy_id === "dc20_exit_1000_limit_hold_20260912_v1"
+        && day.round_trip_cost_rate === 0.0045 && day.shadow_notional_cny === 100000 && day.promotion_ranking_unchanged === true
+        && day.historical_reranking_performed === false && day.model_retrained === false && day.score_is_probability === false
+        && day.profitability_improvement_proven === false && day.actual_execution_claimed === false && day.actual_capacity_verified === false
+        && day.source_price_observation_only === true, "新盈利规则或验证边界漂移");
+      const times = [day.prediction_generated_at_utc, day.pre_cas_freeze_at_utc, day.projection_generated_at_utc].map(Date.parse);
+      const close = Date.parse(`${dateText(day.signal_date)}T15:00:00+08:00`), cutoff = Date.parse(`${dateText(day.exec_date)}T09:20:00+08:00`);
+      executableProfitExpect(times.every(Number.isFinite) && times[0] >= close && times[0] <= times[1] && times[1] <= times[2] && times[2] < cutoff
+        && Date.parse(day.formal_publication_deadline_utc) === cutoff, "新盈利冻结不在正式事前时间窗口内");
+      const rows = new Map(day.rows.map(row => [row.ts_code, row]));
+      executableProfitExpect(rows.size === contract.rows.length, "新盈利候选重复或缺失");
+      const ranks = new Set();
+      for (const original of contract.rows) {
+        const row = rows.get(original.ts_code);
+        executableProfitExpect(exactObjectKeys(row, ["ts_code", "candidate_rank", "candidate_score", "promotion_rank", "name", "industry"])
+          && row.promotion_rank === original.promotion_rank && row.name === original.name
+          && row.industry === original.industry && Number.isInteger(row.candidate_rank) && row.candidate_rank >= 1
+          && row.candidate_rank <= day.rows.length && typeof row.candidate_score === "number" && Number.isFinite(row.candidate_score), "新盈利候选身份、原晋级排名或分值无效");
+        ranks.add(row.candidate_rank);
+      }
+      executableProfitExpect(ranks.size === day.rows.length, "新盈利名次重复");
+      const ordered = [...day.rows].sort((a, b) => a.candidate_rank - b.candidate_rank);
+      executableProfitExpect(day.rows.every((row, i) => row.candidate_rank === i + 1) && ordered.every((row, i) => i === 0
+        || ordered[i - 1].candidate_score > row.candidate_score || ordered[i - 1].candidate_score === row.candidate_score && ordered[i - 1].ts_code < row.ts_code), "新盈利名次与冻结分值方向不一致");
+      executableProfitExpect(Array.isArray(day.candidate_slots) && day.candidate_slots.length === 2, "新盈利必须保留两个影子席位");
+      for (const [key, rank] of [["candidate_slots", "candidate_rank"], ["promotion_slots", "promotion_rank"]]) {
+        executableProfitExpect(Array.isArray(day[key]) && day[key].length === 2, "新盈利及晋级必须各保留两个席位");
+        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);
+        day[key].forEach((slot, i) => {
+          const row = sorted[i];
+          executableProfitExpect(exactObjectKeys(slot, ["slot", "status", "ts_code", "board_stage", "promotion_rank", "candidate_rank", "candidate_score", "proxy_fill", "net_return", "slot_net_return"])
+            && slot.slot === i + 1 && slot.status === (row ? "PENDING_T" : "MISSING_CANDIDATE")
+            && slot.proxy_fill === null && slot.net_return === null && slot.slot_net_return === null
+            && (row ? [2, 3].includes(slot.board_stage) : slot.board_stage === null)
+            && ["ts_code", "candidate_rank", "candidate_score", "promotion_rank"].every(field => slot[field] === (row?.[field] ?? null)), "新盈利前二不等于原冻结席位");
+        });
+      }
+      return {status: "ready", kind: "candidate_fixed_ridge", projection: day, index: active.index,
+        activation: active.config, projectionSha256: entry.sha256};
+    }
+
+    function candidateUnifiedProfitView(contract) {
+      const loaded = state.currentExecutableProfitResearch;
+      const unavailable = message => ({ready: false, rows: new Map(), message, candidate: true});
+      if (loaded?.status !== "ready" || loaded.kind !== "candidate_fixed_ridge") return unavailable(loaded?.message || "新模型等待同D冻结；晋级名单保留");
+      const p = loaded.projection;
+      if (loaded.activation !== state.candidateProfitActivation?.config || !p
+          || ["signal_date", "exec_date", "exit_date"].some(key => p[key] !== contract[key])) return unavailable("新模型与当前D不一致；等待校验");
+      const byCode = new Map(p.rows.map(row => [row.ts_code, row]));
+      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable("新模型冻结候选身份不一致");
+      return {ready: true, candidate: true, message: "新模型 · 验证中", rows: new Map(p.rows.map(row => [row.ts_code, {
+        executable_profit_research_rank: row.candidate_rank, research_joint_proxy_score: row.candidate_score, rank_tied: false
+      }]))};
+    }
+
+    function validateCandidateProfitSummary(summary, config) {
+      executableProfitExpect(summary?.schema_version === "dc20_candidate_formal_shadow_summary_v1"
+        && summary.activation_id === config.activation_id && summary.model_version === config.activation_id
+        && summary.model_canonical_sha256 === config.model_canonical_sha256
+        && summary.effective_from_signal_date === config.effective_from_signal_date && summary.activation_signal_date === config.effective_from_signal_date
+        && summary.enabled === config.enabled && summary.publication_paused === !config.enabled
+        && summary.test_only === false && ["AWAITING_FIRST_ACTIVATED_D", "FULL_ENUMERATED_WITH_MISSING_D", "FULL_ENUMERATED_SHADOW_STATISTICS", "FORMAL_PUBLICATION_PAUSED"].includes(summary.status)
+        && canonicalYmd(summary.as_of_date) === summary.as_of_date
+        && typeof summary.coverage_complete === "boolean" && Array.isArray(summary.signal_dates)
+        && Array.isArray(summary.missing_signal_dates) && exactObjectKeys(summary.groups, ["candidate_top1", "candidate_top2"]), "新模型累计版本、日期或字段无效");
+      executableProfitExpect(summary.round_trip_cost_rate === 0.0045 && summary.shadow_notional_cny === 100000
+        && summary.entry_policy_id === "research_canonical_price_capacity_split_no_cap_v3" && summary.exit_policy_id === "dc20_exit_1000_limit_hold_20260912_v1"
+        && summary.universe_scope === "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF"
+        && ["actual_execution_claimed", "actual_capacity_verified", "capital_nav_claimed", "actual_account_drawdown_claimed", "profitability_improvement_proven",
+          "old_model_results_consumed", "missing_or_pending_is_zero", "fees_subtracted_again", "scores_recalculated", "research_registration_changed"].every(key => summary[key] === false), "新模型累计规则或独立版本边界漂移");
+      const closed = new Date(Date.now() + 8 * 3600000);
+      if (closed.getUTCHours() < 15) closed.setUTCDate(closed.getUTCDate() - 1);
+      executableProfitExpect(summary.as_of_date <= closed.toISOString().slice(0, 10).replaceAll("-", ""), "新模型累计尚未到实际收盘时间");
+      executableProfitExpect(summary.signal_dates.every((d, i, days) => canonicalYmd(d) === d && d >= config.effective_from_signal_date
+        && d <= summary.as_of_date && (i === 0 || d > days[i - 1])), "新模型累计混入旧版本、未来或重复D");
+      executableProfitExpect(summary.missing_signal_dates.every((d, i, days) => summary.signal_dates.includes(d) && (i === 0 || d > days[i - 1]))
+        && summary.coverage_complete === (summary.missing_signal_dates.length === 0)
+        && summary.expected_day_count === summary.signal_dates.length && summary.expected_slot_count === summary.signal_dates.length * 2
+        && canonicalJson(summary.published_signal_dates) === canonicalJson(summary.signal_dates.filter(d => !summary.missing_signal_dates.includes(d)))
+        && summary.published_day_count === summary.published_signal_dates.length, "新模型累计缺失日期范围不一致");
+      const near = (a, b) => typeof a === "number" && Number.isFinite(a) && Math.abs(a - b) <= 1e-10;
+      const noFill = new Set(["NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME", "NO_FILL_SUSPENDED", "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED", "NO_FILL_CAPACITY"]);
+      for (const group of Object.values(summary.groups)) {
+        executableProfitExpect(Array.isArray(group.daily_sequence) && group.daily_sequence.length === summary.signal_dates.length
+          && Array.isArray(group.complete_daily_sequence), "新模型累计逐日范围不完整");
+        const counts = {terminal_slots: 0, filled_settled_slots: 0, known_no_fill_slots: 0, pending_slots: 0,
+          missing_ledger_slots: 0, missing_candidate_slots: 0, missing_publication_slots: 0, positive_filled_slots: 0};
+        const filled = [], terminal = [];
+        group.daily_sequence.forEach((row, i) => {
+          executableProfitExpect(row.signal_date === summary.signal_dates[i] && typeof row.status === "string", "新模型累计逐日身份或顺序漂移");
+          if (row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY") {
+            executableProfitExpect(typeof row.slot_net_return === "number" && Number.isFinite(row.slot_net_return) && row.proxy_fill === 1, "新模型成交结算缺有效收益");
+            counts.filled_settled_slots++; counts.positive_filled_slots += Number(row.slot_net_return > 0); filled.push(row.slot_net_return); terminal.push(row);
+          } else if (noFill.has(row.status)) {
+            executableProfitExpect(row.slot_net_return === 0 && row.proxy_fill === 0, "新模型未买状态与零席位收益不一致");
+            counts.known_no_fill_slots++; terminal.push(row);
+          } else {
+            executableProfitExpect(row.slot_net_return === null && (row.proxy_fill === null || row.proxy_fill === 1)
+              && (row.status.startsWith("PENDING_") || ["MISSING_OUTCOME_LEDGER", "MISSING_CANDIDATE", "MISSING_D_PUBLICATION"].includes(row.status)), "新模型缺失或延持不得记零收益");
+            if (row.status.startsWith("PENDING_")) counts.pending_slots++;
+            else counts[row.status === "MISSING_CANDIDATE" ? "missing_candidate_slots" : row.status === "MISSING_D_PUBLICATION" ? "missing_publication_slots" : "missing_ledger_slots"]++;
+          }
+          executableProfitExpect(summary.missing_signal_dates.includes(row.signal_date) === (row.status === "MISSING_D_PUBLICATION"), "新模型缺失D不得藏在已发布样本中");
+        });
+        counts.terminal_slots = terminal.length;
+        executableProfitExpect(group.expected_selection_days === summary.signal_dates.length && group.verified_selection_days === summary.published_day_count
+          && Object.entries(counts).every(([key, count]) => group[key] === count)
+          && group.complete_day_count === terminal.length && group.complete_daily_sequence.length === terminal.length, "新模型累计分母不一致");
+        executableProfitExpect(filled.length ? near(group.filled_proxy_win_rate, counts.positive_filled_slots / filled.length)
+          && near(group.mean_net_filled_proxy_return, filled.reduce((a, b) => a + b, 0) / filled.length)
+          : group.filled_proxy_win_rate === null && group.mean_net_filled_proxy_return === null, "新模型胜率或均值与实际结算分母不一致");
+        let nav = 1, peak = 1, drawdown = 0;
+        terminal.forEach((row, i) => {
+          nav *= 1 + row.slot_net_return; peak = Math.max(peak, nav); drawdown = Math.min(drawdown, nav / peak - 1);
+          const c = group.complete_daily_sequence[i];
+          executableProfitExpect(c.signal_date === row.signal_date && c.slot_net_return === row.slot_net_return
+            && near(c.synthetic_cumulative_net_return, nav - 1), "新模型合成序列与已结算日不一致");
+        });
+        const available = summary.coverage_complete && terminal.length > 0;
+        executableProfitExpect(group.cumulative_available === available && (available
+          ? near(group.synthetic_cumulative_net_return, nav - 1) && near(group.synthetic_max_drawdown, drawdown)
+          : group.synthetic_cumulative_net_return === null && group.synthetic_max_drawdown === null), "新模型合成累计或回撤口径不一致");
+      }
+      return summary;
+    }
+
+    async function refreshCandidateProfitSummary() {
+      const active = state.candidateProfitActivation;
+      const sequence = (state.candidateProfitSummarySequence || 0) + 1;
+      state.candidateProfitSummarySequence = sequence;
+      const loadSequence = state.compactLoadSequence;
+      const current = () => active === state.candidateProfitActivation && sequence === state.candidateProfitSummarySequence
+        && loadSequence === state.compactLoadSequence && !state.compactFatalError;
+      state.candidateProfitSummary = null;
+      if (!active?.config || (!active.config.enabled && !active.index?.days.length)) return;
+      state.candidateProfitSummaryLoad = {status: "loading", message: "新模型累计待验证"};
+      try {
+        executableProfitExpect(active.status === "ready", active.message || "新模型索引待验证");
+        const revision = active.revision || await publishedRevisionMetadata();
+        executableProfitExpect(revision.candidate_profit_summary_url === `${CANDIDATE_PROFIT_ROOT}/summary.json`
+          && isSha256(revision.candidate_profit_summary_sha256), "新模型累计尚未发布，不使用旧版本收益");
+        const loaded = await fetchPagesOnlyShaBoundJson(revision.candidate_profit_summary_url, revision.candidate_profit_summary_sha256, "新模型累计");
+        const summary = validateCandidateProfitSummary(loaded.payload, active.config);
+        if (current()) { state.candidateProfitSummary = {summary, activation: active.config}; state.candidateProfitSummaryLoad = {status: "ready", message: ""}; }
+      } catch (error) {
+        if (current()) state.candidateProfitSummaryLoad = {status: "invalid", message: String(error?.message || error)};
+      }
+    }
+
+    function renderCandidateProfitStatistics() {
+      const active = state.candidateProfitActivation;
+      const loaded = state.candidateProfitSummary;
+      const summary = state.candidateProfitSummaryLoad?.status === "ready" && loaded?.activation === active?.config ? loaded.summary : null;
+      const rows = [1, 2].map(slot => {
+        const c = summary?.groups[`candidate_top${slot}`];
+        const count = key => c ? c[key] : "—";
+        const mean = c?.mean_net_filled_proxy_return ?? null, cumulative = c?.synthetic_cumulative_net_return ?? null, dd = c?.synthetic_max_drawdown ?? null;
+        const cumulativeCell = `<span class="profit-cumulative-inline"><span class="${valueTone(cumulative)}">${cumulative == null ? "待验证" : signedPct(cumulative)}</span>${c ? `<span class="score-secondary">${c.complete_day_count} 个完整日</span>` : ""}</span>`;
+        return `<tr><th scope="row" class="left"><span class="rank-mark rank-profit">盈${slot}</span></th><td>${count("verified_selection_days")}</td><td>${count("known_no_fill_slots")}</td><td>${c ? `${c.pending_slots} / ${c.missing_ledger_slots + c.missing_candidate_slots + c.missing_publication_slots}` : "—"}</td><td>${c ? `${c.positive_filled_slots} / ${c.filled_settled_slots}` : "—"}</td><td>${c?.filled_proxy_win_rate == null ? "待验证" : pct(c.filled_proxy_win_rate)}</td><td class="${valueTone(mean)}">${mean == null ? "待验证" : signedPct(mean)}</td><td>${cumulativeCell}</td><td class="${valueTone(dd)}">${dd == null ? "待验证" : signedPct(dd)}</td></tr>`;
+      }).join("");
+      els.compactLedgerState.textContent = `新模型 · ${active.config.enabled ? "验证中" : "暂停新增"} · D ${dateText(active.config.effective_from_signal_date)}起 · 最新累计`
+        + (summary ? ` · 截至 ${dateText(summary.as_of_date)}` : " · 等待发布");
+      const note = summary ? "仅新模型；未买与缺失分开。累计/回撤为已结算日合成，非资金净值；未结算不记零。"
+        + (summary.coverage_complete ? "" : " 部分D冻结缺失，暂停累计。") : state.candidateProfitSummaryLoad?.message || "新模型累计等待验证，不使用旧模型成绩。";
+      els.compactLedgerContent.innerHTML = `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="新模型盈利Top1、Top2独立累计统计"><table class="three-rank-table profit-summary-table"><thead><tr><th scope="col">盈利名次</th><th scope="col">冻结</th><th scope="col">未买</th><th scope="col">待 / 缺</th><th scope="col">盈利 / 成交</th><th scope="col">胜率</th><th scope="col">平均扣费收益</th><th scope="col">已结算日合成累计</th><th scope="col">合成回撤</th></tr></thead><tbody>${rows}</tbody></table></div><p class="stats-note">${escapeHtml(note)}</p>`;
+    }
+
     function renderCompactProfitStatistics(source) {
       if (!source || source.loaded.shadow.selectionOnlyCutover) return '';
       try {
@@ -1859,6 +2123,11 @@
       const source = window && state.currentCompactStatisticsWindow.profitSource;
       els.compactLedgerState.textContent = `D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起 · 最新累计` + (profit ? ` · 截至 ${dateText(profit.as_of_date)} · ${profit.recorded_days}日 / ${profit.recorded_slots}席` : " · 统计窗口待验证");
       els.compactLedgerContent.innerHTML = profit && source ? renderCompactProfitStatistics({ loaded: source.loaded, shadow: profit }) : "";
+      if (state.candidateProfitActivation?.config && (state.candidateProfitActivation.config.enabled || state.candidateProfitActivation.index?.days.length)) renderCandidateProfitStatistics();
+      if (state.candidateProfitActivation?.invalidActivation) {
+        els.compactLedgerState.textContent = "新模型激活配置待核验";
+        els.compactLedgerContent.innerHTML = '<p class="stats-note warn">激活配置校验失败；不使用旧累计替代新版本。</p>';
+      }
       const promotion = window?.promotion?.status === "READY" ? window.promotion : null;
       const pRows = [1,2,3].map(rank => {
         const c = promotion?.ranks.find(item => item.rank === rank);
@@ -4034,11 +4303,17 @@
     }
 
     async function refreshCurrentExecutableProfitResearch(currentThreeRank) {
+      const sequence = (state.profitLoadSequence || 0) + 1;
+      state.profitLoadSequence = sequence;
+      const loadSequence = state.compactLoadSequence;
+      const current = () => state.profitLoadSequence === sequence && state.compactLoadSequence === loadSequence && !state.compactFatalError;
       try {
-        state.currentExecutableProfitResearch = await loadCurrentExecutableProfitResearch(currentThreeRank);
+        const result = candidateProfitApplies(currentThreeRank?.signal_date)
+          ? await loadCandidateProfitDay(currentThreeRank) : await loadCurrentExecutableProfitResearch(currentThreeRank);
+        if (current()) state.currentExecutableProfitResearch = result;
       } catch (error) {
         const message = String(error?.message || error || "未知错误");
-        state.currentExecutableProfitResearch = {
+        if (current()) state.currentExecutableProfitResearch = {
           status: error?.executableProfitIndexMissing === true ? "missing" : "invalid",
           message
         };
@@ -4982,6 +5257,7 @@
     function unifiedProfitView(contract) {
       const unavailable = message => ({ ready: false, rows: new Map(), message });
       if (state.index !== 0) return unavailable("历史页未加载同D盈利榜");
+      if ((state.candidateProfitActivation?.config || state.candidateProfitActivation?.invalidActivation) && candidateProfitApplies(contract.signal_date)) return candidateUnifiedProfitView(contract);
       const loaded = state.currentExecutableProfitResearch;
       if (!loaded || loaded.status !== "ready") return unavailable(loaded?.status === "invalid" ? "盈利校验失败；晋级名单不受影响" : "盈利尚未就绪；晋级名单已保留");
       const p = loaded.projection;
@@ -5089,7 +5365,7 @@
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
           <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
-          <td title="混合盈利研究联合代理分，非胜率或预期收益">${row.mixed_profit_score == null ? "—" : number(row.mixed_profit_score, 4)}</td>
+          <td title="${profitView.candidate ? "固定Ridge扣费代理收益模型分；非概率、非实际成交收益" : "混合盈利研究联合代理分，非胜率或预期收益"}">${row.mixed_profit_score == null ? "—" : number(row.mixed_profit_score, 4)}</td>
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}" data-field="t-promotion" title="${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}">${escapeHtml(row.continuation_status_label === threeRankTruthStatusLabel("MISSING_T_TRUTH", contract) ? "待更新" : row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
           <td class="${valueTone(row.t_close_change)}" data-field="t-close-change" title="T日收盘涨跌幅：收盘价 / 前收盘价 − 1；非买入收益">${finiteNumber(row.t_close_change) == null ? "待更新" : signedPct(row.t_close_change)}</td>
           <td><strong class="${valueTone(row.actual_net_return)}">${signedPct(row.actual_net_return)}</strong><small class="row-meta"><span class="truth-badge ${truthClass(row.validation_status)}">${escapeHtml(row.validation_status_label || "待验证")}</span></small></td>
@@ -5115,7 +5391,7 @@
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank" aria-pressed="true">按晋级排序</button>
             <button class="three-rank-btn" type="button" data-three-rank-sort="mixed_profit_rank" aria-pressed="false" ${profitView.ready ? "" : "disabled"}>按盈利排序</button>
           </div>
-          <div class="three-rank-downloads">${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
+          <div class="three-rank-downloads">${profitView.candidate ? '<span class="count" title="新盈利模型已启用，自然样本仍在积累，不代表实盘表现">新模型 · 验证中</span>' : ""}${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
         ${!profitView.ready || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
@@ -5124,7 +5400,7 @@
           <th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
           <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
-          <th scope="col">T晋级结果</th><th scope="col">T收盘</th><th scope="col">T+1净收益<small class="row-meta">T+1验证状态</small></th>
+          <th scope="col">T晋级结果</th><th scope="col">T收盘</th><th scope="col" title="晋级名单逐股观察（日开盘入场代理）；新盈利模型影子业绩见下方独立累计（竞价入场代理），两者不是实际成交收益">T+1净收益<small class="row-meta">T+1验证状态</small></th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
         ${independentTruth ? `<div class="compact-disclosure compact-verification-dates">验证日期：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</div>` : ""}`;
       els.stageContent.querySelectorAll("button[data-three-rank-sort]").forEach(button => {
@@ -5847,6 +6123,7 @@
     }
 
     async function loadDailyHistoricalProfit(currentThreeRank) {
+      if (candidateProfitApplies(currentThreeRank.signal_date)) return loadCandidateProfitDay(currentThreeRank);
       const entry = state.currentPrimaryMixedDailyTop2?.status === "ready"
         && state.currentPrimaryMixedDailyTop2.index.entries.find(row => row.signal_date === currentThreeRank.signal_date);
       executableProfitExpect(entry, "该D日盈利文件尚未通过目录校验；晋级名单保留");
@@ -5880,13 +6157,20 @@
       state.currentThreeRank = loaded.wrapper;
       state.index = 0; // Independent P0/P1 renderer; never an old report-index position.
       const compactLoadSequence = state.compactLoadSequence;
+      const candidate = refreshCandidateProfitActivation().then(() => {
+        void refreshCandidateProfitSummary().then(() => {
+          if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+        });
+      });
       void refreshCompactStatisticsWindow().then(() => {
         if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
       });
       const truth = refreshPublicObservationStatistics().then(() => refreshCurrentThreeRankTTruth(loaded.wrapper));
-      const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
-        try { state.currentExecutableProfitResearch = await loadDailyHistoricalProfit(loaded.wrapper); }
-        catch (error) { state.currentExecutableProfitResearch = { status: "invalid", message: String(error.message || error) }; }
+      const profit = candidate.then(async () => {
+        if (!candidateProfitApplies(date)) await refreshCurrentPrimaryMixedDailyTop2();
+        const current = () => state.compactLoadSequence === compactLoadSequence && state.currentThreeRank === loaded.wrapper && !state.compactFatalError;
+        try { const result = await loadDailyHistoricalProfit(loaded.wrapper); if (current()) state.currentExecutableProfitResearch = result; }
+        catch (error) { if (current()) state.currentExecutableProfitResearch = { status: "invalid", message: String(error.message || error) }; }
       });
       const path = (async () => {
         try { state.currentThreeRankPathEvidence = await loadCurrentThreeRankPathEvidence(loaded.wrapper, loaded.runtimeIndex); }
@@ -6104,6 +6388,9 @@
       state.currentThreeRankTTruth = null;
       state.currentThreeRankObservationTruth = null;
       state.currentExecutableProfitResearch = null;
+      state.candidateProfitActivation = null;
+      state.candidateProfitSummary = null;
+      state.candidateProfitSummaryLoad = {status: "loading", message: "新模型累计待验证"};
       state.currentLegacyProfitRelativeResearch = null;
       state.currentPrimaryMixedDailyTop2 = { status: "loading", message: "正在校验每日账本" };
       state.currentCompactStatisticsWindow = null;
@@ -6129,6 +6416,12 @@
             renderPrimaryCoreOnly(new Error("独立验证加载中"));
           }
         };
+        const candidate = refreshCandidateProfitActivation().then(() => {
+          void refreshCandidateProfitSummary().then(() => {
+            if (state.compactLoadSequence === compactLoadSequence && !state.compactFatalError) renderCompactDashboard();
+          });
+          paint();
+        });
         const truth = (async () => {
           await refreshPublicObservationStatistics();
           // Auxiliary history aggregation must not delay the current D list.
@@ -6138,7 +6431,8 @@
           await refreshCurrentThreeRankTTruth(state.currentThreeRank);
           paint();
         })();
-        const profit = refreshCurrentPrimaryMixedDailyTop2().then(async () => {
+        const profit = candidate.then(async () => {
+          if (!candidateProfitApplies(state.currentThreeRank?.signal_date)) await refreshCurrentPrimaryMixedDailyTop2();
           await refreshCurrentExecutableProfitResearch(state.currentThreeRank);
           paint();
         });
