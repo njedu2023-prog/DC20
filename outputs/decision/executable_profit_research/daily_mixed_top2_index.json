@@ -462,12 +462,53 @@
       "source_bundle_sha256": "9254a2d5fdc37e7f75322be9ae63645ecfd69ee408ea6b68f2326d4562fc10a4",
       "source_feature_snapshot_sha256": "8c3910bc223c8cdbc86b017d364cf648e6cb90f44cb656166ceceea599eb73f2",
       "top10_members_sha256": "254682e82b637439bc3fe5d1fea3b4e9d42920a97dc667e48df273f1bcb4f70b"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "004b7e77b211d9eefb73bba31585e59632145798cca61e1453944cbf536c3980",
+      "exec_date": "20260915",
+      "exit_date": "20260916",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "7174a5462907b7a9d807267f5c7326c70233f955ec1a95c679326acb0aa9e455",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260914.csv",
+      "projection_json_sha256": "185817692fe8cbfeeac03ad6b83a5fa33673fc4f390ba2f62dde816738a4030f",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260914.json",
+      "projection_snapshot_sha256": "04816656d89fc1fc7f7d6a70987e6f77a85f08e1122c965af7a74f473ed593fa",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "影视院线",
+          "mixed_profit_rank": 1,
+          "name": "中视传媒",
+          "promotion_rank": 9,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "600088.SH"
+        },
+        {
+          "industry": "中药Ⅱ",
+          "mixed_profit_rank": 2,
+          "name": "三力制药",
+          "promotion_rank": 10,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "603439.SH"
+        }
+      ],
+      "signal_date": "20260914",
+      "source_bundle_sha256": "c7585559091cb3f3359f637bc451d64969d373ac721a455f49413c333751400e",
+      "source_feature_snapshot_sha256": "49823f762ee5f0a8ce7d636ad5c4890dcbaae9ef9e8b3c5dbffe9d215f90b434",
+      "top10_members_sha256": "3c200a5b1701258f294313ebb4a2f51af70d220b72e173f376bcde3dfaa10097"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260911",
+  "latest_signal_date": "20260914",
   "public_start_signal_date": "20260828",
-  "recorded_days": 11,
+  "recorded_days": 12,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -479,9 +520,10 @@
     "20260908",
     "20260909",
     "20260910",
-    "20260911"
+    "20260911",
+    "20260914"
   ],
-  "recorded_slots": 22,
+  "recorded_slots": 24,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "552ba91461f956765ed7e402f8024847162afe4e4537b59aae80b8bb06fa44ed"
+  "snapshot_sha256": "8c9b75a18235cec0a42c12a1a60cfaace7a024c3d1e8ac0f953ee484dfac3a91"
 }
