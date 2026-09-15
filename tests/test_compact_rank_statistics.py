@@ -214,7 +214,9 @@ def test_future_asof_is_rejected_and_old_async_generation_cannot_return_statisti
     assert result is None
 
 
-def test_real_daily_ledger_keeps_header_counts_without_rendering_rows():
+def test_real_daily_ledger_uses_policy_window_without_rendering_rows():
+    from scripts.build_compact_statistics_window import build_window
+
     data = fixture()
     base = ROOT / "outputs/decision/executable_profit_research"
     data["daily"] = json.loads((base / "daily_mixed_top2_index.json").read_text())
@@ -222,8 +224,13 @@ def test_real_daily_ledger_keeps_header_counts_without_rendering_rows():
     shadow_index = json.loads((base / "shadow_index.json").read_text())
     shadow = json.loads((ROOT / shadow_index["latest_state_url"]).read_text())
     data["profit"] = dict(status="ready",kind="primary_core",index=index,shadow=dict(publicWindowReady=True,state=shadow))
+    # The current ledger can contain both archived open exits and the 10:00
+    # policy. The public renderer consumes the validated single-policy window,
+    # not the intentionally unavailable mixed-policy headline return fields.
+    data["compact_profit"] = build_window(ROOT, signal_date=index["latest_signal_date"])["profit"]
+    assert data["compact_profit"]["status"] == "READY"
     result = profit_dashboard(data)
-    assert f"{data['daily']['recorded_days']}日 / {data['daily']['recorded_slots']}席" in result["header"]
+    assert f"{data['compact_profit']['recorded_days']}日 / {data['compact_profit']['recorded_slots']}席" in result["header"]
     assert result["html"].count('class="three-rank-table profit-summary-table"') == 1
     assert result["unchanged"] is True
     assert_no_profit_daily_copy(result["html"])
@@ -259,7 +266,7 @@ def profit_fixture(daily_archive=None):
 
 
 def profit_dashboard(data, before=""):
-    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const bound=compactShadowSource();installRenderWindow(bound&&!bound.loaded.shadow.selectionOnlyCutover?{...bound.shadow,status:'READY',recorded_days:input.daily.recorded_days,recorded_slots:input.daily.recorded_slots}:null);const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))", data)
+    return run(before + ";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const bound=compactShadowSource();installRenderWindow(input.compact_profit||(bound&&!bound.loaded.shadow.selectionOnlyCutover?{...bound.shadow,status:'READY',recorded_days:input.daily.recorded_days,recorded_slots:input.daily.recorded_slots}:null));const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))", data)
 
 
 def profit_html(data, before=""):

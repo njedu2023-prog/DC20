@@ -32,7 +32,7 @@ def setup(tmp_path, monkeypatch, *, size=2):
     repo = tmp_path.resolve() / "checkout"; repo.mkdir()
     artifacts = tmp_path.resolve() / "artifacts"; artifacts.mkdir()
     context = {"repository":m.REPOSITORY,"branch":"main","run_id":10,"run_attempt":1,
-        "code_head_sha":"a"*40,"workflow_path":m.WORKFLOW_PATH,"event_name":"schedule",
+        "code_head_sha":"a"*40,"workflow_path":m.WORKFLOW_PATH,"event_name":"workflow_dispatch",
         "trigger_observer_run_id":None}
     tree = {}
     def add(relative, raw):
@@ -47,7 +47,7 @@ def setup(tmp_path, monkeypatch, *, size=2):
         "observer_run_id":proof.observer_run_id,"manifest_sha256":proof.evidence_manifest_sha256}))
     registration = {"id":100,"state":"active","name":m.WORKFLOW_NAME,"path":m.WORKFLOW_PATH}
     run = {"id":10,"workflow_id":100,"name":m.WORKFLOW_NAME,"path":m.WORKFLOW_PATH,
-        "head_sha":"a"*40,"head_branch":"main","run_attempt":1,"event":"schedule",
+        "head_sha":"a"*40,"head_branch":"main","run_attempt":1,"event":"workflow_dispatch",
         "repository":{"full_name":m.REPOSITORY},"head_repository":{"full_name":m.REPOSITORY},
         "status":"in_progress","conclusion":None}
     class FakeReads:
@@ -214,6 +214,122 @@ def test_calendar_closed_day_does_not_collect_previous_session():
         now=datetime(2026,9,13,12,tzinfo=timezone.utc))==(None,["20260911","20260914"])
 
 
+def set_schedule(case, *, cron="50 11 * * 1-5", created="2026-09-16T17:06:00Z",
+                 started=None, now="2026-09-16T17:20:00Z"):
+    case["hooks"]["context"].update(event_name="schedule",schedule=cron)
+    case["run"].update(event="schedule",created_at=created,run_started_at=started or created)
+    case["hooks"]["clock"]=lambda:datetime.fromisoformat(now.replace("Z","+00:00"))
+
+
+@pytest.mark.parametrize("cron,created,expected",[
+    ("50 11 * * 1-5","2026-09-14T17:06:00Z","2026-09-14T11:50:00+00:00"),
+    ("50 12 * * 1-5","2026-09-14T18:16:00Z","2026-09-14T12:50:00+00:00"),
+    ("50 12 * * 1-5","2026-09-18T18:16:00Z","2026-09-18T12:50:00+00:00"),
+])
+def test_delayed_registered_run_retains_its_weekday_even_after_midnight(cron,created,expected):
+    context={"event_name":"schedule","schedule":cron}
+    run={"created_at":created,"run_started_at":created}
+    scheduled=m.scheduled_session(context,run,now=datetime.fromisoformat(created.replace("Z","+00:00")))
+    assert scheduled.isoformat()==expected
+
+
+@pytest.mark.parametrize("created,started",[
+    ("2026-09-16T11:50:10Z","2026-09-16T17:06:00Z"),
+    ("2026-09-16T17:06:00Z","2026-09-16T17:06:00Z"),
+])
+def test_late_created_or_queued_run_settles_previous_T1_once_without_future_quotes(case,created,started):
+    set_schedule(case,created=created,started=started)
+    future=m.SNAPSHOT_PREFIX+"day_20260917.json"
+    case["tree"][future]={"type":"blob","mode":"100644"}
+    first=run(case)
+    assert first["as_of_date"]=="20260916"
+    assert first["session_selection"]["basis"]=="REGISTERED_SCHEDULE"
+    assert first["session_selection"]["scheduled_for_utc"]=="2026-09-16T11:50:00+00:00"
+    assert first["recorded_successful_quote_calls"]==12
+    assert all(case["modules"]["outcome_collect"].request_identity(request)[1] <= "20260916"
+        for request in case["native"]["requests"])
+    plan=json.loads((Path(first["work_root"])/"plan.json").read_bytes())
+    assert plan["ignored_future_paths"]==[future]
+    assert plan["fair_rotation_index"]==m.fair_rotation(datetime(2026,9,16,11,50,tzinfo=timezone.utc))
+    original=deepcopy(case["publications"])
+    second=run(case)
+    assert second["as_of_date"]=="20260916" and second["recorded_successful_quote_calls"]==0
+    assert second["selected_work_days"]==[] and case["publications"]==original
+
+
+def test_delayed_schedule_dry_run_does_not_collect_or_publish(case):
+    set_schedule(case)
+    result=run(case,dry_run=True)
+    assert result["as_of_date"]=="20260916"
+    assert result["processed"][0]["status"]=="READ_ONLY_PREFLIGHT"
+    assert not case["native"]["requests"] and not case["publications"]
+
+
+@pytest.mark.parametrize("event",["workflow_dispatch","workflow_run"])
+def test_manual_and_observer_preopen_do_not_inherit_schedule_catchup(case,event):
+    set_schedule(case)
+    case["hooks"]["context"]["event_name"]=case["run"]["event"]=event
+    result=run(case)
+    assert result["status"]=="NO_CLOSED_TRADING_SESSION_TODAY"
+    assert result["session_selection"]["basis"]=="HOST_CLOSED_TRADING_DATE"
+    assert not case["native"]["requests"] and not case["publications"]
+
+
+@pytest.mark.parametrize("created,now,expected",[
+    ("2026-09-18T18:16:00Z","2026-09-18T18:20:00Z","20260918"),
+    ("2026-09-30T18:16:00Z","2026-09-30T18:20:00Z","20260930"),
+    ("2026-10-01T18:16:00Z","2026-10-01T18:20:00Z",None),
+])
+def test_delayed_schedule_uses_reviewed_calendar_without_holiday_fallback(created,now,expected):
+    dates=["20260918","20260921","20260930","20261008"]
+    stats=SimpleNamespace(_calendar=lambda *args:dates,labels=m.dependencies()["statistics"].labels)
+    host=datetime.fromisoformat(now.replace("Z","+00:00"))
+    anchor=m.scheduled_session({"event_name":"schedule","schedule":"50 12 * * 1-5"},
+        {"created_at":created,"run_started_at":created},now=host)
+    assert m.completed_asof(b"synthetic-calendar",statistics=stats,now=host,scheduled_for=anchor)==(expected,dates)
+
+
+@pytest.mark.parametrize("field,value",[
+    ("created_at",None),("created_at","2026-09-16T17:06:00"),
+    ("created_at","2026-09-16T17:30:00Z"),("run_started_at","2026-09-16T17:05:59Z"),
+    ("run_started_at","2026-09-16T17:30:00Z"),
+])
+def test_missing_future_or_reversed_api_timestamps_block_before_collection(case,field,value):
+    set_schedule(case)
+    case["run"][field]=value
+    with pytest.raises(ValueError,match="REGISTERED_SCHEDULE_RUN_TIMESTAMPS"):
+        run(case)
+    assert not case["native"]["requests"] and not case["publications"]
+
+
+@pytest.mark.parametrize("created,now",[
+    ("2026-09-16T17:06:00Z","2026-09-16T23:50:01Z"),
+    ("2026-09-19T11:50:00Z","2026-09-19T11:55:00Z"),
+    ("2026-09-20T11:50:00Z","2026-09-20T11:55:00Z"),
+])
+def test_expired_or_nonexistent_weekend_schedule_is_rejected(case,created,now):
+    set_schedule(case,created=created,now=now)
+    with pytest.raises(ValueError,match="SCHEDULE_DELAY_EXCEEDS_BOUNDED_CATCHUP_WINDOW"):
+        run(case)
+    assert not case["native"]["requests"] and not case["publications"]
+
+
+def test_crossing_midnight_during_scheduled_work_keeps_same_completed_asof(case):
+    set_schedule(case,created="2026-09-16T11:50:00Z")
+    moments=iter([datetime(2026,9,16,15,59,tzinfo=timezone.utc)])
+    case["hooks"]["clock"]=lambda:next(moments,datetime(2026,9,16,16,1,tzinfo=timezone.utc))
+    result=run(case)
+    assert result["as_of_date"]=="20260916" and len(case["publications"])==1
+
+
+def test_manual_crossing_midnight_still_fails_closed(case):
+    moments=iter([datetime(2026,9,16,15,59,tzinfo=timezone.utc)])
+    case["hooks"]["clock"]=lambda:next(moments,datetime(2026,9,16,16,1,tzinfo=timezone.utc))
+    with pytest.raises(ValueError,match="SETTLEMENT_HOST_SESSION_CHANGED"):
+        run(case)
+    assert not case["publications"]
+
+
 @pytest.mark.parametrize("field,value",[("run_attempt",True),("run_attempt",2),("head_branch","feature"),
     ("status","completed"),("conclusion","success"),("name","wrong"),("workflow_id",True)])
 def test_exact_current_workflow_registration_fails_before_quotes(case,field,value):
@@ -315,7 +431,7 @@ def action_context(tmp_path,monkeypatch,*,event_name="schedule"):
         "name":issuer.WORKFLOW_NAME,"head_branch":"main","run_attempt":1,"status":"completed",
         "conclusion":"success","event":"workflow_run","repository":{"full_name":m.REPOSITORY},
         "head_repository":{"full_name":m.REPOSITORY}}
-    event={"workflow_run":source} if event_name=="workflow_run" else {}
+    event={"workflow_run":source} if event_name=="workflow_run" else {"schedule":"50 11 * * 1-5"} if event_name=="schedule" else {}
     write(path,m.encoded(event))
     monkeypatch.setattr(m.sys,"platform","linux")
     for name,value in {"GITHUB_ACTIONS":"true","GITHUB_REPOSITORY":m.REPOSITORY,
@@ -330,7 +446,16 @@ def test_registered_environment_event_context_returns_pair(tmp_path,monkeypatch,
     issuer,path,payload=action_context(tmp_path,monkeypatch,event_name=event)
     context,state=m.execution_context(issuer)
     assert context["run_id"]==10 and context["event_name"]==event
+    assert context["schedule"]==(payload["schedule"] if event=="schedule" else None)
     assert state[0]==path and state[1]==m.encoded(payload)
+
+
+@pytest.mark.parametrize("schedule",[None,"0 12 * * *","50 11 * * 0-6",[],True])
+def test_unregistered_schedule_cannot_authorize_previous_session(tmp_path,monkeypatch,schedule):
+    issuer,path,event=action_context(tmp_path,monkeypatch)
+    event["schedule"]=schedule;write(path,m.encoded(event))
+    with pytest.raises(ValueError,match="EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED"):
+        m.execution_context(issuer)
 
 
 @pytest.mark.parametrize("name,value",[("GITHUB_ACTIONS","false"),("GITHUB_REF","refs/heads/test"),

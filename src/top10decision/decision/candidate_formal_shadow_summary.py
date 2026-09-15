@@ -23,7 +23,7 @@ DAY_SCHEMA = "dc20_candidate_formal_profit_day_v1"
 ACTIVATION_ID = "dc20_profit_ridge_999666_auction_exit1000_v1"
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EFFECTIVE_D = "20260914"
-STATISTICS_SHA = "31e64f9f37cb4043c4955064c96421728d4dde9376c9c5a5a608082947e33995"
+STATISTICS_SHA = "8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6"
 GROUPS = ("candidate_top1", "candidate_top2")
 FLAGS = {
     "actual_execution_claimed": False,

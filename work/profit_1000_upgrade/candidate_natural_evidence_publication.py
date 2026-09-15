@@ -20,18 +20,25 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3"
+CAPTURE_SHA = "d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089"
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = "d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774"
-WORKFLOW_SHA = "01ce1bc9b651b6f4a5f6debd265f130dfdd6db317f3b5cd473a8405caa788fcf"
+OBSERVER_SHA = "245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80"
+WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
 WRITER_SHA = "e876d5865d72e8dddef1e920a68dfdf9d24e26d7b647b96672a7ff89c6358a76"
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
 PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 SCHEMA = "dc20_independently_observed_durable_research_publication_v1"
 MAX_ZIP_BYTES, MAX_EXPANDED_BYTES, MAX_MEMBERS = 96 * 1024**2, 65 * 1024**2, 80
+LEGACY_OBSERVER_SHA = "d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774"
+LEGACY_OBSERVER_BLOBS = {
+    ".github/workflows/research_candidate_natural_forward.yml": "a9076078b15724baf31966ebb8b7e9118a7c3208",
+    CAPTURE_PATH: "6b3f240d3ce79a2d8b3b23edbc3ff6487322dc14",
+    OBSERVER_PATH: "fd74a5248777f25a1765bf2bf3cc755fae019484",
+    WORKFLOW_PATH: "10d2870fd7a032430544ca111821b36bd78df28a",
+}
 
 
 def require(ok, reason):
@@ -180,12 +187,14 @@ def read_observer_archive(raw):
 
 
 def _context(context, run, manifest, observation):
+    historical = manifest["capture_code_sha256"] == capture.LEGACY_CAPTURE_CONTRACT[0]
     expected = {"observer_workflow_path": WORKFLOW_PATH, "observer_run_id": run["id"], "run_attempt": 1,
         "code_head_sha": run["head_sha"], "repository": gh.REPOSITORY, "branch": "main",
         "schema_version": "dc20_candidate_natural_observer_context_v1", "signal_date": manifest["signal_date"],
         "freeze_run_id": int(manifest["freeze_run_id"]), "snapshot_file_sha256": manifest["snapshot_file_sha256"],
         "manifest_sha256": None, "publication_observation_sha256": manifest["native_observation"]["sha256"],
-        "capture_module_sha256": CAPTURE_SHA, "coordinator_sha256": OBSERVER_SHA, "writer_sha256": WRITER_SHA,
+        "capture_module_sha256": manifest["capture_code_sha256"],
+        "coordinator_sha256": LEGACY_OBSERVER_SHA if historical else OBSERVER_SHA, "writer_sha256": WRITER_SHA,
         "created_at_host_utc": context.get("created_at_host_utc"), "original_prospective_publication_observed": True,
         "evidence_natural_admission_issued": False, "production_activation_allowed": False, "actual_execution_claimed": False}
     expected["manifest_sha256"] = context["manifest_sha256"]
@@ -193,6 +202,17 @@ def _context(context, run, manifest, observation):
     publication.natural.scorer._exact(context, expected, "EXACT_OBSERVER_CONTEXT_BINDING_REQUIRED")
     require(observation["model_canonical_sha256"] == publication.natural.MODEL_SHA
         and observation["model_evaluation_sha256"] == publication.natural.EVALUATION_SHA, "FROZEN_REAL_MODEL_BINDING_REQUIRED")
+
+
+def match_observer_code(code_tree, published_tree, local, manifest):
+    """An old capsule keeps its exact old observer contract, without rewriting it."""
+    historical = manifest["capture_code_sha256"] == capture.LEGACY_CAPTURE_CONTRACT[0]
+    for path, raw in local.items():
+        expected = LEGACY_OBSERVER_BLOBS.get(path, gh.git_blob(raw)) if historical else gh.git_blob(raw)
+        for tree in (code_tree, published_tree):
+            entry = tree.get(path, {})
+            require(entry.get("type") == "blob" and entry.get("mode") == "100644" and entry.get("sha") == expected,
+                "REVIEWED_OBSERVER_CODE_VERSION_CHANGED")
 
 
 _KEY, _ISSUED = object(), weakref.WeakKeyDictionary()
@@ -256,8 +276,7 @@ def verify_published_evidence(*, evidence_commit, observer_run_id, github_client
         "OBSERVER_ACK_GIT_COMMIT_CHANGED")
     _, parent_tree = reads.tree(gh.exact_sha(ack["parent_sha"], 40))
     _, code_tree = reads.tree(run["head_sha"])
-    for path, raw in local.items():
-        publication._blob_matches(code_tree, path, raw); publication._blob_matches(tree, path, raw)
+    match_observer_code(code_tree, tree, local, manifest)
     prefix = PREFIX + day + "/"
     files = {prefix + "manifest.json": manifest_raw, prefix + "context.json": archive["context.json"],
         **{prefix + p: raw for p, raw in bodies.items()}}
@@ -293,7 +312,7 @@ def verify_published_evidence(*, evidence_commit, observer_run_id, github_client
         "current_main_evidence_bytes_preserved": True, "current_main_sha": current_sha, "git_ancestry_verified": False,
         "original_p0_artifact_refetched": False, "reissuance_requires_unexpired_observer_ack_artifact": True,
         "permanent_offline_attestation_verified": False, "evidence_file_bindings": expected_ack,
-        "issuer_sha256": SELF_SHA, "capture_sha256": CAPTURE_SHA, "bounded_request_cost": reads.cost,
+        "issuer_sha256": SELF_SHA, "capture_sha256": manifest["capture_code_sha256"], "bounded_request_cost": reads.cost,
         "source_authority_issued": False, "natural_outcome_admission_issued": False, "production_activation_allowed": False,
         "formal_model_replacement_allowed": False, "actual_execution_claimed": False, "actual_capacity_verified": False,
         "provider_timestamp_semantics_confirmed": False, "future_outcomes_read": False, "model_training_performed": False,

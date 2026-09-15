@@ -18,6 +18,8 @@ def test_exact_trigger_scope_and_safe_manual_default():
     assert doc['name'] == m.WORKFLOW_NAME
     assert set(doc['on']) == {'schedule', 'workflow_run', 'workflow_dispatch', 'push'}
     assert doc['on']['schedule'] == [{'cron':'50 11 * * 1-5'}, {'cron':'50 12 * * 1-5'}]
+    assert {slot['cron'] for slot in doc['on']['schedule']} == set(m.SCHEDULES)
+    assert m.MAX_SCHEDULE_DELAY.total_seconds() == 12 * 60 * 60
     assert doc['on']['workflow_run'] == {
         'workflows':['DC20 · Preserve natural candidate publication (research)'],
         'branches':['main'], 'types':['completed']}

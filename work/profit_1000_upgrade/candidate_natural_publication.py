@@ -26,7 +26,7 @@ COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 FIXED_FILES = {
     IMPORTER_PATH: IMPORTER_SHA,
     COORDINATOR_PATH: "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
-    WORKFLOW_PATH: "4fb4b74ae221f49f66b2c191ebeb113e4ef3aba4b4c1428d46bded4c17d029af",
+    WORKFLOW_PATH: "337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c",
     "requirements-dev.lock": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
     "work/profit_1000_upgrade/candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
     "work/profit_1000_upgrade/candidate_natural_forward_registration.json": "2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2",
@@ -41,6 +41,12 @@ MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 MAX_MEMBERS = 256
 MAX_JSON_BYTES = 4_000_000
 MAX_CALLS = 40  # Includes two artifact downloads, each at most two HTTP calls.
+# The 2026-09-14 publication predates the read-only duplicate trigger gate.
+# Only this exact historical workflow is accepted remotely; local code must
+# still match FIXED_FILES. No original model/importer/coordinator pin changes.
+LEGACY_WORKFLOW_BINDING = {"path": WORKFLOW_PATH,
+    "sha256": "4fb4b74ae221f49f66b2c191ebeb113e4ef3aba4b4c1428d46bded4c17d029af",
+    "git_blob_sha1": "a9076078b15724baf31966ebb8b7e9118a7c3208"}
 
 
 def require(ok, reason):
@@ -78,6 +84,21 @@ def code_guard():
     raw, identity = gh.read(Path(__file__).absolute())
     require(gh.sha256(raw) == SELF_SHA, "PUBLICATION_VERIFIER_CHANGED")
     return values, (tuple(state), identity, gh.code_guard(), natural._guard())
+
+
+def match_publication_code(code_tree, published_tree, local_files):
+    """Bind one complete reviewed code version in both immutable Git trees."""
+    bindings = [{"path": p, "sha256": gh.sha256(b), "git_blob_sha1": gh.git_blob(b)}
+        for p, b in sorted(local_files.items())]
+    legacy = code_tree.get(WORKFLOW_PATH, {}).get("sha") == LEGACY_WORKFLOW_BINDING["git_blob_sha1"]
+    if legacy:
+        bindings = [dict(LEGACY_WORKFLOW_BINDING) if b["path"] == WORKFLOW_PATH else b for b in bindings]
+    for binding in bindings:
+        for tree in (code_tree, published_tree):
+            entry = tree.get(binding["path"], {})
+            require(entry.get("type") == "blob" and entry.get("mode") == "100644"
+                and entry.get("sha") == binding["git_blob_sha1"], "REVIEWED_PUBLICATION_CODE_VERSION_CHANGED")
+    return bindings
 
 
 class _Reads:
@@ -367,9 +388,7 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ACK_PUBLISHED_PARENT_OR_TREE_CHANGED")
     _, parent_tree = reads.tree(gh.exact_sha(ack["parent_sha"], 40))
     _, code_tree = reads.tree(run["head_sha"])
-    for path, body in local_files.items():
-        _blob_matches(code_tree, path, body)
-        _blob_matches(tree, path, body)
+    code_bindings = match_publication_code(code_tree, tree, local_files)
     files = ack.get("files")
     names = {PREFIX + f"{kind}_{day}.json" for kind in ("day", "p0_sources", "local_freeze", "workflow")}
     require(type(files) is list and len(files) == 4 and {b.get("path") for b in files if type(b) is dict} == names,
@@ -488,7 +507,7 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "verification_window": "IMMEDIATE_POST_PUBLICATION_REQUIRES_UNEXPIRED_ORIGINAL_P0_PAGES_ARTIFACT",
         "timestamp_basis": "GITHUB_SUCCESSFUL_FREEZE_JOB_COMPLETION_NOT_GIT_AUTHOR_OR_COMMITTER_CLOCK",
         "model_canonical_sha256": natural.MODEL_SHA, "model_evaluation_sha256": natural.EVALUATION_SHA,
-        "verified_code_bindings": [{"path": p, "sha256": gh.sha256(b), "git_blob_sha1": gh.git_blob(b)} for p, b in sorted(local_files.items())],
+        "verified_code_bindings": code_bindings,
         "verifier_sha256": SELF_SHA, "bounded_request_cost": reads.cost,
         "network_calls_performed": github_client.calls if actual else None,
         "research_only": True, "source_authority_issued": False, "natural_outcome_admission_issued": False,

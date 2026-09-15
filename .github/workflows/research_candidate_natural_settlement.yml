@@ -2,8 +2,9 @@ name: DC20 · Settle natural candidate research slots
 
 on:
   schedule:
-    # UTC slots = Beijing 19:50 and 20:50. The runtime also checks the
-    # reviewed trading calendar and today's close; holidays never become D.
+    # UTC slots = Beijing 19:50 and 20:50. A verified schedule delayed by up to
+    # 12h retains its intended closed session, including Friday -> Saturday.
+    # The reviewed calendar still excludes holidays; dispatch has no as-of input.
     - cron: "50 11 * * 1-5"
     - cron: "50 12 * * 1-5"
   workflow_run:

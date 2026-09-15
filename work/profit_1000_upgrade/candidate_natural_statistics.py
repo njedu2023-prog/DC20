@@ -18,7 +18,7 @@ ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_bound_statistics_v1"
 OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 PUBLICATION_MODULE = "work.profit_1000_upgrade.candidate_natural_evidence_publication"
-PUBLICATION_SHA = "ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534"
+PUBLICATION_SHA = "ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb"
 GROUPS = ("candidate_top1", "candidate_top2", "promotion_top1", "promotion_top2")
 DAY_FIELDS = frozenset({"signal_date", "snapshot_raw", "expected_snapshot_sha256",
     "ledger_raw", "expected_ledger_sha256", "ledger_as_of_date", "publication_proof",

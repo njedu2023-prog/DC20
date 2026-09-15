@@ -1,0 +1,1465 @@
+{
+  "schema_version": "decision_reliability_source_review_v1",
+  "approved_base_commit": "709317f8d0cf12fb726ae515230281dad255d0f4",
+  "scope": "DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE",
+  "rationale": "Repair duplicate run handling and delayed scheduled settlement, keep truthful single-policy rendering tests, and preserve every historical review and frozen model.",
+  "boundaries": {
+    "model_weights_changed": false,
+    "promotion_ranking_changed": false,
+    "frozen_days_or_ledger_rewritten": false,
+    "entry_or_exit_policy_changed": false,
+    "source_validation_weakened": false,
+    "actual_trading_enabled": false
+  },
+  "source_changes": [
+    {
+      "path": ".github/workflows/research_candidate_natural_forward.yml",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "4fb4b74ae221f49f66b2c191ebeb113e4ef3aba4b4c1428d46bded4c17d029af",
+      "current_sha256": "337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c",
+      "baseline_bytes": 5265,
+      "current_bytes": 6477,
+      "inverse_changes": [
+        {
+          "baseline_start": 48,
+          "current_start": 48,
+          "baseline_lines": [],
+          "current_lines": [
+            "    permissions:\n",
+            "      actions: read\n",
+            "      contents: read\n",
+            "    outputs:\n",
+            "      needs_freeze: ${{ steps.trigger.outputs.needs_work }}\n"
+          ]
+        },
+        {
+          "baseline_start": 75,
+          "current_start": 80,
+          "baseline_lines": [
+            "          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py\n"
+          ],
+          "current_lines": [
+            "          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py\n"
+          ]
+        },
+        {
+          "baseline_start": 78,
+          "current_start": 83,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - name: Check whether original P0 needs a new candidate freeze\n",
+            "        id: trigger\n",
+            "        if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\n",
+            "        env:\n",
+            "          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}\n",
+            "          P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}\n",
+            "        run: >-\n",
+            "          python -m work.profit_1000_upgrade.candidate_natural_trigger_gate p0\n",
+            "          --run-id \"$P0_RUN_ID\" --receipt \"$RUNNER_TEMP/candidate-preflight.json\"\n",
+            "      - name: Preserve read-only trigger classification\n",
+            "        if: always() && steps.trigger.outcome == 'success'\n",
+            "        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02\n",
+            "        with:\n",
+            "          name: dc20-candidate-preflight-${{ github.run_id }}-${{ github.run_attempt }}\n",
+            "          path: ${{ runner.temp }}/candidate-preflight.json\n",
+            "          if-no-files-found: error\n",
+            "          retention-days: 90\n"
+          ]
+        },
+        {
+          "baseline_start": 81,
+          "current_start": 103,
+          "baseline_lines": [
+            "    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\n"
+          ],
+          "current_lines": [
+            "    if: (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') && needs.validate.outputs.needs_freeze == 'true'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_observer.yml",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "01ce1bc9b651b6f4a5f6debd265f130dfdd6db317f3b5cd473a8405caa788fcf",
+      "current_sha256": "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b",
+      "baseline_bytes": 5384,
+      "current_bytes": 6285,
+      "inverse_changes": [
+        {
+          "baseline_start": 27,
+          "current_start": 27,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - \"work/profit_1000_upgrade/candidate_natural_trigger_gate.py\"\n",
+            "      - \"work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py\"\n"
+          ]
+        },
+        {
+          "baseline_start": 47,
+          "current_start": 49,
+          "baseline_lines": [],
+          "current_lines": [
+            "    permissions:\n",
+            "      actions: read\n",
+            "      contents: read\n",
+            "    outputs:\n",
+            "      needs_observer: ${{ steps.trigger.outputs.needs_work }}\n"
+          ]
+        },
+        {
+          "baseline_start": 77,
+          "current_start": 84,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - name: Check whether the freeze trigger produced new candidate evidence\n",
+            "        id: trigger\n",
+            "        if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\n",
+            "        env:\n",
+            "          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}\n",
+            "          FREEZE_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.freeze_run_id }}\n",
+            "        run: >-\n",
+            "          python -m work.profit_1000_upgrade.candidate_natural_trigger_gate freeze\n",
+            "          --run-id \"$FREEZE_RUN_ID\" --receipt \"$RUNNER_TEMP/candidate-preflight.json\"\n"
+          ]
+        },
+        {
+          "baseline_start": 80,
+          "current_start": 96,
+          "baseline_lines": [
+            "    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\n"
+          ],
+          "current_lines": [
+            "    if: (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') && needs.validate.outputs.needs_observer == 'true'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_settlement.yml",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "c203f1343ed2abf7238a83c21b1b4fa375c0bfe67b445292f928da341dd4bf74",
+      "current_sha256": "1403d82c89171e7ecda97f01e7dc0b11e77b397dd7c1db5561de0a409b7d92c6",
+      "baseline_bytes": 6381,
+      "current_bytes": 6473,
+      "inverse_changes": [
+        {
+          "baseline_start": 5,
+          "current_start": 5,
+          "baseline_lines": [
+            "    # UTC slots = Beijing 19:50 and 20:50. The runtime also checks the\n",
+            "    # reviewed trading calendar and today's close; holidays never become D.\n"
+          ],
+          "current_lines": [
+            "    # UTC slots = Beijing 19:50 and 20:50. A verified schedule delayed by up to\n",
+            "    # 12h retains its intended closed session, including Friday -> Saturday.\n",
+            "    # The reviewed calendar still excludes holidays; dispatch has no as-of input.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "0e1b46c3044e5230e8f42cc870e8cdb284650677aafbdf458ad2047d7c10fc45",
+      "current_sha256": "66b8ff1539d83aa9b53f90472241de90536124a3e613c3169aba9860d7e4ba72",
+      "baseline_bytes": 25995,
+      "current_bytes": 25995,
+      "inverse_changes": [
+        {
+          "baseline_start": 26,
+          "current_start": 26,
+          "baseline_lines": [
+            "STATISTICS_SHA = \"31e64f9f37cb4043c4955064c96421728d4dde9376c9c5a5a608082947e33995\"\n"
+          ],
+          "current_lines": [
+            "STATISTICS_SHA = \"8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "0ece058aad5db0f59057ad2c55b2f76b5c7e255b5395397ba42214edabbd85aa",
+      "current_sha256": "8caea921bc4214b3c0a14e33e84f5a23d96c1eddfb687eb11cc529318b2ae2cd",
+      "baseline_bytes": 25707,
+      "current_bytes": 25707,
+      "inverse_changes": [
+        {
+          "baseline_start": 137,
+          "current_start": 137,
+          "baseline_lines": [
+            "        \"candidate_natural_evidence_publication\": \"ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534\",\n"
+          ],
+          "current_lines": [
+            "        \"candidate_natural_evidence_publication\": \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_compact_rank_statistics.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "2b4689857e0b1d8294efc1dcb8d293e4fd49c54ad3d89d6094945a54976ce1cd",
+      "current_sha256": "c3dfa6e5cbd3fac2d31b389fb37320666221149be914b54fbb4a11fad61c1a77",
+      "baseline_bytes": 33351,
+      "current_bytes": 33848,
+      "inverse_changes": [
+        {
+          "baseline_start": 217,
+          "current_start": 217,
+          "baseline_lines": [
+            "def test_real_daily_ledger_keeps_header_counts_without_rendering_rows():\n"
+          ],
+          "current_lines": [
+            "def test_real_daily_ledger_uses_policy_window_without_rendering_rows():\n",
+            "    from scripts.build_compact_statistics_window import build_window\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 225,
+          "current_start": 227,
+          "baseline_lines": [],
+          "current_lines": [
+            "    # The current ledger can contain both archived open exits and the 10:00\n",
+            "    # policy. The public renderer consumes the validated single-policy window,\n",
+            "    # not the intentionally unavailable mixed-policy headline return fields.\n",
+            "    data[\"compact_profit\"] = build_window(ROOT, signal_date=index[\"latest_signal_date\"])[\"profit\"]\n",
+            "    assert data[\"compact_profit\"][\"status\"] == \"READY\"\n"
+          ]
+        },
+        {
+          "baseline_start": 226,
+          "current_start": 233,
+          "baseline_lines": [
+            "    assert f\"{data['daily']['recorded_days']}日 / {data['daily']['recorded_slots']}席\" in result[\"header\"]\n"
+          ],
+          "current_lines": [
+            "    assert f\"{data['compact_profit']['recorded_days']}日 / {data['compact_profit']['recorded_slots']}席\" in result[\"header\"]\n"
+          ]
+        },
+        {
+          "baseline_start": 262,
+          "current_start": 269,
+          "baseline_lines": [
+            "    return run(before + \";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const bound=compactShadowSource();installRenderWindow(bound&&!bound.loaded.shadow.selectionOnlyCutover?{...bound.shadow,status:'READY',recorded_days:input.daily.recorded_days,recorded_slots:input.daily.recorded_slots}:null);const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))\", data)\n"
+          ],
+          "current_lines": [
+            "    return run(before + \";state.currentPrimaryMixedDailyTop2={status:'ready',index:input.daily};state.currentExecutableProfitResearch=input.profit;const bound=compactShadowSource();installRenderWindow(input.compact_profit||(bound&&!bound.loaded.shadow.selectionOnlyCutover?{...bound.shadow,status:'READY',recorded_days:input.daily.recorded_days,recorded_slots:input.daily.recorded_slots}:null));const beforeRender=JSON.stringify(input);renderCompactDashboard();console.log(JSON.stringify({html:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,unchanged:JSON.stringify(input)===beforeRender}))\", data)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
+      "current_sha256": "d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089",
+      "baseline_bytes": 23138,
+      "current_bytes": 23370,
+      "inverse_changes": [
+        {
+          "baseline_start": 25,
+          "current_start": 25,
+          "baseline_lines": [
+            "PUBLICATION_SHA = \"c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322\"\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = \"e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932\"\n",
+            "LEGACY_CAPTURE_CONTRACT = (\n",
+            "    \"d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3\",\n",
+            "    \"c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322\",\n",
+            ")\n"
+          ]
+        },
+        {
+          "baseline_start": 202,
+          "current_start": 206,
+          "baseline_lines": [
+            "    require(manifest.get(\"capture_code_sha256\") == SELF_SHA and manifest.get(\"publication_verifier_sha256\") == PUBLICATION_SHA,\n"
+          ],
+          "current_lines": [
+            "    require((manifest.get(\"capture_code_sha256\"), manifest.get(\"publication_verifier_sha256\"))\n",
+            "        in (LEGACY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA)),\n"
+          ]
+        },
+        {
+          "baseline_start": 226,
+          "current_start": 231,
+          "baseline_lines": [
+            "        and observation.get(\"verifier_sha256\") == PUBLICATION_SHA\n"
+          ],
+          "current_lines": [
+            "        and observation.get(\"verifier_sha256\") == manifest[\"publication_verifier_sha256\"]\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534",
+      "current_sha256": "ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb",
+      "baseline_bytes": 21402,
+      "current_bytes": 22558,
+      "inverse_changes": [
+        {
+          "baseline_start": 23,
+          "current_start": 23,
+          "baseline_lines": [
+            "CAPTURE_SHA = \"d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3\"\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = \"d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089\"\n"
+          ]
+        },
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "OBSERVER_SHA = \"d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774\"\n",
+            "WORKFLOW_SHA = \"01ce1bc9b651b6f4a5f6debd265f130dfdd6db317f3b5cd473a8405caa788fcf\"\n"
+          ],
+          "current_lines": [
+            "OBSERVER_SHA = \"245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80\"\n",
+            "WORKFLOW_SHA = \"6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b\"\n"
+          ]
+        },
+        {
+          "baseline_start": 35,
+          "current_start": 35,
+          "baseline_lines": [],
+          "current_lines": [
+            "LEGACY_OBSERVER_SHA = \"d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774\"\n",
+            "LEGACY_OBSERVER_BLOBS = {\n",
+            "    \".github/workflows/research_candidate_natural_forward.yml\": \"a9076078b15724baf31966ebb8b7e9118a7c3208\",\n",
+            "    CAPTURE_PATH: \"6b3f240d3ce79a2d8b3b23edbc3ff6487322dc14\",\n",
+            "    OBSERVER_PATH: \"fd74a5248777f25a1765bf2bf3cc755fae019484\",\n",
+            "    WORKFLOW_PATH: \"10d2870fd7a032430544ca111821b36bd78df28a\",\n",
+            "}\n"
+          ]
+        },
+        {
+          "baseline_start": 183,
+          "current_start": 190,
+          "baseline_lines": [],
+          "current_lines": [
+            "    historical = manifest[\"capture_code_sha256\"] == capture.LEGACY_CAPTURE_CONTRACT[0]\n"
+          ]
+        },
+        {
+          "baseline_start": 188,
+          "current_start": 196,
+          "baseline_lines": [
+            "        \"capture_module_sha256\": CAPTURE_SHA, \"coordinator_sha256\": OBSERVER_SHA, \"writer_sha256\": WRITER_SHA,\n"
+          ],
+          "current_lines": [
+            "        \"capture_module_sha256\": manifest[\"capture_code_sha256\"],\n",
+            "        \"coordinator_sha256\": LEGACY_OBSERVER_SHA if historical else OBSERVER_SHA, \"writer_sha256\": WRITER_SHA,\n"
+          ]
+        },
+        {
+          "baseline_start": 196,
+          "current_start": 205,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def match_observer_code(code_tree, published_tree, local, manifest):\n",
+            "    \"\"\"An old capsule keeps its exact old observer contract, without rewriting it.\"\"\"\n",
+            "    historical = manifest[\"capture_code_sha256\"] == capture.LEGACY_CAPTURE_CONTRACT[0]\n",
+            "    for path, raw in local.items():\n",
+            "        expected = LEGACY_OBSERVER_BLOBS.get(path, gh.git_blob(raw)) if historical else gh.git_blob(raw)\n",
+            "        for tree in (code_tree, published_tree):\n",
+            "            entry = tree.get(path, {})\n",
+            "            require(entry.get(\"type\") == \"blob\" and entry.get(\"mode\") == \"100644\" and entry.get(\"sha\") == expected,\n",
+            "                \"REVIEWED_OBSERVER_CODE_VERSION_CHANGED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 259,
+          "current_start": 279,
+          "baseline_lines": [
+            "    for path, raw in local.items():\n",
+            "        publication._blob_matches(code_tree, path, raw); publication._blob_matches(tree, path, raw)\n"
+          ],
+          "current_lines": [
+            "    match_observer_code(code_tree, tree, local, manifest)\n"
+          ]
+        },
+        {
+          "baseline_start": 296,
+          "current_start": 315,
+          "baseline_lines": [
+            "        \"issuer_sha256\": SELF_SHA, \"capture_sha256\": CAPTURE_SHA, \"bounded_request_cost\": reads.cost,\n"
+          ],
+          "current_lines": [
+            "        \"issuer_sha256\": SELF_SHA, \"capture_sha256\": manifest[\"capture_code_sha256\"], \"bounded_request_cost\": reads.cost,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_observer.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774",
+      "current_sha256": "245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80",
+      "baseline_bytes": 8420,
+      "current_bytes": 8420,
+      "inverse_changes": [
+        {
+          "baseline_start": 18,
+          "current_start": 18,
+          "baseline_lines": [
+            "CAPTURE_SHA = 'd40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3'\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = 'd70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_publication.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
+      "current_sha256": "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932",
+      "baseline_bytes": 33958,
+      "current_bytes": 35080,
+      "inverse_changes": [
+        {
+          "baseline_start": 29,
+          "current_start": 29,
+          "baseline_lines": [
+            "    WORKFLOW_PATH: \"4fb4b74ae221f49f66b2c191ebeb113e4ef3aba4b4c1428d46bded4c17d029af\",\n"
+          ],
+          "current_lines": [
+            "    WORKFLOW_PATH: \"337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c\",\n"
+          ]
+        },
+        {
+          "baseline_start": 44,
+          "current_start": 44,
+          "baseline_lines": [],
+          "current_lines": [
+            "# The 2026-09-14 publication predates the read-only duplicate trigger gate.\n",
+            "# Only this exact historical workflow is accepted remotely; local code must\n",
+            "# still match FIXED_FILES. No original model/importer/coordinator pin changes.\n",
+            "LEGACY_WORKFLOW_BINDING = {\"path\": WORKFLOW_PATH,\n",
+            "    \"sha256\": \"4fb4b74ae221f49f66b2c191ebeb113e4ef3aba4b4c1428d46bded4c17d029af\",\n",
+            "    \"git_blob_sha1\": \"a9076078b15724baf31966ebb8b7e9118a7c3208\"}\n"
+          ]
+        },
+        {
+          "baseline_start": 81,
+          "current_start": 87,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def match_publication_code(code_tree, published_tree, local_files):\n",
+            "    \"\"\"Bind one complete reviewed code version in both immutable Git trees.\"\"\"\n",
+            "    bindings = [{\"path\": p, \"sha256\": gh.sha256(b), \"git_blob_sha1\": gh.git_blob(b)}\n",
+            "        for p, b in sorted(local_files.items())]\n",
+            "    legacy = code_tree.get(WORKFLOW_PATH, {}).get(\"sha\") == LEGACY_WORKFLOW_BINDING[\"git_blob_sha1\"]\n",
+            "    if legacy:\n",
+            "        bindings = [dict(LEGACY_WORKFLOW_BINDING) if b[\"path\"] == WORKFLOW_PATH else b for b in bindings]\n",
+            "    for binding in bindings:\n",
+            "        for tree in (code_tree, published_tree):\n",
+            "            entry = tree.get(binding[\"path\"], {})\n",
+            "            require(entry.get(\"type\") == \"blob\" and entry.get(\"mode\") == \"100644\"\n",
+            "                and entry.get(\"sha\") == binding[\"git_blob_sha1\"], \"REVIEWED_PUBLICATION_CODE_VERSION_CHANGED\")\n",
+            "    return bindings\n"
+          ]
+        },
+        {
+          "baseline_start": 370,
+          "current_start": 391,
+          "baseline_lines": [
+            "    for path, body in local_files.items():\n",
+            "        _blob_matches(code_tree, path, body)\n",
+            "        _blob_matches(tree, path, body)\n"
+          ],
+          "current_lines": [
+            "    code_bindings = match_publication_code(code_tree, tree, local_files)\n"
+          ]
+        },
+        {
+          "baseline_start": 491,
+          "current_start": 510,
+          "baseline_lines": [
+            "        \"verified_code_bindings\": [{\"path\": p, \"sha256\": gh.sha256(b), \"git_blob_sha1\": gh.git_blob(b)} for p, b in sorted(local_files.items())],\n"
+          ],
+          "current_lines": [
+            "        \"verified_code_bindings\": code_bindings,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.md",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "ad26be7f31eaa5f48f2a6253869c13ce919bb1db2db1f20658728078b8f6523f",
+      "current_sha256": "382e05ae54f4bb969adeb611c37e0e88509db80a59d78f1880aaae02c2dd6ca7",
+      "baseline_bytes": 6142,
+      "current_bytes": 7338,
+      "inverse_changes": [
+        {
+          "baseline_start": 25,
+          "current_start": 25,
+          "baseline_lines": [
+            "按宿主时钟和固定日历，只在**北京时间当天是交易日且已过 15:00**时处理当日 as-of。\n",
+            "盘前 observer、周末或休市日返回 `NO_CLOSED_TRADING_SESSION_TODAY`；不会倒退到\n",
+            "上一交易日偷偷采集。宿主日期超出固定日历则阻断，不能猜日历。运行跨北京时间午夜、\n",
+            "时钟倒退、代码或原输入字节变化均失败关闭。\n"
+          ],
+          "current_lines": [
+            "手动 dispatch 和 observer 事件按宿主时钟和固定日历，只在**北京时间当天是交易日且\n",
+            "已过 15:00**时处理当日 as-of；盘前、周末或休市日返回\n",
+            "`NO_CLOSED_TRADING_SESSION_TODAY`。它们不能借用 schedule 的补结算权限。\n",
+            "\n",
+            "定时事件必须携带原事件中两个固定 cron 之一，并通过真实 API 的当前 workflow/run\n",
+            "身份校验。根据 API `created_at` 定位该 cron 最近一次周一至周五的计划时点，要求\n",
+            "`created_at <= run_started_at <= 宿主当前时间`，且当前时间距计划时点不超过 **12 小时**。\n",
+            "据此保留计划时点对应的北京时间交易日，再用固定 SHA 日历确认已收盘，不由调用者指定\n",
+            "as-of。例如 9 月 14 日 19:50 的任务延至 9 月 15 日 01:06 启动，仍处理 9 月 14 日；\n",
+            "周五定时延至周六凌晨同理。休市日的计划不能倒退为更早交易日，周末没有新的计划时点，\n",
+            "超过 12 小时或缺少／矛盾的 API 时间证据均失败关闭。\n",
+            "\n",
+            "plan/result 保留日期选择依据、API 创建／启动时间、计划时点、宿主时间与迟到秒数。\n",
+            "同一计划任务执行跨午夜可以继续使用固定 as-of，所有 guard 仍检查 12 小时上限及\n",
+            "时钟单调；手动／observer 跨午夜、宿主或计划日超出固定日历、时钟倒退、代码或原输入\n",
+            "字节变化仍失败关闭。补结算沿用现有四日和请求上限，不扩大采集范围，也不读取未来数据。\n"
+          ]
+        },
+        {
+          "baseline_start": 53,
+          "current_start": 65,
+          "baseline_lines": [
+            "每次最多处理四个 D；按固定北京时间日序和 20:50 窗口进行确定性批次轮转。即使前\n"
+          ],
+          "current_lines": [
+            "每次最多处理四个 D；按固定北京时间日序和 20:50 窗口进行确定性批次轮转；迟到定时\n",
+            "使用原计划时点轮转，19:50、20:50 的两个批次不会因都延至凌晨而合并。即使前\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "dfe377ff9148585ca97125d7fd11d3f13acb2c1ec4121c339df8775d81d19862",
+      "current_sha256": "83447c126cd7a6177c8326c7d7ca129d38226c5ff9d0976b143d6404ab8878e4",
+      "baseline_bytes": 33170,
+      "current_bytes": 36504,
+      "inverse_changes": [
+        {
+          "baseline_start": 26,
+          "current_start": 26,
+          "baseline_lines": [],
+          "current_lines": [
+            "SHANGHAI = timezone(timedelta(hours=8))\n",
+            "SCHEDULES = {\"50 11 * * 1-5\": (11, 50), \"50 12 * * 1-5\": (12, 50)}\n",
+            "MAX_SCHEDULE_DELAY = timedelta(hours=12)\n"
+          ]
+        },
+        {
+          "baseline_start": 31,
+          "current_start": 34,
+          "baseline_lines": [
+            "    \"candidate_natural_evidence_publication\": \"ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534\",\n"
+          ],
+          "current_lines": [
+            "    \"candidate_natural_evidence_publication\": \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\",\n"
+          ]
+        },
+        {
+          "baseline_start": 36,
+          "current_start": 39,
+          "baseline_lines": [
+            "    \"candidate_natural_statistics\": \"31e64f9f37cb4043c4955064c96421728d4dde9376c9c5a5a608082947e33995\",\n"
+          ],
+          "current_lines": [
+            "    \"candidate_natural_statistics\": \"8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6\",\n"
+          ]
+        },
+        {
+          "baseline_start": 107,
+          "current_start": 110,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if event_name == \"schedule\":\n",
+            "        require(type(event.get(\"schedule\")) is str and event[\"schedule\"] in SCHEDULES,\n",
+            "            \"EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 120,
+          "current_start": 126,
+          "baseline_lines": [],
+          "current_lines": [
+            "        \"schedule\":event.get(\"schedule\") if event_name == \"schedule\" else None,\n"
+          ]
+        },
+        {
+          "baseline_start": 124,
+          "current_start": 131,
+          "baseline_lines": [
+            "def completed_asof(calendar_raw, *, statistics, now):\n"
+          ],
+          "current_lines": [
+            "def scheduled_session(context, run, *, now):\n",
+            "    \"\"\"Bind a bounded delayed schedule to the already-verified GitHub run.\n",
+            "\n",
+            "    The cron and API creation/start timestamps locate the latest possible\n",
+            "    occurrence; they do not make a calendar holiday a trading session. Manual\n",
+            "    and observer events never gain previous-session access through this path.\n",
+            "    \"\"\"\n",
+            "    if context[\"event_name\"] != \"schedule\": return None\n",
+            "    require(type(now) is datetime and now.tzinfo is not None, \"HOST_AWARE_CLOCK_REQUIRED\")\n",
+            "    cron = context.get(\"schedule\")\n",
+            "    require(type(cron) is str and cron in SCHEDULES, \"EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED\")\n",
+            "    timestamps = []\n",
+            "    for field in (\"created_at\", \"run_started_at\"):\n",
+            "        value = run.get(field)\n",
+            "        require(type(value) is str and re.fullmatch(r\"20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\", value),\n",
+            "            \"REGISTERED_SCHEDULE_RUN_TIMESTAMPS_REQUIRED\")\n",
+            "        timestamps.append(datetime.fromisoformat(value.replace(\"Z\", \"+00:00\")))\n",
+            "    created, started = timestamps\n",
+            "    require(created <= started <= now, \"REGISTERED_SCHEDULE_RUN_TIMESTAMPS_INVALID\")\n",
+            "    hour, minute = SCHEDULES[cron]\n",
+            "    scheduled = created.replace(hour=hour, minute=minute, second=0, microsecond=0)\n",
+            "    if scheduled > created: scheduled -= timedelta(days=1)\n",
+            "    while scheduled.weekday() >= 5: scheduled -= timedelta(days=1)\n",
+            "    require(timedelta(0) <= now - scheduled <= MAX_SCHEDULE_DELAY,\n",
+            "        \"SCHEDULE_DELAY_EXCEEDS_BOUNDED_CATCHUP_WINDOW\")\n",
+            "    return scheduled\n",
+            "\n",
+            "\n",
+            "def completed_asof(calendar_raw, *, statistics, now, scheduled_for=None):\n"
+          ]
+        },
+        {
+          "baseline_start": 127,
+          "current_start": 162,
+          "baseline_lines": [
+            "    today = now.astimezone(timezone(timedelta(hours=8))).strftime(\"%Y%m%d\")\n"
+          ],
+          "current_lines": [
+            "    today = now.astimezone(SHANGHAI).strftime(\"%Y%m%d\")\n"
+          ]
+        },
+        {
+          "baseline_start": 129,
+          "current_start": 164,
+          "baseline_lines": [
+            "    # A before-open observer event or a weekday holiday must not become an\n",
+            "    # invitation to collect a previous day's state. The next scheduled closed\n",
+            "    # trading session performs the bounded catch-up for still-pending slots.\n",
+            "    if today not in dates or statistics.labels._timestamp(statistics.labels._at(today,\"15:00:00\")) > now:\n"
+          ],
+          "current_lines": [
+            "    if scheduled_for is not None:\n",
+            "        require(type(scheduled_for) is datetime and scheduled_for.tzinfo is not None\n",
+            "            and timedelta(0) <= now - scheduled_for <= MAX_SCHEDULE_DELAY,\n",
+            "            \"BOUNDED_PAST_SCHEDULE_REQUIRED\")\n",
+            "    day = today if scheduled_for is None else scheduled_for.astimezone(SHANGHAI).strftime(\"%Y%m%d\")\n",
+            "    require(dates[0] <= day <= dates[-1], \"SCHEDULE_DATE_OUTSIDE_REVIEWED_CALENDAR\")\n",
+            "    # Only a registered, bounded schedule can retain its intended trading date\n",
+            "    # after midnight. Holidays never silently fall back to an older session.\n",
+            "    if day not in dates or statistics.labels._timestamp(statistics.labels._at(day,\"15:00:00\")) > now:\n"
+          ]
+        },
+        {
+          "baseline_start": 134,
+          "current_start": 174,
+          "baseline_lines": [
+            "    return today,dates\n"
+          ],
+          "current_lines": [
+            "    return day,dates\n"
+          ]
+        },
+        {
+          "baseline_start": 365,
+          "current_start": 405,
+          "baseline_lines": [
+            "    now=clock();asof,dates=completed_asof(calendar_raw,statistics=statistics,now=now)\n"
+          ],
+          "current_lines": [
+            "    now=clock();scheduled_for=scheduled_session(context,run,now=now)\n",
+            "    asof,dates=completed_asof(calendar_raw,statistics=statistics,now=now,scheduled_for=scheduled_for)\n",
+            "    session_selection={\"basis\":\"REGISTERED_SCHEDULE\" if scheduled_for is not None else \"HOST_CLOSED_TRADING_DATE\",\n",
+            "        \"host_observed_at_utc\":now.astimezone(timezone.utc).isoformat(),\n",
+            "        \"scheduled_for_utc\":scheduled_for.isoformat() if scheduled_for is not None else None,\n",
+            "        \"run_created_at_utc\":run.get(\"created_at\") if scheduled_for is not None else None,\n",
+            "        \"run_started_at_utc\":run.get(\"run_started_at\") if scheduled_for is not None else None,\n",
+            "        \"delay_seconds\":(now-scheduled_for).total_seconds() if scheduled_for is not None else None,\n",
+            "        \"max_schedule_delay_seconds\":MAX_SCHEDULE_DELAY.total_seconds(),\"as_of_date\":asof}\n"
+          ]
+        },
+        {
+          "baseline_start": 382,
+          "current_start": 430,
+          "baseline_lines": [
+            "        require(current.astimezone(timezone(timedelta(hours=8))).date()==now.astimezone(timezone(timedelta(hours=8))).date(),\n",
+            "            \"SETTLEMENT_HOST_SESSION_CHANGED\")\n"
+          ],
+          "current_lines": [
+            "        if scheduled_for is not None:\n",
+            "            require(scheduled_session(context,run,now=current)==scheduled_for,\"SETTLEMENT_SCHEDULE_SESSION_CHANGED\")\n",
+            "        else:\n",
+            "            require(current.astimezone(SHANGHAI).date()==now.astimezone(SHANGHAI).date(),\n",
+            "                \"SETTLEMENT_HOST_SESSION_CHANGED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 387,
+          "current_start": 438,
+          "baseline_lines": [],
+          "current_lines": [
+            "            \"session_selection\":session_selection,\n"
+          ]
+        },
+        {
+          "baseline_start": 393,
+          "current_start": 445,
+          "baseline_lines": [
+            "    rotation=fair_rotation(now)\n"
+          ],
+          "current_lines": [
+            "    rotation=fair_rotation(scheduled_for if scheduled_for is not None else now)\n"
+          ]
+        },
+        {
+          "baseline_start": 399,
+          "current_start": 451,
+          "baseline_lines": [
+            "        \"fair_rotation_index\":rotation,\n"
+          ],
+          "current_lines": [
+            "        \"fair_rotation_index\":rotation,\"session_selection\":session_selection,\n"
+          ]
+        },
+        {
+          "baseline_start": 497,
+          "current_start": 549,
+          "baseline_lines": [],
+          "current_lines": [
+            "        \"session_selection\":session_selection,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "31e64f9f37cb4043c4955064c96421728d4dde9376c9c5a5a608082947e33995",
+      "current_sha256": "8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6",
+      "baseline_bytes": 25304,
+      "current_bytes": 25304,
+      "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [
+            "PUBLICATION_SHA = \"ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534\"\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_evidence.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "f99958356c5d69e1ec9a980f91ca3156154e19e0f19703b1e6080933b016977b",
+      "current_sha256": "728f37f1ba9a39d03dbcfb945295909e317f497378c595b5bacc6db2b5312cac",
+      "baseline_bytes": 11575,
+      "current_bytes": 12822,
+      "inverse_changes": [
+        {
+          "baseline_start": 66,
+          "current_start": 66,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_original_20260914_capsule_keeps_exact_bytes_with_reviewed_legacy_pair():\n",
+            "    \"\"\"Stored production evidence is replayed read-only, not regenerated.\"\"\"\n",
+            "    root = m.ROOT / \"work/profit_1000_upgrade/candidate_natural_evidence/20260914\"\n",
+            "    raw = (root / \"manifest.json\").read_bytes()\n",
+            "    manifest = m.gh.parse_json(raw)\n",
+            "    assert (manifest[\"capture_code_sha256\"], manifest[\"publication_verifier_sha256\"]) == m.LEGACY_CAPTURE_CONTRACT\n",
+            "    bodies = {b[\"path\"]: (root / b[\"path\"]).read_bytes() for b in manifest[\"files\"]}\n",
+            "    assert m.verify_materials(raw, bodies, expected_manifest_sha256=m.sha(raw)) == manifest\n",
+            "    assert (root / \"manifest.json\").read_bytes() == raw\n",
+            "    for name, body in bodies.items():\n",
+            "        assert (root / name).read_bytes() == body\n",
+            "\n",
+            "\n",
+            "def test_legacy_capture_cannot_mix_a_new_verifier_hash_with_old_capture_code():\n",
+            "    root = m.ROOT / \"work/profit_1000_upgrade/candidate_natural_evidence/20260914\"\n",
+            "    manifest = m.gh.parse_json((root / \"manifest.json\").read_bytes())\n",
+            "    manifest[\"publication_verifier_sha256\"] = m.PUBLICATION_SHA\n",
+            "    raw = m.gh.json_bytes(manifest)\n",
+            "    with pytest.raises(ValueError, match=\"CAPTURE_CODE_CONTRACT_CHANGED\"):\n",
+            "        m.verify_materials(raw, {}, expected_manifest_sha256=m.sha(raw))\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "b9ce4fa0f3a81134d02fdf771732c40193e596f49e1f9e64d0dbe00bb6721966",
+      "current_sha256": "f71261ea2e542c5fa0830e6821bc16541c2d4d6d05df54013af55694142f320a",
+      "baseline_bytes": 16617,
+      "current_bytes": 17838,
+      "inverse_changes": [
+        {
+          "baseline_start": 83,
+          "current_start": 83,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_exact_legacy_observer_context_and_code_pair_is_preserved():\n",
+            "    root = m.ROOT / \"work/profit_1000_upgrade/candidate_natural_evidence/20260914\"\n",
+            "    manifest = m.gh.parse_json((root / \"manifest.json\").read_bytes())\n",
+            "    context = m.gh.parse_json((root / \"context.json\").read_bytes())\n",
+            "    observation = m.gh.parse_json((root / manifest[\"native_observation\"][\"path\"]).read_bytes())\n",
+            "    original_run = {\"id\": context[\"observer_run_id\"], \"head_sha\": context[\"code_head_sha\"]}\n",
+            "    m._context(context, original_run, manifest, observation)\n",
+            "    local, _ = m.code_guard()\n",
+            "    tree = {path: {\"type\": \"blob\", \"mode\": \"100644\", \"sha\": m.LEGACY_OBSERVER_BLOBS.get(path, m.gh.git_blob(raw))}\n",
+            "        for path, raw in local.items()}\n",
+            "    m.match_observer_code(tree, tree, local, manifest)\n",
+            "    current_manifest = {**manifest, \"capture_code_sha256\": m.CAPTURE_SHA}\n",
+            "    with pytest.raises(ValueError, match=\"CODE_VERSION_CHANGED\"):\n",
+            "        m.match_observer_code(tree, tree, local, current_manifest)\n",
+            "    changed = deepcopy(tree)\n",
+            "    changed[m.OBSERVER_PATH][\"sha\"] = m.gh.git_blob(local[m.OBSERVER_PATH])\n",
+            "    with pytest.raises(ValueError, match=\"CODE_VERSION_CHANGED\"):\n",
+            "        m.match_observer_code(tree, changed, local, manifest)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_publication.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "d28a7e0d29b66194505504c0ac485f58173b6524cfde0b4a2029c99b8a8bb071",
+      "current_sha256": "06b039ec63ca8a344d4bb43758f7990db68bb0de7e57f44ab7c3824b920f8c04",
+      "baseline_bytes": 18984,
+      "current_bytes": 20136,
+      "inverse_changes": [
+        {
+          "baseline_start": 127,
+          "current_start": 127,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_original_20260914_code_tree_accepts_only_exact_registered_legacy_workflow():\n",
+            "    root = m.ROOT / \"work/profit_1000_upgrade/candidate_natural_evidence/20260914\"\n",
+            "    manifest = m.gh.parse_json((root / \"manifest.json\").read_bytes())\n",
+            "    responses = {entry[\"api_path\"]: m.gh.parse_json((root / entry[\"retained_body\"][\"path\"]).read_bytes())\n",
+            "        for entry in manifest[\"http_observations\"] if entry[\"kind\"] == \"API_JSON\"}\n",
+            "    run_api = m.gh.API_PREFIX + \"/actions/runs/\" + manifest[\"freeze_run_id\"]\n",
+            "    original = responses[run_api]\n",
+            "    commit = responses[m.gh.API_PREFIX + \"/git/commits/\" + original[\"head_sha\"]]\n",
+            "    doc = responses[m.gh.API_PREFIX + \"/git/trees/\" + commit[\"tree\"][\"sha\"] + \"?recursive=1\"]\n",
+            "    tree = m.gh.validate_tree(doc, commit[\"tree\"][\"sha\"])\n",
+            "    local, _ = m.code_guard()\n",
+            "    bound = m.match_publication_code(tree, tree, local)\n",
+            "    assert next(b for b in bound if b[\"path\"] == m.WORKFLOW_PATH) == m.LEGACY_WORKFLOW_BINDING\n",
+            "    changed = deepcopy(tree)\n",
+            "    changed[m.WORKFLOW_PATH][\"sha\"] = \"0\" * 40\n",
+            "    with pytest.raises(ValueError, match=\"CODE_VERSION_CHANGED\"):\n",
+            "        m.match_publication_code(tree, changed, local)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_settlement_contract.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "52db57f69e50da0edf4ddb8c6086a2fcd102e8d480928ba5c74fc9c9449b0309",
+      "current_sha256": "54b7e280bd36a2bffc332cbbecb7a3a67c89fb2cbfff39b9d3359ea8792500fc",
+      "baseline_bytes": 6071,
+      "current_bytes": 6215,
+      "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [],
+          "current_lines": [
+            "    assert {slot['cron'] for slot in doc['on']['schedule']} == set(m.SCHEDULES)\n",
+            "    assert m.MAX_SCHEDULE_DELAY.total_seconds() == 12 * 60 * 60\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py",
+      "reason": "Authorized operational reliability repair; exact predecessor remains recoverable.",
+      "baseline_exists": true,
+      "baseline_sha256": "65deb1c00943041a7e06aa998d951e72936f3feb3e3f3b81fc182b4eac82aacf",
+      "current_sha256": "567e0ca8ff471d218e9c023b47c568f00780f328b82e10f737322f3a50584ba0",
+      "baseline_bytes": 18306,
+      "current_bytes": 24647,
+      "inverse_changes": [
+        {
+          "baseline_start": 35,
+          "current_start": 35,
+          "baseline_lines": [
+            "        \"code_head_sha\":\"a\"*40,\"workflow_path\":m.WORKFLOW_PATH,\"event_name\":\"schedule\",\n"
+          ],
+          "current_lines": [
+            "        \"code_head_sha\":\"a\"*40,\"workflow_path\":m.WORKFLOW_PATH,\"event_name\":\"workflow_dispatch\",\n"
+          ]
+        },
+        {
+          "baseline_start": 50,
+          "current_start": 50,
+          "baseline_lines": [
+            "        \"head_sha\":\"a\"*40,\"head_branch\":\"main\",\"run_attempt\":1,\"event\":\"schedule\",\n"
+          ],
+          "current_lines": [
+            "        \"head_sha\":\"a\"*40,\"head_branch\":\"main\",\"run_attempt\":1,\"event\":\"workflow_dispatch\",\n"
+          ]
+        },
+        {
+          "baseline_start": 217,
+          "current_start": 217,
+          "baseline_lines": [],
+          "current_lines": [
+            "def set_schedule(case, *, cron=\"50 11 * * 1-5\", created=\"2026-09-16T17:06:00Z\",\n",
+            "                 started=None, now=\"2026-09-16T17:20:00Z\"):\n",
+            "    case[\"hooks\"][\"context\"].update(event_name=\"schedule\",schedule=cron)\n",
+            "    case[\"run\"].update(event=\"schedule\",created_at=created,run_started_at=started or created)\n",
+            "    case[\"hooks\"][\"clock\"]=lambda:datetime.fromisoformat(now.replace(\"Z\",\"+00:00\"))\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"cron,created,expected\",[\n",
+            "    (\"50 11 * * 1-5\",\"2026-09-14T17:06:00Z\",\"2026-09-14T11:50:00+00:00\"),\n",
+            "    (\"50 12 * * 1-5\",\"2026-09-14T18:16:00Z\",\"2026-09-14T12:50:00+00:00\"),\n",
+            "    (\"50 12 * * 1-5\",\"2026-09-18T18:16:00Z\",\"2026-09-18T12:50:00+00:00\"),\n",
+            "])\n",
+            "def test_delayed_registered_run_retains_its_weekday_even_after_midnight(cron,created,expected):\n",
+            "    context={\"event_name\":\"schedule\",\"schedule\":cron}\n",
+            "    run={\"created_at\":created,\"run_started_at\":created}\n",
+            "    scheduled=m.scheduled_session(context,run,now=datetime.fromisoformat(created.replace(\"Z\",\"+00:00\")))\n",
+            "    assert scheduled.isoformat()==expected\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"created,started\",[\n",
+            "    (\"2026-09-16T11:50:10Z\",\"2026-09-16T17:06:00Z\"),\n",
+            "    (\"2026-09-16T17:06:00Z\",\"2026-09-16T17:06:00Z\"),\n",
+            "])\n",
+            "def test_late_created_or_queued_run_settles_previous_T1_once_without_future_quotes(case,created,started):\n",
+            "    set_schedule(case,created=created,started=started)\n",
+            "    future=m.SNAPSHOT_PREFIX+\"day_20260917.json\"\n",
+            "    case[\"tree\"][future]={\"type\":\"blob\",\"mode\":\"100644\"}\n",
+            "    first=run(case)\n",
+            "    assert first[\"as_of_date\"]==\"20260916\"\n",
+            "    assert first[\"session_selection\"][\"basis\"]==\"REGISTERED_SCHEDULE\"\n",
+            "    assert first[\"session_selection\"][\"scheduled_for_utc\"]==\"2026-09-16T11:50:00+00:00\"\n",
+            "    assert first[\"recorded_successful_quote_calls\"]==12\n",
+            "    assert all(case[\"modules\"][\"outcome_collect\"].request_identity(request)[1] <= \"20260916\"\n",
+            "        for request in case[\"native\"][\"requests\"])\n",
+            "    plan=json.loads((Path(first[\"work_root\"])/\"plan.json\").read_bytes())\n",
+            "    assert plan[\"ignored_future_paths\"]==[future]\n",
+            "    assert plan[\"fair_rotation_index\"]==m.fair_rotation(datetime(2026,9,16,11,50,tzinfo=timezone.utc))\n",
+            "    original=deepcopy(case[\"publications\"])\n",
+            "    second=run(case)\n",
+            "    assert second[\"as_of_date\"]==\"20260916\" and second[\"recorded_successful_quote_calls\"]==0\n",
+            "    assert second[\"selected_work_days\"]==[] and case[\"publications\"]==original\n",
+            "\n",
+            "\n",
+            "def test_delayed_schedule_dry_run_does_not_collect_or_publish(case):\n",
+            "    set_schedule(case)\n",
+            "    result=run(case,dry_run=True)\n",
+            "    assert result[\"as_of_date\"]==\"20260916\"\n",
+            "    assert result[\"processed\"][0][\"status\"]==\"READ_ONLY_PREFLIGHT\"\n",
+            "    assert not case[\"native\"][\"requests\"] and not case[\"publications\"]\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"event\",[\"workflow_dispatch\",\"workflow_run\"])\n",
+            "def test_manual_and_observer_preopen_do_not_inherit_schedule_catchup(case,event):\n",
+            "    set_schedule(case)\n",
+            "    case[\"hooks\"][\"context\"][\"event_name\"]=case[\"run\"][\"event\"]=event\n",
+            "    result=run(case)\n",
+            "    assert result[\"status\"]==\"NO_CLOSED_TRADING_SESSION_TODAY\"\n",
+            "    assert result[\"session_selection\"][\"basis\"]==\"HOST_CLOSED_TRADING_DATE\"\n",
+            "    assert not case[\"native\"][\"requests\"] and not case[\"publications\"]\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"created,now,expected\",[\n",
+            "    (\"2026-09-18T18:16:00Z\",\"2026-09-18T18:20:00Z\",\"20260918\"),\n",
+            "    (\"2026-09-30T18:16:00Z\",\"2026-09-30T18:20:00Z\",\"20260930\"),\n",
+            "    (\"2026-10-01T18:16:00Z\",\"2026-10-01T18:20:00Z\",None),\n",
+            "])\n",
+            "def test_delayed_schedule_uses_reviewed_calendar_without_holiday_fallback(created,now,expected):\n",
+            "    dates=[\"20260918\",\"20260921\",\"20260930\",\"20261008\"]\n",
+            "    stats=SimpleNamespace(_calendar=lambda *args:dates,labels=m.dependencies()[\"statistics\"].labels)\n",
+            "    host=datetime.fromisoformat(now.replace(\"Z\",\"+00:00\"))\n",
+            "    anchor=m.scheduled_session({\"event_name\":\"schedule\",\"schedule\":\"50 12 * * 1-5\"},\n",
+            "        {\"created_at\":created,\"run_started_at\":created},now=host)\n",
+            "    assert m.completed_asof(b\"synthetic-calendar\",statistics=stats,now=host,scheduled_for=anchor)==(expected,dates)\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"field,value\",[\n",
+            "    (\"created_at\",None),(\"created_at\",\"2026-09-16T17:06:00\"),\n",
+            "    (\"created_at\",\"2026-09-16T17:30:00Z\"),(\"run_started_at\",\"2026-09-16T17:05:59Z\"),\n",
+            "    (\"run_started_at\",\"2026-09-16T17:30:00Z\"),\n",
+            "])\n",
+            "def test_missing_future_or_reversed_api_timestamps_block_before_collection(case,field,value):\n",
+            "    set_schedule(case)\n",
+            "    case[\"run\"][field]=value\n",
+            "    with pytest.raises(ValueError,match=\"REGISTERED_SCHEDULE_RUN_TIMESTAMPS\"):\n",
+            "        run(case)\n",
+            "    assert not case[\"native\"][\"requests\"] and not case[\"publications\"]\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"created,now\",[\n",
+            "    (\"2026-09-16T17:06:00Z\",\"2026-09-16T23:50:01Z\"),\n",
+            "    (\"2026-09-19T11:50:00Z\",\"2026-09-19T11:55:00Z\"),\n",
+            "    (\"2026-09-20T11:50:00Z\",\"2026-09-20T11:55:00Z\"),\n",
+            "])\n",
+            "def test_expired_or_nonexistent_weekend_schedule_is_rejected(case,created,now):\n",
+            "    set_schedule(case,created=created,now=now)\n",
+            "    with pytest.raises(ValueError,match=\"SCHEDULE_DELAY_EXCEEDS_BOUNDED_CATCHUP_WINDOW\"):\n",
+            "        run(case)\n",
+            "    assert not case[\"native\"][\"requests\"] and not case[\"publications\"]\n",
+            "\n",
+            "\n",
+            "def test_crossing_midnight_during_scheduled_work_keeps_same_completed_asof(case):\n",
+            "    set_schedule(case,created=\"2026-09-16T11:50:00Z\")\n",
+            "    moments=iter([datetime(2026,9,16,15,59,tzinfo=timezone.utc)])\n",
+            "    case[\"hooks\"][\"clock\"]=lambda:next(moments,datetime(2026,9,16,16,1,tzinfo=timezone.utc))\n",
+            "    result=run(case)\n",
+            "    assert result[\"as_of_date\"]==\"20260916\" and len(case[\"publications\"])==1\n",
+            "\n",
+            "\n",
+            "def test_manual_crossing_midnight_still_fails_closed(case):\n",
+            "    moments=iter([datetime(2026,9,16,15,59,tzinfo=timezone.utc)])\n",
+            "    case[\"hooks\"][\"clock\"]=lambda:next(moments,datetime(2026,9,16,16,1,tzinfo=timezone.utc))\n",
+            "    with pytest.raises(ValueError,match=\"SETTLEMENT_HOST_SESSION_CHANGED\"):\n",
+            "        run(case)\n",
+            "    assert not case[\"publications\"]\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 318,
+          "current_start": 434,
+          "baseline_lines": [
+            "    event={\"workflow_run\":source} if event_name==\"workflow_run\" else {}\n"
+          ],
+          "current_lines": [
+            "    event={\"workflow_run\":source} if event_name==\"workflow_run\" else {\"schedule\":\"50 11 * * 1-5\"} if event_name==\"schedule\" else {}\n"
+          ]
+        },
+        {
+          "baseline_start": 333,
+          "current_start": 449,
+          "baseline_lines": [],
+          "current_lines": [
+            "    assert context[\"schedule\"]==(payload[\"schedule\"] if event==\"schedule\" else None)\n"
+          ]
+        },
+        {
+          "baseline_start": 334,
+          "current_start": 451,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"schedule\",[None,\"0 12 * * *\",\"50 11 * * 0-6\",[],True])\n",
+            "def test_unregistered_schedule_cannot_authorize_previous_session(tmp_path,monkeypatch,schedule):\n",
+            "    issuer,path,event=action_context(tmp_path,monkeypatch)\n",
+            "    event[\"schedule\"]=schedule;write(path,m.encoded(event))\n",
+            "    with pytest.raises(ValueError,match=\"EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED\"):\n",
+            "        m.execution_context(issuer)\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "added_files": [
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_trigger_gate.py",
+      "sha256": "0f8c5a863d2d38a773427ce615e258f5b59c3715b4050626b49f7c9a933acee9",
+      "bytes": 22025
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py",
+      "sha256": "8b0722e55e58ccb083ef5cac290e2eb5b7fa8f88976504e1d8cd8af10c94a14f",
+      "bytes": 15983
+    }
+  ],
+  "inventory_update": {
+    "baseline_sha256": "51976133c5b5b0252cb1c7fb09895d99de312f8e45b9ecdc5912c22f1e242a23",
+    "baseline_lines": [
+      "{\n",
+      "  \"schema_version\": \"dc20_forward_model_inventory_v1\",\n",
+      "  \"source_repository\": \"njedu2023-prog/DC20\",\n",
+      "  \"source_commit\": \"15423ced302ab19b17f459fb3006e0af2b764f24\",\n",
+      "  \"status\": \"INACTIVE_MIGRATION_REPLAY_ONLY\",\n",
+      "  \"dependency_successor_review\": {\n",
+      "    \"path\": \"models/decision_source_surface_review_20260914_candidate_activation.json\",\n",
+      "    \"sha256\": \"d6547c35704ed13e96891ece4a21b3de8fd977b5234f2a4cf0d8282493041a6e\",\n",
+      "    \"approved_base_commit\": \"306039a3b9c0f3350f01b0ec23f03dd79e004d3a\",\n",
+      "    \"scope\": \"EXPLICIT_FIXED_CANDIDATE_FORMAL_PROFIT_ACTIVATION_NO_PROMOTION_OR_HISTORICAL_TRUTH_CHANGE\"\n",
+      "  },\n",
+      "  \"active_source_models\": {\n",
+      "    \"promotion\": {\n",
+      "      \"path\": \"models/decision_three_engines/promotion.joblib\",\n",
+      "      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n",
+      "      \"role\": \"promotion_hgb_with_frozen_preprocessing_and_platt_calibration\",\n",
+      "      \"feature_columns_sha256\": \"9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425\"\n",
+      "    },\n",
+      "    \"profit\": {\n",
+      "      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n",
+      "      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n",
+      "      \"role\": \"uncalibrated_fill_and_conditional_profit_research_heads\",\n",
+      "      \"feature_columns_sha256\": \"a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048\",\n",
+      "      \"feature_count\": 156,\n",
+      "      \"release_status\": \"INTERNAL_CHALLENGER_NOT_READY\"\n",
+      "    }\n",
+      "  },\n",
+      "  \"assets\": [\n",
+      "    {\n",
+      "      \"path\": \"data/auction_v3/promotion_prior/five_year_daily_stage_board.csv\",\n",
+      "      \"sha256\": \"d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909\",\n",
+      "      \"bytes\": 104013,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/auction_v3/promotion_prior/five_year_event_features.csv.gz\",\n",
+      "      \"sha256\": \"57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e\",\n",
+      "      \"bytes\": 627667,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_executable_profit/historical_oof_top10_ledger_manifest.json\",\n",
+      "      \"sha256\": \"3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5\",\n",
+      "      \"bytes\": 12184,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/five_year_ledger_manifest.json\",\n",
+      "      \"sha256\": \"35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034\",\n",
+      "      \"bytes\": 7564,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/five_year_supervised_ledger.csv.gz\",\n",
+      "      \"sha256\": \"7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46\",\n",
+      "      \"bytes\": 4764361,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib\",\n",
+      "      \"sha256\": \"9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6\",\n",
+      "      \"bytes\": 7703,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib\",\n",
+      "      \"sha256\": \"1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06\",\n",
+      "      \"bytes\": 3413205,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib\",\n",
+      "      \"sha256\": \"0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3\",\n",
+      "      \"bytes\": 3423122,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib\",\n",
+      "      \"sha256\": \"72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b\",\n",
+      "      \"bytes\": 178906,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"data/market/trade_cal_sse.csv\",\n",
+      "      \"sha256\": \"150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748\",\n",
+      "      \"bytes\": 61411,\n",
+      "      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n",
+      "      \"verify_for_replay\": true\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_executable_profit_internal_forward_challenger.json\",\n",
+      "      \"sha256\": \"487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af\",\n",
+      "      \"bytes\": 6878,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_model_freeze.json\",\n",
+      "      \"sha256\": \"2a44ae95f352280d1c9d29dc218037dc3a65a128a41053727029755383ae0ad0\",\n",
+      "      \"bytes\": 52661,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_primary_profit_forward_shadow_bridge_contract.json\",\n",
+      "      \"sha256\": \"2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623\",\n",
+      "      \"bytes\": 4023,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_primary_profit_research_contract.json\",\n",
+      "      \"sha256\": \"3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780\",\n",
+      "      \"bytes\": 3470,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": true\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_three_engines/big_loss.joblib\",\n",
+      "      \"sha256\": \"ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b\",\n",
+      "      \"bytes\": 8998,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_three_engines/p_fill_shadow.joblib\",\n",
+      "      \"sha256\": \"69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24\",\n",
+      "      \"bytes\": 9435,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_three_engines/profit.joblib\",\n",
+      "      \"sha256\": \"d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291\",\n",
+      "      \"bytes\": 5127,\n",
+      "      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_three_engines/promotion.joblib\",\n",
+      "      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n",
+      "      \"bytes\": 179221,\n",
+      "      \"role\": \"active_source_model_retained_unchanged\",\n",
+      "      \"verify_for_replay\": true\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"models/decision_three_engines/validation_latest.json\",\n",
+      "      \"sha256\": \"de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73\",\n",
+      "      \"bytes\": 192258,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"requirements.txt\",\n",
+      "      \"sha256\": \"f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03\",\n",
+      "      \"bytes\": 142,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"scripts/publish_primary_profit_rankings.py\",\n",
+      "      \"sha256\": \"1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905\",\n",
+      "      \"bytes\": 81784,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"scripts/publish_primary_three_rank.py\",\n",
+      "      \"sha256\": \"5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98\",\n",
+      "      \"bytes\": 72320,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/auction_v3/__init__.py\",\n",
+      "      \"sha256\": \"1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8\",\n",
+      "      \"bytes\": 224,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/auction_v3/calibration.py\",\n",
+      "      \"sha256\": \"06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9\",\n",
+      "      \"bytes\": 6128,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/auction_v3/config.py\",\n",
+      "      \"sha256\": \"4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2\",\n",
+      "      \"bytes\": 5987,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/auction_v3/engine.py\",\n",
+      "      \"sha256\": \"68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8\",\n",
+      "      \"bytes\": 360360,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/auction_v3/promotion_model.py\",\n",
+      "      \"sha256\": \"af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170\",\n",
+      "      \"bytes\": 28552,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/data/tushare_minute.py\",\n",
+      "      \"sha256\": \"30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785\",\n",
+      "      \"bytes\": 23208,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/canonical_fingerprint.py\",\n",
+      "      \"sha256\": \"61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b\",\n",
+      "      \"bytes\": 14617,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/contracts.py\",\n",
+      "      \"sha256\": \"50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917\",\n",
+      "      \"bytes\": 2634,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/d_close_features.py\",\n",
+      "      \"sha256\": \"c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e\",\n",
+      "      \"bytes\": 4983,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/eligibility.py\",\n",
+      "      \"sha256\": \"31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7\",\n",
+      "      \"bytes\": 7767,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/executable_profit_shadow.py\",\n",
+      "      \"sha256\": \"872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c\",\n",
+      "      \"bytes\": 110633,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/exit_policy.py\",\n",
+      "      \"sha256\": \"4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f\",\n",
+      "      \"bytes\": 5040,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/legacy_profit_relative_research.py\",\n",
+      "      \"sha256\": \"eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2\",\n",
+      "      \"bytes\": 45098,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/observation.py\",\n",
+      "      \"sha256\": \"577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713\",\n",
+      "      \"bytes\": 7270,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/three_engine_models.py\",\n",
+      "      \"sha256\": \"9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c\",\n",
+      "      \"bytes\": 148112,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/three_rank.py\",\n",
+      "      \"sha256\": \"f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a\",\n",
+      "      \"bytes\": 80531,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/decision/trade_selector.py\",\n",
+      "      \"sha256\": \"7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858\",\n",
+      "      \"bytes\": 77709,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/probability_calibration.py\",\n",
+      "      \"sha256\": \"058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c\",\n",
+      "      \"bytes\": 10693,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"src/top10decision/writers/io_contract.py\",\n",
+      "      \"sha256\": \"80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97\",\n",
+      "      \"bytes\": 9897,\n",
+      "      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n",
+      "      \"verify_for_replay\": false\n",
+      "    },\n",
+      "    {\n",
+      "      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n",
+      "      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n",
+      "      \"bytes\": 981025,\n",
+      "      \"role\": \"active_source_model_retained_unchanged\",\n",
+      "      \"verify_for_replay\": true\n",
+      "    }\n",
+      "  ],\n",
+      "  \"limitations\": [\n",
+      "    \"The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.\",\n",
+      "    \"No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.\",\n",
+      "    \"P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.\",\n",
+      "    \"P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.\",\n",
+      "    \"Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.\",\n",
+      "    \"Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.\",\n",
+      "    \"Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.\",\n",
+      "    \"Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.\",\n",
+      "    \"Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores.\"\n",
+      "  ]\n",
+      "}\n"
+    ],
+    "changed_assets": {}
+  }
+}

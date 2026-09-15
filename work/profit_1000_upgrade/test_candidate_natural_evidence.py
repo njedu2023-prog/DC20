@@ -65,6 +65,28 @@ def materials(case):
     return result, raw, manifest, bodies
 
 
+def test_original_20260914_capsule_keeps_exact_bytes_with_reviewed_legacy_pair():
+    """Stored production evidence is replayed read-only, not regenerated."""
+    root = m.ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20260914"
+    raw = (root / "manifest.json").read_bytes()
+    manifest = m.gh.parse_json(raw)
+    assert (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == m.LEGACY_CAPTURE_CONTRACT
+    bodies = {b["path"]: (root / b["path"]).read_bytes() for b in manifest["files"]}
+    assert m.verify_materials(raw, bodies, expected_manifest_sha256=m.sha(raw)) == manifest
+    assert (root / "manifest.json").read_bytes() == raw
+    for name, body in bodies.items():
+        assert (root / name).read_bytes() == body
+
+
+def test_legacy_capture_cannot_mix_a_new_verifier_hash_with_old_capture_code():
+    root = m.ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20260914"
+    manifest = m.gh.parse_json((root / "manifest.json").read_bytes())
+    manifest["publication_verifier_sha256"] = m.PUBLICATION_SHA
+    raw = m.gh.json_bytes(manifest)
+    with pytest.raises(ValueError, match="CAPTURE_CODE_CONTRACT_CHANGED"):
+        m.verify_materials(raw, {}, expected_manifest_sha256=m.sha(raw))
+
+
 def test_complete_original_transport_preservation_test_only(case):
     result, raw, manifest, bodies = materials(case)
     assert result["status"] == "LOCAL_UNPUBLISHED_OBSERVATION_TEST_ONLY"

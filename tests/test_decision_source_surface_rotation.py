@@ -374,7 +374,13 @@ CANDIDATE_ACTIVATION_BASE_MANIFEST_SHA = "fe2422a3b6dff04f7ace96dde1c976731791a4
 CANDIDATE_ACTIVATION_BASE_INVENTORY_SHA = "a29a7ea9a32385599eef8aa6634e985ffefd8ca536669c936063926aa1b83133"
 
 
-def _candidate_activation_live_source(path: str) -> bytes:
+RELIABILITY_REVIEW = ROOT / "models/decision_source_surface_review_20260915_reliability.json"
+RELIABILITY_REVIEW_SHA = "9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9"
+RELIABILITY_BASE = "709317f8d0cf12fb726ae515230281dad255d0f4"
+RELIABILITY_SCOPE = "DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE"
+
+
+def _reliability_raw_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
     target = ROOT / path
@@ -382,6 +388,87 @@ def _candidate_activation_live_source(path: str) -> bytes:
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
     return target.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _parse_reliability_review(raw: bytes) -> dict:
+    return json.loads(raw)
+
+
+def _reliability_review() -> dict:
+    raw = _reliability_raw_source(RELIABILITY_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw).hexdigest() == RELIABILITY_REVIEW_SHA
+    review = _parse_reliability_review(raw)
+    assert review["schema_version"] == "decision_reliability_source_review_v1"
+    assert review["approved_base_commit"] == RELIABILITY_BASE
+    assert review["scope"] == RELIABILITY_SCOPE
+    assert review["boundaries"] == {
+        "model_weights_changed": False, "promotion_ranking_changed": False,
+        "frozen_days_or_ledger_rewritten": False, "entry_or_exit_policy_changed": False,
+        "source_validation_weakened": False, "actual_trading_enabled": False,
+    }
+    return review
+
+
+def _source_before_reliability(path: str) -> bytes:
+    current = _reliability_raw_source(path)
+    review = _reliability_review()
+    if path == "forward/model_inventory.json":
+        item = review["inventory_update"]
+        original = "".join(item["baseline_lines"]).encode()
+        assert hashlib.sha256(original).hexdigest() == item["baseline_sha256"]
+        expected = json.loads(original)
+        expected["dependency_successor_review"] = {
+            "path": RELIABILITY_REVIEW.relative_to(ROOT).as_posix(),
+            "sha256": RELIABILITY_REVIEW_SHA, "approved_base_commit": RELIABILITY_BASE,
+            "scope": RELIABILITY_SCOPE,
+        }
+        for asset in expected["assets"]:
+            if asset["path"] in item["changed_assets"]:
+                asset.update(item["changed_assets"][asset["path"]])
+        assert current == (json.dumps(expected, ensure_ascii=False, indent=2) + "\n").encode()
+        return original
+    item = next((x for x in review["source_changes"] if x["path"] == path), None)
+    return current if item is None else _candidate_activation_inverse(current, item)
+
+
+def _candidate_activation_live_source(path: str) -> bytes:
+    # Every prior review receives exactly its previously accepted source bytes.
+    # Current files and inverse hashes are reread on each use, never cached.
+    return _source_before_reliability(path)
+
+
+def test_reliability_repair_restores_exact_predecessor_and_preserves_model_policies():
+    review = _reliability_review()
+    original = json.loads(_source_before_reliability("models/decision_model_freeze.json"))
+    current = json.loads(_reliability_raw_source("models/decision_model_freeze.json"))
+    assert len(current["pinned_files"]) == len(original["pinned_files"]) == 233
+    assert set(current["pinned_files"]) == set(original["pinned_files"])
+    assert {k: v for k, v in current.items() if k != "pinned_files"} == {
+        k: v for k, v in original.items() if k != "pinned_files"}
+    for path, expected in current["pinned_files"].items():
+        assert hashlib.sha256(_reliability_raw_source(path)).hexdigest() == expected
+        assert hashlib.sha256(_source_before_reliability(path)).hexdigest() == original["pinned_files"][path]
+    for item in review["source_changes"]:
+        assert hashlib.sha256(_source_before_reliability(item["path"])).hexdigest() == item["baseline_sha256"]
+    for item in review["added_files"]:
+        raw = _reliability_raw_source(item["path"])
+        assert len(raw) == item["bytes"] and hashlib.sha256(raw).hexdigest() == item["sha256"]
+    _source_before_reliability("forward/model_inventory.json")
+
+
+@pytest.mark.parametrize("path", ["tests/test_compact_rank_statistics.py",
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+    "forward/model_inventory.json"])
+def test_reliability_inverse_rechecks_live_bytes_after_parse_cache(monkeypatch, path):
+    _source_before_reliability(path)
+    original = Path.read_bytes
+    def tampered(file):
+        raw = original(file)
+        return raw + b"\n" if file == ROOT / path else raw
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _source_before_reliability(path)
 
 
 @lru_cache(maxsize=1)
@@ -496,7 +583,15 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
     source = _candidate_activation_live_source(path)
     if path not in {*CANDIDATE_ACTIVATION_SOURCES, "forward/model_inventory.json"}:
         return source
-    review = _candidate_activation_review(review)
+    # Complete state audits enter through _state_before_candidate_activation,
+    # which checks every current pin, preserved review and added source. Each
+    # individual inverse still authenticates fresh review/source bytes without
+    # rescanning that entire inventory for every historical source lookup.
+    raw_review = _candidate_activation_live_source(CANDIDATE_ACTIVATION_REVIEW.relative_to(ROOT).as_posix())
+    assert hashlib.sha256(raw_review).hexdigest() == CANDIDATE_ACTIVATION_REVIEW_SHA
+    approved = _parse_candidate_activation_review(raw_review)
+    review = approved if review is None else review
+    assert review == approved
     if path in CANDIDATE_ACTIVATION_SOURCES:
         item = next(item for item in review["source_changes"] if item["path"] == path)
         return _candidate_activation_inverse(source, item)
@@ -566,6 +661,54 @@ def test_candidate_activation_changes_only_two_existing_test_version_labels():
         baseline = _source_before_candidate_activation(path)
         assert current.count(new) == baseline.count(old) == 1
         assert current.replace(new, old) == baseline
+
+
+@pytest.mark.parametrize("target", ["review", "source"])
+def test_candidate_activation_single_inverse_rechecks_bytes_after_cache_warmup(monkeypatch, target):
+    path = "decision.html"
+    baseline = _source_before_candidate_activation(path)
+    assert baseline
+    changed = CANDIDATE_ACTIVATION_REVIEW if target == "review" else ROOT / path
+    read_bytes = Path.read_bytes
+
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == changed else raw
+
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        _source_before_candidate_activation(path)
+
+
+def test_candidate_activation_single_inverse_rejects_mutated_review_without_poisoning_cache():
+    path = "decision.html"
+    baseline = _source_before_candidate_activation(path)
+    review = json.loads(CANDIDATE_ACTIVATION_REVIEW.read_bytes())
+    review["boundaries"]["promotion_model_changed"] = True
+    with pytest.raises(AssertionError):
+        _source_before_candidate_activation(path, review)
+    assert _source_before_candidate_activation(path) == baseline
+
+
+@pytest.mark.parametrize("entrypoint", [
+    "_state_before_historical_stats", "_state_before_replay_pin",
+    "_state_before_ci_partition", "_state_before_dev_yaml", "_state_before_exit1000",
+])
+@pytest.mark.parametrize("target", ["added_config", "old_review"])
+def test_historical_state_entry_rechecks_latest_activation_after_cache_warmup(monkeypatch, entrypoint, target):
+    audit = globals()[entrypoint]
+    audit()
+    changed = (ROOT / "models/decision_candidate_profit_activation_v1.json"
+               if target == "added_config" else HISTORICAL_STATS_REVIEW)
+    read_bytes = Path.read_bytes
+
+    def tampered(file):
+        raw = read_bytes(file)
+        return raw + b"\n" if file == changed else raw
+
+    monkeypatch.setattr(Path, "read_bytes", tampered)
+    with pytest.raises(AssertionError):
+        audit()
 
 
 def test_candidate_activation_does_not_freeze_mutable_natural_output_seed_bytes(monkeypatch):
@@ -731,6 +874,8 @@ def _source_before_historical_stats(path: str, review: dict | None = None) -> by
 def _state_before_historical_stats(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     if manifest is not None:
         manifest = _state_before_candidate_activation(manifest)[0]
+    else:
+        _state_before_candidate_activation()
     review = _historical_stats_review(review)
     live = json.loads(_historical_stats_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest
@@ -911,6 +1056,8 @@ def _source_before_replay_pin(path: str, review: dict | None = None) -> bytes:
 
 
 def _state_before_replay_pin(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is None:
+        _state_before_candidate_activation()
     review = _replay_pin_review(review)
     if manifest is not None:
         manifest = _state_before_historical_stats(manifest)[0]
@@ -1084,6 +1231,8 @@ def _source_before_ci_partition(path: str, review: dict | None = None) -> bytes:
 def _state_before_ci_partition(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     if manifest is not None:
         manifest = _state_before_replay_pin(manifest)[0]
+    else:
+        _state_before_candidate_activation()
     review = _ci_partition_review(review)
     live = json.loads(_ci_partition_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest
@@ -1248,6 +1397,8 @@ def _source_before_dev_yaml(path: str, review: dict | None = None) -> bytes:
 def _state_before_dev_yaml(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     if manifest is not None:
         manifest = _state_before_ci_partition(manifest)[0]
+    else:
+        _state_before_candidate_activation()
     review = _dev_yaml_review(review)
     live = json.loads(_dev_yaml_live_source("models/decision_model_freeze.json"))
     manifest = live if manifest is None else manifest
@@ -1388,6 +1539,8 @@ def _parse_exit1000_review(raw: bytes) -> dict:
 def _state_before_exit1000(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     if manifest is not None:
         manifest = _state_before_dev_yaml(manifest)[0]
+    else:
+        _state_before_candidate_activation()
     review = _exit1000_review(review)
     live_manifest = _exit1000_live_source("models/decision_model_freeze.json")
     manifest = json.loads(live_manifest) if manifest is None else manifest

@@ -82,6 +82,26 @@ def run(case):
     return m.verify_published_evidence(evidence_commit=COMMIT, observer_run_id=RUN_ID, github_client=case["client"])
 
 
+def test_exact_legacy_observer_context_and_code_pair_is_preserved():
+    root = m.ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20260914"
+    manifest = m.gh.parse_json((root / "manifest.json").read_bytes())
+    context = m.gh.parse_json((root / "context.json").read_bytes())
+    observation = m.gh.parse_json((root / manifest["native_observation"]["path"]).read_bytes())
+    original_run = {"id": context["observer_run_id"], "head_sha": context["code_head_sha"]}
+    m._context(context, original_run, manifest, observation)
+    local, _ = m.code_guard()
+    tree = {path: {"type": "blob", "mode": "100644", "sha": m.LEGACY_OBSERVER_BLOBS.get(path, m.gh.git_blob(raw))}
+        for path, raw in local.items()}
+    m.match_observer_code(tree, tree, local, manifest)
+    current_manifest = {**manifest, "capture_code_sha256": m.CAPTURE_SHA}
+    with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
+        m.match_observer_code(tree, tree, local, current_manifest)
+    changed = deepcopy(tree)
+    changed[m.OBSERVER_PATH]["sha"] = m.gh.git_blob(local[m.OBSERVER_PATH])
+    with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
+        m.match_observer_code(tree, changed, local, manifest)
+
+
 def rearchive(case):
     raw = f.zip_bytes(case["archive_files"], prefix=case["prefix"])
     case["client"].archives[98765] = raw

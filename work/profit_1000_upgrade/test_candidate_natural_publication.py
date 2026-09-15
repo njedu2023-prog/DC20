@@ -126,6 +126,25 @@ def run(case):
     return m.verify_publication(expected_freeze_run_id=RUN_ID, github_client=case["client"])
 
 
+def test_original_20260914_code_tree_accepts_only_exact_registered_legacy_workflow():
+    root = m.ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20260914"
+    manifest = m.gh.parse_json((root / "manifest.json").read_bytes())
+    responses = {entry["api_path"]: m.gh.parse_json((root / entry["retained_body"]["path"]).read_bytes())
+        for entry in manifest["http_observations"] if entry["kind"] == "API_JSON"}
+    run_api = m.gh.API_PREFIX + "/actions/runs/" + manifest["freeze_run_id"]
+    original = responses[run_api]
+    commit = responses[m.gh.API_PREFIX + "/git/commits/" + original["head_sha"]]
+    doc = responses[m.gh.API_PREFIX + "/git/trees/" + commit["tree"]["sha"] + "?recursive=1"]
+    tree = m.gh.validate_tree(doc, commit["tree"]["sha"])
+    local, _ = m.code_guard()
+    bound = m.match_publication_code(tree, tree, local)
+    assert next(b for b in bound if b["path"] == m.WORKFLOW_PATH) == m.LEGACY_WORKFLOW_BINDING
+    changed = deepcopy(tree)
+    changed[m.WORKFLOW_PATH]["sha"] = "0" * 40
+    with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
+        m.match_publication_code(tree, changed, local)
+
+
 @pytest.mark.parametrize("size,prefix", [(0, ""), (1, "dc20-candidate-natural-fixture/"), (2, ""), (10, "")])
 def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypatch, size, prefix):
     case = make_case(tmp_path, monkeypatch, size=size, prefix=prefix)

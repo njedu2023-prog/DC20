@@ -24,6 +24,8 @@ on:
       - "work/profit_1000_upgrade/test_candidate_natural_evidence*.py"
       - "work/profit_1000_upgrade/candidate_natural_observer.py"
       - "work/profit_1000_upgrade/test_candidate_natural_observer.py"
+      - "work/profit_1000_upgrade/candidate_natural_trigger_gate.py"
+      - "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py"
 
 permissions:
   contents: read
@@ -44,6 +46,11 @@ env:
 jobs:
   validate:
     name: Validate publication evidence preservation
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      needs_observer: ${{ steps.trigger.outputs.needs_work }}
     if: >-
       github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
       (github.event_name != 'workflow_run' ||
@@ -74,10 +81,19 @@ jobs:
           python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/test_candidate_natural_publication.py work/profit_1000_upgrade/test_candidate_natural_evidence.py work/profit_1000_upgrade/test_candidate_natural_evidence_git.py work/profit_1000_upgrade/test_candidate_natural_observer.py
           python scripts/validate_decision_model_freeze.py --root .
           test -z "$(git status --porcelain=v1)"
+      - name: Check whether the freeze trigger produced new candidate evidence
+        id: trigger
+        if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+          FREEZE_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.freeze_run_id }}
+        run: >-
+          python -m work.profit_1000_upgrade.candidate_natural_trigger_gate freeze
+          --run-id "$FREEZE_RUN_ID" --receipt "$RUNNER_TEMP/candidate-preflight.json"
   observe:
     name: Verify and preserve original publication evidence
     needs: validate
-    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') && needs.validate.outputs.needs_observer == 'true'
     permissions:
       actions: read
       contents: write

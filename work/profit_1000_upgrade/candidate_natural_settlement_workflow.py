@@ -23,17 +23,20 @@ WORKFLOW_NAME = "DC20 · Settle natural candidate research slots"
 REPOSITORY = "njedu2023-prog/DC20"
 OBSERVER_ID = 357027830
 MAX_DAYS, MAX_METADATA_BYTES, MAX_INDEX_DAYS = 4, 128*1024**2, 4096
+SHANGHAI = timezone(timedelta(hours=8))
+SCHEDULES = {"50 11 * * 1-5": (11, 50), "50 12 * * 1-5": (12, 50)}
+MAX_SCHEDULE_DELAY = timedelta(hours=12)
 SCHEMA = "dc20_candidate_natural_settlement_orchestration_v1"
 SNAPSHOT_PREFIX = "work/profit_1000_upgrade/candidate_natural_forward/"
 EVIDENCE_PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 JOURNAL_PREFIX = "work/profit_1000_upgrade/candidate_natural_journal/"
 PINS = {
-    "candidate_natural_evidence_publication": "ad20af8389798db6e78e7e44e8eac23925b1e317dd5920968d41579553ac5534",
+    "candidate_natural_evidence_publication": "ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb",
     "candidate_natural_outcome_collect": "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced",
     "candidate_natural_daily": "88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321",
     "candidate_natural_journal": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
     "candidate_natural_journal_git": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74",
-    "candidate_natural_statistics": "31e64f9f37cb4043c4955064c96421728d4dde9376c9c5a5a608082947e33995",
+    "candidate_natural_statistics": "8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6",
 }
 FLAGS = {"research_only": True, "production_activation_allowed": False,
     "source_authority_issued": False, "natural_outcome_admission_issued": False,
@@ -104,6 +107,9 @@ def execution_context(issuer):
     event_path = gh.path(os.environ.get("GITHUB_EVENT_PATH"))
     raw, identity = gh.read(event_path,2*1024**2)
     event = gh.parse_json(raw)
+    if event_name == "schedule":
+        require(type(event.get("schedule")) is str and event["schedule"] in SCHEDULES,
+            "EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED")
     if event_name == "workflow_run":
         source = event.get("workflow_run",{})
         require(type(source.get("id")) is int and source["id"] > 0
@@ -117,21 +123,55 @@ def execution_context(issuer):
             "EXACT_SUCCESSFUL_NON_PUSH_OBSERVER_EVENT_REQUIRED")
     return ({"repository":REPOSITORY,"branch":"main","run_id":int(run_id),"run_attempt":1,
         "code_head_sha":head,"workflow_path":WORKFLOW_PATH,"event_name":event_name,
+        "schedule":event.get("schedule") if event_name == "schedule" else None,
         "trigger_observer_run_id":event.get("workflow_run",{}).get("id") if event_name == "workflow_run" else None},
         (event_path,raw,identity))
 
 
-def completed_asof(calendar_raw, *, statistics, now):
+def scheduled_session(context, run, *, now):
+    """Bind a bounded delayed schedule to the already-verified GitHub run.
+
+    The cron and API creation/start timestamps locate the latest possible
+    occurrence; they do not make a calendar holiday a trading session. Manual
+    and observer events never gain previous-session access through this path.
+    """
+    if context["event_name"] != "schedule": return None
+    require(type(now) is datetime and now.tzinfo is not None, "HOST_AWARE_CLOCK_REQUIRED")
+    cron = context.get("schedule")
+    require(type(cron) is str and cron in SCHEDULES, "EXACT_AUTHORIZED_SETTLEMENT_SCHEDULE_REQUIRED")
+    timestamps = []
+    for field in ("created_at", "run_started_at"):
+        value = run.get(field)
+        require(type(value) is str and re.fullmatch(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value),
+            "REGISTERED_SCHEDULE_RUN_TIMESTAMPS_REQUIRED")
+        timestamps.append(datetime.fromisoformat(value.replace("Z", "+00:00")))
+    created, started = timestamps
+    require(created <= started <= now, "REGISTERED_SCHEDULE_RUN_TIMESTAMPS_INVALID")
+    hour, minute = SCHEDULES[cron]
+    scheduled = created.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if scheduled > created: scheduled -= timedelta(days=1)
+    while scheduled.weekday() >= 5: scheduled -= timedelta(days=1)
+    require(timedelta(0) <= now - scheduled <= MAX_SCHEDULE_DELAY,
+        "SCHEDULE_DELAY_EXCEEDS_BOUNDED_CATCHUP_WINDOW")
+    return scheduled
+
+
+def completed_asof(calendar_raw, *, statistics, now, scheduled_for=None):
     require(type(now) is datetime and now.tzinfo is not None, "HOST_AWARE_CLOCK_REQUIRED")
     dates = statistics._calendar(calendar_raw,statistics.labels.settlement.CALENDAR_SHA256)
-    today = now.astimezone(timezone(timedelta(hours=8))).strftime("%Y%m%d")
+    today = now.astimezone(SHANGHAI).strftime("%Y%m%d")
     require(dates[0] <= today <= dates[-1], "HOST_DATE_OUTSIDE_REVIEWED_CALENDAR")
-    # A before-open observer event or a weekday holiday must not become an
-    # invitation to collect a previous day's state. The next scheduled closed
-    # trading session performs the bounded catch-up for still-pending slots.
-    if today not in dates or statistics.labels._timestamp(statistics.labels._at(today,"15:00:00")) > now:
+    if scheduled_for is not None:
+        require(type(scheduled_for) is datetime and scheduled_for.tzinfo is not None
+            and timedelta(0) <= now - scheduled_for <= MAX_SCHEDULE_DELAY,
+            "BOUNDED_PAST_SCHEDULE_REQUIRED")
+    day = today if scheduled_for is None else scheduled_for.astimezone(SHANGHAI).strftime("%Y%m%d")
+    require(dates[0] <= day <= dates[-1], "SCHEDULE_DATE_OUTSIDE_REVIEWED_CALENDAR")
+    # Only a registered, bounded schedule can retain its intended trading date
+    # after midnight. Holidays never silently fall back to an older session.
+    if day not in dates or statistics.labels._timestamp(statistics.labels._at(day,"15:00:00")) > now:
         return None,dates
-    return today,dates
+    return day,dates
 
 
 def discover(tree, *, asof, dates):
@@ -362,7 +402,15 @@ def run_settlement(*,dry_run=True,work_parent, test_hooks=None):
     checkout=CheckoutReads(repo_root,tree,gh)
     calendar_path=str(statistics.labels.settlement.CALENDAR_PATH)
     calendar_raw=checkout.read(calendar_path,expected=statistics.labels.settlement.CALENDAR_SHA256,limit=2*1024**2)
-    now=clock();asof,dates=completed_asof(calendar_raw,statistics=statistics,now=now)
+    now=clock();scheduled_for=scheduled_session(context,run,now=now)
+    asof,dates=completed_asof(calendar_raw,statistics=statistics,now=now,scheduled_for=scheduled_for)
+    session_selection={"basis":"REGISTERED_SCHEDULE" if scheduled_for is not None else "HOST_CLOSED_TRADING_DATE",
+        "host_observed_at_utc":now.astimezone(timezone.utc).isoformat(),
+        "scheduled_for_utc":scheduled_for.isoformat() if scheduled_for is not None else None,
+        "run_created_at_utc":run.get("created_at") if scheduled_for is not None else None,
+        "run_started_at_utc":run.get("run_started_at") if scheduled_for is not None else None,
+        "delay_seconds":(now-scheduled_for).total_seconds() if scheduled_for is not None else None,
+        "max_schedule_delay_seconds":MAX_SCHEDULE_DELAY.total_seconds(),"as_of_date":asof}
     parent=gh.path(work_parent,directory=True)
     require(parent!=repo_root and repo_root not in parent.parents and parent not in repo_root.parents,"ISOLATED_ARTIFACT_PARENT_REQUIRED")
     artifact=Path(tempfile.mkdtemp(prefix="dc20-candidate-settlement-",dir=parent))
@@ -379,24 +427,28 @@ def run_settlement(*,dry_run=True,work_parent, test_hooks=None):
         current=clock()
         require(type(current) is datetime and current.tzinfo is not None and current>=now,
             "SETTLEMENT_HOST_CLOCK_MOVED_BACKWARDS")
-        require(current.astimezone(timezone(timedelta(hours=8))).date()==now.astimezone(timezone(timedelta(hours=8))).date(),
-            "SETTLEMENT_HOST_SESSION_CHANGED")
+        if scheduled_for is not None:
+            require(scheduled_session(context,run,now=current)==scheduled_for,"SETTLEMENT_SCHEDULE_SESSION_CHANGED")
+        else:
+            require(current.astimezone(SHANGHAI).date()==now.astimezone(SHANGHAI).date(),
+                "SETTLEMENT_HOST_SESSION_CHANGED")
     if asof is None:
         result={"schema_version":SCHEMA,"status":"NO_CLOSED_TRADING_SESSION_TODAY","as_of_date":None,
             "dry_run":dry_run,"test_only":injected,"context":context,"source_main_sha":current_sha,
+            "session_selection":session_selection,
             "selected_work_days":[],"processed":[],"recorded_successful_quote_calls":0,
             "git_writes":0,"work_root":str(artifact),"writer_sha256":SELF_SHA,"dependency_sha256":dict(PINS),**FLAGS}
         guard();retain("result.json",result);guard()
         return result
     indexed,future=discover(tree,asof=asof,dates=dates)
     rows=[metadata(r,checkout,modules,asof=asof,test_state_root=state_root) for r in indexed]
-    rotation=fair_rotation(now)
+    rotation=fair_rotation(scheduled_for if scheduled_for is not None else now)
     selected,covered=choose_work(rows,asof,rotation=rotation);selected_days={r["signal_date"] for r in selected}
     records=[];stats_inputs=[];quotes=0
     plan={"as_of_date":asof,"selected_work_days":sorted(selected_days),"covered_statistic_days":sorted(r["signal_date"] for r in covered),
         "all_indexed_days":[r["signal_date"] for r in rows],"ignored_future_paths":future,
         "planning_metadata_is_not_authority":True,"max_market_work_days":MAX_DAYS,
-        "fair_rotation_index":rotation,
+        "fair_rotation_index":rotation,"session_selection":session_selection,
         "days":[{"signal_date":r["signal_date"],"status":"MISSING_OBSERVER_CONTEXT_PENDING" if r["context"] is None else
             "SELECTED" if r in selected else r["planning_status"] if r in covered else "DEFERRED_BUDGET_NEXT_SCHEDULE"} for r in rows]}
     retain("plan.json",plan)
@@ -494,6 +546,7 @@ def run_settlement(*,dry_run=True,work_parent, test_hooks=None):
         "READ_ONLY_PREFLIGHT_COMPLETED" if dry_run else "NO_CONTEXT_BOUND_RESEARCH_DAYS" if not covered else
         "BOUNDED_RESEARCH_SETTLEMENT_COMPLETED",
         "as_of_date":asof,"dry_run":dry_run,"test_only":injected,"context":context,"source_main_sha":current_sha,
+        "session_selection":session_selection,
         "selected_work_days":sorted(selected_days),"processed":records,"recorded_successful_quote_calls":quotes,
         "unrecorded_failed_day_quote_calls_possible":failed,"statistics_sha256":statistics_sha,"work_root":str(artifact),
         "max_market_work_days":MAX_DAYS,"max_quote_calls_per_day":96,"max_quote_calls_per_run":MAX_DAYS*96,

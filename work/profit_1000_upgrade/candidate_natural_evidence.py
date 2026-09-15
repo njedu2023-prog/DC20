@@ -22,7 +22,11 @@ import zipfile
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322"
+PUBLICATION_SHA = "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932"
+LEGACY_CAPTURE_CONTRACT = (
+    "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
+    "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
+)
 SCHEMA = "dc20_candidate_natural_durable_evidence_v1"
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
@@ -199,7 +203,8 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         and type(manifest.get("test_transport_injected")) is bool, "UNPUBLISHED_EVIDENCE_SCHEMA_REQUIRED")
     for key, expected in FLAGS.items():
         publication.natural.scorer._exact(manifest.get(key), expected, "LOCAL_EVIDENCE_CANNOT_GRANT_AUTHORITY")
-    require(manifest.get("capture_code_sha256") == SELF_SHA and manifest.get("publication_verifier_sha256") == PUBLICATION_SHA,
+    require((manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
+        in (LEGACY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA)),
         "CAPTURE_CODE_CONTRACT_CHANGED")
     day = gh.date(manifest.get("signal_date"))
     require(day >= "20260914", "EVIDENCE_NATURAL_START_REQUIRED")
@@ -223,7 +228,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     observation = _safe_body(body(manifest["native_observation"]))
     require(observation.get("schema_version") == publication.SCHEMA and observation.get("freeze_run_id") == int(manifest["freeze_run_id"])
         and observation.get("signal_date") == day and observation.get("snapshot_file_sha256") == manifest["snapshot_file_sha256"]
-        and observation.get("verifier_sha256") == PUBLICATION_SHA
+        and observation.get("verifier_sha256") == manifest["publication_verifier_sha256"]
         and observation.get("research_prospective_publication_observed") is True
         and observation.get("injected_client_for_test") is False, "ORIGINAL_PUBLICATION_OBSERVATION_CHANGED")
     records = manifest.get("http_observations")
