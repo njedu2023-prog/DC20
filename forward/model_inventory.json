@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "2a44ae95f352280d1c9d29dc218037dc3a65a128a41053727029755383ae0ad0",
+      "sha256": "73134d61e7609bd3cdc7bc949ddf21dc863c8fc915e311cd6ee51bcebd075ce0",
       "bytes": 52661,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
@@ -331,5 +331,9 @@
     "Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.",
     "Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.",
     "Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores."
-  ]
+  ],
+  "navigation_source_review": {
+    "path": "models/decision_source_surface_review_20260915_navigation.json",
+    "sha256": "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d"
+  }
 }

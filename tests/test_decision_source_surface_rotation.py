@@ -380,6 +380,72 @@ RELIABILITY_BASE = "709317f8d0cf12fb726ae515230281dad255d0f4"
 RELIABILITY_SCOPE = "DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE"
 
 
+HOME_LINK_REVIEW_PATH = "models/decision_source_surface_review_20260915_navigation.json"
+HOME_LINK_REVIEW_SHA = "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d"
+
+
+def _home_link_raw_source(path: str) -> bytes:
+    target = ROOT / path
+    assert not Path(path).is_absolute() and ".." not in Path(path).parts
+    assert ROOT in target.resolve().parents and not target.is_symlink()
+    return target.read_bytes()
+
+
+def _home_link_review():
+    raw = _home_link_raw_source(HOME_LINK_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == HOME_LINK_REVIEW_SHA
+    review = json.loads(raw)
+    assert review["schema_version"] == "decision_navigation_source_review_v1"
+    assert review["scope"] == "REMOVE_LEGACY_HOME_LINK_ONLY"
+    assert review["approved_base_commit"] == "57e9b975edaa30f21c3cb44ed77b5979721cf643"
+    assert [x["path"] for x in review["source_changes"]] == [
+        "decision.html", "models/decision_model_freeze.json", "tests/test_compact_rank_statistics.py"]
+    return review
+
+
+def _source_before_home_link(path: str) -> bytes:
+    current = _home_link_raw_source(path)
+    review = _home_link_review()
+    if path == "forward/model_inventory.json":
+        original = review["inventory_baseline"].encode()
+        expected = json.loads(original)
+        manifest = _home_link_raw_source("models/decision_model_freeze.json")
+        for asset in expected["assets"]:
+            if asset["path"] == "models/decision_model_freeze.json":
+                asset.update(sha256=hashlib.sha256(manifest).hexdigest(), bytes=len(manifest))
+        expected["navigation_source_review"] = {"path": HOME_LINK_REVIEW_PATH, "sha256": HOME_LINK_REVIEW_SHA}
+        assert current == (json.dumps(expected, ensure_ascii=False, indent=2) + "\n").encode()
+        return original
+    item = next((x for x in review["source_changes"] if x["path"] == path), None)
+    return current if item is None else _candidate_activation_inverse(current, {
+        **item, "baseline_exists": True, "reason": "Remove only the legacy homepage navigation link"})
+
+
+def test_home_link_removal_preserves_all_other_frozen_sources():
+    before = json.loads(_source_before_home_link("models/decision_model_freeze.json"))
+    current = json.loads(_home_link_raw_source("models/decision_model_freeze.json"))
+    expected = json.loads(json.dumps(before))
+    expected["pinned_files"]["decision.html"] = hashlib.sha256(_home_link_raw_source("decision.html")).hexdigest()
+    assert current == expected
+    for path, digest in current["pinned_files"].items():
+        assert hashlib.sha256(_home_link_raw_source(path)).hexdigest() == digest
+    before_html = _source_before_home_link("decision.html")
+    assert _home_link_raw_source("decision.html") == before_html.replace(
+        '      <a href="?view=research">研究归档</a>\n'.encode(), b'')
+    for item in _home_link_review()["source_changes"]:
+        _source_before_home_link(item["path"])
+    _source_before_home_link("forward/model_inventory.json")
+
+
+@pytest.mark.parametrize("path", ["decision.html", "models/decision_model_freeze.json", "forward/model_inventory.json"])
+def test_home_link_review_rejects_tampering(monkeypatch, path):
+    _source_before_home_link(path)
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, "read_bytes", lambda p: read(p) + (b"\n" if p == ROOT / path else b""))
+    with pytest.raises(AssertionError):
+        _source_before_home_link(path)
+
+
 def _reliability_raw_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
@@ -387,7 +453,7 @@ def _reliability_raw_source(path: str) -> bytes:
     assert ROOT in target.resolve().parents
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
-    return target.read_bytes()
+    return _source_before_home_link(path)
 
 
 @lru_cache(maxsize=1)
