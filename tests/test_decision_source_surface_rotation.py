@@ -384,11 +384,87 @@ HOME_LINK_REVIEW_PATH = "models/decision_source_surface_review_20260915_navigati
 HOME_LINK_REVIEW_SHA = "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d"
 
 
+OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_observation.json"
+OBS_ISOLATION_REVIEW_SHA = "5e89300ba8a178271188d4dbb7e2f44c53b5e04efa127a555ccc16177b09f895"
+
+
+def _obs_actual_source(path):
+    target = ROOT / path
+    assert isinstance(path, str) and not Path(path).is_absolute()
+    assert all(p not in ("..", ".", "") for p in path.split("/"))
+    assert ROOT in target.resolve().parents
+    assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
+    return target.read_bytes()
+
+
+def _obs_review():
+    raw = _obs_actual_source(OBS_ISOLATION_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == OBS_ISOLATION_REVIEW_SHA
+    r = json.loads(raw)
+    assert r["schema_version"] == "decision_observation_isolation_review_v1"
+    assert r["approved_base_commit"] == "4145a651ca56356c4cba96fa468446316a1b0cbd"
+    assert [x["path"] for x in r["source_changes"]] == [".github/workflows/verify_decision_observations.yml", "models/decision_model_freeze.json"]
+    return r
+
+
+def _source_before_obs_isolation(path):
+    raw = _obs_actual_source(path); r = _obs_review()
+    if path == "forward/model_inventory.json":
+        original = r["inventory_baseline"].encode(); expected = json.loads(original)
+        m = _obs_actual_source("models/decision_model_freeze.json")
+        for asset in expected["assets"]:
+            if asset["path"] == "models/decision_model_freeze.json":
+                asset.update(sha256=hashlib.sha256(m).hexdigest(), bytes=len(m))
+        expected["observation_source_review"] = {"path": OBS_ISOLATION_REVIEW_PATH, "sha256": OBS_ISOLATION_REVIEW_SHA}
+        assert raw == (json.dumps(expected, ensure_ascii=False, indent=2) + "\n").encode()
+        return original
+    item = next((x for x in r["source_changes"] if x["path"] == path), None)
+    return raw if item is None else _candidate_activation_inverse(raw, item)
+
+
+def test_observation_isolation_preserves_all_active_pins_and_models():
+    before = json.loads(_source_before_obs_isolation("models/decision_model_freeze.json"))
+    current = json.loads(_obs_actual_source("models/decision_model_freeze.json"))
+    expected = copy.deepcopy(before)
+    path = ".github/workflows/verify_decision_observations.yml"
+    expected["pinned_files"][path] = hashlib.sha256(_obs_actual_source(path)).hexdigest()
+    assert current == expected and len(current["pinned_files"]) == 233
+    for p, digest in current["pinned_files"].items():
+        assert hashlib.sha256(_obs_actual_source(p)).hexdigest() == digest
+    _source_before_obs_isolation("forward/model_inventory.json")
+    for item in _obs_review()["source_changes"]:
+        _source_before_obs_isolation(item["path"])
+
+
+def test_observation_isolation_retires_only_legacy_settlement_step():
+    path = ".github/workflows/verify_decision_observations.yml"
+    before = _source_before_obs_isolation(path).decode()
+    current = _obs_actual_source(path).decode()
+    marker = "      - name: Settle immutable executable-profit Shadow truth and project exact as-of\n"
+    original = marker + "        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' }}\n"
+    replacement = marker + (
+        "        # Retired by user: the active candidate has its own versioned settlement.\n"
+        "        # Keep historical files immutable; never let old Shadow block P0 truth.\n"
+        "        if: ${{ false }}\n")
+    assert before.count(original) == 1
+    assert current == before.replace(original, replacement)
+    assert "python scripts/settle_primary_observations.py" in current
+
+
+@pytest.mark.parametrize("path", [".github/workflows/verify_decision_observations.yml", "models/decision_model_freeze.json", "forward/model_inventory.json"])
+def test_observation_isolation_rejects_tampering(monkeypatch, path):
+    _source_before_obs_isolation(path)
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, "read_bytes", lambda p: read(p) + (b"\n" if p == ROOT / path else b""))
+    with pytest.raises(AssertionError):
+        _source_before_obs_isolation(path)
+
+
 def _home_link_raw_source(path: str) -> bytes:
     target = ROOT / path
     assert not Path(path).is_absolute() and ".." not in Path(path).parts
     assert ROOT in target.resolve().parents and not target.is_symlink()
-    return target.read_bytes()
+    return _source_before_obs_isolation(path)
 
 
 def _home_link_review():
@@ -684,6 +760,13 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
 def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
     review = _candidate_activation_review(review)
     live = json.loads(_candidate_activation_live_source("models/decision_model_freeze.json"))
+    if manifest is not None and manifest != live:
+        assert manifest == json.loads(_obs_actual_source("models/decision_model_freeze.json"))
+        for path, digest in manifest["pinned_files"].items():
+            assert hashlib.sha256(_obs_actual_source(path)).hexdigest() == digest
+        # The byte-level inverses above verify both before/after hashes.
+        restored_successor = _candidate_activation_live_source("models/decision_model_freeze.json")
+        manifest = json.loads(restored_successor)
     manifest = live if manifest is None else manifest
     assert manifest == live and len(manifest["pinned_files"]) == 233
     restored = json.loads(_source_before_candidate_activation("models/decision_model_freeze.json", review))

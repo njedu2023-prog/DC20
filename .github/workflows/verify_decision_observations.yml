@@ -671,7 +671,9 @@ jobs:
           python scripts/settle_primary_observations.py --root . --as-of-date "${AS_OF_DATE}"
           python scripts/settle_primary_observations.py --root . --as-of-date "${AS_OF_DATE}" --validate-existing
       - name: Settle immutable executable-profit Shadow truth and project exact as-of
-        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' }}
+        # Retired by user: the active candidate has its own versioned settlement.
+        # Keep historical files immutable; never let old Shadow block P0 truth.
+        if: ${{ false }}
         env:
           AS_OF_DATE: ${{ steps.session.outputs.as_of_date }}
           PYTHONPATH: ${{ github.workspace }}/src
