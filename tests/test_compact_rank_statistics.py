@@ -480,7 +480,11 @@ def test_complete_script_parses_and_main_has_no_duplicate_statistic_cards():
     assert result.returncode == 0, result.stderr
     assert 'id="historicalResearchDetails" hidden' in source
     assert 'id="technicalDetails" hidden' in source
-    assert 'href="?view=research"' in source
+    assert 'href="?view=research"' not in source
+    navigation = re.search(r'<nav class="workspace-nav".*?</nav>', source, re.S).group(0)
+    assert re.findall(r'href="([^"]+)"', navigation) == [
+        "#rankingWorkspace", "#compactLedger", "#compactStatistics"
+    ]
 
 
 def test_full_production_script_validates_real_frozen_contracts_not_a_stub():
