@@ -646,7 +646,7 @@ jobs:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: |
           set -euo pipefail
-          python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date "${AS_OF_DATE}" \
+          python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date "${AS_OF_DATE}" --primary-only \
             --report "${RUNNER_TEMP}/verify-exit-1000-minute-sync.json"
       - name: Settle observation truth without changing action ownership
         if: ${{ steps.session.outputs.is_open == 'true' && steps.forecast_gate.outputs.contract_mode == 'LEGACY_AUCTION' }}

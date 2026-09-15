@@ -62,7 +62,7 @@ def validated_written_paths(root: Path, report: dict, as_of_date: str) -> list[s
     return sorted(expected)
 
 
-def required_partitions(root: Path, as_of_date: str) -> set[tuple[str, str]]:
+def required_partitions(root: Path, as_of_date: str, *, include_legacy: bool = True) -> set[tuple[str, str]]:
     from scripts.settle_primary_observations import plan_exit_minute_requests
     from top10decision.decision.executable_profit_shadow_settlement import (
         _resolve_public_exit_1000, _strict_as_of_date, _strict_open_dates,
@@ -75,7 +75,8 @@ def required_partitions(root: Path, as_of_date: str) -> set[tuple[str, str]]:
         return set()
     required = {(row["trade_date"], row["ts_code"])
                 for row in plan_exit_minute_requests(root, as_of_date)}
-    for path in sorted((root / "data/decision_executable_profit/forward/selections").glob("shadow_*.json")):
+    legacy_paths = sorted((root / "data/decision_executable_profit/forward/selections").glob("shadow_*.json")) if include_legacy else []
+    for path in legacy_paths:
         match = re.fullmatch(r"shadow_(20\d{6})\.json", path.name)
         if match is None:
             raise ValueError("invalid frozen Shadow selection filename")
@@ -109,11 +110,11 @@ def required_partitions(root: Path, as_of_date: str) -> set[tuple[str, str]]:
     return required
 
 
-def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_requests: int = MAX_REQUESTS) -> dict:
+def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_requests: int = MAX_REQUESTS, primary_only: bool = False) -> dict:
     root = root.resolve(strict=True)
     if type(max_requests) is not int or not 1 <= max_requests <= MAX_REQUESTS:
         raise ValueError("minute request budget is invalid")
-    plan = required_partitions(root, as_of_date)
+    plan = required_partitions(root, as_of_date, include_legacy=False) if primary_only else required_partitions(root, as_of_date)
     result = {"schema_version": REPORT_SCHEMA, "as_of_date": as_of_date,
               "effective_scheduled_exit_date": EFFECTIVE_EXIT_DATE,
               "selection_created": False, "existing_truth_overwritten": False,
@@ -178,8 +179,9 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--as-of-date", required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--primary-only", action="store_true", help="Collect primary observation exits without retired legacy Shadow dependencies")
     args = parser.parse_args()
-    report = sync_missing_minutes(args.root, args.as_of_date)
+    report = sync_missing_minutes(args.root, args.as_of_date, primary_only=args.primary_only)
     text = json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n"
     args.report.write_text(text, encoding="utf-8")
     print(text, end="")

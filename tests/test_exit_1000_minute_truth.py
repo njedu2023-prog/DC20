@@ -285,6 +285,22 @@ def test_before_policy_cutover_no_minute_request_or_p0_evaluation(plan_inputs, m
     assert calls == []
 
 
+def test_primary_only_never_reads_conflicting_retired_shadow(plan_inputs, monkeypatch):
+    root, settlement, _, calls = plan_inputs
+    monkeypatch.setattr(settlement, "build_t_verification", lambda *a, **kw: pytest.fail("retired Shadow read"))
+    assert sync.required_partitions(root, "20260916", include_legacy=False) == {("20260915", "000003.SZ")}
+    assert calls == []
+
+
+def test_primary_only_preserves_primary_source_errors(plan_inputs, monkeypatch):
+    root, _, p0, _ = plan_inputs
+    def fail(*a):
+        raise ValueError("primary source conflict")
+    monkeypatch.setattr(p0, "plan_exit_minute_requests", fail)
+    with pytest.raises(ValueError, match="primary source conflict"):
+        sync.required_partitions(root, "20260916", include_legacy=False)
+
+
 def test_bad_frozen_or_entry_binding_cannot_be_silently_used_for_collection(plan_inputs, monkeypatch):
     root, settlement, _, _ = plan_inputs
     def fail(*a, **kw):

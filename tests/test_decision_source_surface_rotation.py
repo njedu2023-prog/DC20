@@ -384,8 +384,8 @@ HOME_LINK_REVIEW_PATH = "models/decision_source_surface_review_20260915_navigati
 HOME_LINK_REVIEW_SHA = "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d"
 
 
-OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_observation.json"
-OBS_ISOLATION_REVIEW_SHA = "5e89300ba8a178271188d4dbb7e2f44c53b5e04efa127a555ccc16177b09f895"
+OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_observation_v2.json"
+OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
 def _obs_actual_source(path):
@@ -403,7 +403,7 @@ def _obs_review():
     r = json.loads(raw)
     assert r["schema_version"] == "decision_observation_isolation_review_v1"
     assert r["approved_base_commit"] == "4145a651ca56356c4cba96fa468446316a1b0cbd"
-    assert [x["path"] for x in r["source_changes"]] == [".github/workflows/verify_decision_observations.yml", "models/decision_model_freeze.json"]
+    assert [x["path"] for x in r["source_changes"]] == [".github/workflows/verify_decision_observations.yml", "models/decision_model_freeze.json", "scripts/sync_exit_1000_minute_truth.py", "tests/test_exit_1000_minute_truth.py"]
     return r
 
 
@@ -428,6 +428,7 @@ def test_observation_isolation_preserves_all_active_pins_and_models():
     expected = copy.deepcopy(before)
     path = ".github/workflows/verify_decision_observations.yml"
     expected["pinned_files"][path] = hashlib.sha256(_obs_actual_source(path)).hexdigest()
+    expected["pinned_files"]["scripts/sync_exit_1000_minute_truth.py"] = hashlib.sha256(_obs_actual_source("scripts/sync_exit_1000_minute_truth.py")).hexdigest()
     assert current == expected and len(current["pinned_files"]) == 233
     for p, digest in current["pinned_files"].items():
         assert hashlib.sha256(_obs_actual_source(p)).hexdigest() == digest
@@ -447,7 +448,10 @@ def test_observation_isolation_retires_only_legacy_settlement_step():
         "        # Keep historical files immutable; never let old Shadow block P0 truth.\n"
         "        if: ${{ false }}\n")
     assert before.count(original) == 1
-    assert current == before.replace(original, replacement)
+    expected = before.replace(original, replacement)
+    command = 'python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date "${AS_OF_DATE}"'
+    assert expected.count(command) == 1
+    assert current == expected.replace(command, command + " --primary-only")
     assert "python scripts/settle_primary_observations.py" in current
 
 

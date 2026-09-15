@@ -1,0 +1,175 @@
+{
+  "schema_version": "decision_observation_isolation_review_v1",
+  "approved_base_commit": "4145a651ca56356c4cba96fa468446316a1b0cbd",
+  "source_changes": [
+    {
+      "path": ".github/workflows/verify_decision_observations.yml",
+      "reason": "Retire only legacy dependencies; keep all primary and new-model truth checks",
+      "baseline_exists": true,
+      "baseline_sha256": "3c7fb2a0ed0efa40a94c3e3e90d6f281d5d0344dfbf944201ab1f51fa7a1f6cb",
+      "current_sha256": "73f745b6fc7f520d28cc0fd094784fe158aaacb2a54998ed2d2826875c3c9199",
+      "baseline_bytes": 79889,
+      "current_bytes": 79985,
+      "inverse_changes": [
+        {
+          "baseline_start": 649,
+          "current_start": 649,
+          "baseline_lines": [
+            "          python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date \"${AS_OF_DATE}\" \\\n"
+          ],
+          "current_lines": [
+            "          python scripts/sync_exit_1000_minute_truth.py --root . --as-of-date \"${AS_OF_DATE}\" --primary-only \\\n"
+          ]
+        },
+        {
+          "baseline_start": 674,
+          "current_start": 674,
+          "baseline_lines": [
+            "        if: ${{ steps.session.outputs.is_open == 'true' && steps.truth_sync.outputs.complete == 'true' }}\n"
+          ],
+          "current_lines": [
+            "        # Retired by user: the active candidate has its own versioned settlement.\n",
+            "        # Keep historical files immutable; never let old Shadow block P0 truth.\n",
+            "        if: ${{ false }}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "reason": "Retire only legacy dependencies; keep all primary and new-model truth checks",
+      "baseline_exists": true,
+      "baseline_sha256": "73134d61e7609bd3cdc7bc949ddf21dc863c8fc915e311cd6ee51bcebd075ce0",
+      "current_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
+      "baseline_bytes": 52661,
+      "current_bytes": 52661,
+      "inverse_changes": [
+        {
+          "baseline_start": 642,
+          "current_start": 642,
+          "baseline_lines": [
+            "    \".github/workflows/verify_decision_observations.yml\": \"3c7fb2a0ed0efa40a94c3e3e90d6f281d5d0344dfbf944201ab1f51fa7a1f6cb\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/verify_decision_observations.yml\": \"73f745b6fc7f520d28cc0fd094784fe158aaacb2a54998ed2d2826875c3c9199\",\n"
+          ]
+        },
+        {
+          "baseline_start": 858,
+          "current_start": 858,
+          "baseline_lines": [
+            "    \"scripts/sync_exit_1000_minute_truth.py\": \"bb7f213c99ebec393ed2d861c0233d2bb36e6ad4b1686de175eb4c5464145751\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/sync_exit_1000_minute_truth.py\": \"2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/sync_exit_1000_minute_truth.py",
+      "reason": "Retire only legacy dependencies; keep all primary and new-model truth checks",
+      "baseline_exists": true,
+      "baseline_sha256": "bb7f213c99ebec393ed2d861c0233d2bb36e6ad4b1686de175eb4c5464145751",
+      "current_sha256": "2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce",
+      "baseline_bytes": 9252,
+      "current_bytes": 9631,
+      "inverse_changes": [
+        {
+          "baseline_start": 65,
+          "current_start": 65,
+          "baseline_lines": [
+            "def required_partitions(root: Path, as_of_date: str) -> set[tuple[str, str]]:\n"
+          ],
+          "current_lines": [
+            "def required_partitions(root: Path, as_of_date: str, *, include_legacy: bool = True) -> set[tuple[str, str]]:\n"
+          ]
+        },
+        {
+          "baseline_start": 78,
+          "current_start": 78,
+          "baseline_lines": [
+            "    for path in sorted((root / \"data/decision_executable_profit/forward/selections\").glob(\"shadow_*.json\")):\n"
+          ],
+          "current_lines": [
+            "    legacy_paths = sorted((root / \"data/decision_executable_profit/forward/selections\").glob(\"shadow_*.json\")) if include_legacy else []\n",
+            "    for path in legacy_paths:\n"
+          ]
+        },
+        {
+          "baseline_start": 112,
+          "current_start": 113,
+          "baseline_lines": [
+            "def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_requests: int = MAX_REQUESTS) -> dict:\n"
+          ],
+          "current_lines": [
+            "def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_requests: int = MAX_REQUESTS, primary_only: bool = False) -> dict:\n"
+          ]
+        },
+        {
+          "baseline_start": 116,
+          "current_start": 117,
+          "baseline_lines": [
+            "    plan = required_partitions(root, as_of_date)\n"
+          ],
+          "current_lines": [
+            "    plan = required_partitions(root, as_of_date, include_legacy=False) if primary_only else required_partitions(root, as_of_date)\n"
+          ]
+        },
+        {
+          "baseline_start": 181,
+          "current_start": 182,
+          "baseline_lines": [],
+          "current_lines": [
+            "    parser.add_argument(\"--primary-only\", action=\"store_true\", help=\"Collect primary observation exits without retired legacy Shadow dependencies\")\n"
+          ]
+        },
+        {
+          "baseline_start": 182,
+          "current_start": 184,
+          "baseline_lines": [
+            "    report = sync_missing_minutes(args.root, args.as_of_date)\n"
+          ],
+          "current_lines": [
+            "    report = sync_missing_minutes(args.root, args.as_of_date, primary_only=args.primary_only)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_exit_1000_minute_truth.py",
+      "reason": "Retire only legacy dependencies; keep all primary and new-model truth checks",
+      "baseline_exists": true,
+      "baseline_sha256": "ae5cf2be8cd7714ef23ffb43e6bf6aebae7c553fb626f75c2ec3a06a97c725ff",
+      "current_sha256": "e12047ff0fb092050573046dff6c7a72ce75f5e68a71c5d4641ed36a3317b112",
+      "baseline_bytes": 20797,
+      "current_bytes": 21566,
+      "inverse_changes": [
+        {
+          "baseline_start": 288,
+          "current_start": 288,
+          "baseline_lines": [],
+          "current_lines": [
+            "def test_primary_only_never_reads_conflicting_retired_shadow(plan_inputs, monkeypatch):\n",
+            "    root, settlement, _, calls = plan_inputs\n",
+            "    monkeypatch.setattr(settlement, \"build_t_verification\", lambda *a, **kw: pytest.fail(\"retired Shadow read\"))\n",
+            "    assert sync.required_partitions(root, \"20260916\", include_legacy=False) == {(\"20260915\", \"000003.SZ\")}\n",
+            "    assert calls == []\n",
+            "\n",
+            "\n",
+            "def test_primary_only_preserves_primary_source_errors(plan_inputs, monkeypatch):\n",
+            "    root, _, p0, _ = plan_inputs\n",
+            "    def fail(*a):\n",
+            "        raise ValueError(\"primary source conflict\")\n",
+            "    monkeypatch.setattr(p0, \"plan_exit_minute_requests\", fail)\n",
+            "    with pytest.raises(ValueError, match=\"primary source conflict\"):\n",
+            "        sync.required_partitions(root, \"20260916\", include_legacy=False)\n",
+            "\n",
+            "\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "inventory_baseline": "{\n  \"schema_version\": \"dc20_forward_model_inventory_v1\",\n  \"source_repository\": \"njedu2023-prog/DC20\",\n  \"source_commit\": \"15423ced302ab19b17f459fb3006e0af2b764f24\",\n  \"status\": \"INACTIVE_MIGRATION_REPLAY_ONLY\",\n  \"dependency_successor_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_reliability.json\",\n    \"sha256\": \"9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9\",\n    \"approved_base_commit\": \"709317f8d0cf12fb726ae515230281dad255d0f4\",\n    \"scope\": \"DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE\"\n  },\n  \"active_source_models\": {\n    \"promotion\": {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"role\": \"promotion_hgb_with_frozen_preprocessing_and_platt_calibration\",\n      \"feature_columns_sha256\": \"9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425\"\n    },\n    \"profit\": {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"role\": \"uncalibrated_fill_and_conditional_profit_research_heads\",\n      \"feature_columns_sha256\": \"a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048\",\n      \"feature_count\": 156,\n      \"release_status\": \"INTERNAL_CHALLENGER_NOT_READY\"\n    }\n  },\n  \"assets\": [\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_daily_stage_board.csv\",\n      \"sha256\": \"d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909\",\n      \"bytes\": 104013,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_event_features.csv.gz\",\n      \"sha256\": \"57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e\",\n      \"bytes\": 627667,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_executable_profit/historical_oof_top10_ledger_manifest.json\",\n      \"sha256\": \"3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5\",\n      \"bytes\": 12184,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_ledger_manifest.json\",\n      \"sha256\": \"35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034\",\n      \"bytes\": 7564,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_supervised_ledger.csv.gz\",\n      \"sha256\": \"7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46\",\n      \"bytes\": 4764361,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib\",\n      \"sha256\": \"9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6\",\n      \"bytes\": 7703,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib\",\n      \"sha256\": \"1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06\",\n      \"bytes\": 3413205,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib\",\n      \"sha256\": \"0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3\",\n      \"bytes\": 3423122,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib\",\n      \"sha256\": \"72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b\",\n      \"bytes\": 178906,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/market/trade_cal_sse.csv\",\n      \"sha256\": \"150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748\",\n      \"bytes\": 61411,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_executable_profit_internal_forward_challenger.json\",\n      \"sha256\": \"487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af\",\n      \"bytes\": 6878,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_model_freeze.json\",\n      \"sha256\": \"73134d61e7609bd3cdc7bc949ddf21dc863c8fc915e311cd6ee51bcebd075ce0\",\n      \"bytes\": 52661,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_forward_shadow_bridge_contract.json\",\n      \"sha256\": \"2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623\",\n      \"bytes\": 4023,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_research_contract.json\",\n      \"sha256\": \"3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780\",\n      \"bytes\": 3470,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/big_loss.joblib\",\n      \"sha256\": \"ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b\",\n      \"bytes\": 8998,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/p_fill_shadow.joblib\",\n      \"sha256\": \"69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24\",\n      \"bytes\": 9435,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/profit.joblib\",\n      \"sha256\": \"d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291\",\n      \"bytes\": 5127,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"bytes\": 179221,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/validation_latest.json\",\n      \"sha256\": \"de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73\",\n      \"bytes\": 192258,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"requirements.txt\",\n      \"sha256\": \"f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03\",\n      \"bytes\": 142,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_profit_rankings.py\",\n      \"sha256\": \"1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905\",\n      \"bytes\": 81784,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_three_rank.py\",\n      \"sha256\": \"5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98\",\n      \"bytes\": 72320,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/__init__.py\",\n      \"sha256\": \"1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8\",\n      \"bytes\": 224,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/calibration.py\",\n      \"sha256\": \"06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9\",\n      \"bytes\": 6128,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/config.py\",\n      \"sha256\": \"4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2\",\n      \"bytes\": 5987,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/engine.py\",\n      \"sha256\": \"68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8\",\n      \"bytes\": 360360,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/promotion_model.py\",\n      \"sha256\": \"af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170\",\n      \"bytes\": 28552,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/data/tushare_minute.py\",\n      \"sha256\": \"30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785\",\n      \"bytes\": 23208,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/canonical_fingerprint.py\",\n      \"sha256\": \"61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b\",\n      \"bytes\": 14617,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/contracts.py\",\n      \"sha256\": \"50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917\",\n      \"bytes\": 2634,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/d_close_features.py\",\n      \"sha256\": \"c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e\",\n      \"bytes\": 4983,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/eligibility.py\",\n      \"sha256\": \"31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7\",\n      \"bytes\": 7767,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/executable_profit_shadow.py\",\n      \"sha256\": \"872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c\",\n      \"bytes\": 110633,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/exit_policy.py\",\n      \"sha256\": \"4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f\",\n      \"bytes\": 5040,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/legacy_profit_relative_research.py\",\n      \"sha256\": \"eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2\",\n      \"bytes\": 45098,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/observation.py\",\n      \"sha256\": \"577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713\",\n      \"bytes\": 7270,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_engine_models.py\",\n      \"sha256\": \"9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c\",\n      \"bytes\": 148112,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_rank.py\",\n      \"sha256\": \"f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a\",\n      \"bytes\": 80531,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/trade_selector.py\",\n      \"sha256\": \"7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858\",\n      \"bytes\": 77709,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/probability_calibration.py\",\n      \"sha256\": \"058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c\",\n      \"bytes\": 10693,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/writers/io_contract.py\",\n      \"sha256\": \"80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97\",\n      \"bytes\": 9897,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"bytes\": 981025,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    }\n  ],\n  \"limitations\": [\n    \"The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.\",\n    \"No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.\",\n    \"P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.\",\n    \"P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.\",\n    \"Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.\",\n    \"Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.\",\n    \"Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.\",\n    \"Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.\",\n    \"Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores.\"\n  ],\n  \"navigation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_navigation.json\",\n    \"sha256\": \"3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d\"\n  }\n}\n"
+}
