@@ -503,12 +503,53 @@
       "source_bundle_sha256": "c7585559091cb3f3359f637bc451d64969d373ac721a455f49413c333751400e",
       "source_feature_snapshot_sha256": "49823f762ee5f0a8ce7d636ad5c4890dcbaae9ef9e8b3c5dbffe9d215f90b434",
       "top10_members_sha256": "3c200a5b1701258f294313ebb4a2f51af70d220b72e173f376bcde3dfaa10097"
+    },
+    {
+      "candidate_count": 4,
+      "entry_sha256": "5d7d2b203c7dda4b36ac8ab27479af61c9236f5cf5363fc561f5ea7a4bd5b6bf",
+      "exec_date": "20260916",
+      "exit_date": "20260917",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "46990ac935bf20501ec71fe2492540a39a3f325f3e782c96f0e683e9c5d93623",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260915.csv",
+      "projection_json_sha256": "afbc5435353f805a5cb15deeaa0abfa469b849582b56c169d96232d292f18a32",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260915.json",
+      "projection_snapshot_sha256": "4e07ef6ccbd804836bffa47ba03dd3d6d90617debb7b7ee6f7cb370fb4d12985",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "通用设备",
+          "mixed_profit_rank": 1,
+          "name": "宏盛股份",
+          "promotion_rank": 4,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "603090.SH"
+        },
+        {
+          "industry": "塑料",
+          "mixed_profit_rank": 2,
+          "name": "双星新材",
+          "promotion_rank": 3,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "002585.SZ"
+        }
+      ],
+      "signal_date": "20260915",
+      "source_bundle_sha256": "4fc300644ce04551d9a751e521e606d064b00a5686343d8d6762b712b7e50a3c",
+      "source_feature_snapshot_sha256": "b9df7f059664a1fcbb562fb8c69fd92c1091ff72516cddee2ebf0459088e9bb7",
+      "top10_members_sha256": "8babf0d645745441261714587cbff9b094ac2443aef4b312683ca7cf90d8b06d"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260914",
+  "latest_signal_date": "20260915",
   "public_start_signal_date": "20260828",
-  "recorded_days": 12,
+  "recorded_days": 13,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -521,9 +562,10 @@
     "20260909",
     "20260910",
     "20260911",
-    "20260914"
+    "20260914",
+    "20260915"
   ],
-  "recorded_slots": 24,
+  "recorded_slots": 26,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "8c9b75a18235cec0a42c12a1a60cfaace7a024c3d1e8ac0f953ee484dfac3a91"
+  "snapshot_sha256": "3a4ad6c4028027a45e8609cba3faa9e8bb1cb6a7d4981fd4f13c4ffb05b1ec4f"
 }

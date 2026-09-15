@@ -1,0 +1,150 @@
+{
+  "artifact_kind": "immutable_d_frozen_primary_single_profit_research",
+  "boundaries": {
+    "action_input_consumed": false,
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "human_decision_support_only": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "public_research_projection_allowed": true,
+    "research_only": true
+  },
+  "candidate_count": 4,
+  "contract_file_sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+  "contract_id": "dc20_primary_profit_research_20260827_v1",
+  "display_name": "单一盈利排序",
+  "downloads": {
+    "csv_sha256": "98f047d799b64ef41b0c39ca893f7dfbfaf95f0de0da3ec804b8895a30d43944",
+    "csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260915.csv",
+    "json_url": "outputs/decision/legacy_profit_relative_research/projection_20260915.json",
+    "row_count": 4
+  },
+  "exec_date": "20260916",
+  "exit_date": "20260917",
+  "generation_mode": "NATURAL",
+  "model": {
+    "display_name": "单一盈利排序",
+    "formal_probability_ready": false,
+    "formal_ranking_ready": false,
+    "head": "profit",
+    "model_as_of_date": "20260814",
+    "official_status": "NOT_READY_VALIDATION_GATE",
+    "probability_claimed": false,
+    "score_semantics": "raw_model_relative_score_not_probability",
+    "sealed_artifact_path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+    "sealed_artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "sealed_validation_path": "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+    "sealed_validation_sha256": "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4",
+    "validation_gate_pass_count": 20,
+    "validation_gate_score_pct": 76.9,
+    "validation_gate_total_count": 26,
+    "version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta"
+  },
+  "prospective": true,
+  "ranking_contract": {
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "formal_profit_fields_may_change": false,
+    "membership_or_promotion_rank_may_change": false,
+    "score_direction": "higher raw score is better relative order",
+    "tie_policy": "equal raw score equal dense rank; promotion rank only orders display inside ties",
+    "trade_or_action_may_change": false
+  },
+  "research_only": true,
+  "retrospective_non_forward": false,
+  "rows": [
+    {
+      "industry": "塑料",
+      "legacy_profit_raw_score": 0.48196827239386014,
+      "legacy_profit_relative_percentile": 1.0,
+      "legacy_profit_relative_rank": 1,
+      "name": "双星新材",
+      "promotion_rank": 3,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "industry": "元件",
+      "legacy_profit_raw_score": 0.40080994870043934,
+      "legacy_profit_relative_percentile": 0.75,
+      "legacy_profit_relative_rank": 2,
+      "name": "澳弘电子",
+      "promotion_rank": 2,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "3→4",
+      "ts_code": "605058.SH"
+    },
+    {
+      "industry": "通用设备",
+      "legacy_profit_raw_score": 0.3967278955697544,
+      "legacy_profit_relative_percentile": 0.5,
+      "legacy_profit_relative_rank": 3,
+      "name": "宏盛股份",
+      "promotion_rank": 4,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "603090.SH"
+    },
+    {
+      "industry": "IT服务Ⅱ",
+      "legacy_profit_raw_score": 0.3190737906696141,
+      "legacy_profit_relative_percentile": 0.25,
+      "legacy_profit_relative_rank": 4,
+      "name": "启明信息",
+      "promotion_rank": 1,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002232.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_single_profit_research_v1",
+  "score_semantics": "sealed raw model score; relative order only; not probability",
+  "signal_date": "20260915",
+  "snapshot_sha256": "0d8fb0d4c68f22eca6de6be7fe07faa3f8c81902c3673e76ed6713a09159127c",
+  "source_bindings": {
+    "contract": {
+      "contract_id": "dc20_primary_profit_research_20260827_v1",
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20260915.json",
+      "sha256": "5956268a2d9ef5454741100577eb7389b85143540d8b4ece4583cdac50252a08"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "b9df7f059664a1fcbb562fb8c69fd92c1091ff72516cddee2ebf0459088e9bb7",
+      "identity_sha256": "ffe8db796babab4fa1556124ba3ec369f624b847a77201c17a43118fc5348ce8",
+      "path": "outputs/decision/primary_d_runtime_features_20260915.csv",
+      "row_count": 4,
+      "selected_count": 4,
+      "sha256": "a9dddc714b40719d20f69248ae33639973c2236a55e7863272c057250ccc86ba"
+    },
+    "three_rank": {
+      "bundle_sha256": "4fc300644ce04551d9a751e521e606d064b00a5686343d8d6762b712b7e50a3c",
+      "csv_path": "outputs/decision/three_rank_top10_20260915.csv",
+      "csv_sha256": "fcfa58da3847da0461169f16e91a2e65c488ce62402bfa83306b24ab9a1c9638",
+      "feature_snapshot_sha256": "b9df7f059664a1fcbb562fb8c69fd92c1091ff72516cddee2ebf0459088e9bb7",
+      "json_path": "outputs/decision/three_rank_top10_20260915.json",
+      "json_sha256": "ac64302eb51f6564b19e20075cae775c4e95b2f436631a005e4905077065f1e4",
+      "top10_members_sha256": "8babf0d645745441261714587cbff9b094ac2443aef4b312683ca7cf90d8b06d"
+    }
+  },
+  "source_bundle_sha256": "4fc300644ce04551d9a751e521e606d064b00a5686343d8d6762b712b7e50a3c",
+  "source_feature_snapshot_sha256": "b9df7f059664a1fcbb562fb8c69fd92c1091ff72516cddee2ebf0459088e9bb7",
+  "status": "PROSPECTIVE_RESEARCH",
+  "top10_members_sha256": "8babf0d645745441261714587cbff9b094ac2443aef4b312683ca7cf90d8b06d"
+}
