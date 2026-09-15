@@ -41,11 +41,11 @@ jobs:
       bundle_sha256: ${{ steps.collect.outputs.bundle_sha256 }}
       receipt_sha256: ${{ steps.collect.outputs.receipt_sha256 }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.13'
       - name: Verify original natural slot and read exact-D upstream inputs
@@ -59,7 +59,7 @@ jobs:
       # This retained evidence is not a production list, ledger, or Pages release.
       - name: Preserve successful read-only acceptance evidence
         if: ${{ success() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: forward-input-acceptance-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-input-acceptance/
@@ -75,11 +75,11 @@ jobs:
     outputs:
       receipt_sha256: ${{ steps.infer.outputs.receipt_sha256 }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.13'
           cache: pip
@@ -87,7 +87,7 @@ jobs:
       - name: Install frozen inference environment
         run: |
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: forward-input-acceptance-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-input-acceptance
@@ -101,7 +101,7 @@ jobs:
           python -m forward.bundle_rehearsal --root . promotion --bundle "$RUNNER_TEMP/forward-input-acceptance/bundle" --manifest-sha256 "$INPUT_MANIFEST_SHA256" --acceptance "$RUNNER_TEMP/forward-input-acceptance" --acceptance-receipt-sha256 "$ACCEPTANCE_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-primary"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
       - name: Preserve promotion before any profit work
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: forward-promotion-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-primary/*.json
@@ -116,11 +116,11 @@ jobs:
     outputs:
       receipt_sha256: ${{ steps.infer.outputs.receipt_sha256 }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.13'
           cache: pip
@@ -128,7 +128,7 @@ jobs:
       - name: Install frozen inference environment
         run: |
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: forward-promotion-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-primary
@@ -140,7 +140,7 @@ jobs:
         run: |
           python -m forward.bundle_rehearsal --root . profit --primary "$RUNNER_TEMP/forward-primary" --primary-receipt-sha256 "$PRIMARY_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-profit"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: forward-profit-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-profit/*.json
@@ -153,14 +153,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.13'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: forward-promotion-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-primary
@@ -170,7 +170,7 @@ jobs:
         run: |
           python -m forward.release_candidate --root . promotion --primary "$RUNNER_TEMP/forward-primary" --primary-receipt-sha256 "$PRIMARY_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-promotion-release-candidate"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: forward-promotion-release-candidate-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-promotion-release-candidate/
@@ -183,18 +183,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.13'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: forward-promotion-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-primary
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: forward-profit-rehearsal-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-profit
@@ -205,7 +205,7 @@ jobs:
         run: |
           python -m forward.release_candidate --root . profit --primary "$RUNNER_TEMP/forward-primary" --primary-receipt-sha256 "$PRIMARY_RECEIPT_SHA256" --profit "$RUNNER_TEMP/forward-profit" --profit-receipt-sha256 "$PROFIT_RECEIPT_SHA256" --output "$RUNNER_TEMP/forward-profit-release-candidate"
           test -z "$(git status --porcelain=v1 --untracked-files=no)"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: forward-profit-release-candidate-${{ github.run_id }}
           path: ${{ runner.temp }}/forward-profit-release-candidate/
