@@ -113,6 +113,21 @@ def run(case, *, dry_run=False):
     return m.run_settlement(dry_run=dry_run,work_parent=case["artifacts"],test_hooks=case["hooks"])
 
 
+def test_fresh_runner_restores_empty_D_source_directories_before_T(case):
+    import shutil
+    case["hooks"]["clock"] = lambda: datetime(2026,9,14,8,tzinfo=timezone.utc)
+    first = run(case)
+    assert first["status"] == "SYNTHETIC_ORCHESTRATION_ONLY"
+    # Simulate a new Actions runner: only immutable Git journal blobs survive.
+    state_root = Path(case["hooks"]["state_root"])
+    assert state_root.is_relative_to(case["repo"].parent)
+    shutil.rmtree(state_root)
+    case["hooks"]["clock"] = lambda: datetime(2026,9,15,8,tzinfo=timezone.utc)
+    result = run(case)
+    assert result["status"] == "SYNTHETIC_ORCHESTRATION_ONLY", result["processed"]
+    assert result["recorded_successful_quote_calls"] > 0
+
+
 def test_real_native_loss_four_slots_is_saved_as_synthetic_not_zero_or_real_authority(case):
     snapshot = case["source"]["snapshot"].read_bytes()
     result = run(case)

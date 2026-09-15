@@ -1,0 +1,98 @@
+{
+  "schema_version": "decision_empty_source_roots_review_v1",
+  "approved_base_commit": "424b55bb4466699a8f49f658743b412e5521a444",
+  "scope": "RESTORE_DIRECTORY_ONLY_STATE_NO_SOURCE_MODEL_LEDGER_OR_POLICY_CHANGE",
+  "source_changes": [
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "baseline_exists": true,
+      "baseline_sha256": "83447c126cd7a6177c8326c7d7ca129d38226c5ff9d0976b143d6404ab8878e4",
+      "current_sha256": "7ac105a3f5dd49b5326dd867e262f78540bba36f0ebf047095c6dce34eee1c95",
+      "baseline_bytes": 36504,
+      "current_bytes": 38520,
+      "inverse_changes": [
+        {
+          "baseline_start": 229,
+          "current_start": 229,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def restore_empty_source_roots(restored, frozen, modules, *, test_state_root=None):\n",
+            "    \"\"\"Recreate directory-only state omitted by Git; never invent source files.\"\"\"\n",
+            "    journal = modules[\"journal\"]\n",
+            "    bound = restored[\"endpoints\"][\"final_collection_receipt\"]\n",
+            "    base = journal.root_path(test_state_root)/restored[\"signal_date\"]/restored[\"as_of_date\"]\n",
+            "    receipt_path = journal.binding_path(bound, journal.root_path(test_state_root),\n",
+            "        restored[\"signal_date\"], restored[\"as_of_date\"])\n",
+            "    raw = journal.read_bound(receipt_path, bound)\n",
+            "    receipt = json.loads(raw)\n",
+            "    collection = receipt_path.parent\n",
+            "    relative = collection.relative_to(base).as_posix()\n",
+            "    require(re.fullmatch(r\"collection_[1-8]/candidate_natural_outcome_sources\", relative) is not None\n",
+            "        and receipt.get(\"collection_root\") == str(collection), \"EXACT_RESTORED_COLLECTION_ROOT_REQUIRED\")\n",
+            "    codes = sorted({s[\"ts_code\"] for key in (\"candidate_slots\", \"promotion_slots\")\n",
+            "        for s in frozen[key] if s[\"ts_code\"] is not None})\n",
+            "    by_code = receipt[\"source_bundle\"][\"by_code\"]\n",
+            "    require(sorted(by_code) == codes, \"EXACT_RESTORED_SLOT_SOURCE_ROOTS_REQUIRED\")\n",
+            "    roots = []\n",
+            "    for code in codes:\n",
+            "        require(re.fullmatch(r\"[0-9]{6}\\.(SH|SZ)\", code) is not None, \"EXACT_RESTORED_STOCK_REQUIRED\")\n",
+            "        root = collection/\"sources\"/code.replace(\".\", \"_\")\n",
+            "        require(by_code[code][\"source_root\"] == str(root)\n",
+            "            and not any(p.is_symlink() for p in (root, *root.parents))\n",
+            "            and (not root.exists() or root.is_dir()), \"RESTORED_SOURCE_ROOT_CHANGED\")\n",
+            "        roots.append(root)\n",
+            "    # Validate every path before creating any directory. Downstream source and\n",
+            "    # ledger validation remains unchanged; empty directories contain no truth.\n",
+            "    for root in roots:\n",
+            "        root.mkdir(parents=True, exist_ok=True)\n",
+            "    require(journal.read_bound(receipt_path, bound) == raw, \"RESTORED_RECEIPT_CHANGED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 481,
+          "current_start": 513,
+          "baseline_lines": [],
+          "current_lines": [
+            "                restore_empty_source_roots(restored, row[\"frozen\"], modules, test_state_root=state_root)\n"
+          ]
+        }
+      ],
+      "reason": "Restore exact empty directories omitted by Git without fabricating source data"
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py",
+      "baseline_exists": true,
+      "baseline_sha256": "567e0ca8ff471d218e9c023b47c568f00780f328b82e10f737322f3a50584ba0",
+      "current_sha256": "a61d54494d75ad48f28b35853a13dec2060ea6d69027d4a37dd9dbc3d7da0956",
+      "baseline_bytes": 24647,
+      "current_bytes": 25363,
+      "inverse_changes": [
+        {
+          "baseline_start": 114,
+          "current_start": 114,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def test_fresh_runner_restores_empty_D_source_directories_before_T(case):\n",
+            "    import shutil\n",
+            "    case[\"hooks\"][\"clock\"] = lambda: datetime(2026,9,14,8,tzinfo=timezone.utc)\n",
+            "    first = run(case)\n",
+            "    assert first[\"status\"] == \"SYNTHETIC_ORCHESTRATION_ONLY\"\n",
+            "    # Simulate a new Actions runner: only immutable Git journal blobs survive.\n",
+            "    state_root = Path(case[\"hooks\"][\"state_root\"])\n",
+            "    assert state_root.is_relative_to(case[\"repo\"].parent)\n",
+            "    shutil.rmtree(state_root)\n",
+            "    case[\"hooks\"][\"clock\"] = lambda: datetime(2026,9,15,8,tzinfo=timezone.utc)\n",
+            "    result = run(case)\n",
+            "    assert result[\"status\"] == \"SYNTHETIC_ORCHESTRATION_ONLY\", result[\"processed\"]\n",
+            "    assert result[\"recorded_successful_quote_calls\"] > 0\n"
+          ]
+        }
+      ],
+      "reason": "Restore exact empty directories omitted by Git without fabricating source data"
+    }
+  ]
+}

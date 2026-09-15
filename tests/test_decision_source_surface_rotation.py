@@ -526,6 +526,28 @@ def test_home_link_review_rejects_tampering(monkeypatch, path):
         _source_before_home_link(path)
 
 
+RESTORE_ROOTS_REVIEW_PATH = "models/decision_source_surface_review_20260915_empty_roots.json"
+RESTORE_ROOTS_REVIEW_SHA = "44c71406774c06a86e857bf8a7e48a35bd6e3ea8ed545db35c04de95ea274ef9"
+
+
+def _source_before_empty_roots(path):
+    raw = _source_before_home_link(path)
+    review_raw = _obs_actual_source(RESTORE_ROOTS_REVIEW_PATH)
+    assert hashlib.sha256(review_raw).hexdigest() == RESTORE_ROOTS_REVIEW_SHA
+    review = json.loads(review_raw)
+    assert review["schema_version"] == "decision_empty_source_roots_review_v1"
+    assert review["approved_base_commit"] == "424b55bb4466699a8f49f658743b412e5521a444"
+    assert review["scope"] == "RESTORE_DIRECTORY_ONLY_STATE_NO_SOURCE_MODEL_LEDGER_OR_POLICY_CHANGE"
+    assert [item["path"] for item in review["source_changes"]] == ['work/profit_1000_upgrade/candidate_natural_settlement_workflow.py', 'work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py']
+    item = next((item for item in review["source_changes"] if item["path"] == path), None)
+    return raw if item is None else _candidate_activation_inverse(raw, item)
+
+
+def test_empty_source_roots_review_restores_exact_predecessor():
+    for path in ['work/profit_1000_upgrade/candidate_natural_settlement_workflow.py', 'work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py']:
+        _source_before_empty_roots(path)
+
+
 def _reliability_raw_source(path: str) -> bytes:
     assert isinstance(path, str) and path and not path.startswith("/") and "\\" not in path
     assert all(part not in ("", ".", "..") for part in path.split("/"))
@@ -533,7 +555,7 @@ def _reliability_raw_source(path: str) -> bytes:
     assert ROOT in target.resolve().parents
     assert not any(part.is_symlink() for part in (target, *target.parents) if part != ROOT)
     assert target.is_file()
-    return _source_before_home_link(path)
+    return _source_before_empty_roots(path)
 
 
 @lru_cache(maxsize=1)

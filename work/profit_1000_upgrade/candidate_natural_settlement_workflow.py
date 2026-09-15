@@ -228,6 +228,38 @@ class CheckoutReads:
                 "BOUND_CHECKOUT_SOURCE_CHANGED")
 
 
+def restore_empty_source_roots(restored, frozen, modules, *, test_state_root=None):
+    """Recreate directory-only state omitted by Git; never invent source files."""
+    journal = modules["journal"]
+    bound = restored["endpoints"]["final_collection_receipt"]
+    base = journal.root_path(test_state_root)/restored["signal_date"]/restored["as_of_date"]
+    receipt_path = journal.binding_path(bound, journal.root_path(test_state_root),
+        restored["signal_date"], restored["as_of_date"])
+    raw = journal.read_bound(receipt_path, bound)
+    receipt = json.loads(raw)
+    collection = receipt_path.parent
+    relative = collection.relative_to(base).as_posix()
+    require(re.fullmatch(r"collection_[1-8]/candidate_natural_outcome_sources", relative) is not None
+        and receipt.get("collection_root") == str(collection), "EXACT_RESTORED_COLLECTION_ROOT_REQUIRED")
+    codes = sorted({s["ts_code"] for key in ("candidate_slots", "promotion_slots")
+        for s in frozen[key] if s["ts_code"] is not None})
+    by_code = receipt["source_bundle"]["by_code"]
+    require(sorted(by_code) == codes, "EXACT_RESTORED_SLOT_SOURCE_ROOTS_REQUIRED")
+    roots = []
+    for code in codes:
+        require(re.fullmatch(r"[0-9]{6}\.(SH|SZ)", code) is not None, "EXACT_RESTORED_STOCK_REQUIRED")
+        root = collection/"sources"/code.replace(".", "_")
+        require(by_code[code]["source_root"] == str(root)
+            and not any(p.is_symlink() for p in (root, *root.parents))
+            and (not root.exists() or root.is_dir()), "RESTORED_SOURCE_ROOT_CHANGED")
+        roots.append(root)
+    # Validate every path before creating any directory. Downstream source and
+    # ledger validation remains unchanged; empty directories contain no truth.
+    for root in roots:
+        root.mkdir(parents=True, exist_ok=True)
+    require(journal.read_bound(receipt_path, bound) == raw, "RESTORED_RECEIPT_CHANGED")
+
+
 def metadata(row,reads,modules,*,asof,test_state_root=None):
     """Original Git-held metadata classifies work, never grants authority."""
     natural=modules["outcome_collect"].natural
@@ -478,6 +510,7 @@ def run_settlement(*,dry_run=True,work_parent, test_hooks=None):
                 stage="ORIGINAL_STATE_RESTORE"
                 restored=modules["journal"].restore_journal(row["manifest_raw"],bodies,
                     expected_manifest_sha256=row["manifest_sha256"],test_state_root=state_root)
+                restore_empty_source_roots(restored, row["frozen"], modules, test_state_root=state_root)
                 for source,target in (("final_collection_receipt","collection"),("final_outcomes","outcomes")):
                     bound=restored["endpoints"][source]
                     previous["previous_"+target+"_path"]=bound["origin_path"]
