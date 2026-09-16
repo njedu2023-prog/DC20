@@ -1,0 +1,210 @@
+{
+  "artifact_kind": "immutable_d_frozen_primary_single_profit_research",
+  "boundaries": {
+    "action_input_consumed": false,
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "human_decision_support_only": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "public_research_projection_allowed": true,
+    "research_only": true
+  },
+  "candidate_count": 9,
+  "contract_file_sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+  "contract_id": "dc20_primary_profit_research_20260827_v1",
+  "display_name": "单一盈利排序",
+  "downloads": {
+    "csv_sha256": "3a8cf8d852d83c2bd988a8bbafb57b72e4dd2ca884a3683b90f68574d4bd8e7e",
+    "csv_url": "outputs/decision/legacy_profit_relative_research/projection_20260916.csv",
+    "json_url": "outputs/decision/legacy_profit_relative_research/projection_20260916.json",
+    "row_count": 9
+  },
+  "exec_date": "20260917",
+  "exit_date": "20260918",
+  "generation_mode": "NATURAL",
+  "model": {
+    "display_name": "单一盈利排序",
+    "formal_probability_ready": false,
+    "formal_ranking_ready": false,
+    "head": "profit",
+    "model_as_of_date": "20260814",
+    "official_status": "NOT_READY_VALIDATION_GATE",
+    "probability_claimed": false,
+    "score_semantics": "raw_model_relative_score_not_probability",
+    "sealed_artifact_path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+    "sealed_artifact_sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+    "sealed_validation_path": "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+    "sealed_validation_sha256": "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4",
+    "validation_gate_pass_count": 20,
+    "validation_gate_score_pct": 76.9,
+    "validation_gate_total_count": 26,
+    "version": "decision_three_engine_models_v2:profit:20260814:extra_trees:beta"
+  },
+  "prospective": true,
+  "ranking_contract": {
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "formal_profit_fields_may_change": false,
+    "membership_or_promotion_rank_may_change": false,
+    "score_direction": "higher raw score is better relative order",
+    "tie_policy": "equal raw score equal dense rank; promotion rank only orders display inside ties",
+    "trade_or_action_may_change": false
+  },
+  "research_only": true,
+  "retrospective_non_forward": false,
+  "rows": [
+    {
+      "industry": "家居用品",
+      "legacy_profit_raw_score": 0.4042414998352047,
+      "legacy_profit_relative_percentile": 1.0,
+      "legacy_profit_relative_rank": 1,
+      "name": "德尔未来",
+      "promotion_rank": 6,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002631.SZ"
+    },
+    {
+      "industry": "电子化学",
+      "legacy_profit_raw_score": 0.3929076848760063,
+      "legacy_profit_relative_percentile": 0.8888888888888888,
+      "legacy_profit_relative_rank": 2,
+      "name": "西陇科学",
+      "promotion_rank": 1,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002584.SZ"
+    },
+    {
+      "industry": "通信设备",
+      "legacy_profit_raw_score": 0.3873135252517011,
+      "legacy_profit_relative_percentile": 0.7777777777777778,
+      "legacy_profit_relative_rank": 3,
+      "name": "通鼎互联",
+      "promotion_rank": 9,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002491.SZ"
+    },
+    {
+      "industry": "非白酒",
+      "legacy_profit_raw_score": 0.38465415092312255,
+      "legacy_profit_relative_percentile": 0.6666666666666666,
+      "legacy_profit_relative_rank": 4,
+      "name": "会稽山",
+      "promotion_rank": 7,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "601579.SH"
+    },
+    {
+      "industry": "自动化设",
+      "legacy_profit_raw_score": 0.383071823668306,
+      "legacy_profit_relative_percentile": 0.5555555555555556,
+      "legacy_profit_relative_rank": 5,
+      "name": "北自科技",
+      "promotion_rank": 8,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "603082.SH"
+    },
+    {
+      "industry": "包装印刷",
+      "legacy_profit_raw_score": 0.3661528193057074,
+      "legacy_profit_relative_percentile": 0.4444444444444444,
+      "legacy_profit_relative_rank": 6,
+      "name": "英联股份",
+      "promotion_rank": 4,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "002846.SZ"
+    },
+    {
+      "industry": "半导体",
+      "legacy_profit_raw_score": 0.3450404136602657,
+      "legacy_profit_relative_percentile": 0.3333333333333333,
+      "legacy_profit_relative_rank": 7,
+      "name": "中晶科技",
+      "promotion_rank": 3,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "003026.SZ"
+    },
+    {
+      "industry": "风电设备",
+      "legacy_profit_raw_score": 0.317619970534987,
+      "legacy_profit_relative_percentile": 0.2222222222222222,
+      "legacy_profit_relative_rank": 8,
+      "name": "锡华科技",
+      "promotion_rank": 5,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "603248.SH"
+    },
+    {
+      "industry": "家居用品",
+      "legacy_profit_raw_score": 0.30318559457529515,
+      "legacy_profit_relative_percentile": 0.1111111111111111,
+      "legacy_profit_relative_rank": 9,
+      "name": "华瓷股份",
+      "promotion_rank": 2,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "stage_transition": "2→3",
+      "ts_code": "001216.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_single_profit_research_v1",
+  "score_semantics": "sealed raw model score; relative order only; not probability",
+  "signal_date": "20260916",
+  "snapshot_sha256": "f387ec56c04a8e7e9469b88961b56967c04f80d82b06804236387839b6be220d",
+  "source_bindings": {
+    "contract": {
+      "contract_id": "dc20_primary_profit_research_20260827_v1",
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20260916.json",
+      "sha256": "5cd6b4667e02d32be90e7f5dc07c69c79c812ba5677b69668ed50130b5fc23ca"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "97c122a92b2cd13c0ca4e5a00f563b6d923fbb3fbe5ec6cd4ee7ff0fd52246f0",
+      "identity_sha256": "1b31e63e97beda5c55113f3db494f60f361327733661ef05227961de0e95fa61",
+      "path": "outputs/decision/primary_d_runtime_features_20260916.csv",
+      "row_count": 9,
+      "selected_count": 9,
+      "sha256": "b3600da4a1e5c1f67265371bd7c53de0035c04959c1ab088d3a61ace9e9bc275"
+    },
+    "three_rank": {
+      "bundle_sha256": "21ca2e5e20822d0e25e10996ed46110c867416c25913b5cf80b989b4612191b5",
+      "csv_path": "outputs/decision/three_rank_top10_20260916.csv",
+      "csv_sha256": "fb41791a0b1a9b15d08b743faf6563ee8dcb71920af873908fe0843a56240789",
+      "feature_snapshot_sha256": "97c122a92b2cd13c0ca4e5a00f563b6d923fbb3fbe5ec6cd4ee7ff0fd52246f0",
+      "json_path": "outputs/decision/three_rank_top10_20260916.json",
+      "json_sha256": "5d0d26fde37b22d595c922b364a7209834053158afb66e49ffed3ff7b90c43ca",
+      "top10_members_sha256": "1476c473ddec5ec87679fe1d2fdc22960c0057b7348b9c0a4c3f1e9ed8636b99"
+    }
+  },
+  "source_bundle_sha256": "21ca2e5e20822d0e25e10996ed46110c867416c25913b5cf80b989b4612191b5",
+  "source_feature_snapshot_sha256": "97c122a92b2cd13c0ca4e5a00f563b6d923fbb3fbe5ec6cd4ee7ff0fd52246f0",
+  "status": "PROSPECTIVE_RESEARCH",
+  "top10_members_sha256": "1476c473ddec5ec87679fe1d2fdc22960c0057b7348b9c0a4c3f1e9ed8636b99"
+}
