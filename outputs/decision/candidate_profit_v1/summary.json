@@ -5,7 +5,7 @@
   "actual_account_drawdown_claimed": false,
   "actual_capacity_verified": false,
   "actual_execution_claimed": false,
-  "as_of_date": "20260916",
+  "as_of_date": "20260917",
   "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
   "capital_nav_claimed": false,
   "coverage_complete": true,
@@ -15,8 +15,8 @@
   "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
   "evidence_kind": "VERIFIED_PREBUY_SELECTION_WITH_POSTHOC_PRICE_PROXY_OUTCOMES_NOT_BROKER_FILLS",
   "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
-  "expected_day_count": 3,
-  "expected_slot_count": 6,
+  "expected_day_count": 4,
+  "expected_slot_count": 8,
   "fees_subtracted_again": false,
   "groups": {
     "candidate_top1": {
@@ -102,10 +102,34 @@
           "status": "PENDING_T",
           "terminal_economic_source_sha256": null,
           "ts_code": "002631.SZ"
+        },
+        {
+          "actual_exit_date": null,
+          "actual_exit_time": null,
+          "candidate_rank": 1,
+          "candidate_score": -0.0003296954639727765,
+          "entry_price": null,
+          "entry_price_source": null,
+          "exec_date": "20260918",
+          "exit_date": "20260921",
+          "exit_price": null,
+          "formal_projection_sha256": "3ba13df30761175ce35d1fa74436100db3835c5fa718ff40eaf42bbe5f33f039",
+          "held_limit_up_sessions": null,
+          "label_available_date": null,
+          "ledger_as_of_date": null,
+          "promotion_rank": 6,
+          "proxy_fill": null,
+          "signal_date": "20260917",
+          "slot": 1,
+          "slot_net_return": null,
+          "snapshot_file_sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77",
+          "status": "PENDING_T_NOT_DUE",
+          "terminal_economic_source_sha256": null,
+          "ts_code": "600371.SH"
         }
       ],
       "entire_window_settled": false,
-      "expected_selection_days": 3,
+      "expected_selection_days": 4,
       "filled_proxy_win_rate": 1.0,
       "filled_settled_slots": 1,
       "known_no_fill_slots": 0,
@@ -116,19 +140,20 @@
       "missing_ledger_slots": 0,
       "missing_publication_slots": 0,
       "negative_filled_slots": 0,
-      "not_due_slots": 2,
-      "pending_slots": 2,
+      "not_due_slots": 3,
+      "pending_slots": 3,
       "positive_filled_slots": 1,
       "status_counts": {
         "PENDING_T": 1,
         "PENDING_T1": 1,
+        "PENDING_T_NOT_DUE": 1,
         "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 1
       },
       "synthetic_cumulative_net_return": 0.016369565217391413,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
       "synthetic_max_drawdown": 0.0,
       "terminal_slots": 1,
-      "verified_selection_days": 3,
+      "verified_selection_days": 4,
       "zero_filled_slots": 0
     },
     "candidate_top2": {
@@ -214,10 +239,34 @@
           "status": "PENDING_T",
           "terminal_economic_source_sha256": null,
           "ts_code": "601579.SH"
+        },
+        {
+          "actual_exit_date": null,
+          "actual_exit_time": null,
+          "candidate_rank": 2,
+          "candidate_score": -0.008480661943137525,
+          "entry_price": null,
+          "entry_price_source": null,
+          "exec_date": "20260918",
+          "exit_date": "20260921",
+          "exit_price": null,
+          "formal_projection_sha256": "3ba13df30761175ce35d1fa74436100db3835c5fa718ff40eaf42bbe5f33f039",
+          "held_limit_up_sessions": null,
+          "label_available_date": null,
+          "ledger_as_of_date": null,
+          "promotion_rank": 3,
+          "proxy_fill": null,
+          "signal_date": "20260917",
+          "slot": 2,
+          "slot_net_return": null,
+          "snapshot_file_sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77",
+          "status": "PENDING_T_NOT_DUE",
+          "terminal_economic_source_sha256": null,
+          "ts_code": "002285.SZ"
         }
       ],
       "entire_window_settled": false,
-      "expected_selection_days": 3,
+      "expected_selection_days": 4,
       "filled_proxy_win_rate": 1.0,
       "filled_settled_slots": 1,
       "known_no_fill_slots": 0,
@@ -228,19 +277,20 @@
       "missing_ledger_slots": 0,
       "missing_publication_slots": 0,
       "negative_filled_slots": 0,
-      "not_due_slots": 2,
-      "pending_slots": 2,
+      "not_due_slots": 3,
+      "pending_slots": 3,
       "positive_filled_slots": 1,
       "status_counts": {
         "PENDING_T": 1,
         "PENDING_T1": 1,
+        "PENDING_T_NOT_DUE": 1,
         "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 1
       },
       "synthetic_cumulative_net_return": 0.21671212121212124,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
       "synthetic_max_drawdown": 0.0,
       "terminal_slots": 1,
-      "verified_selection_days": 3,
+      "verified_selection_days": 4,
       "zero_filled_slots": 0
     }
   },
@@ -280,6 +330,18 @@
       "signal_date": "20260916",
       "snapshot_file_sha256": "c1f5a09baa08690a3a3db1f960d3f2df5a152ca7736db745f75043dd67ebf102",
       "source_collection_receipt_sha256": "234745222c6f4d391280574df01ca2f0770762386e990aa14f845f13852e1717"
+    },
+    {
+      "evidence_commit": "1c44b93f4fc9ffb05d4c65dc17bc61d3ada3ad68",
+      "evidence_manifest_sha256": "0df594496e3787cfb9649d7d3e665770a0daa1b4a7908ceae1e61ded5ba2fd96",
+      "ledger_as_of_date": null,
+      "ledger_file_sha256": null,
+      "ledger_version_count": 0,
+      "observer_run_id": 35216056908,
+      "publication_observation_sha256": "bf77089b18738c0feb266ad34ec47ee3be5f12754bef70b3c97d39289a4ded0d",
+      "signal_date": "20260917",
+      "snapshot_file_sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77",
+      "source_collection_receipt_sha256": null
     }
   ],
   "missing_or_pending_is_zero": false,
@@ -289,11 +351,12 @@
   "old_model_results_consumed": false,
   "profitability_improvement_proven": false,
   "publication_paused": false,
-  "published_day_count": 3,
+  "published_day_count": 4,
   "published_signal_dates": [
     "20260914",
     "20260915",
-    "20260916"
+    "20260916",
+    "20260917"
   ],
   "research_registration_changed": false,
   "round_trip_cost_rate": 0.0045,
@@ -303,12 +366,13 @@
   "signal_dates": [
     "20260914",
     "20260915",
-    "20260916"
+    "20260916",
+    "20260917"
   ],
   "status": "FULL_ENUMERATED_SHADOW_STATISTICS",
-  "summary_sha256": "ab85f2fc44deb5a6027afbfbcf8bfb15edc34107d4bb226a184f352f18f2f636",
+  "summary_sha256": "47df10bae147ca8feb668fa5d0417d716b8b2aaebac65adbff1e9fcf706f2270",
   "test_only": false,
   "universe_scope": "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF",
-  "verified_native_inputs_sha256": "d94eedee4e063dc85ae42bd3dc084364f24da748505d0f8866a493a432318c4f",
+  "verified_native_inputs_sha256": "6bd20ef72f974f168c72b6c5bb60d1152d62abc0cca88c07533d92b6c9c2017f",
   "win_rate_denominator": "FILLED_SETTLED_SLOTS_ONLY_ZERO_NOT_WIN"
 }
