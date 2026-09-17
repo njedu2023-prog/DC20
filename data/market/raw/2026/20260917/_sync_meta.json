@@ -1,0 +1,507 @@
+{
+  "trade_date": "20260917",
+  "created_at_utc": "2026-09-17T11:26:12+00:00",
+  "source_repo": {
+    "owner": "njedu2023-prog",
+    "repo": "a-share-top3-data",
+    "branch": "main",
+    "resolved_commit": "4b72662047fb96fa82616f2858b8fa1ac4c68f4e"
+  },
+  "requested_trade_date": "20260917",
+  "resolved_trade_date": "20260917",
+  "strict_dated_source": true,
+  "dated_only": false,
+  "raw_storage_pattern": "data/market/raw/{YYYY}/{YYYYMMDD}/{filename}",
+  "raw_latest_pattern": "data/market/raw/latest/{filename}",
+  "upstream_primary_pattern": "data/raw/{YYYY}/{YYYYMMDD}/{filename}",
+  "upstream_meta_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/_meta.json",
+  "upstream_meta": {
+    "requested_trade_date": "20260917",
+    "resolved_trade_date": "20260917",
+    "generated_at_bj": "2026-09-17 19:17:03",
+    "jobs": [
+      {
+        "key": "limit_list_d",
+        "note": "涨停池（日）（优先拉取 Tushare limit_times/up_stat；后处理中仍强制保留收盘真实涨停池口径）",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "trade_date": "20260917",
+          "fields": "trade_date,ts_code,name,limit_type,close,up_limit,down_limit,open_times,fd_amount,first_time,last_time,limit_times,up_stat,industry,turnover_ratio,amount,float_mv,total_mv"
+        },
+        "status": "ok",
+        "rows": 68,
+        "error": null
+      },
+      {
+        "key": "limit_break_d",
+        "note": "炸板/开板（日）（可选；默认关闭不稳定接口并写出空表头）",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "trade_date": "20260917",
+          "fields": "trade_date,ts_code,name,open_times,first_time,last_time,fd_amount"
+        },
+        "status": "ok_empty",
+        "rows": 0,
+        "error": null
+      },
+      {
+        "key": "daily",
+        "note": "日线行情（OHLCV+amount）",
+        "allow_empty": false,
+        "required": true,
+        "kwargs": {
+          "trade_date": "20260917",
+          "fields": "ts_code,trade_date,open,high,low,close,pre_close,vol,amount,pct_chg"
+        },
+        "status": "ok",
+        "rows": 5553,
+        "error": null
+      },
+      {
+        "key": "stk_limit",
+        "note": "涨跌停价（限制价格）",
+        "allow_empty": false,
+        "required": true,
+        "kwargs": {
+          "trade_date": "20260917",
+          "fields": "ts_code,trade_date,up_limit,down_limit"
+        },
+        "status": "ok",
+        "rows": 5644,
+        "error": null
+      },
+      {
+        "key": "daily_basic",
+        "note": "每日指标（换手/市值/量比）",
+        "allow_empty": false,
+        "required": true,
+        "kwargs": {
+          "trade_date": "20260917",
+          "fields": "ts_code,trade_date,turnover_rate,turnover_rate_f,volume_ratio,total_mv,float_mv"
+        },
+        "status": "ok",
+        "rows": 5553,
+        "error": null
+      },
+      {
+        "key": "stock_basic",
+        "note": "股票基础信息（name/industry/list_date等）",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "exchange": "",
+          "list_status": "L",
+          "fields": "ts_code,symbol,name,area,industry,market,list_date"
+        },
+        "status": "ok",
+        "rows": 5565,
+        "error": null
+      },
+      {
+        "key": "namechange",
+        "note": "名称变更（用于ST/更名等过滤）",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "start_date": "20260818",
+          "end_date": "20260917",
+          "fields": "ts_code,name,start_date,end_date,change_reason"
+        },
+        "status": "ok",
+        "rows": 37,
+        "error": null
+      },
+      {
+        "key": "top_list",
+        "note": "龙虎榜",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "trade_date": "20260917"
+        },
+        "status": "ok",
+        "rows": 58,
+        "error": null
+      },
+      {
+        "key": "moneyflow_hsgt",
+        "note": "沪深港通资金流向",
+        "allow_empty": true,
+        "required": false,
+        "kwargs": {
+          "trade_date": "20260917"
+        },
+        "status": "ok",
+        "rows": 1,
+        "error": null
+      }
+    ],
+    "derived": {
+      "limit_fields": {
+        "limit_list_d": {
+          "has_open_times": 1,
+          "has_fd_amount": 1,
+          "has_seal_amount": 1,
+          "has_limit_type": 0,
+          "has_up_limit": 0,
+          "has_down_limit": 0,
+          "has_limit_times": 1,
+          "has_up_stat": 1
+        },
+        "limit_break_d": {
+          "has_open_times": 1,
+          "has_fd_amount": 0,
+          "has_seal_amount": 1,
+          "has_limit_type": 0,
+          "has_up_limit": 0,
+          "has_down_limit": 0,
+          "has_limit_times": 0,
+          "has_up_stat": 0
+        }
+      },
+      "limit_list_d_policy": {
+        "policy": "CLOSE_EQ_UP_LIMIT",
+        "trade_date": "20260917",
+        "input_rows": 68,
+        "output_rows": 47,
+        "used_daily_close": 0,
+        "used_stk_limit": 1,
+        "filled_up_limit": 68,
+        "filled_down_limit": 68,
+        "warn": ""
+      },
+      "limit_stage": {
+        "source": "limit_list_d.limit_times",
+        "limit_list_rows": 47,
+        "limit_step_rows": 9,
+        "rows": 47,
+        "limit_times_nonnull": 47,
+        "missing_reason": ""
+      },
+      "hot_board_tags": {
+        "hot_board_topn": 10,
+        "hot_boards": 10,
+        "tagged": 47
+      }
+    },
+    "limit_step": {
+      "ok": true,
+      "api_name": "limit_step",
+      "rows": 9,
+      "columns": [
+        "trade_date",
+        "ts_code",
+        "name"
+      ],
+      "error": ""
+    },
+    "auction": {
+      "enabled": true,
+      "ok": true,
+      "rows": 6071,
+      "columns": [
+        "ts_code",
+        "trade_date",
+        "vol",
+        "price",
+        "amount"
+      ],
+      "error": "",
+      "feature_rows": 6071
+    },
+    "minute": {
+      "enabled": true,
+      "realtime_only": true,
+      "market_minute_scan": false,
+      "realtime_quote": {
+        "ok": false,
+        "rows": 0,
+        "error": "disabled"
+      },
+      "ok": true,
+      "freq": "1min",
+      "wp_pre_candidates": 34,
+      "selection": {
+        "policy": "preserve_legacy_selection_plus_required_limit_list",
+        "configured_cap": 80,
+        "legacy_selected_count": 80,
+        "required_count": 47,
+        "required_selected": 47,
+        "required_already_in_legacy": 46,
+        "required_added_beyond_cap": 1,
+        "preserved_nonrequired_count": 34,
+        "selected_count": 81
+      },
+      "minute_end": "2026-09-17 15:00:00",
+      "symbols_requested": 81,
+      "symbols_success": 81,
+      "symbols_failed": 0,
+      "errors": [],
+      "fallback_symbol_query_count": 81,
+      "required_symbols_success": 47,
+      "required_symbols_failed": 0,
+      "required_failed_codes": [],
+      "required_coverage_ratio": 1.0,
+      "coverage_status": "complete"
+    },
+    "intraday_features": {
+      "ok": true,
+      "rows": 81,
+      "columns": [
+        "ts_code",
+        "trade_date",
+        "minute_freq",
+        "minute_rows",
+        "has_minute_data",
+        "first_limit_time",
+        "last_limit_time",
+        "limit_touch_count",
+        "open_board_count",
+        "max_drawdown_after_limit",
+        "reseal_count",
+        "reseal_minutes_avg",
+        "reseal_speed_score",
+        "reseal_acceptance_score",
+        "intraday_vwap",
+        "intraday_vwap_position",
+        "late_volume_ratio",
+        "late_price_change_pct",
+        "late_price_weakness",
+        "late_limit_hold_minutes",
+        "late_withdraw_score",
+        "limitup_path_score",
+        "limitup_quality_score",
+        "intraday_risk_score",
+        "intraday_tag"
+      ],
+      "error": ""
+    },
+    "realtime_snapshot": {
+      "ok": true,
+      "rows": 81,
+      "columns": [
+        "ts_code",
+        "trade_date",
+        "update_time",
+        "price",
+        "open",
+        "high",
+        "low",
+        "close",
+        "pre_close",
+        "pct_chg",
+        "vol",
+        "amount",
+        "realtime_source"
+      ],
+      "error": ""
+    }
+  },
+  "files": [
+    {
+      "name": "daily",
+      "upstream_name": "daily.csv",
+      "required": true,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/daily.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/daily.csv",
+      "latest_path": "data/market/raw/latest/daily.csv",
+      "bytes": 411805,
+      "sha256": "84a05d67f1b9023d2661d193c869967de43729c9efa3365684e9f7787a78e97c"
+    },
+    {
+      "name": "daily_basic",
+      "upstream_name": "daily_basic.csv",
+      "required": true,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/daily_basic.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/daily_basic.csv",
+      "latest_path": "data/market/raw/latest/daily_basic.csv",
+      "bytes": 280583,
+      "sha256": "e33ce7315e36ce74f97716a653ecf1060e9ec007096b2aad9e90b9917d50460f"
+    },
+    {
+      "name": "hot_boards",
+      "upstream_name": "hot_boards.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/hot_boards.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/hot_boards.csv",
+      "latest_path": "data/market/raw/latest/hot_boards.csv",
+      "bytes": 295,
+      "sha256": "c08eba47f3058c425cce3bc3cbb380ba05b6c7f3c735b1f4d52c2998f3185511"
+    },
+    {
+      "name": "intraday_features",
+      "upstream_name": "intraday_features.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/intraday_features.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/intraday_features.csv",
+      "latest_path": "data/market/raw/latest/intraday_features.csv",
+      "bytes": 11511,
+      "sha256": "11e9eb0dbe740e245d449a1ca2e4bbdf447a550b509e6c853781b2467f63576c"
+    },
+    {
+      "name": "limit_break_d",
+      "upstream_name": "limit_break_d.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": false,
+      "source_url": "",
+      "source_trade_date": null,
+      "status_code": 200,
+      "error": "trade_date_mismatch:requested=20260917,actual=missing"
+    },
+    {
+      "name": "limit_list_d",
+      "upstream_name": "limit_list_d.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/limit_list_d.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/limit_list_d.csv",
+      "latest_path": "data/market/raw/latest/limit_list_d.csv",
+      "bytes": 7385,
+      "sha256": "2fafc77c28b6b74437f1b07fcd165944b06a458d4dff33dbf9665976dd28afb6"
+    },
+    {
+      "name": "limit_up_tags",
+      "upstream_name": "limit_up_tags.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/limit_up_tags.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/limit_up_tags.csv",
+      "latest_path": "data/market/raw/latest/limit_up_tags.csv",
+      "bytes": 2592,
+      "sha256": "0bf254cdeaca9fbb790bbb201b0045180b0ab95a101c97e865a97cb6fee4b135"
+    },
+    {
+      "name": "moneyflow_hsgt",
+      "upstream_name": "moneyflow_hsgt.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/moneyflow_hsgt.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/moneyflow_hsgt.csv",
+      "latest_path": "data/market/raw/latest/moneyflow_hsgt.csv",
+      "bytes": 134,
+      "sha256": "f7166261b4a6e14ca9588f5348f6ee9a0cbd073905ad4e50e9f2589011816e9e"
+    },
+    {
+      "name": "namechange",
+      "upstream_name": "namechange.csv",
+      "required": false,
+      "date_scoped": false,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/namechange.csv",
+      "source_trade_date": null,
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/namechange.csv",
+      "latest_path": "data/market/raw/latest/namechange.csv",
+      "bytes": 1531,
+      "sha256": "9b6318f588b5acb44807b6c42079b9cd71ab786e2fc48dd23b723fa17c36bce3"
+    },
+    {
+      "name": "stk_auction",
+      "upstream_name": "stk_auction.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/stk_auction.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/stk_auction.csv",
+      "latest_path": "data/market/raw/latest/stk_auction.csv",
+      "bytes": 234719,
+      "sha256": "678d3cfb5138d651c3d2c99d1346d4ec789ff813490056129f27a21451c9b54c"
+    },
+    {
+      "name": "stk_limit",
+      "upstream_name": "stk_limit.csv",
+      "required": true,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/stk_limit.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/stk_limit.csv",
+      "latest_path": "data/market/raw/latest/stk_limit.csv",
+      "bytes": 170081,
+      "sha256": "c03dbad956cbcb930afc76f8eaf9b3b1b1dd43f3eb77b3bd193085eb9154117f"
+    },
+    {
+      "name": "stock_basic",
+      "upstream_name": "stock_basic.csv",
+      "required": true,
+      "date_scoped": false,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/stock_basic.csv",
+      "source_trade_date": null,
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/stock_basic.csv",
+      "latest_path": "data/market/raw/latest/stock_basic.csv",
+      "bytes": 363341,
+      "sha256": "5ca6ee88f9a495a417704cab9eb676274f18704dc4b37445cf169818de8c9dce"
+    },
+    {
+      "name": "top_list",
+      "upstream_name": "top_list.csv",
+      "required": false,
+      "date_scoped": true,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/4b72662047fb96fa82616f2858b8fa1ac4c68f4e/data/raw/2026/20260917/top_list.csv",
+      "source_trade_date": "20260917",
+      "status_code": 200,
+      "error": "",
+      "dated_path": "data/market/raw/2026/20260917/top_list.csv",
+      "latest_path": "data/market/raw/latest/top_list.csv",
+      "bytes": 11351,
+      "sha256": "9983c211983e7419729ba5822a16e0dd55d6d83d09f94e01da8066c960b74716"
+    }
+  ],
+  "required_failures": [],
+  "write_failures": [],
+  "legacy_cleanup": {
+    "enabled": true,
+    "removed_files": [],
+    "removed_count": 0
+  },
+  "summary": {
+    "success_count": 12,
+    "failure_count": 1,
+    "required_failure_count": 0
+  }
+}
