@@ -1,0 +1,170 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.005723322036737054,
+      "net_return": null,
+      "promotion_rank": 8,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603626.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.006164260568211087,
+      "net_return": null,
+      "promotion_rank": 9,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600127.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20260921",
+  "exit_date": "20260922",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-09-21T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "p0_file_sha256": "9818d1b2fb0e0de35d42a755ffaf53794e322b97ca38e39737dad94f11da9ab6",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20260918.json",
+    "sha256": "9818d1b2fb0e0de35d42a755ffaf53794e322b97ca38e39737dad94f11da9ab6"
+  },
+  "pre_cas_freeze_at_utc": "2026-09-18T11:26:34.349371+00:00",
+  "prediction_generated_at_utc": "2026-09-18T11:26:34.323627+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-09-18T11:31:48.249926+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 9,
+      "candidate_score": -0.023565400664489415,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600448.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 7,
+      "candidate_score": -0.013647329309702224,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603230.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "a8446c632236e6391571973561d9b53e953b3c90",
+    "evidence_manifest_sha256": "d36db520d892b417e384021535caaad7e40f1cb3112404d80167ce725ec91f86",
+    "observer_run_id": 35339663074,
+    "publication_observation_sha256": "5fe4abeaa05bb1b61aec645c3e1b4e2557e0cd9f66807b9808a9ce502781f911"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.005723322036737054,
+      "industry": "消费电子",
+      "name": "科森科技",
+      "promotion_rank": 8,
+      "ts_code": "603626.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.006164260568211087,
+      "industry": "农产品加",
+      "name": "金健米业",
+      "promotion_rank": 9,
+      "ts_code": "600127.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.009289939987944643,
+      "industry": "房地产服务",
+      "name": "世联行",
+      "promotion_rank": 3,
+      "ts_code": "002285.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.00931512245635727,
+      "industry": "医疗服务",
+      "name": "南华生物",
+      "promotion_rank": 5,
+      "ts_code": "000504.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.010598051129412023,
+      "industry": "服装家纺",
+      "name": "龙头股份",
+      "promotion_rank": 6,
+      "ts_code": "600630.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.010608107717133625,
+      "industry": "化学制品",
+      "name": "华软科技",
+      "promotion_rank": 4,
+      "ts_code": "002453.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.013647329309702224,
+      "industry": "出版",
+      "name": "内蒙新华",
+      "promotion_rank": 2,
+      "ts_code": "603230.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.017521304665616584,
+      "industry": "包装印刷",
+      "name": "新宏泽",
+      "promotion_rank": 7,
+      "ts_code": "002836.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.023565400664489415,
+      "industry": "纺织制造",
+      "name": "华纺股份",
+      "promotion_rank": 1,
+      "ts_code": "600448.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v1",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20260918",
+  "snapshot_file_sha256": "0c8ae1d8f288f48817f08a3a23782a8761bcfaf154a22535a9c83acd05fa34af",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260918.json",
+    "sha256": "0c8ae1d8f288f48817f08a3a23782a8761bcfaf154a22535a9c83acd05fa34af"
+  },
+  "source_main_sha": "a8446c632236e6391571973561d9b53e953b3c90",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
