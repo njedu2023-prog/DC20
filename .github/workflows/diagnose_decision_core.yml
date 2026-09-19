@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -48,7 +48,7 @@ jobs:
           eol_violations="$(git ls-files --eol | awk '($1 == "i/crlf" || $1 == "i/mixed") && /attr\/text.*eol=lf/')"
           test -z "${eol_violations}"
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: "pip"
@@ -82,7 +82,7 @@ jobs:
           python -u scripts/diagnose_core_supervisor.py --output "$RUNNER_TEMP/core-timeout-diagnostic"
       - name: Preserve core regression diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: core-timeout-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
