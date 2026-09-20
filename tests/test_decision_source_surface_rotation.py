@@ -388,13 +388,78 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
-def _repair_actual_source(path):
+def _full_list_actual_source(path):
     target = ROOT / path
     assert isinstance(path, str) and not Path(path).is_absolute()
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
     return target.read_bytes()
+
+
+FULL_LIST_REVIEW_PATH = 'models/decision_source_surface_review_20260920_full_list_promotion.json'
+FULL_LIST_REVIEW_SHA = '3f2411dfd9db1ba7c699c8599438e5952b24dc3f8bb046bd2135f2859bf55ba3'
+FULL_LIST_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_full_list_promotion_statistics.py']
+
+
+def _full_list_review():
+    raw = _full_list_actual_source(FULL_LIST_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == FULL_LIST_REVIEW_SHA
+    review = json.loads(raw)
+    assert review['schema_version'] == 'dc20_full_list_promotion_display_review_v1'
+    assert review['approved_base_commit'] == 'b9a1c04fd075cfa5f32c5bd1af60d51767e82b26'
+    assert review['scope'] == 'READ_ONLY_FULL_FROZEN_D_LIST_PROMOTION_FROM_20260910'
+    assert review['boundaries'] == {key: False for key in ('models_changed','ranking_changed','frozen_members_changed',
+        'ledger_changed','settlement_changed','source_truth_changed','schedules_changed','validation_weakened')}
+    assert [item['path'] for item in review['source_changes']] == FULL_LIST_SOURCE_PATHS
+    return review
+
+
+def _repair_actual_source(path):
+    raw = _full_list_actual_source(path)
+    if path not in FULL_LIST_SOURCE_PATHS and path != 'forward/model_inventory.json':
+        return raw
+    review = _full_list_review()
+    if path == 'forward/model_inventory.json':
+        baseline = review['inventory_baseline'].encode()
+        expected = json.loads(baseline)
+        manifest = _full_list_actual_source('models/decision_model_freeze.json')
+        for asset in expected['assets']:
+            if asset['path'] == 'models/decision_model_freeze.json':
+                asset.update(sha256=hashlib.sha256(manifest).hexdigest(), bytes=len(manifest))
+        expected['full_list_promotion_review'] = {'path': FULL_LIST_REVIEW_PATH, 'sha256': FULL_LIST_REVIEW_SHA}
+        assert raw == (json.dumps(expected, ensure_ascii=False, indent=2)+'\n').encode()
+        return baseline
+    item = next(item for item in review['source_changes'] if item['path'] == path)
+    if not item['baseline_exists']:
+        assert path == 'tests/test_full_list_promotion_statistics.py'
+        assert len(raw) == item['current_bytes'] and hashlib.sha256(raw).hexdigest() == item['current_sha256']
+        assert item['baseline_bytes'] == 0 and item['baseline_sha256'] == hashlib.sha256(b'').hexdigest()
+        assert item['inverse_changes'] == [{'baseline_start':1,'current_start':1,'baseline_lines':[], 'current_lines':raw.decode().splitlines(keepends=True)}]
+        return b''
+    return _repair_inverse_bytes(raw, json.dumps(item, sort_keys=True))
+
+
+def test_full_list_display_preserves_prior_policies_and_every_live_pin():
+    before = json.loads(_repair_actual_source('models/decision_model_freeze.json'))
+    live = json.loads(_full_list_actual_source('models/decision_model_freeze.json'))
+    expected = copy.deepcopy(before)
+    expected['pinned_files']['decision.html'] = hashlib.sha256(_full_list_actual_source('decision.html')).hexdigest()
+    assert live == expected
+    for path, digest in live['pinned_files'].items():
+        assert hashlib.sha256(_full_list_actual_source(path)).hexdigest() == digest, path
+    for path in FULL_LIST_SOURCE_PATHS + ['forward/model_inventory.json']:
+        _repair_actual_source(path)
+
+
+@pytest.mark.parametrize('path', FULL_LIST_SOURCE_PATHS + ['forward/model_inventory.json', FULL_LIST_REVIEW_PATH])
+def test_full_list_display_rejects_live_mutation_after_cache_warmup(monkeypatch, path):
+    _repair_actual_source('decision.html')
+    _repair_actual_source('forward/model_inventory.json')
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda p: read(p)+(b'\n' if p == ROOT/path else b''))
+    with pytest.raises(AssertionError):
+        _repair_actual_source('decision.html' if path == FULL_LIST_REVIEW_PATH else path)
 
 
 REPAIR_REVIEW_PATH = "models/decision_source_surface_review_20260920_settlement_repair.json"
@@ -863,6 +928,10 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
 
 
 def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None and manifest == json.loads(_full_list_actual_source('models/decision_model_freeze.json')):
+        for path, digest in manifest['pinned_files'].items():
+            assert hashlib.sha256(_full_list_actual_source(path)).hexdigest() == digest
+        manifest = json.loads(_repair_actual_source('models/decision_model_freeze.json'))
     review = _candidate_activation_review(review)
     live = json.loads(_candidate_activation_live_source("models/decision_model_freeze.json"))
     if manifest is not None and manifest != live:

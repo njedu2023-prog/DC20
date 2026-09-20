@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "e99761b082dbb4ba0b68a2585b58aa39330faab1602e910d9d8c16fdf0d9da80",
+      "sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
       "bytes": 52795,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
@@ -343,5 +343,9 @@
   "settlement_repair_review": {
     "path": "models/decision_source_surface_review_20260920_settlement_repair.json",
     "sha256": "a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f"
+  },
+  "full_list_promotion_review": {
+    "path": "models/decision_source_surface_review_20260920_full_list_promotion.json",
+    "sha256": "3f2411dfd9db1ba7c699c8599438e5952b24dc3f8bb046bd2135f2859bf55ba3"
   }
 }

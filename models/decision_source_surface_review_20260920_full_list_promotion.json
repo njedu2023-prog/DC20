@@ -1,0 +1,291 @@
+{
+  "schema_version": "dc20_full_list_promotion_display_review_v1",
+  "approved_base_commit": "b9a1c04fd075cfa5f32c5bd1af60d51767e82b26",
+  "scope": "READ_ONLY_FULL_FROZEN_D_LIST_PROMOTION_FROM_20260910",
+  "boundaries": {
+    "models_changed": false,
+    "ranking_changed": false,
+    "frozen_members_changed": false,
+    "ledger_changed": false,
+    "settlement_changed": false,
+    "source_truth_changed": false,
+    "schedules_changed": false,
+    "validation_weakened": false
+  },
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 437890,
+      "current_bytes": 440389,
+      "baseline_sha256": "e68fbd88e62c16b9baa780942f3396e9bb08c0d7c57a2041f8764f06ba9da49a",
+      "current_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
+      "reason": "Read-only full-list promotion display and its tests; original Top1-3 and all policies preserved.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1206,
+          "current_start": 1206,
+          "baseline_lines": [
+            "    .promotion-success-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }\n"
+          ],
+          "current_lines": [
+            "    .promotion-success-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }\n"
+          ]
+        },
+        {
+          "baseline_start": 1294,
+          "current_start": 1294,
+          "baseline_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率</h2><span class=\"count\">Top1 / Top2 / Top3</span></div>\n"
+          ],
+          "current_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率</h2><span class=\"count\">Top1 / Top2 / Top3 / 全名单</span></div>\n"
+          ]
+        },
+        {
+          "baseline_start": 1595,
+          "current_start": 1595,
+          "baseline_lines": [],
+          "current_lines": [
+            "    function fullListPromotionStatistics(sourceRows, summary, startDate, reportSignalDate) {\n",
+            "      // Called only after the original window, summary and CSV SHA bindings pass.\n",
+            "      const days = summary.daily_summaries.filter(day => day.signal_date >= startDate && day.signal_date <= reportSignalDate && day.signal_date <= summary.as_of_date);\n",
+            "      const windowRows = sourceRows.filter(row => row.signal_date >= startDate && row.signal_date <= reportSignalDate && row.signal_date <= summary.as_of_date);\n",
+            "      executableProfitExpect(new Set(days.map(day => day.signal_date)).size === days.length, \"全名单统计日期重复\");\n",
+            "      let count = 0, verified = 0, hits = 0;\n",
+            "      for (const day of days) {\n",
+            "        const rows = windowRows.filter(row => row.signal_date === day.signal_date);\n",
+            "        const ranks = rows.map(row => Number(row.promotion_rank)).sort((a,b) => a-b);\n",
+            "        executableProfitExpect(rows.length === day.rows && new Set(rows.map(row => row.ts_code)).size === rows.length\n",
+            "          && rows.every(row => /^\\d{6}\\.(SH|SZ|BJ)$/.test(row.ts_code))\n",
+            "          && ranks.every((rank, i) => rank === i + 1), \"全名单统计成员缺失或重复\");\n",
+            "        const known = rows.filter(row => row.continuation_limit_up_hit !== \"\" && row.continuation_limit_up_hit != null);\n",
+            "        executableProfitExpect(rows.every(row => row.exec_date === day.exec_date\n",
+            "          && ([\"PENDING_T\", \"MISSING_T_TRUTH\"].includes(row.validation_status)\n",
+            "            ? row.continuation_limit_up_hit === \"\" || row.continuation_limit_up_hit == null\n",
+            "            : [\"0\", \"1\"].includes(String(row.continuation_limit_up_hit))))\n",
+            "          && known.length === day.t_validated_rows && (!known.length || day.exec_date <= summary.as_of_date), \"全名单T日验证状态或数量不一致\");\n",
+            "        count += rows.length;\n",
+            "        verified += known.length;\n",
+            "        hits += known.reduce((total, row) => total + Number(row.continuation_limit_up_hit), 0);\n",
+            "      }\n",
+            "      executableProfitExpect(count === windowRows.length, \"全名单统计存在未绑定日期\");\n",
+            "      return {count, verified, hits, hit_rate: verified ? hits / verified : null};\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 1614,
+          "current_start": 1640,
+          "baseline_lines": [
+            "      let profitSource = null;\n"
+          ],
+          "current_lines": [
+            "      let profitSource = null, allPromotion = null;\n"
+          ]
+        },
+        {
+          "baseline_start": 1668,
+          "current_start": 1694,
+          "baseline_lines": [],
+          "current_lines": [
+            "          allPromotion = fullListPromotionStatistics(sourceRows, summary, payload.start_signal_date, reportSignalDate);\n"
+          ]
+        },
+        {
+          "baseline_start": 1670,
+          "current_start": 1697,
+          "baseline_lines": [
+            "      return { payload, profitSource };\n"
+          ],
+          "current_lines": [
+            "      return { payload, profitSource, allPromotion };\n"
+          ]
+        },
+        {
+          "baseline_start": 2147,
+          "current_start": 2174,
+          "baseline_lines": [
+            "      const pRows = [1,2,3].map(rank => {\n",
+            "        const c = promotion?.ranks.find(item => item.rank === rank);\n"
+          ],
+          "current_lines": [
+            "      const pRows = [1,2,3,\"all\"].map(rank => {\n",
+            "        const c = rank === \"all\" ? (promotion && state.currentCompactStatisticsWindow?.allPromotion) : promotion?.ranks.find(item => item.rank === rank);\n"
+          ]
+        },
+        {
+          "baseline_start": 2150,
+          "current_start": 2177,
+          "baseline_lines": [
+            "          : !c.count ? \"暂无该名次样本\"\n"
+          ],
+          "current_lines": [
+            "          : !c.count ? (rank === \"all\" ? \"暂无名单样本\" : \"暂无该名次样本\")\n"
+          ]
+        },
+        {
+          "baseline_start": 2153,
+          "current_start": 2180,
+          "baseline_lines": [
+            "        return `<div><dt>Top${rank}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">${escapeHtml(sample)}</dd></div>`;\n"
+          ],
+          "current_lines": [
+            "        return `<div><dt>${rank === \"all\" ? \"全名单\" : `Top${rank}`}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">${escapeHtml(sample)}</dd></div>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2156,
+          "current_start": 2183,
+          "baseline_lines": [
+            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；各名次按T日已验证结果独立统计，未验证不计入。晋级不代表盈利。</p>`;\n"
+          ],
+          "current_lines": [
+            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "e99761b082dbb4ba0b68a2585b58aa39330faab1602e910d9d8c16fdf0d9da80",
+      "current_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
+      "reason": "Read-only full-list promotion display and its tests; original Top1-3 and all policies preserved.",
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"e68fbd88e62c16b9baa780942f3396e9bb08c0d7c57a2041f8764f06ba9da49a\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_full_list_promotion_statistics.py",
+      "baseline_exists": false,
+      "baseline_bytes": 0,
+      "current_bytes": 5595,
+      "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "700fa8ff784959924c522646552d5e701bea066a1fcd34c10180d9a78d20c35e",
+      "reason": "Read-only full-list promotion display and its tests; original Top1-3 and all policies preserved.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1,
+          "current_start": 1,
+          "baseline_lines": [],
+          "current_lines": [
+            "\"\"\"Full-list display uses SHA-bound existing rows, not new model or ledger data.\"\"\"\n",
+            "import copy\n",
+            "import csv\n",
+            "import json\n",
+            "import re\n",
+            "import shutil\n",
+            "import subprocess\n",
+            "from pathlib import Path\n",
+            "\n",
+            "import pytest\n",
+            "\n",
+            "ROOT = Path(__file__).resolve().parents[1]\n",
+            "NODE = shutil.which(\"node\")\n",
+            "pytestmark = pytest.mark.skipif(not NODE, reason=\"Node required\")\n",
+            "\n",
+            "\n",
+            "def evaluate(data):\n",
+            "    html = (ROOT / \"decision.html\").read_text()\n",
+            "    functions = \"\\n\".join(re.search(rf\"^    function {name}\\(.*?^    }}\", html, re.M | re.S).group()\n",
+            "        for name in (\"fullListPromotionStatistics\", \"executableProfitExpect\"))\n",
+            "    script = functions + \"\\nconst input=\" + json.dumps(data) + \";\\n\"\n",
+            "    script += \"try{console.log(JSON.stringify({value:fullListPromotionStatistics(input.rows,input.summary,'20260910',input.report)}))}catch(e){console.log(JSON.stringify({error:e.message}))}\"\n",
+            "    result = subprocess.run([NODE, \"-\"], input=script, text=True, capture_output=True, check=True)\n",
+            "    return json.loads(result.stdout)\n",
+            "\n",
+            "\n",
+            "def fixture():\n",
+            "    days, rows = [], []\n",
+            "    for d, t, hits in [(\"20260909\", \"20260910\", [1]), (\"20260910\", \"20260911\", [1, 0, 0, 0]),\n",
+            "                       (\"20260911\", \"20260914\", [1]), (\"20260914\", \"20260915\", [None, None])]:\n",
+            "        days.append(dict(signal_date=d, exec_date=t, rows=len(hits), t_validated_rows=sum(h is not None for h in hits)))\n",
+            "        for rank, hit in enumerate(hits, 1):\n",
+            "            rows.append(dict(signal_date=d, exec_date=t, ts_code=f\"60000{rank}.SH\", promotion_rank=str(rank),\n",
+            "                             continuation_limit_up_hit=\"\" if hit is None else str(hit),\n",
+            "                             validation_status=\"MISSING_T_TRUTH\" if hit is None else \"PENDING_T1\"))\n",
+            "    return dict(rows=rows, summary=dict(as_of_date=\"20260915\", daily_summaries=days), report=\"20260914\")\n",
+            "\n",
+            "\n",
+            "def test_full_list_is_inclusive_weighted_and_counts_repeated_stock_per_d():\n",
+            "    data = fixture()\n",
+            "    original = copy.deepcopy(data)\n",
+            "    assert evaluate(data)[\"value\"] == dict(count=7, verified=5, hits=2, hit_rate=.4)\n",
+            "    assert data == original  # no frozen inputs or signed window mutations\n",
+            "\n",
+            "\n",
+            "def test_history_navigation_keeps_latest_cumulative_window():\n",
+            "    data = fixture()\n",
+            "    data[\"report\"] = \"20260911\"\n",
+            "    assert evaluate(data)[\"value\"] == dict(count=5, verified=5, hits=2, hit_rate=.4)\n",
+            "\n",
+            "\n",
+            "def test_empty_and_pending_are_not_zero_success_rates():\n",
+            "    data = fixture()\n",
+            "    data[\"summary\"][\"daily_summaries\"] = [data[\"summary\"][\"daily_summaries\"][-1]]\n",
+            "    data[\"rows\"] = data[\"rows\"][-2:]\n",
+            "    assert evaluate(data)[\"value\"] == dict(count=2, verified=0, hits=0, hit_rate=None)\n",
+            "    data[\"summary\"][\"daily_summaries\"] = []\n",
+            "    data[\"rows\"] = []\n",
+            "    assert evaluate(data)[\"value\"] == dict(count=0, verified=0, hits=0, hit_rate=None)\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"mutation\", [\"duplicate\", \"missing\", \"rank\", \"code\", \"hit\", \"pending\", \"count\", \"future\", \"orphan\"])\n",
+            "def test_full_list_rejects_inconsistent_source_rows(mutation):\n",
+            "    data = fixture()\n",
+            "    if mutation == \"duplicate\": data[\"rows\"].append(dict(data[\"rows\"][1]))\n",
+            "    elif mutation == \"missing\": data[\"rows\"].pop(1)\n",
+            "    elif mutation == \"rank\": data[\"rows\"][1][\"promotion_rank\"] = \"2\"\n",
+            "    elif mutation == \"code\": data[\"rows\"][1][\"ts_code\"] = \"invalid\"\n",
+            "    elif mutation == \"hit\": data[\"rows\"][1][\"continuation_limit_up_hit\"] = \" \"\n",
+            "    elif mutation == \"pending\": data[\"rows\"][1][\"validation_status\"] = \"PENDING_T\"\n",
+            "    elif mutation == \"count\": data[\"summary\"][\"daily_summaries\"][1][\"t_validated_rows\"] -= 1\n",
+            "    elif mutation == \"future\":\n",
+            "        data[\"summary\"][\"daily_summaries\"][1][\"exec_date\"] = \"20260916\"\n",
+            "        for row in data[\"rows\"]:\n",
+            "            if row[\"signal_date\"] == \"20260910\": row[\"exec_date\"] = \"20260916\"\n",
+            "    else: data[\"rows\"][1][\"signal_date\"] = \"20260912\"\n",
+            "    assert \"error\" in evaluate(data)\n",
+            "\n",
+            "\n",
+            "def test_public_rows_full_list_matches_direct_independent_count():\n",
+            "    summary = json.loads((ROOT / \"outputs/decision/primary_observation/summary.json\").read_text())\n",
+            "    rows = list(csv.DictReader((ROOT / summary[\"rows_path\"]).read_text().splitlines()))\n",
+            "    selected = [r for r in rows if \"20260910\" <= r[\"signal_date\"] <= summary[\"as_of_date\"]]\n",
+            "    verified = [r for r in selected if r[\"continuation_limit_up_hit\"] != \"\"]\n",
+            "    hits = sum(int(float(r[\"continuation_limit_up_hit\"])) for r in verified)\n",
+            "    result = evaluate(dict(rows=rows, summary=summary, report=summary[\"as_of_date\"]))[\"value\"]\n",
+            "    assert result == dict(count=len(selected), verified=len(verified), hits=hits, hit_rate=hits/len(verified) if verified else None)\n",
+            "\n",
+            "\n",
+            "def test_four_compact_cards_render_without_changing_existing_ranks():\n",
+            "    from runpy import run_path\n",
+            "    run = run_path(str(ROOT / \"tests/test_compact_rank_statistics.py\"))[\"run\"]\n",
+            "    output = run(\"installRenderWindow(null,[{rank:1,count:6,verified:6,hitRate:.5},{rank:2,count:6,verified:6,hitRate:4/6},{rank:3,count:6,verified:6,hitRate:.5}]);state.currentCompactStatisticsWindow.allPromotion={count:7,verified:5,hits:2,hit_rate:.4};renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))\", {\"renderer_only\": True})\n",
+            "    assert \"<dt>全名单</dt>\" in output and \"40.00%\" in output\n",
+            "    assert \"已验证 5 次 · 晋级成功 2 次\" in output\n",
+            "    assert all(f\"<dt>Top{i}</dt>\" in output for i in (1, 2, 3))\n",
+            "    assert output.count('class=\"success-rate\"') == 4 and \"D 2026-09-10起\" in output\n",
+            "    html = (ROOT / \"decision.html\").read_text()\n",
+            "    assert \".promotion-success-summary { display: grid; grid-template-columns: repeat(4,\" in html\n",
+            "    assert \"allPromotion = fullListPromotionStatistics(sourceRows, summary, payload.start_signal_date, reportSignalDate);\" in html\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "inventory_baseline": "{\n  \"schema_version\": \"dc20_forward_model_inventory_v1\",\n  \"source_repository\": \"njedu2023-prog/DC20\",\n  \"source_commit\": \"15423ced302ab19b17f459fb3006e0af2b764f24\",\n  \"status\": \"INACTIVE_MIGRATION_REPLAY_ONLY\",\n  \"dependency_successor_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_reliability.json\",\n    \"sha256\": \"9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9\",\n    \"approved_base_commit\": \"709317f8d0cf12fb726ae515230281dad255d0f4\",\n    \"scope\": \"DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE\"\n  },\n  \"active_source_models\": {\n    \"promotion\": {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"role\": \"promotion_hgb_with_frozen_preprocessing_and_platt_calibration\",\n      \"feature_columns_sha256\": \"9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425\"\n    },\n    \"profit\": {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"role\": \"uncalibrated_fill_and_conditional_profit_research_heads\",\n      \"feature_columns_sha256\": \"a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048\",\n      \"feature_count\": 156,\n      \"release_status\": \"INTERNAL_CHALLENGER_NOT_READY\"\n    }\n  },\n  \"assets\": [\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_daily_stage_board.csv\",\n      \"sha256\": \"d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909\",\n      \"bytes\": 104013,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_event_features.csv.gz\",\n      \"sha256\": \"57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e\",\n      \"bytes\": 627667,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_executable_profit/historical_oof_top10_ledger_manifest.json\",\n      \"sha256\": \"3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5\",\n      \"bytes\": 12184,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_ledger_manifest.json\",\n      \"sha256\": \"35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034\",\n      \"bytes\": 7564,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_supervised_ledger.csv.gz\",\n      \"sha256\": \"7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46\",\n      \"bytes\": 4764361,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib\",\n      \"sha256\": \"9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6\",\n      \"bytes\": 7703,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib\",\n      \"sha256\": \"1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06\",\n      \"bytes\": 3413205,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib\",\n      \"sha256\": \"0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3\",\n      \"bytes\": 3423122,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib\",\n      \"sha256\": \"72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b\",\n      \"bytes\": 178906,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/market/trade_cal_sse.csv\",\n      \"sha256\": \"150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748\",\n      \"bytes\": 61411,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_executable_profit_internal_forward_challenger.json\",\n      \"sha256\": \"487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af\",\n      \"bytes\": 6878,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_model_freeze.json\",\n      \"sha256\": \"e99761b082dbb4ba0b68a2585b58aa39330faab1602e910d9d8c16fdf0d9da80\",\n      \"bytes\": 52795,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_forward_shadow_bridge_contract.json\",\n      \"sha256\": \"2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623\",\n      \"bytes\": 4023,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_research_contract.json\",\n      \"sha256\": \"3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780\",\n      \"bytes\": 3470,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/big_loss.joblib\",\n      \"sha256\": \"ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b\",\n      \"bytes\": 8998,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/p_fill_shadow.joblib\",\n      \"sha256\": \"69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24\",\n      \"bytes\": 9435,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/profit.joblib\",\n      \"sha256\": \"d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291\",\n      \"bytes\": 5127,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"bytes\": 179221,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/validation_latest.json\",\n      \"sha256\": \"de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73\",\n      \"bytes\": 192258,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"requirements.txt\",\n      \"sha256\": \"f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03\",\n      \"bytes\": 142,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_profit_rankings.py\",\n      \"sha256\": \"1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905\",\n      \"bytes\": 81784,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_three_rank.py\",\n      \"sha256\": \"5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98\",\n      \"bytes\": 72320,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/__init__.py\",\n      \"sha256\": \"1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8\",\n      \"bytes\": 224,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/calibration.py\",\n      \"sha256\": \"06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9\",\n      \"bytes\": 6128,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/config.py\",\n      \"sha256\": \"4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2\",\n      \"bytes\": 5987,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/engine.py\",\n      \"sha256\": \"68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8\",\n      \"bytes\": 360360,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/promotion_model.py\",\n      \"sha256\": \"af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170\",\n      \"bytes\": 28552,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/data/tushare_minute.py\",\n      \"sha256\": \"30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785\",\n      \"bytes\": 23208,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/canonical_fingerprint.py\",\n      \"sha256\": \"61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b\",\n      \"bytes\": 14617,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/contracts.py\",\n      \"sha256\": \"50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917\",\n      \"bytes\": 2634,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/d_close_features.py\",\n      \"sha256\": \"c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e\",\n      \"bytes\": 4983,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/eligibility.py\",\n      \"sha256\": \"31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7\",\n      \"bytes\": 7767,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/executable_profit_shadow.py\",\n      \"sha256\": \"872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c\",\n      \"bytes\": 110633,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/exit_policy.py\",\n      \"sha256\": \"4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f\",\n      \"bytes\": 5040,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/legacy_profit_relative_research.py\",\n      \"sha256\": \"eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2\",\n      \"bytes\": 45098,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/observation.py\",\n      \"sha256\": \"577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713\",\n      \"bytes\": 7270,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_engine_models.py\",\n      \"sha256\": \"9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c\",\n      \"bytes\": 148112,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_rank.py\",\n      \"sha256\": \"f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a\",\n      \"bytes\": 80531,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/trade_selector.py\",\n      \"sha256\": \"7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858\",\n      \"bytes\": 77709,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/probability_calibration.py\",\n      \"sha256\": \"058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c\",\n      \"bytes\": 10693,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/writers/io_contract.py\",\n      \"sha256\": \"80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97\",\n      \"bytes\": 9897,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"bytes\": 981025,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    }\n  ],\n  \"limitations\": [\n    \"The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.\",\n    \"No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.\",\n    \"P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.\",\n    \"P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.\",\n    \"Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.\",\n    \"Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.\",\n    \"Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.\",\n    \"Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.\",\n    \"Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores.\"\n  ],\n  \"navigation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_navigation.json\",\n    \"sha256\": \"3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d\"\n  },\n  \"observation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_observation_v2.json\",\n    \"sha256\": \"c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e\"\n  },\n  \"settlement_repair_review\": {\n    \"path\": \"models/decision_source_surface_review_20260920_settlement_repair.json\",\n    \"sha256\": \"a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f\"\n  }\n}\n"
+}

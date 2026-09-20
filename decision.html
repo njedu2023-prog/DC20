@@ -1203,7 +1203,7 @@
     #compactLedger table { min-width: 1080px; }
     #compactLedger .profit-summary-table { min-width: 780px; }
     #compactLedger .profit-summary-table th:first-child, #compactLedger .profit-summary-table td:first-child { min-width: 72px; }
-    .promotion-success-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+    .promotion-success-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
     .promotion-success-summary > div:last-child { border-right: 0; }
     .promotion-success-summary dt { font-size: 14px; font-weight: 700; }
@@ -1291,7 +1291,7 @@
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
-      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率</h2><span class="count">Top1 / Top2 / Top3</span></div>
+      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率</h2><span class="count">Top1 / Top2 / Top3 / 全名单</span></div>
       <div id="compactStatisticsContent"><div class="empty">正在校验晋级结果。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
@@ -1592,6 +1592,32 @@
       }
     }
 
+    function fullListPromotionStatistics(sourceRows, summary, startDate, reportSignalDate) {
+      // Called only after the original window, summary and CSV SHA bindings pass.
+      const days = summary.daily_summaries.filter(day => day.signal_date >= startDate && day.signal_date <= reportSignalDate && day.signal_date <= summary.as_of_date);
+      const windowRows = sourceRows.filter(row => row.signal_date >= startDate && row.signal_date <= reportSignalDate && row.signal_date <= summary.as_of_date);
+      executableProfitExpect(new Set(days.map(day => day.signal_date)).size === days.length, "全名单统计日期重复");
+      let count = 0, verified = 0, hits = 0;
+      for (const day of days) {
+        const rows = windowRows.filter(row => row.signal_date === day.signal_date);
+        const ranks = rows.map(row => Number(row.promotion_rank)).sort((a,b) => a-b);
+        executableProfitExpect(rows.length === day.rows && new Set(rows.map(row => row.ts_code)).size === rows.length
+          && rows.every(row => /^\d{6}\.(SH|SZ|BJ)$/.test(row.ts_code))
+          && ranks.every((rank, i) => rank === i + 1), "全名单统计成员缺失或重复");
+        const known = rows.filter(row => row.continuation_limit_up_hit !== "" && row.continuation_limit_up_hit != null);
+        executableProfitExpect(rows.every(row => row.exec_date === day.exec_date
+          && (["PENDING_T", "MISSING_T_TRUTH"].includes(row.validation_status)
+            ? row.continuation_limit_up_hit === "" || row.continuation_limit_up_hit == null
+            : ["0", "1"].includes(String(row.continuation_limit_up_hit))))
+          && known.length === day.t_validated_rows && (!known.length || day.exec_date <= summary.as_of_date), "全名单T日验证状态或数量不一致");
+        count += rows.length;
+        verified += known.length;
+        hits += known.reduce((total, row) => total + Number(row.continuation_limit_up_hit), 0);
+      }
+      executableProfitExpect(count === windowRows.length, "全名单统计存在未绑定日期");
+      return {count, verified, hits, hit_rate: verified ? hits / verified : null};
+    }
+
     async function validateCompactStatisticsWindow(payload, reportSignalDate) {
       executableProfitExpect(exactObjectKeys(payload, ["schema_version", "start_signal_date", "report_signal_date", "config_sha256", "source_files", "snapshot_sha256", "profit", "promotion"]), "统计窗口字段面漂移");
       const clock = new Date(Date.now() + 8 * 60 * 60 * 1000);
@@ -1611,7 +1637,7 @@
       // Python/JS serialize small floating-point numbers differently; the
       // producer validates the semantic snapshot without rounding returns here.
       const asOf = value => canonicalYmd(value) === value && value >= COMPACT_STATISTICS_WINDOW_START && value <= closedThrough;
-      let profitSource = null;
+      let profitSource = null, allPromotion = null;
       for (const name of ["profit", "promotion"]) {
         const section = payload[name];
         executableProfitExpect(section && ["READY", "UNAVAILABLE"].includes(section.status), `统计窗口${name}状态无效`);
@@ -1665,9 +1691,10 @@
             const verified = rows.filter(row => row.continuation_limit_up_hit !== "" && row.continuation_limit_up_hit != null);
             executableProfitExpect(rank.count === count && rank.count === rows.length && verified.every(row => [0, 1].includes(Number(row.continuation_limit_up_hit))) && rank.verified === verified.length && rank.hits === verified.reduce((total, row) => total + Number(row.continuation_limit_up_hit), 0), "晋级统计窗口未按D起点筛选样本");
           });
+          allPromotion = fullListPromotionStatistics(sourceRows, summary, payload.start_signal_date, reportSignalDate);
         }
       }
-      return { payload, profitSource };
+      return { payload, profitSource, allPromotion };
     }
 
     async function refreshCompactStatisticsWindow() {
@@ -2144,16 +2171,16 @@
         els.compactLedgerContent.innerHTML = '<p class="stats-note warn">激活配置校验失败；不使用旧累计替代新版本。</p>';
       }
       const promotion = window?.promotion?.status === "READY" ? window.promotion : null;
-      const pRows = [1,2,3].map(rank => {
-        const c = promotion?.ranks.find(item => item.rank === rank);
+      const pRows = [1,2,3,"all"].map(rank => {
+        const c = rank === "all" ? (promotion && state.currentCompactStatisticsWindow?.allPromotion) : promotion?.ranks.find(item => item.rank === rank);
         const sample = !c ? state.compactStatisticsWindowLoad?.message || "统计窗口暂不可用"
-          : !c.count ? "暂无该名次样本"
+          : !c.count ? (rank === "all" ? "暂无名单样本" : "暂无该名次样本")
           : !c.verified ? "暂无已验证样本"
           : `已验证 ${c.verified} 次 · 晋级成功 ${c.hits} 次`;
-        return `<div><dt>Top${rank}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
+        return `<div><dt>${rank === "all" ? "全名单" : `Top${rank}`}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
-      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；各名次按T日已验证结果独立统计，未验证不计入。晋级不代表盈利。</p>`;
+      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
     }
 
     function publicStatisticsPlan(plan) {
