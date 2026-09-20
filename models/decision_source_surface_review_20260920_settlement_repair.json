@@ -17,9 +17,9 @@
       "path": ".github/workflows/test_decision_core.yml",
       "baseline_exists": true,
       "baseline_bytes": 10251,
-      "current_bytes": 10251,
+      "current_bytes": 10475,
       "baseline_sha256": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
-      "current_sha256": "f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe",
+      "current_sha256": "fa70a1c4cf24f786388c7e944678e40b5c963009107a829ee049771e8604f6f6",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
         {
@@ -29,7 +29,42 @@
             "    timeout-minutes: 45\n"
           ],
           "current_lines": [
-            "    timeout-minutes: 90\n"
+            "    timeout-minutes: 90\n",
+            "    strategy:\n",
+            "      fail-fast: false\n",
+            "      matrix:\n",
+            "        shard: [0, 1, 2, 3, 4, 5, 6, 7]\n"
+          ]
+        },
+        {
+          "baseline_start": 164,
+          "current_start": 168,
+          "baseline_lines": [
+            "          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src\n"
+          ],
+          "current_lines": [
+            "          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src:${{ github.workspace }}/tests\n",
+            "          DC20_AUDIT_SHARD: ${{ matrix.shard }}\n"
+          ]
+        },
+        {
+          "baseline_start": 167,
+          "current_start": 172,
+          "baseline_lines": [
+            "          python -m pytest -vv --tb=short --durations=25 tests/test_decision_source_surface_rotation.py --junitxml=\"$RUNNER_TEMP/source-surface-audit.xml\" 2>&1 | tee \"$RUNNER_TEMP/source-surface-audit.log\"\n"
+          ],
+          "current_lines": [
+            "          python -m pytest -p test_decision_core_ci_partition -vv --tb=short --durations=25 tests/test_decision_source_surface_rotation.py --junitxml=\"$RUNNER_TEMP/source-surface-audit.xml\" 2>&1 | tee \"$RUNNER_TEMP/source-surface-audit.log\"\n"
+          ]
+        },
+        {
+          "baseline_start": 173,
+          "current_start": 178,
+          "baseline_lines": [
+            "          name: source-surface-audit-${{ github.run_id }}-${{ github.run_attempt }}\n"
+          ],
+          "current_lines": [
+            "          name: source-surface-audit-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}\n"
           ]
         }
       ]
@@ -163,7 +198,7 @@
       "baseline_bytes": 52661,
       "current_bytes": 52795,
       "baseline_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
-      "current_sha256": "8a84239e94c7172638db16780754f80886e020bdfd7e0c1c8a7fc98e16787e95",
+      "current_sha256": "e99761b082dbb4ba0b68a2585b58aa39330faab1602e910d9d8c16fdf0d9da80",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
         {
@@ -173,7 +208,7 @@
             "    \".github/workflows/test_decision_core.yml\": \"f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1\",\n"
           ],
           "current_lines": [
-            "    \".github/workflows/test_decision_core.yml\": \"f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe\",\n"
+            "    \".github/workflows/test_decision_core.yml\": \"fa70a1c4cf24f786388c7e944678e40b5c963009107a829ee049771e8604f6f6\",\n"
           ]
         },
         {
@@ -728,19 +763,93 @@
       "path": "tests/test_decision_core_ci_partition.py",
       "baseline_exists": true,
       "baseline_bytes": 4908,
-      "current_bytes": 4908,
+      "current_bytes": 6679,
       "baseline_sha256": "5051831911869426b7336b29c0af19957a9765e85ed12f0c335169eb661a3c34",
-      "current_sha256": "91db2277507312bba7ae0165277ca5f8aafb8a922dc8b9e980fcbac503db0e0b",
+      "current_sha256": "88d5e6e3e1a540298a76b5d24c51a6cdc288a68c775427e547956e8bb7e5a3b2",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
         {
+          "baseline_start": 17,
+          "current_start": 17,
+          "baseline_lines": [],
+          "current_lines": [
+            "AUDIT_SHARDS = 8\n",
+            "\n",
+            "\n",
+            "def _audit_partition(nodes, shard):\n",
+            "    assert 0 <= shard < AUDIT_SHARDS\n",
+            "    assert nodes and len(nodes) == len(set(nodes))\n",
+            "    assert all(node.startswith(AUDIT + \"::\") for node in nodes)\n",
+            "    return sorted(nodes)[shard::AUDIT_SHARDS]\n",
+            "\n",
+            "\n",
+            "def pytest_collection_modifyitems(config, items):\n",
+            "    \"\"\"Explicit audit-only plugin; never used by ordinary core collection.\"\"\"\n",
+            "    shard = int(os.environ[\"DC20_AUDIT_SHARD\"])\n",
+            "    nodes = [item.nodeid for item in items]\n",
+            "    chosen = set(_audit_partition(nodes, shard))\n",
+            "    assert chosen, \"empty source audit shard\"\n",
+            "    selected = [item for item in items if item.nodeid in chosen]\n",
+            "    excluded = [item for item in items if item.nodeid not in chosen]\n",
+            "    config.hook.pytest_deselected(items=excluded)\n",
+            "    items[:] = selected\n",
+            "    print(f\"AUDIT SHARD {shard}/{AUDIT_SHARDS}: {len(selected)}/{len(nodes)} nodes\")\n"
+          ]
+        },
+        {
+          "baseline_start": 36,
+          "current_start": 57,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if words[3:5] == [\"-p\", \"test_decision_core_ci_partition\"]:\n",
+            "        words = words[:3] + words[5:]\n"
+          ]
+        },
+        {
+          "baseline_start": 70,
+          "current_start": 93,
+          "baseline_lines": [],
+          "current_lines": [
+            "    shards = [_audit_partition(list(audit_nodes), index) for index in range(AUDIT_SHARDS)]\n",
+            "    flattened = [node for shard in shards for node in shard]\n",
+            "    assert len(flattened) == len(set(flattened)) == len(audit_nodes)\n",
+            "    assert set(flattened) == audit_nodes\n",
+            "    job = jobs[\"source-surface-audit\"]\n",
+            "    assert job[\"strategy\"] == {\"fail-fast\": False, \"matrix\": {\"shard\": list(range(AUDIT_SHARDS))}}\n",
+            "    assert _test_step(job)[\"env\"][\"DC20_AUDIT_SHARD\"] == \"${{ matrix.shard }}\"\n",
+            "    assert \"-p test_decision_core_ci_partition\" in _test_step(job)[\"run\"]\n"
+          ]
+        },
+        {
           "baseline_start": 74,
-          "current_start": 74,
+          "current_start": 105,
           "baseline_lines": [
             "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 45)):\n"
           ],
           "current_lines": [
             "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 90)):\n"
+          ]
+        },
+        {
+          "baseline_start": 85,
+          "current_start": 116,
+          "baseline_lines": [
+            "        assert step[\"env\"][\"PYTHONPATH\"] == \"${{ github.workspace }}:${{ github.workspace }}/src\"\n"
+          ],
+          "current_lines": [
+            "        expected_path = \"${{ github.workspace }}:${{ github.workspace }}/src\"\n",
+            "        if name == \"source-surface-audit\":\n",
+            "            expected_path += \":${{ github.workspace }}/tests\"\n",
+            "        assert step[\"env\"][\"PYTHONPATH\"] == expected_path\n"
+          ]
+        },
+        {
+          "baseline_start": 92,
+          "current_start": 126,
+          "baseline_lines": [],
+          "current_lines": [
+            "        if name == \"source-surface-audit\":\n",
+            "            assert \"${{ matrix.shard }}\" in upload[\"with\"][\"name\"]\n"
           ]
         }
       ]

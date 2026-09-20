@@ -398,7 +398,7 @@ def _repair_actual_source(path):
 
 
 REPAIR_REVIEW_PATH = "models/decision_source_surface_review_20260920_settlement_repair.json"
-REPAIR_REVIEW_SHA = "aa901a8a0235fe60344ca50b9beaa56e0ed52cf2c878843a78fd077f2a4a54ff"
+REPAIR_REVIEW_SHA = "a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f"
 REPAIR_SOURCE_PATHS = ['.github/workflows/test_decision_core.yml', 'decision.html', 'models/decision_model_freeze.json', 'scripts/build_compact_statistics_window.py', 'scripts/settle_primary_observations.py', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_continuous_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_decision_core_ci_diagnostics.py', 'tests/test_decision_core_ci_partition.py', 'tests/test_decision_core_extended_diagnostics.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_frozen_canonical_v2_replay.py', 'tests/test_primary_observation_summary.py', 'tests/test_three_rank_truth_frontend.py']
 
 

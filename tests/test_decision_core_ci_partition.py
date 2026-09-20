@@ -14,6 +14,27 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/test_decision_core.yml"
 AUDIT = "tests/test_decision_source_surface_rotation.py"
+AUDIT_SHARDS = 8
+
+
+def _audit_partition(nodes, shard):
+    assert 0 <= shard < AUDIT_SHARDS
+    assert nodes and len(nodes) == len(set(nodes))
+    assert all(node.startswith(AUDIT + "::") for node in nodes)
+    return sorted(nodes)[shard::AUDIT_SHARDS]
+
+
+def pytest_collection_modifyitems(config, items):
+    """Explicit audit-only plugin; never used by ordinary core collection."""
+    shard = int(os.environ["DC20_AUDIT_SHARD"])
+    nodes = [item.nodeid for item in items]
+    chosen = set(_audit_partition(nodes, shard))
+    assert chosen, "empty source audit shard"
+    selected = [item for item in items if item.nodeid in chosen]
+    excluded = [item for item in items if item.nodeid not in chosen]
+    config.hook.pytest_deselected(items=excluded)
+    items[:] = selected
+    print(f"AUDIT SHARD {shard}/{AUDIT_SHARDS}: {len(selected)}/{len(nodes)} nodes")
 
 
 def _jobs():
@@ -33,6 +54,8 @@ def _selection(job):
     command = lines[0].split(" 2>&1 | tee ")[0]
     words = shlex.split(command)
     assert words[:3] == ["python", "-m", "pytest"]
+    if words[3:5] == ["-p", "test_decision_core_ci_partition"]:
+        words = words[:3] + words[5:]
     allowed = {"-vv", "--tb=short", "--durations=25"}
     selection = []
     for word in words[3:]:
@@ -67,6 +90,14 @@ def test_live_collection_partitions_are_disjoint_and_cover_every_original_node()
     assert not core_nodes & audit_nodes
     assert core_nodes | audit_nodes == complete_nodes
     assert all(node.startswith(AUDIT + "::") for node in audit_nodes)
+    shards = [_audit_partition(list(audit_nodes), index) for index in range(AUDIT_SHARDS)]
+    flattened = [node for shard in shards for node in shard]
+    assert len(flattened) == len(set(flattened)) == len(audit_nodes)
+    assert set(flattened) == audit_nodes
+    job = jobs["source-surface-audit"]
+    assert job["strategy"] == {"fail-fast": False, "matrix": {"shard": list(range(AUDIT_SHARDS))}}
+    assert _test_step(job)["env"]["DC20_AUDIT_SHARD"] == "${{ matrix.shard }}"
+    assert "-p test_decision_core_ci_partition" in _test_step(job)["run"]
 
 
 def test_both_partitions_preserve_failures_and_always_upload_diagnostics():
@@ -82,13 +113,18 @@ def test_both_partitions_preserve_failures_and_always_upload_diagnostics():
         assert "-vv --tb=short --durations=25" in step["run"]
         assert " 2>&1 | tee " in step["run"]
         assert "|| true" not in step["run"] and not step.get("continue-on-error")
-        assert step["env"]["PYTHONPATH"] == "${{ github.workspace }}:${{ github.workspace }}/src"
+        expected_path = "${{ github.workspace }}:${{ github.workspace }}/src"
+        if name == "source-surface-audit":
+            expected_path += ":${{ github.workspace }}/tests"
+        assert step["env"]["PYTHONPATH"] == expected_path
         uploads = [item for item in job["steps"] if item.get("uses", "").startswith("actions/upload-artifact@")]
         assert len(uploads) == 1
         upload = uploads[0]
         assert upload["if"] == "always()"
         assert re.fullmatch(r"actions/upload-artifact@[0-9a-f]{40}", upload["uses"])
         assert ".log" in upload["with"]["path"] and ".xml" in upload["with"]["path"]
+        if name == "source-surface-audit":
+            assert "${{ matrix.shard }}" in upload["with"]["name"]
     assert "node --version" in _test_step(jobs["test-decision-core"])["run"]
 
 
