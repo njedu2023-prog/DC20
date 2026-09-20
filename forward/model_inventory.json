@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
+      "sha256": "8a6a7fac5c236388df18cefcf0a864afc75f2882f62780b99c053a80ba679e2a",
       "bytes": 52661,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
@@ -339,5 +339,9 @@
   "observation_source_review": {
     "path": "models/decision_source_surface_review_20260915_observation_v2.json",
     "sha256": "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
+  },
+  "settlement_repair_review": {
+    "path": "models/decision_source_surface_review_20260920_settlement_repair.json",
+    "sha256": "e8a7568aec61dc5c0a080919176837c2c28cc3af8ab2c1bbf7fe2c995b3b72ec"
   }
 }

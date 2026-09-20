@@ -155,7 +155,7 @@ def test_sync_is_one_exact_stock_day_and_never_overwrites(tmp_path, planned):
     assert len(client.calls) == 1
     endpoint, params, fields = client.calls[0]
     assert endpoint == "stk_mins" and fields == truth.FIELDS
-    assert params == {"ts_code": CODE, "freq": "1min", "start_date": "2026-09-14 09:30:00",
+    assert params == {"ts_code": CODE, "freq": "1min", "start_date": "2026-09-14 09:31:00",
                       "end_date": "2026-09-14 15:00:00"}
     assert len(result["written_paths"]) == 2
     assert len(sync.validated_written_paths(tmp_path, result, DAY)) == 2
@@ -171,6 +171,64 @@ def test_permission_error_is_pending_and_never_leaks_exception_token(tmp_path, p
     assert result["partitions"][0]["reason"] == "RuntimeError"
     assert "secret" not in json.dumps(result)
     assert result["written_paths"] == []
+
+
+@pytest.mark.parametrize("code", ["002584.SZ", "001216.SZ", "002846.SZ", "002631.SZ", "002491.SZ"])
+def test_due_0918_positions_request_only_continuous_bars(tmp_path, monkeypatch, code):
+    day = "20260918"
+    monkeypatch.setattr(sync, "required_partitions", lambda root, asof: {(day, code)})
+    class RangeClient:
+        def call(self, endpoint, params, fields):
+            assert params == truth.request_parameters(day, code, continuous_only=True)
+            # The old request also returned this ambiguous 09:30 record and
+            # rejected the complete session. The corrected query excludes it
+            # at the provider; no returned record is dropped locally.
+            values = rows(day, code)
+            if params["start_date"].endswith("09:30:00"):
+                values.append(dict(values[0], trade_time="2026-09-18 09:30:00"))
+            return pd.DataFrame(values)
+    report = sync.sync_missing_minutes(tmp_path, day, client=RangeClient())
+    assert report["status"] == "COMPLETE"
+    payload = truth.load_exit_minutes(tmp_path, day, code)
+    assert len(payload["rows"]) == 240
+    meta = json.loads(truth.minute_paths(tmp_path, day, code)[1].read_bytes())
+    assert meta["schema_version"] == truth.CONTINUOUS_SOURCE_SCHEMA
+    assert meta["request"]["start_date"] == "2026-09-18 09:31:00"
+    assert meta["source_rows"] == 240
+
+
+def test_new_collector_keeps_old_verified_sources_byte_exact(tmp_path, planned):
+    paths = write_truth(tmp_path)
+    before = [p.read_bytes() for p in paths]
+    result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(error=RuntimeError("must not fetch")))
+    assert result["network_requests"] == 0
+    assert [p.read_bytes() for p in paths] == before
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_provider_ignoring_continuous_range_is_not_silently_cleaned(tmp_path, planned, ambiguous):
+    values = rows()
+    values.append(dict(ts_code=CODE, trade_time="2026-09-14 09:30:00",
+                       open=10, close=10.1 if ambiguous else 10,
+                       high=10.2 if ambiguous else 10, low=10, vol=100, amount=1000))
+    result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(values))
+    assert result["partitions"][0]["status"] == "PENDING_SOURCE_INVALID"
+    assert not result["written_paths"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema_version", truth.SOURCE_SCHEMA),
+    ("adapter", truth.SOURCE_ADAPTER),
+    ("request", truth.request_parameters(DAY, CODE)),
+])
+def test_continuous_metadata_cannot_be_mislabeled_as_old_request(tmp_path, planned, field, value):
+    sync.sync_missing_minutes(tmp_path, DAY, client=Client())
+    path = truth.minute_paths(tmp_path, DAY, CODE)[1]
+    meta = json.loads(path.read_bytes())
+    meta[field] = value
+    path.write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match="metadata/SHA"):
+        truth.load_exit_minutes(tmp_path, DAY, CODE)
 
 
 def test_partial_source_is_pending_without_writing(tmp_path, planned):

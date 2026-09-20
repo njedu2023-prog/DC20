@@ -49,7 +49,20 @@ async function fetchPublishedBytes(path) {{
   return new TextEncoder().encode(files[path]);
 }}
 const plan = {{three_rank:contract}};
-""" + "\n(async()=>{" + body + "})().catch(error=>{console.error(error);process.exit(1)});"
+""" + r'''
+async function mutateObservationField(code, field, value) {
+  const bytes = new TextEncoder().encode(files[summary.rows_path]);
+  const rows = parseStrictCsvBytes(bytes, ['signal_date', 'ts_code', field], 'mutation fixture');
+  const selected = rows.filter(row => row.signal_date === contract.signal_date && row.ts_code === code);
+  if (selected.length !== 1 || selected[0][field] === value) throw new Error('mutation must change exactly one frozen row');
+  selected[0][field] = value;
+  const fields = Object.keys(rows[0]);
+  const quote = value => '"' + String(value ?? '').replaceAll('"', '""') + '"';
+  files[summary.rows_path] = [fields, ...rows.map(row => fields.map(field => row[field]))]
+    .map(row => row.map(quote).join(',')).join('\n') + '\n';
+  summary.rows_sha256 = await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));
+}
+''' + "\n(async()=>{" + body + "})().catch(error=>{console.error(error);process.exit(1)});"
     result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
 
@@ -91,9 +104,9 @@ def test_settled_label_uses_verified_actual_exit_date_not_planned_exit_date():
     "summary.rows_sha256='a'.repeat(64);",
     "summary.policy.round_trip_cost_rate=0.009;",
     "summary.policy.id='different_return_policy';",
-    "files[summary.rows_path]=files[summary.rows_path].replace('20260901,28.83','20260831,28.83');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));",
-    "files[summary.rows_path]=files[summary.rows_path].replace('20260901,28.83','20260907,28.83');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));",
-    "files[summary.rows_path]=files[summary.rows_path].replace('20260831,20260901','20260902,20260901');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));",
+    "await mutateObservationField(contract.rows[1].ts_code,'actual_exit_date','20260831');",
+    "await mutateObservationField(contract.rows[1].ts_code,'actual_exit_date','20260907');",
+    "await mutateObservationField(contract.rows[0].ts_code,'exec_date','20260902');",
     "files[summary.rows_path]=files[summary.rows_path].split('\\n').filter(line=>!line.includes('600540.SH')).join('\\n');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));"
 ])
 def test_observation_bad_date_sha_or_missing_member_is_explicit_and_not_zero(mutation):
@@ -126,7 +139,7 @@ def test_final_actual_exit_later_than_current_closed_date_is_invalid():
 
 
 def test_conflicting_t_close_and_observation_truth_fail_closed():
-    out = run("files[summary.rows_path]=files[summary.rows_path].replace('False,,1,20260831','False,,0,20260831');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,o:state.currentThreeRankObservationTruth}));")
+    out = run("await mutateObservationField(contract.rows[0].ts_code,'continuation_limit_up_hit','0');await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,o:state.currentThreeRankObservationTruth}));")
     assert out["t"]["status"] == "INVALID_T_TRUTH"
     assert out["o"]["status"] == "OBSERVATION_INVALID"
 

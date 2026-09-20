@@ -388,13 +388,76 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
-def _obs_actual_source(path):
+def _repair_actual_source(path):
     target = ROOT / path
     assert isinstance(path, str) and not Path(path).is_absolute()
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
     return target.read_bytes()
+
+
+REPAIR_REVIEW_PATH = "models/decision_source_surface_review_20260920_settlement_repair.json"
+REPAIR_REVIEW_SHA = "e8a7568aec61dc5c0a080919176837c2c28cc3af8ab2c1bbf7fe2c995b3b72ec"
+REPAIR_SOURCE_PATHS = ['.github/workflows/test_decision_core.yml', 'decision.html', 'models/decision_model_freeze.json', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_minute_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_decision_core_ci_partition.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_three_rank_truth_frontend.py']
+
+
+def _repair_review():
+    raw = _repair_actual_source(REPAIR_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == REPAIR_REVIEW_SHA
+    review = json.loads(raw)
+    assert review["schema_version"] == "decision_settlement_repair_review_v1"
+    assert review["approved_base_commit"] == "ec2a3ef3be6b4b7322d19078314b7f1509ed5090"
+    assert review["scope"] == "CONTINUOUS_MINUTE_COLLECTION_STATISTICS_COMPATIBILITY_AND_ACCEPTANCE_ONLY"
+    assert review["boundaries"] == {
+        "model_weights_changed": False, "ranking_algorithm_changed": False,
+        "frozen_members_changed": False, "exit_rule_changed": False,
+        "historical_truth_overwritten": False, "validation_gates_bypassed": False,
+        "actual_trading_enabled": False, "workflow_schedule_changed": False,
+    }
+    assert [item["path"] for item in review["source_changes"]] == REPAIR_SOURCE_PATHS
+    return review
+
+
+def _obs_actual_source(path):
+    """Rewind only exact reviewed bytes; every read still checks live content."""
+    raw = _repair_actual_source(path)
+    review = _repair_review()
+    if path == "forward/model_inventory.json":
+        original = review["inventory_baseline"].encode()
+        expected = json.loads(original)
+        manifest = _repair_actual_source("models/decision_model_freeze.json")
+        for asset in expected["assets"]:
+            if asset["path"] == "models/decision_model_freeze.json":
+                asset.update(sha256=hashlib.sha256(manifest).hexdigest(), bytes=len(manifest))
+        expected["settlement_repair_review"] = {"path": REPAIR_REVIEW_PATH, "sha256": REPAIR_REVIEW_SHA}
+        assert raw == (json.dumps(expected, ensure_ascii=False, indent=2) + "\n").encode()
+        return original
+    item = next((item for item in review["source_changes"] if item["path"] == path), None)
+    return raw if item is None else _candidate_activation_inverse(raw, item)
+
+
+def test_settlement_repair_preserves_model_policy_and_checks_every_live_pin():
+    before = json.loads(_obs_actual_source("models/decision_model_freeze.json"))
+    current = json.loads(_repair_actual_source("models/decision_model_freeze.json"))
+    expected = copy.deepcopy(before)
+    for path in REPAIR_SOURCE_PATHS:
+        if path in expected["pinned_files"]:
+            expected["pinned_files"][path] = hashlib.sha256(_repair_actual_source(path)).hexdigest()
+    assert current == expected
+    for path, sha in current["pinned_files"].items():
+        assert hashlib.sha256(_repair_actual_source(path)).hexdigest() == sha, path
+    for path in REPAIR_SOURCE_PATHS + ["forward/model_inventory.json"]:
+        _obs_actual_source(path)
+
+
+@pytest.mark.parametrize("path", REPAIR_SOURCE_PATHS + ["forward/model_inventory.json", REPAIR_REVIEW_PATH])
+def test_settlement_repair_rejects_every_unreviewed_source_mutation(monkeypatch, path):
+    _obs_actual_source(path)
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, "read_bytes", lambda p: read(p) + (b"\n" if p == ROOT / path else b""))
+    with pytest.raises(AssertionError):
+        _obs_actual_source(path)
 
 
 def _obs_review():

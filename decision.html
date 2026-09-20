@@ -1769,19 +1769,33 @@
           const identity = frozen.rows.find(item => item.ts_code === row.ts_code);
           const status = row.validation_status;
           const tPending = ["PENDING_T", "MISSING_T_TRUTH"].includes(status);
-          const statuses = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
+          const minuteExit = row.exit_policy_id === "dc20_exit_1000_limit_hold_20260912_v1";
+          const statuses = ["PENDING_T", "MISSING_T_TRUTH", "PENDING_T1", "PENDING_EXIT_PROXY", "MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "FINAL_VERIFIED_PROXY", "FINAL_NO_FILL_PROXY"];
+          if ((row.exit_policy_id && !minuteExit) ||
+              (minuteExit && (summary.schema_version !== "dc20_primary_observation_summary_v2" || day.exit_date < "20260914")) ||
+              (summary.schema_version === "dc20_primary_observation_summary_v2" && day.exit_date >= "20260914" && !minuteExit) ||
+              (status === "PENDING_EXIT_PROXY" && (!minuteExit || row.exit_validation_status !== "PENDING_EXIT_LIMIT_UP_HELD"))) throw new Error("分席退出政策或延持状态不一致");
           if (!identity || identity.name !== row.name || identity.promotion_rank !== rank ||
-              row.exec_date !== day.exec_date || row.exit_date !== day.exit_date || row.truth_source !== "daily_open_proxy" ||
+              row.exec_date !== day.exec_date || row.exit_date !== day.exit_date || row.truth_source !== (minuteExit ? "daily_open_entry_minute_exit_proxy" : "daily_open_proxy") ||
               row.actual_order_fill_observed !== "False" || !statuses.includes(status) ||
               (tPending ? hit !== null || fill !== null : ![0,1].includes(hit) || ![0,1].includes(fill)) ||
               (status === "FINAL_VERIFIED_PROXY" ? net === null || slot !== net || fill !== 1 : net !== null) ||
               (status === "FINAL_NO_FILL_PROXY" ? slot !== 0 || fill !== 0 : status !== "FINAL_VERIFIED_PROXY" && slot !== null)) throw new Error("分席身份、验证状态或收益不一致");
           if ((!tPending && summary.as_of_date < day.exec_date) || (status.startsWith("FINAL_") && summary.as_of_date < day.exit_date) ||
               (status === "MISSING_T_TRUTH" && summary.as_of_date < day.exec_date) ||
-              (["MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY"].includes(status) && summary.as_of_date < day.exit_date) ||
+              (["MISSING_T1_TRUTH", "UNRESOLVED_EXIT_PROXY", "PENDING_EXIT_PROXY"].includes(status) && summary.as_of_date < day.exit_date) ||
               (status === "PENDING_T" && summary.as_of_date >= day.exec_date) || (status === "PENDING_T1" && summary.as_of_date >= day.exit_date)) throw new Error("分席验证日期不一致");
           const actualExit = canonicalYmd(row.actual_exit_date), blocked = numeric(row.blocked_exit_sessions) || 0;
           if (!Number.isInteger(blocked) || blocked < 0 || (status === "FINAL_VERIFIED_PROXY" && (!actualExit || actualExit < day.exit_date || actualExit > summary.as_of_date))) throw new Error("分席实际退出日期无效");
+          if (minuteExit && status === "FINAL_VERIFIED_PROXY") {
+            const stamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+08:00$/;
+            if (row.exit_validation_status !== "SETTLED_EXIT_1000_MINUTE_PROXY" ||
+                ![row.actual_exit_time, row.decision_time, row.execution_bar_start, row.execution_bar_end].every(value => stamp.test(value || "") && Number.isFinite(Date.parse(value))) ||
+                row.actual_exit_time !== row.execution_bar_start || row.actual_exit_time.slice(0,10).replaceAll("-", "") !== actualExit ||
+                Date.parse(row.execution_bar_start) < Date.parse(row.decision_time) ||
+                Date.parse(row.execution_bar_end) - Date.parse(row.execution_bar_start) !== 60000 ||
+                row.exit_time_semantics !== "NEXT_BAR_OPEN_MINUTE_PROXY") throw new Error("分席分钟退出时间口径无效");
+          }
           return {...row, rank, hit, net, slot, fill, blocked, actualExit};
         });
         const counts = {
@@ -1789,11 +1803,12 @@
           final_verified_trades: clean.filter(r => r.net !== null).length,
           settled_rows: clean.filter(r => r.slot !== null).length,
           pending_t_rows: clean.filter(r => r.validation_status === "PENDING_T").length,
-          pending_t1_rows: clean.filter(r => r.validation_status === "PENDING_T1").length,
+          pending_t1_rows: clean.filter(r => ["PENDING_T1", "PENDING_EXIT_PROXY"].includes(r.validation_status)).length,
           missing_t_truth_rows: clean.filter(r => r.validation_status === "MISSING_T_TRUTH").length,
           missing_t1_truth_rows: clean.filter(r => r.validation_status === "MISSING_T1_TRUTH").length,
           unresolved_exit_rows: clean.filter(r => r.validation_status === "UNRESOLVED_EXIT_PROXY").length
         };
+        if (day.pending_exit_rows != null) counts.pending_exit_rows = clean.filter(r => r.validation_status === "PENDING_EXIT_PROXY").length;
         if (Object.entries(counts).some(([key, value]) => value !== day[key])) throw new Error("分席计数与已发布摘要不一致");
         verifiedRows.push(...clean);
       }
@@ -1803,14 +1818,15 @@
         const t = rows.filter(r => r.hit !== null), settled = rows.filter(r => r.slot !== null), filled = settled.filter(r => r.net !== null);
         const missing = rows.filter(r => r.validation_status.startsWith("MISSING_") || r.validation_status === "UNRESOLVED_EXIT_PROXY").length;
         const delayed = rows.some(r => r.blocked > 0 || r.actualExit && r.actualExit > r.exit_date);
-        const reason = missing ? "缺真值或退出受阻，暂不累计" : delayed ? "顺延退出资金重叠，暂不累计" : !settled.length ? "尚无已结算样本" : "按D合成观察，非实盘净值";
+        const mixedPolicy = new Set(rows.map(r => r.exit_policy_id || "legacy_open_exit")).size > 1;
+        const reason = mixedPolicy ? "不同退出政策，收益不合并" : missing ? "缺真值或退出受阻，暂不累计" : delayed ? "顺延退出资金重叠，暂不累计" : !settled.length ? "尚无已结算样本" : "按D合成观察，非实盘净值";
         let nav = 1, peak = 1, drawdown = 0;
         for (const row of settled) { nav *= 1 + row.slot; peak = Math.max(peak,nav); drawdown = Math.min(drawdown,nav/peak-1); }
-        const available = settled.length > 0 && !missing && !delayed;
+        const available = settled.length > 0 && !missing && !delayed && !mixedPolicy;
         return {rank, count:rows.length, verified:t.length, settled:settled.length, filled:filled.length,
           noFill:settled.length-filled.length, pending:rows.length-settled.length-missing, missing,
-          hitRate:mean(t.map(r=>r.hit)), buyable:mean(t.map(r=>r.fill)), winRate:mean(filled.map(r=>Number(r.net>0))),
-          meanNet:mean(filled.map(r=>r.net)), cumulative:available ? nav-1 : null, drawdown:available ? drawdown : null, reason};
+          hitRate:mean(t.map(r=>r.hit)), buyable:mean(t.map(r=>r.fill)), winRate:mixedPolicy ? null : mean(filled.map(r=>Number(r.net>0))),
+          meanNet:mixedPolicy ? null : mean(filled.map(r=>r.net)), cumulative:available ? nav-1 : null, drawdown:available ? drawdown : null, reason};
       });
     }
 
@@ -2133,7 +2149,7 @@
         const sample = !c ? state.compactStatisticsWindowLoad?.message || "统计窗口暂不可用"
           : !c.count ? "暂无该名次样本"
           : !c.verified ? "暂无已验证样本"
-          : `${c.hits} / ${c.verified} 成功 / 已验证`;
+          : `已验证 ${c.verified} 次 · 晋级成功 ${c.hits} 次`;
         return `<div><dt>Top${rank}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";

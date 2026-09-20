@@ -1,0 +1,658 @@
+{
+  "schema_version": "decision_settlement_repair_review_v1",
+  "approved_base_commit": "ec2a3ef3be6b4b7322d19078314b7f1509ed5090",
+  "scope": "CONTINUOUS_MINUTE_COLLECTION_STATISTICS_COMPATIBILITY_AND_ACCEPTANCE_ONLY",
+  "boundaries": {
+    "model_weights_changed": false,
+    "ranking_algorithm_changed": false,
+    "frozen_members_changed": false,
+    "exit_rule_changed": false,
+    "historical_truth_overwritten": false,
+    "validation_gates_bypassed": false,
+    "actual_trading_enabled": false,
+    "workflow_schedule_changed": false
+  },
+  "source_changes": [
+    {
+      "path": ".github/workflows/test_decision_core.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 10251,
+      "current_bytes": 10251,
+      "baseline_sha256": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
+      "current_sha256": "f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 119,
+          "current_start": 119,
+          "baseline_lines": [
+            "    timeout-minutes: 45\n"
+          ],
+          "current_lines": [
+            "    timeout-minutes: 90\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 435918,
+      "current_bytes": 437890,
+      "baseline_sha256": "9d36c7282c5a24beb3bd405ad3f2fd1b951d98310d7dd69e211a6ce387dc6044",
+      "current_sha256": "e68fbd88e62c16b9baa780942f3396e9bb08c0d7c57a2041f8764f06ba9da49a",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1772,
+          "current_start": 1772,
+          "baseline_lines": [
+            "          const statuses = [\"PENDING_T\", \"MISSING_T_TRUTH\", \"PENDING_T1\", \"MISSING_T1_TRUTH\", \"UNRESOLVED_EXIT_PROXY\", \"FINAL_VERIFIED_PROXY\", \"FINAL_NO_FILL_PROXY\"];\n"
+          ],
+          "current_lines": [
+            "          const minuteExit = row.exit_policy_id === \"dc20_exit_1000_limit_hold_20260912_v1\";\n",
+            "          const statuses = [\"PENDING_T\", \"MISSING_T_TRUTH\", \"PENDING_T1\", \"PENDING_EXIT_PROXY\", \"MISSING_T1_TRUTH\", \"UNRESOLVED_EXIT_PROXY\", \"FINAL_VERIFIED_PROXY\", \"FINAL_NO_FILL_PROXY\"];\n",
+            "          if ((row.exit_policy_id && !minuteExit) ||\n",
+            "              (minuteExit && (summary.schema_version !== \"dc20_primary_observation_summary_v2\" || day.exit_date < \"20260914\")) ||\n",
+            "              (summary.schema_version === \"dc20_primary_observation_summary_v2\" && day.exit_date >= \"20260914\" && !minuteExit) ||\n",
+            "              (status === \"PENDING_EXIT_PROXY\" && (!minuteExit || row.exit_validation_status !== \"PENDING_EXIT_LIMIT_UP_HELD\"))) throw new Error(\"分席退出政策或延持状态不一致\");\n"
+          ]
+        },
+        {
+          "baseline_start": 1774,
+          "current_start": 1779,
+          "baseline_lines": [
+            "              row.exec_date !== day.exec_date || row.exit_date !== day.exit_date || row.truth_source !== \"daily_open_proxy\" ||\n"
+          ],
+          "current_lines": [
+            "              row.exec_date !== day.exec_date || row.exit_date !== day.exit_date || row.truth_source !== (minuteExit ? \"daily_open_entry_minute_exit_proxy\" : \"daily_open_proxy\") ||\n"
+          ]
+        },
+        {
+          "baseline_start": 1781,
+          "current_start": 1786,
+          "baseline_lines": [
+            "              ([\"MISSING_T1_TRUTH\", \"UNRESOLVED_EXIT_PROXY\"].includes(status) && summary.as_of_date < day.exit_date) ||\n"
+          ],
+          "current_lines": [
+            "              ([\"MISSING_T1_TRUTH\", \"UNRESOLVED_EXIT_PROXY\", \"PENDING_EXIT_PROXY\"].includes(status) && summary.as_of_date < day.exit_date) ||\n"
+          ]
+        },
+        {
+          "baseline_start": 1785,
+          "current_start": 1790,
+          "baseline_lines": [],
+          "current_lines": [
+            "          if (minuteExit && status === \"FINAL_VERIFIED_PROXY\") {\n",
+            "            const stamp = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00\\+08:00$/;\n",
+            "            if (row.exit_validation_status !== \"SETTLED_EXIT_1000_MINUTE_PROXY\" ||\n",
+            "                ![row.actual_exit_time, row.decision_time, row.execution_bar_start, row.execution_bar_end].every(value => stamp.test(value || \"\") && Number.isFinite(Date.parse(value))) ||\n",
+            "                row.actual_exit_time !== row.execution_bar_start || row.actual_exit_time.slice(0,10).replaceAll(\"-\", \"\") !== actualExit ||\n",
+            "                Date.parse(row.execution_bar_start) < Date.parse(row.decision_time) ||\n",
+            "                Date.parse(row.execution_bar_end) - Date.parse(row.execution_bar_start) !== 60000 ||\n",
+            "                row.exit_time_semantics !== \"NEXT_BAR_OPEN_MINUTE_PROXY\") throw new Error(\"分席分钟退出时间口径无效\");\n",
+            "          }\n"
+          ]
+        },
+        {
+          "baseline_start": 1792,
+          "current_start": 1806,
+          "baseline_lines": [
+            "          pending_t1_rows: clean.filter(r => r.validation_status === \"PENDING_T1\").length,\n"
+          ],
+          "current_lines": [
+            "          pending_t1_rows: clean.filter(r => [\"PENDING_T1\", \"PENDING_EXIT_PROXY\"].includes(r.validation_status)).length,\n"
+          ]
+        },
+        {
+          "baseline_start": 1797,
+          "current_start": 1811,
+          "baseline_lines": [],
+          "current_lines": [
+            "        if (day.pending_exit_rows != null) counts.pending_exit_rows = clean.filter(r => r.validation_status === \"PENDING_EXIT_PROXY\").length;\n"
+          ]
+        },
+        {
+          "baseline_start": 1806,
+          "current_start": 1821,
+          "baseline_lines": [
+            "        const reason = missing ? \"缺真值或退出受阻，暂不累计\" : delayed ? \"顺延退出资金重叠，暂不累计\" : !settled.length ? \"尚无已结算样本\" : \"按D合成观察，非实盘净值\";\n"
+          ],
+          "current_lines": [
+            "        const mixedPolicy = new Set(rows.map(r => r.exit_policy_id || \"legacy_open_exit\")).size > 1;\n",
+            "        const reason = mixedPolicy ? \"不同退出政策，收益不合并\" : missing ? \"缺真值或退出受阻，暂不累计\" : delayed ? \"顺延退出资金重叠，暂不累计\" : !settled.length ? \"尚无已结算样本\" : \"按D合成观察，非实盘净值\";\n"
+          ]
+        },
+        {
+          "baseline_start": 1809,
+          "current_start": 1825,
+          "baseline_lines": [
+            "        const available = settled.length > 0 && !missing && !delayed;\n"
+          ],
+          "current_lines": [
+            "        const available = settled.length > 0 && !missing && !delayed && !mixedPolicy;\n"
+          ]
+        },
+        {
+          "baseline_start": 1812,
+          "current_start": 1828,
+          "baseline_lines": [
+            "          hitRate:mean(t.map(r=>r.hit)), buyable:mean(t.map(r=>r.fill)), winRate:mean(filled.map(r=>Number(r.net>0))),\n",
+            "          meanNet:mean(filled.map(r=>r.net)), cumulative:available ? nav-1 : null, drawdown:available ? drawdown : null, reason};\n"
+          ],
+          "current_lines": [
+            "          hitRate:mean(t.map(r=>r.hit)), buyable:mean(t.map(r=>r.fill)), winRate:mixedPolicy ? null : mean(filled.map(r=>Number(r.net>0))),\n",
+            "          meanNet:mixedPolicy ? null : mean(filled.map(r=>r.net)), cumulative:available ? nav-1 : null, drawdown:available ? drawdown : null, reason};\n"
+          ]
+        },
+        {
+          "baseline_start": 2136,
+          "current_start": 2152,
+          "baseline_lines": [
+            "          : `${c.hits} / ${c.verified} 成功 / 已验证`;\n"
+          ],
+          "current_lines": [
+            "          : `已验证 ${c.verified} 次 · 晋级成功 ${c.hits} 次`;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52661,
+      "current_bytes": 52661,
+      "baseline_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
+      "current_sha256": "8a6a7fac5c236388df18cefcf0a864afc75f2882f62780b99c053a80ba679e2a",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 640,
+          "current_start": 640,
+          "baseline_lines": [
+            "    \".github/workflows/test_decision_core.yml\": \"f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/test_decision_core.yml\": \"f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"9d36c7282c5a24beb3bd405ad3f2fd1b951d98310d7dd69e211a6ce387dc6044\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"e68fbd88e62c16b9baa780942f3396e9bb08c0d7c57a2041f8764f06ba9da49a\",\n"
+          ]
+        },
+        {
+          "baseline_start": 858,
+          "current_start": 858,
+          "baseline_lines": [
+            "    \"scripts/sync_exit_1000_minute_truth.py\": \"2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/sync_exit_1000_minute_truth.py\": \"4f46b686679cc9be35a55c39035521de9108b74512371b72c20bca77f2b83bc1\",\n"
+          ]
+        },
+        {
+          "baseline_start": 860,
+          "current_start": 860,
+          "baseline_lines": [
+            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\": \"0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65\",\n"
+          ],
+          "current_lines": [
+            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\": \"e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/sync_exit_1000_minute_truth.py",
+      "baseline_exists": true,
+      "baseline_bytes": 9631,
+      "current_bytes": 9829,
+      "baseline_sha256": "2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce",
+      "current_sha256": "4f46b686679cc9be35a55c39035521de9108b74512371b72c20bca77f2b83bc1",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 148,
+          "current_start": 148,
+          "baseline_lines": [
+            "            frame = client.call(\"stk_mins\", request_parameters(date, code), FIELDS)\n"
+          ],
+          "current_lines": [
+            "            # Request only the 240 continuous BAR_END observations consumed\n",
+            "            # by the exit engine. Do not fetch/drop an ambiguous 09:30 point.\n",
+            "            frame = client.call(\"stk_mins\", request_parameters(date, code, continuous_only=True), FIELDS)\n"
+          ]
+        },
+        {
+          "baseline_start": 156,
+          "current_start": 158,
+          "baseline_lines": [
+            "                fetched_at_utc=datetime.now(timezone.utc).isoformat())\n"
+          ],
+          "current_lines": [
+            "                fetched_at_utc=datetime.now(timezone.utc).isoformat(), continuous_only=True)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/shadow_exit_minute_truth.py",
+      "baseline_exists": true,
+      "baseline_bytes": 9531,
+      "current_bytes": 10510,
+      "baseline_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+      "current_sha256": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [],
+          "current_lines": [
+            "CONTINUOUS_SOURCE_SCHEMA = \"dc20_exit_1000_minute_source_v2\"\n",
+            "CONTINUOUS_SOURCE_ADAPTER = \"tushare_stk_mins_continuous_bar_end_v2\"\n"
+          ]
+        },
+        {
+          "baseline_start": 67,
+          "current_start": 69,
+          "baseline_lines": [
+            "def request_parameters(trade_date: str, code: str) -> dict[str, str]:\n"
+          ],
+          "current_lines": [
+            "def request_parameters(trade_date: str, code: str, *, continuous_only: bool = False) -> dict[str, str]:\n"
+          ]
+        },
+        {
+          "baseline_start": 70,
+          "current_start": 72,
+          "baseline_lines": [
+            "    return {\"ts_code\": code, \"freq\": \"1min\", \"start_date\": f\"{day} 09:30:00\", \"end_date\": f\"{day} 15:00:00\"}\n"
+          ],
+          "current_lines": [
+            "    start = \"09:31:00\" if continuous_only else \"09:30:00\"\n",
+            "    return {\"ts_code\": code, \"freq\": \"1min\", \"start_date\": f\"{day} {start}\", \"end_date\": f\"{day} 15:00:00\"}\n"
+          ]
+        },
+        {
+          "baseline_start": 118,
+          "current_start": 121,
+          "baseline_lines": [
+            "def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str) -> tuple[bytes, bytes]:\n"
+          ],
+          "current_lines": [
+            "def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str,\n",
+            "                 continuous_only: bool = False) -> tuple[bytes, bytes]:\n"
+          ]
+        },
+        {
+          "baseline_start": 120,
+          "current_start": 124,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if continuous_only and has_auction:\n",
+            "        raise ValueError(\"continuous-only request returned an out-of-range auction point\")\n"
+          ]
+        },
+        {
+          "baseline_start": 126,
+          "current_start": 132,
+          "baseline_lines": [
+            "    meta = {\"schema_version\": SOURCE_SCHEMA, \"source\": \"tushare:stk_mins\", \"adapter\": SOURCE_ADAPTER,\n",
+            "            \"ts_code\": code, \"trade_date\": trade_date, \"request\": request_parameters(trade_date, code),\n"
+          ],
+          "current_lines": [
+            "    meta = {\"schema_version\": CONTINUOUS_SOURCE_SCHEMA if continuous_only else SOURCE_SCHEMA,\n",
+            "            \"source\": \"tushare:stk_mins\",\n",
+            "            \"adapter\": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,\n",
+            "            \"ts_code\": code, \"trade_date\": trade_date,\n",
+            "            \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n"
+          ]
+        },
+        {
+          "baseline_start": 154,
+          "current_start": 163,
+          "baseline_lines": [
+            "    expected = {\"schema_version\": SOURCE_SCHEMA, \"source\": \"tushare:stk_mins\", \"adapter\": SOURCE_ADAPTER,\n",
+            "                \"ts_code\": code, \"trade_date\": trade_date, \"request\": request_parameters(trade_date, code),\n"
+          ],
+          "current_lines": [
+            "    continuous_only = isinstance(meta, dict) and meta.get(\"schema_version\") == CONTINUOUS_SOURCE_SCHEMA\n",
+            "    if continuous_only and has_auction:\n",
+            "        raise ValueError(\"continuous-only source contains out-of-range auction point\")\n",
+            "    expected = {\"schema_version\": CONTINUOUS_SOURCE_SCHEMA if continuous_only else SOURCE_SCHEMA,\n",
+            "                \"source\": \"tushare:stk_mins\",\n",
+            "                \"adapter\": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,\n",
+            "                \"ts_code\": code, \"trade_date\": trade_date,\n",
+            "                \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_compact_rank_statistics.py",
+      "baseline_exists": true,
+      "baseline_bytes": 34074,
+      "current_bytes": 38525,
+      "baseline_sha256": "a95c2627e7915e168bccbf17362bfed5118fe3e1ec643c9a27840bb3e30808ce",
+      "current_sha256": "4128fe04fbde2da6f02e001960cd637edfdeddb691de83d948a5312d3ef1bfca",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 85,
+          "current_start": 85,
+          "baseline_lines": [],
+          "current_lines": [
+            "def test_promotion_labels_distinguish_verified_count_from_success_count():\n",
+            "    result = run(\"installRenderWindow(null,[{rank:1,count:6,verified:6,hitRate:0.5},{rank:2,count:6,verified:6,hitRate:4/6},{rank:3,count:6,verified:6,hitRate:0.5}]);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))\", {\"renderer_only\": True})\n",
+            "    assert result.count(\"已验证 6 次 · 晋级成功 3 次\") == 2\n",
+            "    assert result.count(\"已验证 6 次 · 晋级成功 4 次\") == 1\n",
+            "    assert result.count('class=\"success-rate\">50.00%') == 2\n",
+            "    assert result.count('class=\"success-rate\">66.67%') == 1\n",
+            "    assert \"成功 / 已验证\" not in result\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 108,
+          "current_start": 117,
+          "baseline_lines": [
+            "    result = run(mutation + \";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}\")\n"
+          ],
+          "current_lines": [
+            "    result = run(\"promotionSlotStatistics(input.summary,input.rows,input.contracts);\" + mutation + \";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}\", fixed_promotion_fixture())\n"
+          ]
+        },
+        {
+          "baseline_start": 122,
+          "current_start": 131,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def minute_promotion_fixture():\n",
+            "    data = small_fixture()\n",
+            "    data[\"summary\"].update(schema_version=\"dc20_primary_observation_summary_v2\", as_of_date=\"20260916\")\n",
+            "    day = data[\"summary\"][\"daily_summaries\"][0]\n",
+            "    day.update(signal_date=\"20260914\", exec_date=\"20260915\", exit_date=\"20260916\", pending_exit_rows=0)\n",
+            "    for row in data[\"rows\"]:\n",
+            "        row.update(signal_date=\"20260914\", exec_date=\"20260915\", exit_date=\"20260916\", actual_exit_date=\"20260916\",\n",
+            "                   truth_source=\"daily_open_entry_minute_exit_proxy\", exit_policy_id=\"dc20_exit_1000_limit_hold_20260912_v1\",\n",
+            "                   exit_validation_status=\"SETTLED_EXIT_1000_MINUTE_PROXY\", exit_time_semantics=\"NEXT_BAR_OPEN_MINUTE_PROXY\",\n",
+            "                   actual_exit_time=\"2026-09-16T10:00:00+08:00\", decision_time=\"2026-09-16T10:00:00+08:00\",\n",
+            "                   execution_bar_start=\"2026-09-16T10:00:00+08:00\", execution_bar_end=\"2026-09-16T10:01:00+08:00\")\n",
+            "    return data\n",
+            "\n",
+            "\n",
+            "def test_new_exit_policy_promotion_truth_and_pending_counts_are_compatible():\n",
+            "    data = minute_promotion_fixture()\n",
+            "    for row, status, exit_status in [(data[\"rows\"][1], \"PENDING_EXIT_PROXY\", \"PENDING_EXIT_LIMIT_UP_HELD\"),\n",
+            "                                    (data[\"rows\"][2], \"MISSING_T1_TRUTH\", \"PENDING_EXIT_MISSING_MINUTES\")]:\n",
+            "        row.update(validation_status=status, exit_validation_status=exit_status, actual_net_return=\"\", slot_net_return=\"\", actual_exit_date=\"\")\n",
+            "    data[\"summary\"][\"daily_summaries\"][0].update(final_verified_trades=1, settled_rows=1, pending_t1_rows=1,\n",
+            "                                                 pending_exit_rows=1, missing_t1_truth_rows=1)\n",
+            "    result = run(\"console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)))\", data)\n",
+            "    assert [r[\"verified\"] for r in result] == [1, 1, 1]\n",
+            "    assert result[1][\"pending\"] == 1 and result[1][\"meanNet\"] is None\n",
+            "    assert result[2][\"missing\"] == 1 and result[2][\"meanNet\"] is None\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"mutation\", [\n",
+            "    \"input.rows[0].exit_policy_id='unknown'\",\n",
+            "    \"input.rows[0].exit_policy_id=''\",\n",
+            "    \"input.rows[0].truth_source='daily_open_proxy'\",\n",
+            "    \"input.summary.schema_version='dc20_primary_observation_summary_v1'\",\n",
+            "    \"input.rows[0].actual_exit_time='2026-09-16T10:01:00+08:00'\",\n",
+            "    \"input.rows[0].execution_bar_end='2026-09-16T10:02:00+08:00'\",\n",
+            "    \"input.rows[0].exit_validation_status='PENDING_EXIT_LIMIT_UP_HELD'\",\n",
+            "    \"input.rows[0].exit_time_semantics='BAR_END'\",\n",
+            "    \"input.summary.daily_summaries[0].pending_exit_rows=1\",\n",
+            "])\n",
+            "def test_new_exit_policy_still_rejects_inconsistent_identity_and_execution(mutation):\n",
+            "    result = run(\"promotionSlotStatistics(input.summary,input.rows,input.contracts);\" + mutation +\n",
+            "                 \";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}\", minute_promotion_fixture())\n",
+            "    assert result is True\n",
+            "\n",
+            "\n",
+            "def test_promotion_can_span_policies_but_profit_statistics_never_mix_them():\n",
+            "    data, minute = small_fixture(), minute_promotion_fixture()\n",
+            "    data[\"summary\"].update(schema_version=\"dc20_primary_observation_summary_v2\", as_of_date=\"20260916\")\n",
+            "    data[\"summary\"][\"statistics\"][\"observation_rows\"] = 6\n",
+            "    data[\"summary\"][\"daily_summaries\"] += minute[\"summary\"][\"daily_summaries\"]\n",
+            "    data[\"rows\"] += minute[\"rows\"]\n",
+            "    data[\"contracts\"] += minute[\"contracts\"]\n",
+            "    result = run(\"console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)))\", data)\n",
+            "    assert all(r[\"verified\"] == 2 for r in result)\n",
+            "    assert all(r[key] is None for r in result for key in (\"meanNet\", \"winRate\", \"cumulative\", \"drawdown\"))\n"
+          ]
+        },
+        {
+          "baseline_start": 164,
+          "current_start": 229,
+          "baseline_lines": [
+            "    assert result[\"html\"].count(\"1 / 3 成功 / 已验证\") == 2\n",
+            "    assert \"2 / 3 成功 / 已验证\" in result[\"html\"]\n"
+          ],
+          "current_lines": [
+            "    assert result[\"html\"].count(\"已验证 3 次 · 晋级成功 1 次\") == 2\n",
+            "    assert \"已验证 3 次 · 晋级成功 2 次\" in result[\"html\"]\n"
+          ]
+        },
+        {
+          "baseline_start": 189,
+          "current_start": 254,
+          "baseline_lines": [
+            "    assert \"0 / 2 成功 / 已验证\" in result\n"
+          ],
+          "current_lines": [
+            "    assert \"已验证 2 次 · 晋级成功 0 次\" in result\n"
+          ]
+        },
+        {
+          "baseline_start": 197,
+          "current_start": 262,
+          "baseline_lines": [
+            "    assert result.count(\"成功 / 已验证\") == n\n"
+          ],
+          "current_lines": [
+            "    assert result.count(\"次 · 晋级成功\") == n\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_compact_statistics_window_frontend.py",
+      "baseline_exists": true,
+      "baseline_bytes": 21950,
+      "current_bytes": 21963,
+      "baseline_sha256": "e20dae48b635a04db8238249501d2d5cd55598e7e895ff100ddb32148380ce2b",
+      "current_sha256": "472faff28737fac82ad94edfdd85f76e92cf3565f530cb20a9c6396035cf98a3",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 140,
+          "current_start": 140,
+          "baseline_lines": [
+            "        expected = \"暂无已验证样本\" if not rank[\"verified\"] else f\"{rank['hits']} / {rank['verified']} 成功 / 已验证\"\n"
+          ],
+          "current_lines": [
+            "        expected = \"暂无已验证样本\" if not rank[\"verified\"] else f\"已验证 {rank['verified']} 次 · 晋级成功 {rank['hits']} 次\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_core_ci_partition.py",
+      "baseline_exists": true,
+      "baseline_bytes": 4908,
+      "current_bytes": 4908,
+      "baseline_sha256": "5051831911869426b7336b29c0af19957a9765e85ed12f0c335169eb661a3c34",
+      "current_sha256": "91db2277507312bba7ae0165277ca5f8aafb8a922dc8b9e980fcbac503db0e0b",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 74,
+          "current_start": 74,
+          "baseline_lines": [
+            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 45)):\n"
+          ],
+          "current_lines": [
+            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 90)):\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_exit_1000_minute_truth.py",
+      "baseline_exists": true,
+      "baseline_bytes": 21566,
+      "current_bytes": 24493,
+      "baseline_sha256": "e12047ff0fb092050573046dff6c7a72ce75f5e68a71c5d4641ed36a3317b112",
+      "current_sha256": "679bc3fd8dabd6f344e17a67c96deec44e90eac6b06a89323c1693b0d7251db6",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 158,
+          "current_start": 158,
+          "baseline_lines": [
+            "    assert params == {\"ts_code\": CODE, \"freq\": \"1min\", \"start_date\": \"2026-09-14 09:30:00\",\n"
+          ],
+          "current_lines": [
+            "    assert params == {\"ts_code\": CODE, \"freq\": \"1min\", \"start_date\": \"2026-09-14 09:31:00\",\n"
+          ]
+        },
+        {
+          "baseline_start": 174,
+          "current_start": 174,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"code\", [\"002584.SZ\", \"001216.SZ\", \"002846.SZ\", \"002631.SZ\", \"002491.SZ\"])\n",
+            "def test_due_0918_positions_request_only_continuous_bars(tmp_path, monkeypatch, code):\n",
+            "    day = \"20260918\"\n",
+            "    monkeypatch.setattr(sync, \"required_partitions\", lambda root, asof: {(day, code)})\n",
+            "    class RangeClient:\n",
+            "        def call(self, endpoint, params, fields):\n",
+            "            assert params == truth.request_parameters(day, code, continuous_only=True)\n",
+            "            # The old request also returned this ambiguous 09:30 record and\n",
+            "            # rejected the complete session. The corrected query excludes it\n",
+            "            # at the provider; no returned record is dropped locally.\n",
+            "            values = rows(day, code)\n",
+            "            if params[\"start_date\"].endswith(\"09:30:00\"):\n",
+            "                values.append(dict(values[0], trade_time=\"2026-09-18 09:30:00\"))\n",
+            "            return pd.DataFrame(values)\n",
+            "    report = sync.sync_missing_minutes(tmp_path, day, client=RangeClient())\n",
+            "    assert report[\"status\"] == \"COMPLETE\"\n",
+            "    payload = truth.load_exit_minutes(tmp_path, day, code)\n",
+            "    assert len(payload[\"rows\"]) == 240\n",
+            "    meta = json.loads(truth.minute_paths(tmp_path, day, code)[1].read_bytes())\n",
+            "    assert meta[\"schema_version\"] == truth.CONTINUOUS_SOURCE_SCHEMA\n",
+            "    assert meta[\"request\"][\"start_date\"] == \"2026-09-18 09:31:00\"\n",
+            "    assert meta[\"source_rows\"] == 240\n",
+            "\n",
+            "\n",
+            "def test_new_collector_keeps_old_verified_sources_byte_exact(tmp_path, planned):\n",
+            "    paths = write_truth(tmp_path)\n",
+            "    before = [p.read_bytes() for p in paths]\n",
+            "    result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(error=RuntimeError(\"must not fetch\")))\n",
+            "    assert result[\"network_requests\"] == 0\n",
+            "    assert [p.read_bytes() for p in paths] == before\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"ambiguous\", [False, True])\n",
+            "def test_provider_ignoring_continuous_range_is_not_silently_cleaned(tmp_path, planned, ambiguous):\n",
+            "    values = rows()\n",
+            "    values.append(dict(ts_code=CODE, trade_time=\"2026-09-14 09:30:00\",\n",
+            "                       open=10, close=10.1 if ambiguous else 10,\n",
+            "                       high=10.2 if ambiguous else 10, low=10, vol=100, amount=1000))\n",
+            "    result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(values))\n",
+            "    assert result[\"partitions\"][0][\"status\"] == \"PENDING_SOURCE_INVALID\"\n",
+            "    assert not result[\"written_paths\"]\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"field,value\", [\n",
+            "    (\"schema_version\", truth.SOURCE_SCHEMA),\n",
+            "    (\"adapter\", truth.SOURCE_ADAPTER),\n",
+            "    (\"request\", truth.request_parameters(DAY, CODE)),\n",
+            "])\n",
+            "def test_continuous_metadata_cannot_be_mislabeled_as_old_request(tmp_path, planned, field, value):\n",
+            "    sync.sync_missing_minutes(tmp_path, DAY, client=Client())\n",
+            "    path = truth.minute_paths(tmp_path, DAY, CODE)[1]\n",
+            "    meta = json.loads(path.read_bytes())\n",
+            "    meta[field] = value\n",
+            "    path.write_text(json.dumps(meta))\n",
+            "    with pytest.raises(ValueError, match=\"metadata/SHA\"):\n",
+            "        truth.load_exit_minutes(tmp_path, DAY, CODE)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_three_rank_truth_frontend.py",
+      "baseline_exists": true,
+      "baseline_bytes": 11251,
+      "current_bytes": 11713,
+      "baseline_sha256": "dd3b11a95f3a8bd049c3cbc9683297a2277a4c602f139bd10dacc64a29f87a72",
+      "current_sha256": "38ad3bef579d215634562304d7f333c6b152d877f8791f9285559ac4c1bf7179",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 52,
+          "current_start": 52,
+          "baseline_lines": [
+            "\"\"\" + \"\\n(async()=>{\" + body + \"})().catch(error=>{console.error(error);process.exit(1)});\"\n"
+          ],
+          "current_lines": [
+            "\"\"\" + r'''\n",
+            "async function mutateObservationField(code, field, value) {\n",
+            "  const bytes = new TextEncoder().encode(files[summary.rows_path]);\n",
+            "  const rows = parseStrictCsvBytes(bytes, ['signal_date', 'ts_code', field], 'mutation fixture');\n",
+            "  const selected = rows.filter(row => row.signal_date === contract.signal_date && row.ts_code === code);\n",
+            "  if (selected.length !== 1 || selected[0][field] === value) throw new Error('mutation must change exactly one frozen row');\n",
+            "  selected[0][field] = value;\n",
+            "  const fields = Object.keys(rows[0]);\n",
+            "  const quote = value => '\"' + String(value ?? '').replaceAll('\"', '\"\"') + '\"';\n",
+            "  files[summary.rows_path] = [fields, ...rows.map(row => fields.map(field => row[field]))]\n",
+            "    .map(row => row.map(quote).join(',')).join('\\n') + '\\n';\n",
+            "  summary.rows_sha256 = await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));\n",
+            "}\n",
+            "''' + \"\\n(async()=>{\" + body + \"})().catch(error=>{console.error(error);process.exit(1)});\"\n"
+          ]
+        },
+        {
+          "baseline_start": 94,
+          "current_start": 107,
+          "baseline_lines": [
+            "    \"files[summary.rows_path]=files[summary.rows_path].replace('20260901,28.83','20260831,28.83');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));\",\n",
+            "    \"files[summary.rows_path]=files[summary.rows_path].replace('20260901,28.83','20260907,28.83');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));\",\n",
+            "    \"files[summary.rows_path]=files[summary.rows_path].replace('20260831,20260901','20260902,20260901');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));\",\n"
+          ],
+          "current_lines": [
+            "    \"await mutateObservationField(contract.rows[1].ts_code,'actual_exit_date','20260831');\",\n",
+            "    \"await mutateObservationField(contract.rows[1].ts_code,'actual_exit_date','20260907');\",\n",
+            "    \"await mutateObservationField(contract.rows[0].ts_code,'exec_date','20260902');\",\n"
+          ]
+        },
+        {
+          "baseline_start": 129,
+          "current_start": 142,
+          "baseline_lines": [
+            "    out = run(\"files[summary.rows_path]=files[summary.rows_path].replace('False,,1,20260831','False,,0,20260831');summary.rows_sha256=await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,o:state.currentThreeRankObservationTruth}));\")\n"
+          ],
+          "current_lines": [
+            "    out = run(\"await mutateObservationField(contract.rows[0].ts_code,'continuation_limit_up_hit','0');await refreshCurrentThreeRankTTruth(plan);console.log(JSON.stringify({t:state.currentThreeRankTTruth,o:state.currentThreeRankObservationTruth}));\")\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "inventory_baseline": "{\n  \"schema_version\": \"dc20_forward_model_inventory_v1\",\n  \"source_repository\": \"njedu2023-prog/DC20\",\n  \"source_commit\": \"15423ced302ab19b17f459fb3006e0af2b764f24\",\n  \"status\": \"INACTIVE_MIGRATION_REPLAY_ONLY\",\n  \"dependency_successor_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_reliability.json\",\n    \"sha256\": \"9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9\",\n    \"approved_base_commit\": \"709317f8d0cf12fb726ae515230281dad255d0f4\",\n    \"scope\": \"DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE\"\n  },\n  \"active_source_models\": {\n    \"promotion\": {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"role\": \"promotion_hgb_with_frozen_preprocessing_and_platt_calibration\",\n      \"feature_columns_sha256\": \"9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425\"\n    },\n    \"profit\": {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"role\": \"uncalibrated_fill_and_conditional_profit_research_heads\",\n      \"feature_columns_sha256\": \"a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048\",\n      \"feature_count\": 156,\n      \"release_status\": \"INTERNAL_CHALLENGER_NOT_READY\"\n    }\n  },\n  \"assets\": [\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_daily_stage_board.csv\",\n      \"sha256\": \"d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909\",\n      \"bytes\": 104013,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_event_features.csv.gz\",\n      \"sha256\": \"57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e\",\n      \"bytes\": 627667,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_executable_profit/historical_oof_top10_ledger_manifest.json\",\n      \"sha256\": \"3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5\",\n      \"bytes\": 12184,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_ledger_manifest.json\",\n      \"sha256\": \"35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034\",\n      \"bytes\": 7564,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_supervised_ledger.csv.gz\",\n      \"sha256\": \"7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46\",\n      \"bytes\": 4764361,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib\",\n      \"sha256\": \"9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6\",\n      \"bytes\": 7703,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib\",\n      \"sha256\": \"1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06\",\n      \"bytes\": 3413205,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib\",\n      \"sha256\": \"0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3\",\n      \"bytes\": 3423122,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib\",\n      \"sha256\": \"72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b\",\n      \"bytes\": 178906,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/market/trade_cal_sse.csv\",\n      \"sha256\": \"150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748\",\n      \"bytes\": 61411,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_executable_profit_internal_forward_challenger.json\",\n      \"sha256\": \"487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af\",\n      \"bytes\": 6878,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_model_freeze.json\",\n      \"sha256\": \"7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e\",\n      \"bytes\": 52661,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_forward_shadow_bridge_contract.json\",\n      \"sha256\": \"2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623\",\n      \"bytes\": 4023,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_research_contract.json\",\n      \"sha256\": \"3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780\",\n      \"bytes\": 3470,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/big_loss.joblib\",\n      \"sha256\": \"ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b\",\n      \"bytes\": 8998,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/p_fill_shadow.joblib\",\n      \"sha256\": \"69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24\",\n      \"bytes\": 9435,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/profit.joblib\",\n      \"sha256\": \"d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291\",\n      \"bytes\": 5127,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"bytes\": 179221,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/validation_latest.json\",\n      \"sha256\": \"de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73\",\n      \"bytes\": 192258,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"requirements.txt\",\n      \"sha256\": \"f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03\",\n      \"bytes\": 142,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_profit_rankings.py\",\n      \"sha256\": \"1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905\",\n      \"bytes\": 81784,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_three_rank.py\",\n      \"sha256\": \"5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98\",\n      \"bytes\": 72320,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/__init__.py\",\n      \"sha256\": \"1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8\",\n      \"bytes\": 224,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/calibration.py\",\n      \"sha256\": \"06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9\",\n      \"bytes\": 6128,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/config.py\",\n      \"sha256\": \"4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2\",\n      \"bytes\": 5987,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/engine.py\",\n      \"sha256\": \"68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8\",\n      \"bytes\": 360360,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/promotion_model.py\",\n      \"sha256\": \"af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170\",\n      \"bytes\": 28552,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/data/tushare_minute.py\",\n      \"sha256\": \"30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785\",\n      \"bytes\": 23208,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/canonical_fingerprint.py\",\n      \"sha256\": \"61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b\",\n      \"bytes\": 14617,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/contracts.py\",\n      \"sha256\": \"50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917\",\n      \"bytes\": 2634,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/d_close_features.py\",\n      \"sha256\": \"c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e\",\n      \"bytes\": 4983,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/eligibility.py\",\n      \"sha256\": \"31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7\",\n      \"bytes\": 7767,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/executable_profit_shadow.py\",\n      \"sha256\": \"872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c\",\n      \"bytes\": 110633,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/exit_policy.py\",\n      \"sha256\": \"4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f\",\n      \"bytes\": 5040,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/legacy_profit_relative_research.py\",\n      \"sha256\": \"eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2\",\n      \"bytes\": 45098,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/observation.py\",\n      \"sha256\": \"577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713\",\n      \"bytes\": 7270,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_engine_models.py\",\n      \"sha256\": \"9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c\",\n      \"bytes\": 148112,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_rank.py\",\n      \"sha256\": \"f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a\",\n      \"bytes\": 80531,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/trade_selector.py\",\n      \"sha256\": \"7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858\",\n      \"bytes\": 77709,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/probability_calibration.py\",\n      \"sha256\": \"058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c\",\n      \"bytes\": 10693,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/writers/io_contract.py\",\n      \"sha256\": \"80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97\",\n      \"bytes\": 9897,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"bytes\": 981025,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    }\n  ],\n  \"limitations\": [\n    \"The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.\",\n    \"No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.\",\n    \"P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.\",\n    \"P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.\",\n    \"Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.\",\n    \"Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.\",\n    \"Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.\",\n    \"Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.\",\n    \"Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores.\"\n  ],\n  \"navigation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_navigation.json\",\n    \"sha256\": \"3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d\"\n  },\n  \"observation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_observation_v2.json\",\n    \"sha256\": \"c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e\"\n  }\n}\n"
+}

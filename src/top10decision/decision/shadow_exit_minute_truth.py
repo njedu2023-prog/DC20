@@ -18,6 +18,8 @@ from pathlib import Path
 SCHEMA = "dc20_exit_1000_minutes_v1"
 SOURCE_SCHEMA = "dc20_exit_1000_minute_source_v1"
 SOURCE_ADAPTER = "tushare_stk_mins_continuous_bar_end_v1"
+CONTINUOUS_SOURCE_SCHEMA = "dc20_exit_1000_minute_source_v2"
+CONTINUOUS_SOURCE_ADAPTER = "tushare_stk_mins_continuous_bar_end_v2"
 ROOT_PATH = "data/market/exit_1000_1m"
 FIELDS = ("ts_code", "trade_time", "open", "close", "high", "low", "vol", "amount")
 
@@ -64,10 +66,11 @@ def expected_bar_ends(trade_date: str) -> list[str]:
             for hour, minute in ((9, 31), (13, 1)) for i in range(120)]
 
 
-def request_parameters(trade_date: str, code: str) -> dict[str, str]:
+def request_parameters(trade_date: str, code: str, *, continuous_only: bool = False) -> dict[str, str]:
     _identity(trade_date, code)
     day = datetime.strptime(trade_date, "%Y%m%d").strftime("%Y-%m-%d")
-    return {"ts_code": code, "freq": "1min", "start_date": f"{day} 09:30:00", "end_date": f"{day} 15:00:00"}
+    start = "09:31:00" if continuous_only else "09:30:00"
+    return {"ts_code": code, "freq": "1min", "start_date": f"{day} {start}", "end_date": f"{day} 15:00:00"}
 
 
 def normalize_source_rows(rows: list[dict], trade_date: str, code: str) -> tuple[list[dict], bool]:
@@ -115,16 +118,22 @@ def normalize_source_rows(rows: list[dict], trade_date: str, code: str) -> tuple
     return [by_time[stamp] for stamp in expected], auction_time in by_time
 
 
-def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str) -> tuple[bytes, bytes]:
+def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str,
+                 continuous_only: bool = False) -> tuple[bytes, bytes]:
     normalized, has_auction = normalize_source_rows(rows, trade_date, code)
+    if continuous_only and has_auction:
+        raise ValueError("continuous-only request returned an out-of-range auction point")
     out = io.StringIO(newline="")
     writer = csv.DictWriter(out, fieldnames=FIELDS, lineterminator="\n", extrasaction="ignore")
     writer.writeheader()
     # Keep every validated raw row, including the optional 09:30 point.
     writer.writerows(sorted(rows, key=lambda row: row["trade_time"]))
     raw = out.getvalue().encode("utf-8")
-    meta = {"schema_version": SOURCE_SCHEMA, "source": "tushare:stk_mins", "adapter": SOURCE_ADAPTER,
-            "ts_code": code, "trade_date": trade_date, "request": request_parameters(trade_date, code),
+    meta = {"schema_version": CONTINUOUS_SOURCE_SCHEMA if continuous_only else SOURCE_SCHEMA,
+            "source": "tushare:stk_mins",
+            "adapter": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,
+            "ts_code": code, "trade_date": trade_date,
+            "request": request_parameters(trade_date, code, continuous_only=continuous_only),
             "timezone": "Asia/Shanghai", "timestamp_semantics": "BAR_END", "interval_seconds": 60,
             "complete_session": True, "continuous_rows": len(normalized), "source_rows": len(rows),
             "auction_point_0930_excluded": has_auction, "sha256": hashlib.sha256(raw).hexdigest(),
@@ -151,8 +160,14 @@ def load_exit_minutes(repo_root: Path, trade_date: str, code: str) -> dict | Non
         rows, has_auction = normalize_source_rows(list(reader), trade_date, code)
     except (UnicodeError, json.JSONDecodeError, csv.Error) as exc:
         raise ValueError("malformed exit minute source") from exc
-    expected = {"schema_version": SOURCE_SCHEMA, "source": "tushare:stk_mins", "adapter": SOURCE_ADAPTER,
-                "ts_code": code, "trade_date": trade_date, "request": request_parameters(trade_date, code),
+    continuous_only = isinstance(meta, dict) and meta.get("schema_version") == CONTINUOUS_SOURCE_SCHEMA
+    if continuous_only and has_auction:
+        raise ValueError("continuous-only source contains out-of-range auction point")
+    expected = {"schema_version": CONTINUOUS_SOURCE_SCHEMA if continuous_only else SOURCE_SCHEMA,
+                "source": "tushare:stk_mins",
+                "adapter": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,
+                "ts_code": code, "trade_date": trade_date,
+                "request": request_parameters(trade_date, code, continuous_only=continuous_only),
                 "timezone": "Asia/Shanghai", "timestamp_semantics": "BAR_END", "interval_seconds": 60,
                 "complete_session": True, "continuous_rows": 240, "source_rows": 240 + int(has_auction),
                 "auction_point_0930_excluded": has_auction, "sha256": hashlib.sha256(raw).hexdigest(),

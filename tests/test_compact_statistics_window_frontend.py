@@ -137,7 +137,7 @@ def test_real_window_excludes_0909_and_includes_0910_in_actual_counts(window_dat
     assert "D 2026-09-10起" in rendered["header"] and "D 2026-09-10起" in rendered["promotion"]
     assert "2026-08-28" not in rendered["header"] + rendered["promotion"]
     for rank in window["promotion"]["ranks"]:
-        expected = "暂无已验证样本" if not rank["verified"] else f"{rank['hits']} / {rank['verified']} 成功 / 已验证"
+        expected = "暂无已验证样本" if not rank["verified"] else f"已验证 {rank['verified']} 次 · 晋级成功 {rank['hits']} 次"
         assert expected in rendered["promotion"]
     assert WINDOW_PATH in rendered["calls"]
     assert window_data == original

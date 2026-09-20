@@ -145,7 +145,9 @@ def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_reques
         try:
             # Do not use historical_minute: it silently drops duplicate bars
             # and missing OHLC, which are invalid settlement evidence here.
-            frame = client.call("stk_mins", request_parameters(date, code), FIELDS)
+            # Request only the 240 continuous BAR_END observations consumed
+            # by the exit engine. Do not fetch/drop an ambiguous 09:30 point.
+            frame = client.call("stk_mins", request_parameters(date, code, continuous_only=True), FIELDS)
         except Exception as exc:
             entry.update(status="PENDING_SOURCE_UNAVAILABLE", reason=type(exc).__name__)
             continue
@@ -153,7 +155,7 @@ def sync_missing_minutes(root: Path, as_of_date: str, *, client=None, max_reques
             if len(frame.columns) != len(FIELDS) or set(frame.columns) != set(FIELDS):
                 raise ValueError("minute source duplicate/missing/unexpected columns")
             raw, metadata = source_bytes(frame.to_dict("records"), date, code,
-                fetched_at_utc=datetime.now(timezone.utc).isoformat())
+                fetched_at_utc=datetime.now(timezone.utc).isoformat(), continuous_only=True)
         except ValueError as exc:
             entry.update(status="PENDING_SOURCE_INVALID", reason=str(exc))
             continue

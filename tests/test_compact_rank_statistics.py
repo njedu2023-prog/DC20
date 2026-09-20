@@ -82,6 +82,15 @@ function installRenderWindow(profit=null,promotion=null) {
     return json.loads(result.stdout)
 
 
+def test_promotion_labels_distinguish_verified_count_from_success_count():
+    result = run("installRenderWindow(null,[{rank:1,count:6,verified:6,hitRate:0.5},{rank:2,count:6,verified:6,hitRate:4/6},{rank:3,count:6,verified:6,hitRate:0.5}]);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))", {"renderer_only": True})
+    assert result.count("已验证 6 次 · 晋级成功 3 次") == 2
+    assert result.count("已验证 6 次 · 晋级成功 4 次") == 1
+    assert result.count('class="success-rate">50.00%') == 2
+    assert result.count('class="success-rate">66.67%') == 1
+    assert "成功 / 已验证" not in result
+
+
 def test_real_frozen_rows_produce_three_independent_ranks():
     result = run("console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)));", fixed_promotion_fixture())
     assert [r["rank"] for r in result] == [1, 2, 3]
@@ -105,7 +114,7 @@ def test_real_frozen_rows_produce_three_independent_ranks():
     "input.summary.daily_summaries[0].t_validated_rows=9",
 ])
 def test_identity_scope_missing_truth_and_counts_fail_closed(mutation):
-    result = run(mutation + ";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}")
+    result = run("promotionSlotStatistics(input.summary,input.rows,input.contracts);" + mutation + ";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}", fixed_promotion_fixture())
     assert result is True
 
 
@@ -119,6 +128,62 @@ def small_fixture(n=3):
                pending_t_rows=0,pending_t1_rows=0,missing_t_truth_rows=0,missing_t1_truth_rows=0,unresolved_exit_rows=0)
     return dict(rows=rows,summary=dict(as_of_date=t1,statistics=dict(observation_rows=n),daily_summaries=[day]),
                 contracts=[dict(rows=[dict(ts_code=r["ts_code"],name=r["name"],promotion_rank=int(r["promotion_rank"])) for r in rows])])
+
+
+def minute_promotion_fixture():
+    data = small_fixture()
+    data["summary"].update(schema_version="dc20_primary_observation_summary_v2", as_of_date="20260916")
+    day = data["summary"]["daily_summaries"][0]
+    day.update(signal_date="20260914", exec_date="20260915", exit_date="20260916", pending_exit_rows=0)
+    for row in data["rows"]:
+        row.update(signal_date="20260914", exec_date="20260915", exit_date="20260916", actual_exit_date="20260916",
+                   truth_source="daily_open_entry_minute_exit_proxy", exit_policy_id="dc20_exit_1000_limit_hold_20260912_v1",
+                   exit_validation_status="SETTLED_EXIT_1000_MINUTE_PROXY", exit_time_semantics="NEXT_BAR_OPEN_MINUTE_PROXY",
+                   actual_exit_time="2026-09-16T10:00:00+08:00", decision_time="2026-09-16T10:00:00+08:00",
+                   execution_bar_start="2026-09-16T10:00:00+08:00", execution_bar_end="2026-09-16T10:01:00+08:00")
+    return data
+
+
+def test_new_exit_policy_promotion_truth_and_pending_counts_are_compatible():
+    data = minute_promotion_fixture()
+    for row, status, exit_status in [(data["rows"][1], "PENDING_EXIT_PROXY", "PENDING_EXIT_LIMIT_UP_HELD"),
+                                    (data["rows"][2], "MISSING_T1_TRUTH", "PENDING_EXIT_MISSING_MINUTES")]:
+        row.update(validation_status=status, exit_validation_status=exit_status, actual_net_return="", slot_net_return="", actual_exit_date="")
+    data["summary"]["daily_summaries"][0].update(final_verified_trades=1, settled_rows=1, pending_t1_rows=1,
+                                                 pending_exit_rows=1, missing_t1_truth_rows=1)
+    result = run("console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)))", data)
+    assert [r["verified"] for r in result] == [1, 1, 1]
+    assert result[1]["pending"] == 1 and result[1]["meanNet"] is None
+    assert result[2]["missing"] == 1 and result[2]["meanNet"] is None
+
+
+@pytest.mark.parametrize("mutation", [
+    "input.rows[0].exit_policy_id='unknown'",
+    "input.rows[0].exit_policy_id=''",
+    "input.rows[0].truth_source='daily_open_proxy'",
+    "input.summary.schema_version='dc20_primary_observation_summary_v1'",
+    "input.rows[0].actual_exit_time='2026-09-16T10:01:00+08:00'",
+    "input.rows[0].execution_bar_end='2026-09-16T10:02:00+08:00'",
+    "input.rows[0].exit_validation_status='PENDING_EXIT_LIMIT_UP_HELD'",
+    "input.rows[0].exit_time_semantics='BAR_END'",
+    "input.summary.daily_summaries[0].pending_exit_rows=1",
+])
+def test_new_exit_policy_still_rejects_inconsistent_identity_and_execution(mutation):
+    result = run("promotionSlotStatistics(input.summary,input.rows,input.contracts);" + mutation +
+                 ";try{promotionSlotStatistics(input.summary,input.rows,input.contracts);console.log(false)}catch(e){console.log(true)}", minute_promotion_fixture())
+    assert result is True
+
+
+def test_promotion_can_span_policies_but_profit_statistics_never_mix_them():
+    data, minute = small_fixture(), minute_promotion_fixture()
+    data["summary"].update(schema_version="dc20_primary_observation_summary_v2", as_of_date="20260916")
+    data["summary"]["statistics"]["observation_rows"] = 6
+    data["summary"]["daily_summaries"] += minute["summary"]["daily_summaries"]
+    data["rows"] += minute["rows"]
+    data["contracts"] += minute["contracts"]
+    result = run("console.log(JSON.stringify(promotionSlotStatistics(input.summary,input.rows,input.contracts)))", data)
+    assert all(r["verified"] == 2 for r in result)
+    assert all(r[key] is None for r in result for key in ("meanNet", "winRate", "cumulative", "drawdown"))
 
 
 @pytest.mark.parametrize("n", [0,1,2,3])
@@ -161,8 +226,8 @@ def test_compact_view_has_only_three_promotion_success_results():
     assert [result["html"].count(f"<dt>Top{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
     assert result["html"].count('class="success-rate">33.33%') == 2
     assert result["html"].count('class="success-rate">66.67%') == 1
-    assert result["html"].count("1 / 3 成功 / 已验证") == 2
-    assert "2 / 3 成功 / 已验证" in result["html"]
+    assert result["html"].count("已验证 3 次 · 晋级成功 1 次") == 2
+    assert "已验证 3 次 · 晋级成功 2 次" in result["html"]
     for removed in ("<table", "盈利第", "T+1结算", "代理可买率", "成交胜率", "净收益", "合成累计", "最大回撤"):
         assert removed not in result["html"]
     assert "D 2026-09-10起" in result["html"]
@@ -186,7 +251,7 @@ def test_success_results_distinguish_no_rank_pending_and_verified_zero():
     result = run("state.promotionSlotStatistics=[{rank:1,count:0,verified:0,hitRate:null},{rank:2,count:2,verified:0,hitRate:null},{rank:3,count:2,verified:2,hitRate:0}];installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
     assert "暂无该名次样本" in result and "暂无已验证样本" in result
     assert result.count('class="success-rate">0.00%') == 1
-    assert "0 / 2 成功 / 已验证" in result
+    assert "已验证 2 次 · 晋级成功 0 次" in result
     assert "最新累计截至 2026-09-10" in result
 
 
@@ -194,7 +259,7 @@ def test_success_results_distinguish_no_rank_pending_and_verified_zero():
 def test_absent_promotion_ranks_do_not_gain_synthetic_success_samples(n):
     result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))",small_fixture(n))
     assert result.count("暂无该名次样本") == 3 - n
-    assert result.count("成功 / 已验证") == n
+    assert result.count("次 · 晋级成功") == n
 
 
 def test_archive_history_does_not_reexpose_latest_shadow_and_fatal_error_cannot_refill():
