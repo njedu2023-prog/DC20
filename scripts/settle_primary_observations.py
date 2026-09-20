@@ -324,7 +324,7 @@ def build(root, asof):
             raise ValueError("future minute truth read forbidden")
         key = (date, code)
         if key not in minute_cache:
-            from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes, minute_paths
+            from top10decision.decision.shadow_exit_continuous_truth import load_exit_minutes, minute_paths
             envelope = load_exit_minutes(root, date, code)
             if envelope:
                 expected = {path.relative_to(root).as_posix() for path in minute_paths(root, date, code)}

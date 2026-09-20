@@ -161,9 +161,9 @@
       "path": "models/decision_model_freeze.json",
       "baseline_exists": true,
       "baseline_bytes": 52661,
-      "current_bytes": 52661,
+      "current_bytes": 52795,
       "baseline_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
-      "current_sha256": "8a6a7fac5c236388df18cefcf0a864afc75f2882f62780b99c053a80ba679e2a",
+      "current_sha256": "6199baf3308b9e89a5626dc5e1494f3d32a07251a8074b6eb676ab199e2c6cf6",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
         {
@@ -187,23 +187,86 @@
           ]
         },
         {
+          "baseline_start": 728,
+          "current_start": 728,
+          "baseline_lines": [
+            "    \"scripts/settle_primary_observations.py\": \"a43d5ca929dc9c3c8fbc3570079659817095cffbb43148ebb6b741253af50670\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/settle_primary_observations.py\": \"babc38875bbf7a7365dd770ad9299a6b82392553175d9b048bdc1378bb8aae59\",\n"
+          ]
+        },
+        {
+          "baseline_start": 856,
+          "current_start": 856,
+          "baseline_lines": [
+            "    \"scripts/build_compact_statistics_window.py\": \"ece912f10812a22bb560acceecdaa5662d9dbb7f1b7fe7103cfa1a84afca7b48\",\n"
+          ],
+          "current_lines": [
+            "    \"scripts/build_compact_statistics_window.py\": \"de942ea9c531f3371f156d48d44253f9647f5bcbfb04a25f9fd172e3c201a20a\",\n"
+          ]
+        },
+        {
           "baseline_start": 858,
           "current_start": 858,
           "baseline_lines": [
             "    \"scripts/sync_exit_1000_minute_truth.py\": \"2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce\",\n"
           ],
           "current_lines": [
-            "    \"scripts/sync_exit_1000_minute_truth.py\": \"4f46b686679cc9be35a55c39035521de9108b74512371b72c20bca77f2b83bc1\",\n"
+            "    \"scripts/sync_exit_1000_minute_truth.py\": \"62a262793c873a0148daea1dc784501ff0b000d60f5147d2c290dcf9148f6a35\",\n"
           ]
         },
         {
-          "baseline_start": 860,
-          "current_start": 860,
+          "baseline_start": 862,
+          "current_start": 862,
           "baseline_lines": [
-            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\": \"0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65\",\n"
+            "    \"tests/test_primary_profit_shadow_statistics.py\": \"743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1\"\n"
           ],
           "current_lines": [
-            "    \"src/top10decision/decision/shadow_exit_minute_truth.py\": \"e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a\",\n"
+            "    \"tests/test_primary_profit_shadow_statistics.py\": \"743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1\",\n",
+            "    \"src/top10decision/decision/shadow_exit_continuous_truth.py\": \"e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/build_compact_statistics_window.py",
+      "baseline_exists": true,
+      "baseline_bytes": 38372,
+      "current_bytes": 38376,
+      "baseline_sha256": "ece912f10812a22bb560acceecdaa5662d9dbb7f1b7fe7103cfa1a84afca7b48",
+      "current_sha256": "de942ea9c531f3371f156d48d44253f9647f5bcbfb04a25f9fd172e3c201a20a",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes\n"
+          ],
+          "current_lines": [
+            "from top10decision.decision.shadow_exit_continuous_truth import load_exit_minutes\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/settle_primary_observations.py",
+      "baseline_exists": true,
+      "baseline_bytes": 28058,
+      "current_bytes": 28062,
+      "baseline_sha256": "a43d5ca929dc9c3c8fbc3570079659817095cffbb43148ebb6b741253af50670",
+      "current_sha256": "babc38875bbf7a7365dd770ad9299a6b82392553175d9b048bdc1378bb8aae59",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 327,
+          "current_start": 327,
+          "baseline_lines": [
+            "            from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes, minute_paths\n"
+          ],
+          "current_lines": [
+            "            from top10decision.decision.shadow_exit_continuous_truth import load_exit_minutes, minute_paths\n"
           ]
         }
       ]
@@ -212,11 +275,21 @@
       "path": "scripts/sync_exit_1000_minute_truth.py",
       "baseline_exists": true,
       "baseline_bytes": 9631,
-      "current_bytes": 9829,
+      "current_bytes": 9833,
       "baseline_sha256": "2ae4e73e88585a1387422faa9602322f38c4cd243012843f21c7a8989fb311ce",
-      "current_sha256": "4f46b686679cc9be35a55c39035521de9108b74512371b72c20bca77f2b83bc1",
+      "current_sha256": "62a262793c873a0148daea1dc784501ff0b000d60f5147d2c290dcf9148f6a35",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [
+            "from top10decision.decision.shadow_exit_minute_truth import (\n"
+          ],
+          "current_lines": [
+            "from top10decision.decision.shadow_exit_continuous_truth import (\n"
+          ]
+        },
         {
           "baseline_start": 148,
           "current_start": 148,
@@ -242,87 +315,181 @@
       ]
     },
     {
-      "path": "src/top10decision/decision/shadow_exit_minute_truth.py",
-      "baseline_exists": true,
-      "baseline_bytes": 9531,
+      "path": "src/top10decision/decision/shadow_exit_continuous_truth.py",
+      "baseline_exists": false,
+      "baseline_bytes": 0,
       "current_bytes": 10510,
-      "baseline_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+      "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "current_sha256": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
         {
-          "baseline_start": 21,
-          "current_start": 21,
+          "baseline_start": 1,
+          "current_start": 1,
           "baseline_lines": [],
           "current_lines": [
+            "\"\"\"Immutable, exact-stock/session minute truth for the 10:00 exit proxy.\n",
+            "\n",
+            "No settlement imports and no fallback to daily or legacy minute snapshots.\n",
+            "Tushare's optional 09:30 auction point is retained in source bytes, but is not\n",
+            "one of the 240 continuous-session BAR_END observations passed to the engine.\n",
+            "\"\"\"\n",
+            "from __future__ import annotations\n",
+            "\n",
+            "import csv\n",
+            "import hashlib\n",
+            "import io\n",
+            "import json\n",
+            "import math\n",
+            "import re\n",
+            "from datetime import datetime, timedelta\n",
+            "from pathlib import Path\n",
+            "\n",
+            "SCHEMA = \"dc20_exit_1000_minutes_v1\"\n",
+            "SOURCE_SCHEMA = \"dc20_exit_1000_minute_source_v1\"\n",
+            "SOURCE_ADAPTER = \"tushare_stk_mins_continuous_bar_end_v1\"\n",
             "CONTINUOUS_SOURCE_SCHEMA = \"dc20_exit_1000_minute_source_v2\"\n",
-            "CONTINUOUS_SOURCE_ADAPTER = \"tushare_stk_mins_continuous_bar_end_v2\"\n"
-          ]
-        },
-        {
-          "baseline_start": 67,
-          "current_start": 69,
-          "baseline_lines": [
-            "def request_parameters(trade_date: str, code: str) -> dict[str, str]:\n"
-          ],
-          "current_lines": [
-            "def request_parameters(trade_date: str, code: str, *, continuous_only: bool = False) -> dict[str, str]:\n"
-          ]
-        },
-        {
-          "baseline_start": 70,
-          "current_start": 72,
-          "baseline_lines": [
-            "    return {\"ts_code\": code, \"freq\": \"1min\", \"start_date\": f\"{day} 09:30:00\", \"end_date\": f\"{day} 15:00:00\"}\n"
-          ],
-          "current_lines": [
+            "CONTINUOUS_SOURCE_ADAPTER = \"tushare_stk_mins_continuous_bar_end_v2\"\n",
+            "ROOT_PATH = \"data/market/exit_1000_1m\"\n",
+            "FIELDS = (\"ts_code\", \"trade_time\", \"open\", \"close\", \"high\", \"low\", \"vol\", \"amount\")\n",
+            "\n",
+            "\n",
+            "def exit_minute_path_is_valid(relative: str) -> bool:\n",
+            "    \"\"\"Exact publishing allowlist, not a generic raw/minute directory glob.\"\"\"\n",
+            "    match = re.fullmatch(r\"data/market/exit_1000_1m/(20\\d{2})/(20\\d{6})/(\\d{6})_(SH|SZ)(\\.csv|\\.meta\\.json)\", relative)\n",
+            "    if match is None:\n",
+            "        return False\n",
+            "    try:\n",
+            "        _identity(match[2], f\"{match[3]}.{match[4]}\")\n",
+            "    except ValueError:\n",
+            "        return False\n",
+            "    return match[1] == match[2][:4] and match[2] >= \"20260914\"\n",
+            "\n",
+            "\n",
+            "def _identity(trade_date: str, code: str) -> tuple[str, str]:\n",
+            "    if not isinstance(trade_date, str) or re.fullmatch(r\"20\\d{6}\", trade_date) is None:\n",
+            "        raise ValueError(\"minute trade date must be YYYYMMDD\")\n",
+            "    if datetime.strptime(trade_date, \"%Y%m%d\").strftime(\"%Y%m%d\") != trade_date:\n",
+            "        raise ValueError(\"minute trade date is invalid\")\n",
+            "    if not isinstance(code, str) or re.fullmatch(r\"\\d{6}\\.(SH|SZ)\", code) is None:\n",
+            "        raise ValueError(\"minute stock identity is invalid\")\n",
+            "    return trade_date, code\n",
+            "\n",
+            "\n",
+            "def minute_paths(root: Path, trade_date: str, code: str) -> tuple[Path, Path]:\n",
+            "    _identity(trade_date, code)\n",
+            "    path = Path(root) / ROOT_PATH / trade_date[:4] / trade_date / f\"{code.replace('.', '_')}.csv\"\n",
+            "    return path, path.with_suffix(\".meta.json\")\n",
+            "\n",
+            "\n",
+            "def _safe_path(root: Path, path: Path) -> None:\n",
+            "    if root not in path.resolve().parents or any(p.is_symlink() for p in (path, *path.parents) if p != root):\n",
+            "        raise ValueError(\"unsafe exit minute source path\")\n",
+            "    if path.exists() and not path.is_file():\n",
+            "        raise ValueError(\"exit minute source must be a regular file\")\n",
+            "\n",
+            "\n",
+            "def expected_bar_ends(trade_date: str) -> list[str]:\n",
+            "    _identity(trade_date, \"000001.SZ\")\n",
+            "    day = datetime.strptime(trade_date, \"%Y%m%d\")\n",
+            "    return [(day.replace(hour=hour, minute=minute) + timedelta(minutes=i)).strftime(\"%Y-%m-%d %H:%M:%S\")\n",
+            "            for hour, minute in ((9, 31), (13, 1)) for i in range(120)]\n",
+            "\n",
+            "\n",
+            "def request_parameters(trade_date: str, code: str, *, continuous_only: bool = False) -> dict[str, str]:\n",
+            "    _identity(trade_date, code)\n",
+            "    day = datetime.strptime(trade_date, \"%Y%m%d\").strftime(\"%Y-%m-%d\")\n",
             "    start = \"09:31:00\" if continuous_only else \"09:30:00\"\n",
-            "    return {\"ts_code\": code, \"freq\": \"1min\", \"start_date\": f\"{day} {start}\", \"end_date\": f\"{day} 15:00:00\"}\n"
-          ]
-        },
-        {
-          "baseline_start": 118,
-          "current_start": 121,
-          "baseline_lines": [
-            "def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str) -> tuple[bytes, bytes]:\n"
-          ],
-          "current_lines": [
+            "    return {\"ts_code\": code, \"freq\": \"1min\", \"start_date\": f\"{day} {start}\", \"end_date\": f\"{day} 15:00:00\"}\n",
+            "\n",
+            "\n",
+            "def normalize_source_rows(rows: list[dict], trade_date: str, code: str) -> tuple[list[dict], bool]:\n",
+            "    \"\"\"Validate, never fill/delete duplicates/shift timestamps or infer prices.\"\"\"\n",
+            "    _identity(trade_date, code)\n",
+            "    expected = expected_bar_ends(trade_date)\n",
+            "    auction_time = expected[0].replace(\"09:31:00\", \"09:30:00\")\n",
+            "    by_time = {}\n",
+            "    for row in rows:\n",
+            "        if not isinstance(row, dict) or set(row) != set(FIELDS):\n",
+            "            raise ValueError(\"minute source required fields missing\")\n",
+            "        stamp = row[\"trade_time\"]\n",
+            "        if row[\"ts_code\"] != code or not isinstance(stamp, str) or stamp in by_time:\n",
+            "            raise ValueError(\"minute source wrong code or duplicate timestamp\")\n",
+            "        if stamp not in expected and stamp != auction_time:\n",
+            "            raise ValueError(\"minute source timestamp is outside exact BAR_END session\")\n",
+            "        values = {}\n",
+            "        for key in (\"open\", \"high\", \"low\", \"close\", \"vol\", \"amount\"):\n",
+            "            value = row[key]\n",
+            "            if isinstance(value, bool):\n",
+            "                raise ValueError(\"minute source boolean numeric value\")\n",
+            "            try:\n",
+            "                number = float(value)\n",
+            "            except (ValueError, TypeError):\n",
+            "                raise ValueError(\"minute source nonnumeric value\") from None\n",
+            "            if not math.isfinite(number) or number < 0 or (key in {\"open\", \"high\", \"low\", \"close\"} and number == 0):\n",
+            "                raise ValueError(\"minute source invalid price/volume\")\n",
+            "            values[key] = number\n",
+            "        if not values[\"low\"] <= min(values[\"open\"], values[\"close\"]) <= max(values[\"open\"], values[\"close\"]) <= values[\"high\"]:\n",
+            "            raise ValueError(\"minute source inconsistent OHLC\")\n",
+            "        if values[\"vol\"] == 0 and (len({values[k] for k in (\"open\", \"high\", \"low\", \"close\")}) != 1 or values[\"amount\"] != 0):\n",
+            "            raise ValueError(\"minute source zero-volume price/amount conflict\")\n",
+            "        if stamp == auction_time and len({values[k] for k in (\"open\", \"high\", \"low\", \"close\")}) != 1:\n",
+            "            raise ValueError(\"09:30 source is not an unambiguous auction point\")\n",
+            "        by_time[stamp] = {\"bar_end\": stamp, **values}\n",
+            "    expected_set = set(expected)\n",
+            "    if set(by_time) not in (expected_set, expected_set | {auction_time}):\n",
+            "        raise ValueError(\"minute source incomplete 240-bar session\")\n",
+            "    previous = None\n",
+            "    for stamp in expected:\n",
+            "        row = by_time[stamp]\n",
+            "        if row[\"vol\"] == 0 and previous is not None and row[\"close\"] != previous:\n",
+            "            raise ValueError(\"minute source zero-volume price changed\")\n",
+            "        previous = row[\"close\"]\n",
+            "    return [by_time[stamp] for stamp in expected], auction_time in by_time\n",
+            "\n",
+            "\n",
             "def source_bytes(rows: list[dict], trade_date: str, code: str, *, fetched_at_utc: str,\n",
-            "                 continuous_only: bool = False) -> tuple[bytes, bytes]:\n"
-          ]
-        },
-        {
-          "baseline_start": 120,
-          "current_start": 124,
-          "baseline_lines": [],
-          "current_lines": [
+            "                 continuous_only: bool = False) -> tuple[bytes, bytes]:\n",
+            "    normalized, has_auction = normalize_source_rows(rows, trade_date, code)\n",
             "    if continuous_only and has_auction:\n",
-            "        raise ValueError(\"continuous-only request returned an out-of-range auction point\")\n"
-          ]
-        },
-        {
-          "baseline_start": 126,
-          "current_start": 132,
-          "baseline_lines": [
-            "    meta = {\"schema_version\": SOURCE_SCHEMA, \"source\": \"tushare:stk_mins\", \"adapter\": SOURCE_ADAPTER,\n",
-            "            \"ts_code\": code, \"trade_date\": trade_date, \"request\": request_parameters(trade_date, code),\n"
-          ],
-          "current_lines": [
+            "        raise ValueError(\"continuous-only request returned an out-of-range auction point\")\n",
+            "    out = io.StringIO(newline=\"\")\n",
+            "    writer = csv.DictWriter(out, fieldnames=FIELDS, lineterminator=\"\\n\", extrasaction=\"ignore\")\n",
+            "    writer.writeheader()\n",
+            "    # Keep every validated raw row, including the optional 09:30 point.\n",
+            "    writer.writerows(sorted(rows, key=lambda row: row[\"trade_time\"]))\n",
+            "    raw = out.getvalue().encode(\"utf-8\")\n",
             "    meta = {\"schema_version\": CONTINUOUS_SOURCE_SCHEMA if continuous_only else SOURCE_SCHEMA,\n",
             "            \"source\": \"tushare:stk_mins\",\n",
             "            \"adapter\": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,\n",
             "            \"ts_code\": code, \"trade_date\": trade_date,\n",
-            "            \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n"
-          ]
-        },
-        {
-          "baseline_start": 154,
-          "current_start": 163,
-          "baseline_lines": [
-            "    expected = {\"schema_version\": SOURCE_SCHEMA, \"source\": \"tushare:stk_mins\", \"adapter\": SOURCE_ADAPTER,\n",
-            "                \"ts_code\": code, \"trade_date\": trade_date, \"request\": request_parameters(trade_date, code),\n"
-          ],
-          "current_lines": [
+            "            \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n",
+            "            \"timezone\": \"Asia/Shanghai\", \"timestamp_semantics\": \"BAR_END\", \"interval_seconds\": 60,\n",
+            "            \"complete_session\": True, \"continuous_rows\": len(normalized), \"source_rows\": len(rows),\n",
+            "            \"auction_point_0930_excluded\": has_auction, \"sha256\": hashlib.sha256(raw).hexdigest(),\n",
+            "            \"fetched_at_utc\": fetched_at_utc, \"immutable\": True, \"credential_persisted\": False}\n",
+            "    return raw, (json.dumps(meta, sort_keys=True, indent=2, allow_nan=False) + \"\\n\").encode(\"utf-8\")\n",
+            "\n",
+            "\n",
+            "def load_exit_minutes(repo_root: Path, trade_date: str, code: str) -> dict | None:\n",
+            "    \"\"\"None means absent; any present unsafe/corrupt/incomplete source raises.\"\"\"\n",
+            "    root = Path(repo_root).resolve(strict=True)\n",
+            "    path, meta_path = minute_paths(root, trade_date, code)\n",
+            "    for candidate in (path, meta_path):\n",
+            "        _safe_path(root, candidate)\n",
+            "    if not path.exists() and not meta_path.exists():\n",
+            "        return None\n",
+            "    if not path.is_file() or not meta_path.is_file():\n",
+            "        raise ValueError(\"exit minute source CSV/metadata pair is incomplete\")\n",
+            "    raw, meta_raw = path.read_bytes(), meta_path.read_bytes()\n",
+            "    try:\n",
+            "        meta = json.loads(meta_raw)\n",
+            "        reader = csv.DictReader(io.StringIO(raw.decode(\"utf-8-sig\"), newline=\"\"))\n",
+            "        if reader.fieldnames != list(FIELDS):\n",
+            "            raise ValueError(\"exit minute source columns drifted\")\n",
+            "        rows, has_auction = normalize_source_rows(list(reader), trade_date, code)\n",
+            "    except (UnicodeError, json.JSONDecodeError, csv.Error) as exc:\n",
+            "        raise ValueError(\"malformed exit minute source\") from exc\n",
             "    continuous_only = isinstance(meta, dict) and meta.get(\"schema_version\") == CONTINUOUS_SOURCE_SCHEMA\n",
             "    if continuous_only and has_auction:\n",
             "        raise ValueError(\"continuous-only source contains out-of-range auction point\")\n",
@@ -330,7 +497,26 @@
             "                \"source\": \"tushare:stk_mins\",\n",
             "                \"adapter\": CONTINUOUS_SOURCE_ADAPTER if continuous_only else SOURCE_ADAPTER,\n",
             "                \"ts_code\": code, \"trade_date\": trade_date,\n",
-            "                \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n"
+            "                \"request\": request_parameters(trade_date, code, continuous_only=continuous_only),\n",
+            "                \"timezone\": \"Asia/Shanghai\", \"timestamp_semantics\": \"BAR_END\", \"interval_seconds\": 60,\n",
+            "                \"complete_session\": True, \"continuous_rows\": 240, \"source_rows\": 240 + int(has_auction),\n",
+            "                \"auction_point_0930_excluded\": has_auction, \"sha256\": hashlib.sha256(raw).hexdigest(),\n",
+            "                \"immutable\": True, \"credential_persisted\": False}\n",
+            "    if not isinstance(meta, dict) or set(meta) != set(expected) | {\"fetched_at_utc\"}:\n",
+            "        raise ValueError(\"exit minute source metadata fields drifted\")\n",
+            "    if any(type(meta[key]) is not type(value) or meta[key] != value for key, value in expected.items()):\n",
+            "        raise ValueError(\"exit minute source metadata/SHA mismatch\")\n",
+            "    try:\n",
+            "        fetched = datetime.fromisoformat(meta[\"fetched_at_utc\"].replace(\"Z\", \"+00:00\"))\n",
+            "        if fetched.tzinfo is None:\n",
+            "            raise ValueError(\"timezone missing\")\n",
+            "    except (ValueError, TypeError, AttributeError) as exc:\n",
+            "        raise ValueError(\"exit minute source fetched timestamp invalid\") from exc\n",
+            "    return {\"schema_version\": SCHEMA, \"ts_code\": code, \"trade_date\": trade_date,\n",
+            "            \"timezone\": \"Asia/Shanghai\", \"timestamp_semantics\": \"BAR_END\", \"interval_seconds\": 60,\n",
+            "            \"complete_session\": True, \"rows\": rows,\n",
+            "            \"source_files\": [{\"path\": p.relative_to(root).as_posix(), \"sha256\": hashlib.sha256(b).hexdigest()}\n",
+            "                             for p, b in ((path, raw), (meta_path, meta_raw))]}\n"
           ]
         }
       ]
@@ -513,11 +699,21 @@
       "path": "tests/test_exit_1000_minute_truth.py",
       "baseline_exists": true,
       "baseline_bytes": 21566,
-      "current_bytes": 24493,
+      "current_bytes": 25118,
       "baseline_sha256": "e12047ff0fb092050573046dff6c7a72ce75f5e68a71c5d4641ed36a3317b112",
-      "current_sha256": "679bc3fd8dabd6f344e17a67c96deec44e90eac6b06a89323c1693b0d7251db6",
+      "current_sha256": "c05bbffa3cd5bff75e7f51861b9260dd6c77b1b753b4e03bf159a3d1ed0c88f8",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
+        {
+          "baseline_start": 16,
+          "current_start": 16,
+          "baseline_lines": [
+            "from top10decision.decision import shadow_exit_minute_truth as truth\n"
+          ],
+          "current_lines": [
+            "from top10decision.decision import shadow_exit_continuous_truth as truth\n"
+          ]
+        },
         {
           "baseline_start": 158,
           "current_start": 158,
@@ -565,6 +761,15 @@
             "    result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(error=RuntimeError(\"must not fetch\")))\n",
             "    assert result[\"network_requests\"] == 0\n",
             "    assert [p.read_bytes() for p in paths] == before\n",
+            "\n",
+            "\n",
+            "def test_candidate_frozen_minute_dependency_and_v1_results_remain_exact(tmp_path):\n",
+            "    from top10decision.decision import shadow_exit_minute_truth as frozen\n",
+            "    assert hashlib.sha256(Path(frozen.__file__).read_bytes()).hexdigest() == \"0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65\"\n",
+            "    timestamp = \"2026-09-14T08:00:00+00:00\"\n",
+            "    assert truth.source_bytes(rows(), DAY, CODE, fetched_at_utc=timestamp) == frozen.source_bytes(rows(), DAY, CODE, fetched_at_utc=timestamp)\n",
+            "    write_truth(tmp_path)\n",
+            "    assert truth.load_exit_minutes(tmp_path, DAY, CODE) == frozen.load_exit_minutes(tmp_path, DAY, CODE)\n",
             "\n",
             "\n",
             "@pytest.mark.parametrize(\"ambiguous\", [False, True])\n",

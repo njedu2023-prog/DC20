@@ -25,7 +25,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 from scripts.publish_primary_three_rank import build_primary_d_runtime_index
 from scripts.settle_primary_observations import observation_row
 from top10decision.decision import executable_profit_shadow_settlement as settlement
-from top10decision.decision.shadow_exit_minute_truth import load_exit_minutes
+from top10decision.decision.shadow_exit_continuous_truth import load_exit_minutes
 from top10decision.decision.primary_profit_forward_shadow_bridge import (
     validate_primary_profit_forward_shadow_public_index,
     validate_primary_profit_forward_shadow_public_state,

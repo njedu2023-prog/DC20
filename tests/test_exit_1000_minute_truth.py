@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from scripts import sync_exit_1000_minute_truth as sync
-from top10decision.decision import shadow_exit_minute_truth as truth
+from top10decision.decision import shadow_exit_continuous_truth as truth
 
 DAY, CODE = "20260914", "000001.SZ"
 
@@ -203,6 +203,15 @@ def test_new_collector_keeps_old_verified_sources_byte_exact(tmp_path, planned):
     result = sync.sync_missing_minutes(tmp_path, DAY, client=Client(error=RuntimeError("must not fetch")))
     assert result["network_requests"] == 0
     assert [p.read_bytes() for p in paths] == before
+
+
+def test_candidate_frozen_minute_dependency_and_v1_results_remain_exact(tmp_path):
+    from top10decision.decision import shadow_exit_minute_truth as frozen
+    assert hashlib.sha256(Path(frozen.__file__).read_bytes()).hexdigest() == "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65"
+    timestamp = "2026-09-14T08:00:00+00:00"
+    assert truth.source_bytes(rows(), DAY, CODE, fetched_at_utc=timestamp) == frozen.source_bytes(rows(), DAY, CODE, fetched_at_utc=timestamp)
+    write_truth(tmp_path)
+    assert truth.load_exit_minutes(tmp_path, DAY, CODE) == frozen.load_exit_minutes(tmp_path, DAY, CODE)
 
 
 @pytest.mark.parametrize("ambiguous", [False, True])

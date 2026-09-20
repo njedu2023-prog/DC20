@@ -398,8 +398,8 @@ def _repair_actual_source(path):
 
 
 REPAIR_REVIEW_PATH = "models/decision_source_surface_review_20260920_settlement_repair.json"
-REPAIR_REVIEW_SHA = "e8a7568aec61dc5c0a080919176837c2c28cc3af8ab2c1bbf7fe2c995b3b72ec"
-REPAIR_SOURCE_PATHS = ['.github/workflows/test_decision_core.yml', 'decision.html', 'models/decision_model_freeze.json', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_minute_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_decision_core_ci_partition.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_three_rank_truth_frontend.py']
+REPAIR_REVIEW_SHA = "7c842492e222a574761d44d9d1fbf5127ec5e1c0fd63128acbc5c23d16736556"
+REPAIR_SOURCE_PATHS = ['.github/workflows/test_decision_core.yml', 'decision.html', 'models/decision_model_freeze.json', 'scripts/build_compact_statistics_window.py', 'scripts/settle_primary_observations.py', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_continuous_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_decision_core_ci_partition.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_three_rank_truth_frontend.py']
 
 
 def _repair_review():
@@ -434,6 +434,12 @@ def _obs_actual_source(path):
         assert raw == (json.dumps(expected, ensure_ascii=False, indent=2) + "\n").encode()
         return original
     item = next((item for item in review["source_changes"] if item["path"] == path), None)
+    if item is not None and not item['baseline_exists']:
+        assert path == 'src/top10decision/decision/shadow_exit_continuous_truth.py'
+        assert len(raw) == item['current_bytes'] and hashlib.sha256(raw).hexdigest() == item['current_sha256']
+        assert item['baseline_bytes'] == 0 and item['baseline_sha256'] == hashlib.sha256(b'').hexdigest()
+        assert item['inverse_changes'] == [{'baseline_start': 1, 'current_start': 1, 'baseline_lines': [], 'current_lines': raw.decode().splitlines(keepends=True)}]
+        return b''
     return raw if item is None else _candidate_activation_inverse(raw, item)
 
 
@@ -442,7 +448,7 @@ def test_settlement_repair_preserves_model_policy_and_checks_every_live_pin():
     current = json.loads(_repair_actual_source("models/decision_model_freeze.json"))
     expected = copy.deepcopy(before)
     for path in REPAIR_SOURCE_PATHS:
-        if path in expected["pinned_files"]:
+        if path in expected["pinned_files"] or path == 'src/top10decision/decision/shadow_exit_continuous_truth.py':
             expected["pinned_files"][path] = hashlib.sha256(_repair_actual_source(path)).hexdigest()
     assert current == expected
     for path, sha in current["pinned_files"].items():

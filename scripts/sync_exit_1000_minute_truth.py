@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from top10decision.data.tushare_minute import TushareClient
-from top10decision.decision.shadow_exit_minute_truth import (
+from top10decision.decision.shadow_exit_continuous_truth import (
     FIELDS, _safe_path, exit_minute_path_is_valid, load_exit_minutes, minute_paths, request_parameters, source_bytes,
 )
 
