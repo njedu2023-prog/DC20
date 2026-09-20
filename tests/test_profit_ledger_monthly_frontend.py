@@ -101,3 +101,12 @@ def test_route_does_not_bootstrap_homepage_and_month_load_is_bounded():
 def test_entire_browser_script_has_valid_syntax():
     script = HTML.split('<script>')[1].split('</script>')[0]
     subprocess.run([NODE,'-'],input='new Function('+json.dumps(script)+');',text=True,check=True)
+
+
+def test_monthly_presentation_matches_compact_homepage_without_changing_data():
+    assert '<div class="ledger-heading-group"><h2 id="compactLedgerTitle">' in HTML
+    assert 'class="ledger-detail-link" href="?view=profit-ledger"' in HTML
+    assert '.ledger-detail-link:visited' in HTML and 'text-decoration:none' in HTML
+    assert 'toolbar ledger-titlebar' in HTML and 'title-icon" aria-hidden="true"' in HTML
+    assert 'status-chip status-${status.kind}' in HTML
+    assert 'class="promotion-chip"' in HTML and 'class="path-chip"' in HTML

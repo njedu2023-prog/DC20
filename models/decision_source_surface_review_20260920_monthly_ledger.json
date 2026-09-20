@@ -17,24 +17,35 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 459468,
+      "current_bytes": 463062,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "8b1d91ea3d09783eddcefc71565161ba1848c8986580caa421fd6a0b37148a92",
+      "current_sha256": "c65fc92063d4fc0139cab6618393cd239a41b27a98b613ce5abcbd78fec62239",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
+          "baseline_start": 1205,
+          "current_start": 1205,
+          "baseline_lines": [],
+          "current_lines": [
+            "    .ledger-heading-group { display:flex; align-items:center; justify-content:flex-start; gap:14px; flex-wrap:wrap; }\n",
+            "    .ledger-detail-link, .ledger-detail-link:visited { display:inline-flex; align-items:center; gap:5px; color:var(--accent, #17675a); font-size:12px; font-weight:600; text-decoration:none; white-space:nowrap; }\n",
+            "    .ledger-detail-link:hover { color:#104f44; text-decoration:none; }\n",
+            "    .ledger-detail-link:focus-visible { outline:2px solid #17675a; outline-offset:4px; border-radius:3px; }\n"
+          ]
+        },
+        {
           "baseline_start": 1290,
-          "current_start": 1290,
+          "current_start": 1294,
           "baseline_lines": [
             "      <div class=\"panel-head\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
           ],
           "current_lines": [
-            "      <div class=\"panel-head\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><a href=\"?view=profit-ledger\">查看每月明细 →</a><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
+            "      <div class=\"panel-head\"><div class=\"ledger-heading-group\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><a class=\"ledger-detail-link\" href=\"?view=profit-ledger\"><span aria-hidden=\"true\">▤</span> 查看每月明细 →</a></div><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
           ]
         },
         {
           "baseline_start": 6416,
-          "current_start": 6416,
+          "current_start": 6420,
           "baseline_lines": [],
           "current_lines": [
             "    // Independent read-only monthly route. Reuses the exact deployment's\n",
@@ -150,8 +161,9 @@
             "      document.querySelector(\".skip-link\")?.remove();\n",
             "      const style = document.createElement(\"style\");\n",
             "      style.textContent = `#ledgerPage{font-size:12px}#ledgerPage h1{font-size:18px;margin:0}#ledgerPage .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px}#ledgerPage label{display:flex;gap:5px;align-items:center}#ledgerPage select,#ledgerPage input,#ledgerPage button{font:inherit;padding:5px 8px}#ledgerPage .scroll{overflow:auto;max-height:68vh}#ledgerPage table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}#ledgerPage th,#ledgerPage td{padding:8px;border-bottom:1px solid #dfe7e4;text-align:left}#ledgerPage th{position:sticky;top:0;background:#edf3f1;z-index:2}#ledgerPage tbody tr:nth-child(even){background:#f8faf9}#ledgerPage .up{color:#cf3027}#ledgerPage .down{color:#16824c}#ledgerPage .muted{color:#65746f}#ledgerPage .identity{position:sticky;left:0;background:#f5f8f7;z-index:1}#ledgerPage th.identity{z-index:3}#ledgerPage details{max-width:430px;white-space:normal}#ledgerPage summary{cursor:pointer;white-space:nowrap}#ledgerPage .note{margin:8px 12px;color:#65746f}#ledgerPage .badge{border:1px solid #deb887;color:#955100;border-radius:3px;padding:1px 4px}`;\n",
+            "      style.textContent += `#ledgerPage{--ledger-green:#236f60;font-family:inherit;color:#23332e}#ledgerPage .panel{border:1px solid #dce5e1;border-radius:9px;box-shadow:0 1px 3px #18372b08;overflow:hidden}#ledgerPage .ledger-titlebar{background:#172d27;color:#f5faf7;padding:12px 14px}#ledgerPage .ledger-titlebar h1{font-size:16px;display:flex;align-items:center;gap:9px}#ledgerPage .title-icon{display:inline-grid;place-items:center;width:26px;height:26px;border:1px solid #55766b;border-radius:6px;color:#c4e3d6;font-size:18px}#ledgerPage a,#ledgerPage a:visited{text-decoration:none;color:var(--ledger-green);font-weight:600}#ledgerPage .ledger-titlebar a{margin-left:auto;color:#d4e7df;font-size:12px}#ledgerPage .toolbar{gap:8px}#ledgerPage select,#ledgerPage input,#ledgerPage button{background:#fff;border:1px solid #cedcd5;border-radius:5px;color:#334d43;min-height:29px;outline-offset:2px}#ledgerPage button{font-weight:600;cursor:pointer}#ledgerPage button:hover:not(:disabled){border-color:#6d9b89;background:#edf6f1}#ledgerPage button:disabled{opacity:.4;cursor:default}#ledgerPage input:focus,#ledgerPage select:focus{outline:2px solid #8bb6a4}#ledgerPage #ledgerExport{background:#eaf4ee;color:#236f60;border-color:#b5d0c1}#ledgerPage th{font-size:11px;color:#64776d;font-weight:600}#ledgerPage td{font-variant-numeric:tabular-nums;padding:7px 8px}#ledgerPage tbody tr:hover{background:#eef5f1}#ledgerPage .badge{background:#fff5e6;border-color:#eccb98;color:#a56619;font-weight:700;font-size:11px}#ledgerPage .promotion-chip{display:inline-block;min-width:19px;text-align:center;color:#376fa0;border:1px solid #b9d0e5;background:#eef5fc;border-radius:3px;font-weight:600}#ledgerPage .path-chip{display:inline-block;background:#edf4f0;border:1px solid #d1e0d7;color:#476b59;border-radius:3px;padding:0 4px;font-size:11px}#ledgerPage .status-chip{display:inline-flex;gap:4px;align-items:center;padding:1px 5px;border-radius:4px;font-size:11px;border:1px solid #dce4df;color:#687a70;background:#f4f7f5}#ledgerPage .status-settled{color:#2e7460;border-color:#bfd9cd;background:#edf7f1}#ledgerPage .status-holding{color:#9c6816;border-color:#ead4a6;background:#fff7e8}#ledgerPage .status-missing{color:#a65633;border-color:#e5c7b9;background:#fff1ea}#ledgerPage summary{color:#426b5a;font-size:11px}#ledgerPage details p{line-height:1.6;overflow-wrap:anywhere}#ledgerPage .note{font-size:11px;line-height:1.6}#ledgerPage #ledgerCount{margin-left:auto;color:#829086;font-size:11px}@media(max-width:650px){#ledgerPage .ledger-titlebar a{margin-left:0}#ledgerPage h1{font-size:14px}#ledgerPage .toolbar{padding:8px}#ledgerPage input{max-width:130px}}`;\n",
             "      document.head.append(style);\n",
-            "      els.mainContent.innerHTML = `<div id=\"ledgerPage\"><section class=\"panel\"><div class=\"toolbar\"><h1>盈利 Top1 / Top2 · 影子账本</h1><a href=\"?\">← 返回每日名单</a></div>\n",
+            "      els.mainContent.innerHTML = `<div id=\"ledgerPage\"><section class=\"panel\"><div class=\"toolbar ledger-titlebar\"><h1><span class=\"title-icon\" aria-hidden=\"true\">▤</span>盈利 Top1 / Top2 · 影子账本</h1><a href=\"?\">← 返回每日名单</a></div>\n",
             "        <div class=\"toolbar\"><button id=\"ledgerPrev\" aria-label=\"上一月\">← 上一月</button><label>月份<select id=\"ledgerMonth\"></select></label><button id=\"ledgerNext\" aria-label=\"下一月\">下一月 →</button><button id=\"ledgerLatest\">最新月份</button><button id=\"ledgerRefresh\">刷新</button>\n",
             "        <label>成绩范围<select id=\"ledgerScope\"><option value=\"month\">本月</option><option value=\"all\">全部累计</option></select></label></div>\n",
             "        <p id=\"ledgerMessage\" class=\"note\" role=\"status\">正在校验影子账本…</p><div class=\"scroll\" id=\"ledgerSummary\"></div></section>\n",
@@ -208,7 +220,7 @@
             "          const detail=[[\"状态代码\",r.status],[\"买入价来源\",source(r.entry_price_source)],[\"最早退出日\",date(r.exit_date)],[\"实际退出时间\",r.actual_exit_time || \"—\"],\n",
             "            [\"封板延持交易日\",r.held_limit_up_sessions ?? \"—\"],[\"双边成本\",\"0.45%（已计入净收益，不再扣一次）\"],[\"结算数据截至\",date(r.ledger_as_of_date)],\n",
             "            [\"冻结快照SHA\",r.snapshot_file_sha256 || \"—\"],[\"校验提示\",r.detail_error || \"通过\"]];\n",
-            "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td>${escapeHtml(r.path_label || \"—\")}</td><td>${r.promotion_rank ?? \"—\"}</td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class=\"muted\">${escapeHtml(source(r.entry_price_source))}</span></td><td>${status.label}</td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n",
+            "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class=\"muted\">${escapeHtml(source(r.entry_price_source))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n",
             "        }).join(\"\") || '<tr><td colspan=\"15\">无符合条件的记录</td></tr>';\n",
             "      }\n",
             "      async function loadMonth() {\n",
@@ -249,7 +261,7 @@
         },
         {
           "baseline_start": 6627,
-          "current_start": 6835,
+          "current_start": 6840,
           "baseline_lines": [
             "    initialize(false).catch(showError);\n"
           ],
@@ -271,7 +283,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "7d33044ebc6c68508b3e0cdc00076a93dcdfe600bb082c993b514ea7249ffd80",
+      "current_sha256": "dc4fa7bdf612f86d137a3386dae0b9a8be383efcd3bb5fd45bbbe0a9cbb78b24",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
@@ -281,7 +293,7 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"8b1d91ea3d09783eddcefc71565161ba1848c8986580caa421fd6a0b37148a92\",\n"
+            "    \"decision.html\": \"c65fc92063d4fc0139cab6618393cd239a41b27a98b613ce5abcbd78fec62239\",\n"
           ]
         }
       ]
@@ -290,9 +302,9 @@
       "path": "tests/test_profit_ledger_monthly_frontend.py",
       "baseline_exists": false,
       "baseline_bytes": 0,
-      "current_bytes": 5985,
+      "current_bytes": 6531,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "current_sha256": "946e669eb147522de7281cb97a3ec9fb8b7598aae02f13b75af44360bb8a8e0a",
+      "current_sha256": "b65cb4a641557689d35daceb4b348723f1c5936d0d4f61fd62743784ffc174ba",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
@@ -402,7 +414,16 @@
             "\n",
             "def test_entire_browser_script_has_valid_syntax():\n",
             "    script = HTML.split('<script>')[1].split('</script>')[0]\n",
-            "    subprocess.run([NODE,'-'],input='new Function('+json.dumps(script)+');',text=True,check=True)\n"
+            "    subprocess.run([NODE,'-'],input='new Function('+json.dumps(script)+');',text=True,check=True)\n",
+            "\n",
+            "\n",
+            "def test_monthly_presentation_matches_compact_homepage_without_changing_data():\n",
+            "    assert '<div class=\"ledger-heading-group\"><h2 id=\"compactLedgerTitle\">' in HTML\n",
+            "    assert 'class=\"ledger-detail-link\" href=\"?view=profit-ledger\"' in HTML\n",
+            "    assert '.ledger-detail-link:visited' in HTML and 'text-decoration:none' in HTML\n",
+            "    assert 'toolbar ledger-titlebar' in HTML and 'title-icon\" aria-hidden=\"true\"' in HTML\n",
+            "    assert 'status-chip status-${status.kind}' in HTML\n",
+            "    assert 'class=\"promotion-chip\"' in HTML and 'class=\"path-chip\"' in HTML\n"
           ]
         }
       ]
