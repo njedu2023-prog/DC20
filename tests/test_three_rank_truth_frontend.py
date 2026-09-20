@@ -63,8 +63,13 @@ async function mutateObservationField(code, field, value) {
   summary.rows_sha256 = await sha256Hex(new TextEncoder().encode(files[summary.rows_path]));
 }
 ''' + "\n(async()=>{" + body + "})().catch(error=>{console.error(error);process.exit(1)});"
-    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, check=True)
+    result = subprocess.run([NODE, "-"], input=script, capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
+
+
+def test_large_observation_script_uses_stdin_without_os_argument_limit():
+    body = "/*" + "x" * 200_000 + "*/console.log(JSON.stringify({ok:true}));"
+    assert run(body) == {"ok": True}
 
 
 def test_sunday_and_t_intraday_never_read_close_or_show_premature_truth():
