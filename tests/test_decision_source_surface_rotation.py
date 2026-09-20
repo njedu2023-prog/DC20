@@ -388,13 +388,77 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
-def _full_list_actual_source(path):
+def _monthly_actual_source(path):
     target = ROOT / path
     assert isinstance(path, str) and not Path(path).is_absolute()
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
     return target.read_bytes()
+
+
+MONTHLY_REVIEW_PATH = 'models/decision_source_surface_review_20260920_monthly_ledger.json'
+MONTHLY_REVIEW_SHA = '0425c7d8f441baf935a2a6df7bf5f4b372e5a3154050be52b4f103a5c624bb2d'
+MONTHLY_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_profit_ledger_monthly_frontend.py']
+
+
+def _monthly_review():
+    raw = _monthly_actual_source(MONTHLY_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == MONTHLY_REVIEW_SHA
+    review = json.loads(raw)
+    assert review['schema_version'] == 'dc20_monthly_ledger_display_review_v1'
+    assert review['approved_base_commit'] == '68d038cdb1263fc60b55fffe2b4353cf7c8123d0'
+    assert review['scope'] == 'READ_ONLY_MONTHLY_CANDIDATE_SHADOW_LEDGER_WITH_FROZEN_D_FEATURES'
+    assert review['boundaries'] == {key: False for key in ('models_changed','ranking_changed','frozen_members_changed','ledger_changed','settlement_changed','source_truth_changed','schedules_changed','validation_weakened')}
+    assert [item['path'] for item in review['source_changes']] == MONTHLY_SOURCE_PATHS
+    return review
+
+
+def _full_list_actual_source(path):
+    raw = _monthly_actual_source(path)
+    if path not in MONTHLY_SOURCE_PATHS and path != 'forward/model_inventory.json':
+        return raw
+    review = _monthly_review()
+    if path == 'forward/model_inventory.json':
+        baseline = review['inventory_baseline'].encode()
+        expected = json.loads(baseline)
+        manifest = _monthly_actual_source('models/decision_model_freeze.json')
+        for asset in expected['assets']:
+            if asset['path'] == 'models/decision_model_freeze.json':
+                asset.update(sha256=hashlib.sha256(manifest).hexdigest(), bytes=len(manifest))
+        expected['monthly_ledger_review'] = {'path': MONTHLY_REVIEW_PATH, 'sha256': MONTHLY_REVIEW_SHA}
+        assert raw == (json.dumps(expected, ensure_ascii=False, indent=2)+'\n').encode()
+        return baseline
+    item = next(item for item in review['source_changes'] if item['path'] == path)
+    if not item['baseline_exists']:
+        assert path == 'tests/test_profit_ledger_monthly_frontend.py'
+        assert len(raw) == item['current_bytes'] and hashlib.sha256(raw).hexdigest() == item['current_sha256']
+        assert item['baseline_bytes'] == 0 and item['baseline_sha256'] == hashlib.sha256(b'').hexdigest()
+        assert item['inverse_changes'] == [{'baseline_start':1,'current_start':1,'baseline_lines':[], 'current_lines':raw.decode().splitlines(keepends=True)}]
+        return b''
+    return _repair_inverse_bytes(raw, json.dumps(item, sort_keys=True))
+
+
+def test_monthly_ledger_display_preserves_prior_policies_and_every_live_pin():
+    before = json.loads(_full_list_actual_source('models/decision_model_freeze.json'))
+    live = json.loads(_monthly_actual_source('models/decision_model_freeze.json'))
+    expected = copy.deepcopy(before)
+    expected['pinned_files']['decision.html'] = hashlib.sha256(_monthly_actual_source('decision.html')).hexdigest()
+    assert live == expected
+    for path, digest in live['pinned_files'].items():
+        assert hashlib.sha256(_monthly_actual_source(path)).hexdigest() == digest, path
+    for path in MONTHLY_SOURCE_PATHS + ['forward/model_inventory.json']:
+        _full_list_actual_source(path)
+
+
+@pytest.mark.parametrize('path', MONTHLY_SOURCE_PATHS + ['forward/model_inventory.json', MONTHLY_REVIEW_PATH])
+def test_monthly_ledger_display_rejects_live_mutation_after_cache_warmup(monkeypatch, path):
+    _full_list_actual_source('decision.html')
+    _full_list_actual_source('forward/model_inventory.json')
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda p: read(p)+(b'\n' if p == ROOT/path else b''))
+    with pytest.raises(AssertionError):
+        _full_list_actual_source('decision.html' if path == MONTHLY_REVIEW_PATH else path)
 
 
 FULL_LIST_REVIEW_PATH = 'models/decision_source_surface_review_20260920_full_list_promotion.json'
@@ -928,6 +992,10 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
 
 
 def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None and manifest == json.loads(_monthly_actual_source('models/decision_model_freeze.json')):
+        for path, digest in manifest['pinned_files'].items():
+            assert hashlib.sha256(_monthly_actual_source(path)).hexdigest() == digest
+        manifest = json.loads(_full_list_actual_source('models/decision_model_freeze.json'))
     if manifest is not None and manifest == json.loads(_full_list_actual_source('models/decision_model_freeze.json')):
         for path, digest in manifest['pinned_files'].items():
             assert hashlib.sha256(_full_list_actual_source(path)).hexdigest() == digest

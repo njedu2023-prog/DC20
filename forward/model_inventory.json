@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
+      "sha256": "7d33044ebc6c68508b3e0cdc00076a93dcdfe600bb082c993b514ea7249ffd80",
       "bytes": 52795,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
@@ -347,5 +347,9 @@
   "full_list_promotion_review": {
     "path": "models/decision_source_surface_review_20260920_full_list_promotion.json",
     "sha256": "3eef32501c0ed7bb10768a80e3f40b8350a92260f4bb1783219e9b0353b7468f"
+  },
+  "monthly_ledger_review": {
+    "path": "models/decision_source_surface_review_20260920_monthly_ledger.json",
+    "sha256": "0425c7d8f441baf935a2a6df7bf5f4b372e5a3154050be52b4f103a5c624bb2d"
   }
 }

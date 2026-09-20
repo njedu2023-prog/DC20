@@ -1287,7 +1287,7 @@
     </section>
 
     <section id="compactLedger" class="panel" aria-labelledby="compactLedgerTitle">
-      <div class="panel-head"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 累计统计</h2><span id="compactLedgerState" class="count">待读取</span></div>
+      <div class="panel-head"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 累计统计</h2><a href="?view=profit-ledger">查看每月明细 →</a><span id="compactLedgerState" class="count">待读取</span></div>
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
@@ -6413,6 +6413,214 @@
       setNavigation();
     }
 
+    // Independent read-only monthly route. Reuses the exact deployment's
+    // validators; never recalculates ranks, trade outcomes or frozen features.
+    function ledgerStatus(row) {
+      if (row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY") return {kind:"settled", label:"已结算"};
+      if (row.status.startsWith("NO_FILL_")) return {kind:"no-fill", label:"未买入"};
+      if (row.status.includes("LIMIT_UP")) return {kind:"holding", label:"封板延持"};
+      if (row.status.startsWith("MISSING_") || /MISSING|UNRESOLVED/.test(row.status)) return {kind:"missing", label:"待补数据"};
+      return {kind:"pending", label:row.status === "PENDING_T" ? "等待买入日" : "待结算"};
+    }
+
+    function ledgerPerformance(rows) {
+      const settled = rows.filter(r => ledgerStatus(r).kind === "settled");
+      const count = kind => rows.filter(r => ledgerStatus(r).kind === kind).length;
+      const wins = settled.filter(r => r.slot_net_return > 0).length;
+      return {count:rows.length, settled:settled.length, wins, noFill:count("no-fill"),
+        holding:count("holding"), pending:count("pending"), missing:count("missing"),
+        winRate:settled.length ? wins / settled.length : null,
+        mean:settled.length ? settled.reduce((sum,r) => sum+r.slot_net_return,0)/settled.length : null};
+    }
+
+    function ledgerFilter(rows, month, slot, status, query) {
+      const needle = query.trim().toLowerCase();
+      return rows.filter(row => row.signal_date.slice(0,6) === month
+        && (!slot || String(row.slot) === slot) && (!status || ledgerStatus(row).kind === status)
+        && (!needle || `${row.ts_code || ""} ${row.name || ""}`.toLowerCase().includes(needle)))
+        .sort((a,b) => a.signal_date.localeCompare(b.signal_date) || a.slot-b.slot);
+    }
+
+    function ledgerCsv(rows) {
+      const columns = [["signal_date","D日期"],["slot","盈利名次"],["ts_code","代码"],["name","名称"],
+        ["industry","行业"],["stage_transition","晋级"],["path_label","连板路径"],["promotion_rank","晋级排序"],
+        ["exec_date","买入日"],["entry_price","买入价"],["entry_price_source","价格来源"],["status","状态"],
+        ["actual_exit_date","退出日"],["actual_exit_time","退出时间"],["exit_price","卖出价"],["slot_net_return","扣费收益比例"],["detail_error","详情校验提示"]];
+      const cell = value => {
+        let text = value == null ? "" : String(value);
+        if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
+        return '"'+text.replaceAll('"','""')+'"';
+      };
+      return "\ufeff" + [columns.map(c=>cell(c[1])).join(","), ...rows.map(row=>columns.map(([key])=>
+        cell(key === "slot_net_return" && ledgerStatus(row).kind !== "settled" ? null : row[key])).join(","))].join("\r\n");
+    }
+
+    function ledgerCanonicalSource(bytes) {
+      // Preserve Python-emitted number tokens (e.g. 1e-07 and 0.0) rather
+      // than round-tripping through JS Number before checking the ledger hash.
+      const tokens = new TextDecoder().decode(bytes).match(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|[{}\[\],:]/g) || [];
+      let position=0;
+      const quoted = token => JSON.stringify(JSON.parse(token)).replace(/[\u007f-\uffff]/g,
+        c=>"\\u"+c.charCodeAt(0).toString(16).padStart(4,"0"));
+      function value() {
+        const token=tokens[position++];
+        if(token === "{") {
+          const pairs=[];
+          while(tokens[position] !== "}") {
+            const key=tokens[position++];executableProfitExpect(key?.startsWith('"') && tokens[position++] === ":", "冻结JSON对象无效");
+            pairs.push([JSON.parse(key),quoted(key)+":"+value()]);
+            if(tokens[position]!==",")break;position++;
+          }
+          executableProfitExpect(tokens[position++] === "}", "冻结JSON对象未闭合");
+          return "{"+pairs.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0).map(p=>p[1]).join(",")+"}";
+        }
+        if(token === "[") {
+          const parts=[];
+          while(tokens[position]!=="]") {parts.push(value());if(tokens[position]!==",")break;position++;}
+          executableProfitExpect(tokens[position++] === "]", "冻结JSON列表未闭合");
+          return "["+parts.join(",")+"]";
+        }
+        executableProfitExpect(token !== undefined, "冻结JSON值缺失");
+        return token.startsWith('"') ? quoted(token) : token;
+      }
+      const result=value();executableProfitExpect(position===tokens.length,"冻结JSON尾部无效");return result;
+    }
+
+    async function ledgerJoinDay(date, sequences, navigation) {
+      const sourceRows = sequences.map(rows => rows.find(r=>r.signal_date===date));
+      executableProfitExpect(sourceRows.every(Boolean), "盈1/盈2逐日记录缺失");
+      if (sourceRows.every(r=>r.status === "MISSING_D_PUBLICATION")) return sourceRows.map((r,i)=>({...r,slot:i+1}));
+      const entry = navigation.find(r=>r.signal_date===date);
+      executableProfitExpect(entry, "缺少同D冻结名单目录");
+      const {wrapper, runtimeIndex} = await loadPublishedDailyEntry(entry);
+      const frozen = await loadCandidateProfitDay(wrapper);
+      const frozenEntry = state.candidateProfitActivation.index.days.find(r=>r.signal_date===date);
+      const originalBytes = await fetchPagesOnlyShaBoundJson(frozenEntry.path,frozenEntry.sha256,"当日冻结原文件");
+      const projectionHash = await sha256Hex(new TextEncoder().encode(ledgerCanonicalSource(originalBytes.bytes)));
+      const rows = sourceRows.map((r,i) => {
+        const slot = i+1, original = frozen.projection.candidate_slots[i];
+        executableProfitExpect(r.slot === slot && r.formal_projection_sha256 === projectionHash
+          && r.snapshot_file_sha256 === frozen.projection.snapshot_file_sha256
+          && ["ts_code","candidate_rank","candidate_score","promotion_rank"].every(key=>r[key]===original[key])
+          && r.exec_date === frozen.projection.exec_date && r.exit_date === frozen.projection.exit_date,
+          "账本与当日冻结席位不一致");
+        const identity = frozen.projection.rows.find(x=>x.ts_code===r.ts_code);
+        const promotion = wrapper.three_rank.rows.find(x=>x.ts_code===r.ts_code);
+        if (!identity) {
+          executableProfitExpect(r.status === "MISSING_CANDIDATE", "冻结股票身份缺失");
+          return {...r, slot};
+        }
+        return {...r,slot,name:identity.name,industry:identity.industry,stage_transition:promotion.stage_transition};
+      });
+      try {
+        const path = await loadCurrentThreeRankPathEvidence(wrapper,runtimeIndex);
+        return rows.map(r=>({...r,path_label:path.rows.find(x=>x.ts_code===r.ts_code)?.path_label ?? "—"}));
+      } catch(error) {
+        return rows.map(r=>({...r,path_label:"待校验",detail_error:`连板路径：${error.message}`}));
+      }
+    }
+
+    async function initializeProfitLedger() {
+      document.title = "盈利 Top1 / Top2 · 影子账本";
+      document.querySelector("header").hidden = true;
+      document.querySelector(".skip-link")?.remove();
+      const style = document.createElement("style");
+      style.textContent = `#ledgerPage{font-size:12px}#ledgerPage h1{font-size:18px;margin:0}#ledgerPage .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px}#ledgerPage label{display:flex;gap:5px;align-items:center}#ledgerPage select,#ledgerPage input,#ledgerPage button{font:inherit;padding:5px 8px}#ledgerPage .scroll{overflow:auto;max-height:68vh}#ledgerPage table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}#ledgerPage th,#ledgerPage td{padding:8px;border-bottom:1px solid #dfe7e4;text-align:left}#ledgerPage th{position:sticky;top:0;background:#edf3f1;z-index:2}#ledgerPage tbody tr:nth-child(even){background:#f8faf9}#ledgerPage .up{color:#cf3027}#ledgerPage .down{color:#16824c}#ledgerPage .muted{color:#65746f}#ledgerPage .identity{position:sticky;left:0;background:#f5f8f7;z-index:1}#ledgerPage th.identity{z-index:3}#ledgerPage details{max-width:430px;white-space:normal}#ledgerPage summary{cursor:pointer;white-space:nowrap}#ledgerPage .note{margin:8px 12px;color:#65746f}#ledgerPage .badge{border:1px solid #deb887;color:#955100;border-radius:3px;padding:1px 4px}`;
+      document.head.append(style);
+      els.mainContent.innerHTML = `<div id="ledgerPage"><section class="panel"><div class="toolbar"><h1>盈利 Top1 / Top2 · 影子账本</h1><a href="?">← 返回每日名单</a></div>
+        <div class="toolbar"><button id="ledgerPrev" aria-label="上一月">← 上一月</button><label>月份<select id="ledgerMonth"></select></label><button id="ledgerNext" aria-label="下一月">下一月 →</button><button id="ledgerLatest">最新月份</button><button id="ledgerRefresh">刷新</button>
+        <label>成绩范围<select id="ledgerScope"><option value="month">本月</option><option value="all">全部累计</option></select></label></div>
+        <p id="ledgerMessage" class="note" role="status">正在校验影子账本…</p><div class="scroll" id="ledgerSummary"></div></section>
+        <section class="panel"><div class="toolbar"><label>盈利名次<select id="ledgerSlot"><option value="">全部</option><option value="1">盈1</option><option value="2">盈2</option></select></label>
+        <label>状态<select id="ledgerStatus"><option value="">全部</option><option value="settled">已结算</option><option value="holding">封板延持</option><option value="pending">待结算</option><option value="missing">待补数据</option><option value="no-fill">未买入</option></select></label>
+        <label>股票<input id="ledgerSearch" placeholder="代码 / 名称" maxlength="60"></label><button id="ledgerExport" disabled>导出本月完整 CSV</button><span id="ledgerCount"></span></div>
+        <div class="scroll"><table aria-label="每月盈利前二完整明细"><thead><tr>${["D日期","名次","代码","名称","行业","晋级","连板路径","晋级排序","买入日","买入价","状态","退出日","卖出价","扣费净收益","详情"].map((s,i)=>`<th scope="col"${i===2?' class="identity"':''}>${s}</th>`).join("")}</tr></thead><tbody id="ledgerRows"></tbody></table></div>
+        <p class="note">按 D 日归档；跨月退出回写原月。竞价入场代理，10:00退出、封板延持；不是券商实际成交。未买入、未结算均不显示零成交收益。</p></section></div>`;
+      const el = id => document.getElementById("ledger"+id);
+      // Separate route: no homepage, old reports, primary outcome or research loads.
+      await refreshCandidateProfitActivation();
+      await refreshCandidateProfitSummary();
+      executableProfitExpect(state.candidateProfitActivation?.status === "ready" && state.candidateProfitSummaryLoad?.status === "ready",
+        state.candidateProfitSummaryLoad?.message || state.candidateProfitActivation?.message || "新账本未发布");
+      const summary = state.candidateProfitSummary.summary;
+      const sequences = [1,2].map(slot=>summary.groups[`candidate_top${slot}`].daily_sequence);
+      const allRows = sequences.flatMap((rows,i)=>rows.map(row=>({...row,slot:i+1})));
+      const months = [...new Set(summary.signal_dates.map(d=>d.slice(0,6)))].sort();
+      const params = new URLSearchParams(location.search);
+      const requested = params.get("month");
+      executableProfitExpect(!requested || months.includes(requested), "所选月份无新模型记录，请返回首页重新选择");
+      for (const year of [...new Set(months.map(m=>m.slice(0,4)))]) {
+        const group=document.createElement("optgroup"); group.label=year+"年";
+        for (const month of months.filter(m=>m.startsWith(year))) { const option=document.createElement("option");option.value=month;option.textContent=year+"年"+month.slice(4)+"月";group.append(option); }
+        el("Month").append(group);
+      }
+      el("Month").value=requested || months.at(-1) || "";
+      for (const [id,key,valid] of [["Slot","slot",["","1","2"]],["Status","status",["","settled","holding","pending","missing","no-fill"]],["Scope","scope",["month","all"]]]) {
+        const value=params.get(key); if(valid.includes(value))el(id).value=value;
+      }
+      el("Search").value=(params.get("q") || "").slice(0,60);
+      let currentRows=[], serial=0;
+      const cache=new Map();
+      const navigation = loadDailyNavigation();
+      const pct = value => value == null ? "—" : signedPct(value);
+      const tone = value => value > 0 ? "up" : value < 0 ? "down" : "";
+      const price = value => typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "—";
+      const date = value => value ? dateText(value) : "—";
+      const source = value => value === "TUSHARE_STK_AUCTION" ? "竞价价" : value === "DAILY_OPEN_PROXY" ? "开盘代理" : value || "—";
+      function paint() {
+        const month=el("Month").value;
+        const url=new URL(location.href);url.search="";url.searchParams.set("view","profit-ledger");
+        for(const [key,value] of [["month",month],["slot",el("Slot").value],["status",el("Status").value],["q",el("Search").value],["scope",el("Scope").value]])if(value)url.searchParams.set(key,value);
+        history.replaceState(null,"",url);
+        const aggregate=el("Scope").value === "all" ? allRows : allRows.filter(r=>r.signal_date.startsWith(month));
+        el("Summary").innerHTML=`<table aria-label="盈利前二分席成绩"><thead><tr>${["名次","记录","已结算","延持","待结算 / 缺失","未买","盈利 / 成交","胜率","平均扣费收益"].map(s=>`<th>${s}</th>`).join("")}</tr></thead><tbody>${[1,2].map(slot=>{
+          const p=ledgerPerformance(aggregate.filter(r=>r.slot===slot));
+          return `<tr><th>盈${slot}</th><td>${p.count}</td><td>${p.settled}</td><td>${p.holding}</td><td>${p.pending} / ${p.missing}</td><td>${p.noFill}</td><td>${p.wins} / ${p.settled}</td><td>${p.winRate===null?"待验证":(p.winRate*100).toFixed(2)+"%"}</td><td class="${tone(p.mean)}">${pct(p.mean)}</td></tr>`;
+        }).join("")}</tbody></table>`;
+        const visible=ledgerFilter(currentRows,month,el("Slot").value,el("Status").value,el("Search").value);
+        el("Count").textContent=`显示 ${visible.length} / ${currentRows.length} 条`;
+        el("Rows").innerHTML=visible.map(r=>{
+          const status=ledgerStatus(r),net=status.kind === "settled" ? r.slot_net_return : null;
+          const detail=[["状态代码",r.status],["买入价来源",source(r.entry_price_source)],["最早退出日",date(r.exit_date)],["实际退出时间",r.actual_exit_time || "—"],
+            ["封板延持交易日",r.held_limit_up_sessions ?? "—"],["双边成本","0.45%（已计入净收益，不再扣一次）"],["结算数据截至",date(r.ledger_as_of_date)],
+            ["冻结快照SHA",r.snapshot_file_sha256 || "—"],["校验提示",r.detail_error || "通过"]];
+          return `<tr><td>${date(r.signal_date)}</td><td><span class="badge">盈${r.slot}</span></td><td class="identity">${escapeHtml(r.ts_code || "—")}</td><td><strong>${escapeHtml(r.name || "—")}</strong></td><td>${escapeHtml(r.industry || "—")}</td><td>${escapeHtml(r.stage_transition || "—")}</td><td>${escapeHtml(r.path_label || "—")}</td><td>${r.promotion_rank ?? "—"}</td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class="muted">${escapeHtml(source(r.entry_price_source))}</span></td><td>${status.label}</td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class="${tone(net)}">${pct(net)}</td><td><details><summary>展开${r.detail_error?" · 待校验":""}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join("")}</details></td></tr>`;
+        }).join("") || '<tr><td colspan="15">无符合条件的记录</td></tr>';
+      }
+      async function loadMonth() {
+        const version=++serial, month=el("Month").value;
+        currentRows=[];el("Rows").innerHTML="";el("Export").disabled=true;
+        el("Message").textContent="正在校验当月冻结信息…";
+        el("Prev").disabled=months.indexOf(month)<=0;el("Next").disabled=months.indexOf(month)>=months.length-1;
+        const dates=summary.signal_dates.filter(d=>d.startsWith(month));
+        const loaded=[];
+        // Bound requests and load frozen features for the selected month only.
+        for(let offset=0;offset<dates.length;offset+=4) {
+          const chunk=await Promise.all(dates.slice(offset,offset+4).map(async d=>{
+            if(!cache.has(d))cache.set(d,ledgerJoinDay(d,sequences,await navigation).catch(error=>sequences.map((seq,i)=>({...seq.find(r=>r.signal_date===d),slot:i+1,detail_error:error.message}))));
+            return cache.get(d);
+          }));
+          if(version!==serial)return;
+          loaded.push(...chunk.flat());
+        }
+        currentRows=loaded;paint();el("Export").disabled=!loaded.length;
+        const errors=loaded.filter(r=>r.detail_error).length;
+        const pending=loaded.filter(r=>!["settled","no-fill"].includes(ledgerStatus(r).kind)).length;
+        el("Message").textContent=`新模型 D ${date(summary.effective_from_signal_date)}起 · 数据截至 ${date(summary.as_of_date)} · ${pending?`本月 ${pending} 条未完成` : loaded.length?"本月记录已完成":"暂无记录"}${errors?` · ${errors} 条冻结详情待校验（收益仍取已校验独立账本）`:""}。筛选不改变上方整月成绩。`;
+        els.mainContent.setAttribute("aria-busy","false");
+      }
+      const reload=()=>loadMonth().catch(error=>{el("Message").textContent=`当月加载失败：${error.message}`;el("Rows").innerHTML="";el("Export").disabled=true;});
+      el("Month").addEventListener("change",reload);
+      for(const id of ["Slot","Status","Scope"])el(id).addEventListener("change",paint);
+      el("Search").addEventListener("input",paint);
+      el("Prev").onclick=()=>{el("Month").value=months[months.indexOf(el("Month").value)-1];reload();};
+      el("Next").onclick=()=>{el("Month").value=months[months.indexOf(el("Month").value)+1];reload();};
+      el("Latest").onclick=()=>{el("Month").value=months.at(-1);reload();};
+      el("Refresh").onclick=()=>location.reload();
+      el("Export").onclick=()=>{const blob=new Blob([ledgerCsv(currentRows)],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`DC20-盈利前二-${el("Month").value}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+      await loadMonth();
+    }
+
     async function initialize(force = false) {
       const compactLoadSequence = (state.compactLoadSequence || 0) + 1;
       state.compactLoadSequence = compactLoadSequence;
@@ -6624,7 +6832,13 @@
         document.getElementById(id)?.remove?.();
       }
     }
-    initialize(false).catch(showError);
+    if (new URLSearchParams(location.search).get("view") === "profit-ledger") {
+      initializeProfitLedger().catch(error => {
+        document.getElementById("ledgerMessage").textContent = `读取失败：${error.message}。未使用旧账本或未校验数据。`;
+        document.getElementById("ledgerSummary").innerHTML = "";
+        document.getElementById("ledgerRows").innerHTML = "";
+      });
+    } else { initialize(false).catch(showError); }
   </script>
 </body>
 </html>
