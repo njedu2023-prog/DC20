@@ -708,6 +708,7 @@ _REVIEWED_FORWARD_EXTENSION_PINS = frozenset({
     "scripts/sync_exit_1000_minute_truth.py",
     "src/top10decision/decision/shadow_exit_1000.py",
     "src/top10decision/decision/shadow_exit_minute_truth.py",
+    "src/top10decision/decision/shadow_exit_continuous_truth.py",
     "src/top10decision/decision/primary_profit_shadow_statistics.py",
     "tests/test_primary_profit_shadow_statistics.py",
 })

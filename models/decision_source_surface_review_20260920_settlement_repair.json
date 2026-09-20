@@ -14,27 +14,6 @@
   },
   "source_changes": [
     {
-      "path": ".github/workflows/test_decision_core.yml",
-      "baseline_exists": true,
-      "baseline_bytes": 10251,
-      "current_bytes": 10251,
-      "baseline_sha256": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
-      "current_sha256": "f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe",
-      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
-      "inverse_changes": [
-        {
-          "baseline_start": 119,
-          "current_start": 119,
-          "baseline_lines": [
-            "    timeout-minutes: 45\n"
-          ],
-          "current_lines": [
-            "    timeout-minutes: 90\n"
-          ]
-        }
-      ]
-    },
-    {
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 435918,
@@ -163,19 +142,9 @@
       "baseline_bytes": 52661,
       "current_bytes": 52795,
       "baseline_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
-      "current_sha256": "6199baf3308b9e89a5626dc5e1494f3d32a07251a8074b6eb676ab199e2c6cf6",
+      "current_sha256": "cee29eb4c22a517a8e6f139c7e7dabeca2db48402334d73114c0f56ccb29e5e1",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
-        {
-          "baseline_start": 640,
-          "current_start": 640,
-          "baseline_lines": [
-            "    \".github/workflows/test_decision_core.yml\": \"f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1\",\n"
-          ],
-          "current_lines": [
-            "    \".github/workflows/test_decision_core.yml\": \"f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe\",\n"
-          ]
-        },
         {
           "baseline_start": 671,
           "current_start": 671,
@@ -194,6 +163,26 @@
           ],
           "current_lines": [
             "    \"scripts/settle_primary_observations.py\": \"babc38875bbf7a7365dd770ad9299a6b82392553175d9b048bdc1378bb8aae59\",\n"
+          ]
+        },
+        {
+          "baseline_start": 830,
+          "current_start": 830,
+          "baseline_lines": [
+            "    \"tests/test_frozen_canonical_v2_replay.py\": \"d3b92c01b89785eaab7d5e474ccf413ff556f41f64284e3752a1879856e22e4b\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_frozen_canonical_v2_replay.py\": \"2eae6e7d47bcffc4e66f4c00088473254c793e84f6c28f01bbeb67b744a9786c\",\n"
+          ]
+        },
+        {
+          "baseline_start": 835,
+          "current_start": 835,
+          "baseline_lines": [
+            "    \"tests/test_primary_observation_summary.py\": \"cc4b0d934fe5113e495a4aa722b9940366a96f31f2f15032d14bd98f8406ae53\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_primary_observation_summary.py\": \"10a6088e38e180424eb572319a1e8ed588afd59e2f6e59f64d4963cccb6cbc36\",\n"
           ]
         },
         {
@@ -675,27 +664,6 @@
       ]
     },
     {
-      "path": "tests/test_decision_core_ci_partition.py",
-      "baseline_exists": true,
-      "baseline_bytes": 4908,
-      "current_bytes": 4908,
-      "baseline_sha256": "5051831911869426b7336b29c0af19957a9765e85ed12f0c335169eb661a3c34",
-      "current_sha256": "91db2277507312bba7ae0165277ca5f8aafb8a922dc8b9e980fcbac503db0e0b",
-      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
-      "inverse_changes": [
-        {
-          "baseline_start": 74,
-          "current_start": 74,
-          "baseline_lines": [
-            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 45)):\n"
-          ],
-          "current_lines": [
-            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 90)):\n"
-          ]
-        }
-      ]
-    },
-    {
       "path": "tests/test_exit_1000_minute_truth.py",
       "baseline_exists": true,
       "baseline_bytes": 21566,
@@ -796,6 +764,46 @@
             "    path.write_text(json.dumps(meta))\n",
             "    with pytest.raises(ValueError, match=\"metadata/SHA\"):\n",
             "        truth.load_exit_minutes(tmp_path, DAY, CODE)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_frozen_canonical_v2_replay.py",
+      "baseline_exists": true,
+      "baseline_bytes": 74815,
+      "current_bytes": 74881,
+      "baseline_sha256": "d3b92c01b89785eaab7d5e474ccf413ff556f41f64284e3752a1879856e22e4b",
+      "current_sha256": "2eae6e7d47bcffc4e66f4c00088473254c793e84f6c28f01bbeb67b744a9786c",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 711,
+          "current_start": 711,
+          "baseline_lines": [],
+          "current_lines": [
+            "    \"src/top10decision/decision/shadow_exit_continuous_truth.py\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_primary_observation_summary.py",
+      "baseline_exists": true,
+      "baseline_bytes": 26311,
+      "current_bytes": 26315,
+      "baseline_sha256": "cc4b0d934fe5113e495a4aa722b9940366a96f31f2f15032d14bd98f8406ae53",
+      "current_sha256": "10a6088e38e180424eb572319a1e8ed588afd59e2f6e59f64d4963cccb6cbc36",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 443,
+          "current_start": 443,
+          "baseline_lines": [
+            "    from top10decision.decision import shadow_exit_minute_truth as minute_truth\n"
+          ],
+          "current_lines": [
+            "    from top10decision.decision import shadow_exit_continuous_truth as minute_truth\n"
           ]
         }
       ]

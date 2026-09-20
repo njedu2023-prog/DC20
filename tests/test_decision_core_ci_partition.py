@@ -71,7 +71,7 @@ def test_live_collection_partitions_are_disjoint_and_cover_every_original_node()
 
 def test_both_partitions_preserve_failures_and_always_upload_diagnostics():
     jobs = _jobs()
-    for name, minutes in (("test-decision-core", 60), ("source-surface-audit", 90)):
+    for name, minutes in (("test-decision-core", 60), ("source-surface-audit", 45)):
         job = jobs[name]
         assert job["timeout-minutes"] == minutes
         assert job["runs-on"] == "ubuntu-24.04"

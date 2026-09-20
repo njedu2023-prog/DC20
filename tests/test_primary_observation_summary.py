@@ -440,7 +440,7 @@ def test_build_sealed_limit_is_normal_pending_with_bound_minute_sources(tmp_path
 
 @pytest.mark.parametrize("tamper", ["missing_meta", "wrong_sha", "outside_path", "parent_symlink"])
 def test_projection_defends_exact_minute_pair_against_binding_or_path_tamper(tmp_path, monkeypatch, tamper):
-    from top10decision.decision import shadow_exit_minute_truth as minute_truth
+    from top10decision.decision import shadow_exit_continuous_truth as minute_truth
     _write_projection_fixture(tmp_path, monkeypatch)
     envelope = minute_truth.load_exit_minutes(tmp_path, "20260914", "600001.SH")
     if tamper == "missing_meta":

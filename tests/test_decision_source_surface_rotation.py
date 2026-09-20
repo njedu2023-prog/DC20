@@ -398,8 +398,8 @@ def _repair_actual_source(path):
 
 
 REPAIR_REVIEW_PATH = "models/decision_source_surface_review_20260920_settlement_repair.json"
-REPAIR_REVIEW_SHA = "7c842492e222a574761d44d9d1fbf5127ec5e1c0fd63128acbc5c23d16736556"
-REPAIR_SOURCE_PATHS = ['.github/workflows/test_decision_core.yml', 'decision.html', 'models/decision_model_freeze.json', 'scripts/build_compact_statistics_window.py', 'scripts/settle_primary_observations.py', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_continuous_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_decision_core_ci_partition.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_three_rank_truth_frontend.py']
+REPAIR_REVIEW_SHA = "a8c03b223684016b62ee70e9fbc681143c27509a118c0777dec8c14d1a6a11d1"
+REPAIR_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'scripts/build_compact_statistics_window.py', 'scripts/settle_primary_observations.py', 'scripts/sync_exit_1000_minute_truth.py', 'src/top10decision/decision/shadow_exit_continuous_truth.py', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_exit_1000_minute_truth.py', 'tests/test_frozen_canonical_v2_replay.py', 'tests/test_primary_observation_summary.py', 'tests/test_three_rank_truth_frontend.py']
 
 
 def _repair_review():
@@ -2391,7 +2391,7 @@ def _exit_label_review() -> dict:
         assert (ROOT / item["path"]).parent == ROOT / "models"
         assert not (ROOT / item["path"]).is_symlink() and _sha256(ROOT / item["path"]) == item["sha256"]
     assert review["regression_test"]["path"] == "tests/test_three_rank_truth_frontend.py"
-    assert _sha256(ROOT / review["regression_test"]["path"]) == review["regression_test"]["sha256"]
+    assert hashlib.sha256(_obs_actual_source(review["regression_test"]["path"])).hexdigest() == review["regression_test"]["sha256"]
     return review
 
 
@@ -3889,3 +3889,18 @@ def test_reviewed_source_surface_rotation_is_hash_bound_and_model_preserving() -
         "external_top10_decision_runtime_dependency": False,
         "writer_dispatch_performed": False,
     }
+
+
+
+def test_repaired_truth_regression_is_verified_before_historical_exit_label_audit():
+    review = _exit_label_review()
+    assert review['regression_test']['path'] == 'tests/test_three_rank_truth_frontend.py'
+
+
+def test_historical_exit_label_audit_rejects_unreviewed_truth_regression(monkeypatch):
+    _exit_label_review()
+    path = ROOT / 'tests/test_three_rank_truth_frontend.py'
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda p: read(p) + (b'\\n' if p == path else b''))
+    with pytest.raises(AssertionError):
+        _exit_label_review()
