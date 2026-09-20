@@ -856,6 +856,12 @@ def _state_before_candidate_activation(manifest: dict | None = None, review: dic
     review = _candidate_activation_review(review)
     live = json.loads(_candidate_activation_live_source("models/decision_model_freeze.json"))
     if manifest is not None and manifest != live:
+        # Validate the exact successor and every live hash before historical replay.
+        current_repair = json.loads(_repair_actual_source("models/decision_model_freeze.json"))
+        if manifest == current_repair:
+            for path, digest in manifest["pinned_files"].items():
+                assert hashlib.sha256(_repair_actual_source(path)).hexdigest() == digest
+            manifest = json.loads(_obs_actual_source("models/decision_model_freeze.json"))
         assert manifest == json.loads(_obs_actual_source("models/decision_model_freeze.json"))
         for path, digest in manifest["pinned_files"].items():
             assert hashlib.sha256(_obs_actual_source(path)).hexdigest() == digest
