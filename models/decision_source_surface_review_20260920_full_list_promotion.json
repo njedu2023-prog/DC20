@@ -169,6 +169,58 @@
       ]
     },
     {
+      "path": "tests/test_compact_rank_statistics.py",
+      "baseline_exists": true,
+      "baseline_bytes": 38525,
+      "current_bytes": 38525,
+      "baseline_sha256": "4128fe04fbde2da6f02e001960cd637edfdeddb691de83d948a5312d3ef1bfca",
+      "current_sha256": "310a9eb94acb819e9446a462b33667fe90d8d100ee61541c2c10e0f9a3438049",
+      "reason": "Read-only full-list promotion display and its tests; original Top1-3 and all policies preserved.",
+      "inverse_changes": [
+        {
+          "baseline_start": 244,
+          "current_start": 244,
+          "baseline_lines": [
+            "    assert result.count(\"SHA校验失败\") == 3\n"
+          ],
+          "current_lines": [
+            "    assert result.count(\"SHA校验失败\") == 4\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_compact_statistics_window_frontend.py",
+      "baseline_exists": true,
+      "baseline_bytes": 21963,
+      "current_bytes": 21963,
+      "baseline_sha256": "472faff28737fac82ad94edfdd85f76e92cf3565f530cb20a9c6396035cf98a3",
+      "current_sha256": "c190cfae307b708872b2b374887539177800d7a544d4e8cd7aff510e19478f0d",
+      "reason": "Read-only full-list promotion display and its tests; original Top1-3 and all policies preserved.",
+      "inverse_changes": [
+        {
+          "baseline_start": 172,
+          "current_start": 172,
+          "baseline_lines": [
+            "    assert rendered[\"promotion\"].count('class=\"success-rate\">—') == 3\n"
+          ],
+          "current_lines": [
+            "    assert rendered[\"promotion\"].count('class=\"success-rate\">—') == 4\n"
+          ]
+        },
+        {
+          "baseline_start": 184,
+          "current_start": 184,
+          "baseline_lines": [
+            "        assert rendered[\"promotion\"].count('class=\"success-rate\">—') == 3\n"
+          ],
+          "current_lines": [
+            "        assert rendered[\"promotion\"].count('class=\"success-rate\">—') == 4\n"
+          ]
+        }
+      ]
+    },
+    {
       "path": "tests/test_full_list_promotion_statistics.py",
       "baseline_exists": false,
       "baseline_bytes": 0,

@@ -241,7 +241,7 @@ def test_compact_view_has_only_three_promotion_success_results():
 
 def test_unavailable_statistics_are_not_fake_zero_and_do_not_borrow_shadow():
     result = run("state.compactStatisticsWindowLoad={status:'invalid',message:'SHA校验失败'};renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent.innerHTML))")
-    assert result.count("SHA校验失败") == 3
+    assert result.count("SHA校验失败") == 4
     assert 'class="success-rate">0.00%' not in result
     assert "盈利第" not in result
     assert "<td>0</td>" not in result

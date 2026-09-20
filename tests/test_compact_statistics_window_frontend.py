@@ -169,7 +169,7 @@ def test_window_binding_scope_and_counts_fail_closed_without_old_totals(window_d
     assert rendered["ready"] is False and rendered["load"]["status"] == "invalid"
     assert error in rendered["load"]["message"]
     assert rendered["profit"] == ""
-    assert rendered["promotion"].count('class="success-rate">—') == 3
+    assert rendered["promotion"].count('class="success-rate">—') == 4
     assert 'class="success-rate">0.00%' not in rendered["promotion"]
 
 
@@ -181,7 +181,7 @@ def test_unavailable_section_has_no_fake_zero_or_other_section_fallback(window_d
         assert rendered["profit"] == "" and 'class="success-rate">—' not in rendered["promotion"]
     else:
         assert "profit-summary-table" in rendered["profit"]
-        assert rendered["promotion"].count('class="success-rate">—') == 3
+        assert rendered["promotion"].count('class="success-rate">—') == 4
 
 
 @pytest.mark.parametrize("stale", [

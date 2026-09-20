@@ -398,8 +398,8 @@ def _full_list_actual_source(path):
 
 
 FULL_LIST_REVIEW_PATH = 'models/decision_source_surface_review_20260920_full_list_promotion.json'
-FULL_LIST_REVIEW_SHA = '3f2411dfd9db1ba7c699c8599438e5952b24dc3f8bb046bd2135f2859bf55ba3'
-FULL_LIST_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_full_list_promotion_statistics.py']
+FULL_LIST_REVIEW_SHA = '3eef32501c0ed7bb10768a80e3f40b8350a92260f4bb1783219e9b0353b7468f'
+FULL_LIST_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_compact_rank_statistics.py', 'tests/test_compact_statistics_window_frontend.py', 'tests/test_full_list_promotion_statistics.py']
 
 
 def _full_list_review():
