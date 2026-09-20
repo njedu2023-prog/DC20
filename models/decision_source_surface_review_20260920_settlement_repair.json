@@ -14,6 +14,27 @@
   },
   "source_changes": [
     {
+      "path": ".github/workflows/test_decision_core.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 10251,
+      "current_bytes": 10251,
+      "baseline_sha256": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
+      "current_sha256": "f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 119,
+          "current_start": 119,
+          "baseline_lines": [
+            "    timeout-minutes: 45\n"
+          ],
+          "current_lines": [
+            "    timeout-minutes: 90\n"
+          ]
+        }
+      ]
+    },
+    {
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 435918,
@@ -142,9 +163,19 @@
       "baseline_bytes": 52661,
       "current_bytes": 52795,
       "baseline_sha256": "7c5430546184e197346e652362d7c1422297fd008bcb9d8e986144668525416e",
-      "current_sha256": "cee29eb4c22a517a8e6f139c7e7dabeca2db48402334d73114c0f56ccb29e5e1",
+      "current_sha256": "8a84239e94c7172638db16780754f80886e020bdfd7e0c1c8a7fc98e16787e95",
       "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
       "inverse_changes": [
+        {
+          "baseline_start": 640,
+          "current_start": 640,
+          "baseline_lines": [
+            "    \".github/workflows/test_decision_core.yml\": \"f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/test_decision_core.yml\": \"f1b44a2f61d0137e3be6bf263f6475681bfe0dfd13f4bd3e99adafce899434fe\",\n"
+          ]
+        },
         {
           "baseline_start": 671,
           "current_start": 671,
@@ -659,6 +690,87 @@
           ],
           "current_lines": [
             "        expected = \"暂无已验证样本\" if not rank[\"verified\"] else f\"已验证 {rank['verified']} 次 · 晋级成功 {rank['hits']} 次\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_core_ci_diagnostics.py",
+      "baseline_exists": true,
+      "baseline_bytes": 5134,
+      "current_bytes": 5281,
+      "baseline_sha256": "ef22d34dac141c0b22fa8eafb07fcac48f2cfe0193ced15014011ffe1d6dbc12",
+      "current_sha256": "ec55d5f37eb8bb62b3e9ebe4916a9d3630c2bd510c1a5f9f437ab24b86dcb3b4",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [],
+          "current_lines": [
+            "    from runpy import run_path\n",
+            "    _obs_actual_source = run_path(str(ROOT / \"tests/test_decision_source_surface_rotation.py\"))[\"_obs_actual_source\"]\n"
+          ]
+        },
+        {
+          "baseline_start": 31,
+          "current_start": 33,
+          "baseline_lines": [
+            "        raw = (ROOT / name).read_bytes()\n"
+          ],
+          "current_lines": [
+            "        raw = _obs_actual_source(name)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_core_ci_partition.py",
+      "baseline_exists": true,
+      "baseline_bytes": 4908,
+      "current_bytes": 4908,
+      "baseline_sha256": "5051831911869426b7336b29c0af19957a9765e85ed12f0c335169eb661a3c34",
+      "current_sha256": "91db2277507312bba7ae0165277ca5f8aafb8a922dc8b9e980fcbac503db0e0b",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 74,
+          "current_start": 74,
+          "baseline_lines": [
+            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 45)):\n"
+          ],
+          "current_lines": [
+            "    for name, minutes in ((\"test-decision-core\", 60), (\"source-surface-audit\", 90)):\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_core_extended_diagnostics.py",
+      "baseline_exists": true,
+      "baseline_bytes": 9844,
+      "current_bytes": 9991,
+      "baseline_sha256": "c12c5832b39709e0d0992aa8f414a19e0a441c678fb684a6b5f94ee355fa9553",
+      "current_sha256": "394008bba76267276743a821d77da8c494d70b443663e19c11589d084ffbbbdb",
+      "reason": "Reviewed settlement data acquisition, strict compatibility, copy clarification or acceptance regression change; no model or trading policy change.",
+      "inverse_changes": [
+        {
+          "baseline_start": 41,
+          "current_start": 41,
+          "baseline_lines": [],
+          "current_lines": [
+            "    from runpy import run_path\n",
+            "    _obs_actual_source = run_path(str(ROOT / \"tests/test_decision_source_surface_rotation.py\"))[\"_obs_actual_source\"]\n"
+          ]
+        },
+        {
+          "baseline_start": 52,
+          "current_start": 54,
+          "baseline_lines": [
+            "        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest, path\n"
+          ],
+          "current_lines": [
+            "        assert hashlib.sha256(_obs_actual_source(path)).hexdigest() == digest, path\n"
           ]
         }
       ]

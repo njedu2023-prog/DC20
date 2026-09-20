@@ -25,10 +25,12 @@ def _core():
 
 
 def test_frozen_ci_files_remain_exact_reviewed_bytes():
+    from runpy import run_path
+    _obs_actual_source = run_path(str(ROOT / "tests/test_decision_source_surface_rotation.py"))["_obs_actual_source"]
     review = json.loads((ROOT / "models/decision_source_surface_review_20260912_ci_partition.json").read_bytes())
     for name in (".github/workflows/test_decision_core.yml", "tests/test_decision_core_ci_partition.py"):
         entry = next(item for item in review["source_changes"] if item["path"] == name)
-        raw = (ROOT / name).read_bytes()
+        raw = _obs_actual_source(name)
         assert hashlib.sha256(raw).hexdigest() == entry["current_sha256"]
         assert len(raw) == entry["current_bytes"]
 

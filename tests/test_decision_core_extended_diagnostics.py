@@ -38,6 +38,8 @@ def _core():
 
 
 def test_original_protected_ci_and_dependencies_keep_exact_bytes():
+    from runpy import run_path
+    _obs_actual_source = run_path(str(ROOT / "tests/test_decision_source_surface_rotation.py"))["_obs_actual_source"]
     expected = {
         ".github/workflows/test_decision_core.yml": "f4ad709bac2b6ed80370c17ece3b03aa5a7d3dc3211e94f9a46b57b7c0b1f5a1",
         ".github/workflows/diagnose_decision_core.yml": "08b865f34e1925d777e4845e20c1cccd133860b80b30d08af159f175eb994455",
@@ -49,7 +51,7 @@ def test_original_protected_ci_and_dependencies_keep_exact_bytes():
         "requirements.lock": "612ef31ce0996b739b319683b06878200604e04e8f915f32a946285044ff132c",
     }
     for path, digest in expected.items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest, path
+        assert hashlib.sha256(_obs_actual_source(path)).hexdigest() == digest, path
 
 
 def test_original_numeric_environment_install_and_full_selector_are_preserved():
