@@ -1,0 +1,24 @@
+{
+  "adapter": "tushare_stk_mins_continuous_bar_end_v2",
+  "auction_point_0930_excluded": false,
+  "complete_session": true,
+  "continuous_rows": 240,
+  "credential_persisted": false,
+  "fetched_at_utc": "2026-09-20T09:18:02.030653+00:00",
+  "immutable": true,
+  "interval_seconds": 60,
+  "request": {
+    "end_date": "2026-09-18 15:00:00",
+    "freq": "1min",
+    "start_date": "2026-09-18 09:31:00",
+    "ts_code": "000980.SZ"
+  },
+  "schema_version": "dc20_exit_1000_minute_source_v2",
+  "sha256": "92ea37b30e5a6ae7bd0295a3bb2a4ad0ef8b153a1e46d6de11720f7c5db62f41",
+  "source": "tushare:stk_mins",
+  "source_rows": 240,
+  "timestamp_semantics": "BAR_END",
+  "timezone": "Asia/Shanghai",
+  "trade_date": "20260918",
+  "ts_code": "000980.SZ"
+}
