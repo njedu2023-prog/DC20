@@ -422,6 +422,9 @@ def _repair_review():
 def _obs_actual_source(path):
     """Rewind only exact reviewed bytes; every read still checks live content."""
     raw = _repair_actual_source(path)
+    # Untouched bytes need no successor inverse; historical callers verify them.
+    if path not in REPAIR_SOURCE_PATHS and path not in ("forward/model_inventory.json", REPAIR_REVIEW_PATH):
+        return raw
     review = _repair_review()
     if path == "forward/model_inventory.json":
         original = review["inventory_baseline"].encode()
@@ -440,7 +443,14 @@ def _obs_actual_source(path):
         assert item['baseline_bytes'] == 0 and item['baseline_sha256'] == hashlib.sha256(b'').hexdigest()
         assert item['inverse_changes'] == [{'baseline_start': 1, 'current_start': 1, 'baseline_lines': [], 'current_lines': raw.decode().splitlines(keepends=True)}]
         return b''
-    return raw if item is None else _candidate_activation_inverse(raw, item)
+    return raw if item is None else _repair_inverse_bytes(raw, json.dumps(item, sort_keys=True))
+
+
+@lru_cache(maxsize=32)
+def _repair_inverse_bytes(raw, item_json):
+    # Cache only a pure transform, keyed by ALL actual bytes and inverse evidence.
+    # Every caller still reads the live path and validates the review hash above.
+    return _candidate_activation_inverse(raw, json.loads(item_json))
 
 
 def test_settlement_repair_preserves_model_policy_and_checks_every_live_pin():
@@ -3910,3 +3920,19 @@ def test_historical_exit_label_audit_rejects_unreviewed_truth_regression(monkeyp
     monkeypatch.setattr(Path, 'read_bytes', lambda p: read(p) + (b'\\n' if p == path else b''))
     with pytest.raises(AssertionError):
         _exit_label_review()
+
+
+
+def test_repair_inverse_cache_binds_all_raw_bytes_and_inverse_evidence():
+    item = next(item for item in _repair_review()['source_changes'] if item['path'] == 'decision.html')
+    raw = _repair_actual_source(item['path'])
+    item_json = json.dumps(item, sort_keys=True)
+    expected = _candidate_activation_inverse(raw, item)
+    assert _repair_inverse_bytes(raw, item_json) == expected
+    assert _repair_inverse_bytes(raw, item_json) == expected
+    with pytest.raises(AssertionError):
+        _repair_inverse_bytes(raw + b'\n', item_json)
+    changed = copy.deepcopy(item)
+    changed['baseline_sha256'] = '0' * 64
+    with pytest.raises(AssertionError):
+        _repair_inverse_bytes(raw, json.dumps(changed, sort_keys=True))
