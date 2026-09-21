@@ -1,0 +1,248 @@
+{
+  "schema": "objective_path_validation_v1",
+  "source_role": "INSPECTED_DEVELOPMENT_ONLY",
+  "research_only": true,
+  "independent_improvement_proven": false,
+  "production_activation_allowed": false,
+  "start": "20251111",
+  "end": "20260814",
+  "dates": 186,
+  "exit_policy": "dc20_exit_1000_limit_hold_20260912_v1",
+  "cost_rate": 0.0045,
+  "profit": {
+    "A": {
+      "1": {
+        "selected": 186,
+        "filled": 163,
+        "no_fill": 23,
+        "mean_slot_net": 0.00456785638779533,
+        "mean_filled_net": 0.005212400540674424,
+        "filled_win_rate": 0.48466257668711654,
+        "mean_filled_net_90bp": 0.0007124005406744202,
+        "mean_slot_net_90bp": 0.0006243080006985528,
+        "worst_filled_net": -0.242513698630137
+      },
+      "2": {
+        "selected": 186,
+        "filled": 151,
+        "no_fill": 35,
+        "mean_slot_net": 0.008137920210444427,
+        "mean_filled_net": 0.01002419310690506,
+        "filled_win_rate": 0.4503311258278146,
+        "mean_filled_net_90bp": 0.005524193106905063,
+        "mean_slot_net_90bp": 0.004484694403992818,
+        "worst_filled_net": -0.3243784722222223
+      }
+    },
+    "B": {
+      "1": {
+        "selected": 186,
+        "filled": 168,
+        "no_fill": 18,
+        "mean_slot_net": 0.00036510559692313994,
+        "mean_filled_net": 0.00040422405373633283,
+        "filled_win_rate": 0.4166666666666667,
+        "mean_filled_net_90bp": -0.004095775946263667,
+        "mean_slot_net_90bp": -0.0036994105321091204,
+        "worst_filled_net": -0.2107499999999999
+      },
+      "2": {
+        "selected": 186,
+        "filled": 155,
+        "no_fill": 31,
+        "mean_slot_net": -3.131239373799311e-05,
+        "mean_filled_net": -3.757487248559281e-05,
+        "filled_win_rate": 0.44516129032258067,
+        "mean_filled_net_90bp": -0.004537574872485593,
+        "mean_slot_net_90bp": -0.0037813123937379947,
+        "worst_filled_net": -0.3243784722222223
+      }
+    },
+    "C": {
+      "1": {
+        "selected": 186,
+        "filled": 161,
+        "no_fill": 25,
+        "mean_slot_net": 0.0020944253064391696,
+        "mean_filled_net": 0.002419646627314816,
+        "filled_win_rate": 0.4720496894409938,
+        "mean_filled_net_90bp": -0.0020803533726851844,
+        "mean_slot_net_90bp": -0.0018007359838834124,
+        "worst_filled_net": -0.242513698630137
+      },
+      "2": {
+        "selected": 186,
+        "filled": 159,
+        "no_fill": 27,
+        "mean_slot_net": 0.0008734025592158396,
+        "mean_filled_net": 0.0010217162013468298,
+        "filled_win_rate": 0.39622641509433965,
+        "mean_filled_net_90bp": -0.0034782837986531705,
+        "mean_slot_net_90bp": -0.002973371634332549,
+        "worst_filled_net": -0.1596020408163266
+      }
+    }
+  },
+  "comparisons": {
+    "B": {
+      "paired_slots": {
+        "1": {
+          "n": 186,
+          "mean_delta": -0.004202750790872188,
+          "interval98_75": [
+            -0.018360827020709715,
+            0.009814418627956067
+          ]
+        },
+        "2": {
+          "n": 186,
+          "mean_delta": -0.008169232604182423,
+          "interval98_75": [
+            -0.0311760405668001,
+            0.013338495556180345
+          ]
+        }
+      },
+      "periods": [
+        {
+          "start": "20251111",
+          "end": "20260206",
+          "mean_slot_deltas": {
+            "1": -0.0018667410085024712,
+            "2": -0.0344204757037123
+          }
+        },
+        {
+          "start": "20260209",
+          "end": "20260519",
+          "mean_slot_deltas": {
+            "1": -0.005181049259582066,
+            "2": 0.009373905195953342
+          }
+        },
+        {
+          "start": "20260520",
+          "end": "20260814",
+          "mean_slot_deltas": {
+            "1": -0.005560462104532033,
+            "2": 0.0005388726952116913
+          }
+        }
+      ],
+      "gates": {
+        "both_slot_means_improve": false,
+        "both_corrected_intervals_above_zero": false,
+        "both_filled_means_positive_at_90bp": false,
+        "each_slot_improves_in_at_least_two_periods": false,
+        "untouched_forward_evidence": false
+      },
+      "eligible_for_activation": false
+    },
+    "C": {
+      "paired_slots": {
+        "1": {
+          "n": 186,
+          "mean_delta": -0.00247343108135616,
+          "interval98_75": [
+            -0.017907066128267316,
+            0.013009841755148188
+          ]
+        },
+        "2": {
+          "n": 186,
+          "mean_delta": -0.007264517651228592,
+          "interval98_75": [
+            -0.028731412434587305,
+            0.01306415416596164
+          ]
+        }
+      },
+      "periods": [
+        {
+          "start": "20251111",
+          "end": "20260206",
+          "mean_slot_deltas": {
+            "1": -0.013582454646012423,
+            "2": -0.008930392217221732
+          }
+        },
+        {
+          "start": "20260209",
+          "end": "20260519",
+          "mean_slot_deltas": {
+            "1": -0.0002123389764149778,
+            "2": -0.0050063260289928335
+          }
+        },
+        {
+          "start": "20260520",
+          "end": "20260814",
+          "mean_slot_deltas": {
+            "1": 0.006374500378358918,
+            "2": -0.007856834707471203
+          }
+        }
+      ],
+      "gates": {
+        "both_slot_means_improve": false,
+        "both_corrected_intervals_above_zero": false,
+        "both_filled_means_positive_at_90bp": false,
+        "each_slot_improves_in_at_least_two_periods": false,
+        "untouched_forward_evidence": false
+      },
+      "eligible_for_activation": false
+    }
+  },
+  "promotion": {
+    "A": {
+      "1": {
+        "n": 186,
+        "hit_rate": 0.6559139784946236
+      },
+      "2": {
+        "n": 186,
+        "hit_rate": 0.543010752688172
+      },
+      "3": {
+        "n": 184,
+        "hit_rate": 0.4076086956521739
+      }
+    },
+    "B": {
+      "1": {
+        "n": 186,
+        "hit_rate": 0.6612903225806451
+      },
+      "2": {
+        "n": 186,
+        "hit_rate": 0.553763440860215
+      },
+      "3": {
+        "n": 184,
+        "hit_rate": 0.46195652173913043
+      }
+    },
+    "C": {
+      "1": {
+        "n": 186,
+        "hit_rate": 0.6774193548387096
+      },
+      "2": {
+        "n": 186,
+        "hit_rate": 0.510752688172043
+      },
+      "3": {
+        "n": 184,
+        "hit_rate": 0.46195652173913043
+      }
+    }
+  },
+  "caveats": [
+    "no-fill zero is cash-slot opportunity return, not zero-return fill",
+    "block intervals remain exploratory after earlier inspection",
+    "no portfolio NAV computed: overlapping holding periods require cash-flow simulation",
+    "no feature selection or refit on this evaluation window"
+  ],
+  "source_commit": "12d15b660694b61b0466e90237845004fbc5d153",
+  "script_sha256": "ab25364bbeac84e77035e819a49a3fe1843bf664c130208894fed5b2b795bf22"
+}

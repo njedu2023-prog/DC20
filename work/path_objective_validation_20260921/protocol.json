@@ -1,0 +1,29 @@
+{
+  "version": "objective_path_protocol_v1",
+  "purpose": "Evaluate predictive and fee-adjusted trading value, not semantic path-label accuracy",
+  "production_activation_allowed": false,
+  "earliest_eligible_future_D": "20260922",
+  "status": "NO_NEW_FORWARD_CANDIDATE_REGISTERED",
+  "primary_endpoints": ["profit_top1_mean_slot_net", "profit_top2_mean_slot_net"],
+  "secondary_endpoints": ["filled_mean_net", "filled_win_rate", "no_fill_count", "pending_count", "missing_count", "promotion_top1_hit_rate", "promotion_top2_hit_rate", "promotion_top3_hit_rate"],
+  "required_policy": "dc20_exit_1000_limit_hold_20260912_v1",
+  "base_round_trip_cost": 0.0045,
+  "stress_round_trip_cost": 0.009,
+  "minimum_complete_paired_dates_before_formal_review": 120,
+  "minimum_is_research_rule_not_power_guarantee": true,
+  "requirements": [
+    "Register one new candidate artifact, features and parameters before observing future outcomes",
+    "Fit all preprocessing and calibrators on training-only data with matured labels",
+    "Freeze baseline and candidate predictions before T auction, retain trusted publication receipts and full candidate universe",
+    "Use exactly the same candidate universe, fill rules, fee policy and exit labels",
+    "Retain pending, missing, no-fill and holding records separately; never silently drop unresolved losses",
+    "Evaluate both seats and an equal-time cohort, not selected profitable days",
+    "Predeclare one formal endpoint review; do not repeatedly test until positive",
+    "Use day-block paired uncertainty and correct for all registered comparisons",
+    "Require both seats to improve, withstand cost stress and avoid degradation concentrated in one market regime",
+    "Any post-registration model change restarts the forward cohort",
+    "Source/model/rule integrity and operational acceptance are separate gates",
+    "Activation remains a separate reviewed action even if statistical criteria pass"
+  ],
+  "not_started": ["new_candidate_training", "automatic_forward_collection", "independent_forward_acceptance", "production_switch"]
+}
