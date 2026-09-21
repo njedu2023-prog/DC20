@@ -398,7 +398,7 @@ def _monthly_actual_source(path):
 
 
 MONTHLY_REVIEW_PATH = 'models/decision_source_surface_review_20260920_monthly_ledger.json'
-MONTHLY_REVIEW_SHA = 'e6c16a056cd22149db04fb9b9d5c978fcb698d3746f5c7dd3c7d3d5726d97a1d'
+MONTHLY_REVIEW_SHA = 'f8fb2e5f4c6da3707841e4ae71150579d42bb1e04a3face68e3d3a871dd2adb2'
 MONTHLY_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_dashboard_research_projection.py', 'tests/test_decision_three_rank_frontend.py', 'tests/test_decision_two_rank_frontend.py', 'tests/test_profit_ledger_monthly_frontend.py']
 
 

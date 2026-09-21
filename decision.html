@@ -496,6 +496,9 @@
     .truth-badge.pending { color: var(--warn); border-color: #ddc47f; background: var(--warn-soft); }
     .truth-badge.missing { color: var(--warn); border-color: #ddc47f; background: var(--warn-soft); }
     .truth-badge.no-fill { color: var(--muted); }
+    .truth-badge.path-up { color: #bd3028; border-color: #e8b4b0; background: #fff2f0; }
+    .truth-badge.path-down { color: #23784d; border-color: #abd2bb; background: #eef8f1; }
+    .truth-badge.path-neutral { color: #65716d; border-color: #cdd6d1; background: #f3f5f4; }
     .panel-metrics { padding: 0 16px; margin-bottom: 16px; }
     .sentiment-industries {
       margin: -2px 16px 14px;
@@ -2509,7 +2512,7 @@
       const participation=(turnover===null||amount===null) ? "量能辅助证据不足，不据此判断承接。" :
         `换手率首末差 ${(turnover*span).toFixed(2)}个百分点、成交额对数差 ${(amount*span).toFixed(3)}；放量不自动等于承接强。`;
       return {status:stable?"MULTIDIMENSION_DESCRIPTION":"BOUNDARY_SENSITIVE", version:"path-description-v2",
-        label:stable?labels[base.kind]:"边界变化", code:"MIXED", delta, direction:stable?base.kind:"BOUNDARY",
+        label:stable?labels[base.kind]:"方向待判", code:stable?base.kind:"BOUNDARY", delta, direction:stable?base.kind:"BOUNDARY",
         change_text:stable?`增强${base.up} / 减弱${base.down}`:"边界待判",
         evidence_count:4, threshold_stable:stable,
         explanation:`D日及之前${expected}个连板日，四项核心日汇总齐全。首末板比较：${evidence}。`+
@@ -3123,6 +3126,9 @@
     }
 
     function pathClass(code) {
+      if (code === "UP") return "path-up";
+      if (code === "DOWN") return "path-down";
+      if (code === "LIMITED") return "path-neutral";
       if (["WEAK_TO_STRONG", "ACCELERATION_CONSENSUS", "STABLE_STRONG"].includes(code)) return "final";
       if (code === "STRONG_TO_WEAK") return "no-fill";
       return "pending";

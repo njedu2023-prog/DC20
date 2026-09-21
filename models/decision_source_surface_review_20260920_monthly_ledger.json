@@ -17,14 +17,24 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 472412,
+      "current_bytes": 472849,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "5479836546a8e2a919583373a29439abf7c0d04c08a4dd830fce7ac0e6ac85c6",
+      "current_sha256": "285017cf2df3fead0c0a2e3a42847cbdae965f0683dbc45656964769f4ab34f3",
       "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
+          "baseline_start": 499,
+          "current_start": 499,
+          "baseline_lines": [],
+          "current_lines": [
+            "    .truth-badge.path-up { color: #bd3028; border-color: #e8b4b0; background: #fff2f0; }\n",
+            "    .truth-badge.path-down { color: #23784d; border-color: #abd2bb; background: #eef8f1; }\n",
+            "    .truth-badge.path-neutral { color: #65716d; border-color: #cdd6d1; background: #f3f5f4; }\n"
+          ]
+        },
+        {
           "baseline_start": 1205,
-          "current_start": 1205,
+          "current_start": 1208,
           "baseline_lines": [],
           "current_lines": [
             "    .ledger-heading-group { display:flex; align-items:center; justify-content:flex-start; gap:14px; flex-wrap:wrap; }\n",
@@ -35,7 +45,7 @@
         },
         {
           "baseline_start": 1290,
-          "current_start": 1294,
+          "current_start": 1297,
           "baseline_lines": [
             "      <div class=\"panel-head\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
           ],
@@ -45,7 +55,7 @@
         },
         {
           "baseline_start": 1438,
-          "current_start": 1442,
+          "current_start": 1445,
           "baseline_lines": [
             "    const DASHBOARD_VERSION = \"compact-two-ranks-v17-candidate-activation\";\n"
           ],
@@ -55,7 +65,7 @@
         },
         {
           "baseline_start": 2002,
-          "current_start": 2006,
+          "current_start": 2009,
           "baseline_lines": [],
           "current_lines": [
             "      // User-approved D21 supplemental eligibility rule. Display only: never\n",
@@ -89,7 +99,7 @@
         },
         {
           "baseline_start": 2431,
-          "current_start": 2462,
+          "current_start": 2465,
           "baseline_lines": [],
           "current_lines": [
             "    function verifiedPathDisplay(row) {\n",
@@ -142,7 +152,7 @@
             "      const participation=(turnover===null||amount===null) ? \"量能辅助证据不足，不据此判断承接。\" :\n",
             "        `换手率首末差 ${(turnover*span).toFixed(2)}个百分点、成交额对数差 ${(amount*span).toFixed(3)}；放量不自动等于承接强。`;\n",
             "      return {status:stable?\"MULTIDIMENSION_DESCRIPTION\":\"BOUNDARY_SENSITIVE\", version:\"path-description-v2\",\n",
-            "        label:stable?labels[base.kind]:\"边界变化\", code:\"MIXED\", delta, direction:stable?base.kind:\"BOUNDARY\",\n",
+            "        label:stable?labels[base.kind]:\"方向待判\", code:stable?base.kind:\"BOUNDARY\", delta, direction:stable?base.kind:\"BOUNDARY\",\n",
             "        change_text:stable?`增强${base.up} / 减弱${base.down}`:\"边界待判\",\n",
             "        evidence_count:4, threshold_stable:stable,\n",
             "        explanation:`D日及之前${expected}个连板日，四项核心日汇总齐全。首末板比较：${evidence}。`+\n",
@@ -164,7 +174,7 @@
         },
         {
           "baseline_start": 2753,
-          "current_start": 2852,
+          "current_start": 2855,
           "baseline_lines": [],
           "current_lines": [
             "          path_evidence_verified: true,\n",
@@ -173,7 +183,7 @@
         },
         {
           "baseline_start": 2756,
-          "current_start": 2857,
+          "current_start": 2860,
           "baseline_lines": [
             "          path_strength_delta: strengthDelta\n"
           ],
@@ -189,8 +199,18 @@
           ]
         },
         {
+          "baseline_start": 3018,
+          "current_start": 3129,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (code === \"UP\") return \"path-up\";\n",
+            "      if (code === \"DOWN\") return \"path-down\";\n",
+            "      if (code === \"LIMITED\") return \"path-neutral\";\n"
+          ]
+        },
+        {
           "baseline_start": 5371,
-          "current_start": 5479,
+          "current_start": 5485,
           "baseline_lines": [],
           "current_lines": [
             "          path_display: verifiedPathDisplay(runtimePath),\n"
@@ -198,7 +218,7 @@
         },
         {
           "baseline_start": 5405,
-          "current_start": 5514,
+          "current_start": 5520,
           "baseline_lines": [
             "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_label_code)}\" title=\"${escapeHtml(row.path_explanation || \"路径数据不足\")}\">${escapeHtml(row.path_label || \"路径数据不足\")}</span></td>\n",
             "          <td class=\"${valueTone(row.path_strength_delta)}\" data-field=\"path-change\">${signedPct(row.path_strength_delta)}</td>\n"
@@ -210,7 +230,7 @@
         },
         {
           "baseline_start": 5409,
-          "current_start": 5518,
+          "current_start": 5524,
           "baseline_lines": [
             "          <td>${row.mixed_profit_rank == null ? \"—\" : `<span class=\"rank-mark rank-profit\">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class=\"row-meta\">并列分</small>' : \"\"}`}</td>\n"
           ],
@@ -220,7 +240,7 @@
         },
         {
           "baseline_start": 5438,
-          "current_start": 5547,
+          "current_start": 5553,
           "baseline_lines": [
             "        ${!profitView.ready || profitView.message === \"历史恢复研究 · 不计前向收益\" ? `<p class=\"stats-note warn\" role=\"status\">${escapeHtml(profitView.message)}</p>` : \"\"}\n"
           ],
@@ -230,7 +250,7 @@
         },
         {
           "baseline_start": 6416,
-          "current_start": 6525,
+          "current_start": 6531,
           "baseline_lines": [],
           "current_lines": [
             "    // Independent read-only monthly route. Reuses the exact deployment's\n",
@@ -446,7 +466,7 @@
         },
         {
           "baseline_start": 6627,
-          "current_start": 6945,
+          "current_start": 6951,
           "baseline_lines": [
             "    initialize(false).catch(showError);\n"
           ],
@@ -468,7 +488,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "874b7a1c076f52d07106de5f84ed6b482a4dcb33f5cbf612ba7dfbfd45dfced7",
+      "current_sha256": "36e2cdade9517697628c674d02dd6ff46002707b4954db560aec5e6f78aee656",
       "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
@@ -478,7 +498,7 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"5479836546a8e2a919583373a29439abf7c0d04c08a4dd830fce7ac0e6ac85c6\",\n"
+            "    \"decision.html\": \"285017cf2df3fead0c0a2e3a42847cbdae965f0683dbc45656964769f4ab34f3\",\n"
           ]
         },
         {
@@ -595,9 +615,9 @@
       "path": "tests/test_profit_ledger_monthly_frontend.py",
       "baseline_exists": false,
       "baseline_bytes": 0,
-      "current_bytes": 12213,
+      "current_bytes": 13134,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "current_sha256": "3f5707e5130d564bf231a939866e766bf33196f9da1fa80497a336f549ccbc46",
+      "current_sha256": "34b4c0efec1418ed497ec0822e7910d87f387b26156069e533d01b6187ebd3ef",
       "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
@@ -703,7 +723,7 @@
             "\n",
             "def test_threshold_instability_abstains_and_reports_reason():\n",
             "    result = path_view(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0)\n",
-            "    assert result['label'] == '边界变化'\n",
+            "    assert result['label'] == '方向待判'\n",
             "    assert result['threshold_stable'] is False\n",
             "    assert result['change_text'] == '边界待判'\n",
             "\n",
@@ -732,6 +752,22 @@
             "    assert 'verifiedPathDisplay(path.rows.find' in HTML\n",
             "    assert 'escapeHtml(row.path_display.change_text || \"—\")' in HTML\n",
             "    assert 'path_evidence_verified: true' in HTML\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize('changes,code,tone', [\n",
+            "    ({}, 'UP', 'path-up'),\n",
+            "    (dict(path_gap_slope=-.02,path_first_seal_slope=30,path_open_times_slope=1,path_seal_ratio_slope=-.05), 'DOWN', 'path-down'),\n",
+            "    (dict(path_open_times_slope=1), 'MIXED', 'pending'),\n",
+            "    (dict(path_gap_slope=0,path_first_seal_slope=0,path_open_times_slope=0,path_seal_ratio_slope=0), 'LIMITED', 'path-neutral'),\n",
+            "    (dict(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0), 'BOUNDARY', 'pending'),\n",
+            "    (dict(path_evidence_verified=False), 'INSUFFICIENT', 'pending'),\n",
+            "])\n",
+            "def test_path_display_direction_controls_badge_without_false_certainty(changes,code,tone):\n",
+            "    result = path_view(**changes)\n",
+            "    assert result['code'] == code\n",
+            "    assert run('pathClass('+json.dumps(result['code'])+')', names=('pathClass',)) == tone\n",
+            "    if tone.startswith('path-'):\n",
+            "        assert '.truth-badge.'+tone in HTML\n",
             "\n",
             "\n",
             "def test_performance_excludes_unknown_and_no_fill_from_trade_denominator():\n",

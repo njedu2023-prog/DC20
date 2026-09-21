@@ -96,7 +96,7 @@ def test_reversed_dimensions_and_volume_not_automatic_support():
 
 def test_threshold_instability_abstains_and_reports_reason():
     result = path_view(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0)
-    assert result['label'] == '边界变化'
+    assert result['label'] == '方向待判'
     assert result['threshold_stable'] is False
     assert result['change_text'] == '边界待判'
 
@@ -125,6 +125,22 @@ def test_path_display_gates_main_and_monthly_without_mutating_inputs():
     assert 'verifiedPathDisplay(path.rows.find' in HTML
     assert 'escapeHtml(row.path_display.change_text || "—")' in HTML
     assert 'path_evidence_verified: true' in HTML
+
+
+@pytest.mark.parametrize('changes,code,tone', [
+    ({}, 'UP', 'path-up'),
+    (dict(path_gap_slope=-.02,path_first_seal_slope=30,path_open_times_slope=1,path_seal_ratio_slope=-.05), 'DOWN', 'path-down'),
+    (dict(path_open_times_slope=1), 'MIXED', 'pending'),
+    (dict(path_gap_slope=0,path_first_seal_slope=0,path_open_times_slope=0,path_seal_ratio_slope=0), 'LIMITED', 'path-neutral'),
+    (dict(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0), 'BOUNDARY', 'pending'),
+    (dict(path_evidence_verified=False), 'INSUFFICIENT', 'pending'),
+])
+def test_path_display_direction_controls_badge_without_false_certainty(changes,code,tone):
+    result = path_view(**changes)
+    assert result['code'] == code
+    assert run('pathClass('+json.dumps(result['code'])+')', names=('pathClass',)) == tone
+    if tone.startswith('path-'):
+        assert '.truth-badge.'+tone in HTML
 
 
 def test_performance_excludes_unknown_and_no_fill_from_trade_denominator():
