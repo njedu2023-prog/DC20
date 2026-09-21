@@ -1,6 +1,6 @@
 import copy
-from stress import clock,joint_labels,raw_variants,summarize,rate_interval,outcome_diagnostic
-from replay import minute
+from work.path_reliability_replay_20260921.stress import clock,joint_labels,raw_variants,summarize,rate_interval,outcome_diagnostic
+from work.path_reliability_replay_20260921.replay import minute
 
 
 def session(value):

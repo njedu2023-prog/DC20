@@ -1,5 +1,5 @@
 import pytest
-from minute_review import inspect,EXPECTED
+from work.path_reliability_replay_20260921.minute_review import inspect,EXPECTED
 
 
 def rows():

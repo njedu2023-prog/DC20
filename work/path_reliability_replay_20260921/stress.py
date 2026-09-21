@@ -10,7 +10,10 @@ import json
 import math
 from collections import Counter
 from pathlib import Path
-from replay import HERE, assess, classify, clip, evaluate, load_sources, minute, number, snapshot
+if __package__:
+    from .replay import HERE, assess, classify, clip, evaluate, load_sources, minute, number, snapshot
+else:  # Preserve direct script execution as well as package-based CI imports.
+    from replay import HERE, assess, classify, clip, evaluate, load_sources, minute, number, snapshot
 
 
 def joint_labels(seq):

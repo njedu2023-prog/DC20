@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from validate import validate_frames,profit_metrics,paired_blocks
+from work.path_objective_validation_20260921.validate import validate_frames,profit_metrics,paired_blocks
 
 
 def frame():

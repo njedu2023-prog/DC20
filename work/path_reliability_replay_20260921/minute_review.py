@@ -6,7 +6,10 @@ import io
 import json
 import argparse
 from pathlib import Path
-from replay import HERE,number
+if __package__:
+    from .replay import HERE,number
+else:  # Preserve direct script execution as well as package-based CI imports.
+    from replay import HERE,number
 
 EXPECTED={f'{m//60:02}:{m%60:02}:00' for m in list(range(571,691))+list(range(781,901))}
 

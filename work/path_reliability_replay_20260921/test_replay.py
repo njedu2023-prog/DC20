@@ -1,7 +1,7 @@
 import copy
 import pytest
-from replay import minute, snapshot, classify, assess
-from score_review import score
+from work.path_reliability_replay_20260921.replay import minute, snapshot, classify, assess
+from work.path_reliability_replay_20260921.score_review import score
 
 
 def session(score):
