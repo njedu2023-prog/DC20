@@ -667,12 +667,53 @@
       "source_bundle_sha256": "f7ff98c16f92c41a7db4ee26fdafde19cead043c10b8d6508f685c1cd0ebf7bf",
       "source_feature_snapshot_sha256": "fc3be542317487b72ce049b563fdc594042385a1ff9f33f928ccb8a2758e68d2",
       "top10_members_sha256": "9311440eebe924c99525ce26e518c89e370dfc727f982dea3b7d0bc9f7f01b88"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "2033a1f255dd32a60e27b450914b7bf66997fc4cba88ab44eab5d74035062d41",
+      "exec_date": "20260922",
+      "exit_date": "20260923",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "54cc7e830ba3940c99f1b371ae0ca889353cc082dfdfd29e2140e7c5f83c70da",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260921.csv",
+      "projection_json_sha256": "80c9f931b74d5f07ce7619f0d4db417aadf91e8720cc5829d8867e15c98c91fa",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260921.json",
+      "projection_snapshot_sha256": "1b90ed323e6fad0d5259eca1ba791d9642b7458d3fc0b7875caf49bbeff17054",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "房地产开发",
+          "mixed_profit_rank": 1,
+          "name": "绿地控股",
+          "promotion_rank": 7,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "600606.SH"
+        },
+        {
+          "industry": "冶钢原料",
+          "mixed_profit_rank": 2,
+          "name": "马矿股份",
+          "promotion_rank": 10,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "601123.SH"
+        }
+      ],
+      "signal_date": "20260921",
+      "source_bundle_sha256": "7d5c1338bd4223f93d2a4578b000adf7b046fc9107d84efae354ab47a1185a99",
+      "source_feature_snapshot_sha256": "efc03271e9d6df05216060458f77c564b9aa7a258fa72d2610c3831276d166e5",
+      "top10_members_sha256": "0dbf050900345292bce1e0cbdd2e36f6084c6ec79f7a18be1c9b0a77479b46f4"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260918",
+  "latest_signal_date": "20260921",
   "public_start_signal_date": "20260828",
-  "recorded_days": 16,
+  "recorded_days": 17,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -689,9 +730,10 @@
     "20260915",
     "20260916",
     "20260917",
-    "20260918"
+    "20260918",
+    "20260921"
   ],
-  "recorded_slots": 32,
+  "recorded_slots": 34,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "003a51ac5d61c1051c4e328c5c7ddb6300a6e76dca96a0e91021b55b24807c9c"
+  "snapshot_sha256": "109f484a98cfde7dd5944df32d44f8e92d044cf94d51d83629956bc158b3fdc5"
 }
