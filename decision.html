@@ -1439,7 +1439,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v17-candidate-activation";
+    const DASHBOARD_VERSION = "compact-two-ranks-v18-path-description";
     const CANDIDATE_PROFIT_ROOT = "outputs/decision/candidate_profit_v1";
     const CANDIDATE_PROFIT_MODEL_SHA256 = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
@@ -2448,13 +2448,50 @@
         return unavailable("INVALID", "待核验", "强度或变化值超出有效范围");
       if (!(row.path_label_code in PRIMARY_PATH_LABELS) || row.path_label !== PRIMARY_PATH_LABELS[row.path_label_code] || row.path_label_code === "INSUFFICIENT")
         return unavailable("INVALID", "待核验", "路径标签与观测证据不一致");
-      const nearBoundary = [previous,latest].some(value => [.45,.58,.60,.65,.70].some(boundary => Math.abs(value-boundary)<=.02)) ||
-        [.05,.12].some(boundary => Math.abs(Math.abs(delta)-boundary)<=.02);
-      return {status:"COMPLETE_RULE_DESCRIPTION", label:row.path_label, code:row.path_label_code, delta,
-        explanation:`四项核心指标逐日齐全，固定权重可比；前板 ${(previous*100).toFixed(2)}分 → 当前 ${(latest*100).toFixed(2)}分。` +
-          "开盘25%、首封30%、炸板稳定性20%、封单相对强度25%；变化为分数差，不是涨幅或概率。" +
-          (nearBoundary ? "接近规则阈值，标签可能对小幅变化敏感。" : "") +
-          "仅描述D日及之前的过程；数据齐全不代表来源绝对准确或未来预测有效。" + String(row.path_explanation || "")};
+      // Independent descriptive overlay. Never write these labels back into frozen/model rows.
+      // Slopes are FIRST-to-LAST endpoints per board, whereas strength_delta is LAST-two boards.
+      const dimensions = [
+        {key:"path_gap_slope", name:"开盘缺口", sign:1, band:.005, unit:100, suffix:"个百分点", up:"抬升", down:"下移"},
+        {key:"path_first_seal_slope", name:"首封时刻", sign:-1, band:10, unit:1, suffix:"时钟分钟", up:"提前", down:"推迟"},
+        {key:"path_open_times_slope", name:"炸板次数", sign:-1, band:.5, unit:1, suffix:"次", up:"减少", down:"增加"},
+        {key:"path_seal_ratio_slope", name:"封单/成交额", sign:1, band:.02, unit:100, suffix:"个百分点", up:"增加", down:"减少"}
+      ].map(item => ({...item, value:numeric(row[item.key])}));
+      if (dimensions.some(item => item.value === null))
+        return unavailable("INCOMPLETE", "数据不足", "分项变化证据缺失；不能用综合分差代替多维判断");
+      const span = expected-1;
+      if (Math.abs(dimensions[1].value*span)>335+1e-9 ||
+          Math.abs(dimensions[2].value*span-Math.round(dimensions[2].value*span))>1e-6)
+        return unavailable("INVALID", "待核验", "首封时刻或炸板次数变化超出日汇总口径");
+      const classify = scale => {
+        const votes = dimensions.map(item => {
+          const change=item.value*span*item.sign;
+          return Math.abs(change)<item.band*scale-1e-9 ? 0 : Math.sign(change);
+        });
+        const up=votes.filter(value=>value>0).length, down=votes.filter(value=>value<0).length;
+        // Conflict takes priority; a higher aggregate score cannot override contrary evidence.
+        return {kind:up&&down?"MIXED":up>=2?"UP":down>=2?"DOWN":"LIMITED",up,down};
+      };
+      const base=classify(1), stable=[.75,1.25].every(scale=>classify(scale).kind===base.kind);
+      const labels={MIXED:"多维分化",UP:"多维增强",DOWN:"多维减弱",LIMITED:"变化有限"};
+      const evidence=dimensions.map(item=>{
+        const change=item.value*span, direction=Math.abs(change)<item.band ? "小幅/持平" :
+          (change*item.sign>0 ? item.up : item.down);
+        return `${item.name}${direction}（首末差 ${change>0?"+":""}${(change*item.unit).toFixed(2)}${item.suffix}）`;
+      }).join("；");
+      const turnover=numeric(row.path_turnover_slope), amount=numeric(row.path_amount_log_slope);
+      const participation=(turnover===null||amount===null) ? "量能辅助证据不足，不据此判断承接。" :
+        `换手率首末差 ${(turnover*span).toFixed(2)}个百分点、成交额对数差 ${(amount*span).toFixed(3)}；放量不自动等于承接强。`;
+      return {status:stable?"MULTIDIMENSION_DESCRIPTION":"BOUNDARY_SENSITIVE", version:"path-description-v2",
+        label:stable?labels[base.kind]:"边界变化", code:"MIXED", delta, direction:stable?base.kind:"BOUNDARY",
+        change_text:stable?`增强${base.up} / 减弱${base.down}`:"边界待判",
+        evidence_count:4, threshold_stable:stable,
+        explanation:`D日及之前${expected}个连板日，四项核心日汇总齐全。首末板比较：${evidence}。`+
+          (expected===3?"首末差不代表中间一天同向，不能证明持续加速。":"")+
+          `${participation}增强/减弱为四项中达到描述阈值的项数，其余为小幅/持平；不是样本数或概率。相邻两板旧规则分：${(previous*100).toFixed(2)} → ${(latest*100).toFixed(2)}，分差不是涨幅或概率。`+
+          "描述阈值：开盘0.5个百分点、首封10时钟分钟、炸板0.5次、封单比2个百分点；"+
+          (stable?"阈值上下浮动25%时分类一致。":"阈值上下浮动25%时分类改变，暂停方向结论。")+
+          "首封比较是时刻先后，不是扣除午休的封板耗时；日汇总不能证明逐笔封单、连续封板或真实承接。"+
+          "高开不等于更值得买入；数据完整、方向一致和阈值稳定均不是预测准确率。未改变模型输入、排名或交易规则。"};
     }
 
     function pathChangePoints(value) {
@@ -2790,7 +2827,14 @@
           path_days_observed: daysObserved,
           path_data_coverage: coverage,
           path_strength_latest: latestStrength,
-          path_strength_delta: strengthDelta
+          path_strength_delta: strengthDelta,
+          // Preserve raw blanks as missing; finiteNumber would turn some empty values into zero.
+          path_gap_slope: row.path_gap_slope,
+          path_first_seal_slope: row.path_first_seal_slope,
+          path_open_times_slope: row.path_open_times_slope,
+          path_seal_ratio_slope: row.path_seal_ratio_slope,
+          path_turnover_slope: row.path_turnover_slope,
+          path_amount_log_slope: row.path_amount_log_slope
         };
       });
       return {
@@ -5441,7 +5485,7 @@
           <td class="left" data-field="industry">${escapeHtml(row.industry || "未分类")}</td>
           <td data-field="stage-transition">${escapeHtml(row.stage_transition || "-")}</td>
           <td class="left" data-field="board-path"><span class="truth-badge ${pathClass(row.path_display.code)}" title="${escapeHtml(row.path_display.explanation)}">${escapeHtml(row.path_display.label)}</span></td>
-          <td class="${valueTone(row.path_display.delta)}" data-field="path-change" title="${escapeHtml(row.path_display.explanation)}">${pathChangePoints(row.path_display.delta)}</td>
+          <td data-field="path-change" title="${escapeHtml(row.path_display.explanation)}">${escapeHtml(row.path_display.change_text || "—")}</td>
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
           <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>

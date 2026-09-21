@@ -17,9 +17,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 466310,
+      "current_bytes": 469965,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "fb358b21e7a8b14a13fbbf5761840ffba38fd79ec1fd8950f381443806ec6cbb",
+      "current_sha256": "fddcbd0fe80a8ec13e960f6ed3c2aa924190d2133b4157ba06a3e53311294760",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -44,6 +44,16 @@
           ]
         },
         {
+          "baseline_start": 1438,
+          "current_start": 1442,
+          "baseline_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v17-candidate-activation\";\n"
+          ],
+          "current_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v18-path-description\";\n"
+          ]
+        },
+        {
           "baseline_start": 2431,
           "current_start": 2435,
           "baseline_lines": [],
@@ -64,13 +74,50 @@
             "        return unavailable(\"INVALID\", \"待核验\", \"强度或变化值超出有效范围\");\n",
             "      if (!(row.path_label_code in PRIMARY_PATH_LABELS) || row.path_label !== PRIMARY_PATH_LABELS[row.path_label_code] || row.path_label_code === \"INSUFFICIENT\")\n",
             "        return unavailable(\"INVALID\", \"待核验\", \"路径标签与观测证据不一致\");\n",
-            "      const nearBoundary = [previous,latest].some(value => [.45,.58,.60,.65,.70].some(boundary => Math.abs(value-boundary)<=.02)) ||\n",
-            "        [.05,.12].some(boundary => Math.abs(Math.abs(delta)-boundary)<=.02);\n",
-            "      return {status:\"COMPLETE_RULE_DESCRIPTION\", label:row.path_label, code:row.path_label_code, delta,\n",
-            "        explanation:`四项核心指标逐日齐全，固定权重可比；前板 ${(previous*100).toFixed(2)}分 → 当前 ${(latest*100).toFixed(2)}分。` +\n",
-            "          \"开盘25%、首封30%、炸板稳定性20%、封单相对强度25%；变化为分数差，不是涨幅或概率。\" +\n",
-            "          (nearBoundary ? \"接近规则阈值，标签可能对小幅变化敏感。\" : \"\") +\n",
-            "          \"仅描述D日及之前的过程；数据齐全不代表来源绝对准确或未来预测有效。\" + String(row.path_explanation || \"\")};\n",
+            "      // Independent descriptive overlay. Never write these labels back into frozen/model rows.\n",
+            "      // Slopes are FIRST-to-LAST endpoints per board, whereas strength_delta is LAST-two boards.\n",
+            "      const dimensions = [\n",
+            "        {key:\"path_gap_slope\", name:\"开盘缺口\", sign:1, band:.005, unit:100, suffix:\"个百分点\", up:\"抬升\", down:\"下移\"},\n",
+            "        {key:\"path_first_seal_slope\", name:\"首封时刻\", sign:-1, band:10, unit:1, suffix:\"时钟分钟\", up:\"提前\", down:\"推迟\"},\n",
+            "        {key:\"path_open_times_slope\", name:\"炸板次数\", sign:-1, band:.5, unit:1, suffix:\"次\", up:\"减少\", down:\"增加\"},\n",
+            "        {key:\"path_seal_ratio_slope\", name:\"封单/成交额\", sign:1, band:.02, unit:100, suffix:\"个百分点\", up:\"增加\", down:\"减少\"}\n",
+            "      ].map(item => ({...item, value:numeric(row[item.key])}));\n",
+            "      if (dimensions.some(item => item.value === null))\n",
+            "        return unavailable(\"INCOMPLETE\", \"数据不足\", \"分项变化证据缺失；不能用综合分差代替多维判断\");\n",
+            "      const span = expected-1;\n",
+            "      if (Math.abs(dimensions[1].value*span)>335+1e-9 ||\n",
+            "          Math.abs(dimensions[2].value*span-Math.round(dimensions[2].value*span))>1e-6)\n",
+            "        return unavailable(\"INVALID\", \"待核验\", \"首封时刻或炸板次数变化超出日汇总口径\");\n",
+            "      const classify = scale => {\n",
+            "        const votes = dimensions.map(item => {\n",
+            "          const change=item.value*span*item.sign;\n",
+            "          return Math.abs(change)<item.band*scale-1e-9 ? 0 : Math.sign(change);\n",
+            "        });\n",
+            "        const up=votes.filter(value=>value>0).length, down=votes.filter(value=>value<0).length;\n",
+            "        // Conflict takes priority; a higher aggregate score cannot override contrary evidence.\n",
+            "        return {kind:up&&down?\"MIXED\":up>=2?\"UP\":down>=2?\"DOWN\":\"LIMITED\",up,down};\n",
+            "      };\n",
+            "      const base=classify(1), stable=[.75,1.25].every(scale=>classify(scale).kind===base.kind);\n",
+            "      const labels={MIXED:\"多维分化\",UP:\"多维增强\",DOWN:\"多维减弱\",LIMITED:\"变化有限\"};\n",
+            "      const evidence=dimensions.map(item=>{\n",
+            "        const change=item.value*span, direction=Math.abs(change)<item.band ? \"小幅/持平\" :\n",
+            "          (change*item.sign>0 ? item.up : item.down);\n",
+            "        return `${item.name}${direction}（首末差 ${change>0?\"+\":\"\"}${(change*item.unit).toFixed(2)}${item.suffix}）`;\n",
+            "      }).join(\"；\");\n",
+            "      const turnover=numeric(row.path_turnover_slope), amount=numeric(row.path_amount_log_slope);\n",
+            "      const participation=(turnover===null||amount===null) ? \"量能辅助证据不足，不据此判断承接。\" :\n",
+            "        `换手率首末差 ${(turnover*span).toFixed(2)}个百分点、成交额对数差 ${(amount*span).toFixed(3)}；放量不自动等于承接强。`;\n",
+            "      return {status:stable?\"MULTIDIMENSION_DESCRIPTION\":\"BOUNDARY_SENSITIVE\", version:\"path-description-v2\",\n",
+            "        label:stable?labels[base.kind]:\"边界变化\", code:\"MIXED\", delta, direction:stable?base.kind:\"BOUNDARY\",\n",
+            "        change_text:stable?`增强${base.up} / 减弱${base.down}`:\"边界待判\",\n",
+            "        evidence_count:4, threshold_stable:stable,\n",
+            "        explanation:`D日及之前${expected}个连板日，四项核心日汇总齐全。首末板比较：${evidence}。`+\n",
+            "          (expected===3?\"首末差不代表中间一天同向，不能证明持续加速。\":\"\")+\n",
+            "          `${participation}增强/减弱为四项中达到描述阈值的项数，其余为小幅/持平；不是样本数或概率。相邻两板旧规则分：${(previous*100).toFixed(2)} → ${(latest*100).toFixed(2)}，分差不是涨幅或概率。`+\n",
+            "          \"描述阈值：开盘0.5个百分点、首封10时钟分钟、炸板0.5次、封单比2个百分点；\"+\n",
+            "          (stable?\"阈值上下浮动25%时分类一致。\":\"阈值上下浮动25%时分类改变，暂停方向结论。\")+\n",
+            "          \"首封比较是时刻先后，不是扣除午休的封板耗时；日汇总不能证明逐笔封单、连续封板或真实承接。\"+\n",
+            "          \"高开不等于更值得买入；数据完整、方向一致和阈值稳定均不是预测准确率。未改变模型输入、排名或交易规则。\"};\n",
             "    }\n",
             "\n",
             "    function pathChangePoints(value) {\n",
@@ -83,7 +130,7 @@
         },
         {
           "baseline_start": 2753,
-          "current_start": 2788,
+          "current_start": 2825,
           "baseline_lines": [],
           "current_lines": [
             "          path_evidence_verified: true,\n",
@@ -91,8 +138,25 @@
           ]
         },
         {
+          "baseline_start": 2756,
+          "current_start": 2830,
+          "baseline_lines": [
+            "          path_strength_delta: strengthDelta\n"
+          ],
+          "current_lines": [
+            "          path_strength_delta: strengthDelta,\n",
+            "          // Preserve raw blanks as missing; finiteNumber would turn some empty values into zero.\n",
+            "          path_gap_slope: row.path_gap_slope,\n",
+            "          path_first_seal_slope: row.path_first_seal_slope,\n",
+            "          path_open_times_slope: row.path_open_times_slope,\n",
+            "          path_seal_ratio_slope: row.path_seal_ratio_slope,\n",
+            "          path_turnover_slope: row.path_turnover_slope,\n",
+            "          path_amount_log_slope: row.path_amount_log_slope\n"
+          ]
+        },
+        {
           "baseline_start": 5371,
-          "current_start": 5408,
+          "current_start": 5452,
           "baseline_lines": [],
           "current_lines": [
             "          path_display: verifiedPathDisplay(runtimePath),\n"
@@ -100,19 +164,19 @@
         },
         {
           "baseline_start": 5405,
-          "current_start": 5443,
+          "current_start": 5487,
           "baseline_lines": [
             "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_label_code)}\" title=\"${escapeHtml(row.path_explanation || \"路径数据不足\")}\">${escapeHtml(row.path_label || \"路径数据不足\")}</span></td>\n",
             "          <td class=\"${valueTone(row.path_strength_delta)}\" data-field=\"path-change\">${signedPct(row.path_strength_delta)}</td>\n"
           ],
           "current_lines": [
             "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_display.code)}\" title=\"${escapeHtml(row.path_display.explanation)}\">${escapeHtml(row.path_display.label)}</span></td>\n",
-            "          <td class=\"${valueTone(row.path_display.delta)}\" data-field=\"path-change\" title=\"${escapeHtml(row.path_display.explanation)}\">${pathChangePoints(row.path_display.delta)}</td>\n"
+            "          <td data-field=\"path-change\" title=\"${escapeHtml(row.path_display.explanation)}\">${escapeHtml(row.path_display.change_text || \"—\")}</td>\n"
           ]
         },
         {
           "baseline_start": 6416,
-          "current_start": 6454,
+          "current_start": 6498,
           "baseline_lines": [],
           "current_lines": [
             "    // Independent read-only monthly route. Reuses the exact deployment's\n",
@@ -328,7 +392,7 @@
         },
         {
           "baseline_start": 6627,
-          "current_start": 6874,
+          "current_start": 6918,
           "baseline_lines": [
             "    initialize(false).catch(showError);\n"
           ],
@@ -350,7 +414,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "e54231afef5e5632231bc181784f1c628b5290923ebbdcf1646877b03829eca6",
+      "current_sha256": "325eeab01280943136cceccbc6795f731c6df565d9bbebc3bd0f79c0ed05afc7",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -360,7 +424,7 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"fb358b21e7a8b14a13fbbf5761840ffba38fd79ec1fd8950f381443806ec6cbb\",\n"
+            "    \"decision.html\": \"fddcbd0fe80a8ec13e960f6ed3c2aa924190d2133b4157ba06a3e53311294760\",\n"
           ]
         },
         {
@@ -370,7 +434,7 @@
             "    \"tests/test_decision_three_rank_frontend.py\": \"de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0\",\n"
           ],
           "current_lines": [
-            "    \"tests/test_decision_three_rank_frontend.py\": \"76a6fe30a5df516a42b348a930141b40169c7a935bb3912222b130d068a6e07e\",\n"
+            "    \"tests/test_decision_three_rank_frontend.py\": \"d79c0c7777d81bfb77c5b7e976012ebfe4e013eb0befcfef9659492106d98617\",\n"
           ]
         }
       ]
@@ -379,9 +443,9 @@
       "path": "tests/test_decision_three_rank_frontend.py",
       "baseline_exists": true,
       "baseline_bytes": 28681,
-      "current_bytes": 28684,
+      "current_bytes": 28693,
       "baseline_sha256": "de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0",
-      "current_sha256": "76a6fe30a5df516a42b348a930141b40169c7a935bb3912222b130d068a6e07e",
+      "current_sha256": "d79c0c7777d81bfb77c5b7e976012ebfe4e013eb0befcfef9659492106d98617",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -405,7 +469,7 @@
           ],
           "current_lines": [
             "    assert \"valueTone(row.path_display.delta)\" in renderer\n",
-            "    assert \"pathChangePoints(row.path_display.delta)\" in renderer\n"
+            "    assert 'escapeHtml(row.path_display.change_text || \"—\")' in renderer\n"
           ]
         }
       ]
@@ -414,9 +478,9 @@
       "path": "tests/test_profit_ledger_monthly_frontend.py",
       "baseline_exists": false,
       "baseline_bytes": 0,
-      "current_bytes": 9272,
+      "current_bytes": 12213,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "current_sha256": "3f6cc3cedb3222beddd33fb550d9d056502c0138ffe3347ebdeaac3c36e3e5c7",
+      "current_sha256": "3f5707e5130d564bf231a939866e766bf33196f9da1fa80497a336f549ccbc46",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -453,7 +517,9 @@
             "def path_view(**changes):\n",
             "    value = dict(path_evidence_verified=True, stage_transition='2→3', path_days_observed=2,\n",
             "                 path_data_coverage=1, path_strength_latest=.8, path_strength_delta=.3,\n",
-            "                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测')\n",
+            "                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测',\n",
+            "                 path_gap_slope=.02, path_first_seal_slope=-30, path_open_times_slope=-1,\n",
+            "                 path_seal_ratio_slope=.05, path_turnover_slope=1, path_amount_log_slope=.2)\n",
             "    value.update(changes)\n",
             "    return run('verifiedPathDisplay('+json.dumps(value)+')',\n",
             "               extra='const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:\"弱转强\",STABLE_STRONG:\"持续强势\",INSUFFICIENT:\"路径数据不足\"};',\n",
@@ -462,10 +528,13 @@
             "\n",
             "def test_path_complete_is_description_not_prediction_probability():\n",
             "    result = path_view()\n",
-            "    assert result['status'] == 'COMPLETE_RULE_DESCRIPTION'\n",
+            "    assert result['status'] == 'MULTIDIMENSION_DESCRIPTION'\n",
+            "    assert result['label'] == '多维增强'\n",
+            "    assert result['change_text'] == '增强4 / 减弱0'\n",
             "    assert result['delta'] == .3\n",
-            "    assert '50.00分 → 当前 80.00分' in result['explanation']\n",
-            "    assert '不代表来源绝对准确或未来预测有效' in result['explanation']\n",
+            "    assert '50.00 → 80.00' in result['explanation']\n",
+            "    assert '不是预测准确率' in result['explanation']\n",
+            "    assert '未改变模型输入' in result['explanation']\n",
             "\n",
             "\n",
             "@pytest.mark.parametrize('change', [dict(path_evidence_verified=False), dict(path_data_coverage=.99),\n",
@@ -484,15 +553,67 @@
             "\n",
             "\n",
             "def test_path_zero_is_observed_not_missing_and_boundaries_are_explained():\n",
-            "    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势')\n",
+            "    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势',\n",
+            "                       path_gap_slope=0,path_first_seal_slope=0,path_open_times_slope=0,path_seal_ratio_slope=0)\n",
             "    assert result['delta'] == 0\n",
-            "    assert '接近规则阈值' in result['explanation']\n",
+            "    assert result['label'] == '变化有限'\n",
+            "    assert result['evidence_count'] == 4\n",
+            "    assert result['change_text'] == '增强0 / 减弱0'\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize('key', ['path_gap_slope','path_first_seal_slope','path_open_times_slope','path_seal_ratio_slope'])\n",
+            "@pytest.mark.parametrize('value', [None, '', ' ', 'NaN', 'Infinity'])\n",
+            "def test_multidimensional_missing_never_becomes_zero_or_old_label(key, value):\n",
+            "    result = path_view(**{key:value})\n",
+            "    assert result['label'] == '数据不足'\n",
+            "    assert result['delta'] is None\n",
+            "\n",
+            "\n",
+            "def test_conflict_cannot_be_overridden_by_positive_score_or_three_positive_votes():\n",
+            "    result = path_view(path_open_times_slope=1)\n",
+            "    assert result['label'] == '多维分化'\n",
+            "    assert result['change_text'] == '增强3 / 减弱1'\n",
+            "    assert result['delta'] > 0\n",
+            "    assert '炸板次数增加' in result['explanation']\n",
+            "\n",
+            "\n",
+            "def test_reversed_dimensions_and_volume_not_automatic_support():\n",
+            "    result = path_view(path_gap_slope=-.02,path_first_seal_slope=30,path_open_times_slope=1,path_seal_ratio_slope=-.05,\n",
+            "                       path_turnover_slope=100,path_amount_log_slope=10)\n",
+            "    assert result['label'] == '多维减弱'\n",
+            "    assert '放量不自动等于承接强' in result['explanation']\n",
+            "\n",
+            "\n",
+            "def test_threshold_instability_abstains_and_reports_reason():\n",
+            "    result = path_view(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0)\n",
+            "    assert result['label'] == '边界变化'\n",
+            "    assert result['threshold_stable'] is False\n",
+            "    assert result['change_text'] == '边界待判'\n",
+            "\n",
+            "\n",
+            "def test_three_boards_use_first_last_span_not_adjacent_score_interval():\n",
+            "    result = path_view(stage_transition='3→4',path_days_observed=3,path_gap_slope=.01,path_open_times_slope=-.5)\n",
+            "    assert '开盘缺口抬升（首末差 +2.00个百分点）' in result['explanation']\n",
+            "    assert '炸板次数减少（首末差 -1.00次）' in result['explanation']\n",
+            "    assert '不代表中间一天同向' in result['explanation']\n",
+            "    assert '相邻两板旧规则分' in result['explanation']\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize('change', [dict(path_first_seal_slope=336),dict(path_open_times_slope=.3)])\n",
+            "def test_impossible_clock_span_or_fractional_open_count_rejected(change):\n",
+            "    assert path_view(**change)['status'] == 'INVALID'\n",
+            "\n",
+            "\n",
+            "def test_optional_volume_missing_does_not_claim_participation_strength():\n",
+            "    result = path_view(path_turnover_slope=None)\n",
+            "    assert result['label'] == '多维增强'\n",
+            "    assert '量能辅助证据不足' in result['explanation']\n",
             "\n",
             "\n",
             "def test_path_display_gates_main_and_monthly_without_mutating_inputs():\n",
             "    assert 'path_display: verifiedPathDisplay(runtimePath)' in HTML\n",
             "    assert 'verifiedPathDisplay(path.rows.find' in HTML\n",
-            "    assert 'pathChangePoints(row.path_display.delta)' in HTML\n",
+            "    assert 'escapeHtml(row.path_display.change_text || \"—\")' in HTML\n",
             "    assert 'path_evidence_verified: true' in HTML\n",
             "\n",
             "\n",
@@ -547,7 +668,7 @@
             "    names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect', 'verifiedPathDisplay')\n",
             "    joined = run(\"await ledgerJoinDay('20260916',sequences,navigation)\", extra, names)\n",
             "    assert [r['name'] for r in joined] == ['frozen1', 'frozen2']\n",
-            "    assert all(r['path_label'] == '弱转强' for r in joined)\n",
+            "    assert all(r['path_label'] == '数据不足' for r in joined)  # old schema cannot silently masquerade as new evidence\n",
             "    rejected = run(\"await ledgerJoinDay('20260916',sequences,navigation).then(()=>false,()=>true)\", extra+\"sequences[0][0].ts_code='wrong';\", names)\n",
             "    assert rejected\n",
             "\n",

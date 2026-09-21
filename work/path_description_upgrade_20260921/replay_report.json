@@ -1,0 +1,37 @@
+{
+  "schema": "dc20_path_description_replay_v2",
+  "purpose": "Historical description and abstention audit, NOT accuracy or profitability evaluation",
+  "source_records_sha256": "1d451d1b744b93dbd3bdae1930adf5d99142f796539e29452110262ce69a22cd",
+  "display_function_sha256": "e1609ae91e9213140d49bc8c40a72687e16b57c96ab4ee9608f33c695f6559b8",
+  "date_min": "20260730",
+  "date_max": "20260918",
+  "rows": 411,
+  "legacy_labels": {
+    "STABLE_STRONG": 82,
+    "DIVERGENCE_RESEAL": 99,
+    "ACCELERATION_CONSENSUS": 106,
+    "STRONG_TO_WEAK": 45,
+    "WEAK_TO_STRONG": 43,
+    "MIXED": 36
+  },
+  "new_labels": {
+    "变化有限": 27,
+    "多维分化": 191,
+    "多维减弱": 51,
+    "多维增强": 132,
+    "边界变化": 10
+  },
+  "statuses": {
+    "MULTIDIMENSION_DESCRIPTION": 401,
+    "BOUNDARY_SENSITIVE": 10
+  },
+  "inputs_unchanged": true,
+  "model_ranking_ledger_changes": false,
+  "limitations": [
+    "Daily endpoint summaries, not tick/minute event reconstruction",
+    "Descriptive bands and 25% sensitivity range are not empirically calibrated probabilities",
+    "No independent semantic truth labels; no accuracy uplift claim",
+    "Three-board endpoints do not establish intermediate-day continuity",
+    "No model training, future outcomes or profit selection used"
+  ]
+}

@@ -27,7 +27,9 @@ def row(status='SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY', net=.1, **kw):
 def path_view(**changes):
     value = dict(path_evidence_verified=True, stage_transition='2→3', path_days_observed=2,
                  path_data_coverage=1, path_strength_latest=.8, path_strength_delta=.3,
-                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测')
+                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测',
+                 path_gap_slope=.02, path_first_seal_slope=-30, path_open_times_slope=-1,
+                 path_seal_ratio_slope=.05, path_turnover_slope=1, path_amount_log_slope=.2)
     value.update(changes)
     return run('verifiedPathDisplay('+json.dumps(value)+')',
                extra='const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:"弱转强",STABLE_STRONG:"持续强势",INSUFFICIENT:"路径数据不足"};',
@@ -36,10 +38,13 @@ def path_view(**changes):
 
 def test_path_complete_is_description_not_prediction_probability():
     result = path_view()
-    assert result['status'] == 'COMPLETE_RULE_DESCRIPTION'
+    assert result['status'] == 'MULTIDIMENSION_DESCRIPTION'
+    assert result['label'] == '多维增强'
+    assert result['change_text'] == '增强4 / 减弱0'
     assert result['delta'] == .3
-    assert '50.00分 → 当前 80.00分' in result['explanation']
-    assert '不代表来源绝对准确或未来预测有效' in result['explanation']
+    assert '50.00 → 80.00' in result['explanation']
+    assert '不是预测准确率' in result['explanation']
+    assert '未改变模型输入' in result['explanation']
 
 
 @pytest.mark.parametrize('change', [dict(path_evidence_verified=False), dict(path_data_coverage=.99),
@@ -58,15 +63,67 @@ def test_path_change_is_points_not_percentage(value, expected):
 
 
 def test_path_zero_is_observed_not_missing_and_boundaries_are_explained():
-    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势')
+    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势',
+                       path_gap_slope=0,path_first_seal_slope=0,path_open_times_slope=0,path_seal_ratio_slope=0)
     assert result['delta'] == 0
-    assert '接近规则阈值' in result['explanation']
+    assert result['label'] == '变化有限'
+    assert result['evidence_count'] == 4
+    assert result['change_text'] == '增强0 / 减弱0'
+
+
+@pytest.mark.parametrize('key', ['path_gap_slope','path_first_seal_slope','path_open_times_slope','path_seal_ratio_slope'])
+@pytest.mark.parametrize('value', [None, '', ' ', 'NaN', 'Infinity'])
+def test_multidimensional_missing_never_becomes_zero_or_old_label(key, value):
+    result = path_view(**{key:value})
+    assert result['label'] == '数据不足'
+    assert result['delta'] is None
+
+
+def test_conflict_cannot_be_overridden_by_positive_score_or_three_positive_votes():
+    result = path_view(path_open_times_slope=1)
+    assert result['label'] == '多维分化'
+    assert result['change_text'] == '增强3 / 减弱1'
+    assert result['delta'] > 0
+    assert '炸板次数增加' in result['explanation']
+
+
+def test_reversed_dimensions_and_volume_not_automatic_support():
+    result = path_view(path_gap_slope=-.02,path_first_seal_slope=30,path_open_times_slope=1,path_seal_ratio_slope=-.05,
+                       path_turnover_slope=100,path_amount_log_slope=10)
+    assert result['label'] == '多维减弱'
+    assert '放量不自动等于承接强' in result['explanation']
+
+
+def test_threshold_instability_abstains_and_reports_reason():
+    result = path_view(path_gap_slope=.005,path_first_seal_slope=-10,path_open_times_slope=0,path_seal_ratio_slope=0)
+    assert result['label'] == '边界变化'
+    assert result['threshold_stable'] is False
+    assert result['change_text'] == '边界待判'
+
+
+def test_three_boards_use_first_last_span_not_adjacent_score_interval():
+    result = path_view(stage_transition='3→4',path_days_observed=3,path_gap_slope=.01,path_open_times_slope=-.5)
+    assert '开盘缺口抬升（首末差 +2.00个百分点）' in result['explanation']
+    assert '炸板次数减少（首末差 -1.00次）' in result['explanation']
+    assert '不代表中间一天同向' in result['explanation']
+    assert '相邻两板旧规则分' in result['explanation']
+
+
+@pytest.mark.parametrize('change', [dict(path_first_seal_slope=336),dict(path_open_times_slope=.3)])
+def test_impossible_clock_span_or_fractional_open_count_rejected(change):
+    assert path_view(**change)['status'] == 'INVALID'
+
+
+def test_optional_volume_missing_does_not_claim_participation_strength():
+    result = path_view(path_turnover_slope=None)
+    assert result['label'] == '多维增强'
+    assert '量能辅助证据不足' in result['explanation']
 
 
 def test_path_display_gates_main_and_monthly_without_mutating_inputs():
     assert 'path_display: verifiedPathDisplay(runtimePath)' in HTML
     assert 'verifiedPathDisplay(path.rows.find' in HTML
-    assert 'pathChangePoints(row.path_display.delta)' in HTML
+    assert 'escapeHtml(row.path_display.change_text || "—")' in HTML
     assert 'path_evidence_verified: true' in HTML
 
 
@@ -121,7 +178,7 @@ async function fetchPagesOnlyShaBoundJson(){return {bytes:new TextEncoder().enco
     names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect', 'verifiedPathDisplay')
     joined = run("await ledgerJoinDay('20260916',sequences,navigation)", extra, names)
     assert [r['name'] for r in joined] == ['frozen1', 'frozen2']
-    assert all(r['path_label'] == '弱转强' for r in joined)
+    assert all(r['path_label'] == '数据不足' for r in joined)  # old schema cannot silently masquerade as new evidence
     rejected = run("await ledgerJoinDay('20260916',sequences,navigation).then(()=>false,()=>true)", extra+"sequences[0][0].ts_code='wrong';", names)
     assert rejected
 
