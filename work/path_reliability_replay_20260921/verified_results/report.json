@@ -1,0 +1,57 @@
+{
+  "schema": "path_source_replay_v1",
+  "research_only": true,
+  "production_activation_allowed": false,
+  "accuracy": null,
+  "accuracy_reason": "NO_INDEPENDENT_ADJUDICATED_REFERENCE_LABELS",
+  "source_date_count": 39,
+  "source_start": "20260728",
+  "source_end": "20260918",
+  "summaries": {
+    "2": {
+      "rows": 311,
+      "complete": 311,
+      "sensitivity_flagged": 13,
+      "candidate_retained": 298,
+      "reasons": {
+        "STABLE_UNDER_DECLARED_STRESS": 298,
+        "BOUNDARY_SENSITIVE": 13
+      },
+      "baseline_labels": {
+        "STABLE_STRONG": 50,
+        "DIVERGENCE_RESEAL": 71,
+        "ACCELERATION_CONSENSUS": 91,
+        "STRONG_TO_WEAK": 35,
+        "WEAK_TO_STRONG": 37,
+        "MIXED": 27
+      }
+    },
+    "3": {
+      "rows": 100,
+      "complete": 100,
+      "sensitivity_flagged": 2,
+      "candidate_retained": 98,
+      "reasons": {
+        "STABLE_UNDER_DECLARED_STRESS": 98,
+        "BOUNDARY_SENSITIVE": 2
+      },
+      "baseline_labels": {
+        "DIVERGENCE_RESEAL": 28,
+        "STABLE_STRONG": 32,
+        "ACCELERATION_CONSENSUS": 15,
+        "STRONG_TO_WEAK": 10,
+        "MIXED": 9,
+        "WEAK_TO_STRONG": 6
+      }
+    }
+  },
+  "excluded": {
+    "LEFT_CENSORED": 25,
+    "STREAK_NOT_CONFIRMED": 3
+  },
+  "warning": "STABILITY_IS_NOT_ACCURACY; SELECTIVE_ABSTENTION_REDUCES_COVERAGE; NOT_FUTURE_HOLDOUT",
+  "source_commit": "5ba35c42dbdcf2ad251cb6082586a9b63b06a282",
+  "source_file_count": 117,
+  "calendar_verified": true,
+  "script_sha256": "542f4a7a86ddfe15ebf790f38f70024dd93c89e606a2bb85282c75d3c8c6e240"
+}
