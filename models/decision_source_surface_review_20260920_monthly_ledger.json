@@ -17,10 +17,10 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 469965,
+      "current_bytes": 472412,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "fddcbd0fe80a8ec13e960f6ed3c2aa924190d2133b4157ba06a3e53311294760",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "current_sha256": "5479836546a8e2a919583373a29439abf7c0d04c08a4dd830fce7ac0e6ac85c6",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 1205,
@@ -54,8 +54,42 @@
           ]
         },
         {
+          "baseline_start": 2002,
+          "current_start": 2006,
+          "baseline_lines": [],
+          "current_lines": [
+            "      // User-approved D21 supplemental eligibility rule. Display only: never\n",
+            "      // substitutes for original prebuy publication, validation or ledger rows.\n",
+            "      const active = state.candidateProfitActivation;\n",
+            "      if (contract.signal_date === \"20260921\" && contract.exec_date === \"20260922\"\n",
+            "          && contract.exit_date === \"20260923\" && active?.status === \"ready\"\n",
+            "          && active.config?.model_canonical_sha256 === \"999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589\"\n",
+            "          && Array.isArray(active.index?.days) && !active.index.days.some(day => day.signal_date === \"20260921\")\n",
+            "          && contract.bundle_sha256 === \"7d5c1338bd4223f93d2a4578b000adf7b046fc9107d84efae354ab47a1185a99\"\n",
+            "          && contract.feature_snapshot_sha256 === \"efc03271e9d6df05216060458f77c564b9aa7a258fa72d2610c3831276d166e5\"\n",
+            "          && contract.top10_members_sha256 === \"0dbf050900345292bce1e0cbdd2e36f6084c6ec79f7a18be1c9b0a77479b46f4\") {\n",
+            "        const supplement = [\n",
+            "          [\"000910.SZ\", 4, -0.00938387292441548], [\"002589.SZ\", 6, -0.010534959973042811],\n",
+            "          [\"000532.SZ\", 8, -0.01254410506449177], [\"000504.SZ\", 1, -0.013999036902490013],\n",
+            "          [\"002453.SZ\", 3, -0.016054169665348356], [\"600630.SH\", 2, -0.01673597195847716],\n",
+            "          [\"600606.SH\", 7, -0.016856456046316744], [\"001376.SZ\", 5, -0.018739218262683953],\n",
+            "          [\"600448.SH\", 9, -0.020714013233237103]\n",
+            "        ];\n",
+            "        const expected = new Map([...supplement.map(([code, rank]) => [code, rank]), [\"601123.SH\", 10]]);\n",
+            "        if (!Array.isArray(contract.rows) || contract.rows.length !== expected.size\n",
+            "            || new Set(contract.rows.map(row => row.ts_code)).size !== expected.size\n",
+            "            || contract.rows.some(row => expected.get(row.ts_code) !== row.promotion_rank)) return unavailable(\"补算名单绑定不一致\");\n",
+            "        return {ready: true, candidate: true, supplement: true, unscorable: new Set([\"601123.SH\"]),\n",
+            "          message: \"9月22日补算 · 9/10只可评分 · 非原盘前发布，不计原影子账本\",\n",
+            "          rows: new Map(supplement.map(([code, promotionRank, score], index) => [code, {\n",
+            "            executable_profit_research_rank: index + 1, research_joint_proxy_score: score, rank_tied: false\n",
+            "          }]))};\n",
+            "      }\n"
+          ]
+        },
+        {
           "baseline_start": 2431,
-          "current_start": 2435,
+          "current_start": 2462,
           "baseline_lines": [],
           "current_lines": [
             "    function verifiedPathDisplay(row) {\n",
@@ -130,7 +164,7 @@
         },
         {
           "baseline_start": 2753,
-          "current_start": 2825,
+          "current_start": 2852,
           "baseline_lines": [],
           "current_lines": [
             "          path_evidence_verified: true,\n",
@@ -139,7 +173,7 @@
         },
         {
           "baseline_start": 2756,
-          "current_start": 2830,
+          "current_start": 2857,
           "baseline_lines": [
             "          path_strength_delta: strengthDelta\n"
           ],
@@ -156,7 +190,7 @@
         },
         {
           "baseline_start": 5371,
-          "current_start": 5452,
+          "current_start": 5479,
           "baseline_lines": [],
           "current_lines": [
             "          path_display: verifiedPathDisplay(runtimePath),\n"
@@ -164,7 +198,7 @@
         },
         {
           "baseline_start": 5405,
-          "current_start": 5487,
+          "current_start": 5514,
           "baseline_lines": [
             "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_label_code)}\" title=\"${escapeHtml(row.path_explanation || \"路径数据不足\")}\">${escapeHtml(row.path_label || \"路径数据不足\")}</span></td>\n",
             "          <td class=\"${valueTone(row.path_strength_delta)}\" data-field=\"path-change\">${signedPct(row.path_strength_delta)}</td>\n"
@@ -175,8 +209,28 @@
           ]
         },
         {
+          "baseline_start": 5409,
+          "current_start": 5518,
+          "baseline_lines": [
+            "          <td>${row.mixed_profit_rank == null ? \"—\" : `<span class=\"rank-mark rank-profit\">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class=\"row-meta\">并列分</small>' : \"\"}`}</td>\n"
+          ],
+          "current_lines": [
+            "          <td>${row.mixed_profit_rank == null ? (profitView.unscorable?.has(row.ts_code) ? '<span title=\"仅15条有效日线，未达到21条；保留晋级名单，不参与本次盈利补算\">暂不可评分</span>' : \"—\") : `<span class=\"rank-mark rank-profit\">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class=\"row-meta\">并列分</small>' : \"\"}`}</td>\n"
+          ]
+        },
+        {
+          "baseline_start": 5438,
+          "current_start": 5547,
+          "baseline_lines": [
+            "        ${!profitView.ready || profitView.message === \"历史恢复研究 · 不计前向收益\" ? `<p class=\"stats-note warn\" role=\"status\">${escapeHtml(profitView.message)}</p>` : \"\"}\n"
+          ],
+          "current_lines": [
+            "        ${!profitView.ready || profitView.supplement || profitView.message === \"历史恢复研究 · 不计前向收益\" ? `<p class=\"stats-note warn\" role=\"status\">${escapeHtml(profitView.message)}</p>` : \"\"}\n"
+          ]
+        },
+        {
           "baseline_start": 6416,
-          "current_start": 6498,
+          "current_start": 6525,
           "baseline_lines": [],
           "current_lines": [
             "    // Independent read-only monthly route. Reuses the exact deployment's\n",
@@ -392,7 +446,7 @@
         },
         {
           "baseline_start": 6627,
-          "current_start": 6918,
+          "current_start": 6945,
           "baseline_lines": [
             "    initialize(false).catch(showError);\n"
           ],
@@ -414,8 +468,8 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "822f58ad5a2356de6699c7286628cb1c9e0580da7ba7b8d82ac047033ac88b2d",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "current_sha256": "874b7a1c076f52d07106de5f84ed6b482a4dcb33f5cbf612ba7dfbfd45dfced7",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 671,
@@ -424,7 +478,7 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"fddcbd0fe80a8ec13e960f6ed3c2aa924190d2133b4157ba06a3e53311294760\",\n"
+            "    \"decision.html\": \"5479836546a8e2a919583373a29439abf7c0d04c08a4dd830fce7ac0e6ac85c6\",\n"
           ]
         },
         {
@@ -456,7 +510,7 @@
       "current_bytes": 10818,
       "baseline_sha256": "a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28",
       "current_sha256": "38cc0649487b6a1db776731e22767d6f7c287fdd26c9c87fe3b260c68faacecb",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 104,
@@ -477,7 +531,7 @@
       "current_bytes": 28777,
       "baseline_sha256": "de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0",
       "current_sha256": "b222c8a9d33881e90010726f24971dfe52457e33e32798cae97ed85e0848a76c",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 409,
@@ -513,7 +567,7 @@
       "current_bytes": 21695,
       "baseline_sha256": "89f9f0899741de44c6d5f74ec407afaf481328965f4380284b675ba33604e905",
       "current_sha256": "4d0098dd2b8afec02614c635069f95b1aaf2a052c738f07f73b71fceeed7b3dd",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 39,
@@ -544,7 +598,7 @@
       "current_bytes": 12213,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "current_sha256": "3f5707e5130d564bf231a939866e766bf33196f9da1fa80497a336f549ccbc46",
-      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "reason": "Read-only monthly/path display plus explicitly late user-approved D21 supplemental eligible-stock ranking; original formal rankings, models, frozen membership, source truth and shadow ledger are unchanged. D21 supplement excludes short-history601123 and never supplies original prebuy evidence.",
       "inverse_changes": [
         {
           "baseline_start": 1,

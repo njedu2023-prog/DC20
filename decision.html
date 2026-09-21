@@ -2003,6 +2003,33 @@
     function candidateUnifiedProfitView(contract) {
       const loaded = state.currentExecutableProfitResearch;
       const unavailable = message => ({ready: false, rows: new Map(), message, candidate: true});
+      // User-approved D21 supplemental eligibility rule. Display only: never
+      // substitutes for original prebuy publication, validation or ledger rows.
+      const active = state.candidateProfitActivation;
+      if (contract.signal_date === "20260921" && contract.exec_date === "20260922"
+          && contract.exit_date === "20260923" && active?.status === "ready"
+          && active.config?.model_canonical_sha256 === "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
+          && Array.isArray(active.index?.days) && !active.index.days.some(day => day.signal_date === "20260921")
+          && contract.bundle_sha256 === "7d5c1338bd4223f93d2a4578b000adf7b046fc9107d84efae354ab47a1185a99"
+          && contract.feature_snapshot_sha256 === "efc03271e9d6df05216060458f77c564b9aa7a258fa72d2610c3831276d166e5"
+          && contract.top10_members_sha256 === "0dbf050900345292bce1e0cbdd2e36f6084c6ec79f7a18be1c9b0a77479b46f4") {
+        const supplement = [
+          ["000910.SZ", 4, -0.00938387292441548], ["002589.SZ", 6, -0.010534959973042811],
+          ["000532.SZ", 8, -0.01254410506449177], ["000504.SZ", 1, -0.013999036902490013],
+          ["002453.SZ", 3, -0.016054169665348356], ["600630.SH", 2, -0.01673597195847716],
+          ["600606.SH", 7, -0.016856456046316744], ["001376.SZ", 5, -0.018739218262683953],
+          ["600448.SH", 9, -0.020714013233237103]
+        ];
+        const expected = new Map([...supplement.map(([code, rank]) => [code, rank]), ["601123.SH", 10]]);
+        if (!Array.isArray(contract.rows) || contract.rows.length !== expected.size
+            || new Set(contract.rows.map(row => row.ts_code)).size !== expected.size
+            || contract.rows.some(row => expected.get(row.ts_code) !== row.promotion_rank)) return unavailable("补算名单绑定不一致");
+        return {ready: true, candidate: true, supplement: true, unscorable: new Set(["601123.SH"]),
+          message: "9月22日补算 · 9/10只可评分 · 非原盘前发布，不计原影子账本",
+          rows: new Map(supplement.map(([code, promotionRank, score], index) => [code, {
+            executable_profit_research_rank: index + 1, research_joint_proxy_score: score, rank_tied: false
+          }]))};
+      }
       if (loaded?.status !== "ready" || loaded.kind !== "candidate_fixed_ridge") return unavailable(loaded?.message || "新模型等待同D冻结；晋级名单保留");
       const p = loaded.projection;
       if (loaded.activation !== state.candidateProfitActivation?.config || !p
@@ -5488,7 +5515,7 @@
           <td data-field="path-change" title="${escapeHtml(row.path_display.explanation)}">${escapeHtml(row.path_display.change_text || "—")}</td>
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
-          <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
+          <td>${row.mixed_profit_rank == null ? (profitView.unscorable?.has(row.ts_code) ? '<span title="仅15条有效日线，未达到21条；保留晋级名单，不参与本次盈利补算">暂不可评分</span>' : "—") : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
           <td title="${profitView.candidate ? "固定Ridge扣费代理收益模型分；非概率、非实际成交收益" : "混合盈利研究联合代理分，非胜率或预期收益"}">${row.mixed_profit_score == null ? "—" : number(row.mixed_profit_score, 4)}</td>
           <td class="${finiteNumber(row.continuation_limit_up_hit) === 1 ? "positive" : ""}" data-field="t-promotion" title="${escapeHtml(row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}">${escapeHtml(row.continuation_status_label === threeRankTruthStatusLabel("MISSING_T_TRUTH", contract) ? "待更新" : row.continuation_status_label || continuationLabel(row.continuation_limit_up_hit))}</td>
           <td class="${valueTone(row.t_close_change)}" data-field="t-close-change" title="T日收盘涨跌幅：收盘价 / 前收盘价 − 1；非买入收益">${finiteNumber(row.t_close_change) == null ? "待更新" : signedPct(row.t_close_change)}</td>
@@ -5517,7 +5544,7 @@
           </div>
           <div class="three-rank-downloads">${profitView.candidate ? '<span class="count" title="新盈利模型已启用，自然样本仍在积累，不代表实盘表现">新模型 · 验证中</span>' : ""}${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
         </div>
-        ${!profitView.ready || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
+        ${!profitView.ready || profitView.supplement || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
           <caption class="sr-only">D ${dateText(contract.signal_date)} 晋级与盈利同表；排序切换不改变冻结名次</caption><thead><tr>
           <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业</th><th scope="col">晋级</th>
