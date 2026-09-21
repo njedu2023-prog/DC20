@@ -2432,6 +2432,37 @@
       return `<div class="metric"><span>${escapeHtml(label)}</span><strong class="${tone}">${escapeHtml(value)}</strong></div>`;
     }
 
+    function verifiedPathDisplay(row) {
+      const unavailable = (status, label, reason) => ({status, label, code:"INSUFFICIENT", delta:null,
+        explanation:reason + "；数据完整度不是预测准确率；未改变冻结记录或模型输入"});
+      if (!row || row.path_evidence_verified !== true) return unavailable("UNVERIFIED", "待核验", "路径来源尚未通过日期、成员及SHA校验");
+      const numeric = value => value === null || value === undefined || String(value).trim() === "" ? null :
+        (Number.isFinite(Number(value)) ? Number(value) : null);
+      const days = numeric(row.path_days_observed), coverage = numeric(row.path_data_coverage);
+      const latest = numeric(row.path_strength_latest), delta = numeric(row.path_strength_delta);
+      const expected = row.stage_transition === "2→3" ? 2 : row.stage_transition === "3→4" ? 3 : null;
+      if (!expected || days !== expected) return unavailable("INCOMPLETE", "数据不足", "连续连板日观测不完整，不能跨缺失日期比较");
+      if (coverage === null || coverage < 1-1e-9 || coverage > 1) return unavailable("INCOMPLETE", "数据不足", "四项核心指标未逐日齐全；旧评分可能因缺项重新分配权重，暂停强弱判断");
+      const previous = latest === null || delta === null ? null : latest-delta;
+      if (latest === null || delta === null || latest < 0 || latest > 1 || previous < -1e-9 || previous > 1+1e-9)
+        return unavailable("INVALID", "待核验", "强度或变化值超出有效范围");
+      if (!(row.path_label_code in PRIMARY_PATH_LABELS) || row.path_label !== PRIMARY_PATH_LABELS[row.path_label_code] || row.path_label_code === "INSUFFICIENT")
+        return unavailable("INVALID", "待核验", "路径标签与观测证据不一致");
+      const nearBoundary = [previous,latest].some(value => [.45,.58,.60,.65,.70].some(boundary => Math.abs(value-boundary)<=.02)) ||
+        [.05,.12].some(boundary => Math.abs(Math.abs(delta)-boundary)<=.02);
+      return {status:"COMPLETE_RULE_DESCRIPTION", label:row.path_label, code:row.path_label_code, delta,
+        explanation:`四项核心指标逐日齐全，固定权重可比；前板 ${(previous*100).toFixed(2)}分 → 当前 ${(latest*100).toFixed(2)}分。` +
+          "开盘25%、首封30%、炸板稳定性20%、封单相对强度25%；变化为分数差，不是涨幅或概率。" +
+          (nearBoundary ? "接近规则阈值，标签可能对小幅变化敏感。" : "") +
+          "仅描述D日及之前的过程；数据齐全不代表来源绝对准确或未来预测有效。" + String(row.path_explanation || "")};
+    }
+
+    function pathChangePoints(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+      const points = Number((Number(value)*100).toFixed(2));
+      return `${points>0?"+":""}${points.toFixed(2)}分${points>0?" ↑":points<0?" ↓":""}`;
+    }
+
     function marketBreadthCard(day, snapshot) {
       const available = snapshot?.available === true;
       const date = dateText(snapshot?.trade_date);
@@ -2754,6 +2785,8 @@
           path_label_code: code,
           path_label: label,
           path_explanation: explanation,
+          path_evidence_verified: true,
+          stage_transition: row.stage_transition,
           path_days_observed: daysObserved,
           path_data_coverage: coverage,
           path_strength_latest: latestStrength,
@@ -5372,6 +5405,7 @@
         return {
           ...truth,
           ...row,
+          path_display: verifiedPathDisplay(runtimePath),
           mixed_profit_rank: profitView.rows.get(row.ts_code)?.executable_profit_research_rank ?? null,
           mixed_profit_score: profitView.rows.get(row.ts_code)?.research_joint_proxy_score ?? null,
           mixed_profit_tied: profitView.rows.get(row.ts_code)?.rank_tied === true,
@@ -5406,8 +5440,8 @@
           <td class="left name" data-field="stock"><span class="company-line">${escapeHtml(row.name || "-")}${[1, 2, 3].includes(row.promotion_rank) ? `<span class="rank-mark rank-promotion" aria-label="晋级排序第${row.promotion_rank}名">晋${row.promotion_rank}</span>` : ""}${[1, 2].includes(row.mixed_profit_rank) ? `<span class="rank-mark rank-profit" aria-label="盈利排序第${row.mixed_profit_rank}名">盈${row.mixed_profit_rank}</span>` : ""}</span></td>
           <td class="left" data-field="industry">${escapeHtml(row.industry || "未分类")}</td>
           <td data-field="stage-transition">${escapeHtml(row.stage_transition || "-")}</td>
-          <td class="left" data-field="board-path"><span class="truth-badge ${pathClass(row.path_label_code)}" title="${escapeHtml(row.path_explanation || "路径数据不足")}">${escapeHtml(row.path_label || "路径数据不足")}</span></td>
-          <td class="${valueTone(row.path_strength_delta)}" data-field="path-change">${signedPct(row.path_strength_delta)}</td>
+          <td class="left" data-field="board-path"><span class="truth-badge ${pathClass(row.path_display.code)}" title="${escapeHtml(row.path_display.explanation)}">${escapeHtml(row.path_display.label)}</span></td>
+          <td class="${valueTone(row.path_display.delta)}" data-field="path-change" title="${escapeHtml(row.path_display.explanation)}">${pathChangePoints(row.path_display.delta)}</td>
           <td><span class="rank-mark rank-promotion">${models.promotion?.status === "READY" ? escapeHtml(row.promotion_rank) : "-"}</span></td>
           <td>${models.promotion?.status === "READY" ? pct(row.predicted_promotion_probability) : "模型未就绪"}</td>
           <td>${row.mixed_profit_rank == null ? "—" : `<span class="rank-mark rank-profit">${row.mixed_profit_rank}</span>${row.mixed_profit_tied ? '<small class="row-meta">并列分</small>' : ""}`}</td>
@@ -6518,7 +6552,7 @@
       });
       try {
         const path = await loadCurrentThreeRankPathEvidence(wrapper,runtimeIndex);
-        return rows.map(r=>({...r,path_label:path.rows.find(x=>x.ts_code===r.ts_code)?.path_label ?? "—"}));
+        return rows.map(r=>{const display=verifiedPathDisplay(path.rows.find(x=>x.ts_code===r.ts_code));return {...r,path_label:display.label,path_explanation:display.explanation};});
       } catch(error) {
         return rows.map(r=>({...r,path_label:"待校验",detail_error:`连板路径：${error.message}`}));
       }

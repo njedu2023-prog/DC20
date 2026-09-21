@@ -406,8 +406,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
     assert "下载 CSV" in renderer
     assert '<th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>' in renderer
     assert 'data-field="board-path"' in renderer and 'data-field="path-change"' in renderer
-    assert "pathClass(row.path_label_code)" in renderer
-    assert 'row.path_label || "路径数据不足"' in renderer
+    assert "pathClass(row.path_display.code)" in renderer
+    assert 'escapeHtml(row.path_display.label)' in renderer
     assert "const truth = truthByCode.get(String(row.ts_code)) || {};" in renderer
     stage_renderer = text.split("function renderStageWatchlist", 1)[1].split(
         "function renderResearchCandidateTable", 1
@@ -431,8 +431,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
         "(pathEvidenceInvalid ? null : truth.path_strength_delta ?? "
         "row.path_strength_delta ?? null)"
     ) in renderer
-    assert "valueTone(row.path_strength_delta)" in renderer
-    assert "signedPct(row.path_strength_delta)" in renderer
+    assert "valueTone(row.path_display.delta)" in renderer
+    assert "pathChangePoints(row.path_display.delta)" in renderer
     assert "单一盈利排序" not in renderer
     assert "legacy_profit_relative_rank" not in renderer
     assert "legacy_profit_raw_score" not in renderer

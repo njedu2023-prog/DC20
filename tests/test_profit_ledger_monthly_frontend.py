@@ -24,6 +24,52 @@ def row(status='SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY', net=.1, **kw):
     return dict(signal_date='20260930', slot=1, ts_code='000001.SZ', name='甲', status=status, slot_net_return=net, **kw)
 
 
+def path_view(**changes):
+    value = dict(path_evidence_verified=True, stage_transition='2→3', path_days_observed=2,
+                 path_data_coverage=1, path_strength_latest=.8, path_strength_delta=.3,
+                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测')
+    value.update(changes)
+    return run('verifiedPathDisplay('+json.dumps(value)+')',
+               extra='const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:"弱转强",STABLE_STRONG:"持续强势",INSUFFICIENT:"路径数据不足"};',
+               names=('verifiedPathDisplay',))
+
+
+def test_path_complete_is_description_not_prediction_probability():
+    result = path_view()
+    assert result['status'] == 'COMPLETE_RULE_DESCRIPTION'
+    assert result['delta'] == .3
+    assert '50.00分 → 当前 80.00分' in result['explanation']
+    assert '不代表来源绝对准确或未来预测有效' in result['explanation']
+
+
+@pytest.mark.parametrize('change', [dict(path_evidence_verified=False), dict(path_data_coverage=.99),
+    dict(path_data_coverage=.35), dict(path_days_observed=1), dict(stage_transition='3→4'),
+    dict(path_strength_delta=None), dict(path_strength_delta=''), dict(path_strength_latest=2),
+    dict(path_strength_latest=.1,path_strength_delta=.8), dict(path_label='加速一致')])
+def test_path_missing_or_incomparable_never_shows_direction(change):
+    result = path_view(**change)
+    assert result['delta'] is None
+    assert result['label'] in ('待核验','数据不足')
+
+
+@pytest.mark.parametrize('value,expected', [(None,'—'),(.2,'+20.00分 ↑'),(-.1,'-10.00分 ↓'),(0,'0.00分')])
+def test_path_change_is_points_not_percentage(value, expected):
+    assert run('pathChangePoints('+json.dumps(value)+')',names=('pathChangePoints',)) == expected
+
+
+def test_path_zero_is_observed_not_missing_and_boundaries_are_explained():
+    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势')
+    assert result['delta'] == 0
+    assert '接近规则阈值' in result['explanation']
+
+
+def test_path_display_gates_main_and_monthly_without_mutating_inputs():
+    assert 'path_display: verifiedPathDisplay(runtimePath)' in HTML
+    assert 'verifiedPathDisplay(path.rows.find' in HTML
+    assert 'pathChangePoints(row.path_display.delta)' in HTML
+    assert 'path_evidence_verified: true' in HTML
+
+
 def test_performance_excludes_unknown_and_no_fill_from_trade_denominator():
     rows = [row(), row(net=-.05), row('NO_FILL_CAPACITY', 0), row('PENDING_T', None),
             row('PENDING_LIMIT_UP_HOLD', None), row('MISSING_OUTCOME_LEDGER', None)]
@@ -65,16 +111,17 @@ const sequences=[1,2].map(slot=>[{signal_date:'20260916',slot,ts_code:'code'+slo
 const navigation=[{signal_date:'20260916'}];
 async function loadPublishedDailyEntry(){return {wrapper:{three_rank:{rows:[1,2].map(slot=>({ts_code:'code'+slot,stage_transition:'2→3'}))}},runtimeIndex:{}}}
 async function loadCandidateProfitDay(){return {projection:day}}
-async function loadCurrentThreeRankPathEvidence(){return {rows:[1,2].map(slot=>({ts_code:'code'+slot,path_label:'冻结路径'}))}}
+const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:'弱转强'};
+async function loadCurrentThreeRankPathEvidence(){return {rows:[1,2].map(slot=>({ts_code:'code'+slot,path_label:'弱转强',path_label_code:'WEAK_TO_STRONG',path_evidence_verified:true,stage_transition:'2→3',path_days_observed:2,path_data_coverage:1,path_strength_latest:.8,path_strength_delta:.3}))}}
 async function sha256Hex(){return 'hash'}
 function canonicalJson(x){return JSON.stringify(x)}
 const state={candidateProfitActivation:{index:{days:[{signal_date:'20260916',path:'day',sha256:'sha'}]}}};
 async function fetchPagesOnlyShaBoundJson(){return {bytes:new TextEncoder().encode(JSON.stringify(day))}}
 '''
-    names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect')
+    names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect', 'verifiedPathDisplay')
     joined = run("await ledgerJoinDay('20260916',sequences,navigation)", extra, names)
     assert [r['name'] for r in joined] == ['frozen1', 'frozen2']
-    assert all(r['path_label'] == '冻结路径' for r in joined)
+    assert all(r['path_label'] == '弱转强' for r in joined)
     rejected = run("await ledgerJoinDay('20260916',sequences,navigation).then(()=>false,()=>true)", extra+"sequences[0][0].ts_code='wrong';", names)
     assert rejected
 

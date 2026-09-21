@@ -398,8 +398,8 @@ def _monthly_actual_source(path):
 
 
 MONTHLY_REVIEW_PATH = 'models/decision_source_surface_review_20260920_monthly_ledger.json'
-MONTHLY_REVIEW_SHA = '710ed759037771f4e7b07f7fa2ef77d6aa75e08db57b9289800ae25cbc373c5c'
-MONTHLY_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_profit_ledger_monthly_frontend.py']
+MONTHLY_REVIEW_SHA = '8e882adcf915591f63f5f16b6ca71a1a3d2a6c544f954110aee8be50ffcac110'
+MONTHLY_SOURCE_PATHS = ['decision.html', 'models/decision_model_freeze.json', 'tests/test_decision_three_rank_frontend.py', 'tests/test_profit_ledger_monthly_frontend.py']
 
 
 def _monthly_review():
@@ -444,6 +444,7 @@ def test_monthly_ledger_display_preserves_prior_policies_and_every_live_pin():
     live = json.loads(_monthly_actual_source('models/decision_model_freeze.json'))
     expected = copy.deepcopy(before)
     expected['pinned_files']['decision.html'] = hashlib.sha256(_monthly_actual_source('decision.html')).hexdigest()
+    expected['pinned_files']['tests/test_decision_three_rank_frontend.py'] = hashlib.sha256(_monthly_actual_source('tests/test_decision_three_rank_frontend.py')).hexdigest()
     assert live == expected
     for path, digest in live['pinned_files'].items():
         assert hashlib.sha256(_monthly_actual_source(path)).hexdigest() == digest, path

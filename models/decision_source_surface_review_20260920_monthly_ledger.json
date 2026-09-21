@@ -17,10 +17,10 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 463104,
+      "current_bytes": 466310,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "af8ad948b1a2b44f1d6c9558dcd53a25bcbc4a264be9e6287610f589edb5251b",
-      "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
+      "current_sha256": "fb358b21e7a8b14a13fbbf5761840ffba38fd79ec1fd8950f381443806ec6cbb",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
           "baseline_start": 1205,
@@ -44,8 +44,75 @@
           ]
         },
         {
+          "baseline_start": 2431,
+          "current_start": 2435,
+          "baseline_lines": [],
+          "current_lines": [
+            "    function verifiedPathDisplay(row) {\n",
+            "      const unavailable = (status, label, reason) => ({status, label, code:\"INSUFFICIENT\", delta:null,\n",
+            "        explanation:reason + \"；数据完整度不是预测准确率；未改变冻结记录或模型输入\"});\n",
+            "      if (!row || row.path_evidence_verified !== true) return unavailable(\"UNVERIFIED\", \"待核验\", \"路径来源尚未通过日期、成员及SHA校验\");\n",
+            "      const numeric = value => value === null || value === undefined || String(value).trim() === \"\" ? null :\n",
+            "        (Number.isFinite(Number(value)) ? Number(value) : null);\n",
+            "      const days = numeric(row.path_days_observed), coverage = numeric(row.path_data_coverage);\n",
+            "      const latest = numeric(row.path_strength_latest), delta = numeric(row.path_strength_delta);\n",
+            "      const expected = row.stage_transition === \"2→3\" ? 2 : row.stage_transition === \"3→4\" ? 3 : null;\n",
+            "      if (!expected || days !== expected) return unavailable(\"INCOMPLETE\", \"数据不足\", \"连续连板日观测不完整，不能跨缺失日期比较\");\n",
+            "      if (coverage === null || coverage < 1-1e-9 || coverage > 1) return unavailable(\"INCOMPLETE\", \"数据不足\", \"四项核心指标未逐日齐全；旧评分可能因缺项重新分配权重，暂停强弱判断\");\n",
+            "      const previous = latest === null || delta === null ? null : latest-delta;\n",
+            "      if (latest === null || delta === null || latest < 0 || latest > 1 || previous < -1e-9 || previous > 1+1e-9)\n",
+            "        return unavailable(\"INVALID\", \"待核验\", \"强度或变化值超出有效范围\");\n",
+            "      if (!(row.path_label_code in PRIMARY_PATH_LABELS) || row.path_label !== PRIMARY_PATH_LABELS[row.path_label_code] || row.path_label_code === \"INSUFFICIENT\")\n",
+            "        return unavailable(\"INVALID\", \"待核验\", \"路径标签与观测证据不一致\");\n",
+            "      const nearBoundary = [previous,latest].some(value => [.45,.58,.60,.65,.70].some(boundary => Math.abs(value-boundary)<=.02)) ||\n",
+            "        [.05,.12].some(boundary => Math.abs(Math.abs(delta)-boundary)<=.02);\n",
+            "      return {status:\"COMPLETE_RULE_DESCRIPTION\", label:row.path_label, code:row.path_label_code, delta,\n",
+            "        explanation:`四项核心指标逐日齐全，固定权重可比；前板 ${(previous*100).toFixed(2)}分 → 当前 ${(latest*100).toFixed(2)}分。` +\n",
+            "          \"开盘25%、首封30%、炸板稳定性20%、封单相对强度25%；变化为分数差，不是涨幅或概率。\" +\n",
+            "          (nearBoundary ? \"接近规则阈值，标签可能对小幅变化敏感。\" : \"\") +\n",
+            "          \"仅描述D日及之前的过程；数据齐全不代表来源绝对准确或未来预测有效。\" + String(row.path_explanation || \"\")};\n",
+            "    }\n",
+            "\n",
+            "    function pathChangePoints(value) {\n",
+            "      if (value === null || value === undefined || !Number.isFinite(Number(value))) return \"—\";\n",
+            "      const points = Number((Number(value)*100).toFixed(2));\n",
+            "      return `${points>0?\"+\":\"\"}${points.toFixed(2)}分${points>0?\" ↑\":points<0?\" ↓\":\"\"}`;\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 2753,
+          "current_start": 2788,
+          "baseline_lines": [],
+          "current_lines": [
+            "          path_evidence_verified: true,\n",
+            "          stage_transition: row.stage_transition,\n"
+          ]
+        },
+        {
+          "baseline_start": 5371,
+          "current_start": 5408,
+          "baseline_lines": [],
+          "current_lines": [
+            "          path_display: verifiedPathDisplay(runtimePath),\n"
+          ]
+        },
+        {
+          "baseline_start": 5405,
+          "current_start": 5443,
+          "baseline_lines": [
+            "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_label_code)}\" title=\"${escapeHtml(row.path_explanation || \"路径数据不足\")}\">${escapeHtml(row.path_label || \"路径数据不足\")}</span></td>\n",
+            "          <td class=\"${valueTone(row.path_strength_delta)}\" data-field=\"path-change\">${signedPct(row.path_strength_delta)}</td>\n"
+          ],
+          "current_lines": [
+            "          <td class=\"left\" data-field=\"board-path\"><span class=\"truth-badge ${pathClass(row.path_display.code)}\" title=\"${escapeHtml(row.path_display.explanation)}\">${escapeHtml(row.path_display.label)}</span></td>\n",
+            "          <td class=\"${valueTone(row.path_display.delta)}\" data-field=\"path-change\" title=\"${escapeHtml(row.path_display.explanation)}\">${pathChangePoints(row.path_display.delta)}</td>\n"
+          ]
+        },
+        {
           "baseline_start": 6416,
-          "current_start": 6420,
+          "current_start": 6454,
           "baseline_lines": [],
           "current_lines": [
             "    // Independent read-only monthly route. Reuses the exact deployment's\n",
@@ -149,7 +216,7 @@
             "      });\n",
             "      try {\n",
             "        const path = await loadCurrentThreeRankPathEvidence(wrapper,runtimeIndex);\n",
-            "        return rows.map(r=>({...r,path_label:path.rows.find(x=>x.ts_code===r.ts_code)?.path_label ?? \"—\"}));\n",
+            "        return rows.map(r=>{const display=verifiedPathDisplay(path.rows.find(x=>x.ts_code===r.ts_code));return {...r,path_label:display.label,path_explanation:display.explanation};});\n",
             "      } catch(error) {\n",
             "        return rows.map(r=>({...r,path_label:\"待校验\",detail_error:`连板路径：${error.message}`}));\n",
             "      }\n",
@@ -261,7 +328,7 @@
         },
         {
           "baseline_start": 6627,
-          "current_start": 6840,
+          "current_start": 6874,
           "baseline_lines": [
             "    initialize(false).catch(showError);\n"
           ],
@@ -283,8 +350,8 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "94ae58910095f19af9256053f45e7516a91d34c84cf3742765cc162d1e940015",
-      "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
+      "current_sha256": "e54231afef5e5632231bc181784f1c628b5290923ebbdcf1646877b03829eca6",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
           "baseline_start": 671,
@@ -293,7 +360,52 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"af8ad948b1a2b44f1d6c9558dcd53a25bcbc4a264be9e6287610f589edb5251b\",\n"
+            "    \"decision.html\": \"fb358b21e7a8b14a13fbbf5761840ffba38fd79ec1fd8950f381443806ec6cbb\",\n"
+          ]
+        },
+        {
+          "baseline_start": 822,
+          "current_start": 822,
+          "baseline_lines": [
+            "    \"tests/test_decision_three_rank_frontend.py\": \"de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_decision_three_rank_frontend.py\": \"76a6fe30a5df516a42b348a930141b40169c7a935bb3912222b130d068a6e07e\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_three_rank_frontend.py",
+      "baseline_exists": true,
+      "baseline_bytes": 28681,
+      "current_bytes": 28684,
+      "baseline_sha256": "de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0",
+      "current_sha256": "76a6fe30a5df516a42b348a930141b40169c7a935bb3912222b130d068a6e07e",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 409,
+          "current_start": 409,
+          "baseline_lines": [
+            "    assert \"pathClass(row.path_label_code)\" in renderer\n",
+            "    assert 'row.path_label || \"路径数据不足\"' in renderer\n"
+          ],
+          "current_lines": [
+            "    assert \"pathClass(row.path_display.code)\" in renderer\n",
+            "    assert 'escapeHtml(row.path_display.label)' in renderer\n"
+          ]
+        },
+        {
+          "baseline_start": 434,
+          "current_start": 434,
+          "baseline_lines": [
+            "    assert \"valueTone(row.path_strength_delta)\" in renderer\n",
+            "    assert \"signedPct(row.path_strength_delta)\" in renderer\n"
+          ],
+          "current_lines": [
+            "    assert \"valueTone(row.path_display.delta)\" in renderer\n",
+            "    assert \"pathChangePoints(row.path_display.delta)\" in renderer\n"
           ]
         }
       ]
@@ -302,10 +414,10 @@
       "path": "tests/test_profit_ledger_monthly_frontend.py",
       "baseline_exists": false,
       "baseline_bytes": 0,
-      "current_bytes": 6621,
+      "current_bytes": 9272,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "current_sha256": "197d040db2119516cbc763475f36e3a118f4133dd8a8bc896938a248b3a928ba",
-      "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
+      "current_sha256": "3f6cc3cedb3222beddd33fb550d9d056502c0138ffe3347ebdeaac3c36e3e5c7",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
           "baseline_start": 1,
@@ -336,6 +448,52 @@
             "\n",
             "def row(status='SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY', net=.1, **kw):\n",
             "    return dict(signal_date='20260930', slot=1, ts_code='000001.SZ', name='甲', status=status, slot_net_return=net, **kw)\n",
+            "\n",
+            "\n",
+            "def path_view(**changes):\n",
+            "    value = dict(path_evidence_verified=True, stage_transition='2→3', path_days_observed=2,\n",
+            "                 path_data_coverage=1, path_strength_latest=.8, path_strength_delta=.3,\n",
+            "                 path_label_code='WEAK_TO_STRONG', path_label='弱转强', path_explanation='历史观测')\n",
+            "    value.update(changes)\n",
+            "    return run('verifiedPathDisplay('+json.dumps(value)+')',\n",
+            "               extra='const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:\"弱转强\",STABLE_STRONG:\"持续强势\",INSUFFICIENT:\"路径数据不足\"};',\n",
+            "               names=('verifiedPathDisplay',))\n",
+            "\n",
+            "\n",
+            "def test_path_complete_is_description_not_prediction_probability():\n",
+            "    result = path_view()\n",
+            "    assert result['status'] == 'COMPLETE_RULE_DESCRIPTION'\n",
+            "    assert result['delta'] == .3\n",
+            "    assert '50.00分 → 当前 80.00分' in result['explanation']\n",
+            "    assert '不代表来源绝对准确或未来预测有效' in result['explanation']\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize('change', [dict(path_evidence_verified=False), dict(path_data_coverage=.99),\n",
+            "    dict(path_data_coverage=.35), dict(path_days_observed=1), dict(stage_transition='3→4'),\n",
+            "    dict(path_strength_delta=None), dict(path_strength_delta=''), dict(path_strength_latest=2),\n",
+            "    dict(path_strength_latest=.1,path_strength_delta=.8), dict(path_label='加速一致')])\n",
+            "def test_path_missing_or_incomparable_never_shows_direction(change):\n",
+            "    result = path_view(**change)\n",
+            "    assert result['delta'] is None\n",
+            "    assert result['label'] in ('待核验','数据不足')\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize('value,expected', [(None,'—'),(.2,'+20.00分 ↑'),(-.1,'-10.00分 ↓'),(0,'0.00分')])\n",
+            "def test_path_change_is_points_not_percentage(value, expected):\n",
+            "    assert run('pathChangePoints('+json.dumps(value)+')',names=('pathChangePoints',)) == expected\n",
+            "\n",
+            "\n",
+            "def test_path_zero_is_observed_not_missing_and_boundaries_are_explained():\n",
+            "    result = path_view(path_strength_delta=0,path_strength_latest=.65,path_label_code='STABLE_STRONG',path_label='持续强势')\n",
+            "    assert result['delta'] == 0\n",
+            "    assert '接近规则阈值' in result['explanation']\n",
+            "\n",
+            "\n",
+            "def test_path_display_gates_main_and_monthly_without_mutating_inputs():\n",
+            "    assert 'path_display: verifiedPathDisplay(runtimePath)' in HTML\n",
+            "    assert 'verifiedPathDisplay(path.rows.find' in HTML\n",
+            "    assert 'pathChangePoints(row.path_display.delta)' in HTML\n",
+            "    assert 'path_evidence_verified: true' in HTML\n",
             "\n",
             "\n",
             "def test_performance_excludes_unknown_and_no_fill_from_trade_denominator():\n",
@@ -379,16 +537,17 @@
             "const navigation=[{signal_date:'20260916'}];\n",
             "async function loadPublishedDailyEntry(){return {wrapper:{three_rank:{rows:[1,2].map(slot=>({ts_code:'code'+slot,stage_transition:'2→3'}))}},runtimeIndex:{}}}\n",
             "async function loadCandidateProfitDay(){return {projection:day}}\n",
-            "async function loadCurrentThreeRankPathEvidence(){return {rows:[1,2].map(slot=>({ts_code:'code'+slot,path_label:'冻结路径'}))}}\n",
+            "const PRIMARY_PATH_LABELS={WEAK_TO_STRONG:'弱转强'};\n",
+            "async function loadCurrentThreeRankPathEvidence(){return {rows:[1,2].map(slot=>({ts_code:'code'+slot,path_label:'弱转强',path_label_code:'WEAK_TO_STRONG',path_evidence_verified:true,stage_transition:'2→3',path_days_observed:2,path_data_coverage:1,path_strength_latest:.8,path_strength_delta:.3}))}}\n",
             "async function sha256Hex(){return 'hash'}\n",
             "function canonicalJson(x){return JSON.stringify(x)}\n",
             "const state={candidateProfitActivation:{index:{days:[{signal_date:'20260916',path:'day',sha256:'sha'}]}}};\n",
             "async function fetchPagesOnlyShaBoundJson(){return {bytes:new TextEncoder().encode(JSON.stringify(day))}}\n",
             "'''\n",
-            "    names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect')\n",
+            "    names = ('ledgerJoinDay', 'ledgerCanonicalSource', 'executableProfitExpect', 'verifiedPathDisplay')\n",
             "    joined = run(\"await ledgerJoinDay('20260916',sequences,navigation)\", extra, names)\n",
             "    assert [r['name'] for r in joined] == ['frozen1', 'frozen2']\n",
-            "    assert all(r['path_label'] == '冻结路径' for r in joined)\n",
+            "    assert all(r['path_label'] == '弱转强' for r in joined)\n",
             "    rejected = run(\"await ledgerJoinDay('20260916',sequences,navigation).then(()=>false,()=>true)\", extra+\"sequences[0][0].ts_code='wrong';\", names)\n",
             "    assert rejected\n",
             "\n",
