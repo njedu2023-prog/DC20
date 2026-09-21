@@ -106,6 +106,7 @@ def test_entire_browser_script_has_valid_syntax():
 def test_monthly_presentation_matches_compact_homepage_without_changing_data():
     assert '<div class="ledger-heading-group"><h2 id="compactLedgerTitle">' in HTML
     assert 'class="ledger-detail-link" href="?view=profit-ledger"' in HTML
+    assert 'href="?view=profit-ledger" target="_blank" rel="noopener noreferrer"' in HTML
     assert '.ledger-detail-link:visited' in HTML and 'text-decoration:none' in HTML
     assert 'toolbar ledger-titlebar' in HTML and 'title-icon" aria-hidden="true"' in HTML
     assert 'status-chip status-${status.kind}' in HTML

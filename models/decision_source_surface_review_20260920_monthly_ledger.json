@@ -17,9 +17,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 440389,
-      "current_bytes": 463062,
+      "current_bytes": 463104,
       "baseline_sha256": "981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39",
-      "current_sha256": "c65fc92063d4fc0139cab6618393cd239a41b27a98b613ce5abcbd78fec62239",
+      "current_sha256": "af8ad948b1a2b44f1d6c9558dcd53a25bcbc4a264be9e6287610f589edb5251b",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
@@ -40,7 +40,7 @@
             "      <div class=\"panel-head\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
           ],
           "current_lines": [
-            "      <div class=\"panel-head\"><div class=\"ledger-heading-group\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><a class=\"ledger-detail-link\" href=\"?view=profit-ledger\"><span aria-hidden=\"true\">▤</span> 查看每月明细 →</a></div><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
+            "      <div class=\"panel-head\"><div class=\"ledger-heading-group\"><h2 id=\"compactLedgerTitle\">盈利 Top1 / Top2 · 累计统计</h2><a class=\"ledger-detail-link\" href=\"?view=profit-ledger\" target=\"_blank\" rel=\"noopener noreferrer\"><span aria-hidden=\"true\">▤</span> 查看每月明细 →</a></div><span id=\"compactLedgerState\" class=\"count\">待读取</span></div>\n"
           ]
         },
         {
@@ -283,7 +283,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "dc4fa7bdf612f86d137a3386dae0b9a8be383efcd3bb5fd45bbbe0a9cbb78b24",
+      "current_sha256": "94ae58910095f19af9256053f45e7516a91d34c84cf3742765cc162d1e940015",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
@@ -293,7 +293,7 @@
             "    \"decision.html\": \"981c3d82bcf66fd41c88173674c645cdcf97c0e2a3feba647bdac313753bfb39\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"c65fc92063d4fc0139cab6618393cd239a41b27a98b613ce5abcbd78fec62239\",\n"
+            "    \"decision.html\": \"af8ad948b1a2b44f1d6c9558dcd53a25bcbc4a264be9e6287610f589edb5251b\",\n"
           ]
         }
       ]
@@ -302,9 +302,9 @@
       "path": "tests/test_profit_ledger_monthly_frontend.py",
       "baseline_exists": false,
       "baseline_bytes": 0,
-      "current_bytes": 6531,
+      "current_bytes": 6621,
       "baseline_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "current_sha256": "b65cb4a641557689d35daceb4b348723f1c5936d0d4f61fd62743784ffc174ba",
+      "current_sha256": "197d040db2119516cbc763475f36e3a118f4133dd8a8bc896938a248b3a928ba",
       "reason": "Separate read-only monthly route with frozen identity joins and display tests.",
       "inverse_changes": [
         {
@@ -420,6 +420,7 @@
             "def test_monthly_presentation_matches_compact_homepage_without_changing_data():\n",
             "    assert '<div class=\"ledger-heading-group\"><h2 id=\"compactLedgerTitle\">' in HTML\n",
             "    assert 'class=\"ledger-detail-link\" href=\"?view=profit-ledger\"' in HTML\n",
+            "    assert 'href=\"?view=profit-ledger\" target=\"_blank\" rel=\"noopener noreferrer\"' in HTML\n",
             "    assert '.ledger-detail-link:visited' in HTML and 'text-decoration:none' in HTML\n",
             "    assert 'toolbar ledger-titlebar' in HTML and 'title-icon\" aria-hidden=\"true\"' in HTML\n",
             "    assert 'status-chip status-${status.kind}' in HTML\n",
