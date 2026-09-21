@@ -431,7 +431,8 @@ def test_dashboard_shows_legacy_profit_relative_research_without_promoting_it() 
         "(pathEvidenceInvalid ? null : truth.path_strength_delta ?? "
         "row.path_strength_delta ?? null)"
     ) in renderer
-    assert "valueTone(row.path_display.delta)" in renderer
+    # The change column now shows evidence counts, not the signed legacy score.
+    assert "valueTone(row.path_display.delta)" not in renderer
     assert 'escapeHtml(row.path_display.change_text || "—")' in renderer
     assert "单一盈利排序" not in renderer
     assert "legacy_profit_relative_rank" not in renderer

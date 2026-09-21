@@ -414,7 +414,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "325eeab01280943136cceccbc6795f731c6df565d9bbebc3bd0f79c0ed05afc7",
+      "current_sha256": "17638ecab0d24066cf94f6d19e8d75dbf4bd8ac67059ab0803bff1988af66022",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -434,7 +434,7 @@
             "    \"tests/test_decision_three_rank_frontend.py\": \"de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0\",\n"
           ],
           "current_lines": [
-            "    \"tests/test_decision_three_rank_frontend.py\": \"d79c0c7777d81bfb77c5b7e976012ebfe4e013eb0befcfef9659492106d98617\",\n"
+            "    \"tests/test_decision_three_rank_frontend.py\": \"b222c8a9d33881e90010726f24971dfe52457e33e32798cae97ed85e0848a76c\",\n"
           ]
         }
       ]
@@ -443,9 +443,9 @@
       "path": "tests/test_decision_three_rank_frontend.py",
       "baseline_exists": true,
       "baseline_bytes": 28681,
-      "current_bytes": 28693,
+      "current_bytes": 28777,
       "baseline_sha256": "de206a5226a06304d0d10376d8afaf220d58223bed2f18562237842551df35d0",
-      "current_sha256": "d79c0c7777d81bfb77c5b7e976012ebfe4e013eb0befcfef9659492106d98617",
+      "current_sha256": "b222c8a9d33881e90010726f24971dfe52457e33e32798cae97ed85e0848a76c",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -468,7 +468,8 @@
             "    assert \"signedPct(row.path_strength_delta)\" in renderer\n"
           ],
           "current_lines": [
-            "    assert \"valueTone(row.path_display.delta)\" in renderer\n",
+            "    # The change column now shows evidence counts, not the signed legacy score.\n",
+            "    assert \"valueTone(row.path_display.delta)\" not in renderer\n",
             "    assert 'escapeHtml(row.path_display.change_text || \"—\")' in renderer\n"
           ]
         }
