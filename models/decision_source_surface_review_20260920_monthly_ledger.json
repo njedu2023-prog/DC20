@@ -414,7 +414,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "3a9c0b74c39afb76413e6d1399279c74319e0750eeec575055e8f33fcf7472cb",
-      "current_sha256": "17638ecab0d24066cf94f6d19e8d75dbf4bd8ac67059ab0803bff1988af66022",
+      "current_sha256": "822f58ad5a2356de6699c7286628cb1c9e0580da7ba7b8d82ac047033ac88b2d",
       "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
       "inverse_changes": [
         {
@@ -428,6 +428,16 @@
           ]
         },
         {
+          "baseline_start": 810,
+          "current_start": 810,
+          "baseline_lines": [
+            "    \"tests/test_dashboard_research_projection.py\": \"a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28\",\n"
+          ],
+          "current_lines": [
+            "    \"tests/test_dashboard_research_projection.py\": \"38cc0649487b6a1db776731e22767d6f7c287fdd26c9c87fe3b260c68faacecb\",\n"
+          ]
+        },
+        {
           "baseline_start": 822,
           "current_start": 822,
           "baseline_lines": [
@@ -435,6 +445,27 @@
           ],
           "current_lines": [
             "    \"tests/test_decision_three_rank_frontend.py\": \"b222c8a9d33881e90010726f24971dfe52457e33e32798cae97ed85e0848a76c\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "baseline_exists": true,
+      "baseline_bytes": 10822,
+      "current_bytes": 10818,
+      "baseline_sha256": "a1ebd5d9d0b7c4ac2fd98bd894518eb1fcd558fa4d7486381dac5178fffa9e28",
+      "current_sha256": "38cc0649487b6a1db776731e22767d6f7c287fdd26c9c87fe3b260c68faacecb",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 104,
+          "current_start": 104,
+          "baseline_lines": [
+            "        'const DASHBOARD_VERSION = \"compact-two-ranks-v17-candidate-activation\"'\n"
+          ],
+          "current_lines": [
+            "        'const DASHBOARD_VERSION = \"compact-two-ranks-v18-path-description\"'\n"
           ]
         }
       ]
@@ -471,6 +502,37 @@
             "    # The change column now shows evidence counts, not the signed legacy score.\n",
             "    assert \"valueTone(row.path_display.delta)\" not in renderer\n",
             "    assert 'escapeHtml(row.path_display.change_text || \"—\")' in renderer\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_two_rank_frontend.py",
+      "baseline_exists": true,
+      "baseline_bytes": 21676,
+      "current_bytes": 21695,
+      "baseline_sha256": "89f9f0899741de44c6d5f74ec407afaf481328965f4380284b675ba33604e905",
+      "current_sha256": "4d0098dd2b8afec02614c635069f95b1aaf2a052c738f07f73b71fceeed7b3dd",
+      "reason": "Read-only monthly route plus strict comparable-path display and score-point units; all model inputs and historical evidence unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 39,
+          "current_start": 39,
+          "baseline_lines": [
+            "             \"signedPct\", \"valueTone\", \"dateText\", \"pathClass\", \"truthClass\",\n"
+          ],
+          "current_lines": [
+            "             \"signedPct\", \"valueTone\", \"dateText\", \"pathClass\", \"truthClass\", \"verifiedPathDisplay\",\n"
+          ]
+        },
+        {
+          "baseline_start": 274,
+          "current_start": 274,
+          "baseline_lines": [
+            "    assert 'compact-two-ranks-v17-candidate-activation' in source\n"
+          ],
+          "current_lines": [
+            "    assert 'compact-two-ranks-v18-path-description' in source\n"
           ]
         }
       ]
