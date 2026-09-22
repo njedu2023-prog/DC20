@@ -95,7 +95,12 @@ def test_live_collection_partitions_are_disjoint_and_cover_every_original_node()
     assert len(flattened) == len(set(flattened)) == len(audit_nodes)
     assert set(flattened) == audit_nodes
     job = jobs["source-surface-audit"]
-    assert job["strategy"] == {"fail-fast": False, "matrix": {"shard": list(range(AUDIT_SHARDS))}}
+    # Limit simultaneous runners without dropping any of the eight audit shards.
+    assert job["strategy"] == {
+        "fail-fast": False,
+        "max-parallel": 2,
+        "matrix": {"shard": list(range(AUDIT_SHARDS))},
+    }
     assert _test_step(job)["env"]["DC20_AUDIT_SHARD"] == "${{ matrix.shard }}"
     assert "-p test_decision_core_ci_partition" in _test_step(job)["run"]
 

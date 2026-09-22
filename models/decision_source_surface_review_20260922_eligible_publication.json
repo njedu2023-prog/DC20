@@ -1514,6 +1514,32 @@
           ]
         }
       ]
+    },
+    {
+      "path": "tests/test_decision_core_ci_partition.py",
+      "baseline_exists": true,
+      "baseline_bytes": 6679,
+      "baseline_sha256": "88d5e6e3e1a540298a76b5d24c51a6cdc288a68c775427e547956e8bb7e5a3b2",
+      "current_bytes": 6810,
+      "current_sha256": "20e911d5851a0b97832846db02c16131c79e9ab59bc25b00a790311d1c3f3ac1",
+      "reason": "Align exact CI assertion with approved max-parallel 2; retain all eight shards, disjoint full coverage and failure propagation checks.",
+      "inverse_changes": [
+        {
+          "baseline_start": 98,
+          "current_start": 98,
+          "baseline_lines": [
+            "    assert job[\"strategy\"] == {\"fail-fast\": False, \"matrix\": {\"shard\": list(range(AUDIT_SHARDS))}}\n"
+          ],
+          "current_lines": [
+            "    # Limit simultaneous runners without dropping any of the eight audit shards.\n",
+            "    assert job[\"strategy\"] == {\n",
+            "        \"fail-fast\": False,\n",
+            "        \"max-parallel\": 2,\n",
+            "        \"matrix\": {\"shard\": list(range(AUDIT_SHARDS))},\n",
+            "    }\n"
+          ]
+        }
+      ]
     }
   ],
   "current_source_pins": {
@@ -1570,7 +1596,8 @@
     "work/profit_1000_upgrade/test_candidate_natural_statistics.py": "ea0a728892bac8bd2b443a60f5102839bfe471167a7746c0a92fa6dcb7cec7d2",
     "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py": "8b0722e55e58ccb083ef5cac290e2eb5b7fa8f88976504e1d8cd8af10c94a14f",
     "work/profit_1000_upgrade/test_candidate_natural_workflow.py": "8fa76155f7bb15698a37ca35c83f22e62aec651852a0f7cea5cf05d47447c93e",
-    "work/profit_1000_upgrade/test_candidate_snapshot_versions.py": "d723ce17f01e872b54da4416b1f70b4cb02ec6fef460c3f228065df1e3568513"
+    "work/profit_1000_upgrade/test_candidate_snapshot_versions.py": "d723ce17f01e872b54da4416b1f70b4cb02ec6fef460c3f228065df1e3568513",
+    "tests/test_decision_core_ci_partition.py": "20e911d5851a0b97832846db02c16131c79e9ab59bc25b00a790311d1c3f3ac1"
   },
   "existing_pin_updates": {
     "decision.html": "c035b8ed75fa248b82d1927ad595848bc450cf8be66e98e35586ebf27c7bb987",
