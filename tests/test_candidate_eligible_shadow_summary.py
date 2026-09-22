@@ -3,7 +3,7 @@ from copy import deepcopy
 import json
 import pytest
 from top10decision.decision import candidate_formal_shadow_summary as m
-from test_candidate_eligible_public_day import make_case
+from tests.test_candidate_eligible_public_day import make_case
 
 
 def test_summary_accepts_full_original_universe_with_partial_profit_rows(tmp_path, monkeypatch):

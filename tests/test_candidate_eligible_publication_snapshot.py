@@ -3,7 +3,7 @@ import ast
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
-from test_candidate_eligible_public_day import make_case
+from tests.test_candidate_eligible_public_day import make_case
 from work.profit_1000_upgrade import candidate_natural_forward as natural
 
 

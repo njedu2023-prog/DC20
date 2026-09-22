@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import json
 import socket
 
-from test_candidate_eligible_public_day import make_case, TestProof
+from tests.test_candidate_eligible_public_day import make_case, TestProof
 from top10decision.decision import candidate_formal_shadow_summary as ledger
 
 
