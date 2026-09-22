@@ -1,0 +1,46 @@
+name: DC20 controlled settlement recovery after D22 publication
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover_settlement_20260923.yml]
+permissions:
+  contents: read
+concurrency:
+  group: dc20-settlement-recovery-20260923
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch existing bounded settlement once without date or price overrides
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import datetime,json,os,urllib.request
+          root='https://api.github.com/repos/njedu2023-prog/DC20'
+          def api(path,body=None):
+              data=None if body is None else json.dumps(body).encode()
+              request=urllib.request.Request(root+path,data=data,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  raw=response.read()
+              return json.loads(raw) if raw else None
+          if datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime(2026,9,23,1,20,tzinfo=datetime.timezone.utc):
+              raise SystemExit('One-shot recovery window expired')
+          run=api('/actions/runs/35766623062')
+          assert run['status']=='completed' and run['conclusion']=='success' and run['run_attempt']==1
+          assert run['workflow_id']==357027830 and run['head_branch']=='main'
+          assert run['path']=='.github/workflows/research_candidate_natural_observer.yml'
+          assert run['head_sha']=='8d607564417e29af9152bc8646b3afc71d3a9d49'
+          assert run['repository']['full_name']==run['head_repository']['full_name']=='njedu2023-prog/DC20'
+          previous=api('/actions/workflows/recover_settlement_20260923.yml/runs?per_page=100')['workflow_runs']
+          if any(r['id']!=int(os.environ['GITHUB_RUN_ID']) and r['conclusion']=='success' for r in previous):
+              print('Settlement recovery already dispatched; no duplicate')
+          else:
+              api('/actions/workflows/research_candidate_natural_settlement.yml/dispatches',{'ref':'main','inputs':{'dry_run':False}})
+              print('Existing settlement dispatched; no as-of, fill, price or return override')
