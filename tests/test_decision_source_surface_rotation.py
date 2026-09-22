@@ -399,7 +399,7 @@ def _eligible_actual_source(path):
 
 
 ELIGIBLE_REVIEW_PATH = 'models/decision_source_surface_review_20260922_eligible_publication.json'
-ELIGIBLE_REVIEW_SHA = '42ad3312abc57322e91704eb6343025911d04d6363cbf039015929c1398af331'
+ELIGIBLE_REVIEW_SHA = '29b9a0cb9ab0967e0d744416a571a5a8754b5e0b654c5a9c3d819ecb205ef26a'
 ELIGIBLE_BOUNDARIES = {'per_stock_profit_eligibility_enabled': True, 'versioned_publication_and_ledger_enabled': True, 'full_promotion_universe_preserved': True, 'old_v1_records_immutable': True, 'model_weights_changed': False, 'promotion_ranking_changed': False, 'scorer_math_changed': False, 'fees_or_exit_rule_changed': False, 'historical_publication_backdated': False, 'missing_counted_as_zero': False, 'schedules_changed': False, 'source_validation_bypassed': False, 'actual_trading_enabled': False}
 
 
