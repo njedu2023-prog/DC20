@@ -2042,6 +2042,25 @@
       // User-approved D21 supplemental eligibility rule. Display only: never
       // substitutes for original prebuy publication, validation or ledger rows.
       const active = state.candidateProfitActivation;
+      // D22 local recomputation: display only; formal publication always wins.
+      if (contract.signal_date === "20260922" && contract.exec_date === "20260923"
+          && contract.exit_date === "20260924" && active?.status === "ready"
+          && active.config?.model_canonical_sha256 === "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
+          && Array.isArray(active.index?.days) && !active.index.days.some(day => day.signal_date === "20260922")
+          && contract.bundle_sha256 === "71217a05ebda432102bd3b9832fc28e1e658fd44cc4a907c74d494edb891eb6a"
+          && contract.feature_snapshot_sha256 === "b853bb62ef81939a7eb37de0e240cf4912edf07b7edc39ac42eb3a3be25b44b8"
+          && contract.top10_members_sha256 === "602c5c9b12277556958d02e18848d095e5ae4ed9046099f9d7dd8865696e0ed4") {
+        const supplement = [["000910.SZ",6,-0.011931483871765163],["002303.SZ",7,-0.012460362213085208],["002614.SZ",5,-0.013090399956061642],["601811.SH",1,-0.014749570626228795],["603636.SH",8,-0.015828730395818842],["002259.SZ",10,-0.01627698999823432],["001234.SZ",9,-0.017043541123005226],["000607.SZ",3,-0.0175861010068243],["600743.SH",4,-0.019590995297736405]];
+        const expected = new Map([...supplement.map(([code, rank]) => [code, rank]), ["600825.SH", 2]]);
+        if (!Array.isArray(contract.rows) || contract.rows.length !== expected.size
+            || new Set(contract.rows.map(row => row.ts_code)).size !== expected.size
+            || contract.rows.some(row => expected.get(row.ts_code) !== row.promotion_rank)) return unavailable("补算名单绑定不一致");
+        return {ready: true, candidate: true, supplement: true, unscorable: new Set(["600825.SH"]),
+          message: "9月23日本地补算 · 9/10只可评分 · 非正式冻结，不计原影子账本",
+          rows: new Map(supplement.map(([code, promotionRank, score], index) => [code, {
+            executable_profit_research_rank: index + 1, research_joint_proxy_score: score, rank_tied: false
+          }]))};
+      }
       if (contract.signal_date === "20260921" && contract.exec_date === "20260922"
           && contract.exit_date === "20260923" && active?.status === "ready"
           && active.config?.model_canonical_sha256 === "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
