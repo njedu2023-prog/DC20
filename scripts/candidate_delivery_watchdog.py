@@ -131,6 +131,10 @@ def valid_run(run, workflow, *, success=True):
 
 def inspect(client, now):
     head = client.request('/git/ref/heads/main')['object']['sha']
+    activation = document(client.file('models/decision_candidate_profit_activation_v1.json', head))
+    require(type(activation.get('enabled')) is bool, 'ACTIVATION_BOOLEAN_REQUIRED')
+    if not activation['enabled']:
+        return {'head': head, 'status': 'ACTIVATION_DISABLED_NO_RECOVERY'}
     calendar = client.file('data/market/trade_cal_sse.csv', head)
     day, trade, exit_day, cutoff = window(calendar, now)
     base = {'signal_date': day, 'exec_date': trade, 'exit_date': exit_day, 'head': head}
@@ -197,13 +201,20 @@ def inspect(client, now):
     context_raw = client.file(ROOT+f'candidate_natural_evidence/{day}/context.json', head)
     if context_raw is None:
         run = client.request(f'/actions/runs/{frozen["run_id"]}')
+        valid_run(run, NATURAL, success=False)
+        if run.get('status') in {'queued', 'in_progress', 'pending', 'waiting', 'requested'}:
+            return {**base, 'status': 'FREEZE_STILL_RUNNING'}
         valid_run(run, NATURAL)
         return {**base, 'status': 'NEEDS_OBSERVER', 'workflow': OBSERVER,
                 'inputs': {'freeze_run_id': str(run['id']), 'dry_run': False}}
     context = document(context_raw)
     require(context.get('signal_date') == day and context.get('freeze_run_id') == frozen['run_id']
             and context.get('snapshot_file_sha256') == digest(snapshot_raw), 'OBSERVER_CONTEXT_MISMATCH')
-    valid_run(client.request(f'/actions/runs/{context["observer_run_id"]}'), OBSERVER)
+    observer_run = client.request(f'/actions/runs/{context["observer_run_id"]}')
+    valid_run(observer_run, OBSERVER, success=False)
+    if observer_run.get('status') in {'queued', 'in_progress', 'pending', 'waiting', 'requested'}:
+        return {**base, 'status': 'OBSERVER_STILL_RUNNING'}
+    valid_run(observer_run, OBSERVER)
     return {**base, 'status': 'NEEDS_PUBLICATION', 'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
 
 

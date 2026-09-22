@@ -18,7 +18,8 @@ class Fake:
         self.head='a'*40; self.posts=[]; self.busy=[]; self.live=True
         cal=b'exchange,cal_date,is_open\nSSE,20260921,1\nSSE,20260922,1\nSSE,20260923,1\nSSE,20260924,1\nSSE,20260925,1\n'
         p0=raw({'rows':[{'promotion_rank':i} for i in (1,2,3)]})
-        self.files={'data/market/trade_cal_sse.csv':cal,
+        self.files={'models/decision_candidate_profit_activation_v1.json':raw({'enabled':True}),
+          'data/market/trade_cal_sse.csv':cal,
           'outputs/decision/three_rank_top10_20260922.json':p0,
           'outputs/decision/primary_d_receipt_20260922.json':raw(dict(signal_date='20260922',exec_date='20260923',exit_date='20260924',primary_status='READY',generation_mode='NATURAL',inputs={'calendar':{'sha256':m.digest(cal)}},outputs={'json_sha256':m.digest(p0)}))}
     def file(self,path,head): assert head==self.head; return self.files.get(path)
@@ -121,6 +122,22 @@ def test_friday_to_monday_calendar():
 def test_partial_freeze_is_not_overwritten():
     f=Fake();f.freeze();del f.files[m.ROOT+'candidate_natural_forward/day_20260922.json']
     with pytest.raises(ValueError,match='INCOMPLETE_FREEZE'):m.inspect(f,NOW)
+
+def test_disabled_activation_never_reenabled_by_watchdog():
+    f=Fake();f.files['models/decision_candidate_profit_activation_v1.json']=raw({'enabled':False})
+    assert m.act(f,m.inspect(f,NOW),NOW,execute=True)['status']=='ACTIVATION_DISABLED_NO_RECOVERY'
+    assert not f.posts
+
+@pytest.mark.parametrize('setup,run_id,status',[('freeze',8,'FREEZE_STILL_RUNNING'),('observe',9,'OBSERVER_STILL_RUNNING')])
+def test_partial_success_still_running_is_wait_not_failure(setup,run_id,status):
+    f=Fake();getattr(f,setup)();original=f.request
+    def request(path,body=None):
+        r=original(path,body)
+        if path==f'/actions/runs/{run_id}':r.update(status='in_progress',conclusion=None)
+        return r
+    f.request=request
+    assert m.act(f,m.inspect(f,NOW),NOW,execute=True)['status']==status
+    assert not f.posts
 
 def test_workflow_is_valid_and_has_no_repository_writer():
     from pathlib import Path
