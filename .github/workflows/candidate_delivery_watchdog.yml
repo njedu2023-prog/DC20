@@ -1,0 +1,68 @@
+name: DC20 daily Top2 delivery watchdog
+on:
+  schedule:
+    # Independent recovery ticks, Beijing 20:07 through next-day 09:07.
+    # Existing P0, model, settlement and nightly research schedules are unchanged.
+    - cron: '7,27,47 12-23,0 * * *'
+    - cron: '7 1 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Read-only delivery check, never dispatch recovery'
+        type: boolean
+        required: true
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - scripts/candidate_delivery_watchdog.py
+      - tests/test_candidate_delivery_watchdog.py
+      - .github/workflows/candidate_delivery_watchdog.yml
+permissions:
+  contents: read
+concurrency:
+  group: dc20-delivery-watchdog
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+      - run: >-
+          python -m pip install --only-binary=:all: --require-hashes -r requirements-dev.lock
+      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py
+      - name: Check actual delivery without dispatch on push
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/candidate_delivery_watchdog.py
+  recover:
+    needs: verify
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recover at most one missing stage, or explicitly fail on missing source/deadline/retry exhaustion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTE: ${{ github.event_name == 'schedule' || inputs.dry_run == false }}
+        run: |
+          args=()
+          if [ "$EXECUTE" = "true" ]; then args+=(--execute); fi
+          python3 scripts/candidate_delivery_watchdog.py "${args[@]}"
