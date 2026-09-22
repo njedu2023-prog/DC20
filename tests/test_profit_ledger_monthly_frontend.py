@@ -24,6 +24,38 @@ def row(status='SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY', net=.1, **kw):
     return dict(signal_date='20260930', slot=1, ts_code='000001.SZ', name='甲', status=status, slot_net_return=net, **kw)
 
 
+def test_posthoc_monthly_identity_does_not_create_trades_or_change_source():
+    extra = '''
+const source=[1,2].map(slot=>[{signal_date:'20260921',slot,status:'MISSING_D_PUBLICATION'}]);
+const before=JSON.stringify(source);
+const executableProfitExpect=(ok,msg)=>{if(!ok)throw Error(msg)};
+const validatedThreeRankContract=w=>w.three_rank;
+const loadPublishedDailyEntry=async()=>({wrapper:{three_rank:{rows:[
+ {ts_code:'000910.SZ',name:'大亚圣象',industry:'家居用品',promotion_rank:4,stage_transition:'2→3'},
+ {ts_code:'002589.SZ',name:'瑞康医药',industry:'医药商业',promotion_rank:6,stage_transition:'2→3'}]}}});
+let enabled=true;
+const candidateUnifiedProfitView=()=>({ready:enabled,supplement:enabled,rows:new Map([
+ ['000910.SZ',{executable_profit_research_rank:1}],['002589.SZ',{executable_profit_research_rank:2}]])});
+'''
+    result = run('''await (async()=>{
+const rows=await ledgerJoinDay('20260921',source,[{signal_date:'20260921'}]);
+enabled=false;
+const rejected=await ledgerJoinDay('20260921',source,[{signal_date:'20260921'}]);
+return {rows,rejected,unchanged:before===JSON.stringify(source),performance:ledgerPerformance(rows),csv:ledgerCsv(rows)};
+})()''', extra, names=('ledgerStatus','ledgerPerformance','ledgerCsv','ledgerJoinDay'))
+    assert result['unchanged']
+    assert [r['ts_code'] for r in result['rows']] == ['000910.SZ','002589.SZ']
+    assert [r['promotion_rank'] for r in result['rows']] == [4,6]
+    for r in result['rows']:
+        assert r['status'] == 'POSTHOC_SUPPLEMENT_NOT_FORMAL'
+        assert r['formal_status'] == 'MISSING_D_PUBLICATION'
+        assert all(r[k] is None for k in ('entry_price','exit_price','slot_net_return','exec_date'))
+    assert result['performance']['settled'] == 0
+    assert result['performance']['mean'] is None
+    assert all('ts_code' not in r for r in result['rejected'])
+    assert '事后补算' in result['csv']
+
+
 def path_view(**changes):
     value = dict(path_evidence_verified=True, stage_transition='2→3', path_days_observed=2,
                  path_data_coverage=1, path_strength_latest=.8, path_strength_delta=.3,

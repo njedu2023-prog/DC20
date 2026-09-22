@@ -6531,6 +6531,7 @@
     // Independent read-only monthly route. Reuses the exact deployment's
     // validators; never recalculates ranks, trade outcomes or frozen features.
     function ledgerStatus(row) {
+      if (row.status === "POSTHOC_SUPPLEMENT_NOT_FORMAL") return {kind:"supplement", label:"事后补录"};
       if (row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY") return {kind:"settled", label:"已结算"};
       if (row.status.startsWith("NO_FILL_")) return {kind:"no-fill", label:"未买入"};
       if (row.status.includes("LIMIT_UP")) return {kind:"holding", label:"封板延持"};
@@ -6560,7 +6561,7 @@
       const columns = [["signal_date","D日期"],["slot","盈利名次"],["ts_code","代码"],["name","名称"],
         ["industry","行业"],["stage_transition","晋级"],["path_label","连板路径"],["promotion_rank","晋级排序"],
         ["exec_date","买入日"],["entry_price","买入价"],["entry_price_source","价格来源"],["status","状态"],
-        ["actual_exit_date","退出日"],["actual_exit_time","退出时间"],["exit_price","卖出价"],["slot_net_return","扣费收益比例"],["detail_error","详情校验提示"]];
+        ["actual_exit_date","退出日"],["actual_exit_time","退出时间"],["exit_price","卖出价"],["slot_net_return","扣费收益比例"],["supplement_note","补录说明"],["detail_error","详情校验提示"]];
       const cell = value => {
         let text = value == null ? "" : String(value);
         if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
@@ -6604,7 +6605,27 @@
     async function ledgerJoinDay(date, sequences, navigation) {
       const sourceRows = sequences.map(rows => rows.find(r=>r.signal_date===date));
       executableProfitExpect(sourceRows.every(Boolean), "盈1/盈2逐日记录缺失");
-      if (sourceRows.every(r=>r.status === "MISSING_D_PUBLICATION")) return sourceRows.map((r,i)=>({...r,slot:i+1}));
+      if (sourceRows.every(r=>r.status === "MISSING_D_PUBLICATION")) {
+        const missing = sourceRows.map((r,i)=>({...r,slot:i+1}));
+        if (date !== "20260921") return missing;
+        const entry = navigation.find(r=>r.signal_date===date);
+        if (!entry) return missing;
+        const {wrapper} = await loadPublishedDailyEntry(entry);
+        const view = candidateUnifiedProfitView(validatedThreeRankContract(wrapper));
+        if (!view.ready || !view.supplement) return missing;
+        return missing.map((r,i)=>{
+          const selected = [...view.rows].find(([,score])=>score.executable_profit_research_rank===i+1);
+          executableProfitExpect(selected, "补录席位缺失");
+          const identity = wrapper.three_rank.rows.find(row=>row.ts_code===selected[0]);
+          executableProfitExpect(identity, "补录股票身份缺失");
+          return {...r,ts_code:identity.ts_code,name:identity.name,industry:identity.industry,
+            stage_transition:identity.stage_transition,promotion_rank:identity.promotion_rank,
+            status:"POSTHOC_SUPPLEMENT_NOT_FORMAL",formal_status:r.status,
+            exec_date:null,entry_price:null,entry_price_source:null,actual_exit_date:null,
+            actual_exit_time:null,exit_price:null,slot_net_return:null,
+            supplement_note:"2026-09-22事后补算；非原盘前发布，不计正式成绩。未补造买入、退出及收益。"};
+        });
+      }
       const entry = navigation.find(r=>r.signal_date===date);
       executableProfitExpect(entry, "缺少同D冻结名单目录");
       const {wrapper, runtimeIndex} = await loadPublishedDailyEntry(entry);
@@ -6699,7 +6720,7 @@
           const status=ledgerStatus(r),net=status.kind === "settled" ? r.slot_net_return : null;
           const detail=[["状态代码",r.status],["买入价来源",source(r.entry_price_source)],["最早退出日",date(r.exit_date)],["实际退出时间",r.actual_exit_time || "—"],
             ["封板延持交易日",r.held_limit_up_sessions ?? "—"],["双边成本","0.45%（已计入净收益，不再扣一次）"],["结算数据截至",date(r.ledger_as_of_date)],
-            ["冻结快照SHA",r.snapshot_file_sha256 || "—"],["校验提示",r.detail_error || "通过"]];
+            ["冻结快照SHA",r.snapshot_file_sha256 || "—"],["校验提示",r.supplement_note || r.detail_error || "通过"]];
           return `<tr><td>${date(r.signal_date)}</td><td><span class="badge">盈${r.slot}</span></td><td class="identity">${escapeHtml(r.ts_code || "—")}</td><td><strong>${escapeHtml(r.name || "—")}</strong></td><td>${escapeHtml(r.industry || "—")}</td><td>${escapeHtml(r.stage_transition || "—")}</td><td><span class="path-chip">${escapeHtml(r.path_label || "—")}</span></td><td><span class="promotion-chip">${r.promotion_rank ?? "—"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class="muted">${escapeHtml(source(r.entry_price_source))}</span></td><td><span class="status-chip status-${status.kind}"><span aria-hidden="true">${status.kind==="settled"?"✓":status.kind==="holding"?"◆":status.kind==="missing"?"!":"◷"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class="${tone(net)}">${pct(net)}</td><td><details><summary>展开${r.detail_error?" · 待校验":""}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join("")}</details></td></tr>`;
         }).join("") || '<tr><td colspan="15">无符合条件的记录</td></tr>';
       }
@@ -6722,7 +6743,8 @@
         currentRows=loaded;paint();el("Export").disabled=!loaded.length;
         const errors=loaded.filter(r=>r.detail_error).length;
         const pending=loaded.filter(r=>!["settled","no-fill"].includes(ledgerStatus(r).kind)).length;
-        el("Message").textContent=`新模型 D ${date(summary.effective_from_signal_date)}起 · 数据截至 ${date(summary.as_of_date)} · ${pending?`本月 ${pending} 条未完成` : loaded.length?"本月记录已完成":"暂无记录"}${errors?` · ${errors} 条冻结详情待校验（收益仍取已校验独立账本）`:""}。筛选不改变上方整月成绩。`;
+        const supplemented=loaded.filter(r=>ledgerStatus(r).kind==="supplement").length;
+        el("Message").textContent=`新模型 D ${date(summary.effective_from_signal_date)}起 · 数据截至 ${date(summary.as_of_date)} · ${pending?`本月 ${pending} 条未完成` : loaded.length?"本月记录已完成":"暂无记录"}${supplemented?` · ${supplemented} 条事后补录，不计正式成绩`:""}${errors?` · ${errors} 条冻结详情待校验（收益仍取已校验独立账本）`:""}。筛选不改变上方整月成绩。`;
         els.mainContent.setAttribute("aria-busy","false");
       }
       const reload=()=>loadMonth().catch(error=>{el("Message").textContent=`当月加载失败：${error.message}`;el("Rows").innerHTML="";el("Export").disabled=true;});
