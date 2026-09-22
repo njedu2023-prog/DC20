@@ -1,0 +1,62 @@
+name: DC20 · One-shot recovery D20260922
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/recover_candidate_20260922.yml
+permissions:
+  contents: read
+concurrency:
+  group: dc20-recover-candidate-20260922
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Verify exact P0 and request existing guarded workflow once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_ID: ${{ github.run_id }}
+        shell: python
+        run: |
+          import datetime as dt
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+          base = "https://api.github.com/repos/njedu2023-prog/DC20"
+          def api(path, data=None):
+              req = urllib.request.Request(base + path, data=None if data is None else json.dumps(data).encode(),
+                  headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                           "Accept": "application/vnd.github+json",
+                           "X-GitHub-Api-Version": "2022-11-28"})
+              with urllib.request.urlopen(req, timeout=30) as res:
+                  body = res.read()
+                  return json.loads(body) if body else None
+          def require(ok, reason):
+              if not ok:
+                  raise RuntimeError(reason)
+          now = dt.datetime.now(dt.timezone.utc)
+          require(now < dt.datetime(2026, 9, 23, 1, 20, tzinfo=dt.timezone.utc), "EXPIRED: never backdate a prediction")
+          run = api("/actions/runs/35725259484")
+          require(run["conclusion"] == "success" and run["status"] == "completed" and run["run_attempt"] == 1
+                  and run["head_branch"] == "main" and run["workflow_id"] == 343703608
+                  and run["path"] == ".github/workflows/run_primary_d_daily.yml"
+                  and run["head_sha"] == "4e821c0a34ccf560f6b24f6610fccfe5381a0684", "ORIGINAL_P0_MISMATCH")
+          # Idempotency: never dispatch again after an earlier successful dispatch receipt.
+          own = api("/actions/runs/" + os.environ["RECOVERY_RUN_ID"])
+          prior = api("/actions/workflows/" + str(own["workflow_id"]) + "/runs?per_page=100")
+          require(prior["total_count"] <= 100, "INCOMPLETE_RECOVERY_HISTORY")
+          earlier = [r for r in prior["workflow_runs"] if r["id"] != own["id"] and r["id"] < own["id"]]
+          if any(r["conclusion"] == "success" for r in earlier):
+              print("Already requested; no duplicate dispatch.")
+          else:
+              require(not any(r["status"] != "completed" for r in earlier), "EARLIER_RECOVERY_PENDING")
+              api("/actions/workflows/research_candidate_natural_forward.yml/dispatches",
+                  {"ref": "main", "inputs": {"p0_run_id": "35725259484", "dry_run": "false"}})
+              print("Dispatched D20260922 using original P0 35725259484; downstream validation, freeze, publication and ledger still require verification.")
