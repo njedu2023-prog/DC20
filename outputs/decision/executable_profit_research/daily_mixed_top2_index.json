@@ -708,12 +708,53 @@
       "source_bundle_sha256": "7d5c1338bd4223f93d2a4578b000adf7b046fc9107d84efae354ab47a1185a99",
       "source_feature_snapshot_sha256": "efc03271e9d6df05216060458f77c564b9aa7a258fa72d2610c3831276d166e5",
       "top10_members_sha256": "0dbf050900345292bce1e0cbdd2e36f6084c6ec79f7a18be1c9b0a77479b46f4"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "9a39fa76490884ed23cb4ce3ec3e01550c4ea6c60df2a709a681bd111bf1e67a",
+      "exec_date": "20260923",
+      "exit_date": "20260924",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "d70d3ffd30b325e557802b622f807d7a80f6dd624d40a424e8c98b71838c3a9f",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260922.csv",
+      "projection_json_sha256": "0b5fc5d2f3210558e9a51f13b29403a31e4a630ae96bfa27634597a0a317d4ba",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260922.json",
+      "projection_snapshot_sha256": "1aebb2a997ad2418cc49d7ff57480c9b62582a781f830455a586f44c75887d4b",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "包装印刷",
+          "mixed_profit_rank": 1,
+          "name": "美盈森",
+          "promotion_rank": 7,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "002303.SZ"
+        },
+        {
+          "industry": "燃气Ⅱ",
+          "mixed_profit_rank": 2,
+          "name": "升达林业",
+          "promotion_rank": 10,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "002259.SZ"
+        }
+      ],
+      "signal_date": "20260922",
+      "source_bundle_sha256": "71217a05ebda432102bd3b9832fc28e1e658fd44cc4a907c74d494edb891eb6a",
+      "source_feature_snapshot_sha256": "b853bb62ef81939a7eb37de0e240cf4912edf07b7edc39ac42eb3a3be25b44b8",
+      "top10_members_sha256": "602c5c9b12277556958d02e18848d095e5ae4ed9046099f9d7dd8865696e0ed4"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260921",
+  "latest_signal_date": "20260922",
   "public_start_signal_date": "20260828",
-  "recorded_days": 17,
+  "recorded_days": 18,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -731,9 +772,10 @@
     "20260916",
     "20260917",
     "20260918",
-    "20260921"
+    "20260921",
+    "20260922"
   ],
-  "recorded_slots": 34,
+  "recorded_slots": 36,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "109f484a98cfde7dd5944df32d44f8e92d044cf94d51d83629956bc158b3fdc5"
+  "snapshot_sha256": "0bd40af99c094e9a839c171e1925d7919578a05c36dcbff913fe43be01ae7f38"
 }
