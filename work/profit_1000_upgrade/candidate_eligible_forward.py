@@ -307,6 +307,49 @@ def freeze_natural_day(source_root, output_root, model_evaluation_path, *, signa
         "publication_requirement": plan["publication_requirement"], **BOUNDARIES}
 
 
+def validate_snapshot(raw, expected_sha256):
+    """Validate an immutable v2 record; never grant publication authority."""
+    scorer._sha(expected_sha256)
+    require(type(raw) is bytes and _sha(raw) == expected_sha256, "EXTERNAL_FROZEN_SNAPSHOT_SHA_MISMATCH")
+    before = _guard()
+    _, plan_sha, _ = registration()
+    value = _json(raw)
+    _sealed(value)
+    for key, wanted in {"schema_version": SCHEMA, "registration_id": REGISTRATION_ID,
+            "registration_sha256": plan_sha, "runner_sha256": SELF_SHA,
+            "dependency_sha256": PINS, "model_canonical_sha256": MODEL_SHA,
+            "entry_policy_id": scorer.ENTRY_POLICY_ID, "exit_policy_id": scorer.EXIT_POLICY_ID,
+            "round_trip_cost_rate": .0045, "shadow_notional_cny": 100000, **BOUNDARIES}.items():
+        scorer._exact(value.get(key), wanted, "ELIGIBLE_SNAPSHOT_CONTRACT_CHANGED:"+key)
+    require(value["model_evaluation"]["sha256"] == EVALUATION_SHA, "FIXED_EVALUATION_BINDING_REQUIRED")
+    day = scorer._date(value["signal_date"], "signal_date")
+    execution = scorer._date(value["exec_date"], "exec_date")
+    exit_day = scorer._date(value["exit_date"], "exit_date")
+    require("20260914" <= day < execution < exit_day, "ELIGIBLE_SNAPSHOT_DATE_ORDER_CHANGED")
+    close, cutoff = _window(day, execution)
+    generated = datetime.fromisoformat(value["prediction_generated_at_utc"])
+    frozen = datetime.fromisoformat(value["pre_cas_freeze_at_utc"])
+    require(generated.tzinfo is not None and frozen.tzinfo is not None
+            and close <= generated <= frozen < cutoff, "FROZEN_PREDICTION_WINDOW_INVALID")
+    require(value["clock_mode"] in ("HOST_SYSTEM_UTC", "INJECTED_TEST_CLOCK_RESEARCH_ONLY"), "FROZEN_CLOCK_MODE_INVALID")
+    evidence = value["D_source_evidence"]
+    projection = evidence["projection"]
+    require(evidence["signal_date"] == projection["signal_date"] == day
+            and projection["exec_date"] == execution and projection["exit_date"] == exit_day
+            and evidence["four_file_bytes_verified"] is True and evidence["registered_source_bytes_verified"] is True,
+            "FROZEN_D_PROJECTION_OR_CALENDAR_CHANGED")
+    for field in ("source_authority_issued", "git_membership_verified", "point_in_time_availability_verified",
+            "natural_freeze_verified", "production_activation_allowed", "future_outcomes_read"):
+        require(evidence.get(field) is False, "FROZEN_D_SOURCE_QUALIFICATION_CHANGED")
+    prediction = eligible.validate_prediction(value["prediction"], projection, expected_model_sha256=MODEL_SHA)
+    scorer._exact(value["candidate_slots"], _slots(prediction["rows"], "candidate_rank"), "FROZEN_ELIGIBLE_SLOTS_CHANGED")
+    promotions = [{**r, "candidate_rank": None, "candidate_score": None} for r in prediction["promotion_rows"]]
+    scorer._exact(value["promotion_slots"], _slots(promotions,"promotion_rank"), "FROZEN_PROMOTION_SLOTS_CHANGED")
+    scorer._exact(value["promotion_top3"], prediction["promotion_slots"], "FROZEN_PROMOTION_TOP3_CHANGED")
+    require(_guard() == before, "SNAPSHOT_VALIDATOR_DEPENDENCY_CHANGED")
+    return value
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-root", required=True, type=Path)

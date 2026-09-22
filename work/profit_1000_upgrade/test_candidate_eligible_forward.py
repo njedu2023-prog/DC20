@@ -75,3 +75,34 @@ def test_prediction_tampering_is_rejected(tmp_path,monkeypatch,field):
     else: p["rows"][0][field]=99
     with pytest.raises(ValueError):
         m.eligible.validate_prediction(p,frozen["D_source_evidence"]["projection"],expected_model_sha256=m.MODEL_SHA)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_snapshot_validator_roundtrip(tmp_path,monkeypatch,missing):
+    case=setup(tmp_path,monkeypatch,size=10,missing_bar=missing)
+    receipt=fixtures.run(case)
+    raw=Path(receipt['snapshot_path']).read_bytes()
+    result=m.validate_snapshot(raw,receipt['snapshot_file_sha256'])
+    assert result == json.loads(raw)
+    assert result['D_source_evidence']['projection']['projection_window_complete'] is (not missing)
+
+
+@pytest.mark.parametrize('field', ['schema_version','registration_id','runner_sha256',
+    'model_canonical_sha256','round_trip_cost_rate','clock_mode',
+    'candidate_slots','promotion_slots','promotion_top3'])
+def test_resealed_snapshot_contract_tamper_rejected(tmp_path,monkeypatch,field):
+    case=setup(tmp_path,monkeypatch,size=10,missing_bar=True)
+    value=fixtures.record(fixtures.run(case))
+    value[field]=[] if field.endswith('slots') or field=='promotion_top3' else 'tampered'
+    value['snapshot_sha256']=m.scorer.canonical_sha({k:v for k,v in value.items() if k!='snapshot_sha256'})
+    raw=m.storage.encoded(value)
+    with pytest.raises((ValueError,TypeError)):
+        m.validate_snapshot(raw,m._sha(raw))
+
+
+def test_snapshot_external_hash_required(tmp_path,monkeypatch):
+    case=setup(tmp_path,monkeypatch,size=10,missing_bar=True)
+    receipt=fixtures.run(case)
+    raw=Path(receipt['snapshot_path']).read_bytes()
+    with pytest.raises(ValueError,match='EXTERNAL_FROZEN_SNAPSHOT_SHA_MISMATCH'):
+        m.validate_snapshot(raw,'0'*64)
