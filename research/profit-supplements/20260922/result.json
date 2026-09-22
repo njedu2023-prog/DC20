@@ -1,0 +1,94 @@
+{
+  "status": "PARTIAL_POOL_RECOMPUTATION_NOT_FORMAL_TOP2",
+  "future_prices_used": false,
+  "rankings": [
+    {
+      "code": "000910.SZ",
+      "name": "大亚圣象",
+      "industry": "家居用品",
+      "rank": 1,
+      "score": -0.011931483871765163,
+      "promotion_rank": 6
+    },
+    {
+      "code": "002303.SZ",
+      "name": "美盈森",
+      "industry": "包装印刷",
+      "rank": 2,
+      "score": -0.012460362213085208,
+      "promotion_rank": 7
+    },
+    {
+      "code": "002614.SZ",
+      "name": "奥佳华",
+      "industry": "其他家电",
+      "rank": 3,
+      "score": -0.013090399956061642,
+      "promotion_rank": 5
+    },
+    {
+      "code": "601811.SH",
+      "name": "新华文轩",
+      "industry": "出版",
+      "rank": 4,
+      "score": -0.014749570626228795,
+      "promotion_rank": 1
+    },
+    {
+      "code": "603636.SH",
+      "name": "南威软件",
+      "industry": "IT服务Ⅱ",
+      "rank": 5,
+      "score": -0.015828730395818842,
+      "promotion_rank": 8
+    },
+    {
+      "code": "002259.SZ",
+      "name": "升达林业",
+      "industry": "燃气Ⅱ",
+      "rank": 6,
+      "score": -0.01627698999823432,
+      "promotion_rank": 10
+    },
+    {
+      "code": "001234.SZ",
+      "name": "泰慕士",
+      "industry": "服装家纺",
+      "rank": 7,
+      "score": -0.017043541123005226,
+      "promotion_rank": 9
+    },
+    {
+      "code": "000607.SZ",
+      "name": "华媒控股",
+      "industry": "广告营销",
+      "rank": 8,
+      "score": -0.0175861010068243,
+      "promotion_rank": 3
+    },
+    {
+      "code": "600743.SH",
+      "name": "华远控股",
+      "industry": "房地产服务",
+      "rank": 9,
+      "score": -0.019590995297736405,
+      "promotion_rank": 4
+    }
+  ],
+  "signal_date": "20260922",
+  "source_main_sha": "f5de17cc6b9a51a171a711b80b514f894428b6fb",
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "original_p0_run_id": 35725259484,
+  "source_market_commit": "73e1f5c678acc83a43917823a43510e26fea2dc9",
+  "excluded": [
+    {
+      "code": "600825.SH",
+      "observed_bars": 11,
+      "required_bars": 21
+    }
+  ],
+  "formal_ledger_eligible": false,
+  "original_candidate_count": 10,
+  "eligible_candidate_count": 9,
+  "generated_at_utc": "2026-09-22 17:05:34 UTC"
+}
