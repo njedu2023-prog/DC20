@@ -44,7 +44,11 @@ class Fake:
         day=raw(dict(signal_date='20260922',exec_date='20260923',exit_date='20260924',p0_file_sha256=m.digest(self.files['outputs/decision/three_rank_top10_20260922.json']),rows=[{'candidate_rank':1,'ts_code':'A'},{'candidate_rank':2,'ts_code':'B'}]))
         self.files[m.PUBLIC+'day_20260922.json']=day
         self.files[m.PUBLIC+'index.json']=raw({'days':[{'signal_date':'20260922','sha256':m.digest(day)}]})
-        self.files[m.PUBLIC+'summary.json']=raw({'groups':{g:{'daily_sequence':[dict(signal_date='20260922',ts_code=c,formal_projection_sha256=m.digest(day))]} for g,c in zip(('candidate_top1','candidate_top2'),('A','B'))}})
+        groups = {}
+        for group, code in zip(('candidate_top1', 'candidate_top2'), ('A', 'B')):
+            groups[group] = {'daily_sequence': [dict(signal_date='20260922', ts_code=code,
+                formal_projection_sha256=m.canonical(json.loads(day)))]}
+        self.files[m.PUBLIC+'summary.json'] = raw({'groups': groups})
 
 @pytest.mark.parametrize('setup,target', [(None,m.NATURAL),('freeze',m.OBSERVER),('observe',m.PUBLISHER)])
 def test_missing_stage_dispatches_exact_existing_workflow(setup,target):
@@ -92,6 +96,15 @@ def test_corrupt_original_file_is_rejected():
 
 def test_formal_summary_must_match_slots():
     f=Fake(); f.formal(); s=json.loads(f.files[m.PUBLIC+'summary.json']);s['groups']['candidate_top1']['daily_sequence'][0]['ts_code']='other'
+    f.files[m.PUBLIC+'summary.json']=raw(s)
+    with pytest.raises(ValueError,match='FORMAL_LEDGER'): m.inspect(f,NOW)
+
+def test_file_digest_cannot_substitute_for_ledger_canonical_digest():
+    f=Fake(); f.formal(); day=f.files[m.PUBLIC+'day_20260922.json']
+    assert m.digest(day)!=m.canonical(json.loads(day))
+    assert m.inspect(f,NOW)['status']=='FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT'
+    s=json.loads(f.files[m.PUBLIC+'summary.json'])
+    s['groups']['candidate_top1']['daily_sequence'][0]['formal_projection_sha256']=m.digest(day)
     f.files[m.PUBLIC+'summary.json']=raw(s)
     with pytest.raises(ValueError,match='FORMAL_LEDGER'): m.inspect(f,NOW)
 

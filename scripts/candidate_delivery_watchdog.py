@@ -38,6 +38,12 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def canonical(value):
+    # Same contract as candidate_forward_predict.canonical_sha. The public
+    # index binds file bytes; the ledger binds the parsed projection content.
+    return digest(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode())
+
+
 def document(raw):
     require(isinstance(raw, bytes), 'MISSING_REQUIRED_FILE')
     value = json.loads(raw)
@@ -153,7 +159,7 @@ def inspect(client, now):
             for number, group in enumerate(('candidate_top1', 'candidate_top2')):
                 row = next((r for r in summary['groups'][group]['daily_sequence'] if r['signal_date'] == day), None)
                 require(row is not None and row.get('ts_code') == top2[number]['ts_code']
-                        and row.get('formal_projection_sha256') == digest(public_raw), 'FORMAL_LEDGER_NOT_BOUND')
+                        and row.get('formal_projection_sha256') == canonical(public), 'FORMAL_LEDGER_NOT_BOUND')
             if not client.public_ready(day, digest(public_raw), digest(summary_raw)):
                 return {**base, 'status': 'NEEDS_DEPLOYMENT', 'existing_formal': True,
                         'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
