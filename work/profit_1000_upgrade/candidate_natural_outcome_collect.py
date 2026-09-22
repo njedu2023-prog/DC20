@@ -25,7 +25,9 @@ from urllib import request
 
 ROOT = Path(__file__).absolute().parents[2]
 OUTCOMES_PATH = Path(__file__).with_name("candidate_natural_outcomes.py")
-OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
+OUTCOMES_SHA = "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77"
+LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
+LEGACY_COLLECTOR_SHA = "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced"
 
 
 def require(ok, reason):
@@ -39,6 +41,7 @@ def sha(body): return hashlib.sha256(body).hexdigest()
 require(not any(p.is_symlink() for p in (OUTCOMES_PATH, *OUTCOMES_PATH.parents))
     and sha(OUTCOMES_PATH.read_bytes()) == OUTCOMES_SHA, "PINNED_OUTCOME_WRAPPER_CHANGED")
 from work.profit_1000_upgrade import candidate_natural_outcomes as outcomes
+from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
 
 natural, labels = outcomes.natural, outcomes.labels
 SELF_SHA = sha(natural._read(Path(__file__).absolute())[0])
@@ -234,18 +237,28 @@ def write_new(root, relative, body, token):
     return {"path": relative, "sha256": sha(body), "bytes": len(body)}
 
 
+def original_rows(frozen):
+    return frozen["prediction"]["promotion_rows" if frozen["schema_version"] == profiles.eligible.SCHEMA else "rows"]
+
+
+def accepted_outcome_writers(frozen):
+    return {OUTCOMES_SHA} if frozen["schema_version"] == profiles.eligible.SCHEMA else {LEGACY_OUTCOMES_SHA, OUTCOMES_SHA}
+
+
 def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, codes, dates, asof, states, injected):
     require((path is None) == (expected is None) and (outcome_path is None) == (outcome_expected is None), "PAIRED_PRIOR_PATH_AND_SHA_REQUIRED")
     require(outcome_path is None or path is not None, "PRIOR_OUTCOME_REQUIRES_BOUND_COLLECTION")
     if path is None: return {}, [], {}, None
     receipt = natural._json(read_bound(path, expected, states)); outcomes._seal(receipt, "receipt_sha256")
-    require(receipt["schema_version"] == SCHEMA and receipt["writer_sha256"] == SELF_SHA
+    pairs = {(SELF_SHA, OUTCOMES_SHA)}
+    if frozen["schema_version"] != profiles.eligible.SCHEMA:
+        pairs.add((LEGACY_COLLECTOR_SHA, LEGACY_OUTCOMES_SHA))
+    require(receipt["schema_version"] == SCHEMA and (receipt["writer_sha256"], receipt["outcomes_wrapper_sha256"]) in pairs
         and receipt["snapshot_file_sha256"] == frozen["file_sha256"] and receipt["signal_date"] == frozen["signal_date"]
         and receipt["exec_date"] == frozen["exec_date"] and receipt["exit_date"] == frozen["exit_date"]
         and receipt["slot_union_codes"] == codes
         and type(receipt["full_frozen_candidate_count"]) is int
-        and receipt["full_frozen_candidate_count"] == len(frozen["prediction"]["rows"])
-        and receipt["outcomes_wrapper_sha256"] == OUTCOMES_SHA
+        and receipt["full_frozen_candidate_count"] == len(original_rows(frozen))
         and frozen["signal_date"] <= receipt["as_of_date"] <= asof, "PRIOR_COLLECTION_IDENTITY_CHANGED")
     require(type(receipt["callable_injected_for_test"]) is bool
         and receipt["callable_injected_for_test"] is injected
@@ -337,7 +350,7 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
             and ledger["snapshot_file_sha256"] == frozen["file_sha256"] and ledger["versions"], "PRIOR_OUTCOME_IDENTITY_CHANGED")
         observed = ledger["versions"][-1]; outcomes._seal(observed, "report_sha256")
         require(observed["as_of_date"] <= asof and observed["snapshot_file_sha256"] == frozen["file_sha256"]
-            and observed["writer_sha256"] == OUTCOMES_SHA and set(observed["native_singleton_reports"]) == set(codes)
+            and observed["writer_sha256"] in accepted_outcome_writers(frozen) and set(observed["native_singleton_reports"]) == set(codes)
             and observed["clock_mode"] == ("INJECTED_TEST_CLOCK_RESEARCH_ONLY" if injected else "HOST_SYSTEM_UTC")
             and observed["frozen_clock_mode"] == frozen["clock_mode"], "PRIOR_OUTCOME_SCOPE_CHANGED")
         for key, wanted in outcomes.FLAGS.items():
@@ -345,7 +358,7 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
         for code, report in observed["native_singleton_reports"].items():
             require(report["historical_counterfactual"] is True and len(report["rows"]) == 1, "NATIVE_SINGLETON_REQUIRED")
             row = report["rows"][0]; labels.policy_v3.validate_label_contract(row)
-            original = next(r for r in frozen["prediction"]["rows"] if r["ts_code"] == code)
+            original = next(r for r in original_rows(frozen) if r["ts_code"] == code)
             require(row["signal_date"] == frozen["signal_date"] and row["ts_code"] == code
                 and row["promotion_rank"] == original["promotion_rank"] and row["exec_date"] == frozen["exec_date"]
                 and row["scheduled_exit_date"] == frozen["exit_date"], "NATIVE_OUTCOME_IDENTITY_CHANGED")
@@ -407,13 +420,14 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
         require(type(value) in (int, float) and math.isfinite(value) and value >= last_tick, "MONOTONIC_CLOCK_INVALID")
         last_tick = value; return value
     code_state = code_guard(); states = []
-    registration = natural.registration()
-    require(registration[1] == outcomes.REGISTRATION_SHA, "FIXED_REGISTRATION_REQUIRED")
     token = os.environ.get("TUSHARE_TOKEN", "")
     now = natural._now(clock); asof = natural.scorer._date(as_of_date, "as_of_date")
     require(now >= labels._timestamp(labels._at(asof, "15:00:00")), "ASOF_MUST_BE_COMPLETED_SESSION")
     raw_snapshot = read_bound(snapshot_path, expected_snapshot_sha256, states)
     frozen = outcomes._snapshot(raw_snapshot, expected_snapshot_sha256)
+    freeze_runner = profiles.eligible if frozen["schema_version"] == profiles.eligible.SCHEMA else natural
+    registration = freeze_runner.registration()
+    require(registration[1] == frozen["registration_sha256"], "FIXED_REGISTRATION_REQUIRED")
     require(injected or frozen["clock_mode"] == "HOST_SYSTEM_UTC", "TEST_FROZEN_SELECTION_CANNOT_TRIGGER_REAL_NETWORK")
     require(frozen["signal_date"] <= asof and labels._timestamp(frozen["pre_cas_freeze_at_utc"]) <= now, "ASOF_OR_CLOCK_BEFORE_FROZEN_SELECTION")
     require(expected_calendar_sha256 == labels.settlement.CALENDAR_SHA256, "PINNED_CALENDAR_REQUIRED")
@@ -516,8 +530,8 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
     def end_guard():
         for path, expected, identity in states:
             require(sha(natural._read(path,identity)[0]) == expected, "BOUND_INPUT_CHANGED")
-        natural._read(natural.REGISTRATION_PATH, registration[2])
-        require(natural.registration() == registration and code_guard() == code_state
+        natural._read(freeze_runner.REGISTRATION_PATH, registration[2])
+        require(freeze_runner.registration() == registration and code_guard() == code_state
             and os.environ.get("TUSHARE_TOKEN", "") == token, "CODE_REGISTRATION_OR_CREDENTIAL_CHANGED")
         for item in written:
             body, _ = natural._read(root/item["path"])
@@ -528,7 +542,7 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
     require(completed >= last_fetched and elapsed < MAX_SECONDS, "COLLECTION_CLOCK_OR_TOTAL_BUDGET_EXCEEDED")
     result = {"schema_version":SCHEMA,"status":"SOURCE_COLLECTION_RESEARCH_ONLY", "signal_date":day,
         "exec_date":t,"exit_date":t1,"as_of_date":asof,"snapshot_file_sha256":expected_snapshot_sha256,
-        "full_frozen_candidate_count":len(frozen["prediction"]["rows"]),"slot_union_codes":codes,
+        "full_frozen_candidate_count":len(original_rows(frozen)),"slot_union_codes":codes,
         "stock_plan":stock_plan,"requests":rows,"request_history":history,"api_calls":calls,
         "response_bytes":response_bytes,"source_bundle":bundle,"source_bundle_file":bundle_file,
         "output_file_bindings":written,"collection_root":str(root),"writer_sha256":SELF_SHA,

@@ -388,13 +388,73 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
-def _monthly_actual_source(path):
+def _eligible_actual_source(path):
     target = ROOT / path
     assert isinstance(path, str) and not Path(path).is_absolute()
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
     return target.read_bytes()
+
+
+
+ELIGIBLE_REVIEW_PATH = 'models/decision_source_surface_review_20260922_eligible_publication.json'
+ELIGIBLE_REVIEW_SHA = '82b10f63e56dd412ad63ebae2302e6491eb0040ccbe988800b05c62efbc1b11c'
+ELIGIBLE_BOUNDARIES = {'per_stock_profit_eligibility_enabled': True, 'versioned_publication_and_ledger_enabled': True, 'full_promotion_universe_preserved': True, 'old_v1_records_immutable': True, 'model_weights_changed': False, 'promotion_ranking_changed': False, 'scorer_math_changed': False, 'fees_or_exit_rule_changed': False, 'historical_publication_backdated': False, 'missing_counted_as_zero': False, 'schedules_changed': False, 'source_validation_bypassed': False, 'actual_trading_enabled': False}
+
+
+def _eligible_review():
+    raw = _eligible_actual_source(ELIGIBLE_REVIEW_PATH)
+    assert hashlib.sha256(raw).hexdigest() == ELIGIBLE_REVIEW_SHA
+    review = json.loads(raw)
+    assert review['schema_version'] == 'dc20_eligible_publication_source_review_v1'
+    assert review['approved_base_commit'] == 'e9c5e84dca86b45c391ab016e4e0fba77e65d72e'
+    assert review['boundaries'] == ELIGIBLE_BOUNDARIES
+    return review
+
+
+def _monthly_actual_source(path):
+    raw = _eligible_actual_source(path)
+    review = _eligible_review()
+    if path == 'forward/model_inventory.json':
+        baseline = review['inventory_baseline'].encode()
+        expected = json.loads(baseline)
+        manifest = _eligible_actual_source('models/decision_model_freeze.json')
+        for item in expected['assets']:
+            if item['path'] == 'models/decision_model_freeze.json':
+                item.update(sha256=hashlib.sha256(manifest).hexdigest(), bytes=len(manifest))
+        expected['eligible_publication_review'] = {'path': ELIGIBLE_REVIEW_PATH, 'sha256': ELIGIBLE_REVIEW_SHA}
+        assert raw == (json.dumps(expected, ensure_ascii=False, indent=2)+'\n').encode()
+        return baseline
+    item = next((i for i in review['source_changes'] if i['path'] == path), None)
+    if item is not None:
+        return _repair_inverse_bytes(raw, json.dumps(item, sort_keys=True))
+    return raw
+
+
+def test_eligible_release_preserves_prior_manifest_and_validates_current_sources():
+    review = _eligible_review()
+    before = json.loads(_monthly_actual_source('models/decision_model_freeze.json'))
+    live = json.loads(_eligible_actual_source('models/decision_model_freeze.json'))
+    expected = copy.deepcopy(before)
+    assert set(review['existing_pin_updates']) <= set(before['pinned_files'])
+    expected['pinned_files'].update(review['existing_pin_updates'])
+    assert live == expected
+    for path, digest in {**live['pinned_files'], **review['current_source_pins']}.items():
+        assert hashlib.sha256(_eligible_actual_source(path)).hexdigest() == digest, path
+    for item in review['source_changes']:
+        assert hashlib.sha256(_monthly_actual_source(item['path'])).hexdigest() == item['baseline_sha256']
+    _monthly_actual_source('forward/model_inventory.json')
+
+
+@pytest.mark.parametrize('path', ['decision.html', '.github/workflows/run_primary_d_daily.yml',
+    'models/decision_model_freeze.json', 'forward/model_inventory.json', ELIGIBLE_REVIEW_PATH])
+def test_eligible_release_rejects_changed_bytes_without_rewriting_history(monkeypatch, path):
+    _monthly_actual_source('decision.html')
+    read = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda p: read(p)+(b'\n' if p == ROOT/path else b''))
+    with pytest.raises(AssertionError):
+        _monthly_actual_source('decision.html' if path == ELIGIBLE_REVIEW_PATH else path)
 
 
 MONTHLY_REVIEW_PATH = 'models/decision_source_surface_review_20260920_monthly_ledger.json'
@@ -996,6 +1056,10 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
 
 
 def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None and manifest == json.loads(_eligible_actual_source('models/decision_model_freeze.json')):
+        for path, digest in manifest['pinned_files'].items():
+            assert hashlib.sha256(_eligible_actual_source(path)).hexdigest() == digest
+        manifest = json.loads(_monthly_actual_source('models/decision_model_freeze.json'))
     if manifest is not None and manifest == json.loads(_monthly_actual_source('models/decision_model_freeze.json')):
         for path, digest in manifest['pinned_files'].items():
             assert hashlib.sha256(_monthly_actual_source(path)).hexdigest() == digest

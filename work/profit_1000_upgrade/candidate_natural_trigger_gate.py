@@ -121,19 +121,31 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
         and context.get("signal_date") == day and context.get("snapshot_file_sha256") == gh.sha256(raw[0])
         and context.get("source_import_receipt_sha256") == gh.sha256(raw[1])
         and context.get("local_freeze_receipt_sha256") == gh.sha256(raw[2]), "EXISTING_FREEZE_BINDINGS_CHANGED")
-    prepared, _ = workflow.prepare_publication(raw[0], local, imported, context,
+    from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
+    profiles.validate_snapshot(raw[0], gh.sha256(raw[0]))
+    eligible = snapshot["schema_version"] == profiles.eligible.SCHEMA
+    coordinator = workflow
+    if not eligible:
+        from work.profit_1000_upgrade import candidate_legacy_workflow as legacy
+        require(Path(legacy.__file__).absolute() == workflow.ROOT / "work/profit_1000_upgrade/candidate_legacy_workflow.py"
+            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+            "LEGACY_COORDINATOR_CODE_CHANGED")
+        coordinator = legacy
+    prepared, _ = coordinator.prepare_publication(raw[0], local, imported, context,
         now=workflow.aware(local["local_operation_completed_at_utc"]))
     require(prepared == dict(zip(names, raw)), "EXISTING_FOUR_FILE_BYTES_CHANGED")
     rows = snapshot["prediction"]["rows"]
+    promotions = ([{**r, "candidate_rank": None, "candidate_score": None}
+        for r in snapshot["prediction"]["promotion_rows"]] if eligible else rows)
     require(snapshot["candidate_slots"] == runner._slots(rows, "candidate_rank")
-        and snapshot["promotion_slots"] == runner._slots(rows, "promotion_rank"), "EXISTING_TOP_SLOTS_CHANGED")
+        and snapshot["promotion_slots"] == runner._slots(promotions, "promotion_rank"), "EXISTING_TOP_SLOTS_CHANGED")
     paths = gh.adapter._p0_paths(day)
     p0 = {role: gh.load_blob(client, published_tree, name) for role, name in paths.items()}
     require({role: gh.sha256(body) for role, body in p0.items()} == imported["expected_p0_sha256"],
         "EXISTING_FREEZE_IS_NOT_THIS_P0_D")
     contract = gh.parse_json(p0["three_rank_json"])
     require(contract.get("bundle_sha256") == revision["primary_d_bundle_sha256"]
-        and contract.get("top10_count") == revision["primary_d_top10_count"] == len(rows),
+        and contract.get("top10_count") == revision["primary_d_top10_count"] == len(promotions),
         "EXISTING_P0_REVISION_CHANGED")
     original_commit, original_tree = _tree(gh, client, imported["published_git_sha"])
     require(original_commit["tree"]["sha"] == imported["published_tree_sha"]
@@ -172,7 +184,7 @@ def _existing_evidence(gh, client, tree, day, snapshot, freeze_context):
         and manifest.get("signal_date") == day and manifest.get("freeze_run_id") == str(freeze_context["run_id"])
         and manifest.get("snapshot_file_sha256") == freeze_context["snapshot_file_sha256"]
         and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
-            in (issuer.capture.LEGACY_CAPTURE_CONTRACT, (issuer.capture.SELF_SHA, issuer.capture.PUBLICATION_SHA)),
+            in issuer.capture.capture_contracts(),
         "EXISTING_OBSERVER_MANIFEST_BINDING_CHANGED")
     files = manifest.get("files")
     require(type(files) is list and 0 < len(files) < issuer.capture.MAX_FILES, "EXISTING_OBSERVER_INVENTORY_INVALID")

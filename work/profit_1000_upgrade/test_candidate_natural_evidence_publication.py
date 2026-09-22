@@ -91,9 +91,11 @@ def test_exact_legacy_observer_context_and_code_pair_is_preserved():
     m._context(context, original_run, manifest, observation)
     local, _ = m.code_guard()
     tree = {path: {"type": "blob", "mode": "100644", "sha": m.LEGACY_OBSERVER_BLOBS.get(path, m.gh.git_blob(raw))}
-        for path, raw in local.items()}
+        for path, raw in local.items() if path not in m.publication.ELIGIBLE_ONLY_FILES}
+    tree[m.publication.COORDINATOR_PATH]["sha"] = m.publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"]
     m.match_observer_code(tree, tree, local, manifest)
-    current_manifest = {**manifest, "capture_code_sha256": m.CAPTURE_SHA}
+    current_manifest = {**manifest, "capture_code_sha256": m.CAPTURE_SHA,
+        "publication_verifier_sha256": m.capture.PUBLICATION_SHA}
     with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
         m.match_observer_code(tree, tree, local, current_manifest)
     changed = deepcopy(tree)

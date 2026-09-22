@@ -24,7 +24,7 @@ REPO = 'njedu2023-prog/DC20'
 API = '/repos/' + REPO
 PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
-RUNNER_SHA = '9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c'
+RUNNER_SHA = '5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15'
 # Independently reviewed original-source importer, including no unknown-file reads.
 IMPORTER_SHA = '6adc11beaef7c5b940043a4063dc812f6f56c169c71ecaafd9c9be6364729cb4'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -56,13 +56,13 @@ def dependencies():
     own = Path(__file__).absolute()
     require(own.is_file() and own.stat().st_nlink == 1 and not any(p.is_symlink() for p in (own, *own.parents))
         and digest(own.read_bytes()) == SELF_SHA, 'WORKFLOW_SELF_SOURCE_CHANGED')
-    for name, sha in (('candidate_eligible_forward.py', RUNNER_SHA), ('candidate_natural_p0_github.py', IMPORTER_SHA)):
+    for name, sha in (('candidate_natural_forward.py', RUNNER_SHA), ('candidate_natural_p0_github.py', IMPORTER_SHA)):
         p = ROOT / 'work/profit_1000_upgrade' / name
         require(sha != '0' * 64 and not p.is_symlink() and digest(p.read_bytes()) == sha,
                 'REVIEWED_WORKFLOW_DEPENDENCY_REQUIRED')
-    from work.profit_1000_upgrade import candidate_eligible_forward as runner
+    from work.profit_1000_upgrade import candidate_natural_forward as runner
     from work.profit_1000_upgrade import candidate_natural_p0_github as importer
-    require(Path(runner.__file__).absolute() == ROOT / 'work/profit_1000_upgrade/candidate_eligible_forward.py'
+    require(Path(runner.__file__).absolute() == ROOT / 'work/profit_1000_upgrade/candidate_natural_forward.py'
         and Path(importer.__file__).absolute() == ROOT / 'work/profit_1000_upgrade/candidate_natural_p0_github.py',
         'WORKFLOW_IMPORT_ORIGIN_CHANGED')
     return runner, importer
@@ -97,7 +97,6 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
     runner, importer = dependencies()
     record = runner._json(snapshot_raw)
     runner._sealed(record)
-    runner.validate_snapshot(snapshot_raw,digest(snapshot_raw))
     plan, plan_sha, _ = runner.registration()
     day = runner.scorer._date(record['signal_date'], 'signal_date')
     require(day >= '20260914' and record['runner_sha256'] == RUNNER_SHA

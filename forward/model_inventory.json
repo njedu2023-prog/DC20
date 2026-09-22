@@ -105,7 +105,7 @@
     },
     {
       "path": "models/decision_model_freeze.json",
-      "sha256": "4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0",
+      "sha256": "4f7edca16a0b73ef07627bc0aebe930f8374c0edcee15e9b8b968db92d54f0cc",
       "bytes": 52795,
       "role": "migration_bridge_feature_or_contract_dependency",
       "verify_for_replay": false
@@ -351,5 +351,9 @@
   "monthly_ledger_review": {
     "path": "models/decision_source_surface_review_20260920_monthly_ledger.json",
     "sha256": "ff5bcf4c14c472060a0829a0b94c638fffd07606962ca2f586d9b1b2f8caa305"
+  },
+  "eligible_publication_review": {
+    "path": "models/decision_source_surface_review_20260922_eligible_publication.json",
+    "sha256": "82b10f63e56dd412ad63ebae2302e6491eb0040ccbe988800b05c62efbc1b11c"
   }
 }

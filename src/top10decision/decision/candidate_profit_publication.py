@@ -22,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[3]
 ACTIVATION_PATH = ROOT / "models/decision_candidate_profit_activation_v1.json"
 ACTIVATION_SCHEMA = "dc20_candidate_formal_profit_activation_v1"
 DAY_SCHEMA = "dc20_candidate_formal_profit_day_v1"
+ELIGIBLE_DAY_SCHEMA = "dc20_candidate_formal_profit_day_v2_eligible"
+ELIGIBLE_SNAPSHOT_SCHEMA = "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2"
+ELIGIBILITY_POLICY = "dc20_individual_observed_window_eligibility_20260922_v2"
 INDEX_SCHEMA = "dc20_candidate_formal_profit_index_v1"
 ACTIVATION_ID = "dc20_profit_ridge_999666_auction_exit1000_v1"
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
@@ -133,8 +136,8 @@ def _dependencies():
     # These original modules remain research-only and frozen. Their own guards
     # check the complete unchanged source/model/label chain.
     pins = {
-        "candidate_natural_outcomes": "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18",
-        "candidate_natural_evidence_publication": "ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb",
+        "candidate_natural_outcomes": "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77",
+        "candidate_natural_evidence_publication": "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c",
     }
     for name, expected in pins.items():
         path = ROOT / "work/profit_1000_upgrade" / (name + ".py")
@@ -167,7 +170,8 @@ def _p0(raw, snapshot):
             and p0.get("downstream_scope") == "exact_frozen_promotion_top10",
             "EXACT_FROZEN_PROMOTION_P0_REQUIRED")
     rows = p0.get("rows")
-    require(type(rows) is list and len(rows) == len(snapshot["prediction"]["rows"])
+    predicted = snapshot["prediction"]["promotion_rows"] if snapshot["schema_version"] == ELIGIBLE_SNAPSHOT_SCHEMA else snapshot["prediction"]["rows"]
+    require(type(rows) is list and len(rows) == len(predicted)
             and type(p0.get("top10_count")) is int and p0["top10_count"] == len(rows),
             "EXACT_P0_COHORT_SIZE_REQUIRED")
     mapping = {}
@@ -177,12 +181,22 @@ def _p0(raw, snapshot):
                 and row["ts_code"] not in mapping, "UNIQUE_P0_IDENTITIES_REQUIRED")
         require(type(row.get("promotion_rank")) is int, "EXACT_P0_PROMOTION_RANK_REQUIRED")
         mapping[row["ts_code"]] = row
-    predicted = snapshot["prediction"]["rows"]
     require(set(mapping) == {r["ts_code"] for r in predicted}, "P0_PREDICTION_MEMBER_MISMATCH")
     for row in predicted:
         require(mapping[row["ts_code"]]["promotion_rank"] == row["promotion_rank"],
                 "FROZEN_PROMOTION_RANK_CHANGED")
     return p0, mapping
+
+
+def _eligible_metadata(snapshot, mapping):
+    if snapshot["schema_version"] != ELIGIBLE_SNAPSHOT_SCHEMA:
+        return {}
+    return {"schema_version": ELIGIBLE_DAY_SCHEMA, "eligibility_policy_id": ELIGIBILITY_POLICY,
+        "original_candidate_count": len(mapping), "eligibility": deepcopy(snapshot["prediction"]["eligibility"]),
+        "original_rows": [{"ts_code": row["ts_code"], "promotion_rank": row["promotion_rank"],
+            "board_stage": row["board_stage"], "name": mapping[row["ts_code"]].get("name", ""),
+            "industry": mapping[row["ts_code"]].get("industry", ""),
+            "candidate_rank": None, "candidate_score": None} for row in snapshot["prediction"]["promotion_rows"]]}
 
 
 def project_verified_day(*, snapshot_raw, publication_proof, current_p0_raw, activation, source_main_sha):
@@ -248,6 +262,7 @@ def project_verified_day(*, snapshot_raw, publication_proof, current_p0_raw, act
         "actual_execution_claimed": False, "actual_capacity_verified": False,
         "source_price_observation_only": True,
     }
+    result.update(_eligible_metadata(snapshot, mapping))
     publication_proof.assert_unchanged()
     require(proof_report == publication_proof.report and config == activation, "PROOF_OR_ACTIVATION_CHANGED")
     validate_public_day(encoded(result), expected_sha256=sha(encoded(result)), activation=config)
@@ -259,7 +274,7 @@ def validate_public_day(raw, *, expected_sha256, activation):
     config = validate_activation(activation)
     require(type(raw) is bytes and sha(raw) == _digest(expected_sha256), "PUBLIC_DAY_EXTERNAL_SHA_MISMATCH")
     day = _json(raw)
-    require(day.get("schema_version") == DAY_SCHEMA
+    require(day.get("schema_version") in (DAY_SCHEMA, ELIGIBLE_DAY_SCHEMA)
             and day.get("status") == "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION", "PUBLIC_DAY_SCHEMA_REQUIRED")
     for key in IDENTITY_KEYS[1:]:
         require(day.get(key) == config[key], "PUBLIC_DAY_ACTIVATION_IDENTITY_CHANGED")
@@ -286,12 +301,47 @@ def validate_public_day(raw, *, expected_sha256, activation):
         require(type(row["candidate_score"]) in (int, float) and math.isfinite(row["candidate_score"]), "FINITE_PUBLIC_SCORE_REQUIRED")
         require(type(row["name"]) is str and len(row["name"]) <= 100
                 and type(row["industry"]) is str and len(row["industry"]) <= 100, "BOUNDED_PUBLIC_LABEL_REQUIRED")
-    require(ranks == set(range(1, len(rows) + 1)) and rows == sorted(rows, key=lambda r: (-r["candidate_score"], r["ts_code"])),
+    original_rows = rows
+    if day["schema_version"] == ELIGIBLE_DAY_SCHEMA:
+        require(day.get("eligibility_policy_id") == ELIGIBILITY_POLICY, "UNREGISTERED_ELIGIBILITY_POLICY")
+        original_rows = day.get("original_rows")
+        eligibility = day.get("eligibility")
+        require(type(original_rows) is list and len(original_rows) <= 10
+            and type(day.get("original_candidate_count")) is int and day["original_candidate_count"] == len(original_rows)
+            and type(eligibility) is list and len(eligibility) == len(original_rows), "FULL_ORIGINAL_COHORT_REQUIRED")
+        original_codes=set(); allowed=set()
+        for rank,(original,eligible) in enumerate(zip(original_rows,eligibility),1):
+            require(type(original) is dict and set(original)=={"ts_code","promotion_rank","board_stage","name","industry","candidate_rank","candidate_score"}
+                and type(original["ts_code"]) is str and re.fullmatch(r"[0-9]{6}\.(SH|SZ)",original["ts_code"])
+                and original["ts_code"] not in original_codes and type(original["promotion_rank"]) is int
+                and original["promotion_rank"]==rank and type(original["board_stage"]) is int and original["board_stage"] in (2,3)
+                and original["candidate_rank"] is None and original["candidate_score"] is None
+                and all(type(original[k]) is str and len(original[k])<=100 for k in ("name","industry")), "ORIGINAL_PROMOTION_IDENTITY_CHANGED")
+            original_codes.add(original["ts_code"])
+            require(type(eligible) is dict and eligible.get("ts_code")==original["ts_code"]
+                and set(eligible)=={"ts_code","promotion_rank","eligible","reason","observed_bar_count","required_observed_bar_count"}
+                and type(eligible.get("promotion_rank")) is int and eligible["promotion_rank"]==rank
+                and type(eligible.get("eligible")) is bool and type(eligible.get("observed_bar_count")) is int
+                and 0<=eligible["observed_bar_count"]<=21 and type(eligible.get("required_observed_bar_count")) is int
+                and eligible["required_observed_bar_count"]==21, "ELIGIBILITY_IDENTITY_CHANGED")
+            if eligible["eligible"]:
+                require(eligible.get("reason") is None and eligible["observed_bar_count"]==21, "ELIGIBLE_REASON_CHANGED")
+                allowed.add(original["ts_code"])
+            else:
+                require(eligible.get("reason") in ("INSUFFICIENT_OBSERVED_HISTORY","MISSING_D_OBSERVATION"), "UNREGISTERED_EXCLUSION_REASON")
+                require(eligible["reason"]!="INSUFFICIENT_OBSERVED_HISTORY" or eligible["observed_bar_count"]<21, "EXCLUSION_HISTORY_CONFLICT")
+        require(allowed==codes, "EXACT_ELIGIBLE_SUBSET_REQUIRED")
+        mapping={r["ts_code"]:r for r in original_rows}
+        require(all(all(r[k]==mapping[r["ts_code"]][k] for k in ("promotion_rank","name","industry")) for r in rows), "ELIGIBLE_ROW_ORIGINAL_IDENTITY_CHANGED")
+    else:
+        require(ranks == set(range(1, len(rows) + 1)), "PUBLIC_RANK_ORDER_CHANGED")
+        require(not any(k in day for k in ("eligibility","original_rows","eligibility_policy_id","original_candidate_count")), "V1_CANNOT_CONTAIN_V2_METADATA")
+    require(rows == sorted(rows, key=lambda r: (-r["candidate_score"], r["ts_code"])),
             "PUBLIC_RANK_ORDER_CHANGED")
     for field, rank_key in (("candidate_slots", "candidate_rank"), ("promotion_slots", "promotion_rank")):
         slots = day.get(field)
         require(type(slots) is list and len(slots) == 2, "EXACT_TWO_PUBLIC_SLOTS_REQUIRED")
-        ordered = sorted(rows, key=lambda r: r[rank_key])
+        ordered = sorted(original_rows if field == "promotion_slots" else rows, key=lambda r: r[rank_key])
         for i, slot in enumerate(slots, 1):
             require(type(slot) is dict and type(slot.get("slot")) is int and slot["slot"] == i, "EXACT_PUBLIC_SLOT_REQUIRED")
             if i <= len(ordered):
@@ -347,6 +397,9 @@ def validate_persisted_day(raw, *, expected_sha256, snapshot_raw, current_p0_raw
             and snapshot["exec_date"] == day["exec_date"] and snapshot["exit_date"] == day["exit_date"],
             "CACHED_DAY_FROZEN_DATE_OR_CLOCK_CHANGED")
     _, mapping = _p0(current_p0_raw, snapshot)
+    metadata = _eligible_metadata(snapshot, mapping)
+    require(day["schema_version"] == (ELIGIBLE_DAY_SCHEMA if metadata else DAY_SCHEMA), "CACHED_DAY_PROFILE_CHANGED")
+    require(all(encoded({k:day.get(k)})==encoded({k:v}) for k,v in metadata.items()), "CACHED_ELIGIBILITY_METADATA_CHANGED")
     require(sha(current_p0_raw) == day["p0_file_sha256"], "CACHED_DAY_P0_MISMATCH")
     wanted_rows = [{k: row[k] for k in ("ts_code", "candidate_rank", "candidate_score", "promotion_rank")}
                    | {"name": mapping[row["ts_code"]].get("name", ""), "industry": mapping[row["ts_code"]].get("industry", "")}

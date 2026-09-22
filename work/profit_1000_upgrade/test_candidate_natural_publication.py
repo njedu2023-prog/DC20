@@ -56,7 +56,10 @@ class FakeGitHub:
         return m.gh.json_bytes(self.responses[path])
 
 
-def make_case(tmp_path, monkeypatch, *, size=2, prefix=""):
+def make_case(tmp_path, monkeypatch, *, size=2, prefix="", version="eligible"):
+    assert version in {"eligible", "legacy"}
+    runner = m.eligible_runner if version == "eligible" else m.natural
+    coordinator = m.workflow if version == "eligible" else m.legacy_workflow
     source = p0.fixture(tmp_path, monkeypatch, size=size)
     imported = p0.execute(source)
     imported.update(injected_client_for_test=False, network_calls_performed=38)
@@ -65,7 +68,7 @@ def make_case(tmp_path, monkeypatch, *, size=2, prefix=""):
     with monkeypatch.context() as temporary:
         temporary.setattr(m.gh.adapter.publisher, "build_primary_d_runtime_index",
             lambda root, **kw: m.gh._index(root, source["day"]))
-        receipt = m.natural.freeze_natural_day(source["output"], tmp_path.resolve() / "candidate_natural_forward",
+        receipt = runner.freeze_natural_day(source["output"], tmp_path.resolve() / "candidate_natural_forward",
             m.ROOT / m.MODEL_PATH, signal_date=source["day"], expected_p0_sha256=imported["expected_p0_sha256"],
             clock=lambda: STAMP)
     assert m.gh.adapter.publisher.build_primary_d_runtime_index is checker
@@ -77,9 +80,12 @@ def make_case(tmp_path, monkeypatch, *, size=2, prefix=""):
     receipt.update(snapshot_file_sha256=m.gh.sha256(snapshot_raw), snapshot_sha256=snapshot["snapshot_sha256"])
     context = {"repository": m.gh.REPOSITORY, "run_id": int(RUN_ID), "run_attempt": 1,
         "code_head_sha": CODE_HEAD, "branch": "main", "workflow_path": m.WORKFLOW_PATH}
-    files, _ = m.workflow.prepare_publication(snapshot_raw, receipt, imported, context,
+    files, _ = coordinator.prepare_publication(snapshot_raw, receipt, imported, context,
         now=datetime(2026, 9, 14, 12, 1, tzinfo=timezone.utc))
     local, _ = m.code_guard()
+    if version == "legacy":
+        local = {p: raw for p, raw in local.items() if p not in m.ELIGIBLE_ONLY_FILES}
+        local[m.LEGACY_COORDINATOR_BINDING["path"]] = Path(m.legacy_workflow.__file__).read_bytes()
     parent_files = {**local, **source["sources"], "protected.txt": b"unchanged formal evidence"}
     parent_tree, tree = p0.git_tree(parent_files), p0.git_tree({**parent_files, **files})
     ack = {"schema_version": "dc20_natural_candidate_git_publication_ack_v1", "status": "GIT_PUBLICATION_ACKNOWLEDGED",
@@ -129,12 +135,16 @@ def run(case):
 def test_original_20260914_code_tree_accepts_only_exact_registered_legacy_workflow():
     root = m.ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20260914"
     manifest = m.gh.parse_json((root / "manifest.json").read_bytes())
-    responses = {entry["api_path"]: m.gh.parse_json((root / entry["retained_body"]["path"]).read_bytes())
-        for entry in manifest["http_observations"] if entry["kind"] == "API_JSON"}
+    def retained(api_path):
+        entry = next(e for e in manifest["http_observations"]
+            if e["kind"] == "API_JSON" and e["api_path"] == api_path)
+        raw = (root / entry["retained_body"]["path"]).read_bytes()
+        assert m.gh.sha256(raw) == entry["retained_body"]["sha256"]
+        return m.gh.parse_json(raw)
     run_api = m.gh.API_PREFIX + "/actions/runs/" + manifest["freeze_run_id"]
-    original = responses[run_api]
-    commit = responses[m.gh.API_PREFIX + "/git/commits/" + original["head_sha"]]
-    doc = responses[m.gh.API_PREFIX + "/git/trees/" + commit["tree"]["sha"] + "?recursive=1"]
+    original = retained(run_api)
+    commit = retained(m.gh.API_PREFIX + "/git/commits/" + original["head_sha"])
+    doc = retained(m.gh.API_PREFIX + "/git/trees/" + commit["tree"]["sha"] + "?recursive=1")
     tree = m.gh.validate_tree(doc, commit["tree"]["sha"])
     local, _ = m.code_guard()
     bound = m.match_publication_code(tree, tree, local)
@@ -145,9 +155,10 @@ def test_original_20260914_code_tree_accepts_only_exact_registered_legacy_workfl
         m.match_publication_code(tree, changed, local)
 
 
+@pytest.mark.parametrize("version", ["legacy", "eligible"])
 @pytest.mark.parametrize("size,prefix", [(0, ""), (1, "dc20-candidate-natural-fixture/"), (2, ""), (10, "")])
-def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypatch, size, prefix):
-    case = make_case(tmp_path, monkeypatch, size=size, prefix=prefix)
+def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypatch, size, prefix, version):
+    case = make_case(tmp_path, monkeypatch, size=size, prefix=prefix, version=version)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: pytest.fail("NETWORK"))
     monkeypatch.setattr(m.natural.scorer, "predict_forward", lambda *a, **k: pytest.fail("SCORING_DURING_VERIFY"))
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
@@ -163,6 +174,28 @@ def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypa
         "formal_model_replacement_allowed", "actual_execution_claimed", "actual_capacity_verified", "provider_timestamp_semantics_confirmed",
         "future_outcomes_read", "predictions_recomputed", "model_training_performed"))
     assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("version", ["legacy", "eligible"])
+def test_coordinator_profile_cannot_change_between_code_and_publication(tmp_path, monkeypatch, version):
+    case = make_case(tmp_path, monkeypatch, version=version)
+    code = m.gh.validate_tree(case["parent_tree"], case["parent_tree"]["sha"])
+    published = m.gh.validate_tree(case["tree"], case["tree"]["sha"])
+    local, _ = m.code_guard()
+    other = (m.gh.git_blob(local[m.COORDINATOR_PATH]) if version == "legacy"
+        else m.LEGACY_COORDINATOR_BINDING["git_blob_sha1"])
+    published[m.COORDINATOR_PATH]["sha"] = other
+    with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
+        m.match_publication_code(code, published, local)
+
+
+def test_original_workflow_cannot_be_combined_with_eligible_coordinator(tmp_path, monkeypatch):
+    case = make_case(tmp_path, monkeypatch)
+    code = m.gh.validate_tree(case["parent_tree"], case["parent_tree"]["sha"])
+    code[m.WORKFLOW_PATH]["sha"] = m.LEGACY_WORKFLOW_BINDING["git_blob_sha1"]
+    local, _ = m.code_guard()
+    with pytest.raises(ValueError, match="LEGACY_WORKFLOW_CANNOT_RUN_NEW_COORDINATOR"):
+        m.match_publication_code(code, code, local)
 
 
 @pytest.mark.parametrize("field,value", [("workflow_id", True), ("workflow_id", 1), ("path", ".github/workflows/other.yml"),

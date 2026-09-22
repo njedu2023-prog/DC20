@@ -23,7 +23,7 @@ DAY_SCHEMA = "dc20_candidate_formal_profit_day_v1"
 ACTIVATION_ID = "dc20_profit_ridge_999666_auction_exit1000_v1"
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EFFECTIVE_D = "20260914"
-STATISTICS_SHA = "8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6"
+STATISTICS_SHA = "657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554"
 GROUPS = ("candidate_top1", "candidate_top2")
 FLAGS = {
     "actual_execution_claimed": False,
@@ -72,12 +72,35 @@ def _activation(config):
         ("activation_id", "model_canonical_sha256", "effective_from_signal_date")}
 
 
+def _projection_profile(projection, frozen):
+    eligible = frozen["schema_version"] == publication.ELIGIBLE_SNAPSHOT_SCHEMA
+    require(projection.get("schema_version") == (publication.ELIGIBLE_DAY_SCHEMA if eligible else DAY_SCHEMA),
+        "FORMAL_DAY_SNAPSHOT_PROFILE_CHANGED")
+    fields = ("eligibility_policy_id", "eligibility", "original_candidate_count", "original_rows")
+    if not eligible:
+        require(not any(k in projection for k in fields), "LEGACY_DAY_CANNOT_CARRY_ELIGIBILITY")
+        return
+    require(projection.get("eligibility_policy_id") == publication.ELIGIBILITY_POLICY,
+        "ELIGIBILITY_POLICY_CHANGED")
+    statistics._same(projection.get("eligibility"), frozen["prediction"]["eligibility"], "FROZEN_ELIGIBILITY_CHANGED")
+    original = frozen["prediction"]["promotion_rows"]
+    require(type(projection.get("original_candidate_count")) is int
+        and projection["original_candidate_count"] == len(original), "ORIGINAL_COHORT_COUNT_CHANGED")
+    supplied = projection.get("original_rows")
+    require(type(supplied) is list and all(type(r) is dict for r in supplied), "ORIGINAL_COHORT_REQUIRED")
+    keys = ("ts_code", "promotion_rank", "board_stage")
+    statistics._same([{k:r.get(k) for k in keys} for r in supplied],
+        [{k:r[k] for k in keys} for r in original], "ORIGINAL_COHORT_CHANGED")
+    require(all(r.get("candidate_rank") is None and r.get("candidate_score") is None for r in supplied),
+        "ORIGINAL_COHORT_NOT_PROFIT_RANKED")
+
+
 def _projections(projections, items, identity):
     require(type(projections) in (list, tuple) and len(projections) <= 4096,
         "BOUNDED_PROJECTION_LIST_REQUIRED")
     by_day = {}
     for projection in projections:
-        require(type(projection) is dict and projection.get("schema_version") == DAY_SCHEMA,
+        require(type(projection) is dict and projection.get("schema_version") in (DAY_SCHEMA, publication.ELIGIBLE_DAY_SCHEMA),
             "EXACT_FORMAL_DAY_SCHEMA_REQUIRED")
         day = projection.get("signal_date")
         require(day in items and day not in by_day, "UNBOUND_OR_DUPLICATE_FORMAL_DAY")
@@ -85,6 +108,7 @@ def _projections(projections, items, identity):
             require(projection.get(key) == value, "PROJECTION_MODEL_VERSION_CHANGED")
         item = items[day]
         frozen = statistics.outcomes._snapshot(item["snapshot_raw"], item["expected_snapshot_sha256"])
+        _projection_profile(projection, frozen)
         require(projection.get("snapshot_file_sha256") == item["expected_snapshot_sha256"],
             "PROJECTION_SNAPSHOT_CHANGED")
         for key in ("signal_date", "exec_date", "exit_date", "candidate_slots"):
@@ -267,7 +291,7 @@ def build_summary(activation_config, projections, day_inputs, *, as_of_date,
                 "PENDING_OR_MISSING_EVIDENCE_CANNOT_BE_CACHED")
             projection = all_projections[day]
             digest = canonical(projection)
-            require(projection.get("schema_version") == DAY_SCHEMA
+            require(projection.get("schema_version") in (DAY_SCHEMA, publication.ELIGIBLE_DAY_SCHEMA)
                 and all(projection.get(key) == value for key, value in identity.items())
                 and all(row["formal_projection_sha256"] == digest
                     and row["snapshot_file_sha256"] == projection.get("snapshot_file_sha256")

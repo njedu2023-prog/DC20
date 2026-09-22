@@ -22,10 +22,14 @@ import zipfile
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932"
+PUBLICATION_SHA = "3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f"
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
+)
+PRE_ELIGIBLE_CAPTURE_CONTRACT = (
+    "d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089",
+    "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932",
 )
 SCHEMA = "dc20_candidate_natural_durable_evidence_v1"
 MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -55,6 +59,10 @@ from work.profit_1000_upgrade import candidate_natural_publication as publicatio
 
 gh = publication.gh
 SELF_SHA = sha(gh.read(Path(__file__).absolute())[0])
+
+
+def capture_contracts():
+    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -204,7 +212,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     for key, expected in FLAGS.items():
         publication.natural.scorer._exact(manifest.get(key), expected, "LOCAL_EVIDENCE_CANNOT_GRANT_AUTHORITY")
     require((manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
-        in (LEGACY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA)),
+        in capture_contracts(),
         "CAPTURE_CODE_CONTRACT_CHANGED")
     day = gh.date(manifest.get("signal_date"))
     require(day >= "20260914", "EVIDENCE_NATURAL_START_REQUIRED")

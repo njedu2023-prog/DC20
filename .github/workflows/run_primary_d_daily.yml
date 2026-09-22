@@ -102,6 +102,7 @@ concurrency:
         github.event.workflow_run.status != 'completed' ||
         github.event.workflow_run.conclusion != 'success' ||
         github.event.workflow_run.run_attempt != 1 ||
+        github.event.workflow_run.head_sha != github.sha ||
         !(
           (
             github.event.workflow_run.workflow_id == 335484132 &&
@@ -136,6 +137,7 @@ jobs:
             github.event.workflow_run.status == 'completed' &&
             github.event.workflow_run.conclusion == 'success' &&
             github.event.workflow_run.run_attempt == 1 &&
+            github.event.workflow_run.head_sha == github.sha &&
             (
               (
                 github.event.workflow_run.workflow_id == 335484132 &&

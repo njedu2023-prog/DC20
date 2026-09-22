@@ -18,6 +18,7 @@ ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_outcomes_append_only_v1"
 REPORT_SCHEMA = "dc20_candidate_natural_posthoc_price_observation_v1"
 REGISTRATION_SHA = "2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2"
+PROFILE_READER_SHA = "bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27"
 PINS = {
     "work/profit_1000_upgrade/candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
     "work/profit_1000_upgrade/labels_v3.py": "cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b",
@@ -65,6 +66,13 @@ TERMINAL = labels.policy_v3.NO_FILL_STATUSES | {labels.SETTLED}
 
 
 def _guard():
+    profile_path = ROOT / "work/profit_1000_upgrade/candidate_snapshot_versions.py"
+    profile_raw, profile_identity = natural._read(profile_path)
+    require(_sha(profile_raw) == PROFILE_READER_SHA, "SNAPSHOT_PROFILE_READER_CHANGED")
+    from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
+    require(Path(profiles.__file__).absolute() == profile_path, "SNAPSHOT_PROFILE_IMPORT_CHANGED")
+    profiles.guard()
+    profile_state = (profile_identity, profiles.eligible._guard(), profiles.eligible.registration())
     modules = (natural, labels, labels.policy_v3, labels.auction_truth, labels.auction_truth._old(),
         auction_http_v3, labels.minute_truth, shadow_exit_1000, labels.minute_truth._minute,
         labels.settlement, executable_profit_shadow)
@@ -76,13 +84,17 @@ def _guard():
         state.append((relative, expected, identity))
     body, identity = natural._read(Path(__file__).absolute())
     require(_sha(body) == SELF_SHA, "OUTCOME_WRAPPER_CHANGED")
-    return tuple(state), identity, natural._guard()
+    return tuple(state), identity, natural._guard(), profile_state
 
 
 def _snapshot(raw, expected):
     natural.scorer._sha(expected)
     require(_sha(raw) == expected, "EXTERNAL_FROZEN_SNAPSHOT_SHA_MISMATCH")
     value = natural._json(raw)
+    if value.get("schema_version") == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2":
+        _guard()
+        from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
+        return profiles.validate_snapshot(raw, expected)
     natural._sealed(value)
     for key, wanted in {"schema_version": natural.SCHEMA, "registration_id": natural.REGISTRATION_ID,
             "registration_sha256": REGISTRATION_SHA, "runner_sha256": PINS[next(iter(PINS))],
@@ -233,14 +245,18 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
     an independently verified natural clock or a source-publication receipt.
     """
     code_state = _guard()
-    plan, plan_sha, plan_identity = natural.registration()
-    require(plan_sha == REGISTRATION_SHA, "FIXED_NATURAL_REGISTRATION_REQUIRED")
     asof = natural.scorer._date(as_of_date, "as_of_date")
     now = natural._now(clock)
     require(now >= labels._timestamp(labels._at(asof, "15:00:00")), "ASOF_MUST_BE_COMPLETED_SESSION")
     snapshot_path = natural._path(snapshot_path)
     raw, identity = natural._read(snapshot_path)
     frozen = _snapshot(raw, expected_snapshot_sha256)
+    freeze_runner = natural
+    if frozen["schema_version"] == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2":
+        from work.profit_1000_upgrade import candidate_eligible_forward as freeze_runner
+    plan, plan_sha, plan_identity = freeze_runner.registration()
+    require(plan_sha == frozen["registration_sha256"]
+        and (freeze_runner is not natural or plan_sha == REGISTRATION_SHA), "FIXED_NATURAL_REGISTRATION_REQUIRED")
     require(labels._timestamp(frozen["pre_cas_freeze_at_utc"]) <= now, "FROZEN_PREDICTION_IS_IN_CLOCK_FUTURE")
     day, t, t1 = (frozen[key] for key in ("signal_date", "exec_date", "exit_date"))
     require(day <= asof, "ASOF_CANNOT_PRECEDE_FROZEN_D")
@@ -289,7 +305,8 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
             copied.setdefault(code, {})[relative] = body
             bindings.append({"ts_code": code, "path": relative, "sha256": expected, "bytes": len(body)})
             origins.append({"ts_code": code, "path": relative, "origin_path": str(origin), "sha256": expected})
-        by_code = {row["ts_code"]: row for row in frozen["prediction"]["rows"]}
+        original_rows = frozen["prediction"]["promotion_rows"] if frozen["schema_version"] == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2" else frozen["prediction"]["rows"]
+        by_code = {row["ts_code"]: row for row in original_rows}
         for code in codes:
             root = staging / code.replace(".", "_")
             data = {str(labels.settlement.CALENDAR_PATH): calendar_raw, snapshot_relative: raw,
@@ -314,7 +331,7 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
             labels.policy_v3.validate_label_contract(report["rows"][0])
     payload = {"schema_version": REPORT_SCHEMA, "signal_date": day, "exec_date": t, "exit_date": t1,
         "as_of_date": asof, "snapshot_file_sha256": expected_snapshot_sha256,
-        "snapshot_sha256": frozen["snapshot_sha256"], "registration_sha256": REGISTRATION_SHA,
+        "snapshot_sha256": frozen["snapshot_sha256"], "registration_sha256": frozen["registration_sha256"],
         "model_canonical_sha256": natural.MODEL_SHA, "model_evaluation_sha256": natural.EVALUATION_SHA,
         "model_feature_order": list(natural.scorer.FEATURES),
         "full_frozen_prediction": frozen["prediction"], "full_frozen_candidate_count": len(frozen["prediction"]["rows"]),
@@ -370,8 +387,8 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
     def guard():
         require(natural._read(snapshot_path, identity)[0] == raw, "FROZEN_SNAPSHOT_CHANGED_DURING_OUTCOME")
         require(natural._read(calendar_path, calendar_identity)[0] == calendar_raw, "CALENDAR_CHANGED_DURING_OUTCOME")
-        natural._read(natural.REGISTRATION_PATH, plan_identity)
-        require(natural.registration() == (plan, plan_sha, plan_identity) and _guard() == code_state,
+        natural._read(freeze_runner.REGISTRATION_PATH, plan_identity)
+        require(freeze_runner.registration() == (plan, plan_sha, plan_identity) and _guard() == code_state,
             "OUTCOME_CODE_OR_REGISTRATION_CHANGED")
         require(_bundle(source_bundle, codes, t=t, t1=t1, asof=asof, dates=dates)[2] == bundle_sha,
             "CALLER_SOURCE_BUNDLE_CHANGED")

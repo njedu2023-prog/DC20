@@ -1,0 +1,1494 @@
+{
+  "schema_version": "dc20_eligible_publication_source_review_v1",
+  "approved_base_commit": "e9c5e84dca86b45c391ab016e4e0fba77e65d72e",
+  "boundaries": {
+    "per_stock_profit_eligibility_enabled": true,
+    "versioned_publication_and_ledger_enabled": true,
+    "full_promotion_universe_preserved": true,
+    "old_v1_records_immutable": true,
+    "model_weights_changed": false,
+    "promotion_ranking_changed": false,
+    "scorer_math_changed": false,
+    "fees_or_exit_rule_changed": false,
+    "historical_publication_backdated": false,
+    "missing_counted_as_zero": false,
+    "schedules_changed": false,
+    "source_validation_bypassed": false,
+    "actual_trading_enabled": false
+  },
+  "source_changes": [
+    {
+      "path": ".github/workflows/run_primary_d_daily.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 86399,
+      "current_bytes": 86523,
+      "baseline_sha256": "951bd8e2189a4f588e613ac23009109b4663ce08b57d56b1c64b337a90d73c98",
+      "current_sha256": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 105,
+          "current_start": 105,
+          "baseline_lines": [],
+          "current_lines": [
+            "        github.event.workflow_run.head_sha != github.sha ||\n"
+          ]
+        },
+        {
+          "baseline_start": 139,
+          "current_start": 140,
+          "baseline_lines": [],
+          "current_lines": [
+            "            github.event.workflow_run.head_sha == github.sha &&\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 474510,
+      "current_bytes": 477460,
+      "baseline_sha256": "42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d",
+      "current_sha256": "b348616fd2a2eb1ab164b40f9a1b3fabb0fbf087a2280fd854ba53da2f4d9967",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1943,
+          "current_start": 1943,
+          "baseline_lines": [],
+          "current_lines": [
+            "    function candidatePublicOriginalRows(day, contract) {\n",
+            "      if (day.schema_version === \"dc20_candidate_formal_profit_day_v1\") {\n",
+            "        executableProfitExpect(![\"original_rows\",\"eligibility\",\"eligibility_policy_id\",\"original_candidate_count\"].some(k=>k in day), \"旧版不能混入逐股资格字段\");\n",
+            "        return day.rows;\n",
+            "      }\n",
+            "      executableProfitExpect(day.schema_version === \"dc20_candidate_formal_profit_day_v2_eligible\"\n",
+            "        && day.eligibility_policy_id === \"dc20_individual_observed_window_eligibility_20260922_v2\"\n",
+            "        && Array.isArray(day.original_rows) && Array.isArray(day.eligibility)\n",
+            "        && day.original_rows.length === contract.rows.length && day.original_candidate_count === contract.rows.length\n",
+            "        && day.eligibility.length === contract.rows.length, \"逐股资格原名单缺失\");\n",
+            "      const allowed=new Set();\n",
+            "      contract.rows.forEach((original,i)=>{\n",
+            "        const row=day.original_rows[i], e=day.eligibility[i];\n",
+            "        executableProfitExpect(exactObjectKeys(row,[\"ts_code\",\"promotion_rank\",\"board_stage\",\"name\",\"industry\",\"candidate_rank\",\"candidate_score\"])\n",
+            "          && [\"ts_code\",\"promotion_rank\",\"name\",\"industry\"].every(k=>row[k]===original[k])\n",
+            "          && row.promotion_rank===i+1 && row.board_stage===(original.stage_transition===\"2→3\"?2:3)\n",
+            "          && row.candidate_rank===null && row.candidate_score===null, \"原晋级名单身份改变\");\n",
+            "        executableProfitExpect(exactObjectKeys(e,[\"ts_code\",\"promotion_rank\",\"eligible\",\"reason\",\"observed_bar_count\",\"required_observed_bar_count\"])\n",
+            "          && e.ts_code===row.ts_code && e.promotion_rank===row.promotion_rank && typeof e.eligible===\"boolean\"\n",
+            "          && Number.isInteger(e.observed_bar_count) && e.observed_bar_count>=0 && e.observed_bar_count<=21\n",
+            "          && e.required_observed_bar_count===21, \"逐股资格诊断无效\");\n",
+            "        if(e.eligible) {\n",
+            "          executableProfitExpect(e.reason===null && e.observed_bar_count===21,\"可评分股票历史不足\");allowed.add(e.ts_code);\n",
+            "        } else executableProfitExpect([\"INSUFFICIENT_OBSERVED_HISTORY\",\"MISSING_D_OBSERVATION\"].includes(e.reason)\n",
+            "          && (e.reason!==\"INSUFFICIENT_OBSERVED_HISTORY\" || e.observed_bar_count<21),\"排除原因无效\");\n",
+            "      });\n",
+            "      executableProfitExpect(Array.isArray(day.rows) && day.rows.length===allowed.size\n",
+            "        && new Set(day.rows.map(r=>r.ts_code)).size===allowed.size && day.rows.every(r=>allowed.has(r.ts_code)),\"可评分股票集合不一致\");\n",
+            "      return day.original_rows;\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 1955,
+          "current_start": 1986,
+          "baseline_lines": [
+            "      executableProfitExpect(day.schema_version === \"dc20_candidate_formal_profit_day_v1\"\n"
+          ],
+          "current_lines": [
+            "      const originalRows = candidatePublicOriginalRows(day,contract);\n",
+            "      executableProfitExpect([\"dc20_candidate_formal_profit_day_v1\",\"dc20_candidate_formal_profit_day_v2_eligible\"].includes(day.schema_version)\n"
+          ]
+        },
+        {
+          "baseline_start": 1961,
+          "current_start": 1993,
+          "baseline_lines": [
+            "        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, \"新盈利冻结版本、日期、完整池或来源不一致\");\n"
+          ],
+          "current_lines": [
+            "        && Array.isArray(day.rows) && originalRows.length === contract.rows.length && day.candidate_count === day.rows.length, \"新盈利冻结版本、日期、完整池或来源不一致\");\n"
+          ]
+        },
+        {
+          "baseline_start": 1975,
+          "current_start": 2007,
+          "baseline_lines": [
+            "      executableProfitExpect(rows.size === contract.rows.length, \"新盈利候选重复或缺失\");\n"
+          ],
+          "current_lines": [
+            "      executableProfitExpect(rows.size === day.rows.length, \"新盈利候选重复或缺失\");\n"
+          ]
+        },
+        {
+          "baseline_start": 1979,
+          "current_start": 2011,
+          "baseline_lines": [],
+          "current_lines": [
+            "        if (!row && day.schema_version === \"dc20_candidate_formal_profit_day_v2_eligible\") continue;\n"
+          ]
+        },
+        {
+          "baseline_start": 1992,
+          "current_start": 2025,
+          "baseline_lines": [
+            "        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);\n"
+          ],
+          "current_lines": [
+            "        const sorted = [...(key===\"promotion_slots\" ? originalRows : ordered)].sort((a, b) => a[rank] - b[rank]);\n"
+          ]
+        },
+        {
+          "baseline_start": 2041,
+          "current_start": 2074,
+          "baseline_lines": [
+            "      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable(\"新模型冻结候选身份不一致\");\n",
+            "      return {ready: true, candidate: true, message: \"新模型 · 验证中\", rows: new Map(p.rows.map(row => [row.ts_code, {\n"
+          ],
+          "current_lines": [
+            "      const originals=candidatePublicOriginalRows(p,contract);\n",
+            "      if (originals.length !== contract.rows.length || p.rows.some(row=>contract.rows.find(r=>r.ts_code===row.ts_code)?.promotion_rank!==row.promotion_rank)) return unavailable(\"新模型冻结候选身份不一致\");\n",
+            "      return {ready: true, candidate: true, unscorable:new Set(contract.rows.filter(r=>!byCode.has(r.ts_code)).map(r=>r.ts_code)), message: \"新模型 · 验证中\", rows: new Map(p.rows.map(row => [row.ts_code, {\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0",
+      "current_sha256": "4f7edca16a0b73ef07627bc0aebe930f8374c0edcee15e9b8b968db92d54f0cc",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 637,
+          "current_start": 637,
+          "baseline_lines": [
+            "    \".github/workflows/run_primary_d_daily.yml\": \"951bd8e2189a4f588e613ac23009109b4663ce08b57d56b1c64b337a90d73c98\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/run_primary_d_daily.yml\": \"5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"b348616fd2a2eb1ab164b40f9a1b3fabb0fbf087a2280fd854ba53da2f4d9967\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "baseline_exists": true,
+      "baseline_bytes": 25995,
+      "current_bytes": 27606,
+      "baseline_sha256": "66b8ff1539d83aa9b53f90472241de90536124a3e613c3169aba9860d7e4ba72",
+      "current_sha256": "c3625a6c3b03135463645730a363e85e50f527ab176bdf7e222890e950c8cac1",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 26,
+          "current_start": 26,
+          "baseline_lines": [
+            "STATISTICS_SHA = \"8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6\"\n"
+          ],
+          "current_lines": [
+            "STATISTICS_SHA = \"657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554\"\n"
+          ]
+        },
+        {
+          "baseline_start": 75,
+          "current_start": 75,
+          "baseline_lines": [],
+          "current_lines": [
+            "def _projection_profile(projection, frozen):\n",
+            "    eligible = frozen[\"schema_version\"] == publication.ELIGIBLE_SNAPSHOT_SCHEMA\n",
+            "    require(projection.get(\"schema_version\") == (publication.ELIGIBLE_DAY_SCHEMA if eligible else DAY_SCHEMA),\n",
+            "        \"FORMAL_DAY_SNAPSHOT_PROFILE_CHANGED\")\n",
+            "    fields = (\"eligibility_policy_id\", \"eligibility\", \"original_candidate_count\", \"original_rows\")\n",
+            "    if not eligible:\n",
+            "        require(not any(k in projection for k in fields), \"LEGACY_DAY_CANNOT_CARRY_ELIGIBILITY\")\n",
+            "        return\n",
+            "    require(projection.get(\"eligibility_policy_id\") == publication.ELIGIBILITY_POLICY,\n",
+            "        \"ELIGIBILITY_POLICY_CHANGED\")\n",
+            "    statistics._same(projection.get(\"eligibility\"), frozen[\"prediction\"][\"eligibility\"], \"FROZEN_ELIGIBILITY_CHANGED\")\n",
+            "    original = frozen[\"prediction\"][\"promotion_rows\"]\n",
+            "    require(type(projection.get(\"original_candidate_count\")) is int\n",
+            "        and projection[\"original_candidate_count\"] == len(original), \"ORIGINAL_COHORT_COUNT_CHANGED\")\n",
+            "    supplied = projection.get(\"original_rows\")\n",
+            "    require(type(supplied) is list and all(type(r) is dict for r in supplied), \"ORIGINAL_COHORT_REQUIRED\")\n",
+            "    keys = (\"ts_code\", \"promotion_rank\", \"board_stage\")\n",
+            "    statistics._same([{k:r.get(k) for k in keys} for r in supplied],\n",
+            "        [{k:r[k] for k in keys} for r in original], \"ORIGINAL_COHORT_CHANGED\")\n",
+            "    require(all(r.get(\"candidate_rank\") is None and r.get(\"candidate_score\") is None for r in supplied),\n",
+            "        \"ORIGINAL_COHORT_NOT_PROFIT_RANKED\")\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 80,
+          "current_start": 103,
+          "baseline_lines": [
+            "        require(type(projection) is dict and projection.get(\"schema_version\") == DAY_SCHEMA,\n"
+          ],
+          "current_lines": [
+            "        require(type(projection) is dict and projection.get(\"schema_version\") in (DAY_SCHEMA, publication.ELIGIBLE_DAY_SCHEMA),\n"
+          ]
+        },
+        {
+          "baseline_start": 88,
+          "current_start": 111,
+          "baseline_lines": [],
+          "current_lines": [
+            "        _projection_profile(projection, frozen)\n"
+          ]
+        },
+        {
+          "baseline_start": 270,
+          "current_start": 294,
+          "baseline_lines": [
+            "            require(projection.get(\"schema_version\") == DAY_SCHEMA\n"
+          ],
+          "current_lines": [
+            "            require(projection.get(\"schema_version\") in (DAY_SCHEMA, publication.ELIGIBLE_DAY_SCHEMA)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "baseline_exists": true,
+      "baseline_bytes": 25707,
+      "current_bytes": 30346,
+      "baseline_sha256": "8caea921bc4214b3c0a14e33e84f5a23d96c1eddfb687eb11cc529318b2ae2cd",
+      "current_sha256": "f0e17d62dfd425737ab125e3fbe7d610e039b3ba22f409aa60eea6af5c6a7091",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 25,
+          "current_start": 25,
+          "baseline_lines": [],
+          "current_lines": [
+            "ELIGIBLE_DAY_SCHEMA = \"dc20_candidate_formal_profit_day_v2_eligible\"\n",
+            "ELIGIBLE_SNAPSHOT_SCHEMA = \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\"\n",
+            "ELIGIBILITY_POLICY = \"dc20_individual_observed_window_eligibility_20260922_v2\"\n"
+          ]
+        },
+        {
+          "baseline_start": 136,
+          "current_start": 139,
+          "baseline_lines": [
+            "        \"candidate_natural_outcomes\": \"5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18\",\n",
+            "        \"candidate_natural_evidence_publication\": \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\",\n"
+          ],
+          "current_lines": [
+            "        \"candidate_natural_outcomes\": \"bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77\",\n",
+            "        \"candidate_natural_evidence_publication\": \"9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c\",\n"
+          ]
+        },
+        {
+          "baseline_start": 170,
+          "current_start": 173,
+          "baseline_lines": [
+            "    require(type(rows) is list and len(rows) == len(snapshot[\"prediction\"][\"rows\"])\n"
+          ],
+          "current_lines": [
+            "    predicted = snapshot[\"prediction\"][\"promotion_rows\"] if snapshot[\"schema_version\"] == ELIGIBLE_SNAPSHOT_SCHEMA else snapshot[\"prediction\"][\"rows\"]\n",
+            "    require(type(rows) is list and len(rows) == len(predicted)\n"
+          ]
+        },
+        {
+          "baseline_start": 180,
+          "current_start": 184,
+          "baseline_lines": [
+            "    predicted = snapshot[\"prediction\"][\"rows\"]\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 186,
+          "current_start": 189,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def _eligible_metadata(snapshot, mapping):\n",
+            "    if snapshot[\"schema_version\"] != ELIGIBLE_SNAPSHOT_SCHEMA:\n",
+            "        return {}\n",
+            "    return {\"schema_version\": ELIGIBLE_DAY_SCHEMA, \"eligibility_policy_id\": ELIGIBILITY_POLICY,\n",
+            "        \"original_candidate_count\": len(mapping), \"eligibility\": deepcopy(snapshot[\"prediction\"][\"eligibility\"]),\n",
+            "        \"original_rows\": [{\"ts_code\": row[\"ts_code\"], \"promotion_rank\": row[\"promotion_rank\"],\n",
+            "            \"board_stage\": row[\"board_stage\"], \"name\": mapping[row[\"ts_code\"]].get(\"name\", \"\"),\n",
+            "            \"industry\": mapping[row[\"ts_code\"]].get(\"industry\", \"\"),\n",
+            "            \"candidate_rank\": None, \"candidate_score\": None} for row in snapshot[\"prediction\"][\"promotion_rows\"]]}\n"
+          ]
+        },
+        {
+          "baseline_start": 251,
+          "current_start": 265,
+          "baseline_lines": [],
+          "current_lines": [
+            "    result.update(_eligible_metadata(snapshot, mapping))\n"
+          ]
+        },
+        {
+          "baseline_start": 262,
+          "current_start": 277,
+          "baseline_lines": [
+            "    require(day.get(\"schema_version\") == DAY_SCHEMA\n"
+          ],
+          "current_lines": [
+            "    require(day.get(\"schema_version\") in (DAY_SCHEMA, ELIGIBLE_DAY_SCHEMA)\n"
+          ]
+        },
+        {
+          "baseline_start": 289,
+          "current_start": 304,
+          "baseline_lines": [
+            "    require(ranks == set(range(1, len(rows) + 1)) and rows == sorted(rows, key=lambda r: (-r[\"candidate_score\"], r[\"ts_code\"])),\n"
+          ],
+          "current_lines": [
+            "    original_rows = rows\n",
+            "    if day[\"schema_version\"] == ELIGIBLE_DAY_SCHEMA:\n",
+            "        require(day.get(\"eligibility_policy_id\") == ELIGIBILITY_POLICY, \"UNREGISTERED_ELIGIBILITY_POLICY\")\n",
+            "        original_rows = day.get(\"original_rows\")\n",
+            "        eligibility = day.get(\"eligibility\")\n",
+            "        require(type(original_rows) is list and len(original_rows) <= 10\n",
+            "            and type(day.get(\"original_candidate_count\")) is int and day[\"original_candidate_count\"] == len(original_rows)\n",
+            "            and type(eligibility) is list and len(eligibility) == len(original_rows), \"FULL_ORIGINAL_COHORT_REQUIRED\")\n",
+            "        original_codes=set(); allowed=set()\n",
+            "        for rank,(original,eligible) in enumerate(zip(original_rows,eligibility),1):\n",
+            "            require(type(original) is dict and set(original)=={\"ts_code\",\"promotion_rank\",\"board_stage\",\"name\",\"industry\",\"candidate_rank\",\"candidate_score\"}\n",
+            "                and type(original[\"ts_code\"]) is str and re.fullmatch(r\"[0-9]{6}\\.(SH|SZ)\",original[\"ts_code\"])\n",
+            "                and original[\"ts_code\"] not in original_codes and type(original[\"promotion_rank\"]) is int\n",
+            "                and original[\"promotion_rank\"]==rank and type(original[\"board_stage\"]) is int and original[\"board_stage\"] in (2,3)\n",
+            "                and original[\"candidate_rank\"] is None and original[\"candidate_score\"] is None\n",
+            "                and all(type(original[k]) is str and len(original[k])<=100 for k in (\"name\",\"industry\")), \"ORIGINAL_PROMOTION_IDENTITY_CHANGED\")\n",
+            "            original_codes.add(original[\"ts_code\"])\n",
+            "            require(type(eligible) is dict and eligible.get(\"ts_code\")==original[\"ts_code\"]\n",
+            "                and set(eligible)=={\"ts_code\",\"promotion_rank\",\"eligible\",\"reason\",\"observed_bar_count\",\"required_observed_bar_count\"}\n",
+            "                and type(eligible.get(\"promotion_rank\")) is int and eligible[\"promotion_rank\"]==rank\n",
+            "                and type(eligible.get(\"eligible\")) is bool and type(eligible.get(\"observed_bar_count\")) is int\n",
+            "                and 0<=eligible[\"observed_bar_count\"]<=21 and type(eligible.get(\"required_observed_bar_count\")) is int\n",
+            "                and eligible[\"required_observed_bar_count\"]==21, \"ELIGIBILITY_IDENTITY_CHANGED\")\n",
+            "            if eligible[\"eligible\"]:\n",
+            "                require(eligible.get(\"reason\") is None and eligible[\"observed_bar_count\"]==21, \"ELIGIBLE_REASON_CHANGED\")\n",
+            "                allowed.add(original[\"ts_code\"])\n",
+            "            else:\n",
+            "                require(eligible.get(\"reason\") in (\"INSUFFICIENT_OBSERVED_HISTORY\",\"MISSING_D_OBSERVATION\"), \"UNREGISTERED_EXCLUSION_REASON\")\n",
+            "                require(eligible[\"reason\"]!=\"INSUFFICIENT_OBSERVED_HISTORY\" or eligible[\"observed_bar_count\"]<21, \"EXCLUSION_HISTORY_CONFLICT\")\n",
+            "        require(allowed==codes, \"EXACT_ELIGIBLE_SUBSET_REQUIRED\")\n",
+            "        mapping={r[\"ts_code\"]:r for r in original_rows}\n",
+            "        require(all(all(r[k]==mapping[r[\"ts_code\"]][k] for k in (\"promotion_rank\",\"name\",\"industry\")) for r in rows), \"ELIGIBLE_ROW_ORIGINAL_IDENTITY_CHANGED\")\n",
+            "    else:\n",
+            "        require(ranks == set(range(1, len(rows) + 1)), \"PUBLIC_RANK_ORDER_CHANGED\")\n",
+            "        require(not any(k in day for k in (\"eligibility\",\"original_rows\",\"eligibility_policy_id\",\"original_candidate_count\")), \"V1_CANNOT_CONTAIN_V2_METADATA\")\n",
+            "    require(rows == sorted(rows, key=lambda r: (-r[\"candidate_score\"], r[\"ts_code\"])),\n"
+          ]
+        },
+        {
+          "baseline_start": 294,
+          "current_start": 344,
+          "baseline_lines": [
+            "        ordered = sorted(rows, key=lambda r: r[rank_key])\n"
+          ],
+          "current_lines": [
+            "        ordered = sorted(original_rows if field == \"promotion_slots\" else rows, key=lambda r: r[rank_key])\n"
+          ]
+        },
+        {
+          "baseline_start": 350,
+          "current_start": 400,
+          "baseline_lines": [],
+          "current_lines": [
+            "    metadata = _eligible_metadata(snapshot, mapping)\n",
+            "    require(day[\"schema_version\"] == (ELIGIBLE_DAY_SCHEMA if metadata else DAY_SCHEMA), \"CACHED_DAY_PROFILE_CHANGED\")\n",
+            "    require(all(encoded({k:day.get(k)})==encoded({k:v}) for k,v in metadata.items()), \"CACHED_ELIGIBILITY_METADATA_CHANGED\")\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_daily.py",
+      "baseline_exists": true,
+      "baseline_bytes": 31181,
+      "current_bytes": 31201,
+      "baseline_sha256": "88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321",
+      "current_sha256": "5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "    \"work/profit_1000_upgrade/candidate_natural_outcome_collect.py\": \"1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced\",\n"
+          ],
+          "current_lines": [
+            "    \"work/profit_1000_upgrade/candidate_natural_outcome_collect.py\": \"210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca\",\n"
+          ]
+        },
+        {
+          "baseline_start": 114,
+          "current_start": 114,
+          "baseline_lines": [
+            "            and version[\"writer_sha256\"] == collector.OUTCOMES_SHA, \"PRIOR_WRITER_OR_SNAPSHOT_CHANGED\")\n"
+          ],
+          "current_lines": [
+            "            and version[\"writer_sha256\"] in collector.accepted_outcome_writers(frozen), \"PRIOR_WRITER_OR_SNAPSHOT_CHANGED\")\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence.py",
+      "baseline_exists": true,
+      "baseline_bytes": 23370,
+      "current_bytes": 23639,
+      "baseline_sha256": "d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089",
+      "current_sha256": "2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 25,
+          "current_start": 25,
+          "baseline_lines": [
+            "PUBLICATION_SHA = \"e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932\"\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = \"3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f\"\n"
+          ]
+        },
+        {
+          "baseline_start": 29,
+          "current_start": 29,
+          "baseline_lines": [],
+          "current_lines": [
+            ")\n",
+            "PRE_ELIGIBLE_CAPTURE_CONTRACT = (\n",
+            "    \"d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089\",\n",
+            "    \"e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932\",\n"
+          ]
+        },
+        {
+          "baseline_start": 58,
+          "current_start": 62,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "def capture_contracts():\n",
+            "    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))\n"
+          ]
+        },
+        {
+          "baseline_start": 207,
+          "current_start": 215,
+          "baseline_lines": [
+            "        in (LEGACY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA)),\n"
+          ],
+          "current_lines": [
+            "        in capture_contracts(),\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "baseline_exists": true,
+      "baseline_bytes": 22558,
+      "current_bytes": 23571,
+      "baseline_sha256": "ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb",
+      "current_sha256": "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 23,
+          "current_start": 23,
+          "baseline_lines": [
+            "CAPTURE_SHA = \"d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089\"\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = \"2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90\"\n"
+          ]
+        },
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "OBSERVER_SHA = \"245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80\"\n"
+          ],
+          "current_lines": [
+            "OBSERVER_SHA = \"4a2372ae03b64239d4924c1159d0f31114c34da22556ed213ca38faf6f627e68\"\n"
+          ]
+        },
+        {
+          "baseline_start": 36,
+          "current_start": 36,
+          "baseline_lines": [],
+          "current_lines": [
+            "PRE_ELIGIBLE_OBSERVER_SHA = \"245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80\"\n",
+            "PRE_ELIGIBLE_OBSERVER_BLOBS = {\n",
+            "    CAPTURE_PATH: \"d730b2d4be8bbe92704ccbb24df0bd8ef944470e\",\n",
+            "    OBSERVER_PATH: \"04476f11d375c9554d54bc698f22d5ddac2993d1\",\n",
+            "}\n"
+          ]
+        },
+        {
+          "baseline_start": 189,
+          "current_start": 194,
+          "baseline_lines": [],
+          "current_lines": [
+            "def _observer_profile(manifest):\n",
+            "    contract = (manifest.get(\"capture_code_sha256\"), manifest.get(\"publication_verifier_sha256\"))\n",
+            "    require(contract in capture.capture_contracts(), \"EXACT_CAPTURE_PROFILE_REQUIRED\")\n",
+            "    if contract == capture.LEGACY_CAPTURE_CONTRACT:\n",
+            "        return LEGACY_OBSERVER_SHA, LEGACY_OBSERVER_BLOBS\n",
+            "    if contract == capture.PRE_ELIGIBLE_CAPTURE_CONTRACT:\n",
+            "        return PRE_ELIGIBLE_OBSERVER_SHA, PRE_ELIGIBLE_OBSERVER_BLOBS\n",
+            "    return OBSERVER_SHA, {}\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 190,
+          "current_start": 205,
+          "baseline_lines": [
+            "    historical = manifest[\"capture_code_sha256\"] == capture.LEGACY_CAPTURE_CONTRACT[0]\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 197,
+          "current_start": 211,
+          "baseline_lines": [
+            "        \"coordinator_sha256\": LEGACY_OBSERVER_SHA if historical else OBSERVER_SHA, \"writer_sha256\": WRITER_SHA,\n"
+          ],
+          "current_lines": [
+            "        \"coordinator_sha256\": _observer_profile(manifest)[0], \"writer_sha256\": WRITER_SHA,\n"
+          ]
+        },
+        {
+          "baseline_start": 209,
+          "current_start": 223,
+          "baseline_lines": [
+            "    historical = manifest[\"capture_code_sha256\"] == capture.LEGACY_CAPTURE_CONTRACT[0]\n",
+            "    for path, raw in local.items():\n",
+            "        expected = LEGACY_OBSERVER_BLOBS.get(path, gh.git_blob(raw)) if historical else gh.git_blob(raw)\n"
+          ],
+          "current_lines": [
+            "    _, overrides = _observer_profile(manifest)\n",
+            "    if overrides:\n",
+            "        require(code_tree.get(publication.COORDINATOR_PATH, {}).get(\"sha\")\n",
+            "            == publication.LEGACY_COORDINATOR_BINDING[\"git_blob_sha1\"],\n",
+            "            \"HISTORICAL_CAPTURE_REQUIRES_ORIGINAL_COORDINATOR\")\n",
+            "    observer_paths = {CAPTURE_PATH, OBSERVER_PATH, WORKFLOW_PATH, WRITER_PATH}\n",
+            "    publication.match_publication_code(code_tree, published_tree,\n",
+            "        {p: raw for p, raw in local.items() if p not in observer_paths})\n",
+            "    for path in observer_paths:\n",
+            "        raw = local[path]\n",
+            "        expected = overrides.get(path, gh.git_blob(raw))\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_observer.py",
+      "baseline_exists": true,
+      "baseline_bytes": 8420,
+      "current_bytes": 8420,
+      "baseline_sha256": "245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80",
+      "current_sha256": "4a2372ae03b64239d4924c1159d0f31114c34da22556ed213ca38faf6f627e68",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 18,
+          "current_start": 18,
+          "baseline_lines": [
+            "CAPTURE_SHA = 'd70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089'\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = '2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcome_collect.py",
+      "baseline_exists": true,
+      "baseline_bytes": 37093,
+      "current_bytes": 37922,
+      "baseline_sha256": "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced",
+      "current_sha256": "210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "OUTCOMES_SHA = \"5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18\"\n"
+          ],
+          "current_lines": [
+            "OUTCOMES_SHA = \"bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77\"\n",
+            "LEGACY_OUTCOMES_SHA = \"5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18\"\n",
+            "LEGACY_COLLECTOR_SHA = \"1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced\"\n"
+          ]
+        },
+        {
+          "baseline_start": 42,
+          "current_start": 44,
+          "baseline_lines": [],
+          "current_lines": [
+            "from work.profit_1000_upgrade import candidate_snapshot_versions as profiles\n"
+          ]
+        },
+        {
+          "baseline_start": 237,
+          "current_start": 240,
+          "baseline_lines": [],
+          "current_lines": [
+            "def original_rows(frozen):\n",
+            "    return frozen[\"prediction\"][\"promotion_rows\" if frozen[\"schema_version\"] == profiles.eligible.SCHEMA else \"rows\"]\n",
+            "\n",
+            "\n",
+            "def accepted_outcome_writers(frozen):\n",
+            "    return {OUTCOMES_SHA} if frozen[\"schema_version\"] == profiles.eligible.SCHEMA else {LEGACY_OUTCOMES_SHA, OUTCOMES_SHA}\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 242,
+          "current_start": 253,
+          "baseline_lines": [
+            "    require(receipt[\"schema_version\"] == SCHEMA and receipt[\"writer_sha256\"] == SELF_SHA\n"
+          ],
+          "current_lines": [
+            "    pairs = {(SELF_SHA, OUTCOMES_SHA)}\n",
+            "    if frozen[\"schema_version\"] != profiles.eligible.SCHEMA:\n",
+            "        pairs.add((LEGACY_COLLECTOR_SHA, LEGACY_OUTCOMES_SHA))\n",
+            "    require(receipt[\"schema_version\"] == SCHEMA and (receipt[\"writer_sha256\"], receipt[\"outcomes_wrapper_sha256\"]) in pairs\n"
+          ]
+        },
+        {
+          "baseline_start": 247,
+          "current_start": 261,
+          "baseline_lines": [
+            "        and receipt[\"full_frozen_candidate_count\"] == len(frozen[\"prediction\"][\"rows\"])\n",
+            "        and receipt[\"outcomes_wrapper_sha256\"] == OUTCOMES_SHA\n"
+          ],
+          "current_lines": [
+            "        and receipt[\"full_frozen_candidate_count\"] == len(original_rows(frozen))\n"
+          ]
+        },
+        {
+          "baseline_start": 340,
+          "current_start": 353,
+          "baseline_lines": [
+            "            and observed[\"writer_sha256\"] == OUTCOMES_SHA and set(observed[\"native_singleton_reports\"]) == set(codes)\n"
+          ],
+          "current_lines": [
+            "            and observed[\"writer_sha256\"] in accepted_outcome_writers(frozen) and set(observed[\"native_singleton_reports\"]) == set(codes)\n"
+          ]
+        },
+        {
+          "baseline_start": 348,
+          "current_start": 361,
+          "baseline_lines": [
+            "            original = next(r for r in frozen[\"prediction\"][\"rows\"] if r[\"ts_code\"] == code)\n"
+          ],
+          "current_lines": [
+            "            original = next(r for r in original_rows(frozen) if r[\"ts_code\"] == code)\n"
+          ]
+        },
+        {
+          "baseline_start": 410,
+          "current_start": 423,
+          "baseline_lines": [
+            "    registration = natural.registration()\n",
+            "    require(registration[1] == outcomes.REGISTRATION_SHA, \"FIXED_REGISTRATION_REQUIRED\")\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 417,
+          "current_start": 428,
+          "baseline_lines": [],
+          "current_lines": [
+            "    freeze_runner = profiles.eligible if frozen[\"schema_version\"] == profiles.eligible.SCHEMA else natural\n",
+            "    registration = freeze_runner.registration()\n",
+            "    require(registration[1] == frozen[\"registration_sha256\"], \"FIXED_REGISTRATION_REQUIRED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 519,
+          "current_start": 533,
+          "baseline_lines": [
+            "        natural._read(natural.REGISTRATION_PATH, registration[2])\n",
+            "        require(natural.registration() == registration and code_guard() == code_state\n"
+          ],
+          "current_lines": [
+            "        natural._read(freeze_runner.REGISTRATION_PATH, registration[2])\n",
+            "        require(freeze_runner.registration() == registration and code_guard() == code_state\n"
+          ]
+        },
+        {
+          "baseline_start": 531,
+          "current_start": 545,
+          "baseline_lines": [
+            "        \"full_frozen_candidate_count\":len(frozen[\"prediction\"][\"rows\"]),\"slot_union_codes\":codes,\n"
+          ],
+          "current_lines": [
+            "        \"full_frozen_candidate_count\":len(original_rows(frozen)),\"slot_union_codes\":codes,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcomes.py",
+      "baseline_exists": true,
+      "baseline_bytes": 26797,
+      "current_bytes": 28207,
+      "baseline_sha256": "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18",
+      "current_sha256": "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [],
+          "current_lines": [
+            "PROFILE_READER_SHA = \"bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27\"\n"
+          ]
+        },
+        {
+          "baseline_start": 68,
+          "current_start": 69,
+          "baseline_lines": [],
+          "current_lines": [
+            "    profile_path = ROOT / \"work/profit_1000_upgrade/candidate_snapshot_versions.py\"\n",
+            "    profile_raw, profile_identity = natural._read(profile_path)\n",
+            "    require(_sha(profile_raw) == PROFILE_READER_SHA, \"SNAPSHOT_PROFILE_READER_CHANGED\")\n",
+            "    from work.profit_1000_upgrade import candidate_snapshot_versions as profiles\n",
+            "    require(Path(profiles.__file__).absolute() == profile_path, \"SNAPSHOT_PROFILE_IMPORT_CHANGED\")\n",
+            "    profiles.guard()\n",
+            "    profile_state = (profile_identity, profiles.eligible._guard(), profiles.eligible.registration())\n"
+          ]
+        },
+        {
+          "baseline_start": 79,
+          "current_start": 87,
+          "baseline_lines": [
+            "    return tuple(state), identity, natural._guard()\n"
+          ],
+          "current_lines": [
+            "    return tuple(state), identity, natural._guard(), profile_state\n"
+          ]
+        },
+        {
+          "baseline_start": 86,
+          "current_start": 94,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if value.get(\"schema_version\") == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\":\n",
+            "        _guard()\n",
+            "        from work.profit_1000_upgrade import candidate_snapshot_versions as profiles\n",
+            "        return profiles.validate_snapshot(raw, expected)\n"
+          ]
+        },
+        {
+          "baseline_start": 236,
+          "current_start": 248,
+          "baseline_lines": [
+            "    plan, plan_sha, plan_identity = natural.registration()\n",
+            "    require(plan_sha == REGISTRATION_SHA, \"FIXED_NATURAL_REGISTRATION_REQUIRED\")\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 244,
+          "current_start": 254,
+          "baseline_lines": [],
+          "current_lines": [
+            "    freeze_runner = natural\n",
+            "    if frozen[\"schema_version\"] == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\":\n",
+            "        from work.profit_1000_upgrade import candidate_eligible_forward as freeze_runner\n",
+            "    plan, plan_sha, plan_identity = freeze_runner.registration()\n",
+            "    require(plan_sha == frozen[\"registration_sha256\"]\n",
+            "        and (freeze_runner is not natural or plan_sha == REGISTRATION_SHA), \"FIXED_NATURAL_REGISTRATION_REQUIRED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 292,
+          "current_start": 308,
+          "baseline_lines": [
+            "        by_code = {row[\"ts_code\"]: row for row in frozen[\"prediction\"][\"rows\"]}\n"
+          ],
+          "current_lines": [
+            "        original_rows = frozen[\"prediction\"][\"promotion_rows\"] if frozen[\"schema_version\"] == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\" else frozen[\"prediction\"][\"rows\"]\n",
+            "        by_code = {row[\"ts_code\"]: row for row in original_rows}\n"
+          ]
+        },
+        {
+          "baseline_start": 317,
+          "current_start": 334,
+          "baseline_lines": [
+            "        \"snapshot_sha256\": frozen[\"snapshot_sha256\"], \"registration_sha256\": REGISTRATION_SHA,\n"
+          ],
+          "current_lines": [
+            "        \"snapshot_sha256\": frozen[\"snapshot_sha256\"], \"registration_sha256\": frozen[\"registration_sha256\"],\n"
+          ]
+        },
+        {
+          "baseline_start": 373,
+          "current_start": 390,
+          "baseline_lines": [
+            "        natural._read(natural.REGISTRATION_PATH, plan_identity)\n",
+            "        require(natural.registration() == (plan, plan_sha, plan_identity) and _guard() == code_state,\n"
+          ],
+          "current_lines": [
+            "        natural._read(freeze_runner.REGISTRATION_PATH, plan_identity)\n",
+            "        require(freeze_runner.registration() == (plan, plan_sha, plan_identity) and _guard() == code_state,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_publication.py",
+      "baseline_exists": true,
+      "baseline_bytes": 35080,
+      "current_bytes": 38100,
+      "baseline_sha256": "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932",
+      "current_sha256": "3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "    COORDINATOR_PATH: \"0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce\",\n"
+          ],
+          "current_lines": [
+            "    COORDINATOR_PATH: \"bbf68d26495c6a2708e17e58e280c34f99bffae9e19ab7a9128d491ec06cc044\",\n"
+          ]
+        },
+        {
+          "baseline_start": 34,
+          "current_start": 34,
+          "baseline_lines": [],
+          "current_lines": [
+            "    \"work/profit_1000_upgrade/candidate_eligible_forward.py\": \"9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c\",\n",
+            "    \"work/profit_1000_upgrade/candidate_eligible_forward_registration.json\": \"9aa093c0cb83cc7c6bccf86e912e29bb266a18f1112e19e7238435a07f28da1d\",\n",
+            "    \"work/profit_1000_upgrade/candidate_eligible_pool.py\": \"86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23\",\n",
+            "    \"work/profit_1000_upgrade/candidate_snapshot_versions.py\": \"bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27\",\n",
+            "    \"work/profit_1000_upgrade/candidate_legacy_workflow.py\": \"0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce\",\n"
+          ]
+        },
+        {
+          "baseline_start": 35,
+          "current_start": 40,
+          "baseline_lines": [],
+          "current_lines": [
+            "ELIGIBLE_ONLY_FILES = {p for p in FIXED_FILES if p.endswith((\"candidate_eligible_forward.py\", \"candidate_eligible_forward_registration.json\", \"candidate_eligible_pool.py\", \"candidate_snapshot_versions.py\", \"candidate_legacy_workflow.py\"))}\n",
+            "LEGACY_COORDINATOR_BINDING = {\"path\": COORDINATOR_PATH,\n",
+            "    \"sha256\": \"0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce\",\n",
+            "    \"git_blob_sha1\": \"b5e6202baf0efeb8081587064e2f830c5b9ceb20\"}\n"
+          ]
+        },
+        {
+          "baseline_start": 69,
+          "current_start": 78,
+          "baseline_lines": [
+            "natural, _importer = workflow.dependencies()\n"
+          ],
+          "current_lines": [
+            "eligible_runner, _importer = workflow.dependencies()\n",
+            "from work.profit_1000_upgrade import candidate_natural_forward as natural\n",
+            "from work.profit_1000_upgrade import candidate_legacy_workflow as legacy_workflow\n"
+          ]
+        },
+        {
+          "baseline_start": 86,
+          "current_start": 97,
+          "baseline_lines": [
+            "    return values, (tuple(state), identity, gh.code_guard(), natural._guard())\n"
+          ],
+          "current_lines": [
+            "    return values, (tuple(state), identity, gh.code_guard(), natural._guard(), eligible_runner._guard())\n"
+          ]
+        },
+        {
+          "baseline_start": 93,
+          "current_start": 104,
+          "baseline_lines": [],
+          "current_lines": [
+            "    legacy_coordinator = code_tree.get(COORDINATOR_PATH, {}).get(\"sha\") == LEGACY_COORDINATOR_BINDING[\"git_blob_sha1\"]\n",
+            "    if legacy_coordinator:\n",
+            "        bindings = [dict(LEGACY_COORDINATOR_BINDING) if b[\"path\"] == COORDINATOR_PATH else b\n",
+            "            for b in bindings if b[\"path\"] not in ELIGIBLE_ONLY_FILES]\n"
+          ]
+        },
+        {
+          "baseline_start": 95,
+          "current_start": 110,
+          "baseline_lines": [],
+          "current_lines": [
+            "        require(legacy_coordinator, \"LEGACY_WORKFLOW_CANNOT_RUN_NEW_COORDINATOR\")\n"
+          ]
+        },
+        {
+          "baseline_start": 296,
+          "current_start": 312,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if value.get(\"schema_version\") == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\":\n",
+            "        path = ROOT / \"work/profit_1000_upgrade/candidate_snapshot_versions.py\"\n",
+            "        require(gh.sha256(gh.read(path)[0]) == \"bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27\", \"ELIGIBLE_PROFILE_READER_CHANGED\")\n",
+            "        from work.profit_1000_upgrade import candidate_snapshot_versions as profiles\n",
+            "        require(Path(profiles.__file__).absolute() == path, \"ELIGIBLE_PROFILE_IMPORT_CHANGED\")\n",
+            "        result = profiles.validate_snapshot(raw,gh.sha256(raw))\n",
+            "        require(result[\"signal_date\"] == day and result[\"clock_mode\"] == \"HOST_SYSTEM_UTC\", \"NATURAL_ELIGIBLE_SNAPSHOT_REQUIRED\")\n",
+            "        return result\n"
+          ]
+        },
+        {
+          "baseline_start": 340,
+          "current_start": 364,
+          "baseline_lines": [
+            "    frozen = sorted(snapshot[\"prediction\"][\"rows\"], key=lambda r: r[\"promotion_rank\"])\n"
+          ],
+          "current_lines": [
+            "    eligible = snapshot[\"schema_version\"] == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\"\n",
+            "    if eligible:\n",
+            "        _snapshot(gh.json_bytes(snapshot),day)\n",
+            "    frozen = sorted(snapshot[\"prediction\"][\"promotion_rows\" if eligible else \"rows\"], key=lambda r: r[\"promotion_rank\"])\n"
+          ]
+        },
+        {
+          "baseline_start": 352,
+          "current_start": 379,
+          "baseline_lines": [
+            "        and evidence[\"projection\"].get(\"projection_window_complete\") is True\n"
+          ],
+          "current_lines": [
+            "        and (eligible or evidence[\"projection\"].get(\"projection_window_complete\") is True)\n"
+          ]
+        },
+        {
+          "baseline_start": 421,
+          "current_start": 448,
+          "baseline_lines": [],
+          "current_lines": [
+            "    is_eligible = snapshot[\"schema_version\"] == eligible_runner.SCHEMA\n",
+            "    coordinator_binding = next(b for b in code_bindings if b[\"path\"] == COORDINATOR_PATH)\n",
+            "    require(coordinator_binding[\"sha256\"] == (FIXED_FILES[COORDINATOR_PATH] if is_eligible else LEGACY_COORDINATOR_BINDING[\"sha256\"]),\n",
+            "        \"SNAPSHOT_AND_COORDINATOR_PROFILE_MISMATCH\")\n"
+          ]
+        },
+        {
+          "baseline_start": 429,
+          "current_start": 460,
+          "baseline_lines": [
+            "    prepared, safety_cutoff = workflow.prepare_publication(snapshot_raw, local, imported,\n"
+          ],
+          "current_lines": [
+            "    prepared, safety_cutoff = (workflow if is_eligible else legacy_workflow).prepare_publication(snapshot_raw, local, imported,\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "baseline_exists": true,
+      "baseline_bytes": 38520,
+      "current_bytes": 38520,
+      "baseline_sha256": "7ac105a3f5dd49b5326dd867e262f78540bba36f0ebf047095c6dce34eee1c95",
+      "current_sha256": "5d08a464e349ffe0c3ec20c8efd2215c105a53038b84be76ad606151414147a4",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 34,
+          "current_start": 34,
+          "baseline_lines": [
+            "    \"candidate_natural_evidence_publication\": \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\",\n",
+            "    \"candidate_natural_outcome_collect\": \"1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced\",\n",
+            "    \"candidate_natural_daily\": \"88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321\",\n"
+          ],
+          "current_lines": [
+            "    \"candidate_natural_evidence_publication\": \"9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c\",\n",
+            "    \"candidate_natural_outcome_collect\": \"210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca\",\n",
+            "    \"candidate_natural_daily\": \"5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d\",\n"
+          ]
+        },
+        {
+          "baseline_start": 39,
+          "current_start": 39,
+          "baseline_lines": [
+            "    \"candidate_natural_statistics\": \"8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6\",\n"
+          ],
+          "current_lines": [
+            "    \"candidate_natural_statistics\": \"657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "baseline_exists": true,
+      "baseline_bytes": 25304,
+      "current_bytes": 25704,
+      "baseline_sha256": "8a8726c856c7749bdb47a9029f3624e57295f9913c248c2240bff0717189a8f6",
+      "current_sha256": "657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 19,
+          "current_start": 19,
+          "baseline_lines": [
+            "OUTCOMES_SHA = \"5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18\"\n"
+          ],
+          "current_lines": [
+            "OUTCOMES_SHA = \"bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77\"\n",
+            "LEGACY_OUTCOMES_SHA = \"5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18\"\n"
+          ]
+        },
+        {
+          "baseline_start": 21,
+          "current_start": 22,
+          "baseline_lines": [
+            "PUBLICATION_SHA = \"ddfcd8932032d9e64c2be3577d60b74bc6d67f070d77727b79e83bced8c20bbb\"\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = \"9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c\"\n"
+          ]
+        },
+        {
+          "baseline_start": 160,
+          "current_start": 161,
+          "baseline_lines": [],
+          "current_lines": [
+            "    eligible = frozen[\"schema_version\"] == \"dc20_fixed_candidate_eligible_research_snapshot_20260922_v2\"\n",
+            "    writer = version.get(\"writer_sha256\")\n",
+            "    require(writer in ({OUTCOMES_SHA} if eligible else {LEGACY_OUTCOMES_SHA, OUTCOMES_SHA}), \"UNREGISTERED_OUTCOME_WRITER_PROFILE\")\n"
+          ]
+        },
+        {
+          "baseline_start": 162,
+          "current_start": 166,
+          "baseline_lines": [
+            "        \"registration_sha256\": outcomes.REGISTRATION_SHA, \"model_canonical_sha256\": natural.MODEL_SHA,\n"
+          ],
+          "current_lines": [
+            "        \"registration_sha256\": frozen[\"registration_sha256\"], \"model_canonical_sha256\": natural.MODEL_SHA,\n"
+          ]
+        },
+        {
+          "baseline_start": 165,
+          "current_start": 169,
+          "baseline_lines": [
+            "        \"calendar_sha256\": labels.settlement.CALENDAR_SHA256, \"writer_sha256\": OUTCOMES_SHA,\n"
+          ],
+          "current_lines": [
+            "        \"calendar_sha256\": labels.settlement.CALENDAR_SHA256, \"writer_sha256\": writer,\n"
+          ]
+        },
+        {
+          "baseline_start": 199,
+          "current_start": 203,
+          "baseline_lines": [
+            "    by_code = {r[\"ts_code\"]: r for r in frozen[\"prediction\"][\"rows\"]}\n"
+          ],
+          "current_lines": [
+            "    by_code = {r[\"ts_code\"]: r for r in frozen[\"prediction\"][\"promotion_rows\" if eligible else \"rows\"]}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_trigger_gate.py",
+      "baseline_exists": true,
+      "baseline_bytes": 22025,
+      "current_bytes": 22812,
+      "baseline_sha256": "0f8c5a863d2d38a773427ce615e258f5b59c3715b4050626b49f7c9a933acee9",
+      "current_sha256": "1a96e01c87fa6ce4102009deffdcfd67a83c8468c20fa83501f644e24a350f98",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 124,
+          "current_start": 124,
+          "baseline_lines": [
+            "    prepared, _ = workflow.prepare_publication(raw[0], local, imported, context,\n"
+          ],
+          "current_lines": [
+            "    from work.profit_1000_upgrade import candidate_snapshot_versions as profiles\n",
+            "    profiles.validate_snapshot(raw[0], gh.sha256(raw[0]))\n",
+            "    eligible = snapshot[\"schema_version\"] == profiles.eligible.SCHEMA\n",
+            "    coordinator = workflow\n",
+            "    if not eligible:\n",
+            "        from work.profit_1000_upgrade import candidate_legacy_workflow as legacy\n",
+            "        require(Path(legacy.__file__).absolute() == workflow.ROOT / \"work/profit_1000_upgrade/candidate_legacy_workflow.py\"\n",
+            "            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == \"0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce\",\n",
+            "            \"LEGACY_COORDINATOR_CODE_CHANGED\")\n",
+            "        coordinator = legacy\n",
+            "    prepared, _ = coordinator.prepare_publication(raw[0], local, imported, context,\n"
+          ]
+        },
+        {
+          "baseline_start": 128,
+          "current_start": 138,
+          "baseline_lines": [],
+          "current_lines": [
+            "    promotions = ([{**r, \"candidate_rank\": None, \"candidate_score\": None}\n",
+            "        for r in snapshot[\"prediction\"][\"promotion_rows\"]] if eligible else rows)\n"
+          ]
+        },
+        {
+          "baseline_start": 129,
+          "current_start": 141,
+          "baseline_lines": [
+            "        and snapshot[\"promotion_slots\"] == runner._slots(rows, \"promotion_rank\"), \"EXISTING_TOP_SLOTS_CHANGED\")\n"
+          ],
+          "current_lines": [
+            "        and snapshot[\"promotion_slots\"] == runner._slots(promotions, \"promotion_rank\"), \"EXISTING_TOP_SLOTS_CHANGED\")\n"
+          ]
+        },
+        {
+          "baseline_start": 136,
+          "current_start": 148,
+          "baseline_lines": [
+            "        and contract.get(\"top10_count\") == revision[\"primary_d_top10_count\"] == len(rows),\n"
+          ],
+          "current_lines": [
+            "        and contract.get(\"top10_count\") == revision[\"primary_d_top10_count\"] == len(promotions),\n"
+          ]
+        },
+        {
+          "baseline_start": 175,
+          "current_start": 187,
+          "baseline_lines": [
+            "            in (issuer.capture.LEGACY_CAPTURE_CONTRACT, (issuer.capture.SELF_SHA, issuer.capture.PUBLICATION_SHA)),\n"
+          ],
+          "current_lines": [
+            "            in issuer.capture.capture_contracts(),\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_workflow.py",
+      "baseline_exists": true,
+      "baseline_bytes": 18070,
+      "current_bytes": 18137,
+      "baseline_sha256": "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+      "current_sha256": "bbf68d26495c6a2708e17e58e280c34f99bffae9e19ab7a9128d491ec06cc044",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 27,
+          "current_start": 27,
+          "baseline_lines": [
+            "RUNNER_SHA = '5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15'\n"
+          ],
+          "current_lines": [
+            "RUNNER_SHA = '9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c'\n"
+          ]
+        },
+        {
+          "baseline_start": 59,
+          "current_start": 59,
+          "baseline_lines": [
+            "    for name, sha in (('candidate_natural_forward.py', RUNNER_SHA), ('candidate_natural_p0_github.py', IMPORTER_SHA)):\n"
+          ],
+          "current_lines": [
+            "    for name, sha in (('candidate_eligible_forward.py', RUNNER_SHA), ('candidate_natural_p0_github.py', IMPORTER_SHA)):\n"
+          ]
+        },
+        {
+          "baseline_start": 63,
+          "current_start": 63,
+          "baseline_lines": [
+            "    from work.profit_1000_upgrade import candidate_natural_forward as runner\n"
+          ],
+          "current_lines": [
+            "    from work.profit_1000_upgrade import candidate_eligible_forward as runner\n"
+          ]
+        },
+        {
+          "baseline_start": 65,
+          "current_start": 65,
+          "baseline_lines": [
+            "    require(Path(runner.__file__).absolute() == ROOT / 'work/profit_1000_upgrade/candidate_natural_forward.py'\n"
+          ],
+          "current_lines": [
+            "    require(Path(runner.__file__).absolute() == ROOT / 'work/profit_1000_upgrade/candidate_eligible_forward.py'\n"
+          ]
+        },
+        {
+          "baseline_start": 100,
+          "current_start": 100,
+          "baseline_lines": [],
+          "current_lines": [
+            "    runner.validate_snapshot(snapshot_raw,digest(snapshot_raw))\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py",
+      "baseline_exists": true,
+      "baseline_bytes": 17838,
+      "current_bytes": 18061,
+      "baseline_sha256": "f71261ea2e542c5fa0830e6821bc16541c2d4d6d05df54013af55694142f320a",
+      "current_sha256": "4895d398339f2e1676ea4c385665c0d8202c1c01d5c74e02a103ad271a9c2760",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 94,
+          "current_start": 94,
+          "baseline_lines": [
+            "        for path, raw in local.items()}\n"
+          ],
+          "current_lines": [
+            "        for path, raw in local.items() if path not in m.publication.ELIGIBLE_ONLY_FILES}\n",
+            "    tree[m.publication.COORDINATOR_PATH][\"sha\"] = m.publication.LEGACY_COORDINATOR_BINDING[\"git_blob_sha1\"]\n"
+          ]
+        },
+        {
+          "baseline_start": 96,
+          "current_start": 97,
+          "baseline_lines": [
+            "    current_manifest = {**manifest, \"capture_code_sha256\": m.CAPTURE_SHA}\n"
+          ],
+          "current_lines": [
+            "    current_manifest = {**manifest, \"capture_code_sha256\": m.CAPTURE_SHA,\n",
+            "        \"publication_verifier_sha256\": m.capture.PUBLICATION_SHA}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_publication.py",
+      "baseline_exists": true,
+      "baseline_bytes": 20136,
+      "current_bytes": 21972,
+      "baseline_sha256": "06b039ec63ca8a344d4bb43758f7990db68bb0de7e57f44ab7c3824b920f8c04",
+      "current_sha256": "dc294b98bd48fe80288f90819d2c7e5b4e1b9c9ebf526cd70444aba461281a38",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 59,
+          "current_start": 59,
+          "baseline_lines": [
+            "def make_case(tmp_path, monkeypatch, *, size=2, prefix=\"\"):\n"
+          ],
+          "current_lines": [
+            "def make_case(tmp_path, monkeypatch, *, size=2, prefix=\"\", version=\"eligible\"):\n",
+            "    assert version in {\"eligible\", \"legacy\"}\n",
+            "    runner = m.eligible_runner if version == \"eligible\" else m.natural\n",
+            "    coordinator = m.workflow if version == \"eligible\" else m.legacy_workflow\n"
+          ]
+        },
+        {
+          "baseline_start": 68,
+          "current_start": 71,
+          "baseline_lines": [
+            "        receipt = m.natural.freeze_natural_day(source[\"output\"], tmp_path.resolve() / \"candidate_natural_forward\",\n"
+          ],
+          "current_lines": [
+            "        receipt = runner.freeze_natural_day(source[\"output\"], tmp_path.resolve() / \"candidate_natural_forward\",\n"
+          ]
+        },
+        {
+          "baseline_start": 80,
+          "current_start": 83,
+          "baseline_lines": [
+            "    files, _ = m.workflow.prepare_publication(snapshot_raw, receipt, imported, context,\n"
+          ],
+          "current_lines": [
+            "    files, _ = coordinator.prepare_publication(snapshot_raw, receipt, imported, context,\n"
+          ]
+        },
+        {
+          "baseline_start": 83,
+          "current_start": 86,
+          "baseline_lines": [],
+          "current_lines": [
+            "    if version == \"legacy\":\n",
+            "        local = {p: raw for p, raw in local.items() if p not in m.ELIGIBLE_ONLY_FILES}\n",
+            "        local[m.LEGACY_COORDINATOR_BINDING[\"path\"]] = Path(m.legacy_workflow.__file__).read_bytes()\n"
+          ]
+        },
+        {
+          "baseline_start": 132,
+          "current_start": 138,
+          "baseline_lines": [
+            "    responses = {entry[\"api_path\"]: m.gh.parse_json((root / entry[\"retained_body\"][\"path\"]).read_bytes())\n",
+            "        for entry in manifest[\"http_observations\"] if entry[\"kind\"] == \"API_JSON\"}\n"
+          ],
+          "current_lines": [
+            "    def retained(api_path):\n",
+            "        entry = next(e for e in manifest[\"http_observations\"]\n",
+            "            if e[\"kind\"] == \"API_JSON\" and e[\"api_path\"] == api_path)\n",
+            "        raw = (root / entry[\"retained_body\"][\"path\"]).read_bytes()\n",
+            "        assert m.gh.sha256(raw) == entry[\"retained_body\"][\"sha256\"]\n",
+            "        return m.gh.parse_json(raw)\n"
+          ]
+        },
+        {
+          "baseline_start": 135,
+          "current_start": 145,
+          "baseline_lines": [
+            "    original = responses[run_api]\n",
+            "    commit = responses[m.gh.API_PREFIX + \"/git/commits/\" + original[\"head_sha\"]]\n",
+            "    doc = responses[m.gh.API_PREFIX + \"/git/trees/\" + commit[\"tree\"][\"sha\"] + \"?recursive=1\"]\n"
+          ],
+          "current_lines": [
+            "    original = retained(run_api)\n",
+            "    commit = retained(m.gh.API_PREFIX + \"/git/commits/\" + original[\"head_sha\"])\n",
+            "    doc = retained(m.gh.API_PREFIX + \"/git/trees/\" + commit[\"tree\"][\"sha\"] + \"?recursive=1\")\n"
+          ]
+        },
+        {
+          "baseline_start": 148,
+          "current_start": 158,
+          "baseline_lines": [],
+          "current_lines": [
+            "@pytest.mark.parametrize(\"version\", [\"legacy\", \"eligible\"])\n"
+          ]
+        },
+        {
+          "baseline_start": 149,
+          "current_start": 160,
+          "baseline_lines": [
+            "def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypatch, size, prefix):\n",
+            "    case = make_case(tmp_path, monkeypatch, size=size, prefix=prefix)\n"
+          ],
+          "current_lines": [
+            "def test_full_synthetic_git_zip_time_chain_no_false_authority(tmp_path, monkeypatch, size, prefix, version):\n",
+            "    case = make_case(tmp_path, monkeypatch, size=size, prefix=prefix, version=version)\n"
+          ]
+        },
+        {
+          "baseline_start": 166,
+          "current_start": 177,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"version\", [\"legacy\", \"eligible\"])\n",
+            "def test_coordinator_profile_cannot_change_between_code_and_publication(tmp_path, monkeypatch, version):\n",
+            "    case = make_case(tmp_path, monkeypatch, version=version)\n",
+            "    code = m.gh.validate_tree(case[\"parent_tree\"], case[\"parent_tree\"][\"sha\"])\n",
+            "    published = m.gh.validate_tree(case[\"tree\"], case[\"tree\"][\"sha\"])\n",
+            "    local, _ = m.code_guard()\n",
+            "    other = (m.gh.git_blob(local[m.COORDINATOR_PATH]) if version == \"legacy\"\n",
+            "        else m.LEGACY_COORDINATOR_BINDING[\"git_blob_sha1\"])\n",
+            "    published[m.COORDINATOR_PATH][\"sha\"] = other\n",
+            "    with pytest.raises(ValueError, match=\"CODE_VERSION_CHANGED\"):\n",
+            "        m.match_publication_code(code, published, local)\n",
+            "\n",
+            "\n",
+            "def test_original_workflow_cannot_be_combined_with_eligible_coordinator(tmp_path, monkeypatch):\n",
+            "    case = make_case(tmp_path, monkeypatch)\n",
+            "    code = m.gh.validate_tree(case[\"parent_tree\"], case[\"parent_tree\"][\"sha\"])\n",
+            "    code[m.WORKFLOW_PATH][\"sha\"] = m.LEGACY_WORKFLOW_BINDING[\"git_blob_sha1\"]\n",
+            "    local, _ = m.code_guard()\n",
+            "    with pytest.raises(ValueError, match=\"LEGACY_WORKFLOW_CANNOT_RUN_NEW_COORDINATOR\"):\n",
+            "        m.match_publication_code(code, code, local)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_workflow.py",
+      "baseline_exists": true,
+      "baseline_bytes": 15775,
+      "current_bytes": 15904,
+      "baseline_sha256": "3c3f4949729c320b0f1407f7a6a40ee2207c12615cf2703b6a26fe718ef4b53c",
+      "current_sha256": "8fa76155f7bb15698a37ca35c83f22e62aec651852a0f7cea5cf05d47447c93e",
+      "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 110,
+          "current_start": 110,
+          "baseline_lines": [],
+          "current_lines": [
+            "    from work.profit_1000_upgrade import candidate_eligible_forward as eligible\n",
+            "    monkeypatch.setattr(fixtures, 'm', eligible)\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "current_source_pins": {
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": "c3625a6c3b03135463645730a363e85e50f527ab176bdf7e222890e950c8cac1",
+    "src/top10decision/decision/candidate_profit_publication.py": "f0e17d62dfd425737ab125e3fbe7d610e039b3ba22f409aa60eea6af5c6a7091",
+    "tests/test_candidate_capture_profiles.py": "79d5b641dbba38a9335c3636d186ebd9466edf60b912b86f576d5a7bc52eb8d9",
+    "tests/test_candidate_eligible_collection.py": "382c56486d02ecfe520cb2c08a2da84fd42f360c2a4e8dd6e1d79667e21e1201",
+    "tests/test_candidate_eligible_public_day.py": "72b7f703494cc63a4c07607a54f43a8ded7718f7f5fb6c572882b7d456c786ef",
+    "tests/test_candidate_eligible_publication_snapshot.py": "5a38f09e7f3be64feab7d51cd82cdd1b7dccced7ec114a9c3189d7ae617fbc53",
+    "tests/test_candidate_eligible_shadow_summary.py": "18039ceadc3903aca14dc3176ab65dacf2a2775ab29b3384640d6f64b06584fc",
+    "tests/test_candidate_formal_shadow_summary.py": "b14e5f2ff095cf6e5ccfe5d9199f453c34f2969b406744854ce293d9c1a5b98c",
+    "tests/test_candidate_profit_activation_frontend.py": "463ab9095ee2e6b8c6b178d6d72f0bdba41247443626c3989db07be434c54b0f",
+    "tests/test_candidate_profit_pages.py": "d10b1271805c88f88e321e9c3b21ac8c6d4cba18df06aaf53b8b79306f1cc69d",
+    "tests/test_candidate_profit_publication.py": "4d5ab4cc22a54dc3d18b723b30347505fea08f8485e767991e7881e13d0890bd",
+    "tests/test_candidate_profit_workflow.py": "ad395a58f9e4cea038c25ea56a3c7f47530d21ea2ea835b73f7759de0606af3e",
+    "tests/test_p0_stale_trigger_admission.py": "849c8234f7c663f90813a52ce4b1fed63f2e220a346d495cd5c951a2707e45f3",
+    "tests/test_profit_supplement_20260921.py": "f2b274942731456b3ece773b754193f80ac435e0c263d1b2273d158494b2e089",
+    "work/profit_1000_upgrade/candidate_eligible_forward.py": "9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c",
+    "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+    "work/profit_1000_upgrade/candidate_natural_daily.py": "5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d",
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": "2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90",
+    "work/profit_1000_upgrade/candidate_natural_evidence_git.py": "e876d5865d72e8dddef1e920a68dfdf9d24e26d7b647b96672a7ff89c6358a76",
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c",
+    "work/profit_1000_upgrade/candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
+    "work/profit_1000_upgrade/candidate_natural_forward_test.py": "16af015ed8553fbc1d7bb99b632ba22c025211151bae4e59a012e0d742a6928e",
+    "work/profit_1000_upgrade/candidate_natural_journal.py": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
+    "work/profit_1000_upgrade/candidate_natural_journal_git.py": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74",
+    "work/profit_1000_upgrade/candidate_natural_observer.py": "4a2372ae03b64239d4924c1159d0f31114c34da22556ed213ca38faf6f627e68",
+    "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": "210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca",
+    "work/profit_1000_upgrade/candidate_natural_outcomes.py": "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77",
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": "6adc11beaef7c5b940043a4063dc812f6f56c169c71ecaafd9c9be6364729cb4",
+    "work/profit_1000_upgrade/candidate_natural_publication.py": "3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f",
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": "5d08a464e349ffe0c3ec20c8efd2215c105a53038b84be76ad606151414147a4",
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": "657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554",
+    "work/profit_1000_upgrade/candidate_natural_trigger_gate.py": "1a96e01c87fa6ce4102009deffdcfd67a83c8468c20fa83501f644e24a350f98",
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": "bbf68d26495c6a2708e17e58e280c34f99bffae9e19ab7a9128d491ec06cc044",
+    "work/profit_1000_upgrade/candidate_snapshot_versions.py": "bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27",
+    "work/profit_1000_upgrade/test_candidate_d_feature_projection.py": "72babf5c0962dd83c5c2eb6bfabf93c4ccbeea8ee249f10e2f9bc8c2e2e1c404",
+    "work/profit_1000_upgrade/test_candidate_d_source_adapter.py": "73da2e2588ac7e160f32da072ef571603abd1118162d686936c76fcb3a63ba9f",
+    "work/profit_1000_upgrade/test_candidate_eligible_forward.py": "60346dbfcb4a9850dab0e429c353e57d61047086d9aba25c518773e134d360a3",
+    "work/profit_1000_upgrade/test_candidate_eligible_outcomes.py": "e267a9854a82beb1c7e012ec9a0932124433d2ecf3d9c4b10b06ca752e896c96",
+    "work/profit_1000_upgrade/test_candidate_eligible_pool.py": "1d32e651353148dae19343d2f11cfb5151d39ca61bb1486172c0ec73714c6e6c",
+    "work/profit_1000_upgrade/test_candidate_eligible_statistics.py": "fc5be2da202a8af5bee62100cb59205462190955d0cdcccd59856e4a7099b502",
+    "work/profit_1000_upgrade/test_candidate_natural_daily.py": "300110ab411d70c791f021eb7657d479fb8ebed314204c3a3c2b15da65aa81e3",
+    "work/profit_1000_upgrade/test_candidate_natural_evidence.py": "728f37f1ba9a39d03dbcfb945295909e317f497378c595b5bacc6db2b5312cac",
+    "work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py": "4895d398339f2e1676ea4c385665c0d8202c1c01d5c74e02a103ad271a9c2760",
+    "work/profit_1000_upgrade/test_candidate_natural_outcome_collect.py": "fc8a42b13e6d37efef8f82eab9fd607661a8d196a38492affff16d38e67803a6",
+    "work/profit_1000_upgrade/test_candidate_natural_outcomes.py": "0973d9a0c3379380a33b77def0f44db99f21acae76e4366687df95ed7eaf6a3f",
+    "work/profit_1000_upgrade/test_candidate_natural_p0_github.py": "7ca0ebc8d67a9b4a1ee02a5422a17f17de6a3532e92820ec8cafe3a00b8db405",
+    "work/profit_1000_upgrade/test_candidate_natural_publication.py": "dc294b98bd48fe80288f90819d2c7e5b4e1b9c9ebf526cd70444aba461281a38",
+    "work/profit_1000_upgrade/test_candidate_natural_settlement_contract.py": "54b7e280bd36a2bffc332cbbecb7a3a67c89fb2cbfff39b9d3359ea8792500fc",
+    "work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py": "a61d54494d75ad48f28b35853a13dec2060ea6d69027d4a37dd9dbc3d7da0956",
+    "work/profit_1000_upgrade/test_candidate_natural_statistics.py": "ea0a728892bac8bd2b443a60f5102839bfe471167a7746c0a92fa6dcb7cec7d2",
+    "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py": "8b0722e55e58ccb083ef5cac290e2eb5b7fa8f88976504e1d8cd8af10c94a14f",
+    "work/profit_1000_upgrade/test_candidate_natural_workflow.py": "8fa76155f7bb15698a37ca35c83f22e62aec651852a0f7cea5cf05d47447c93e",
+    "work/profit_1000_upgrade/test_candidate_snapshot_versions.py": "d723ce17f01e872b54da4416b1f70b4cb02ec6fef460c3f228065df1e3568513"
+  },
+  "existing_pin_updates": {
+    "decision.html": "b348616fd2a2eb1ab164b40f9a1b3fabb0fbf087a2280fd854ba53da2f4d9967",
+    ".github/workflows/run_primary_d_daily.yml": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677"
+  },
+  "inventory_baseline": "{\n  \"schema_version\": \"dc20_forward_model_inventory_v1\",\n  \"source_repository\": \"njedu2023-prog/DC20\",\n  \"source_commit\": \"15423ced302ab19b17f459fb3006e0af2b764f24\",\n  \"status\": \"INACTIVE_MIGRATION_REPLAY_ONLY\",\n  \"dependency_successor_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_reliability.json\",\n    \"sha256\": \"9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9\",\n    \"approved_base_commit\": \"709317f8d0cf12fb726ae515230281dad255d0f4\",\n    \"scope\": \"DUPLICATE_RUN_AND_DELAYED_SETTLEMENT_REPAIR_NO_MODEL_OR_TRUTH_CHANGE\"\n  },\n  \"active_source_models\": {\n    \"promotion\": {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"role\": \"promotion_hgb_with_frozen_preprocessing_and_platt_calibration\",\n      \"feature_columns_sha256\": \"9f403117278b73653014a3682442072f026d8e73abef37d318086565dae23425\"\n    },\n    \"profit\": {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"role\": \"uncalibrated_fill_and_conditional_profit_research_heads\",\n      \"feature_columns_sha256\": \"a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048\",\n      \"feature_count\": 156,\n      \"release_status\": \"INTERNAL_CHALLENGER_NOT_READY\"\n    }\n  },\n  \"assets\": [\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_daily_stage_board.csv\",\n      \"sha256\": \"d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909\",\n      \"bytes\": 104013,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/auction_v3/promotion_prior/five_year_event_features.csv.gz\",\n      \"sha256\": \"57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e\",\n      \"bytes\": 627667,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_executable_profit/historical_oof_top10_ledger_manifest.json\",\n      \"sha256\": \"3fd457dbe8438b28bbd80d0521ebd9a2ba2d17845be019412238b7898cce69f5\",\n      \"bytes\": 12184,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_ledger_manifest.json\",\n      \"sha256\": \"35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034\",\n      \"bytes\": 7564,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/five_year_supervised_ledger.csv.gz\",\n      \"sha256\": \"7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46\",\n      \"bytes\": 4764361,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib\",\n      \"sha256\": \"9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6\",\n      \"bytes\": 7703,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib\",\n      \"sha256\": \"1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06\",\n      \"bytes\": 3413205,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib\",\n      \"sha256\": \"0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3\",\n      \"bytes\": 3423122,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib\",\n      \"sha256\": \"72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b\",\n      \"bytes\": 178906,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"data/market/trade_cal_sse.csv\",\n      \"sha256\": \"150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748\",\n      \"bytes\": 61411,\n      \"role\": \"retained_feature_history_or_calendar_not_performance_statistics\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_executable_profit_internal_forward_challenger.json\",\n      \"sha256\": \"487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af\",\n      \"bytes\": 6878,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_model_freeze.json\",\n      \"sha256\": \"4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0\",\n      \"bytes\": 52795,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_forward_shadow_bridge_contract.json\",\n      \"sha256\": \"2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623\",\n      \"bytes\": 4023,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_primary_profit_research_contract.json\",\n      \"sha256\": \"3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780\",\n      \"bytes\": 3470,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/big_loss.joblib\",\n      \"sha256\": \"ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b\",\n      \"bytes\": 8998,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/p_fill_shadow.joblib\",\n      \"sha256\": \"69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24\",\n      \"bytes\": 9435,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/profit.joblib\",\n      \"sha256\": \"d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291\",\n      \"bytes\": 5127,\n      \"role\": \"retained_legacy_not_selected_for_new_primary_runtime\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"models/decision_three_engines/promotion.joblib\",\n      \"sha256\": \"b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c\",\n      \"bytes\": 179221,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    },\n    {\n      \"path\": \"models/decision_three_engines/validation_latest.json\",\n      \"sha256\": \"de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73\",\n      \"bytes\": 192258,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"requirements.txt\",\n      \"sha256\": \"f357bdf60ae550d138bc5d6dfb5c2b37b48fab750356a167f70b7913d0c87a03\",\n      \"bytes\": 142,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_profit_rankings.py\",\n      \"sha256\": \"1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905\",\n      \"bytes\": 81784,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"scripts/publish_primary_three_rank.py\",\n      \"sha256\": \"5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98\",\n      \"bytes\": 72320,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/__init__.py\",\n      \"sha256\": \"1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8\",\n      \"bytes\": 224,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/calibration.py\",\n      \"sha256\": \"06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9\",\n      \"bytes\": 6128,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/config.py\",\n      \"sha256\": \"4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2\",\n      \"bytes\": 5987,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/engine.py\",\n      \"sha256\": \"68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8\",\n      \"bytes\": 360360,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/auction_v3/promotion_model.py\",\n      \"sha256\": \"af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170\",\n      \"bytes\": 28552,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/data/tushare_minute.py\",\n      \"sha256\": \"30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785\",\n      \"bytes\": 23208,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/canonical_fingerprint.py\",\n      \"sha256\": \"61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b\",\n      \"bytes\": 14617,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/contracts.py\",\n      \"sha256\": \"50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917\",\n      \"bytes\": 2634,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/d_close_features.py\",\n      \"sha256\": \"c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e\",\n      \"bytes\": 4983,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/eligibility.py\",\n      \"sha256\": \"31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7\",\n      \"bytes\": 7767,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/executable_profit_shadow.py\",\n      \"sha256\": \"872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c\",\n      \"bytes\": 110633,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/exit_policy.py\",\n      \"sha256\": \"4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f\",\n      \"bytes\": 5040,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/legacy_profit_relative_research.py\",\n      \"sha256\": \"eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2\",\n      \"bytes\": 45098,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/observation.py\",\n      \"sha256\": \"577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713\",\n      \"bytes\": 7270,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_engine_models.py\",\n      \"sha256\": \"9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c\",\n      \"bytes\": 148112,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/three_rank.py\",\n      \"sha256\": \"f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a\",\n      \"bytes\": 80531,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/decision/trade_selector.py\",\n      \"sha256\": \"7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858\",\n      \"bytes\": 77709,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/probability_calibration.py\",\n      \"sha256\": \"058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c\",\n      \"bytes\": 10693,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"src/top10decision/writers/io_contract.py\",\n      \"sha256\": \"80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97\",\n      \"bytes\": 9897,\n      \"role\": \"migration_bridge_feature_or_contract_dependency\",\n      \"verify_for_replay\": false\n    },\n    {\n      \"path\": \"work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl\",\n      \"sha256\": \"42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209\",\n      \"bytes\": 981025,\n      \"role\": \"active_source_model_retained_unchanged\",\n      \"verify_for_replay\": true\n    }\n  ],\n  \"limitations\": [\n    \"The complete P0/P1 replay adapter is not a production entry point. Future P0 inference/publication must be independent of profit, verification and statistics; missing P1 must not block a valid promotion list.\",\n    \"No model is deserialized, trained, or run by forward.engine. Frozen P0/P1 outputs are only verified and copied.\",\n    \"P0 feature production still depends on legacy auction_v3 engine path features, d_close_features and three_engine_models; this is not yet an independent runtime.\",\n    \"P1 production still depends on legacy executable_profit_shadow feature assembly and strict lagged priors, plus the frozen research contract.\",\n    \"Path labels are rule/feature diagnostics from auction_v3.engine._streak_path_features, not a separately trained model.\",\n    \"Preprocessing, missingness handling, feature order and calibration remain in retained artifacts/source; unpickled internals have not been re-audited by this adapter.\",\n    \"Retained legacy weights are not automatically eligible for new primary ranking. Newly studied loss-making candidates remain NO_RELEASE.\",\n    \"Historical feature inputs are retained, but old selections, validation outcomes and cumulative totals are never imported into the new ledger.\",\n    \"Hashes document archive assets and allow active model verification; they do not attest current GitHub HEAD, live schedule execution, or independently reproduced model scores.\"\n  ],\n  \"navigation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_navigation.json\",\n    \"sha256\": \"3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d\"\n  },\n  \"observation_source_review\": {\n    \"path\": \"models/decision_source_surface_review_20260915_observation_v2.json\",\n    \"sha256\": \"c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e\"\n  },\n  \"settlement_repair_review\": {\n    \"path\": \"models/decision_source_surface_review_20260920_settlement_repair.json\",\n    \"sha256\": \"a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f\"\n  },\n  \"full_list_promotion_review\": {\n    \"path\": \"models/decision_source_surface_review_20260920_full_list_promotion.json\",\n    \"sha256\": \"3eef32501c0ed7bb10768a80e3f40b8350a92260f4bb1783219e9b0353b7468f\"\n  },\n  \"monthly_ledger_review\": {\n    \"path\": \"models/decision_source_surface_review_20260920_monthly_ledger.json\",\n    \"sha256\": \"ff5bcf4c14c472060a0829a0b94c638fffd07606962ca2f586d9b1b2f8caa305\"\n  }\n}\n"
+}

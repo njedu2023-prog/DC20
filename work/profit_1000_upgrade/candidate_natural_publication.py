@@ -25,13 +25,22 @@ WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 FIXED_FILES = {
     IMPORTER_PATH: IMPORTER_SHA,
-    COORDINATOR_PATH: "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+    COORDINATOR_PATH: "bbf68d26495c6a2708e17e58e280c34f99bffae9e19ab7a9128d491ec06cc044",
     WORKFLOW_PATH: "337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c",
     "requirements-dev.lock": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
     "work/profit_1000_upgrade/candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
     "work/profit_1000_upgrade/candidate_natural_forward_registration.json": "2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2",
     "work/profit_1000_upgrade/candidate_natural_model/evaluation.json": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
+    "work/profit_1000_upgrade/candidate_eligible_forward.py": "9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c",
+    "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": "9aa093c0cb83cc7c6bccf86e912e29bb266a18f1112e19e7238435a07f28da1d",
+    "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
+    "work/profit_1000_upgrade/candidate_snapshot_versions.py": "bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27",
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
 }
+ELIGIBLE_ONLY_FILES = {p for p in FIXED_FILES if p.endswith(("candidate_eligible_forward.py", "candidate_eligible_forward_registration.json", "candidate_eligible_pool.py", "candidate_snapshot_versions.py", "candidate_legacy_workflow.py"))}
+LEGACY_COORDINATOR_BINDING = {"path": COORDINATOR_PATH,
+    "sha256": "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+    "git_blob_sha1": "b5e6202baf0efeb8081587064e2f830c5b9ceb20"}
 MODEL_PATH = "work/profit_1000_upgrade/candidate_natural_model/evaluation.json"
 PREFIX = "work/profit_1000_upgrade/candidate_natural_forward/"
 SCHEMA = "dc20_independent_candidate_research_publication_observation_v1"
@@ -66,7 +75,9 @@ _bootstrap()
 from work.profit_1000_upgrade import candidate_natural_p0_github as gh
 from work.profit_1000_upgrade import candidate_natural_workflow as workflow
 
-natural, _importer = workflow.dependencies()
+eligible_runner, _importer = workflow.dependencies()
+from work.profit_1000_upgrade import candidate_natural_forward as natural
+from work.profit_1000_upgrade import candidate_legacy_workflow as legacy_workflow
 require(_importer is gh, "SAME_IMPORTER_MODULE_REQUIRED")
 SELF_SHA = gh.sha256(gh.read(Path(__file__).absolute())[0])
 
@@ -83,15 +94,20 @@ def code_guard():
         state.append((relative, expected, identity))
     raw, identity = gh.read(Path(__file__).absolute())
     require(gh.sha256(raw) == SELF_SHA, "PUBLICATION_VERIFIER_CHANGED")
-    return values, (tuple(state), identity, gh.code_guard(), natural._guard())
+    return values, (tuple(state), identity, gh.code_guard(), natural._guard(), eligible_runner._guard())
 
 
 def match_publication_code(code_tree, published_tree, local_files):
     """Bind one complete reviewed code version in both immutable Git trees."""
     bindings = [{"path": p, "sha256": gh.sha256(b), "git_blob_sha1": gh.git_blob(b)}
         for p, b in sorted(local_files.items())]
+    legacy_coordinator = code_tree.get(COORDINATOR_PATH, {}).get("sha") == LEGACY_COORDINATOR_BINDING["git_blob_sha1"]
+    if legacy_coordinator:
+        bindings = [dict(LEGACY_COORDINATOR_BINDING) if b["path"] == COORDINATOR_PATH else b
+            for b in bindings if b["path"] not in ELIGIBLE_ONLY_FILES]
     legacy = code_tree.get(WORKFLOW_PATH, {}).get("sha") == LEGACY_WORKFLOW_BINDING["git_blob_sha1"]
     if legacy:
+        require(legacy_coordinator, "LEGACY_WORKFLOW_CANNOT_RUN_NEW_COORDINATOR")
         bindings = [dict(LEGACY_WORKFLOW_BINDING) if b["path"] == WORKFLOW_PATH else b for b in bindings]
     for binding in bindings:
         for tree in (code_tree, published_tree):
@@ -293,6 +309,14 @@ def _blob_matches(entries, relative, raw):
 
 def _snapshot(raw, day):
     value = natural._json(raw)
+    if value.get("schema_version") == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2":
+        path = ROOT / "work/profit_1000_upgrade/candidate_snapshot_versions.py"
+        require(gh.sha256(gh.read(path)[0]) == "bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27", "ELIGIBLE_PROFILE_READER_CHANGED")
+        from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
+        require(Path(profiles.__file__).absolute() == path, "ELIGIBLE_PROFILE_IMPORT_CHANGED")
+        result = profiles.validate_snapshot(raw,gh.sha256(raw))
+        require(result["signal_date"] == day and result["clock_mode"] == "HOST_SYSTEM_UTC", "NATURAL_ELIGIBLE_SNAPSHOT_REQUIRED")
+        return result
     natural._sealed(value)
     for key, expected in {"schema_version": natural.SCHEMA, "signal_date": day,
             "registration_id": natural.REGISTRATION_ID, "registration_sha256": FIXED_FILES[str(natural.REGISTRATION_PATH.relative_to(ROOT))],
@@ -337,7 +361,10 @@ def _p0_contract(receipt, contract, snapshot, revision, imported):
         and receipt["inputs"]["git_head"] == imported["published_parent_sha"]
         and contract.get("bundle_sha256") == revision["primary_d_bundle_sha256"], "ORIGINAL_P0_CONTRACT_IDENTITY_CHANGED")
     rows = contract.get("rows")
-    frozen = sorted(snapshot["prediction"]["rows"], key=lambda r: r["promotion_rank"])
+    eligible = snapshot["schema_version"] == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2"
+    if eligible:
+        _snapshot(gh.json_bytes(snapshot),day)
+    frozen = sorted(snapshot["prediction"]["promotion_rows" if eligible else "rows"], key=lambda r: r["promotion_rank"])
     require(type(rows) is list and type(contract.get("top10_count")) is int and len(rows) == contract["top10_count"]
         == len(frozen) == revision["primary_d_top10_count"], "ORIGINAL_FULL_N_P0_MEMBERSHIP_CHANGED")
     for rank, (original, projected) in enumerate(zip(rows, frozen), 1):
@@ -349,7 +376,7 @@ def _p0_contract(receipt, contract, snapshot, revision, imported):
     require(evidence.get("signal_date") == evidence["projection"].get("signal_date") == day
         and evidence["projection"].get("exec_date") == snapshot["exec_date"]
         and evidence["projection"].get("exit_date") == snapshot["exit_date"]
-        and evidence["projection"].get("projection_window_complete") is True
+        and (eligible or evidence["projection"].get("projection_window_complete") is True)
         and evidence.get("four_file_bytes_verified") is True and evidence.get("registered_source_bytes_verified") is True
         and all(evidence.get(k) is False for k in ("source_authority_issued", "git_membership_verified",
             "point_in_time_availability_verified", "natural_freeze_verified", "production_activation_allowed", "future_outcomes_read")),
@@ -418,6 +445,10 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     require(snapshot_raw == archive["snapshot_raw"] and source_raw == archive["source_receipt_raw"]
         and local_raw == archive["local_raw"], "ARTIFACT_AND_PUBLISHED_ORIGINAL_BYTES_DIFFER")
     snapshot = _snapshot(snapshot_raw, day)
+    is_eligible = snapshot["schema_version"] == eligible_runner.SCHEMA
+    coordinator_binding = next(b for b in code_bindings if b["path"] == COORDINATOR_PATH)
+    require(coordinator_binding["sha256"] == (FIXED_FILES[COORDINATOR_PATH] if is_eligible else LEGACY_COORDINATOR_BINDING["sha256"]),
+        "SNAPSHOT_AND_COORDINATOR_PROFILE_MISMATCH")
     local, context = gh.parse_json(local_raw), gh.parse_json(context_raw)
     expected_context = {"repository": gh.REPOSITORY, "run_id": int(run_id), "run_attempt": 1,
         "code_head_sha": run["head_sha"], "branch": "main", "workflow_path": WORKFLOW_PATH, "signal_date": day,
@@ -426,7 +457,7 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "production_activation_allowed": False, "independent_job_timing_check_still_required": True}
     natural.scorer._exact(context, expected_context, "PUBLISHED_WORKFLOW_CONTEXT_CHANGED")
     # Pure validation of the original four return payloads; this does no write.
-    prepared, safety_cutoff = workflow.prepare_publication(snapshot_raw, local, imported,
+    prepared, safety_cutoff = (workflow if is_eligible else legacy_workflow).prepare_publication(snapshot_raw, local, imported,
         {k: context[k] for k in ("repository", "run_id", "run_attempt", "code_head_sha", "branch", "workflow_path")},
         now=workflow.aware(ack["acknowledged_at_host_utc"]))
     require(prepared == blobs, "ORIGINAL_FOUR_FILE_SERIALIZATION_CHANGED")

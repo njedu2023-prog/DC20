@@ -14,7 +14,8 @@ from work.profit_1000_upgrade import test_candidate_natural_daily as daily_tests
 ROOT = Path(__file__).absolute().parents[2]
 PINS = {
     "candidate_natural_journal.py": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
-    "candidate_natural_daily.py": "88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321",
+    # Current version-aware daily runner; journal bytes/protocol stay unchanged.
+    "candidate_natural_daily.py": "5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d",
 }
 
 

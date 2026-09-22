@@ -107,6 +107,8 @@ def test_scope_or_mixed_dates_rejected_before_network(path):
 
 
 def make_preparation(tmp_path, monkeypatch):
+    from work.profit_1000_upgrade import candidate_eligible_forward as eligible
+    monkeypatch.setattr(fixtures, 'm', eligible)
     case = fixtures.setup_case(tmp_path, monkeypatch)
     local = fixtures.run(case)
     record = fixtures.record(local)

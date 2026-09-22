@@ -1940,6 +1940,37 @@
       return index;
     }
 
+    function candidatePublicOriginalRows(day, contract) {
+      if (day.schema_version === "dc20_candidate_formal_profit_day_v1") {
+        executableProfitExpect(!["original_rows","eligibility","eligibility_policy_id","original_candidate_count"].some(k=>k in day), "旧版不能混入逐股资格字段");
+        return day.rows;
+      }
+      executableProfitExpect(day.schema_version === "dc20_candidate_formal_profit_day_v2_eligible"
+        && day.eligibility_policy_id === "dc20_individual_observed_window_eligibility_20260922_v2"
+        && Array.isArray(day.original_rows) && Array.isArray(day.eligibility)
+        && day.original_rows.length === contract.rows.length && day.original_candidate_count === contract.rows.length
+        && day.eligibility.length === contract.rows.length, "逐股资格原名单缺失");
+      const allowed=new Set();
+      contract.rows.forEach((original,i)=>{
+        const row=day.original_rows[i], e=day.eligibility[i];
+        executableProfitExpect(exactObjectKeys(row,["ts_code","promotion_rank","board_stage","name","industry","candidate_rank","candidate_score"])
+          && ["ts_code","promotion_rank","name","industry"].every(k=>row[k]===original[k])
+          && row.promotion_rank===i+1 && row.board_stage===(original.stage_transition==="2→3"?2:3)
+          && row.candidate_rank===null && row.candidate_score===null, "原晋级名单身份改变");
+        executableProfitExpect(exactObjectKeys(e,["ts_code","promotion_rank","eligible","reason","observed_bar_count","required_observed_bar_count"])
+          && e.ts_code===row.ts_code && e.promotion_rank===row.promotion_rank && typeof e.eligible==="boolean"
+          && Number.isInteger(e.observed_bar_count) && e.observed_bar_count>=0 && e.observed_bar_count<=21
+          && e.required_observed_bar_count===21, "逐股资格诊断无效");
+        if(e.eligible) {
+          executableProfitExpect(e.reason===null && e.observed_bar_count===21,"可评分股票历史不足");allowed.add(e.ts_code);
+        } else executableProfitExpect(["INSUFFICIENT_OBSERVED_HISTORY","MISSING_D_OBSERVATION"].includes(e.reason)
+          && (e.reason!=="INSUFFICIENT_OBSERVED_HISTORY" || e.observed_bar_count<21),"排除原因无效");
+      });
+      executableProfitExpect(Array.isArray(day.rows) && day.rows.length===allowed.size
+        && new Set(day.rows.map(r=>r.ts_code)).size===allowed.size && day.rows.every(r=>allowed.has(r.ts_code)),"可评分股票集合不一致");
+      return day.original_rows;
+    }
+
     async function loadCandidateProfitDay(currentThreeRank) {
       const active = state.candidateProfitActivation;
       executableProfitExpect(active?.status === "ready", active?.message || "新模型等待部署索引");
@@ -1952,13 +1983,14 @@
         && source.json_sha256 === entry.p0_file_sha256, "新盈利未绑定当前P0原文件SHA");
       const loaded = await fetchPagesOnlyShaBoundJson(entry.path, entry.sha256, "新盈利同D冻结");
       const day = loaded.payload;
-      executableProfitExpect(day.schema_version === "dc20_candidate_formal_profit_day_v1"
+      const originalRows = candidatePublicOriginalRows(day,contract);
+      executableProfitExpect(["dc20_candidate_formal_profit_day_v1","dc20_candidate_formal_profit_day_v2_eligible"].includes(day.schema_version)
         && day.status === "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
         && day.activation_id === active.config.activation_id && day.model_canonical_sha256 === active.config.model_canonical_sha256
         && day.effective_from_signal_date === active.config.effective_from_signal_date
         && ["signal_date", "exec_date", "exit_date"].every(key => day[key] === contract[key])
         && day.p0_file_sha256 === source.json_sha256 && day.snapshot_file_sha256 === entry.snapshot_file_sha256
-        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, "新盈利冻结版本、日期、完整池或来源不一致");
+        && Array.isArray(day.rows) && originalRows.length === contract.rows.length && day.candidate_count === day.rows.length, "新盈利冻结版本、日期、完整池或来源不一致");
       executableProfitExpect(exactObjectKeys(day.p0_source, ["path", "sha256"]) && day.p0_source.path === source.json_path && day.p0_source.sha256 === source.json_sha256
         && exactObjectKeys(day.snapshot_source, ["path", "sha256"]) && day.snapshot_source.path === `work/profit_1000_upgrade/candidate_natural_forward/day_${day.signal_date}.json`
         && day.snapshot_source.sha256 === entry.snapshot_file_sha256, "新盈利原冻结来源指纹漂移");
@@ -1972,10 +2004,11 @@
       executableProfitExpect(times.every(Number.isFinite) && times[0] >= close && times[0] <= times[1] && times[1] <= times[2] && times[2] < cutoff
         && Date.parse(day.formal_publication_deadline_utc) === cutoff, "新盈利冻结不在正式事前时间窗口内");
       const rows = new Map(day.rows.map(row => [row.ts_code, row]));
-      executableProfitExpect(rows.size === contract.rows.length, "新盈利候选重复或缺失");
+      executableProfitExpect(rows.size === day.rows.length, "新盈利候选重复或缺失");
       const ranks = new Set();
       for (const original of contract.rows) {
         const row = rows.get(original.ts_code);
+        if (!row && day.schema_version === "dc20_candidate_formal_profit_day_v2_eligible") continue;
         executableProfitExpect(exactObjectKeys(row, ["ts_code", "candidate_rank", "candidate_score", "promotion_rank", "name", "industry"])
           && row.promotion_rank === original.promotion_rank && row.name === original.name
           && row.industry === original.industry && Number.isInteger(row.candidate_rank) && row.candidate_rank >= 1
@@ -1989,7 +2022,7 @@
       executableProfitExpect(Array.isArray(day.candidate_slots) && day.candidate_slots.length === 2, "新盈利必须保留两个影子席位");
       for (const [key, rank] of [["candidate_slots", "candidate_rank"], ["promotion_slots", "promotion_rank"]]) {
         executableProfitExpect(Array.isArray(day[key]) && day[key].length === 2, "新盈利及晋级必须各保留两个席位");
-        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);
+        const sorted = [...(key==="promotion_slots" ? originalRows : ordered)].sort((a, b) => a[rank] - b[rank]);
         day[key].forEach((slot, i) => {
           const row = sorted[i];
           executableProfitExpect(exactObjectKeys(slot, ["slot", "status", "ts_code", "board_stage", "promotion_rank", "candidate_rank", "candidate_score", "proxy_fill", "net_return", "slot_net_return"])
@@ -2038,8 +2071,9 @@
       if (loaded.activation !== state.candidateProfitActivation?.config || !p
           || ["signal_date", "exec_date", "exit_date"].some(key => p[key] !== contract[key])) return unavailable("新模型与当前D不一致；等待校验");
       const byCode = new Map(p.rows.map(row => [row.ts_code, row]));
-      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable("新模型冻结候选身份不一致");
-      return {ready: true, candidate: true, message: "新模型 · 验证中", rows: new Map(p.rows.map(row => [row.ts_code, {
+      const originals=candidatePublicOriginalRows(p,contract);
+      if (originals.length !== contract.rows.length || p.rows.some(row=>contract.rows.find(r=>r.ts_code===row.ts_code)?.promotion_rank!==row.promotion_rank)) return unavailable("新模型冻结候选身份不一致");
+      return {ready: true, candidate: true, unscorable:new Set(contract.rows.filter(r=>!byCode.has(r.ts_code)).map(r=>r.ts_code)), message: "新模型 · 验证中", rows: new Map(p.rows.map(row => [row.ts_code, {
         executable_profit_research_rank: row.candidate_rank, research_joint_proxy_score: row.candidate_score, rank_tied: false
       }]))};
     }
