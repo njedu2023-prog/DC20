@@ -1,0 +1,30 @@
+name: DC20 candidate handoff diagnostics (read only)
+on:
+  workflow_run:
+    workflows:
+      - DC20 · Fixed candidate natural forward (research)
+      - DC20 · Preserve natural candidate publication (research)
+    branches: [main]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Show allowlisted handoff fields only, never credentials or complete payload
+        shell: python
+        run: |
+          import json,os
+          with open(os.environ['GITHUB_EVENT_PATH']) as source:
+              event=json.load(source)
+          run=event.get('workflow_run') or {}
+          safe={key:run.get(key) for key in ('id','workflow_id','path','status','conclusion','run_attempt','head_branch','event')}
+          safe['repository']=(run.get('repository') or {}).get('full_name')
+          safe['head_repository']=(run.get('head_repository') or {}).get('full_name')
+          safe['event_repository']=(event.get('repository') or {}).get('full_name')
+          safe['receiver_ref']=os.environ.get('GITHUB_REF')
+          safe['receiver_attempt']=os.environ.get('GITHUB_RUN_ATTEMPT')
+          print(json.dumps(safe,sort_keys=True))

@@ -1,0 +1,46 @@
+name: DC20 controlled D22 observer recovery
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover_observer_20260922.yml]
+permissions:
+  contents: read
+concurrency:
+  group: dc20-observer-recovery-20260922
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch existing observer for exact original successful D22 freeze once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import datetime,json,os,urllib.request
+          root='https://api.github.com/repos/njedu2023-prog/DC20'
+          def api(path,body=None):
+              data=None if body is None else json.dumps(body).encode()
+              request=urllib.request.Request(root+path,data=data,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  raw=response.read()
+              return json.loads(raw) if raw else None
+          if datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime(2026,9,23,1,20,tzinfo=datetime.timezone.utc):
+              raise SystemExit('D22 recovery cutoff expired; no retrospective admission')
+          run=api('/actions/runs/35756364682')
+          assert run['status']=='completed' and run['conclusion']=='success' and run['run_attempt']==1
+          assert run['workflow_id']==357010624 and run['head_branch']=='main'
+          assert run['path']=='.github/workflows/research_candidate_natural_forward.yml'
+          assert run['head_sha']=='f5de17cc6b9a51a171a711b80b514f894428b6fb'
+          assert run['repository']['full_name']==run['head_repository']['full_name']=='njedu2023-prog/DC20'
+          previous=api('/actions/workflows/recover_observer_20260922.yml/runs?per_page=100')['workflow_runs']
+          if any(r['id']!=int(os.environ['GITHUB_RUN_ID']) and r['conclusion']=='success' for r in previous):
+              print('Recovery already dispatched; no duplicate')
+          else:
+              api('/actions/workflows/research_candidate_natural_observer.yml/dispatches',{'ref':'main','inputs':{'freeze_run_id':'35756364682','dry_run':False}})
+              print('Dispatched existing observer; completion still requires evidence verification')
