@@ -1,0 +1,46 @@
+name: DC20 · Cancel superseded tests once
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cancel_superseded_tests_20260923.yml
+permissions:
+  contents: read
+jobs:
+  cancel:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel only the three approved obsolete test runs
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import json, os, urllib.request
+          base = "https://api.github.com/repos/njedu2023-prog/DC20/actions/runs/"
+          targets = {
+              35753785543: "bd4dab41357393813e68e5425b2e4159b807f109",
+              35754489672: "af00d8798a5b4d7c2aea4e2eda76ad4641d7bf58",
+              35756350014: "f5de17cc6b9a51a171a711b80b514f894428b6fb",
+          }
+          def request(url, method="GET"):
+              req = urllib.request.Request(url, method=method,
+                  headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                      "Accept": "application/vnd.github+json"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else None
+          for run_id, sha in targets.items():
+              run = request(base + str(run_id))
+              if not (run["head_sha"] == sha and run["head_branch"] == "main"
+                      and run["path"] == ".github/workflows/test_decision_core.yml"
+                      and run["name"] == "DC2.0 · Test Decision Core"):
+                  raise RuntimeError("TARGET_IDENTITY_MISMATCH: " + str(run_id))
+              if run["status"] == "completed":
+                  print(str(run_id) + " already completed; no action")
+              else:
+                  request(base + str(run_id) + "/cancel", "POST")
+                  print(str(run_id) + " cancellation requested; verify final status separately")
