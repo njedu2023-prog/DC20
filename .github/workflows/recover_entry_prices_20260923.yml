@@ -1,4 +1,5 @@
 name: DC20 controlled Sept23 entry price backfill
+# Retry only after the previous attempt failed; original settlement now emits safe diagnostics.
 on:
   push:
     branches: [main]

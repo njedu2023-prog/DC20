@@ -114,7 +114,20 @@ jobs:
         run: |
           args=(--work-parent "$RUNNER_TEMP")
           if [ "$EXECUTE_RESEARCH" = "true" ]; then args+=(--execute); fi
-          python -m work.profit_1000_upgrade.candidate_natural_settlement_workflow "${args[@]}"
+          python - "${args[@]}" <<'PY'
+          import json, re, sys
+          from work.profit_1000_upgrade import candidate_natural_settlement_workflow as m
+          def trace(frame, event, arg):
+              if event == 'exception' and frame.f_code.co_name == 'run_settlement' and frame.f_code.co_filename == m.__file__:
+                  kind, error, tb = arg
+                  # Only fixed guard identifiers; never print payloads, URLs or locals.
+                  reason = str(error)
+                  safe = reason if re.fullmatch(r'[A-Z][A-Z0-9_]{2,120}', reason) else 'REDACTED_NON_GUARD_EXCEPTION'
+                  print(json.dumps({'settlement_error_type': kind.__name__, 'guard': safe, 'line': frame.f_lineno}), flush=True)
+              return trace
+          sys.settrace(trace)
+          raise SystemExit(m.main(sys.argv[1:]))
+          PY
       - name: Check formal files remain untouched
         if: always()
         run: test -z "$(git status --porcelain=v1)"
