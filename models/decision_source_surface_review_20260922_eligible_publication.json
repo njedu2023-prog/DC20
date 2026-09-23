@@ -1140,9 +1140,9 @@
       "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
       "baseline_exists": true,
       "baseline_bytes": 38520,
-      "current_bytes": 38520,
+      "current_bytes": 39268,
       "baseline_sha256": "7ac105a3f5dd49b5326dd867e262f78540bba36f0ebf047095c6dce34eee1c95",
-      "current_sha256": "5d08a464e349ffe0c3ec20c8efd2215c105a53038b84be76ad606151414147a4",
+      "current_sha256": "967f048c28e9f80be0605e215196585e2691e7754d64cc5231a20d84bd239eae",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -1167,6 +1167,36 @@
           ],
           "current_lines": [
             "    \"candidate_natural_statistics\": \"657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554\",\n"
+          ]
+        },
+        {
+          "baseline_start": 263,
+          "current_start": 263,
+          "baseline_lines": [],
+          "current_lines": [
+            "def daily_metadata_profile(daily, frozen, modules):\n",
+            "    \"\"\"Exact reviewed writer/dependency pairs, never cross-version pin mixing.\"\"\"\n",
+            "    current = (PINS[\"candidate_natural_daily\"], modules[\"daily\"].PINS)\n",
+            "    profiles = [current]\n",
+            "    if frozen.get(\"schema_version\") == \"dc20_fixed_candidate_natural_research_snapshot_20260913_v1\":\n",
+            "        profiles.append((\"88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321\", {\n",
+            "            \"work/profit_1000_upgrade/candidate_natural_outcome_collect.py\": \"1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced\",\n",
+            "            \"scripts/diagnose_core_supervisor.py\": \"b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99\"}))\n",
+            "    return any(daily.get(\"daily_module_sha256\") == writer and daily.get(\"dependencies\") == pins\n",
+            "        for writer, pins in profiles)\n",
+            "\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 307,
+          "current_start": 319,
+          "baseline_lines": [
+            "        and daily.get(\"daily_module_sha256\")==PINS[\"candidate_natural_daily\"]\n",
+            "        and daily.get(\"dependencies\")==modules[\"daily\"].PINS\n"
+          ],
+          "current_lines": [
+            "        and daily_metadata_profile(daily, frozen, modules)\n"
           ]
         }
       ]
@@ -1646,7 +1676,7 @@
     "work/profit_1000_upgrade/candidate_natural_outcomes.py": "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77",
     "work/profit_1000_upgrade/candidate_natural_p0_github.py": "6adc11beaef7c5b940043a4063dc812f6f56c169c71ecaafd9c9be6364729cb4",
     "work/profit_1000_upgrade/candidate_natural_publication.py": "3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f",
-    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": "5d08a464e349ffe0c3ec20c8efd2215c105a53038b84be76ad606151414147a4",
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": "967f048c28e9f80be0605e215196585e2691e7754d64cc5231a20d84bd239eae",
     "work/profit_1000_upgrade/candidate_natural_statistics.py": "657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554",
     "work/profit_1000_upgrade/candidate_natural_trigger_gate.py": "1a96e01c87fa6ce4102009deffdcfd67a83c8468c20fa83501f644e24a350f98",
     "work/profit_1000_upgrade/candidate_natural_workflow.py": "bbf68d26495c6a2708e17e58e280c34f99bffae9e19ab7a9128d491ec06cc044",

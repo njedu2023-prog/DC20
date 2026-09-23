@@ -260,6 +260,18 @@ def restore_empty_source_roots(restored, frozen, modules, *, test_state_root=Non
     require(journal.read_bound(receipt_path, bound) == raw, "RESTORED_RECEIPT_CHANGED")
 
 
+def daily_metadata_profile(daily, frozen, modules):
+    """Exact reviewed writer/dependency pairs, never cross-version pin mixing."""
+    current = (PINS["candidate_natural_daily"], modules["daily"].PINS)
+    profiles = [current]
+    if frozen.get("schema_version") == "dc20_fixed_candidate_natural_research_snapshot_20260913_v1":
+        profiles.append(("88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321", {
+            "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced",
+            "scripts/diagnose_core_supervisor.py": "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"}))
+    return any(daily.get("daily_module_sha256") == writer and daily.get("dependencies") == pins
+        for writer, pins in profiles)
+
+
 def metadata(row,reads,modules,*,asof,test_state_root=None):
     """Original Git-held metadata classifies work, never grants authority."""
     natural=modules["outcome_collect"].natural
@@ -304,8 +316,7 @@ def metadata(row,reads,modules,*,asof,test_state_root=None):
     daily=natural._json(reads.read(daily_path,expected=endpoint["sha256"]))
     require(daily.get("schema_version")==modules["daily"].SCHEMA and daily.get("signal_date")==row["signal_date"]
         and daily.get("as_of_date")==latest and daily.get("snapshot_file_sha256")==sha(snapshot_raw)
-        and daily.get("daily_module_sha256")==PINS["candidate_natural_daily"]
-        and daily.get("dependencies")==modules["daily"].PINS
+        and daily_metadata_profile(daily, frozen, modules)
         and daily.get("publishable") is (test_state_root is None) and daily.get("test_only") is (test_state_root is not None),
         "ORIGINAL_DAILY_METADATA_REQUIRED")
     require(type(daily.get("steps")) is list and bool(daily["steps"]),"ORIGINAL_DAILY_FINAL_STATUSES_REQUIRED")
