@@ -48,9 +48,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 474510,
-      "current_bytes": 481614,
+      "current_bytes": 482126,
       "baseline_sha256": "42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d",
-      "current_sha256": "652d125c47235dae469e43954af656f2243b5806e798f1fee4b1f154c0fa9f80",
+      "current_sha256": "ae2031f16af7b78f3d40b5bdaf891fca0a6effc1192cb18b618cfc0ff570b493",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -180,10 +180,27 @@
           ]
         },
         {
-          "baseline_start": 6542,
-          "current_start": 6595,
+          "baseline_start": 6533,
+          "current_start": 6586,
+          "baseline_lines": [
+            "    function ledgerStatus(row) {\n"
+          ],
+          "current_lines": [
+            "    function ledgerStatus(row, now = Date.now()) {\n",
+            "      const today = new Date(now + 8 * 3600000).toISOString().slice(0,10).replaceAll(\"-\", \"\");\n",
+            "      if (row.status === \"MISSING_D_PUBLICATION\" && row.signal_date >= today)\n",
+            "        return {kind:\"pending\", label:\"等待晚间名单发布\"};\n",
+            "      if ([\"PENDING_T\", \"PENDING_T_NOT_DUE\"].includes(row.status) && row.exec_date && row.exec_date > today)\n",
+            "        return {kind:\"pending\", label:\"等待买入日竞价\"};\n"
+          ]
+        },
+        {
+          "baseline_start": 6540,
+          "current_start": 6598,
           "baseline_lines": [],
           "current_lines": [
+            "    }\n",
+            "\n",
             "    function ledgerPosthocReference(row) {\n",
             "      // Price evidence only: never invent a fill, exit or economic result.\n",
             "      if (row.signal_date !== \"20260921\" || row.status !== \"POSTHOC_SUPPLEMENT_NOT_FORMAL\") return row;\n",
@@ -194,14 +211,12 @@
             "        entry_reference_price:entry[1], entry_reference_source:\"9月22日竞价参考价\",\n",
             "        entry_reference_evidence:\"research/profit-supplements/20260921/price-backfill.pending.json\",\n",
             "        entry_reference_commit:\"e54a69d28ec41f33be7f3a6dd9d127cf29593911\",\n",
-            "        supplement_note:\"事后补算；竞价参考价已与当日开盘价交叉核对。非实际成交，正式入场证据资格及9月23日退出/延持行情待补；未结算不计零、不计正式成绩。\"};\n",
-            "    }\n",
-            "\n"
+            "        supplement_note:\"事后补算；竞价参考价已与当日开盘价交叉核对。非实际成交，正式入场证据资格及9月23日退出/延持行情待补；未结算不计零、不计正式成绩。\"};\n"
           ]
         },
         {
           "baseline_start": 6563,
-          "current_start": 6629,
+          "current_start": 6634,
           "baseline_lines": [
             "        [\"exec_date\",\"买入日\"],[\"entry_price\",\"买入价\"],[\"entry_price_source\",\"价格来源\"],[\"status\",\"状态\"],\n"
           ],
@@ -213,7 +228,7 @@
         },
         {
           "baseline_start": 6610,
-          "current_start": 6678,
+          "current_start": 6683,
           "baseline_lines": [
             "        if (date !== \"20260921\") return missing;\n"
           ],
@@ -223,7 +238,7 @@
         },
         {
           "baseline_start": 6626,
-          "current_start": 6694,
+          "current_start": 6699,
           "baseline_lines": [
             "            supplement_note:\"2026-09-22事后补算；非原盘前发布，不计正式成绩。未补造买入、退出及收益。\"};\n"
           ],
@@ -233,7 +248,7 @@
         },
         {
           "baseline_start": 6670,
-          "current_start": 6738,
+          "current_start": 6743,
           "baseline_lines": [
             "        <p id=\"ledgerMessage\" class=\"note\" role=\"status\">正在校验影子账本…</p><div class=\"scroll\" id=\"ledgerSummary\"></div></section>\n"
           ],
@@ -243,7 +258,7 @@
         },
         {
           "baseline_start": 6717,
-          "current_start": 6785,
+          "current_start": 6790,
           "baseline_lines": [],
           "current_lines": [
             "        const posthoc=currentRows.filter(r=>r.status === \"POSTHOC_SUPPLEMENT_NOT_FORMAL\");\n",
@@ -252,19 +267,19 @@
         },
         {
           "baseline_start": 6723,
-          "current_start": 6793,
+          "current_start": 6798,
           "baseline_lines": [
             "            [\"冻结快照SHA\",r.snapshot_file_sha256 || \"—\"],[\"校验提示\",r.supplement_note || r.detail_error || \"通过\"]];\n",
             "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class=\"muted\">${escapeHtml(source(r.entry_price_source))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n"
           ],
           "current_lines": [
             "            [\"冻结快照SHA\",r.snapshot_file_sha256 || \"—\"],[\"补价证据\",r.entry_reference_evidence || \"—\"],[\"补价证据版本\",r.entry_reference_commit || \"—\"],[\"校验提示\",r.supplement_note || r.detail_error || \"通过\"]];\n",
-            "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price ?? r.entry_reference_price)} <span class=\"muted\">${escapeHtml(r.entry_price != null ? source(r.entry_price_source) : (r.entry_reference_source || \"待行情回写\"))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n"
+            "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price ?? r.entry_reference_price)} <span class=\"muted\">${escapeHtml(r.entry_price != null ? source(r.entry_price_source) : (r.entry_reference_source || (r.ts_code ? (status.label === \"等待买入日竞价\" ? \"等待竞价\" : \"待行情回写\") : \"\")))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n"
           ]
         },
         {
           "baseline_start": 6743,
-          "current_start": 6813,
+          "current_start": 6818,
           "baseline_lines": [
             "        currentRows=loaded;paint();el(\"Export\").disabled=!loaded.length;\n"
           ],
@@ -280,7 +295,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0",
-      "current_sha256": "26f241521edb14c7688bd8dd04f2c03ec0011f1e7f6f3e9bcab573bb06be994b",
+      "current_sha256": "38f2bfda8ddf047ff56fad2feec4337b52351d478492290777a8b67d6f54a91d",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -310,7 +325,7 @@
             "    \"decision.html\": \"42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"652d125c47235dae469e43954af656f2243b5806e798f1fee4b1f154c0fa9f80\",\n"
+            "    \"decision.html\": \"ae2031f16af7b78f3d40b5bdaf891fca0a6effc1192cb18b618cfc0ff570b493\",\n"
           ]
         }
       ]
@@ -1703,7 +1718,7 @@
     "tests/test_decision_core_ci_partition.py": "20e911d5851a0b97832846db02c16131c79e9ab59bc25b00a790311d1c3f3ac1"
   },
   "existing_pin_updates": {
-    "decision.html": "652d125c47235dae469e43954af656f2243b5806e798f1fee4b1f154c0fa9f80",
+    "decision.html": "ae2031f16af7b78f3d40b5bdaf891fca0a6effc1192cb18b618cfc0ff570b493",
     ".github/workflows/run_primary_d_daily.yml": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677",
     ".github/workflows/test_decision_core.yml": "bf09a2374861c7a37827c0dc41f0ce291d2eb58e411bdac63da92379dce06909"
   },

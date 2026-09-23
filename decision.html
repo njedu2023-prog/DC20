@@ -6583,7 +6583,12 @@
 
     // Independent read-only monthly route. Reuses the exact deployment's
     // validators; never recalculates ranks, trade outcomes or frozen features.
-    function ledgerStatus(row) {
+    function ledgerStatus(row, now = Date.now()) {
+      const today = new Date(now + 8 * 3600000).toISOString().slice(0,10).replaceAll("-", "");
+      if (row.status === "MISSING_D_PUBLICATION" && row.signal_date >= today)
+        return {kind:"pending", label:"等待晚间名单发布"};
+      if (["PENDING_T", "PENDING_T_NOT_DUE"].includes(row.status) && row.exec_date && row.exec_date > today)
+        return {kind:"pending", label:"等待买入日竞价"};
       if (row.status === "POSTHOC_SUPPLEMENT_NOT_FORMAL") return {kind:"supplement", label:"事后补录"};
       if (row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY") return {kind:"settled", label:"已结算"};
       if (row.status.startsWith("NO_FILL_")) return {kind:"no-fill", label:"未买入"};
@@ -6791,7 +6796,7 @@
           const detail=[["状态代码",r.status],["买入价来源",source(r.entry_price_source)],["最早退出日",date(r.exit_date)],["实际退出时间",r.actual_exit_time || "—"],
             ["封板延持交易日",r.held_limit_up_sessions ?? "—"],["双边成本","0.45%（已计入净收益，不再扣一次）"],["结算数据截至",date(r.ledger_as_of_date)],
             ["冻结快照SHA",r.snapshot_file_sha256 || "—"],["补价证据",r.entry_reference_evidence || "—"],["补价证据版本",r.entry_reference_commit || "—"],["校验提示",r.supplement_note || r.detail_error || "通过"]];
-          return `<tr><td>${date(r.signal_date)}</td><td><span class="badge">盈${r.slot}</span></td><td class="identity">${escapeHtml(r.ts_code || "—")}</td><td><strong>${escapeHtml(r.name || "—")}</strong></td><td>${escapeHtml(r.industry || "—")}</td><td>${escapeHtml(r.stage_transition || "—")}</td><td><span class="path-chip">${escapeHtml(r.path_label || "—")}</span></td><td><span class="promotion-chip">${r.promotion_rank ?? "—"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price ?? r.entry_reference_price)} <span class="muted">${escapeHtml(r.entry_price != null ? source(r.entry_price_source) : (r.entry_reference_source || "待行情回写"))}</span></td><td><span class="status-chip status-${status.kind}"><span aria-hidden="true">${status.kind==="settled"?"✓":status.kind==="holding"?"◆":status.kind==="missing"?"!":"◷"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class="${tone(net)}">${pct(net)}</td><td><details><summary>展开${r.detail_error?" · 待校验":""}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join("")}</details></td></tr>`;
+          return `<tr><td>${date(r.signal_date)}</td><td><span class="badge">盈${r.slot}</span></td><td class="identity">${escapeHtml(r.ts_code || "—")}</td><td><strong>${escapeHtml(r.name || "—")}</strong></td><td>${escapeHtml(r.industry || "—")}</td><td>${escapeHtml(r.stage_transition || "—")}</td><td><span class="path-chip">${escapeHtml(r.path_label || "—")}</span></td><td><span class="promotion-chip">${r.promotion_rank ?? "—"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price ?? r.entry_reference_price)} <span class="muted">${escapeHtml(r.entry_price != null ? source(r.entry_price_source) : (r.entry_reference_source || (r.ts_code ? (status.label === "等待买入日竞价" ? "等待竞价" : "待行情回写") : "")))}</span></td><td><span class="status-chip status-${status.kind}"><span aria-hidden="true">${status.kind==="settled"?"✓":status.kind==="holding"?"◆":status.kind==="missing"?"!":"◷"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class="${tone(net)}">${pct(net)}</td><td><details><summary>展开${r.detail_error?" · 待校验":""}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join("")}</details></td></tr>`;
         }).join("") || '<tr><td colspan="15">无符合条件的记录</td></tr>';
       }
       async function loadMonth() {
