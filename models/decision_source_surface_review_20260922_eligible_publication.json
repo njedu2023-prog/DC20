@@ -1658,6 +1658,40 @@
           ]
         }
       ]
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_settlement.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 6473,
+      "baseline_sha256": "1403d82c89171e7ecda97f01e7dc0b11e77b397dd7c1db5561de0a409b7d92c6",
+      "reason": "Safe exception diagnostics only; preserve exact predecessor workflow, schedule and all source checks.",
+      "current_bytes": 7236,
+      "current_sha256": "27b1b507946f5d16d6c330466dab8d98da7f69b551cf5de4a86b9640233742be",
+      "inverse_changes": [
+        {
+          "baseline_start": 117,
+          "current_start": 117,
+          "baseline_lines": [
+            "          python -m work.profit_1000_upgrade.candidate_natural_settlement_workflow \"${args[@]}\"\n"
+          ],
+          "current_lines": [
+            "          python - \"${args[@]}\" <<'PY'\n",
+            "          import json, re, sys\n",
+            "          from work.profit_1000_upgrade import candidate_natural_settlement_workflow as m\n",
+            "          def trace(frame, event, arg):\n",
+            "              if event == 'exception' and frame.f_code.co_name == 'run_settlement' and frame.f_code.co_filename == m.__file__:\n",
+            "                  kind, error, tb = arg\n",
+            "                  # Only fixed guard identifiers; never print payloads, URLs or locals.\n",
+            "                  reason = str(error)\n",
+            "                  safe = reason if re.fullmatch(r'[A-Z][A-Z0-9_]{2,120}', reason) else 'REDACTED_NON_GUARD_EXCEPTION'\n",
+            "                  print(json.dumps({'settlement_error_type': kind.__name__, 'guard': safe, 'line': frame.f_lineno}), flush=True)\n",
+            "              return trace\n",
+            "          sys.settrace(trace)\n",
+            "          raise SystemExit(m.main(sys.argv[1:]))\n",
+            "          PY\n"
+          ]
+        }
+      ]
     }
   ],
   "current_source_pins": {
@@ -1715,7 +1749,8 @@
     "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py": "8b0722e55e58ccb083ef5cac290e2eb5b7fa8f88976504e1d8cd8af10c94a14f",
     "work/profit_1000_upgrade/test_candidate_natural_workflow.py": "8fa76155f7bb15698a37ca35c83f22e62aec651852a0f7cea5cf05d47447c93e",
     "work/profit_1000_upgrade/test_candidate_snapshot_versions.py": "d723ce17f01e872b54da4416b1f70b4cb02ec6fef460c3f228065df1e3568513",
-    "tests/test_decision_core_ci_partition.py": "20e911d5851a0b97832846db02c16131c79e9ab59bc25b00a790311d1c3f3ac1"
+    "tests/test_decision_core_ci_partition.py": "20e911d5851a0b97832846db02c16131c79e9ab59bc25b00a790311d1c3f3ac1",
+    ".github/workflows/research_candidate_natural_settlement.yml": "27b1b507946f5d16d6c330466dab8d98da7f69b551cf5de4a86b9640233742be"
   },
   "existing_pin_updates": {
     "decision.html": "ae2031f16af7b78f3d40b5bdaf891fca0a6effc1192cb18b618cfc0ff570b493",
