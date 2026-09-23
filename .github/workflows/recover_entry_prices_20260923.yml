@@ -1,0 +1,75 @@
+name: DC20 controlled Sept23 entry price backfill
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover_entry_prices_20260923.yml]
+permissions:
+  contents: read
+concurrency:
+  group: dc20-entry-price-backfill-20260923
+  cancel-in-progress: false
+jobs:
+  recover:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Collect through original settlement then publish verified ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import datetime,json,os,time,urllib.request,base64
+          root='https://api.github.com/repos/njedu2023-prog/DC20'
+          def api(path,body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(root+path,data=data,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=30) as response: raw=response.read()
+              return json.loads(raw) if raw else None
+          def now(): return datetime.datetime.now(datetime.timezone.utc)
+          start=now()
+          assert datetime.datetime(2026,9,23,7,tzinfo=datetime.timezone.utc)<=start<datetime.datetime(2026,9,23,10,tzinfo=datetime.timezone.utc),'Outside one-shot after-close window'
+          own=int(os.environ['GITHUB_RUN_ID'])
+          prior=api('/actions/workflows/recover_entry_prices_20260923.yml/runs?per_page=100')['workflow_runs']
+          assert not any(r['id']!=own and r['conclusion']=='success' for r in prior),'Already completed'
+          head=api('/git/ref/heads/main')['object']['sha']
+          assert head==os.environ['GITHUB_SHA'],'Main advanced; do not dispatch stale recovery'
+          content=api('/contents/outputs/decision/candidate_profit_v1/summary.json?ref='+head)
+          summary=json.loads(base64.b64decode(content['content']))
+          for group,code in [('candidate_top1','000910.SZ'),('candidate_top2','002303.SZ')]:
+              row=next(r for r in summary['groups'][group]['daily_sequence'] if r['signal_date']=='20260922')
+              assert row['ts_code']==code and row['exec_date']=='20260923' and row['exit_date']=='20260924'
+              assert row['snapshot_file_sha256']=='1e69e1657d4712849569e3a9b305b1bb31d39f0e09fcd9e9f89d82fc30a3f688'
+          workflow='research_candidate_natural_settlement.yml'
+          def runs(): return api('/actions/workflows/'+workflow+'/runs?per_page=100')['workflow_runs']
+          before=runs()
+          assert not any(r['status'] in ('queued','in_progress','waiting','pending') for r in before),'Existing settlement active; no duplicate'
+          ids={r['id'] for r in before}
+          assert api('/git/ref/heads/main')['object']['sha']==head
+          api('/actions/workflows/'+workflow+'/dispatches',{'ref':'main','inputs':{'dry_run':False}})
+          print('Dispatched original settlement; no date, quote, fill or return override',flush=True)
+          deadline=time.monotonic()+70*60
+          target=None
+          while time.monotonic()<deadline:
+              if target is None:
+                  found=[r for r in runs() if r['id'] not in ids and r['event']=='workflow_dispatch' and r['head_sha']==head and r['run_attempt']==1]
+                  assert len(found)<=1,'Ambiguous dispatch; stop'
+                  if found: target=found[0]['id']; print('Settlement run',target,flush=True)
+              if target is not None:
+                  r=api('/actions/runs/'+str(target))
+                  assert r['workflow_id']==357485346 and r['head_branch']=='main' and r['run_attempt']==1
+                  if r['status']=='completed':
+                      assert r['conclusion']=='success','Settlement failed; do not publish'
+                      break
+              time.sleep(45)
+          else: raise RuntimeError('Settlement completion timeout; inspect target run before retry')
+          assert now()<datetime.datetime(2026,9,23,12,tzinfo=datetime.timezone.utc),'Publish recovery expired'
+          publication=api('/actions/workflows/publish_candidate_profit.yml/runs?per_page=30')['workflow_runs']
+          if any(r['status'] in ('queued','in_progress','waiting','pending') and r['event']!='push' for r in publication):
+              print('Publisher already active; no duplicate',flush=True)
+          else:
+              api('/actions/workflows/publish_candidate_profit.yml/dispatches',{'ref':'main','inputs':{'dry_run':False}})
+              print('Existing source-validated publisher/deployer dispatched; inspect prices before declaring completion',flush=True)
