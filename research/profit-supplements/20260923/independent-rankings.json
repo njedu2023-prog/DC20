@@ -1,0 +1,170 @@
+{
+  "status": "INDEPENDENT_D_ONLY_SUPPLEMENT_NOT_FORMAL_FREEZE",
+  "signal_date": "20260923",
+  "generated_at_utc": "2026-09-23T16:49:50.450490+00:00",
+  "future_prices_used": false,
+  "source_commits": {
+    "DC20": "801a1a9a541d57ff22620e8947ce17f603de016d",
+    "a-top10": "047d0472fd06bbdf122c419fae7df29805158913",
+    "a-share-top3-data": "6c198d7969b0451cd3c3958599d06c5638ca15fa"
+  },
+  "pool_audit": {
+    "universe_rule": "exact_d_limit_list_hard_stage_only",
+    "authoritative_limit_rows": 51,
+    "eligible_standard_limit_rows": 44,
+    "hard_stage_rows": 10,
+    "eligibility": {
+      "rule": "a_share_price_limit_le_10_v2",
+      "max_allowed_limit_pct": 10,
+      "input_rows": 51,
+      "eligible_rows": 44,
+      "rejected_rows": 7,
+      "rejected_reasons": {
+        "excluded_limit_gt_10:20.00%:star_market_20pct": 5,
+        "excluded_limit_gt_10:20.00%:growth_board_20pct": 2
+      }
+    }
+  },
+  "excluded": [
+    {
+      "ts_code": "600825.SH",
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY"
+    }
+  ],
+  "promotion": [
+    {
+      "code": "600825.SH",
+      "name": "新华传媒",
+      "rank": 1,
+      "probability": 0.6726743895264402
+    },
+    {
+      "code": "001234.SZ",
+      "name": "泰慕士",
+      "rank": 2,
+      "probability": 0.6034374904056092
+    },
+    {
+      "code": "002238.SZ",
+      "name": "天威视讯",
+      "rank": 3,
+      "probability": 0.5828179798962805
+    },
+    {
+      "code": "600743.SH",
+      "name": "华远控股",
+      "rank": 4,
+      "probability": 0.4795804707692192
+    },
+    {
+      "code": "600503.SH",
+      "name": "华丽家族",
+      "rank": 5,
+      "probability": 0.4459779959368211
+    },
+    {
+      "code": "000560.SZ",
+      "name": "我爱我家",
+      "rank": 6,
+      "probability": 0.4390862324188059
+    },
+    {
+      "code": "603636.SH",
+      "name": "南威软件",
+      "rank": 7,
+      "probability": 0.42425601321344864
+    },
+    {
+      "code": "002614.SZ",
+      "name": "奥佳华",
+      "rank": 8,
+      "probability": 0.339778071913359
+    },
+    {
+      "code": "600418.SH",
+      "name": "江淮汽车",
+      "rank": 9,
+      "probability": 0.20999536200274044
+    },
+    {
+      "code": "605058.SH",
+      "name": "澳弘电子",
+      "rank": 10,
+      "probability": 0.13698310815312134
+    }
+  ],
+  "profit": [
+    {
+      "code": "002614.SZ",
+      "name": "奥佳华",
+      "industry": "其他家电",
+      "rank": 1,
+      "score": 0.007975587121599912,
+      "promotion_rank": 8
+    },
+    {
+      "code": "000560.SZ",
+      "name": "我爱我家",
+      "industry": "房地产服务",
+      "rank": 2,
+      "score": 0.007287960587237128,
+      "promotion_rank": 6
+    },
+    {
+      "code": "600503.SH",
+      "name": "华丽家族",
+      "industry": "房地产开发",
+      "rank": 3,
+      "score": -0.00668232269538864,
+      "promotion_rank": 5
+    },
+    {
+      "code": "600743.SH",
+      "name": "华远控股",
+      "industry": "房地产服务",
+      "rank": 4,
+      "score": -0.008663433760562115,
+      "promotion_rank": 4
+    },
+    {
+      "code": "603636.SH",
+      "name": "南威软件",
+      "industry": "IT服务Ⅱ",
+      "rank": 5,
+      "score": -0.009079202390601903,
+      "promotion_rank": 7
+    },
+    {
+      "code": "001234.SZ",
+      "name": "泰慕士",
+      "industry": "服装家纺",
+      "rank": 6,
+      "score": -0.011990305911725958,
+      "promotion_rank": 2
+    },
+    {
+      "code": "605058.SH",
+      "name": "澳弘电子",
+      "industry": "元件",
+      "rank": 7,
+      "score": -0.014659000470166276,
+      "promotion_rank": 10
+    },
+    {
+      "code": "600418.SH",
+      "name": "江淮汽车",
+      "industry": "商用车",
+      "rank": 8,
+      "score": -0.02265239749088396,
+      "promotion_rank": 9
+    },
+    {
+      "code": "002238.SZ",
+      "name": "天威视讯",
+      "industry": "电视广播",
+      "rank": 9,
+      "score": -0.029665364045757495,
+      "promotion_rank": 3
+    }
+  ]
+}

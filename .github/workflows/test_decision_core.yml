@@ -1,33 +1,8 @@
 name: DC2.0 · Test Decision Core
 
 on:
+  # Full-suite automatic acceptance paused at user request 2026-09-24.
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "requirements.txt"
-      - "requirements-dev.in"
-      - "requirements.lock"
-      - "requirements-dev.lock"
-      - "src/**"
-      - "scripts/**"
-      - "tests/**"
-      - "models/decision_model_freeze.json"
-      - "models/decision_promotion_v13_validation.json"
-      - ".github/workflows/**"
-  pull_request:
-    paths:
-      - "requirements.txt"
-      - "requirements-dev.in"
-      - "requirements.lock"
-      - "requirements-dev.lock"
-      - "src/**"
-      - "scripts/**"
-      - "tests/**"
-      - "models/decision_model_freeze.json"
-      - "models/decision_promotion_v13_validation.json"
-      - ".github/workflows/**"
 
 permissions:
   contents: read

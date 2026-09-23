@@ -1,17 +1,8 @@
 name: DC20 · Forward rebuild acceptance (read only)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'forward/**'
-      - '.github/workflows/test_forward_rebuild.yml'
-      - '.github/workflows/accept_forward_inputs.yml'
-  pull_request:
-    paths:
-      - 'forward/**'
-      - '.github/workflows/test_forward_rebuild.yml'
-      - '.github/workflows/accept_forward_inputs.yml'
+  # Full-suite automatic acceptance paused at user request 2026-09-24.
+  workflow_dispatch:
 
 permissions:
   contents: read
