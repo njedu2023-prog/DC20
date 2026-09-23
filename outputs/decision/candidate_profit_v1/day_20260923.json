@@ -1,0 +1,346 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 1,
+      "candidate_score": 0.007975587121599912,
+      "net_return": null,
+      "promotion_rank": 8,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002614.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 2,
+      "candidate_score": 0.007287960587237135,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000560.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 11,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "600825.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001234.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002238.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600743.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600503.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000560.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603636.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002614.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600418.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "605058.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20260924",
+  "exit_date": "20260928",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-09-24T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "新华传媒",
+      "promotion_rank": 1,
+      "ts_code": "600825.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "服装家纺",
+      "name": "泰慕士",
+      "promotion_rank": 2,
+      "ts_code": "001234.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电视广播",
+      "name": "天威视讯",
+      "promotion_rank": 3,
+      "ts_code": "002238.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产服务",
+      "name": "华远控股",
+      "promotion_rank": 4,
+      "ts_code": "600743.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产开发",
+      "name": "华丽家族",
+      "promotion_rank": 5,
+      "ts_code": "600503.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产服务",
+      "name": "我爱我家",
+      "promotion_rank": 6,
+      "ts_code": "000560.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "IT服务Ⅱ",
+      "name": "南威软件",
+      "promotion_rank": 7,
+      "ts_code": "603636.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "其他家电",
+      "name": "奥佳华",
+      "promotion_rank": 8,
+      "ts_code": "002614.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "商用车",
+      "name": "江淮汽车",
+      "promotion_rank": 9,
+      "ts_code": "600418.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "元件",
+      "name": "澳弘电子",
+      "promotion_rank": 10,
+      "ts_code": "605058.SH"
+    }
+  ],
+  "p0_file_sha256": "9c65343a0517001f036fd97407f9b4471d9a998f51c12a0aad5cf78cc54acb41",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20260923.json",
+    "sha256": "9c65343a0517001f036fd97407f9b4471d9a998f51c12a0aad5cf78cc54acb41"
+  },
+  "pre_cas_freeze_at_utc": "2026-09-23T17:56:02.513638+00:00",
+  "prediction_generated_at_utc": "2026-09-23T17:56:02.493023+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-09-23T18:01:06.101313+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600825.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001234.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "333ed1d9d0e7e8a656254672b017164255595c9e",
+    "evidence_manifest_sha256": "8945cd48432b1427971cc2d1ebd12d1a26395a6f2e7ed17c9f8cf1e830b5a17e",
+    "observer_run_id": 35899019187,
+    "publication_observation_sha256": "0595bab12abbb6883a9e0424360708dddc9bdd9723d683c17055e60eac34b064"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.007975587121599912,
+      "industry": "其他家电",
+      "name": "奥佳华",
+      "promotion_rank": 8,
+      "ts_code": "002614.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": 0.007287960587237135,
+      "industry": "房地产服务",
+      "name": "我爱我家",
+      "promotion_rank": 6,
+      "ts_code": "000560.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.00668232269538864,
+      "industry": "房地产开发",
+      "name": "华丽家族",
+      "promotion_rank": 5,
+      "ts_code": "600503.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.008663433760562113,
+      "industry": "房地产服务",
+      "name": "华远控股",
+      "promotion_rank": 4,
+      "ts_code": "600743.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.009079202390601903,
+      "industry": "IT服务Ⅱ",
+      "name": "南威软件",
+      "promotion_rank": 7,
+      "ts_code": "603636.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.011990305911725958,
+      "industry": "服装家纺",
+      "name": "泰慕士",
+      "promotion_rank": 2,
+      "ts_code": "001234.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.014659000470166276,
+      "industry": "元件",
+      "name": "澳弘电子",
+      "promotion_rank": 10,
+      "ts_code": "605058.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.02265239749088396,
+      "industry": "商用车",
+      "name": "江淮汽车",
+      "promotion_rank": 9,
+      "ts_code": "600418.SH"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.029665364045757495,
+      "industry": "电视广播",
+      "name": "天威视讯",
+      "promotion_rank": 3,
+      "ts_code": "002238.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20260923",
+  "snapshot_file_sha256": "caf80b82b1503a03641a3b4b86e72bc3c761200306d4b5c055c773defecf0ccc",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260923.json",
+    "sha256": "caf80b82b1503a03641a3b4b86e72bc3c761200306d4b5c055c773defecf0ccc"
+  },
+  "source_main_sha": "333ed1d9d0e7e8a656254672b017164255595c9e",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
