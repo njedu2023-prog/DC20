@@ -749,12 +749,53 @@
       "source_bundle_sha256": "71217a05ebda432102bd3b9832fc28e1e658fd44cc4a907c74d494edb891eb6a",
       "source_feature_snapshot_sha256": "b853bb62ef81939a7eb37de0e240cf4912edf07b7edc39ac42eb3a3be25b44b8",
       "top10_members_sha256": "602c5c9b12277556958d02e18848d095e5ae4ed9046099f9d7dd8865696e0ed4"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "409c031306b7e0ba27684a5a834530dba79a8fee616125c3bf114c26419e88ab",
+      "exec_date": "20260924",
+      "exit_date": "20260928",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "e0245d03d6cf4884455a9f91d3ba7df6ce5280da7d3b4e5cc39f729d10bd71a4",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260923.csv",
+      "projection_json_sha256": "85b8ca820b0b7ce15bb28c8aee929f0894976b7bbdaeecb80f68a6ba29b261c7",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260923.json",
+      "projection_snapshot_sha256": "5743d610a73059c2bc0ce5f9e555145cc6a51a7bc7a244c81da0fe392ef135e4",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "元件",
+          "mixed_profit_rank": 1,
+          "name": "澳弘电子",
+          "promotion_rank": 10,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "605058.SH"
+        },
+        {
+          "industry": "IT服务Ⅱ",
+          "mixed_profit_rank": 2,
+          "name": "南威软件",
+          "promotion_rank": 7,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "603636.SH"
+        }
+      ],
+      "signal_date": "20260923",
+      "source_bundle_sha256": "c48b125c83447acab1be75c6c4a0316fff6cb4ddcef22688b0eaa30d09c181a3",
+      "source_feature_snapshot_sha256": "cdb34d34115e8f73f307902236e0e28ffa41adf60c367f7ffd63a2eff40e5809",
+      "top10_members_sha256": "ae1284ed8b7c875927bbad0457f8a53a1080c032449d284b167fdcf91529b388"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260922",
+  "latest_signal_date": "20260923",
   "public_start_signal_date": "20260828",
-  "recorded_days": 18,
+  "recorded_days": 19,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -773,9 +814,10 @@
     "20260917",
     "20260918",
     "20260921",
-    "20260922"
+    "20260922",
+    "20260923"
   ],
-  "recorded_slots": 36,
+  "recorded_slots": 38,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "0bd40af99c094e9a839c171e1925d7919578a05c36dcbff913fe43be01ae7f38"
+  "snapshot_sha256": "3208ac45dc71da2437cc3bbdf075c39b3f45bbc34511171943a38eedf50550de"
 }
