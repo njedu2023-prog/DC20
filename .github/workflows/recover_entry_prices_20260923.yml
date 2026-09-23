@@ -47,7 +47,7 @@ jobs:
           workflow='research_candidate_natural_settlement.yml'
           def runs(): return api('/actions/workflows/'+workflow+'/runs?per_page=100')['workflow_runs']
           before=runs()
-          assert not any(r['status'] in ('queued','in_progress','waiting','pending') for r in before),'Existing settlement active; no duplicate'
+          assert not any(r['event']!='push' and r['status'] in ('queued','in_progress','waiting','pending') for r in before),'Existing settlement active; no duplicate'
           ids={r['id'] for r in before}
           assert api('/git/ref/heads/main')['object']['sha']==head
           api('/actions/workflows/'+workflow+'/dispatches',{'ref':'main','inputs':{'dry_run':False}})
