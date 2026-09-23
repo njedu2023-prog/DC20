@@ -48,9 +48,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 474510,
-      "current_bytes": 486530,
+      "current_bytes": 492453,
       "baseline_sha256": "42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d",
-      "current_sha256": "10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5",
+      "current_sha256": "7f8f49eda0f3d085ee63d2a79371a7f8ac4b1e968fae5e9cd016f6c842c086e9",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -74,22 +74,26 @@
             "    #d23IndependentSupplement table { width:100%; min-width:620px; border-collapse:collapse; }\n",
             "    #d23IndependentSupplement th, #d23IndependentSupplement td { text-align:left; padding:8px 12px; font-size:12px; white-space:nowrap; border-bottom:1px solid var(--line); }\n",
             "    #d23IndependentSupplement th { background:#edf4f1; }\n",
+            "    #d23IndependentSupplement { display:none !important; }\n",
+            "    #d23IndependentSupplement .supplement-navigation { display:flex; flex-wrap:wrap; gap:16px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12px; }\n",
+            "    #d23IndependentSupplement .supplement-navigation a { color:var(--accent, #17675a); text-decoration:none; }\n",
             "    @media(max-width:480px) { #d23IndependentSupplement .supplement-pick { width:100%; } }\n"
           ]
         },
         {
           "baseline_start": 1240,
-          "current_start": 1257,
+          "current_start": 1260,
           "baseline_lines": [],
           "current_lines": [
             "    <section id=\"d23IndependentSupplement\" class=\"panel\" aria-label=\"2026-09-23补算排名\">\n",
             "<div class=\"supplement-heading\"><h2>D 2026-09-23 · 补算名单</h2><span class=\"supplement-label\">独立补算 · 非正式冻结</span></div>\n",
+            "<nav class=\"supplement-navigation\" aria-label=\"补算名单日期导航\"><a href=\"?d=20260922\">← 2026-09-22 正式历史名单</a><a href=\"?\">↻ 刷新最新名单</a></nav>\n",
             "<div class=\"supplement-picks\">\n",
             "  <div class=\"supplement-pick\"><b>盈1</b><strong>奥佳华</strong><small>002614.SZ</small></div>\n",
             "  <div class=\"supplement-pick\"><b>盈2</b><strong>我爱我家</strong><small>000560.SZ</small></div>\n",
             "</div>\n",
-            "<p class=\"stats-note\">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。以下正式记录保留原日期；本补算不计正式影子成绩。</p>\n",
-            "<details><summary>查看补算完整排名与来源说明（10只）</summary>\n",
+            "<p class=\"stats-note\">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。本页当前展示23日补算名单；22日请通过上方历史入口查看。本补算不计下方正式影子成绩。</p>\n",
+            "<details open><summary>2026-09-23 完整排名与来源说明（10只）</summary>\n",
             "<div class=\"supplement-table-wrap\"><table aria-label=\"D20260923独立补算完整排名\"><thead><tr><th>晋级排名</th><th>代码</th><th>名称</th><th>晋级模型概率</th><th>盈利排名</th><th>盈利模型分</th></tr></thead><tbody>\n",
             "<tr><td>晋1</td><td>600825.SH</td><td>新华传媒</td><td>67.27%</td><td>历史不足 · 不评分</td><td>—</td></tr>\n",
             "<tr><td>晋2</td><td>001234.SZ</td><td>泰慕士</td><td>60.34%</td><td>6</td><td>-0.011990</td></tr>\n",
@@ -110,7 +114,7 @@
         },
         {
           "baseline_start": 1943,
-          "current_start": 1984,
+          "current_start": 1988,
           "baseline_lines": [],
           "current_lines": [
             "    function candidatePublicOriginalRows(day, contract) {\n",
@@ -148,7 +152,7 @@
         },
         {
           "baseline_start": 1955,
-          "current_start": 2027,
+          "current_start": 2031,
           "baseline_lines": [
             "      executableProfitExpect(day.schema_version === \"dc20_candidate_formal_profit_day_v1\"\n"
           ],
@@ -159,7 +163,7 @@
         },
         {
           "baseline_start": 1961,
-          "current_start": 2034,
+          "current_start": 2038,
           "baseline_lines": [
             "        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, \"新盈利冻结版本、日期、完整池或来源不一致\");\n"
           ],
@@ -169,7 +173,7 @@
         },
         {
           "baseline_start": 1975,
-          "current_start": 2048,
+          "current_start": 2052,
           "baseline_lines": [
             "      executableProfitExpect(rows.size === contract.rows.length, \"新盈利候选重复或缺失\");\n"
           ],
@@ -179,7 +183,7 @@
         },
         {
           "baseline_start": 1979,
-          "current_start": 2052,
+          "current_start": 2056,
           "baseline_lines": [],
           "current_lines": [
             "        if (!row && day.schema_version === \"dc20_candidate_formal_profit_day_v2_eligible\") continue;\n"
@@ -187,7 +191,7 @@
         },
         {
           "baseline_start": 1992,
-          "current_start": 2066,
+          "current_start": 2070,
           "baseline_lines": [
             "        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);\n"
           ],
@@ -197,7 +201,7 @@
         },
         {
           "baseline_start": 2012,
-          "current_start": 2086,
+          "current_start": 2090,
           "baseline_lines": [],
           "current_lines": [
             "      // D22 local recomputation: display only; formal publication always wins.\n",
@@ -223,7 +227,7 @@
         },
         {
           "baseline_start": 2041,
-          "current_start": 2134,
+          "current_start": 2138,
           "baseline_lines": [
             "      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable(\"新模型冻结候选身份不一致\");\n",
             "      return {ready: true, candidate: true, message: \"新模型 · 验证中\", rows: new Map(p.rows.map(row => [row.ts_code, {\n"
@@ -236,19 +240,110 @@
         },
         {
           "baseline_start": 3147,
-          "current_start": 3241,
+          "current_start": 3245,
           "baseline_lines": [],
           "current_lines": [
             "      const supplement = document.getElementById(\"d23IndependentSupplement\");\n",
             "      if (supplement) {\n",
             "        const formalDay = canonicalYmd(primaryContract?.signal_date || plan?.signal_date);\n",
             "        supplement.hidden = !currentPage || (formalDay && formalDay >= \"20260923\");\n",
+            "        state.d23SupplementActive = !supplement.hidden;\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 3148,
+          "current_start": 3252,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (state.d23SupplementActive) {\n",
+            "        els.statusBand.className = \"status-band warn\";\n",
+            "        els.statusKicker.textContent = \"D日补算名单\";\n",
+            "        els.statusTitle.textContent = \"23日晋级与盈利排名 · 补算，非正式冻结\";\n",
+            "        els.brandDates.textContent = \"D:2026-09-23 · T:2026-09-24 · T+1:2026-09-28\";\n",
+            "        els.signalDate.textContent = \"2026-09-23\";\n",
+            "        els.execDate.textContent = \"2026-09-24\";\n",
+            "        els.exitDate.textContent = \"2026-09-28\";\n",
+            "        els.stageSignalDate.textContent = \"D：2026-09-23\";\n",
+            "        els.stageGeneratedTime.textContent = \"补算时间 2026-09-24 00:49\";\n",
+            "        setNavigation();\n",
+            "        return;\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 5572,
+          "current_start": 5689,
+          "baseline_lines": [],
+          "current_lines": [
+            "    function renderD23SupplementTable() {\n",
+            "      // Display-only supplement: never feed these rows into frozen contracts or ledger truth.\n",
+            "      const metadata = {\n",
+            "        \"600825.SH\":[\"出版\",\"3→4\"], \"001234.SZ\":[\"服装家纺\",\"3→4\"],\n",
+            "        \"002238.SZ\":[\"电视广播\",\"2→3\"], \"600743.SH\":[\"房地产服务\",\"3→4\"],\n",
+            "        \"600503.SH\":[\"房地产开发\",\"3→4\"], \"000560.SZ\":[\"房地产服务\",\"3→4\"],\n",
+            "        \"603636.SH\":[\"IT服务Ⅱ\",\"3→4\"], \"002614.SZ\":[\"其他家电\",\"3→4\"],\n",
+            "        \"600418.SH\":[\"商用车\",\"2→3\"], \"605058.SH\":[\"元件\",\"2→3\"]\n",
+            "      };\n",
+            "      const rows = [...document.querySelectorAll(\"#d23IndependentSupplement tbody tr\")].map(tr => {\n",
+            "        const c = [...tr.cells].map(td => td.textContent.trim());\n",
+            "        return { code:c[1], name:c[2], promotion:Number(c[0].replace(\"晋\",\"\")), probability:c[3],\n",
+            "          profit:/^(盈)?\\d+$/.test(c[4]) ? Number(c[4].replace(\"盈\",\"\")) : null, score:c[5] };\n",
+            "      });\n",
+            "      els.stageCount.textContent = \"补算名单 10 只 · 盈利可评分 9 只\";\n",
+            "      els.stagePanel.hidden = false;\n",
+            "      els.stageContent.innerHTML = `<div class=\"three-rank-toolbar\"><div class=\"three-rank-sort\">\n",
+            "        <button class=\"three-rank-btn active\" data-supplement-sort=\"promotion\" aria-pressed=\"true\">按晋级排序</button>\n",
+            "        <button class=\"three-rank-btn\" data-supplement-sort=\"profit\" aria-pressed=\"false\">按盈利排序</button></div>\n",
+            "        <div class=\"three-rank-downloads\"><a href=\"?d=20260922\">← 22日历史名单</a> · <a href=\"?\">最新名单</a></div></div>\n",
+            "        <p class=\"stats-note\">使用23日及此前数据补算，非正式冻结，不计正式影子成绩。路径证据及T/T+1行情未接入，留空待核验；盈利分不是概率。</p>\n",
+            "        <div class=\"table-wrap table-scroll-region\" tabindex=\"0\" role=\"region\" aria-label=\"23日晋级与盈利补算名单\"><table class=\"three-rank-table\">\n",
+            "        <caption class=\"sr-only\">D 2026-09-23 补算名单</caption><thead><tr>\n",
+            "        <th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small class=\"row-meta\">非概率</small></th><th>T晋级结果</th><th>T收盘</th><th>T+1净收益<small class=\"row-meta\">T+1验证状态</small></th>\n",
+            "        </tr></thead><tbody data-supplement-body></tbody></table></div>\n",
+            "        <div class=\"compact-disclosure compact-verification-dates\">验证日期：T 2026-09-24 · T+1 2026-09-28（交易日历）</div>`;\n",
+            "      const render = field => {\n",
+            "        const sorted = [...rows].sort((a,b)=>(a[field] ?? Infinity)-(b[field] ?? Infinity) || a.promotion-b.promotion);\n",
+            "        els.stageContent.querySelector(\"[data-supplement-body]\").innerHTML = sorted.map(r => `<tr>\n",
+            "          <td class=\"left\" data-field=\"code\">${escapeHtml(r.code)}</td><td class=\"left name\" data-field=\"stock\"><span class=\"company-line\">${escapeHtml(r.name)}${r.promotion<=3?`<span class=\"rank-mark rank-promotion\">晋${r.promotion}</span>`:\"\"}${r.profit!=null&&r.profit<=2?`<span class=\"rank-mark rank-profit\">盈${r.profit}</span>`:\"\"}</span></td>\n",
+            "          <td class=\"left\">${escapeHtml(metadata[r.code]?.[0] || \"—\")}</td><td>${metadata[r.code]?.[1] || \"—\"}</td><td>待核验</td><td>—</td>\n",
+            "          <td><span class=\"rank-mark rank-promotion\">${r.promotion}</span></td><td>${escapeHtml(r.probability)}</td><td>${r.profit ?? \"历史不足\"}</td><td>${escapeHtml(r.score)}</td>\n",
+            "          <td data-field=\"t-promotion\">待验证</td><td data-field=\"t-close-change\">待更新</td><td>—<small class=\"row-meta\">待T+1核验</small></td></tr>`).join(\"\");\n",
+            "        els.stageContent.querySelectorAll(\"[data-supplement-sort]\").forEach(b=>{b.classList.toggle(\"active\",b.dataset.supplementSort===field);b.setAttribute(\"aria-pressed\",String(b.dataset.supplementSort===field));});\n",
+            "      };\n",
+            "      els.stageContent.querySelectorAll(\"[data-supplement-sort]\").forEach(b=>b.addEventListener(\"click\",()=>render(b.dataset.supplementSort)));\n",
+            "      render(\"promotion\");\n",
+            "    }\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 5573,
+          "current_start": 5729,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (state.d23SupplementActive) { renderD23SupplementTable(); return; }\n"
+          ]
+        },
+        {
+          "baseline_start": 6208,
+          "current_start": 6365,
+          "baseline_lines": [],
+          "current_lines": [
+            "      if (state.d23SupplementActive && !state.dailyRequestedDate) {\n",
+            "        els.prevBtn.disabled = false;\n",
+            "        els.prevBtn.title = \"上一交易日名单 · D 2026-09-22\";\n",
+            "        els.prevBtn.setAttribute(\"aria-label\", els.prevBtn.title);\n",
+            "        els.nextBtn.disabled = true;\n",
+            "        els.nextBtn.title = \"没有下一交易日名单\";\n",
+            "        els.nextBtn.setAttribute(\"aria-label\", els.nextBtn.title);\n",
+            "        return;\n",
             "      }\n"
           ]
         },
         {
           "baseline_start": 6533,
-          "current_start": 6632,
+          "current_start": 6699,
           "baseline_lines": [
             "    function ledgerStatus(row) {\n"
           ],
@@ -263,7 +358,7 @@
         },
         {
           "baseline_start": 6540,
-          "current_start": 6644,
+          "current_start": 6711,
           "baseline_lines": [],
           "current_lines": [
             "    }\n",
@@ -283,7 +378,7 @@
         },
         {
           "baseline_start": 6563,
-          "current_start": 6680,
+          "current_start": 6747,
           "baseline_lines": [
             "        [\"exec_date\",\"买入日\"],[\"entry_price\",\"买入价\"],[\"entry_price_source\",\"价格来源\"],[\"status\",\"状态\"],\n"
           ],
@@ -295,7 +390,7 @@
         },
         {
           "baseline_start": 6610,
-          "current_start": 6729,
+          "current_start": 6796,
           "baseline_lines": [
             "        if (date !== \"20260921\") return missing;\n"
           ],
@@ -305,7 +400,7 @@
         },
         {
           "baseline_start": 6626,
-          "current_start": 6745,
+          "current_start": 6812,
           "baseline_lines": [
             "            supplement_note:\"2026-09-22事后补算；非原盘前发布，不计正式成绩。未补造买入、退出及收益。\"};\n"
           ],
@@ -315,7 +410,7 @@
         },
         {
           "baseline_start": 6670,
-          "current_start": 6789,
+          "current_start": 6856,
           "baseline_lines": [
             "        <p id=\"ledgerMessage\" class=\"note\" role=\"status\">正在校验影子账本…</p><div class=\"scroll\" id=\"ledgerSummary\"></div></section>\n"
           ],
@@ -325,7 +420,7 @@
         },
         {
           "baseline_start": 6717,
-          "current_start": 6836,
+          "current_start": 6903,
           "baseline_lines": [],
           "current_lines": [
             "        const posthoc=currentRows.filter(r=>r.status === \"POSTHOC_SUPPLEMENT_NOT_FORMAL\");\n",
@@ -334,7 +429,7 @@
         },
         {
           "baseline_start": 6723,
-          "current_start": 6844,
+          "current_start": 6911,
           "baseline_lines": [
             "            [\"冻结快照SHA\",r.snapshot_file_sha256 || \"—\"],[\"校验提示\",r.supplement_note || r.detail_error || \"通过\"]];\n",
             "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class=\"muted\">${escapeHtml(source(r.entry_price_source))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n"
@@ -346,12 +441,22 @@
         },
         {
           "baseline_start": 6743,
-          "current_start": 6864,
+          "current_start": 6931,
           "baseline_lines": [
             "        currentRows=loaded;paint();el(\"Export\").disabled=!loaded.length;\n"
           ],
           "current_lines": [
             "        currentRows=loaded.map(ledgerPosthocReference);paint();el(\"Export\").disabled=!loaded.length;\n"
+          ]
+        },
+        {
+          "baseline_start": 6915,
+          "current_start": 7103,
+          "baseline_lines": [
+            "    els.prevBtn.addEventListener(\"click\", () => navigateDaily(1));\n"
+          ],
+          "current_lines": [
+            "    els.prevBtn.addEventListener(\"click\", () => state.d23SupplementActive ? (window.location.href = \"?d=20260922\") : navigateDaily(1));\n"
           ]
         }
       ]
@@ -362,7 +467,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0",
-      "current_sha256": "4d676cedd82c0fd26c69f5f0628c08062ee9966c771ff695e44766f1d85cc96e",
+      "current_sha256": "b35c24a02547528d69d51573a8a7d87e4b3f26469752fa772cd1f26e2d8a9f28",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -392,7 +497,7 @@
             "    \"decision.html\": \"42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5\",\n"
+            "    \"decision.html\": \"7f8f49eda0f3d085ee63d2a79371a7f8ac4b1e968fae5e9cd016f6c842c086e9\",\n"
           ]
         }
       ]
@@ -1893,7 +1998,7 @@
     ".github/workflows/research_candidate_natural_settlement.yml": "27b1b507946f5d16d6c330466dab8d98da7f69b551cf5de4a86b9640233742be"
   },
   "existing_pin_updates": {
-    "decision.html": "10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5",
+    "decision.html": "7f8f49eda0f3d085ee63d2a79371a7f8ac4b1e968fae5e9cd016f6c842c086e9",
     ".github/workflows/run_primary_d_daily.yml": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677",
     ".github/workflows/test_decision_core.yml": "f419f49daf23614063b5ec86a25e8ed981eb6c7bc1fad191772da62dfb4a2e7f"
   },

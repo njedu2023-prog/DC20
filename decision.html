@@ -1234,6 +1234,9 @@
     #d23IndependentSupplement table { width:100%; min-width:620px; border-collapse:collapse; }
     #d23IndependentSupplement th, #d23IndependentSupplement td { text-align:left; padding:8px 12px; font-size:12px; white-space:nowrap; border-bottom:1px solid var(--line); }
     #d23IndependentSupplement th { background:#edf4f1; }
+    #d23IndependentSupplement { display:none !important; }
+    #d23IndependentSupplement .supplement-navigation { display:flex; flex-wrap:wrap; gap:16px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12px; }
+    #d23IndependentSupplement .supplement-navigation a { color:var(--accent, #17675a); text-decoration:none; }
     @media(max-width:480px) { #d23IndependentSupplement .supplement-pick { width:100%; } }
   </style>
 </head>
@@ -1256,12 +1259,13 @@
   <main id="mainContent" aria-busy="true">
     <section id="d23IndependentSupplement" class="panel" aria-label="2026-09-23补算排名">
 <div class="supplement-heading"><h2>D 2026-09-23 · 补算名单</h2><span class="supplement-label">独立补算 · 非正式冻结</span></div>
+<nav class="supplement-navigation" aria-label="补算名单日期导航"><a href="?d=20260922">← 2026-09-22 正式历史名单</a><a href="?">↻ 刷新最新名单</a></nav>
 <div class="supplement-picks">
   <div class="supplement-pick"><b>盈1</b><strong>奥佳华</strong><small>002614.SZ</small></div>
   <div class="supplement-pick"><b>盈2</b><strong>我爱我家</strong><small>000560.SZ</small></div>
 </div>
-<p class="stats-note">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。以下正式记录保留原日期；本补算不计正式影子成绩。</p>
-<details><summary>查看补算完整排名与来源说明（10只）</summary>
+<p class="stats-note">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。本页当前展示23日补算名单；22日请通过上方历史入口查看。本补算不计下方正式影子成绩。</p>
+<details open><summary>2026-09-23 完整排名与来源说明（10只）</summary>
 <div class="supplement-table-wrap"><table aria-label="D20260923独立补算完整排名"><thead><tr><th>晋级排名</th><th>代码</th><th>名称</th><th>晋级模型概率</th><th>盈利排名</th><th>盈利模型分</th></tr></thead><tbody>
 <tr><td>晋1</td><td>600825.SH</td><td>新华传媒</td><td>67.27%</td><td>历史不足 · 不评分</td><td>—</td></tr>
 <tr><td>晋2</td><td>001234.SZ</td><td>泰慕士</td><td>60.34%</td><td>6</td><td>-0.011990</td></tr>
@@ -3242,8 +3246,22 @@
       if (supplement) {
         const formalDay = canonicalYmd(primaryContract?.signal_date || plan?.signal_date);
         supplement.hidden = !currentPage || (formalDay && formalDay >= "20260923");
+        state.d23SupplementActive = !supplement.hidden;
       }
       renderLegacyProfitBenchmark(primaryContract);
+      if (state.d23SupplementActive) {
+        els.statusBand.className = "status-band warn";
+        els.statusKicker.textContent = "D日补算名单";
+        els.statusTitle.textContent = "23日晋级与盈利排名 · 补算，非正式冻结";
+        els.brandDates.textContent = "D:2026-09-23 · T:2026-09-24 · T+1:2026-09-28";
+        els.signalDate.textContent = "2026-09-23";
+        els.execDate.textContent = "2026-09-24";
+        els.exitDate.textContent = "2026-09-28";
+        els.stageSignalDate.textContent = "D：2026-09-23";
+        els.stageGeneratedTime.textContent = "补算时间 2026-09-24 00:49";
+        setNavigation();
+        return;
+      }
       if (primaryContract && primaryContract !== false) {
         const profitReady = unifiedProfitView(primaryContract).ready;
         els.statusBand.className = `status-band ${profitReady ? "good" : "warn"}`;
@@ -5668,7 +5686,47 @@
       else renderRows("promotion_rank");
     }
 
+    function renderD23SupplementTable() {
+      // Display-only supplement: never feed these rows into frozen contracts or ledger truth.
+      const metadata = {
+        "600825.SH":["出版","3→4"], "001234.SZ":["服装家纺","3→4"],
+        "002238.SZ":["电视广播","2→3"], "600743.SH":["房地产服务","3→4"],
+        "600503.SH":["房地产开发","3→4"], "000560.SZ":["房地产服务","3→4"],
+        "603636.SH":["IT服务Ⅱ","3→4"], "002614.SZ":["其他家电","3→4"],
+        "600418.SH":["商用车","2→3"], "605058.SH":["元件","2→3"]
+      };
+      const rows = [...document.querySelectorAll("#d23IndependentSupplement tbody tr")].map(tr => {
+        const c = [...tr.cells].map(td => td.textContent.trim());
+        return { code:c[1], name:c[2], promotion:Number(c[0].replace("晋","")), probability:c[3],
+          profit:/^(盈)?\d+$/.test(c[4]) ? Number(c[4].replace("盈","")) : null, score:c[5] };
+      });
+      els.stageCount.textContent = "补算名单 10 只 · 盈利可评分 9 只";
+      els.stagePanel.hidden = false;
+      els.stageContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-sort">
+        <button class="three-rank-btn active" data-supplement-sort="promotion" aria-pressed="true">按晋级排序</button>
+        <button class="three-rank-btn" data-supplement-sort="profit" aria-pressed="false">按盈利排序</button></div>
+        <div class="three-rank-downloads"><a href="?d=20260922">← 22日历史名单</a> · <a href="?">最新名单</a></div></div>
+        <p class="stats-note">使用23日及此前数据补算，非正式冻结，不计正式影子成绩。路径证据及T/T+1行情未接入，留空待核验；盈利分不是概率。</p>
+        <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="23日晋级与盈利补算名单"><table class="three-rank-table">
+        <caption class="sr-only">D 2026-09-23 补算名单</caption><thead><tr>
+        <th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>连板路径</th><th>路径变化</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small class="row-meta">非概率</small></th><th>T晋级结果</th><th>T收盘</th><th>T+1净收益<small class="row-meta">T+1验证状态</small></th>
+        </tr></thead><tbody data-supplement-body></tbody></table></div>
+        <div class="compact-disclosure compact-verification-dates">验证日期：T 2026-09-24 · T+1 2026-09-28（交易日历）</div>`;
+      const render = field => {
+        const sorted = [...rows].sort((a,b)=>(a[field] ?? Infinity)-(b[field] ?? Infinity) || a.promotion-b.promotion);
+        els.stageContent.querySelector("[data-supplement-body]").innerHTML = sorted.map(r => `<tr>
+          <td class="left" data-field="code">${escapeHtml(r.code)}</td><td class="left name" data-field="stock"><span class="company-line">${escapeHtml(r.name)}${r.promotion<=3?`<span class="rank-mark rank-promotion">晋${r.promotion}</span>`:""}${r.profit!=null&&r.profit<=2?`<span class="rank-mark rank-profit">盈${r.profit}</span>`:""}</span></td>
+          <td class="left">${escapeHtml(metadata[r.code]?.[0] || "—")}</td><td>${metadata[r.code]?.[1] || "—"}</td><td>待核验</td><td>—</td>
+          <td><span class="rank-mark rank-promotion">${r.promotion}</span></td><td>${escapeHtml(r.probability)}</td><td>${r.profit ?? "历史不足"}</td><td>${escapeHtml(r.score)}</td>
+          <td data-field="t-promotion">待验证</td><td data-field="t-close-change">待更新</td><td>—<small class="row-meta">待T+1核验</small></td></tr>`).join("");
+        els.stageContent.querySelectorAll("[data-supplement-sort]").forEach(b=>{b.classList.toggle("active",b.dataset.supplementSort===field);b.setAttribute("aria-pressed",String(b.dataset.supplementSort===field));});
+      };
+      els.stageContent.querySelectorAll("[data-supplement-sort]").forEach(b=>b.addEventListener("click",()=>render(b.dataset.supplementSort)));
+      render("promotion");
+    }
+
     function renderStageWatchlist(plan) {
+      if (state.d23SupplementActive) { renderD23SupplementTable(); return; }
       const { displayPlan, contract: threeRank } = displayedThreeRank(plan);
       if (threeRank === false) {
         els.stageCount.textContent = "三排名合同错误";
@@ -6304,6 +6362,15 @@
     }
 
     function setNavigation() {
+      if (state.d23SupplementActive && !state.dailyRequestedDate) {
+        els.prevBtn.disabled = false;
+        els.prevBtn.title = "上一交易日名单 · D 2026-09-22";
+        els.prevBtn.setAttribute("aria-label", els.prevBtn.title);
+        els.nextBtn.disabled = true;
+        els.nextBtn.title = "没有下一交易日名单";
+        els.nextBtn.setAttribute("aria-label", els.nextBtn.title);
+        return;
+      }
       if (new URLSearchParams(location.search).get("view") === "research") {
         els.prevBtn.disabled = state.index >= state.reports.length - 1;
         els.nextBtn.disabled = state.index <= 0;
@@ -7033,7 +7100,7 @@
       latestUrl.searchParams.set("page", String(Date.now()));
       window.location.replace(latestUrl.toString());
     });
-    els.prevBtn.addEventListener("click", () => navigateDaily(1));
+    els.prevBtn.addEventListener("click", () => state.d23SupplementActive ? (window.location.href = "?d=20260922") : navigateDaily(1));
     els.nextBtn.addEventListener("click", () => navigateDaily(-1));
 
     function showError(error) {
