@@ -1234,6 +1234,11 @@
     #d23IndependentSupplement table { width:100%; min-width:620px; border-collapse:collapse; }
     #d23IndependentSupplement th, #d23IndependentSupplement td { text-align:left; padding:8px 12px; font-size:12px; white-space:nowrap; border-bottom:1px solid var(--line); }
     #d23IndependentSupplement th { background:#edf4f1; }
+    body.show-d23-supplement #statusBand,
+    body.show-d23-supplement #rankingWorkspace,
+    body.show-d23-supplement .topbar .controls { display:none; }
+    #d23IndependentSupplement .supplement-navigation { display:flex; flex-wrap:wrap; gap:16px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12px; }
+    #d23IndependentSupplement .supplement-navigation a { color:var(--accent, #17675a); text-decoration:none; }
     @media(max-width:480px) { #d23IndependentSupplement .supplement-pick { width:100%; } }
   </style>
 </head>
@@ -1256,12 +1261,13 @@
   <main id="mainContent" aria-busy="true">
     <section id="d23IndependentSupplement" class="panel" aria-label="2026-09-23补算排名">
 <div class="supplement-heading"><h2>D 2026-09-23 · 补算名单</h2><span class="supplement-label">独立补算 · 非正式冻结</span></div>
+<nav class="supplement-navigation" aria-label="补算名单日期导航"><a href="?d=20260922">← 2026-09-22 正式历史名单</a><a href="?">↻ 刷新最新名单</a></nav>
 <div class="supplement-picks">
   <div class="supplement-pick"><b>盈1</b><strong>奥佳华</strong><small>002614.SZ</small></div>
   <div class="supplement-pick"><b>盈2</b><strong>我爱我家</strong><small>000560.SZ</small></div>
 </div>
-<p class="stats-note">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。以下正式记录保留原日期；本补算不计正式影子成绩。</p>
-<details><summary>查看补算完整排名与来源说明（10只）</summary>
+<p class="stats-note">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。本页当前展示23日补算名单；22日请通过上方历史入口查看。本补算不计下方正式影子成绩。</p>
+<details open><summary>2026-09-23 完整排名与来源说明（10只）</summary>
 <div class="supplement-table-wrap"><table aria-label="D20260923独立补算完整排名"><thead><tr><th>晋级排名</th><th>代码</th><th>名称</th><th>晋级模型概率</th><th>盈利排名</th><th>盈利模型分</th></tr></thead><tbody>
 <tr><td>晋1</td><td>600825.SH</td><td>新华传媒</td><td>67.27%</td><td>历史不足 · 不评分</td><td>—</td></tr>
 <tr><td>晋2</td><td>001234.SZ</td><td>泰慕士</td><td>60.34%</td><td>6</td><td>-0.011990</td></tr>
@@ -3242,6 +3248,11 @@
       if (supplement) {
         const formalDay = canonicalYmd(primaryContract?.signal_date || plan?.signal_date);
         supplement.hidden = !currentPage || (formalDay && formalDay >= "20260923");
+        document.body.classList.toggle("show-d23-supplement", !supplement.hidden);
+        const rankingLink = document.querySelector('.workspace-nav a');
+        const skipLink = document.querySelector('.skip-link');
+        if (rankingLink) rankingLink.href = supplement.hidden ? "#rankingWorkspace" : "#d23IndependentSupplement";
+        if (skipLink) skipLink.href = supplement.hidden ? "#stagePanel" : "#d23IndependentSupplement";
       }
       renderLegacyProfitBenchmark(primaryContract);
       if (primaryContract && primaryContract !== false) {
