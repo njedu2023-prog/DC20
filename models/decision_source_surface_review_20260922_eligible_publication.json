@@ -48,21 +48,49 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 474510,
-      "current_bytes": 484175,
+      "current_bytes": 486530,
       "baseline_sha256": "42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d",
-      "current_sha256": "d6b1859fcaa745a97fbf2116bac1c49fd0914706d762525a35e3cf37d6a1844e",
+      "current_sha256": "10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
-          "baseline_start": 1240,
-          "current_start": 1240,
+          "baseline_start": 1221,
+          "current_start": 1221,
           "baseline_lines": [],
           "current_lines": [
-            "    <section id=\"d23IndependentSupplement\" class=\"panel primary-panel\" aria-label=\"2026-09-23补算排名\" style=\"margin:12px 0;border:2px solid #258577;padding:16px\">\n",
-            "<h2>D 2026-09-23 · 晋级与盈利排名（独立补算）</h2>\n",
-            "<p><strong>盈1：002614.SZ 奥佳华　｜　盈2：000560.SZ 我爱我家</strong></p>\n",
-            "<p class=\"stats-note\">生成时间：2026-09-23T16:49:50.450490+00:00（UTC）；使用D日及此前数据。补算结果，非昨晚正式冻结；未计入正式影子成绩，未填造成交或收益。模型分不是盈利概率。</p>\n",
-            "<div style=\"overflow-x:auto\"><table class=\"three-rank-table\"><thead><tr><th>晋级排名</th><th>代码</th><th>名称</th><th>晋级模型概率</th><th>盈利排名</th><th>盈利模型分</th></tr></thead><tbody>\n",
+            "    /* D23 supplement is a compact disclosure, separate from the formal report. */\n",
+            "    #d23IndependentSupplement { margin: 0 0 10px; overflow: hidden; }\n",
+            "    #d23IndependentSupplement .supplement-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; padding:10px 12px; border-bottom:1px solid var(--line); }\n",
+            "    #d23IndependentSupplement h2 { margin:0; font-size:14px; }\n",
+            "    #d23IndependentSupplement .supplement-label { font-size:11px; color:var(--muted); }\n",
+            "    #d23IndependentSupplement .supplement-picks { display:flex; flex-wrap:wrap; gap:8px; padding:10px 12px; }\n",
+            "    #d23IndependentSupplement .supplement-pick { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--line); border-radius:6px; font-size:13px; background:#f5faf8; }\n",
+            "    #d23IndependentSupplement .supplement-pick small { color:var(--muted); font-size:11px; }\n",
+            "    #d23IndependentSupplement .stats-note { margin:0; padding:0 12px 10px; font-size:11px; line-height:1.6; }\n",
+            "    #d23IndependentSupplement details { border-top:1px solid var(--line); }\n",
+            "    #d23IndependentSupplement summary { cursor:pointer; padding:8px 12px; font-size:12px; color:var(--accent, #17675a); }\n",
+            "    #d23IndependentSupplement summary:focus-visible { outline:2px solid #17675a; outline-offset:-2px; }\n",
+            "    #d23IndependentSupplement .supplement-table-wrap { overflow-x:auto; }\n",
+            "    #d23IndependentSupplement table { width:100%; min-width:620px; border-collapse:collapse; }\n",
+            "    #d23IndependentSupplement th, #d23IndependentSupplement td { text-align:left; padding:8px 12px; font-size:12px; white-space:nowrap; border-bottom:1px solid var(--line); }\n",
+            "    #d23IndependentSupplement th { background:#edf4f1; }\n",
+            "    @media(max-width:480px) { #d23IndependentSupplement .supplement-pick { width:100%; } }\n"
+          ]
+        },
+        {
+          "baseline_start": 1240,
+          "current_start": 1257,
+          "baseline_lines": [],
+          "current_lines": [
+            "    <section id=\"d23IndependentSupplement\" class=\"panel\" aria-label=\"2026-09-23补算排名\">\n",
+            "<div class=\"supplement-heading\"><h2>D 2026-09-23 · 补算名单</h2><span class=\"supplement-label\">独立补算 · 非正式冻结</span></div>\n",
+            "<div class=\"supplement-picks\">\n",
+            "  <div class=\"supplement-pick\"><b>盈1</b><strong>奥佳华</strong><small>002614.SZ</small></div>\n",
+            "  <div class=\"supplement-pick\"><b>盈2</b><strong>我爱我家</strong><small>000560.SZ</small></div>\n",
+            "</div>\n",
+            "<p class=\"stats-note\">晋1 新华传媒 · 晋2 泰慕士 · 晋3 天威视讯。以下正式记录保留原日期；本补算不计正式影子成绩。</p>\n",
+            "<details><summary>查看补算完整排名与来源说明（10只）</summary>\n",
+            "<div class=\"supplement-table-wrap\"><table aria-label=\"D20260923独立补算完整排名\"><thead><tr><th>晋级排名</th><th>代码</th><th>名称</th><th>晋级模型概率</th><th>盈利排名</th><th>盈利模型分</th></tr></thead><tbody>\n",
             "<tr><td>晋1</td><td>600825.SH</td><td>新华传媒</td><td>67.27%</td><td>历史不足 · 不评分</td><td>—</td></tr>\n",
             "<tr><td>晋2</td><td>001234.SZ</td><td>泰慕士</td><td>60.34%</td><td>6</td><td>-0.011990</td></tr>\n",
             "<tr><td>晋3</td><td>002238.SZ</td><td>天威视讯</td><td>58.28%</td><td>9</td><td>-0.029665</td></tr>\n",
@@ -74,14 +102,15 @@
             "<tr><td>9</td><td>600418.SH</td><td>江淮汽车</td><td>21.00%</td><td>8</td><td>-0.022652</td></tr>\n",
             "<tr><td>10</td><td>605058.SH</td><td>澳弘电子</td><td>13.70%</td><td>7</td><td>-0.014659</td></tr>\n",
             "</tbody></table></div>\n",
-            "<p class=\"stats-note\">完整候选10只，盈利可评分9只；新华传媒保留晋1，仅因历史不足不参与盈利排序。下方为既有正式发布记录，两者不混同。</p>\n",
+            "<p class=\"stats-note\">北京时间 09-24 00:49 补算，使用D日及此前数据。完整候选10只，盈利可评分9只；新华传媒因历史不足不参与盈利评分，晋级排名保留。模型分不是盈利概率；未填造成交或收益。</p>\n",
+            "</details>\n",
             "</section>\n",
             "\n"
           ]
         },
         {
           "baseline_start": 1943,
-          "current_start": 1962,
+          "current_start": 1984,
           "baseline_lines": [],
           "current_lines": [
             "    function candidatePublicOriginalRows(day, contract) {\n",
@@ -119,7 +148,7 @@
         },
         {
           "baseline_start": 1955,
-          "current_start": 2005,
+          "current_start": 2027,
           "baseline_lines": [
             "      executableProfitExpect(day.schema_version === \"dc20_candidate_formal_profit_day_v1\"\n"
           ],
@@ -130,7 +159,7 @@
         },
         {
           "baseline_start": 1961,
-          "current_start": 2012,
+          "current_start": 2034,
           "baseline_lines": [
             "        && Array.isArray(day.rows) && day.rows.length === contract.rows.length && day.candidate_count === day.rows.length, \"新盈利冻结版本、日期、完整池或来源不一致\");\n"
           ],
@@ -140,7 +169,7 @@
         },
         {
           "baseline_start": 1975,
-          "current_start": 2026,
+          "current_start": 2048,
           "baseline_lines": [
             "      executableProfitExpect(rows.size === contract.rows.length, \"新盈利候选重复或缺失\");\n"
           ],
@@ -150,7 +179,7 @@
         },
         {
           "baseline_start": 1979,
-          "current_start": 2030,
+          "current_start": 2052,
           "baseline_lines": [],
           "current_lines": [
             "        if (!row && day.schema_version === \"dc20_candidate_formal_profit_day_v2_eligible\") continue;\n"
@@ -158,7 +187,7 @@
         },
         {
           "baseline_start": 1992,
-          "current_start": 2044,
+          "current_start": 2066,
           "baseline_lines": [
             "        const sorted = [...ordered].sort((a, b) => a[rank] - b[rank]);\n"
           ],
@@ -168,7 +197,7 @@
         },
         {
           "baseline_start": 2012,
-          "current_start": 2064,
+          "current_start": 2086,
           "baseline_lines": [],
           "current_lines": [
             "      // D22 local recomputation: display only; formal publication always wins.\n",
@@ -194,7 +223,7 @@
         },
         {
           "baseline_start": 2041,
-          "current_start": 2112,
+          "current_start": 2134,
           "baseline_lines": [
             "      if (byCode.size !== contract.rows.length || contract.rows.some(row => byCode.get(row.ts_code)?.promotion_rank !== row.promotion_rank)) return unavailable(\"新模型冻结候选身份不一致\");\n",
             "      return {ready: true, candidate: true, message: \"新模型 · 验证中\", rows: new Map(p.rows.map(row => [row.ts_code, {\n"
@@ -206,8 +235,20 @@
           ]
         },
         {
+          "baseline_start": 3147,
+          "current_start": 3241,
+          "baseline_lines": [],
+          "current_lines": [
+            "      const supplement = document.getElementById(\"d23IndependentSupplement\");\n",
+            "      if (supplement) {\n",
+            "        const formalDay = canonicalYmd(primaryContract?.signal_date || plan?.signal_date);\n",
+            "        supplement.hidden = !currentPage || (formalDay && formalDay >= \"20260923\");\n",
+            "      }\n"
+          ]
+        },
+        {
           "baseline_start": 6533,
-          "current_start": 6605,
+          "current_start": 6632,
           "baseline_lines": [
             "    function ledgerStatus(row) {\n"
           ],
@@ -222,7 +263,7 @@
         },
         {
           "baseline_start": 6540,
-          "current_start": 6617,
+          "current_start": 6644,
           "baseline_lines": [],
           "current_lines": [
             "    }\n",
@@ -242,7 +283,7 @@
         },
         {
           "baseline_start": 6563,
-          "current_start": 6653,
+          "current_start": 6680,
           "baseline_lines": [
             "        [\"exec_date\",\"买入日\"],[\"entry_price\",\"买入价\"],[\"entry_price_source\",\"价格来源\"],[\"status\",\"状态\"],\n"
           ],
@@ -254,7 +295,7 @@
         },
         {
           "baseline_start": 6610,
-          "current_start": 6702,
+          "current_start": 6729,
           "baseline_lines": [
             "        if (date !== \"20260921\") return missing;\n"
           ],
@@ -264,7 +305,7 @@
         },
         {
           "baseline_start": 6626,
-          "current_start": 6718,
+          "current_start": 6745,
           "baseline_lines": [
             "            supplement_note:\"2026-09-22事后补算；非原盘前发布，不计正式成绩。未补造买入、退出及收益。\"};\n"
           ],
@@ -274,7 +315,7 @@
         },
         {
           "baseline_start": 6670,
-          "current_start": 6762,
+          "current_start": 6789,
           "baseline_lines": [
             "        <p id=\"ledgerMessage\" class=\"note\" role=\"status\">正在校验影子账本…</p><div class=\"scroll\" id=\"ledgerSummary\"></div></section>\n"
           ],
@@ -284,7 +325,7 @@
         },
         {
           "baseline_start": 6717,
-          "current_start": 6809,
+          "current_start": 6836,
           "baseline_lines": [],
           "current_lines": [
             "        const posthoc=currentRows.filter(r=>r.status === \"POSTHOC_SUPPLEMENT_NOT_FORMAL\");\n",
@@ -293,7 +334,7 @@
         },
         {
           "baseline_start": 6723,
-          "current_start": 6817,
+          "current_start": 6844,
           "baseline_lines": [
             "            [\"冻结快照SHA\",r.snapshot_file_sha256 || \"—\"],[\"校验提示\",r.supplement_note || r.detail_error || \"通过\"]];\n",
             "          return `<tr><td>${date(r.signal_date)}</td><td><span class=\"badge\">盈${r.slot}</span></td><td class=\"identity\">${escapeHtml(r.ts_code || \"—\")}</td><td><strong>${escapeHtml(r.name || \"—\")}</strong></td><td>${escapeHtml(r.industry || \"—\")}</td><td>${escapeHtml(r.stage_transition || \"—\")}</td><td><span class=\"path-chip\">${escapeHtml(r.path_label || \"—\")}</span></td><td><span class=\"promotion-chip\">${r.promotion_rank ?? \"—\"}</span></td><td>${date(r.exec_date)}</td><td>${price(r.entry_price)} <span class=\"muted\">${escapeHtml(source(r.entry_price_source))}</span></td><td><span class=\"status-chip status-${status.kind}\"><span aria-hidden=\"true\">${status.kind===\"settled\"?\"✓\":status.kind===\"holding\"?\"◆\":status.kind===\"missing\"?\"!\":\"◷\"}</span>${status.label}</span></td><td>${date(r.actual_exit_date)}</td><td>${price(r.exit_price)}</td><td class=\"${tone(net)}\">${pct(net)}</td><td><details><summary>展开${r.detail_error?\" · 待校验\":\"\"}</summary>${detail.map(([k,v])=>`<p>${k}：${escapeHtml(String(v))}</p>`).join(\"\")}</details></td></tr>`;\n"
@@ -305,7 +346,7 @@
         },
         {
           "baseline_start": 6743,
-          "current_start": 6837,
+          "current_start": 6864,
           "baseline_lines": [
             "        currentRows=loaded;paint();el(\"Export\").disabled=!loaded.length;\n"
           ],
@@ -321,7 +362,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "4e150162cfbd738b1114ad963319069c6fbd37f60a396c5f6cfd3650ad0588d0",
-      "current_sha256": "d624200baf4160fcd7dcb027f0cc03da158b67e5973aafbdd847058278373fb8",
+      "current_sha256": "4d676cedd82c0fd26c69f5f0628c08062ee9966c771ff695e44766f1d85cc96e",
       "reason": "Versioned per-stock eligibility integration; retain exact historical baseline and current byte validation.",
       "inverse_changes": [
         {
@@ -351,7 +392,7 @@
             "    \"decision.html\": \"42c2afb98808e089a8fe3cdffaa3642743d43a59d44c2cf8fe695431403ba62d\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"d6b1859fcaa745a97fbf2116bac1c49fd0914706d762525a35e3cf37d6a1844e\",\n"
+            "    \"decision.html\": \"10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5\",\n"
           ]
         }
       ]
@@ -1852,7 +1893,7 @@
     ".github/workflows/research_candidate_natural_settlement.yml": "27b1b507946f5d16d6c330466dab8d98da7f69b551cf5de4a86b9640233742be"
   },
   "existing_pin_updates": {
-    "decision.html": "d6b1859fcaa745a97fbf2116bac1c49fd0914706d762525a35e3cf37d6a1844e",
+    "decision.html": "10e33a12ba6a30085a57f76d4d4e80a1b898f28786957b04d0afefd2b0db4fa5",
     ".github/workflows/run_primary_d_daily.yml": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677",
     ".github/workflows/test_decision_core.yml": "f419f49daf23614063b5ec86a25e8ed981eb6c7bc1fad191772da62dfb4a2e7f"
   },
