@@ -1,0 +1,56 @@
+name: DC20 publish verified Sept23 entry prices once
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish_entry_prices_20260923.yml]
+permissions:
+  contents: read
+concurrency:
+  group: dc20-publish-entry-prices-20260923
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Publish existing successful source-bound settlement without recollection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import datetime,json,os,time,urllib.request,urllib.error
+          root='https://api.github.com/repos/njedu2023-prog/DC20'
+          def api(path,body=None):
+              req=urllib.request.Request(root+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=30) as response: raw=response.read()
+              return json.loads(raw) if raw else None
+          assert datetime.datetime.now(datetime.timezone.utc)<datetime.datetime(2026,9,23,12,tzinfo=datetime.timezone.utc),'Expired'
+          run=api('/actions/runs/35833946080')
+          assert run['status']=='completed' and run['conclusion']=='success' and run['run_attempt']==1
+          assert run['workflow_id']==357485346 and run['path']=='.github/workflows/research_candidate_natural_settlement.yml'
+          assert run['head_sha']=='9cfe68dfa4ecb63ed73c7dd3a0cf6fbbeb7b492e' and run['head_branch']=='main'
+          assert run['repository']['full_name']==run['head_repository']['full_name']=='njedu2023-prog/DC20'
+          def recent(): return api('/actions/workflows/publish_candidate_profit.yml/runs?per_page=50')['workflow_runs']
+          old=recent()
+          active=lambda r:r['event']!='push' and r['status'] in ('queued','in_progress','waiting','pending')
+          if any(active(r) for r in old):
+              print('Publisher already active; no duplicate')
+              raise SystemExit(0)
+          ids={r['id'] for r in old}
+          assert api('/git/ref/heads/main')['object']['sha']==os.environ['GITHUB_SHA'],'Main changed'
+          for attempt in range(3):
+              if attempt:
+                  time.sleep(30)
+                  if any(r['id'] not in ids and r['event']=='workflow_dispatch' for r in recent()):
+                      print('Dispatch already accepted despite HTTP failure; no duplicate')
+                      break
+              try:
+                  api('/actions/workflows/publish_candidate_profit.yml/dispatches',{'ref':'main','inputs':{'dry_run':False}})
+                  print('Verified publisher/deployer dispatched')
+                  break
+              except urllib.error.HTTPError as error:
+                  if error.code not in (500,502,503,504) or attempt==2: raise
