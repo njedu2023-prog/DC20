@@ -1,0 +1,21 @@
+{
+  "schema_version": "decision_auction_truth_v1",
+  "source": "tushare:stk_auction_o",
+  "trade_date": "20260923",
+  "rows": 5517,
+  "requested_code_count": 0,
+  "fields": [
+    "ts_code",
+    "trade_date",
+    "close",
+    "open",
+    "high",
+    "low",
+    "vol",
+    "amount",
+    "vwap"
+  ],
+  "sha256": "8a01a1690c1c789d8bff1c69dc8102e8376fab18419f345f8c7c84f738c93d46",
+  "immutable": true,
+  "credential_persisted": false
+}
