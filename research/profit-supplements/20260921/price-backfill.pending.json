@@ -1,0 +1,61 @@
+{
+  "schema_version": "dc20_posthoc_price_backfill_pending_v1",
+  "signal_date": "20260921",
+  "exec_date": "20260922",
+  "exit_date": "20260923",
+  "source_commit": "e9c5d758737fd8ce323fe9ba9d3ed9a581b8d667",
+  "classification": "POSTHOC_RESEARCH_NOT_FORMAL",
+  "formal_statistics_eligible": false,
+  "combined_statistics_label": "含事后补算（非纯前瞻成绩）",
+  "round_trip_cost_rate": 0.0045,
+  "exit_rule": "Use existing 10:00 exit and limit-up holding evaluator; no spot/close replacement",
+  "status": "PENDING_EXIT_SOURCE_NOT_PUBLISHED",
+  "source_bindings": [
+    {
+      "path": "data/market/raw/2026/20260922/daily.csv",
+      "git_blob_sha": "40ee431661b4ee0a3918f40d49d720709c29354c"
+    },
+    {
+      "path": "data/market/raw/2026/20260922/stk_limit.csv",
+      "git_blob_sha": "a98be50802446e44958d56b45ad61436ecf0cec2"
+    },
+    {
+      "path": "data/market/raw/2026/20260922/stk_auction.csv",
+      "git_blob_sha": "57c15058c445760af254118ec635a8350e196e64"
+    }
+  ],
+  "rows": [
+    {
+      "slot": 1,
+      "ts_code": "000910.SZ",
+      "name": "大亚圣象",
+      "entry_reference_price": 6.03,
+      "entry_reference_source": "ARCHIVED_TUSHARE_STK_AUCTION_PRICE",
+      "daily_open_matches": true,
+      "actual_execution_claimed": false,
+      "entry_qualification": "RAW_ARCHIVE_CROSSCHECK_ONLY_PENDING_CANONICAL_SOURCE_QUALIFICATION",
+      "actual_exit_date": null,
+      "exit_price": null,
+      "net_return": null
+    },
+    {
+      "slot": 2,
+      "ts_code": "002589.SZ",
+      "name": "瑞康医药",
+      "entry_reference_price": 3.81,
+      "entry_reference_source": "ARCHIVED_TUSHARE_STK_AUCTION_PRICE",
+      "daily_open_matches": true,
+      "actual_execution_claimed": false,
+      "entry_qualification": "RAW_ARCHIVE_CROSSCHECK_ONLY_PENDING_CANONICAL_SOURCE_QUALIFICATION",
+      "actual_exit_date": null,
+      "exit_price": null,
+      "net_return": null
+    }
+  ],
+  "remaining": [
+    "Qualify entry via existing canonical auction evidence contract; do not label raw archive checks as formal admission.",
+    "Acquire source-bound 20260923 exit minute/daily/limit evidence; evaluate existing hold/exit rule.",
+    "Publish separate posthoc performance and explicitly labelled combined view, preserve formal raw statistics.",
+    "Verify page, export, missing/hold states and source-review pins."
+  ]
+}
