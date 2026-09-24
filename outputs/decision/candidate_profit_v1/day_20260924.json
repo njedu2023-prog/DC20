@@ -1,0 +1,329 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.0016701298072162116,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002909.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0029164143898093913,
+      "net_return": null,
+      "promotion_rank": 5,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600802.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000850.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002909.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002238.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600843.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600802.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603949.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002119.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603396.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002819.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20260928",
+  "exit_date": "20260929",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-09-28T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 9,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "纺织制造",
+      "name": "华茂股份",
+      "promotion_rank": 1,
+      "ts_code": "000850.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "集泰股份",
+      "promotion_rank": 2,
+      "ts_code": "002909.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电视广播",
+      "name": "天威视讯",
+      "promotion_rank": 3,
+      "ts_code": "002238.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "专用设备",
+      "name": "上工申贝",
+      "promotion_rank": 4,
+      "ts_code": "600843.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "水泥",
+      "name": "福建水泥",
+      "promotion_rank": 5,
+      "ts_code": "600802.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "雪龙集团",
+      "promotion_rank": 6,
+      "ts_code": "603949.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "半导体",
+      "name": "康强电子",
+      "promotion_rank": 7,
+      "ts_code": "002119.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "光伏设备",
+      "name": "金辰股份",
+      "promotion_rank": 8,
+      "ts_code": "603396.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "东方中科",
+      "promotion_rank": 9,
+      "ts_code": "002819.SZ"
+    }
+  ],
+  "p0_file_sha256": "f3b16912d48174e620e3abf7bd4059e9850f5c0799f10130e16126e8ff986fe9",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20260924.json",
+    "sha256": "f3b16912d48174e620e3abf7bd4059e9850f5c0799f10130e16126e8ff986fe9"
+  },
+  "pre_cas_freeze_at_utc": "2026-09-24T15:09:47.281403+00:00",
+  "prediction_generated_at_utc": "2026-09-24T15:09:47.255491+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-09-24T15:15:07.310492+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000850.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002909.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "ae62f1e9e7ba14adb9c6f1e89bf1f26da5000df2",
+    "evidence_manifest_sha256": "21a17949f222c82859d76b3ba984b634e0a449cb6bdd727c37af51aac02195ec",
+    "observer_run_id": 36018141698,
+    "publication_observation_sha256": "46991734b94e15722f9ab5125b015e2634dcb057d3ccd000270ddbacdcf23b61"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.0016701298072162116,
+      "industry": "化学制品",
+      "name": "集泰股份",
+      "promotion_rank": 2,
+      "ts_code": "002909.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0029164143898093913,
+      "industry": "水泥",
+      "name": "福建水泥",
+      "promotion_rank": 5,
+      "ts_code": "600802.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.003948408742921458,
+      "industry": "光伏设备",
+      "name": "金辰股份",
+      "promotion_rank": 8,
+      "ts_code": "603396.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.006084525723635608,
+      "industry": "电视广播",
+      "name": "天威视讯",
+      "promotion_rank": 3,
+      "ts_code": "002238.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.008236535778233547,
+      "industry": "专用设备",
+      "name": "上工申贝",
+      "promotion_rank": 4,
+      "ts_code": "600843.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.008962938488138946,
+      "industry": "半导体",
+      "name": "康强电子",
+      "promotion_rank": 7,
+      "ts_code": "002119.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.011437509724525188,
+      "industry": "汽车零部件",
+      "name": "雪龙集团",
+      "promotion_rank": 6,
+      "ts_code": "603949.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01309026211009261,
+      "industry": "通用设备",
+      "name": "东方中科",
+      "promotion_rank": 9,
+      "ts_code": "002819.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.01388248613041737,
+      "industry": "纺织制造",
+      "name": "华茂股份",
+      "promotion_rank": 1,
+      "ts_code": "000850.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20260924",
+  "snapshot_file_sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260924.json",
+    "sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a"
+  },
+  "source_main_sha": "ae62f1e9e7ba14adb9c6f1e89bf1f26da5000df2",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
