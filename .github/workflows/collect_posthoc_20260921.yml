@@ -1,0 +1,36 @@
+name: DC20 · Collect September 21 posthoc evidence
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dc20-posthoc-evidence-20260921
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+      - name: Collect fixed historical sources and separate research result
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: python scripts/collect_posthoc_20260921.py --output "$RUNNER_TEMP/posthoc-20260921"
+      - name: Preserve evidence even if a source is missing
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: posthoc-20260921-evidence
+          path: ${{ runner.temp }}/posthoc-20260921
+          retention-days: 30
+          if-no-files-found: error
