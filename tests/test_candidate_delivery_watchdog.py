@@ -89,7 +89,7 @@ def test_untrusted_upstream_is_rejected(field,value):
 
 def test_missing_p0_does_not_substitute_old_day():
     f=Fake(); del f.files['outputs/decision/primary_d_receipt_20260922.json']
-    with pytest.raises(ValueError,match='MISSING_REQUIRED'): m.inspect(f,NOW)
+    with pytest.raises(ValueError,match='INCOMPLETE_P0'): m.inspect(f,NOW)
 
 def test_corrupt_original_file_is_rejected():
     f=Fake(); f.files['outputs/decision/three_rank_top10_20260922.json']=b'{}'

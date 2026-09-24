@@ -27,6 +27,7 @@ P0 = 'run_primary_d_daily.yml'
 IDS = {P0: 343703608, NATURAL: 357010624, OBSERVER: 357027830}
 ROOT = 'work/profit_1000_upgrade/'
 PUBLIC = 'outputs/decision/candidate_profit_v1/'
+UPSTREAMS = ('njedu2023-prog/a-top10', 'njedu2023-prog/a-share-top3-data')
 
 
 def require(value, reason):
@@ -56,13 +57,14 @@ class GitHub:
         require(bool(token), 'TOKEN_REQUIRED')
         self.token, self.calls = token, 0
 
-    def request(self, path, body=None):
+    def request(self, path, body=None, *, repository=REPO):
         self.calls += 1
         require(self.calls <= 60 and path.startswith('/'), 'REQUEST_BUDGET_EXCEEDED')
+        require(repository in (REPO, *UPSTREAMS), 'REPOSITORY_REJECTED')
         if body is not None:
-            require(path in {f'/actions/workflows/{w}/dispatches' for w in (NATURAL, OBSERVER, PUBLISHER)}, 'DISPATCH_TARGET_REJECTED')
+            require(repository == REPO and path in {f'/actions/workflows/{w}/dispatches' for w in (P0, NATURAL, OBSERVER, PUBLISHER)}, 'DISPATCH_TARGET_REJECTED')
             require(body.get('ref') == 'main', 'MAIN_ONLY')
-        req = urllib.request.Request('https://api.github.com/repos/'+REPO+path,
+        req = urllib.request.Request('https://api.github.com/repos/'+repository+path,
             data=None if body is None else json.dumps(body).encode(), headers={
                 'Authorization': 'Bearer '+self.token, 'Accept': 'application/vnd.github+json',
                 'X-GitHub-Api-Version': '2022-11-28'})
@@ -78,15 +80,49 @@ class GitHub:
         except (TimeoutError, urllib.error.URLError):
             raise ValueError('DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY' if body is not None else 'GITHUB_READ_UNAVAILABLE') from None
 
-    def file(self, path, head):
+    def file(self, path, head, *, repository=REPO):
         require(re.fullmatch('[0-9a-f]{40}', head), 'EXACT_HEAD_REQUIRED')
-        value = self.request('/contents/'+path+'?ref='+head)
+        value = self.request('/contents/'+path+'?ref='+head, repository=repository)
         if value is None:
             return None
         require(value.get('type') == 'file' and value.get('encoding') == 'base64', 'REGULAR_SMALL_FILE_REQUIRED')
         raw = base64.b64decode(value['content'])
         require(hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() == value['sha'], 'GIT_BLOB_MISMATCH')
         return raw
+
+    def p0_sources(self, day, now):
+        """Preflight only. The original P0 importer remains the source authority.
+
+        Pin both heads and read only exact-D paths. Never fall back to latest,
+        overwrite an incomplete bundle, or dispatch on absent upstream data.
+        """
+        commits, produced = {}, []
+        for repository in UPSTREAMS:
+            commit = self.request('/commits/main', repository=repository)
+            sha = commit.get('sha', '')
+            require(re.fullmatch('[0-9a-f]{40}', sha), 'UPSTREAM_COMMIT_INVALID')
+            stamp = datetime.fromisoformat(commit['commit']['committer']['date'].replace('Z', '+00:00'))
+            require(stamp.tzinfo is not None and stamp <= now, 'UPSTREAM_COMMIT_FROM_FUTURE')
+            commits[repository] = sha
+            produced.append(stamp)
+        pred_repo, market_repo = UPSTREAMS
+        pred = self.file(f'outputs/decisio/pred_decisio_{day}.csv', commits[pred_repo], repository=pred_repo)
+        require(pred is not None, 'P0_UPSTREAM_PRED_NOT_READY')
+        rows = list(csv.DictReader(io.StringIO(pred.decode('utf-8-sig'))))
+        require(rows and all(r.get('trade_date') == day for r in rows), 'P0_UPSTREAM_PRED_DATE_MISMATCH')
+        for row in rows:
+            source_time(row.get('generated_at_utc'), day, now)
+        folder = f'data/raw/{day[:4]}/{day}/'
+        files = self.request('/contents/'+folder+'?ref='+commits[market_repo], repository=market_repo)
+        require(isinstance(files, list), 'P0_UPSTREAM_MARKET_NOT_READY')
+        names = {r['name'] for r in files if r.get('type') == 'file' and r.get('size', 0) > 0}
+        require({'daily.csv', 'daily_basic.csv', 'stk_limit.csv', 'stock_basic.csv', 'limit_list_d.csv', '_meta.json'} <= names,
+                'P0_UPSTREAM_MARKET_FILES_MISSING')
+        meta = document(self.file(folder+'_meta.json', commits[market_repo], repository=market_repo))
+        require(meta.get('resolved_trade_date') == day, 'P0_UPSTREAM_MARKET_DATE_MISMATCH')
+        source_time(meta.get('generated_at_bj'), day, now, beijing=True)
+        return {'pred_commit': commits[pred_repo], 'market_commit': commits[market_repo],
+                'source_ready_at': max(produced).isoformat()}
 
     def public_ready(self, day, day_sha, summary_sha):
         try:
@@ -129,6 +165,44 @@ def valid_run(run, workflow, *, success=True):
         require(run.get('status') == 'completed' and run.get('conclusion') == 'success', 'UPSTREAM_NOT_SUCCESSFUL')
 
 
+def source_time(raw, day, now, *, beijing=False):
+    stamp = (datetime.strptime(str(raw), '%Y-%m-%d %H:%M:%S').replace(tzinfo=TZ) if beijing
+             else datetime.fromisoformat(str(raw).replace('Z', '+00:00')))
+    require(stamp.tzinfo is not None, 'P0_UPSTREAM_SOURCE_TIME_REQUIRED')
+    local = stamp.astimezone(TZ)
+    require(local.strftime('%Y%m%d') == day and local.time() > time(15) and stamp <= now,
+            'P0_UPSTREAM_SOURCE_TIME_INVALID')
+
+
+def p0_dispatch_window(day, now):
+    # Match the EXISTING controlled NATURAL entry point. Do not silently extend
+    # it past 23:30 or present a manual recovery as a natural scheduled run.
+    local = now.astimezone(TZ)
+    require(local.strftime('%Y%m%d') == day and time(15) < local.time() < time(23, 30),
+            'MISSING_P0_OUTSIDE_CONTROLLED_WINDOW_SCHEDULE_REQUIRED')
+
+
+def missing_p0(client, base, now, cutoff):
+    require(now < cutoff, 'MISSED_PREAUCTION_PUBLICATION_DEADLINE_NO_BACKFILL')
+    p0_dispatch_window(base['signal_date'], now)
+    day, head = base['signal_date'], base['head']
+    for path in (f'outputs/decision/three_rank_top10_{day}.json',
+                 f'outputs/decision/three_rank_top10_{day}.csv',
+                 f'outputs/decision/primary_d_runtime_features_{day}.csv',
+                 ROOT+f'candidate_natural_forward/day_{day}.json',
+                 ROOT+f'candidate_natural_forward/workflow_{day}.json',
+                 ROOT+f'candidate_natural_evidence/{day}/context.json',
+                 PUBLIC+f'day_{day}.json'):
+        require(client.file(path, head) is None, 'INCOMPLETE_P0_REQUIRES_REPAIR_NO_OVERWRITE')
+    sources = client.p0_sources(day, now)
+    return {**base, 'status': 'NEEDS_P0', 'workflow': P0,
+            'recovery_kind': 'CONTROLLED_DAILY_NOT_SCHEDULE_PROOF',
+            'source_ready_at': sources['source_ready_at'],
+            'inputs': {'trade_date': day, 'generation_mode': 'NATURAL', 'dry_run': False,
+                       'confirm_daily_generation': True, 'confirm_recovery': False,
+                       'pred_commit': sources['pred_commit'], 'market_commit': sources['market_commit']}}
+
+
 def inspect(client, now):
     head = client.request('/git/ref/heads/main')['object']['sha']
     activation = document(client.file('models/decision_candidate_profit_activation_v1.json', head))
@@ -138,7 +212,10 @@ def inspect(client, now):
     calendar = client.file('data/market/trade_cal_sse.csv', head)
     day, trade, exit_day, cutoff = window(calendar, now)
     base = {'signal_date': day, 'exec_date': trade, 'exit_date': exit_day, 'head': head}
-    receipt = document(client.file(f'outputs/decision/primary_d_receipt_{day}.json', head))
+    receipt_raw = client.file(f'outputs/decision/primary_d_receipt_{day}.json', head)
+    if receipt_raw is None:
+        return missing_p0(client, base, now, cutoff)
+    receipt = document(receipt_raw)
     require(receipt.get('signal_date') == day and receipt.get('exec_date') == trade and receipt.get('exit_date') == exit_day
             and receipt.get('primary_status') == 'READY' and receipt.get('generation_mode') == 'NATURAL', 'CURRENT_NATURAL_P0_REQUIRED')
     require(receipt.get('inputs', {}).get('calendar', {}).get('sha256') == digest(calendar), 'P0_CALENDAR_BINDING_CHANGED')
@@ -175,9 +252,12 @@ def inspect(client, now):
         require(workflow_raw is None, 'INCOMPLETE_FREEZE_REQUIRES_REPAIR')
         runs = client.request('/actions/workflows/'+P0+'/runs?status=success&per_page=30')['workflow_runs']
         candidates = []
+        start = datetime.strptime(day+'1500', '%Y%m%d%H%M').replace(tzinfo=TZ)
         for run in runs:
             created = datetime.fromisoformat(run['created_at'].replace('Z', '+00:00'))
-            if created.astimezone(TZ).strftime('%Y%m%d') != day:
+            # After-midnight scheduled recovery still belongs to D, until T
+            # auction. The importer validates the artifact's exact D binding.
+            if created.tzinfo is None or not start < created < cutoff or created > now:
                 continue
             try:
                 valid_run(run, P0)
@@ -228,6 +308,14 @@ def act(client, plan, now, *, execute=False):
         return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
     failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
         datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
+    if workflow == P0:
+        p0_dispatch_window(plan['signal_date'], now)
+        # Failed scheduled attempts before data arrived must not consume the
+        # retry budget for a newly ready, pinned source generation.
+        ready = datetime.fromisoformat(plan['source_ready_at'])
+        failures = [r for r in failures if r.get('event') == 'workflow_dispatch'
+                    and r.get('display_title') == 'DC20 controlled daily NATURAL | D='+plan['signal_date']
+                    and datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= ready]
     require(len(failures) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
     cutoff = datetime.strptime(plan['exec_date']+'0920', '%Y%m%d%H%M').replace(tzinfo=TZ)
     require(plan.get('existing_formal') is True or now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')

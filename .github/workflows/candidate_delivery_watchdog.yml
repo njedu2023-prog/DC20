@@ -17,6 +17,7 @@ on:
     paths:
       - scripts/candidate_delivery_watchdog.py
       - tests/test_candidate_delivery_watchdog.py
+      - tests/test_candidate_delivery_missing_p0.py
       - .github/workflows/candidate_delivery_watchdog.yml
 permissions:
   contents: read
@@ -30,6 +31,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
@@ -39,7 +41,7 @@ jobs:
           python-version: '3.12.13'
       - run: >-
           python -m pip install --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py
+      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_delivery_missing_p0.py
       - name: Check actual delivery without dispatch on push
         if: github.event_name == 'push'
         env:
