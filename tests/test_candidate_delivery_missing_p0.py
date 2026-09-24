@@ -4,7 +4,15 @@ from datetime import datetime
 import json
 import pytest
 from scripts import candidate_delivery_watchdog as m
-from test_candidate_delivery_watchdog import Fake, NOW, raw, run
+import importlib.util
+from pathlib import Path
+
+# Load the adjacent pure fixtures by path: production pytest uses importlib
+# mode, which deliberately does not add tests/ to sys.path.
+_spec = importlib.util.spec_from_file_location('watchdog_fixtures', Path(__file__).with_name('test_candidate_delivery_watchdog.py'))
+_fixtures = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_fixtures)
+Fake, NOW, raw, run = _fixtures.Fake, _fixtures.NOW, _fixtures.raw, _fixtures.run
 
 
 class Missing(Fake):
