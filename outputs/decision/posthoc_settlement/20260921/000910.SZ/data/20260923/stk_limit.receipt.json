@@ -1,0 +1,20 @@
+{
+  "fetched_at_utc": "2026-09-24T15:56:16.307714+00:00",
+  "http_response_sha256": "998ca75810b405b6a34b53d04135bc79c71622dd7391ed93b067c4dea3eb1a67",
+  "network_request_performed": true,
+  "projection_sha256": "b730903ed18b4f036205d96ebe69d1e6b7f14bf16839d5e9b1af1246e9fc57e0",
+  "request": {
+    "api_name": "stk_limit",
+    "fields": [
+      "trade_date",
+      "ts_code",
+      "pre_close",
+      "up_limit",
+      "down_limit"
+    ],
+    "params": {
+      "trade_date": "20260923",
+      "ts_code": "000910.SZ"
+    }
+  }
+}

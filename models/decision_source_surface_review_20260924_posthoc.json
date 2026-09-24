@@ -1,0 +1,198 @@
+{
+  "schema_version": "dc20_posthoc_monthly_display_review_v1",
+  "approved_base_commit": "0523ca08ae3c875d37f8a8eccb8395b7f7efd6cb",
+  "scope": "ISOLATED_POSTHOC_RESEARCH_DISPLAY_NO_FORMAL_LEDGER_OR_MODEL_CHANGE",
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 492453,
+      "current_bytes": 496802,
+      "baseline_sha256": "7f8f49eda0f3d085ee63d2a79371a7f8ac4b1e968fae5e9cd016f6c842c086e9",
+      "current_sha256": "38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835",
+      "reason": "User requested monthly evidence completion; isolated posthoc display, existing formal model and ledger unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 6705,
+          "current_start": 6705,
+          "baseline_lines": [
+            "      if (row.status === \"POSTHOC_SUPPLEMENT_NOT_FORMAL\") return {kind:\"supplement\", label:\"事后补录\"};\n"
+          ],
+          "current_lines": [
+            "      if (row.status === \"POSTHOC_SUPPLEMENT_NOT_FORMAL\") return {kind:\"supplement\", label:row.posthoc_settled === true ? \"事后补算 · 已结算\" : \"事后补录\"};\n"
+          ]
+        },
+        {
+          "baseline_start": 6724,
+          "current_start": 6724,
+          "baseline_lines": [],
+          "current_lines": [
+            "    }\n",
+            "\n",
+            "    function ledgerPosthocSettlement(rows, evidence) {\n",
+            "      executableProfitExpect(evidence.schema_version === \"dc20_posthoc_settlement_20260921_v1\"\n",
+            "        && evidence.classification === \"POSTHOC_RESEARCH_NOT_FORMAL\" && evidence.formal_statistics_eligible === false\n",
+            "        && evidence.actual_execution_claimed === false && evidence.production_activation_allowed === false\n",
+            "        && evidence.as_of_date === \"20260924\" && evidence.round_trip_cost_rate === 0.0045\n",
+            "        && evidence.rows.length === 2, \"事后补算合同不一致\");\n",
+            "      return rows.map(row => {\n",
+            "        if(row.signal_date !== \"20260921\" || row.status !== \"POSTHOC_SUPPLEMENT_NOT_FORMAL\")return row;\n",
+            "        const e=evidence.rows.find(x=>x.slot_rank===row.slot && x.ts_code===row.ts_code);\n",
+            "        executableProfitExpect(e && e.signal_date===row.signal_date && e.exec_date===\"20260922\"\n",
+            "          && e.scheduled_exit_date===\"20260923\" && e.formal_statistics_eligible===false\n",
+            "          && e.actual_execution_claimed===false, \"事后补算日期或席位不一致\");\n",
+            "        if(e.status !== \"POSTHOC_SETTLED_MINUTE_PROXY\")return {...row,posthoc_status:e.status};\n",
+            "        executableProfitExpect(e.entry_evidence?.status===\"CANONICAL_PRICE_OBSERVED\"\n",
+            "          && e.entry_evidence.price_qualified===true && e.entry_evidence.price===e.entry_price\n",
+            "          && e.entry_price===row.entry_reference_price && Number.isFinite(e.net_return)\n",
+            "          && Number.isFinite(e.exit_price) && e.exit_price>0\n",
+            "          && e.exit_evidence?.exit_price===e.exit_price && e.exit_evidence.actual_exit_date===e.actual_exit_date\n",
+            "          && [\"20260923\",\"20260924\"].includes(e.actual_exit_date)\n",
+            "          && Math.abs(e.exit_evidence.gross_return - 0.0045 - e.net_return)<1e-12,\n",
+            "          \"事后补算价格或扣费收益不一致\");\n",
+            "        return {...row,posthoc_settled:true,posthoc_status:e.status,entry_price:e.entry_price,\n",
+            "          entry_price_source:\"事后核验竞价价\",actual_exit_date:e.actual_exit_date,\n",
+            "          actual_exit_time:e.exit_evidence.actual_exit_time,exit_price:e.exit_price,\n",
+            "          held_limit_up_sessions:e.exit_evidence.held_limit_up_sessions,slot_net_return:e.net_return,\n",
+            "          ledger_as_of_date:evidence.as_of_date,entry_reference_commit:evidence.source_commit,\n",
+            "          entry_reference_evidence:\"outputs/decision/posthoc_settlement/20260921/settlement.json\",\n",
+            "          supplement_note:\"事后补算，未计正式成绩。竞价和完整分钟源已核验；10:00决策、下一分钟价格代理及封板延持，已扣0.45%。分钟结束时间为研究假设，非盘前冻结、非券商成交。\"};\n",
+            "      });\n"
+          ]
+        },
+        {
+          "baseline_start": 6749,
+          "current_start": 6780,
+          "baseline_lines": [
+            "        [\"entry_reference_commit\",\"事后参考价证据版本\"],[\"status\",\"状态\"],\n"
+          ],
+          "current_lines": [
+            "        [\"entry_reference_commit\",\"事后参考价证据版本\"],[\"status\",\"状态\"],[\"posthoc_status\",\"事后补算状态\"],\n"
+          ]
+        },
+        {
+          "baseline_start": 6757,
+          "current_start": 6788,
+          "baseline_lines": [
+            "        cell(key === \"slot_net_return\" && ledgerStatus(row).kind !== \"settled\" ? null : row[key])).join(\",\"))].join(\"\\r\\n\");\n"
+          ],
+          "current_lines": [
+            "        cell(key === \"slot_net_return\" && ledgerStatus(row).kind !== \"settled\" && row.posthoc_settled !== true ? null : row[key])).join(\",\"))].join(\"\\r\\n\");\n"
+          ]
+        },
+        {
+          "baseline_start": 6858,
+          "current_start": 6889,
+          "baseline_lines": [
+            "        <label>状态<select id=\"ledgerStatus\"><option value=\"\">全部</option><option value=\"settled\">已结算</option><option value=\"holding\">封板延持</option><option value=\"pending\">待结算</option><option value=\"missing\">待补数据</option><option value=\"no-fill\">未买入</option></select></label>\n"
+          ],
+          "current_lines": [
+            "        <label>状态<select id=\"ledgerStatus\"><option value=\"\">全部</option><option value=\"settled\">已结算</option><option value=\"holding\">封板延持</option><option value=\"pending\">待结算</option><option value=\"missing\">待补数据</option><option value=\"no-fill\">未买入</option><option value=\"supplement\">事后补算</option></select></label>\n"
+          ]
+        },
+        {
+          "baseline_start": 6881,
+          "current_start": 6912,
+          "baseline_lines": [
+            "      for (const [id,key,valid] of [[\"Slot\",\"slot\",[\"\",\"1\",\"2\"]],[\"Status\",\"status\",[\"\",\"settled\",\"holding\",\"pending\",\"missing\",\"no-fill\"]],[\"Scope\",\"scope\",[\"month\",\"all\"]]]) {\n"
+          ],
+          "current_lines": [
+            "      for (const [id,key,valid] of [[\"Slot\",\"slot\",[\"\",\"1\",\"2\"]],[\"Status\",\"status\",[\"\",\"settled\",\"holding\",\"pending\",\"missing\",\"no-fill\",\"supplement\"]],[\"Scope\",\"scope\",[\"month\",\"all\"]]]) {\n"
+          ]
+        },
+        {
+          "baseline_start": 6904,
+          "current_start": 6935,
+          "baseline_lines": [
+            "        el(\"PosthocSummary\").innerHTML=`<strong>事后补算成绩（所选月份）</strong>：${posthoc.length} 条补录，已结算 0 条；${posthoc.filter(r=>r.entry_reference_price != null).length} 条已补竞价参考价。退出及入场资格证据未齐，胜率／平均收益待计算，未结算不记零。<br><strong>含补录汇总</strong>：当前没有已结算补录可加入；上表保持正式账本口径，不将补录当作盘前发布或实际成交。`;\n"
+          ],
+          "current_lines": [
+            "        const posthocSettled=posthoc.filter(r=>r.posthoc_settled===true);\n",
+            "        const extraStats=posthocSettled.length ? [1,2].map(slot=>{\n",
+            "          const extra=posthocSettled.filter(r=>r.slot===slot), formal=currentRows.filter(r=>r.slot===slot && ledgerStatus(r).kind===\"settled\");\n",
+            "          const mixed=[...formal,...extra], wins=mixed.filter(r=>r.slot_net_return>0).length;\n",
+            "          return `盈${slot}：${mixed.length} 条已结算（正式 ${formal.length}＋补算 ${extra.length}），胜率 ${mixed.length?(100*wins/mixed.length).toFixed(2)+\"%\":\"待验证\"}，平均 ${mixed.length?pct(mixed.reduce((n,r)=>n+r.slot_net_return,0)/mixed.length):\"—\"}`;\n",
+            "        }).join(\"；\") : \"尚无已结算补录可加入\";\n",
+            "        el(\"PosthocSummary\").innerHTML=`<strong>事后补算成绩（所选月份）</strong>：${posthoc.length} 条补录，已结算 ${posthocSettled.length} 条${posthocSettled.length?`，盈利 ${posthocSettled.filter(r=>r.slot_net_return>0).length} / ${posthocSettled.length}，平均 ${pct(posthocSettled.reduce((n,r)=>n+r.slot_net_return,0)/posthocSettled.length)}`:\"，证据待补\"}。未结算不记零。<br><strong>含事后补算汇总（所选月份，非纯前瞻成绩）</strong>：${extraStats}。上表保持正式账本口径；补算不是盘前发布或实际成交。`;\n"
+          ]
+        },
+        {
+          "baseline_start": 6908,
+          "current_start": 6945,
+          "baseline_lines": [
+            "          const status=ledgerStatus(r),net=status.kind === \"settled\" ? r.slot_net_return : null;\n"
+          ],
+          "current_lines": [
+            "          const status=ledgerStatus(r),net=(status.kind === \"settled\" || r.posthoc_settled === true) ? r.slot_net_return : null;\n"
+          ]
+        },
+        {
+          "baseline_start": 6931,
+          "current_start": 6968,
+          "baseline_lines": [
+            "        currentRows=loaded.map(ledgerPosthocReference);paint();el(\"Export\").disabled=!loaded.length;\n",
+            "        const errors=loaded.filter(r=>r.detail_error).length;\n",
+            "        const pending=loaded.filter(r=>![\"settled\",\"no-fill\"].includes(ledgerStatus(r).kind)).length;\n"
+          ],
+          "current_lines": [
+            "        currentRows=loaded.map(ledgerPosthocReference);\n",
+            "        if(currentRows.some(r=>r.signal_date===\"20260921\" && r.status===\"POSTHOC_SUPPLEMENT_NOT_FORMAL\")) {\n",
+            "          try {\n",
+            "            const bound=await fetchPagesOnlyShaBoundJson(\"outputs/decision/posthoc_settlement/20260921/settlement.json\", \"14b498eeb9c2dd37f05f95ba2d198137e778cbd22e81875f8bde566ab272421a\", \"事后补算结算证据\");\n",
+            "            if(version!==serial)return;\n",
+            "            currentRows=ledgerPosthocSettlement(currentRows,bound.payload);\n",
+            "          } catch(error) {\n",
+            "            currentRows=currentRows.map(r=>r.signal_date===\"20260921\"?{...r,detail_error:`事后补算：${error.message}`} : r);\n",
+            "          }\n",
+            "        }\n",
+            "        paint();el(\"Export\").disabled=!loaded.length;\n",
+            "        const errors=currentRows.filter(r=>r.detail_error).length;\n",
+            "        const pending=currentRows.filter(r=>![\"settled\",\"no-fill\"].includes(ledgerStatus(r).kind) && r.posthoc_settled!==true).length;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "b35c24a02547528d69d51573a8a7d87e4b3f26469752fa772cd1f26e2d8a9f28",
+      "current_sha256": "4014b1f8af572a5e7bd1858bd03c6a7343388c0ae506431a4ab34456538a291e",
+      "reason": "User requested monthly evidence completion; isolated posthoc display, existing formal model and ledger unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"7f8f49eda0f3d085ee63d2a79371a7f8ac4b1e968fae5e9cd016f6c842c086e9\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "ae36894189b0a229b0e519bcca1f7b62780fd61d3b5a1295bd7fd9f31a993190",
+      "current_sha256": "3b5c6df8457b6ddb1b1d62da44849c47ff9e5adbd84911535a54c1b5d1fe72f3",
+      "reason": "User requested monthly evidence completion; isolated posthoc display, existing formal model and ledger unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"b35c24a02547528d69d51573a8a7d87e4b3f26469752fa772cd1f26e2d8a9f28\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"4014b1f8af572a5e7bd1858bd03c6a7343388c0ae506431a4ab34456538a291e\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}

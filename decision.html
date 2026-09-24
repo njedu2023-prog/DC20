@@ -6702,7 +6702,7 @@
         return {kind:"pending", label:"等待晚间名单发布"};
       if (["PENDING_T", "PENDING_T_NOT_DUE"].includes(row.status) && row.exec_date && row.exec_date > today)
         return {kind:"pending", label:"等待买入日竞价"};
-      if (row.status === "POSTHOC_SUPPLEMENT_NOT_FORMAL") return {kind:"supplement", label:"事后补录"};
+      if (row.status === "POSTHOC_SUPPLEMENT_NOT_FORMAL") return {kind:"supplement", label:row.posthoc_settled === true ? "事后补算 · 已结算" : "事后补录"};
       if (row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY") return {kind:"settled", label:"已结算"};
       if (row.status.startsWith("NO_FILL_")) return {kind:"no-fill", label:"未买入"};
       if (row.status.includes("LIMIT_UP")) return {kind:"holding", label:"封板延持"};
@@ -6721,6 +6721,37 @@
         entry_reference_evidence:"research/profit-supplements/20260921/price-backfill.pending.json",
         entry_reference_commit:"e54a69d28ec41f33be7f3a6dd9d127cf29593911",
         supplement_note:"事后补算；竞价参考价已与当日开盘价交叉核对。非实际成交，正式入场证据资格及9月23日退出/延持行情待补；未结算不计零、不计正式成绩。"};
+    }
+
+    function ledgerPosthocSettlement(rows, evidence) {
+      executableProfitExpect(evidence.schema_version === "dc20_posthoc_settlement_20260921_v1"
+        && evidence.classification === "POSTHOC_RESEARCH_NOT_FORMAL" && evidence.formal_statistics_eligible === false
+        && evidence.actual_execution_claimed === false && evidence.production_activation_allowed === false
+        && evidence.as_of_date === "20260924" && evidence.round_trip_cost_rate === 0.0045
+        && evidence.rows.length === 2, "事后补算合同不一致");
+      return rows.map(row => {
+        if(row.signal_date !== "20260921" || row.status !== "POSTHOC_SUPPLEMENT_NOT_FORMAL")return row;
+        const e=evidence.rows.find(x=>x.slot_rank===row.slot && x.ts_code===row.ts_code);
+        executableProfitExpect(e && e.signal_date===row.signal_date && e.exec_date==="20260922"
+          && e.scheduled_exit_date==="20260923" && e.formal_statistics_eligible===false
+          && e.actual_execution_claimed===false, "事后补算日期或席位不一致");
+        if(e.status !== "POSTHOC_SETTLED_MINUTE_PROXY")return {...row,posthoc_status:e.status};
+        executableProfitExpect(e.entry_evidence?.status==="CANONICAL_PRICE_OBSERVED"
+          && e.entry_evidence.price_qualified===true && e.entry_evidence.price===e.entry_price
+          && e.entry_price===row.entry_reference_price && Number.isFinite(e.net_return)
+          && Number.isFinite(e.exit_price) && e.exit_price>0
+          && e.exit_evidence?.exit_price===e.exit_price && e.exit_evidence.actual_exit_date===e.actual_exit_date
+          && ["20260923","20260924"].includes(e.actual_exit_date)
+          && Math.abs(e.exit_evidence.gross_return - 0.0045 - e.net_return)<1e-12,
+          "事后补算价格或扣费收益不一致");
+        return {...row,posthoc_settled:true,posthoc_status:e.status,entry_price:e.entry_price,
+          entry_price_source:"事后核验竞价价",actual_exit_date:e.actual_exit_date,
+          actual_exit_time:e.exit_evidence.actual_exit_time,exit_price:e.exit_price,
+          held_limit_up_sessions:e.exit_evidence.held_limit_up_sessions,slot_net_return:e.net_return,
+          ledger_as_of_date:evidence.as_of_date,entry_reference_commit:evidence.source_commit,
+          entry_reference_evidence:"outputs/decision/posthoc_settlement/20260921/settlement.json",
+          supplement_note:"事后补算，未计正式成绩。竞价和完整分钟源已核验；10:00决策、下一分钟价格代理及封板延持，已扣0.45%。分钟结束时间为研究假设，非盘前冻结、非券商成交。"};
+      });
     }
 
     function ledgerPerformance(rows) {
@@ -6746,7 +6777,7 @@
         ["industry","行业"],["stage_transition","晋级"],["path_label","连板路径"],["promotion_rank","晋级排序"],
         ["exec_date","买入日"],["entry_price","买入价"],["entry_price_source","价格来源"],
         ["entry_reference_price","事后竞价参考价"],["entry_reference_source","事后参考价来源"],
-        ["entry_reference_commit","事后参考价证据版本"],["status","状态"],
+        ["entry_reference_commit","事后参考价证据版本"],["status","状态"],["posthoc_status","事后补算状态"],
         ["actual_exit_date","退出日"],["actual_exit_time","退出时间"],["exit_price","卖出价"],["slot_net_return","扣费收益比例"],["supplement_note","补录说明"],["detail_error","详情校验提示"]];
       const cell = value => {
         let text = value == null ? "" : String(value);
@@ -6754,7 +6785,7 @@
         return '"'+text.replaceAll('"','""')+'"';
       };
       return "\ufeff" + [columns.map(c=>cell(c[1])).join(","), ...rows.map(row=>columns.map(([key])=>
-        cell(key === "slot_net_return" && ledgerStatus(row).kind !== "settled" ? null : row[key])).join(","))].join("\r\n");
+        cell(key === "slot_net_return" && ledgerStatus(row).kind !== "settled" && row.posthoc_settled !== true ? null : row[key])).join(","))].join("\r\n");
     }
 
     function ledgerCanonicalSource(bytes) {
@@ -6855,7 +6886,7 @@
         <label>成绩范围<select id="ledgerScope"><option value="month">本月</option><option value="all">全部累计</option></select></label></div>
         <p id="ledgerMessage" class="note" role="status">正在校验影子账本…</p><div class="scroll" id="ledgerSummary"></div><div id="ledgerPosthocSummary" class="note"></div></section>
         <section class="panel"><div class="toolbar"><label>盈利名次<select id="ledgerSlot"><option value="">全部</option><option value="1">盈1</option><option value="2">盈2</option></select></label>
-        <label>状态<select id="ledgerStatus"><option value="">全部</option><option value="settled">已结算</option><option value="holding">封板延持</option><option value="pending">待结算</option><option value="missing">待补数据</option><option value="no-fill">未买入</option></select></label>
+        <label>状态<select id="ledgerStatus"><option value="">全部</option><option value="settled">已结算</option><option value="holding">封板延持</option><option value="pending">待结算</option><option value="missing">待补数据</option><option value="no-fill">未买入</option><option value="supplement">事后补算</option></select></label>
         <label>股票<input id="ledgerSearch" placeholder="代码 / 名称" maxlength="60"></label><button id="ledgerExport" disabled>导出本月完整 CSV</button><span id="ledgerCount"></span></div>
         <div class="scroll"><table aria-label="每月盈利前二完整明细"><thead><tr>${["D日期","名次","代码","名称","行业","晋级","连板路径","晋级排序","买入日","买入价","状态","退出日","卖出价","扣费净收益","详情"].map((s,i)=>`<th scope="col"${i===2?' class="identity"':''}>${s}</th>`).join("")}</tr></thead><tbody id="ledgerRows"></tbody></table></div>
         <p class="note">按 D 日归档；跨月退出回写原月。竞价入场代理，10:00退出、封板延持；不是券商实际成交。未买入、未结算均不显示零成交收益。</p></section></div>`;
@@ -6878,7 +6909,7 @@
         el("Month").append(group);
       }
       el("Month").value=requested || months.at(-1) || "";
-      for (const [id,key,valid] of [["Slot","slot",["","1","2"]],["Status","status",["","settled","holding","pending","missing","no-fill"]],["Scope","scope",["month","all"]]]) {
+      for (const [id,key,valid] of [["Slot","slot",["","1","2"]],["Status","status",["","settled","holding","pending","missing","no-fill","supplement"]],["Scope","scope",["month","all"]]]) {
         const value=params.get(key); if(valid.includes(value))el(id).value=value;
       }
       el("Search").value=(params.get("q") || "").slice(0,60);
@@ -6901,11 +6932,17 @@
           return `<tr><th>盈${slot}</th><td>${p.count}</td><td>${p.settled}</td><td>${p.holding}</td><td>${p.pending} / ${p.missing}</td><td>${p.noFill}</td><td>${p.wins} / ${p.settled}</td><td>${p.winRate===null?"待验证":(p.winRate*100).toFixed(2)+"%"}</td><td class="${tone(p.mean)}">${pct(p.mean)}</td></tr>`;
         }).join("")}</tbody></table>`;
         const posthoc=currentRows.filter(r=>r.status === "POSTHOC_SUPPLEMENT_NOT_FORMAL");
-        el("PosthocSummary").innerHTML=`<strong>事后补算成绩（所选月份）</strong>：${posthoc.length} 条补录，已结算 0 条；${posthoc.filter(r=>r.entry_reference_price != null).length} 条已补竞价参考价。退出及入场资格证据未齐，胜率／平均收益待计算，未结算不记零。<br><strong>含补录汇总</strong>：当前没有已结算补录可加入；上表保持正式账本口径，不将补录当作盘前发布或实际成交。`;
+        const posthocSettled=posthoc.filter(r=>r.posthoc_settled===true);
+        const extraStats=posthocSettled.length ? [1,2].map(slot=>{
+          const extra=posthocSettled.filter(r=>r.slot===slot), formal=currentRows.filter(r=>r.slot===slot && ledgerStatus(r).kind==="settled");
+          const mixed=[...formal,...extra], wins=mixed.filter(r=>r.slot_net_return>0).length;
+          return `盈${slot}：${mixed.length} 条已结算（正式 ${formal.length}＋补算 ${extra.length}），胜率 ${mixed.length?(100*wins/mixed.length).toFixed(2)+"%":"待验证"}，平均 ${mixed.length?pct(mixed.reduce((n,r)=>n+r.slot_net_return,0)/mixed.length):"—"}`;
+        }).join("；") : "尚无已结算补录可加入";
+        el("PosthocSummary").innerHTML=`<strong>事后补算成绩（所选月份）</strong>：${posthoc.length} 条补录，已结算 ${posthocSettled.length} 条${posthocSettled.length?`，盈利 ${posthocSettled.filter(r=>r.slot_net_return>0).length} / ${posthocSettled.length}，平均 ${pct(posthocSettled.reduce((n,r)=>n+r.slot_net_return,0)/posthocSettled.length)}`:"，证据待补"}。未结算不记零。<br><strong>含事后补算汇总（所选月份，非纯前瞻成绩）</strong>：${extraStats}。上表保持正式账本口径；补算不是盘前发布或实际成交。`;
         const visible=ledgerFilter(currentRows,month,el("Slot").value,el("Status").value,el("Search").value);
         el("Count").textContent=`显示 ${visible.length} / ${currentRows.length} 条`;
         el("Rows").innerHTML=visible.map(r=>{
-          const status=ledgerStatus(r),net=status.kind === "settled" ? r.slot_net_return : null;
+          const status=ledgerStatus(r),net=(status.kind === "settled" || r.posthoc_settled === true) ? r.slot_net_return : null;
           const detail=[["状态代码",r.status],["买入价来源",source(r.entry_price_source)],["最早退出日",date(r.exit_date)],["实际退出时间",r.actual_exit_time || "—"],
             ["封板延持交易日",r.held_limit_up_sessions ?? "—"],["双边成本","0.45%（已计入净收益，不再扣一次）"],["结算数据截至",date(r.ledger_as_of_date)],
             ["冻结快照SHA",r.snapshot_file_sha256 || "—"],["补价证据",r.entry_reference_evidence || "—"],["补价证据版本",r.entry_reference_commit || "—"],["校验提示",r.supplement_note || r.detail_error || "通过"]];
@@ -6928,9 +6965,19 @@
           if(version!==serial)return;
           loaded.push(...chunk.flat());
         }
-        currentRows=loaded.map(ledgerPosthocReference);paint();el("Export").disabled=!loaded.length;
-        const errors=loaded.filter(r=>r.detail_error).length;
-        const pending=loaded.filter(r=>!["settled","no-fill"].includes(ledgerStatus(r).kind)).length;
+        currentRows=loaded.map(ledgerPosthocReference);
+        if(currentRows.some(r=>r.signal_date==="20260921" && r.status==="POSTHOC_SUPPLEMENT_NOT_FORMAL")) {
+          try {
+            const bound=await fetchPagesOnlyShaBoundJson("outputs/decision/posthoc_settlement/20260921/settlement.json", "14b498eeb9c2dd37f05f95ba2d198137e778cbd22e81875f8bde566ab272421a", "事后补算结算证据");
+            if(version!==serial)return;
+            currentRows=ledgerPosthocSettlement(currentRows,bound.payload);
+          } catch(error) {
+            currentRows=currentRows.map(r=>r.signal_date==="20260921"?{...r,detail_error:`事后补算：${error.message}`} : r);
+          }
+        }
+        paint();el("Export").disabled=!loaded.length;
+        const errors=currentRows.filter(r=>r.detail_error).length;
+        const pending=currentRows.filter(r=>!["settled","no-fill"].includes(ledgerStatus(r).kind) && r.posthoc_settled!==true).length;
         const supplemented=loaded.filter(r=>ledgerStatus(r).kind==="supplement").length;
         el("Message").textContent=`新模型 D ${date(summary.effective_from_signal_date)}起 · 数据截至 ${date(summary.as_of_date)} · ${pending?`本月 ${pending} 条未完成` : loaded.length?"本月记录已完成":"暂无记录"}${supplemented?` · ${supplemented} 条事后补录，不计正式成绩`:""}${errors?` · ${errors} 条冻结详情待校验（收益仍取已校验独立账本）`:""}。筛选不改变上方整月成绩。`;
         els.mainContent.setAttribute("aria-busy","false");

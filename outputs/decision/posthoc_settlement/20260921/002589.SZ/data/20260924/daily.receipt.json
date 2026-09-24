@@ -1,0 +1,25 @@
+{
+  "fetched_at_utc": "2026-09-24T15:56:32.477770+00:00",
+  "http_response_sha256": "994b7d47f4e0d987ebe899775a330f691825d3bdf9ea74055031dbae8b4ba247",
+  "network_request_performed": true,
+  "projection_sha256": "f9c2d67f098a8b7ecadab8ef76114fa8acc81b4183e0e2ddbee492f87bcd2062",
+  "request": {
+    "api_name": "daily",
+    "fields": [
+      "ts_code",
+      "trade_date",
+      "open",
+      "high",
+      "low",
+      "close",
+      "pre_close",
+      "vol",
+      "amount",
+      "pct_chg"
+    ],
+    "params": {
+      "trade_date": "20260924",
+      "ts_code": "002589.SZ"
+    }
+  }
+}

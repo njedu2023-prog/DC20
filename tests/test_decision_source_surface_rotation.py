@@ -394,9 +394,20 @@ def _eligible_actual_source(path):
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
-    return target.read_bytes()
+    raw = target.read_bytes()
+    review_raw = (ROOT / POSTHOC_REVIEW_PATH).read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == POSTHOC_REVIEW_SHA
+    review = json.loads(review_raw)
+    assert review['schema_version'] == 'dc20_posthoc_monthly_display_review_v1'
+    assert review['approved_base_commit'] == '0523ca08ae3c875d37f8a8eccb8395b7f7efd6cb'
+    assert review['scope'] == 'ISOLATED_POSTHOC_RESEARCH_DISPLAY_NO_FORMAL_LEDGER_OR_MODEL_CHANGE'
+    assert {x['path'] for x in review['source_changes']} == {'decision.html','models/decision_model_freeze.json','forward/model_inventory.json'}
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
 
 
+POSTHOC_REVIEW_PATH = 'models/decision_source_surface_review_20260924_posthoc.json'
+POSTHOC_REVIEW_SHA = '36024f4efefad12ab98c02bbf2564afc53ca39b529eaf1b2a1b32580f1fe06f8'
 
 ELIGIBLE_REVIEW_PATH = 'models/decision_source_surface_review_20260922_eligible_publication.json'
 ELIGIBLE_REVIEW_SHA = '3bebcad923c2506cf63cbfd61d3c1d5444b3dd54d13aea8662ed0fffe31cf323'
@@ -1056,6 +1067,10 @@ def _source_before_candidate_activation(path: str, review: dict | None = None) -
 
 
 def _state_before_candidate_activation(manifest: dict | None = None, review: dict | None = None) -> tuple[dict, dict]:
+    if manifest is not None and manifest == json.loads(MANIFEST.read_bytes()):
+        for path, digest in manifest['pinned_files'].items():
+            assert hashlib.sha256((ROOT/path).read_bytes()).hexdigest() == digest
+        manifest = json.loads(_eligible_actual_source('models/decision_model_freeze.json'))
     if manifest is not None and manifest == json.loads(_eligible_actual_source('models/decision_model_freeze.json')):
         for path, digest in manifest['pinned_files'].items():
             assert hashlib.sha256(_eligible_actual_source(path)).hexdigest() == digest
@@ -4141,3 +4156,26 @@ def test_repair_inverse_cache_binds_all_raw_bytes_and_inverse_evidence():
     changed['baseline_sha256'] = '0' * 64
     with pytest.raises(AssertionError):
         _repair_inverse_bytes(raw, json.dumps(changed, sort_keys=True))
+
+
+def test_posthoc_monthly_display_changes_only_frontend_pin_and_inventory_digest():
+    previous = json.loads(_eligible_actual_source('models/decision_model_freeze.json'))
+    current = json.loads(MANIFEST.read_bytes())
+    expected = copy.deepcopy(previous)
+    expected['pinned_files']['decision.html'] = _sha256(ROOT/'decision.html')
+    assert current == expected
+    before = json.loads(_eligible_actual_source('forward/model_inventory.json'))
+    after = json.loads((ROOT/'forward/model_inventory.json').read_bytes())
+    for item in before['assets']:
+        if item['path'] == 'models/decision_model_freeze.json':
+            item.update(sha256=_sha256(MANIFEST), bytes=len(MANIFEST.read_bytes()))
+    assert before == after
+
+
+@pytest.mark.parametrize('path', ['decision.html','models/decision_model_freeze.json','forward/model_inventory.json',POSTHOC_REVIEW_PATH])
+def test_posthoc_monthly_display_rejects_unreviewed_drift(monkeypatch,path):
+    _eligible_actual_source('decision.html')
+    read=Path.read_bytes
+    monkeypatch.setattr(Path,'read_bytes',lambda p:read(p)+(b'\n' if p==ROOT/path else b''))
+    with pytest.raises(AssertionError):
+        _eligible_actual_source('decision.html' if path==POSTHOC_REVIEW_PATH else path)
