@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 
 from work.profit_1000_upgrade import candidate_natural_outcome_collect as collector
-from work.profit_1000_upgrade import auction_truth_v3 as auction, minute_truth
+from work.profit_1000_upgrade import auction_truth_v3 as auction, auction_http_v3, minute_truth
 from top10decision.decision import executable_profit_shadow_settlement as settlement
 from top10decision.decision.shadow_exit_1000 import resolve_exit_1000
 
@@ -77,13 +77,14 @@ def run(output):
                 raw = collector.official_call(contract)
                 collector.safe_response(raw,token)
                 fetched = datetime.now(timezone.utc).isoformat()
+                write(f'{code}/http/{day}/{api}.response.json',raw)
                 if api in ('daily','stk_limit'):
                     body = collector.csv_projection(raw,contract)
                     if body is None: raise ValueError('EMPTY_EXACT_DAY_TABLE')
                     write(f'{code}/data/{day}/{api}.csv',body)
                     write(f'{code}/data/{day}/{api}.receipt.json',encoded({'request':contract,'fetched_at_utc':fetched,'http_response_sha256':sha(raw),'projection_sha256':sha(body),'network_request_performed':True}))
                 elif api == 'stk_auction':
-                    pair = auction.source_bytes(raw,day,request=contract,fetched_at_utc=fetched,network_request_performed=True,token=token)
+                    pair = auction_http_v3.source_bytes(raw,day,request=contract,fetched_at_utc=fetched,network_request_performed=True,token=token)
                     for p,b in zip(auction.source_paths(output/code,day),pair): write(p.relative_to(output).as_posix(),b)
                 else:
                     pair = minute_truth.source_bytes(raw,day,code,request_params=contract['params'],fetched_at_utc=fetched,token=token)
