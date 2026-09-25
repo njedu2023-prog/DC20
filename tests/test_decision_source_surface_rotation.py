@@ -388,13 +388,29 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _statistics_refresh_previous(path, raw):
+    review_raw = (ROOT / STATISTICS_REFRESH_REVIEW_PATH).read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == STATISTICS_REFRESH_REVIEW_SHA
+    review = json.loads(review_raw)
+    assert review['schema_version'] == 'dc20_statistics_projection_refresh_review_v1'
+    assert review['approved_base_commit'] == '5708d33033ec54ddc825d54d385a4dd503828e9a'
+    assert review['scope'] == 'PAGES_OBSERVATION_REFRESH_NO_MODEL_LEDGER_OR_SCHEDULE_CHANGE'
+    assert {x['path'] for x in review['source_changes']} == {'.github/workflows/deploy_dc20_pages.yml', 'models/decision_model_freeze.json', 'forward/model_inventory.json'}
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
+STATISTICS_REFRESH_REVIEW_PATH = 'models/decision_source_surface_review_20260925_statistics.json'
+STATISTICS_REFRESH_REVIEW_SHA = '8e400f05a38ca10ee156d77821e97a1769e94158b29aec93181d3652e0579ae1'
+
+
 def _eligible_actual_source(path):
     target = ROOT / path
     assert isinstance(path, str) and not Path(path).is_absolute()
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
-    raw = target.read_bytes()
+    raw = _statistics_refresh_previous(path, target.read_bytes())
     review_raw = (ROOT / POSTHOC_REVIEW_PATH).read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == POSTHOC_REVIEW_SHA
     review = json.loads(review_raw)
@@ -4160,15 +4176,15 @@ def test_repair_inverse_cache_binds_all_raw_bytes_and_inverse_evidence():
 
 def test_posthoc_monthly_display_changes_only_frontend_pin_and_inventory_digest():
     previous = json.loads(_eligible_actual_source('models/decision_model_freeze.json'))
-    current = json.loads(MANIFEST.read_bytes())
+    current = json.loads(_statistics_refresh_previous('models/decision_model_freeze.json', MANIFEST.read_bytes()))
     expected = copy.deepcopy(previous)
     expected['pinned_files']['decision.html'] = _sha256(ROOT/'decision.html')
     assert current == expected
     before = json.loads(_eligible_actual_source('forward/model_inventory.json'))
-    after = json.loads((ROOT/'forward/model_inventory.json').read_bytes())
+    after = json.loads(_statistics_refresh_previous('forward/model_inventory.json', (ROOT/'forward/model_inventory.json').read_bytes()))
     for item in before['assets']:
         if item['path'] == 'models/decision_model_freeze.json':
-            item.update(sha256=_sha256(MANIFEST), bytes=len(MANIFEST.read_bytes()))
+            item.update(sha256=hashlib.sha256(_statistics_refresh_previous('models/decision_model_freeze.json', MANIFEST.read_bytes())).hexdigest(), bytes=len(_statistics_refresh_previous('models/decision_model_freeze.json', MANIFEST.read_bytes())))
     assert before == after
 
 

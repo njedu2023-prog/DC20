@@ -115,6 +115,29 @@ jobs:
           PYTHONPATH: src
         run: python scripts/validate_decision_model_freeze.py --root .
 
+      - name: Refresh primary observation projection from exact deployment sources
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          # This is a rebuildable daily-open observation view, NOT a frozen
+          # selection or the auction-entry profit shadow ledger. Later raw-data
+          # writers can replace its inputs after Verify generated the view.
+          # Keep its existing as-of date; never advance it using wall-clock time.
+          summary = Path('outputs/decision/primary_observation/summary.json')
+          if summary.exists():
+              asof = json.loads(summary.read_bytes())['as_of_date']
+              command = [sys.executable, 'scripts/settle_primary_observations.py',
+                         '--root', '.', '--as-of-date', asof]
+              subprocess.run(command, check=True)
+              subprocess.run(command + ['--validate-existing'], check=True)
+          PY
+
       - name: Validate optional legacy-profit relative research chain
         id: legacy_profit_relative
         env:

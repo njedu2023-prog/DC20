@@ -1,0 +1,90 @@
+{
+  "schema_version": "dc20_statistics_projection_refresh_review_v1",
+  "approved_base_commit": "5708d33033ec54ddc825d54d385a4dd503828e9a",
+  "scope": "PAGES_OBSERVATION_REFRESH_NO_MODEL_LEDGER_OR_SCHEDULE_CHANGE",
+  "source_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 193476,
+      "current_bytes": 194522,
+      "baseline_sha256": "528c2d8a8e2fdc180217e5f85129baa38f7f68572a5d1ed519a5c559ae8e695f",
+      "current_sha256": "430cc7ebbdeadd2954d1fe049965e98c2a09edf7ca66f7fecfda402aca93c25f",
+      "reason": "Refresh only rebuildable primary observation projection before Pages; preserve existing as-of, frozen rankings, source validation and profit ledger.",
+      "inverse_changes": [
+        {
+          "baseline_start": 117,
+          "current_start": 117,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n",
+            "      - name: Refresh primary observation projection from exact deployment sources\n",
+            "        env:\n",
+            "          PYTHONPATH: src\n",
+            "        run: |\n",
+            "          python - <<'PY'\n",
+            "          import json\n",
+            "          import subprocess\n",
+            "          import sys\n",
+            "          from pathlib import Path\n",
+            "\n",
+            "          # This is a rebuildable daily-open observation view, NOT a frozen\n",
+            "          # selection or the auction-entry profit shadow ledger. Later raw-data\n",
+            "          # writers can replace its inputs after Verify generated the view.\n",
+            "          # Keep its existing as-of date; never advance it using wall-clock time.\n",
+            "          summary = Path('outputs/decision/primary_observation/summary.json')\n",
+            "          if summary.exists():\n",
+            "              asof = json.loads(summary.read_bytes())['as_of_date']\n",
+            "              command = [sys.executable, 'scripts/settle_primary_observations.py',\n",
+            "                         '--root', '.', '--as-of-date', asof]\n",
+            "              subprocess.run(command, check=True)\n",
+            "              subprocess.run(command + ['--validate-existing'], check=True)\n",
+            "          PY\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "4014b1f8af572a5e7bd1858bd03c6a7343388c0ae506431a4ab34456538a291e",
+      "current_sha256": "1687296c439ccafac37346a4eae4ec27d932d97303a9574358ef7655ee62463f",
+      "reason": "Refresh only rebuildable primary observation projection before Pages; preserve existing as-of, frozen rankings, source validation and profit ledger.",
+      "inverse_changes": [
+        {
+          "baseline_start": 632,
+          "current_start": 632,
+          "baseline_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"528c2d8a8e2fdc180217e5f85129baa38f7f68572a5d1ed519a5c559ae8e695f\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"430cc7ebbdeadd2954d1fe049965e98c2a09edf7ca66f7fecfda402aca93c25f\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "3b5c6df8457b6ddb1b1d62da44849c47ff9e5adbd84911535a54c1b5d1fe72f3",
+      "current_sha256": "3e98a1ddd4d39eaadc86acb6726812678a7da876f47dabbf5cefba1ef9e4978a",
+      "reason": "Refresh only rebuildable primary observation projection before Pages; preserve existing as-of, frozen rankings, source validation and profit ledger.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"4014b1f8af572a5e7bd1858bd03c6a7343388c0ae506431a4ab34456538a291e\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"1687296c439ccafac37346a4eae4ec27d932d97303a9574358ef7655ee62463f\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
