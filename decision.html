@@ -1217,6 +1217,7 @@
     .promotion-success-summary dd { margin: 4px 0 0; }
     .promotion-success-summary .success-rate { font-size: 22px; font-weight: 700; }
     .promotion-success-summary .success-sample { font-size: 12px; color: var(--muted); }
+    .promotion-success-summary .market-metric { font-size: 13px; display:flex; justify-content:space-between; gap:8px; }
     @media(max-width:480px) { .promotion-success-summary { grid-template-columns: 1fr; } .promotion-success-summary > div { border-right: 0; border-bottom: 1px solid var(--line); } .promotion-success-summary > div:last-child { border-bottom: 0; } }
     /* D23 supplement is a compact disclosure, separate from the formal report. */
     #d23IndependentSupplement { margin: 0 0 10px; overflow: hidden; }
@@ -1343,7 +1344,7 @@
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
-      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率</h2><span class="count">Top1 / Top2 / Top3 / 全名单</span></div>
+      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率与次日表现</h2><span class="count">晋1 / 晋2 / 晋3 / 全名单</span></div>
       <div id="compactStatisticsContent"><div class="empty">正在校验晋级结果。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
@@ -1689,7 +1690,7 @@
       // Python/JS serialize small floating-point numbers differently; the
       // producer validates the semantic snapshot without rounding returns here.
       const asOf = value => canonicalYmd(value) === value && value >= COMPACT_STATISTICS_WINDOW_START && value <= closedThrough;
-      let profitSource = null, allPromotion = null;
+      let profitSource = null, allPromotion = null, marketInputs = null;
       for (const name of ["profit", "promotion"]) {
         const section = payload[name];
         executableProfitExpect(section && ["READY", "UNAVAILABLE"].includes(section.status), `统计窗口${name}状态无效`);
@@ -1744,9 +1745,74 @@
             executableProfitExpect(rank.count === count && rank.count === rows.length && verified.every(row => [0, 1].includes(Number(row.continuation_limit_up_hit))) && rank.verified === verified.length && rank.hits === verified.reduce((total, row) => total + Number(row.continuation_limit_up_hit), 0), "晋级统计窗口未按D起点筛选样本");
           });
           allPromotion = fullListPromotionStatistics(sourceRows, summary, payload.start_signal_date, reportSignalDate);
+          marketInputs = { sourceRows, summary, payload };
         }
       }
-      return { payload, profitSource, allPromotion };
+      return { payload, profitSource, allPromotion, marketInputs };
+    }
+
+    // Optional descriptive market statistics, never an input to rankings or settlement.
+    function nextDayMarketStatistics(sourceRows, start, reportDate, asOf, dailyTables) {
+      const rows = sourceRows.filter(r => r.signal_date >= start && r.signal_date <= reportDate && r.signal_date <= asOf);
+      const records = rows.map(row => {
+        if (row.exec_date > asOf) return { rank:Number(row.promotion_rank), status:"pending" };
+        const quotes = (dailyTables.get(row.exec_date) || []).filter(q => q.ts_code === row.ts_code && q.trade_date === row.exec_date);
+        const q = quotes.length === 1 ? quotes[0] : null;
+        const positive = v => v != null && String(v).trim() !== "" && Number.isFinite(Number(v)) && Number(v) > 0;
+        // Missing, duplicate, invalid and suspended quotes do not become zero returns.
+        if (!q || ![q.close,q.pre_close,q.vol].every(positive)) return { rank:Number(row.promotion_rank), status:"missing" };
+        const change = Number(q.close) / Number(q.pre_close) - 1;
+        return Number.isFinite(change) ? {rank:Number(row.promotion_rank),status:"valid",change} : {rank:Number(row.promotion_rank),status:"missing"};
+      });
+      return [1,2,3,"all"].map(rank => {
+        const group = records.filter(r => rank === "all" || r.rank === rank);
+        const values = group.filter(r => r.status === "valid").map(r => r.change).sort((a,b) => a-b);
+        const n = values.length, up = values.filter(v => v > 0).length;
+        return {rank,count:group.length,valid:n,up,pending:group.filter(r => r.status === "pending").length,
+          missing:group.filter(r => r.status === "missing").length,upRate:n ? up/n : null,
+          mean:n ? values.reduce((a,b) => a+b,0)/n : null,
+          median:n ? (values[Math.floor((n-1)/2)] + values[Math.floor(n/2)])/2 : null};
+      });
+    }
+
+    async function loadNextDayMarketStatistics({sourceRows, summary, payload}) {
+      const days = [...new Set(sourceRows.filter(r => r.signal_date >= payload.start_signal_date && r.signal_date <= payload.report_signal_date && r.signal_date <= summary.as_of_date && r.exec_date <= summary.as_of_date).map(r => r.exec_date))];
+      const tables = new Map();
+      await Promise.all(days.map(async day => {
+        const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;
+        const binding = payload.source_files.find(item => item.path === path);
+        if (!binding) return; // Never read an unbound newer market file.
+        const bytes = await fetchPagesOnlyPath(path, "bytes");
+        executableProfitExpect(await sha256Hex(bytes) === binding.sha256, "次日行情来源SHA不一致");
+        tables.set(day, parseStrictCsvBytes(bytes, ["ts_code","trade_date","close","pre_close","vol"], "次日涨跌幅行情"));
+      }));
+      return nextDayMarketStatistics(sourceRows, payload.start_signal_date, payload.report_signal_date, summary.as_of_date, tables);
+    }
+
+    async function refreshNextDayMarketStatistics(loaded, current) {
+      if (!loaded.marketInputs) return;
+      loaded.marketPerformance = {status:"loading"};
+      let timer;
+      try {
+        const cohorts = await Promise.race([loadNextDayMarketStatistics(loaded.marketInputs),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("次日行情加载超时，可刷新重试")), 20000); })]);
+        if (!current()) return;
+        loaded.marketPerformance = {status:"ready",cohorts};
+      } catch (error) {
+        if (!current()) return;
+        loaded.marketPerformance = {status:"unavailable",reason:String(error?.message || error)};
+      } finally { clearTimeout(timer); }
+      if (current()) renderCompactDashboard();
+    }
+
+    function renderNextDayMarketMetrics(performance, rank) {
+      const tone = value => value > 0 ? "positive" : value < 0 ? "negative" : "";
+      const c = performance?.status === "ready" && performance.cohorts.find(c => c.rank === rank);
+      if (!c) return `<dd class="success-sample">${performance?.status === "loading" ? "次日涨跌统计加载中" : "次日涨跌统计暂不可用"}</dd>`;
+      return `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>
+        <dd class="market-metric"><span>平均涨跌幅</span><strong class="${tone(c.mean)}">${signedPct(c.mean)}</strong></dd>
+        <dd class="market-metric"><span>中位涨跌幅</span><strong class="${tone(c.median)}">${signedPct(c.median)}</strong></dd>
+        <dd class="success-sample">有效 ${c.valid} · 待验证 ${c.pending} · 缺行情 ${c.missing}</dd>`;
     }
 
     async function refreshCompactStatisticsWindow() {
@@ -1765,6 +1831,8 @@
         if (!current()) return;
         state.currentCompactStatisticsWindow = { ...validated, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };
         state.compactStatisticsWindowLoad = { status: "ready", message: "" };
+        // Do not await optional quote loading: existing statistics and D delivery stay independent.
+        void refreshNextDayMarketStatistics(state.currentCompactStatisticsWindow, current);
       } catch (error) {
         if (!current()) return;
         state.compactStatisticsWindowLoad = { status: "invalid", message: String(error?.message || error) };
@@ -2309,10 +2377,10 @@
           : !c.count ? (rank === "all" ? "暂无名单样本" : "暂无该名次样本")
           : !c.verified ? "暂无已验证样本"
           : `已验证 ${c.verified} 次 · 晋级成功 ${c.hits} 次`;
-        return `<div><dt>${rank === "all" ? "全名单" : `Top${rank}`}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">${escapeHtml(sample)}</dd></div>`;
+        return `<div><dt>${rank === "all" ? "全名单" : `晋${rank}`}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">晋级成功率 · ${escapeHtml(sample)}</dd>${renderNextDayMarketMetrics(promotion && state.currentCompactStatisticsWindow?.marketPerformance, rank)}</div>`;
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
-      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
+      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p><p class="stats-note">次日涨跌幅＝T日收盘价／T日前收盘价−1；上涨率仅计涨幅＞0，平盘计入分母；平均值含下跌。各名次独立统计，非前N名组合；缺失、停牌及未到T日不记零。不是竞价买入收益，不含交易费用；小样本仅供观察。</p>`;
     }
 
     function publicStatisticsPlan(plan) {

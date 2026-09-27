@@ -1,0 +1,199 @@
+{
+  "schema_version": "dc20_next_day_market_statistics_review_v1",
+  "approved_base_commit": "e742ba9e6d318c8028afcad03bb449e360ac2fd6",
+  "scope": "OPTIONAL_T_CLOSE_STATISTICS_FROM_D20260910",
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 496802,
+      "current_bytes": 502279,
+      "baseline_sha256": "38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835",
+      "current_sha256": "26e614d6c0c61933c461a638406e0b1a57ba42b4a325c1f14edce8d66d52e966",
+      "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1220,
+          "current_start": 1220,
+          "baseline_lines": [],
+          "current_lines": [
+            "    .promotion-success-summary .market-metric { font-size: 13px; display:flex; justify-content:space-between; gap:8px; }\n"
+          ]
+        },
+        {
+          "baseline_start": 1346,
+          "current_start": 1347,
+          "baseline_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率</h2><span class=\"count\">Top1 / Top2 / Top3 / 全名单</span></div>\n"
+          ],
+          "current_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率与次日表现</h2><span class=\"count\">晋1 / 晋2 / 晋3 / 全名单</span></div>\n"
+          ]
+        },
+        {
+          "baseline_start": 1692,
+          "current_start": 1693,
+          "baseline_lines": [
+            "      let profitSource = null, allPromotion = null;\n"
+          ],
+          "current_lines": [
+            "      let profitSource = null, allPromotion = null, marketInputs = null;\n"
+          ]
+        },
+        {
+          "baseline_start": 1747,
+          "current_start": 1748,
+          "baseline_lines": [],
+          "current_lines": [
+            "          marketInputs = { sourceRows, summary, payload };\n"
+          ]
+        },
+        {
+          "baseline_start": 1749,
+          "current_start": 1751,
+          "baseline_lines": [
+            "      return { payload, profitSource, allPromotion };\n"
+          ],
+          "current_lines": [
+            "      return { payload, profitSource, allPromotion, marketInputs };\n",
+            "    }\n",
+            "\n",
+            "    // Optional descriptive market statistics, never an input to rankings or settlement.\n",
+            "    function nextDayMarketStatistics(sourceRows, start, reportDate, asOf, dailyTables) {\n",
+            "      const rows = sourceRows.filter(r => r.signal_date >= start && r.signal_date <= reportDate && r.signal_date <= asOf);\n",
+            "      const records = rows.map(row => {\n",
+            "        if (row.exec_date > asOf) return { rank:Number(row.promotion_rank), status:\"pending\" };\n",
+            "        const quotes = (dailyTables.get(row.exec_date) || []).filter(q => q.ts_code === row.ts_code && q.trade_date === row.exec_date);\n",
+            "        const q = quotes.length === 1 ? quotes[0] : null;\n",
+            "        const positive = v => v != null && String(v).trim() !== \"\" && Number.isFinite(Number(v)) && Number(v) > 0;\n",
+            "        // Missing, duplicate, invalid and suspended quotes do not become zero returns.\n",
+            "        if (!q || ![q.close,q.pre_close,q.vol].every(positive)) return { rank:Number(row.promotion_rank), status:\"missing\" };\n",
+            "        const change = Number(q.close) / Number(q.pre_close) - 1;\n",
+            "        return Number.isFinite(change) ? {rank:Number(row.promotion_rank),status:\"valid\",change} : {rank:Number(row.promotion_rank),status:\"missing\"};\n",
+            "      });\n",
+            "      return [1,2,3,\"all\"].map(rank => {\n",
+            "        const group = records.filter(r => rank === \"all\" || r.rank === rank);\n",
+            "        const values = group.filter(r => r.status === \"valid\").map(r => r.change).sort((a,b) => a-b);\n",
+            "        const n = values.length, up = values.filter(v => v > 0).length;\n",
+            "        return {rank,count:group.length,valid:n,up,pending:group.filter(r => r.status === \"pending\").length,\n",
+            "          missing:group.filter(r => r.status === \"missing\").length,upRate:n ? up/n : null,\n",
+            "          mean:n ? values.reduce((a,b) => a+b,0)/n : null,\n",
+            "          median:n ? (values[Math.floor((n-1)/2)] + values[Math.floor(n/2)])/2 : null};\n",
+            "      });\n",
+            "    }\n",
+            "\n",
+            "    async function loadNextDayMarketStatistics({sourceRows, summary, payload}) {\n",
+            "      const days = [...new Set(sourceRows.filter(r => r.signal_date >= payload.start_signal_date && r.signal_date <= payload.report_signal_date && r.signal_date <= summary.as_of_date && r.exec_date <= summary.as_of_date).map(r => r.exec_date))];\n",
+            "      const tables = new Map();\n",
+            "      await Promise.all(days.map(async day => {\n",
+            "        const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;\n",
+            "        const binding = payload.source_files.find(item => item.path === path);\n",
+            "        if (!binding) return; // Never read an unbound newer market file.\n",
+            "        const bytes = await fetchPagesOnlyPath(path, \"bytes\");\n",
+            "        executableProfitExpect(await sha256Hex(bytes) === binding.sha256, \"次日行情来源SHA不一致\");\n",
+            "        tables.set(day, parseStrictCsvBytes(bytes, [\"ts_code\",\"trade_date\",\"close\",\"pre_close\",\"vol\"], \"次日涨跌幅行情\"));\n",
+            "      }));\n",
+            "      return nextDayMarketStatistics(sourceRows, payload.start_signal_date, payload.report_signal_date, summary.as_of_date, tables);\n",
+            "    }\n",
+            "\n",
+            "    async function refreshNextDayMarketStatistics(loaded, current) {\n",
+            "      if (!loaded.marketInputs) return;\n",
+            "      loaded.marketPerformance = {status:\"loading\"};\n",
+            "      let timer;\n",
+            "      try {\n",
+            "        const cohorts = await Promise.race([loadNextDayMarketStatistics(loaded.marketInputs),\n",
+            "          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(\"次日行情加载超时，可刷新重试\")), 20000); })]);\n",
+            "        if (!current()) return;\n",
+            "        loaded.marketPerformance = {status:\"ready\",cohorts};\n",
+            "      } catch (error) {\n",
+            "        if (!current()) return;\n",
+            "        loaded.marketPerformance = {status:\"unavailable\",reason:String(error?.message || error)};\n",
+            "      } finally { clearTimeout(timer); }\n",
+            "      if (current()) renderCompactDashboard();\n",
+            "    }\n",
+            "\n",
+            "    function renderNextDayMarketMetrics(performance, rank) {\n",
+            "      const tone = value => value > 0 ? \"positive\" : value < 0 ? \"negative\" : \"\";\n",
+            "      const c = performance?.status === \"ready\" && performance.cohorts.find(c => c.rank === rank);\n",
+            "      if (!c) return `<dd class=\"success-sample\">${performance?.status === \"loading\" ? \"次日涨跌统计加载中\" : \"次日涨跌统计暂不可用\"}</dd>`;\n",
+            "      return `<dd class=\"market-metric\"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>\n",
+            "        <dd class=\"market-metric\"><span>平均涨跌幅</span><strong class=\"${tone(c.mean)}\">${signedPct(c.mean)}</strong></dd>\n",
+            "        <dd class=\"market-metric\"><span>中位涨跌幅</span><strong class=\"${tone(c.median)}\">${signedPct(c.median)}</strong></dd>\n",
+            "        <dd class=\"success-sample\">有效 ${c.valid} · 待验证 ${c.pending} · 缺行情 ${c.missing}</dd>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 1768,
+          "current_start": 1834,
+          "baseline_lines": [],
+          "current_lines": [
+            "        // Do not await optional quote loading: existing statistics and D delivery stay independent.\n",
+            "        void refreshNextDayMarketStatistics(state.currentCompactStatisticsWindow, current);\n"
+          ]
+        },
+        {
+          "baseline_start": 2312,
+          "current_start": 2380,
+          "baseline_lines": [
+            "        return `<div><dt>${rank === \"all\" ? \"全名单\" : `Top${rank}`}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">${escapeHtml(sample)}</dd></div>`;\n"
+          ],
+          "current_lines": [
+            "        return `<div><dt>${rank === \"all\" ? \"全名单\" : `晋${rank}`}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">晋级成功率 · ${escapeHtml(sample)}</dd>${renderNextDayMarketMetrics(promotion && state.currentCompactStatisticsWindow?.marketPerformance, rank)}</div>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2315,
+          "current_start": 2383,
+          "baseline_lines": [
+            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
+          ],
+          "current_lines": [
+            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p><p class=\"stats-note\">次日涨跌幅＝T日收盘价／T日前收盘价−1；上涨率仅计涨幅＞0，平盘计入分母；平均值含下跌。各名次独立统计，非前N名组合；缺失、停牌及未到T日不记零。不是竞价买入收益，不含交易费用；小样本仅供观察。</p>`;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3",
+      "current_sha256": "687203996b1f825839bb144588316c8bed2378cd87ce69c6f27a1e50bd3cae2d",
+      "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"26e614d6c0c61933c461a638406e0b1a57ba42b4a325c1f14edce8d66d52e966\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "dd57182d722f38eaeca6c7af1d0a65ced6d184872d1b56d83733b53654f9b703",
+      "current_sha256": "c8495113b44e329f7bb01189f1828f0079784d6ca432ac91f9fbb601bd90f7f0",
+      "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"687203996b1f825839bb144588316c8bed2378cd87ce69c6f27a1e50bd3cae2d\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}

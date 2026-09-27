@@ -50,7 +50,7 @@ def fixed_promotion_fixture():
 def run(body, data=None, extra=""):
     names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "compactStatisticsWindowView", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus", "valueTone",
-             "sha256Hex", "isSha256", "parseStrictCsvBytes"]
+             "sha256Hex", "isSha256", "parseStrictCsvBytes", "renderNextDayMarketMetrics"]
     prelude = """
 const fs=require('fs'),vm=require('vm');
 const PUBLIC_STATISTICS_START_SIGNAL_DATE='20260828';
@@ -223,7 +223,7 @@ def test_bad_binding_only_closes_auxiliary_statistics(mutation):
 
 def test_compact_view_has_only_three_promotion_success_results():
     result = run("state.currentPublicObservationStatistics=input.summary;state.promotionSlotStatistics=promotionSlotStatistics(input.summary,input.rows,input.contracts);installRenderWindow(null,state.promotionSlotStatistics);renderCompactDashboard();console.log(JSON.stringify({html:els.compactStatisticsContent.innerHTML,hidden:Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))}))", fixed_promotion_fixture())
-    assert [result["html"].count(f"<dt>Top{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
+    assert [result["html"].count(f"<dt>晋{rank}</dt>") for rank in (1, 2, 3)] == [1, 1, 1]
     assert result["html"].count('class="success-rate">33.33%') == 2
     assert result["html"].count('class="success-rate">66.67%') == 1
     assert result["html"].count("已验证 3 次 · 晋级成功 1 次") == 2
@@ -233,7 +233,7 @@ def test_compact_view_has_only_three_promotion_success_results():
     assert "D 2026-09-10起" in result["html"]
     assert "最新累计截至 2026-09-10" in result["html"]
     assert "晋级不代表盈利" in result["html"]
-    assert '<h2 id="compactStatisticsTitle">晋级成功率</h2>' in (ROOT / "decision.html").read_text()
+    assert '<h2 id="compactStatisticsTitle">晋级成功率与次日表现</h2>' in (ROOT / "decision.html").read_text()
     assert result["hidden"]["shadowWorkspace"] and result["hidden"]["historicalResearchDetails"]
     archive = run("location.search='?view=research';renderCompactDashboard();console.log(JSON.stringify(Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))))")
     assert archive["compactStatistics"] and not archive["historicalResearchDetails"]

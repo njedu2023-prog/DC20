@@ -388,7 +388,20 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _market_statistics_previous(path, raw):
+    review_raw = (ROOT / 'models/decision_source_surface_review_20260927_market.json').read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == '15b0308e2c168bb3e5d25c39249dc7c7c26035b28ae5ace3ca93cf199ec8dd4c'
+    review = json.loads(review_raw)
+    assert review['schema_version'] == 'dc20_next_day_market_statistics_review_v1'
+    assert review['approved_base_commit'] == 'e742ba9e6d318c8028afcad03bb449e360ac2fd6'
+    assert review['scope'] == 'OPTIONAL_T_CLOSE_STATISTICS_FROM_D20260910'
+    assert {x['path'] for x in review['source_changes']} == {'models/decision_model_freeze.json', 'decision.html', 'forward/model_inventory.json'}
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
 def _delivery_repair_previous(path, raw):
+    raw = _market_statistics_previous(path, raw)
     review_raw = (ROOT / 'models/decision_source_surface_review_20260927_delivery.json').read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == '52dc3eba8c4cf2574f2c48be505821c0d16bc1d7b5488f81027ee0b5f916dc1f'
     review = json.loads(review_raw)
@@ -4191,7 +4204,7 @@ def test_posthoc_monthly_display_changes_only_frontend_pin_and_inventory_digest(
     previous = json.loads(_eligible_actual_source('models/decision_model_freeze.json'))
     current = json.loads(_statistics_refresh_previous('models/decision_model_freeze.json', MANIFEST.read_bytes()))
     expected = copy.deepcopy(previous)
-    expected['pinned_files']['decision.html'] = _sha256(ROOT/'decision.html')
+    expected['pinned_files']['decision.html'] = hashlib.sha256(_market_statistics_previous('decision.html', (ROOT/'decision.html').read_bytes())).hexdigest()
     assert current == expected
     before = json.loads(_eligible_actual_source('forward/model_inventory.json'))
     after = json.loads(_statistics_refresh_previous('forward/model_inventory.json', (ROOT/'forward/model_inventory.json').read_bytes()))
