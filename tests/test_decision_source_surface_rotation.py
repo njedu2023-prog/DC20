@@ -388,7 +388,20 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _delivery_repair_previous(path, raw):
+    review_raw = (ROOT / 'models/decision_source_surface_review_20260927_delivery.json').read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == '52dc3eba8c4cf2574f2c48be505821c0d16bc1d7b5488f81027ee0b5f916dc1f'
+    review = json.loads(review_raw)
+    assert review['schema_version'] == 'dc20_delivery_isolation_review_v1'
+    assert review['approved_base_commit'] == '6e99e6b21f3efae72ae33db24e11aaec9f40dd13'
+    assert review['scope'] == 'HOLIDAY_NOOP_BACKFILL_ISOLATION_AND_EXACT_REPLAY_BINDING'
+    assert {x['path'] for x in review['source_changes']} == {'.github/workflows/run_primary_d_daily.yml', 'models/decision_model_freeze.json', 'forward/model_inventory.json', '.github/workflows/backfill_decision_v11_history.yml'}
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
 def _statistics_refresh_previous(path, raw):
+    raw = _delivery_repair_previous(path, raw)
     review_raw = (ROOT / STATISTICS_REFRESH_REVIEW_PATH).read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == STATISTICS_REFRESH_REVIEW_SHA
     review = json.loads(review_raw)

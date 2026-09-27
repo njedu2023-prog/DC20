@@ -1,0 +1,225 @@
+{
+  "schema_version": "dc20_delivery_isolation_review_v1",
+  "approved_base_commit": "6e99e6b21f3efae72ae33db24e11aaec9f40dd13",
+  "scope": "HOLIDAY_NOOP_BACKFILL_ISOLATION_AND_EXACT_REPLAY_BINDING",
+  "source_changes": [
+    {
+      "path": ".github/workflows/run_primary_d_daily.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 86523,
+      "current_bytes": 87615,
+      "baseline_sha256": "5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677",
+      "current_sha256": "2f670dd9afb5b4156bd8e3e04c61fbc63251cff8da200ca5bfe18fb63bda2868",
+      "reason": "Known holiday no-op; isolate long backfill compute, retain CAS writer; bind replay to persisted action snapshot. No model, history, schedule or source-check relaxation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 167,
+          "current_start": 167,
+          "baseline_lines": [
+            "      publish: ${{ steps.mode.outputs.publish }}\n"
+          ],
+          "current_lines": [
+            "      publish: ${{ steps.target.outputs.non_trading_day == 'true' && 'false' || steps.mode.outputs.publish }}\n"
+          ]
+        },
+        {
+          "baseline_start": 621,
+          "current_start": 621,
+          "baseline_lines": [],
+          "current_lines": [
+            "              # Only a positively identified closed calendar date is a no-op.\n",
+            "              # Unknown dates and explicit manual requests still fail closed.\n",
+            "              matched = cal.loc[cal['cal_date'].astype(str).eq(signal_date)]\n",
+            "              if event == 'schedule' and len(matched) == 1 and str(matched.iloc[0]['is_open']) == '0':\n",
+            "                  with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:\n",
+            "                      handle.write(f'non_trading_day=true\\nsignal_date={signal_date}\\n')\n",
+            "                  print(f'::notice::NON_TRADING_DAY: {signal_date}; no ranking or publication attempted')\n",
+            "                  raise SystemExit(0)\n"
+          ]
+        },
+        {
+          "baseline_start": 723,
+          "current_start": 731,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 774,
+          "current_start": 782,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 787,
+          "current_start": 795,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 809,
+          "current_start": 817,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.dispatch_created_at != '' && steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.dispatch_created_at != '' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 857,
+          "current_start": 865,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 878,
+          "current_start": 886,
+          "baseline_lines": [],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' }}\n"
+          ]
+        },
+        {
+          "baseline_start": 1008,
+          "current_start": 1017,
+          "baseline_lines": [
+            "        if: ${{ steps.target.outputs.already_complete != 'true' }}\n"
+          ],
+          "current_lines": [
+            "        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/backfill_decision_v11_history.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 25572,
+      "current_bytes": 26784,
+      "baseline_sha256": "1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f",
+      "current_sha256": "e94fba828ee07c4d3c9b10280da20a8749ec76c3166cbaaebbd66ea75400875b",
+      "reason": "Known holiday no-op; isolate long backfill compute, retain CAS writer; bind replay to persisted action snapshot. No model, history, schedule or source-check relaxation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 49,
+          "current_start": 49,
+          "baseline_lines": [
+            "  group: decision-auction-main-writer\n"
+          ],
+          "current_lines": [
+            "  # Long read-only computation must not occupy the daily publication lock.\n",
+            "  group: dc20-backfill-compute\n"
+          ]
+        },
+        {
+          "baseline_start": 282,
+          "current_start": 283,
+          "baseline_lines": [],
+          "current_lines": [
+            "          # Replay the persisted action's bound D/T and immutable market snapshot,\n",
+            "          # never the newest daily market file against an older action report.\n",
+            "          RUNTIME_ROOT=\"${runtime_root}\" PYTHONPATH=\"${runtime_root}:${runtime_root}/src\" python - <<'PY' > \"${RUNNER_TEMP}/backfill-replay-binding.txt\"\n",
+            "          import os\n",
+            "          from pathlib import Path\n",
+            "          from scripts.replay_frozen_canonical_v2 import _persisted_action_snapshot_binding\n",
+            "          binding = _persisted_action_snapshot_binding(Path(os.environ['RUNTIME_ROOT']))\n",
+            "          for key in ('signal_date', 'report_date', 'action_semantic_sha256'):\n",
+            "              print(binding[key])\n",
+            "          PY\n",
+            "          mapfile -t replay_binding < \"${RUNNER_TEMP}/backfill-replay-binding.txt\"\n",
+            "          test \"${#replay_binding[@]}\" -eq 3\n"
+          ]
+        },
+        {
+          "baseline_start": 286,
+          "current_start": 299,
+          "baseline_lines": [],
+          "current_lines": [
+            "            --signal-date \"${replay_binding[0]}\" \\\n",
+            "            --report-date \"${replay_binding[1]}\" \\\n",
+            "            --expected-action-semantic-sha256 \"${replay_binding[2]}\" \\\n"
+          ]
+        },
+        {
+          "baseline_start": 360,
+          "current_start": 376,
+          "baseline_lines": [],
+          "current_lines": [
+            "    # Serialize only the short CAS writer; stale bases are still rejected.\n",
+            "    concurrency:\n",
+            "      group: decision-auction-main-writer\n",
+            "      cancel-in-progress: false\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "1687296c439ccafac37346a4eae4ec27d932d97303a9574358ef7655ee62463f",
+      "current_sha256": "c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3",
+      "reason": "Known holiday no-op; isolate long backfill compute, retain CAS writer; bind replay to persisted action snapshot. No model, history, schedule or source-check relaxation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 630,
+          "current_start": 630,
+          "baseline_lines": [
+            "    \".github/workflows/backfill_decision_v11_history.yml\": \"1bc324835f5339ff119d454469fab1d50edeb5b1a24912d5b305331fcc38945f\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/backfill_decision_v11_history.yml\": \"e94fba828ee07c4d3c9b10280da20a8749ec76c3166cbaaebbd66ea75400875b\",\n"
+          ]
+        },
+        {
+          "baseline_start": 637,
+          "current_start": 637,
+          "baseline_lines": [
+            "    \".github/workflows/run_primary_d_daily.yml\": \"5d07af9236af635bd8f1b58ad9d3c92c6b550242644aa8640bd28e0a7c490677\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/run_primary_d_daily.yml\": \"2f670dd9afb5b4156bd8e3e04c61fbc63251cff8da200ca5bfe18fb63bda2868\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "3e98a1ddd4d39eaadc86acb6726812678a7da876f47dabbf5cefba1ef9e4978a",
+      "current_sha256": "dd57182d722f38eaeca6c7af1d0a65ced6d184872d1b56d83733b53654f9b703",
+      "reason": "Known holiday no-op; isolate long backfill compute, retain CAS writer; bind replay to persisted action snapshot. No model, history, schedule or source-check relaxation.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"1687296c439ccafac37346a4eae4ec27d932d97303a9574358ef7655ee62463f\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}

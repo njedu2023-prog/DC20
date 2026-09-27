@@ -46,7 +46,8 @@ env:
   NPY_ENABLE_CPU_FEATURES: "X86_V3"
 
 concurrency:
-  group: decision-auction-main-writer
+  # Long read-only computation must not occupy the daily publication lock.
+  group: dc20-backfill-compute
   cancel-in-progress: false
 
 jobs:
@@ -279,10 +280,25 @@ jobs:
             --max-missing-dates "${{ steps.request.outputs.max_missing_dates }}"
           replay_report="${RUNNER_TEMP}/backfill-frozen-replay.json"
           replay_stdout="${RUNNER_TEMP}/backfill-frozen-replay.stdout"
+          # Replay the persisted action's bound D/T and immutable market snapshot,
+          # never the newest daily market file against an older action report.
+          RUNTIME_ROOT="${runtime_root}" PYTHONPATH="${runtime_root}:${runtime_root}/src" python - <<'PY' > "${RUNNER_TEMP}/backfill-replay-binding.txt"
+          import os
+          from pathlib import Path
+          from scripts.replay_frozen_canonical_v2 import _persisted_action_snapshot_binding
+          binding = _persisted_action_snapshot_binding(Path(os.environ['RUNTIME_ROOT']))
+          for key in ('signal_date', 'report_date', 'action_semantic_sha256'):
+              print(binding[key])
+          PY
+          mapfile -t replay_binding < "${RUNNER_TEMP}/backfill-replay-binding.txt"
+          test "${#replay_binding[@]}" -eq 3
           set +e
           PYTHONPATH="${runtime_root}/src" python "${runtime_root}/scripts/run_deterministic_numeric.py" \
             "${runtime_root}/scripts/replay_frozen_canonical_v2.py" \
             --root "${runtime_root}" \
+            --signal-date "${replay_binding[0]}" \
+            --report-date "${replay_binding[1]}" \
+            --expected-action-semantic-sha256 "${replay_binding[2]}" \
             --report "${replay_report}" > "${replay_stdout}"
           replay_status=$?
           set -e
@@ -357,6 +373,10 @@ jobs:
 
   publish:
     name: CAS publish one Backfill commit
+    # Serialize only the short CAS writer; stale bases are still rejected.
+    concurrency:
+      group: decision-auction-main-writer
+      cancel-in-progress: false
     needs: compute
     if: ${{ needs.compute.outputs.publish == 'true' && needs.compute.outputs.has_changes == 'true' }}
     outputs:

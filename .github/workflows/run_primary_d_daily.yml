@@ -164,7 +164,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     outputs:
-      publish: ${{ steps.mode.outputs.publish }}
+      publish: ${{ steps.target.outputs.non_trading_day == 'true' && 'false' || steps.mode.outputs.publish }}
       base_head: ${{ steps.mode.outputs.base_head }}
       has_changes: ${{ steps.candidate.outputs.has_changes || 'false' }}
       already_complete: ${{ steps.target.outputs.already_complete || 'false' }}
@@ -618,6 +618,14 @@ jobs:
                   raise SystemExit('P0 workflow_run has no preceding strict SSE open day')
               signal_date = eligible[-1]
           if signal_date not in opened:
+              # Only a positively identified closed calendar date is a no-op.
+              # Unknown dates and explicit manual requests still fail closed.
+              matched = cal.loc[cal['cal_date'].astype(str).eq(signal_date)]
+              if event == 'schedule' and len(matched) == 1 and str(matched.iloc[0]['is_open']) == '0':
+                  with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                      handle.write(f'non_trading_day=true\nsignal_date={signal_date}\n')
+                  print(f'::notice::NON_TRADING_DAY: {signal_date}; no ranking or publication attempted')
+                  raise SystemExit(0)
               raise SystemExit(f'P0 target is not a strict SSE open day: {signal_date}')
           if event in {'schedule', 'workflow_run'}:
               enforce_pre_t0920(signal_date, opened, datetime.now(timezone.utc))
@@ -720,7 +728,7 @@ jobs:
 
       - name: Resolve immutable upstream commits
         id: upstream
-        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         env:
           GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PINNED_PRED: ${{ steps.target.outputs.pred_commit }}
@@ -771,7 +779,7 @@ jobs:
           PY
 
       - name: Snapshot protected secondary state
-        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         run: |
           set -euo pipefail
           git status --porcelain=v1 -z --untracked-files=all -- \
@@ -784,7 +792,7 @@ jobs:
           test ! -s "${RUNNER_TEMP}/protected-before.bin"
 
       - name: Sync exact-D independent inputs
-        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         env:
           PYTHONPATH: src
           TRADE_DATE: ${{ steps.target.outputs.signal_date }}
@@ -806,7 +814,7 @@ jobs:
             --trade-calendar-file data/market/trade_cal_sse.csv
 
       - name: Verify controlled daily upstream production times
-        if: ${{ steps.target.outputs.dispatch_created_at != '' && steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.dispatch_created_at != '' && steps.target.outputs.already_complete != 'true' }}
         env:
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
           DISPATCH_CREATED_AT: ${{ steps.target.outputs.dispatch_created_at }}
@@ -854,7 +862,7 @@ jobs:
           PY
 
       - name: Publish primary promotion list in the isolated scope
-        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         env:
           PYTHONPATH: src
           TRADE_DATE: ${{ steps.target.outputs.signal_date }}
@@ -875,6 +883,7 @@ jobs:
 
       - name: Qualify optional receipt-bound runtime display index
         id: runtime_index
+        if: ${{ steps.target.outputs.non_trading_day != 'true' }}
         env:
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
         run: |
@@ -1005,7 +1014,7 @@ jobs:
 
       - name: Build exact P0 candidate patch
         id: candidate
-        if: ${{ steps.target.outputs.already_complete != 'true' }}
+        if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         env:
           SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
           RUNTIME_INDEX_READY: ${{ steps.runtime_index.outputs.runtime_index_ready || 'false' }}
