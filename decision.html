@@ -1809,7 +1809,7 @@
       const tone = value => value > 0 ? "positive" : value < 0 ? "negative" : "";
       const c = performance?.status === "ready" && performance.cohorts.find(c => c.rank === rank);
       if (!c) return `<dd class="success-sample">${performance?.status === "loading" ? "次日涨跌统计加载中" : "次日涨跌统计暂不可用"}</dd>`;
-      return `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>
+      return `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>
         <dd class="market-metric"><span>平均涨跌幅</span><strong class="${tone(c.mean)}">${signedPct(c.mean)}</strong></dd>
         <dd class="market-metric"><span>中位涨跌幅</span><strong class="${tone(c.median)}">${signedPct(c.median)}</strong></dd>`;
     }

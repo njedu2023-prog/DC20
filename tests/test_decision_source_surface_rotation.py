@@ -390,12 +390,12 @@ OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda
 
 def _market_statistics_previous(path, raw):
     review_raw = (ROOT / 'models/decision_source_surface_review_20260927_market.json').read_bytes()
-    assert hashlib.sha256(review_raw).hexdigest() == '5fcf7e74a86519257e9121c88adf359419be13e3fd004d2e2158761428df9b6f'
+    assert hashlib.sha256(review_raw).hexdigest() == '54c60392c21f0573f98bdb409de127a4f9ee35771be1c262a8ad7beedc8c3cca'
     review = json.loads(review_raw)
     assert review['schema_version'] == 'dc20_next_day_market_statistics_review_v1'
     assert review['approved_base_commit'] == 'e742ba9e6d318c8028afcad03bb449e360ac2fd6'
     assert review['scope'] == 'OPTIONAL_T_CLOSE_STATISTICS_FROM_D20260910'
-    assert {x['path'] for x in review['source_changes']} == {'models/decision_model_freeze.json', 'forward/model_inventory.json', 'decision.html'}
+    assert {x['path'] for x in review['source_changes']} == {'forward/model_inventory.json', 'decision.html', 'models/decision_model_freeze.json'}
     item = next((x for x in review['source_changes'] if x['path'] == path), None)
     return _candidate_activation_inverse(raw, item) if item else raw
 

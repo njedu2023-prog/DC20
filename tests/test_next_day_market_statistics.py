@@ -92,6 +92,7 @@ renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent
     assert r.count('class="success-rate"')==4
     assert r.count('平均涨跌幅')==4 and r.count('中位涨跌幅')==4
     assert 'D 2026-09-10起' in r and '100.00%' in r
+    assert '(1/1)' not in r and '(0/0)' not in r
     assert '有效 1 · 待验证 0 · 缺行情 0' not in r
     assert '次日涨跌幅＝' not in r
     assert '<h2 id="compactStatisticsTitle">晋级表现</h2>' in (ROOT/'decision.html').read_text()

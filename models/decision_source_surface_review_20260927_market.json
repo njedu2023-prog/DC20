@@ -7,9 +7,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 496802,
-      "current_bytes": 501843,
+      "current_bytes": 501807,
       "baseline_sha256": "38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835",
-      "current_sha256": "5cc137c4434eed245669e5eeb3ebdc58db4b081ec0a74e5c8087b1ba86ddc5d2",
+      "current_sha256": "2af770651afc557f2cb8e4706d28046cad1046c46f0fb60d0ea6fb591e16fd3c",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -116,7 +116,7 @@
             "      const tone = value => value > 0 ? \"positive\" : value < 0 ? \"negative\" : \"\";\n",
             "      const c = performance?.status === \"ready\" && performance.cohorts.find(c => c.rank === rank);\n",
             "      if (!c) return `<dd class=\"success-sample\">${performance?.status === \"loading\" ? \"次日涨跌统计加载中\" : \"次日涨跌统计暂不可用\"}</dd>`;\n",
-            "      return `<dd class=\"market-metric\"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>\n",
+            "      return `<dd class=\"market-metric\"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>\n",
             "        <dd class=\"market-metric\"><span>平均涨跌幅</span><strong class=\"${tone(c.mean)}\">${signedPct(c.mean)}</strong></dd>\n",
             "        <dd class=\"market-metric\"><span>中位涨跌幅</span><strong class=\"${tone(c.median)}\">${signedPct(c.median)}</strong></dd>`;\n"
           ]
@@ -148,7 +148,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3",
-      "current_sha256": "1239be79d963a8b4f4c2ae5748a74e0b3472f7e1afce6da52f4a74ec9693223f",
+      "current_sha256": "7b7dd032444c792a8411a9f4c9d7b588cfa4341dded14f33c591510adfa91d2d",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -158,7 +158,7 @@
             "    \"decision.html\": \"38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"5cc137c4434eed245669e5eeb3ebdc58db4b081ec0a74e5c8087b1ba86ddc5d2\",\n"
+            "    \"decision.html\": \"2af770651afc557f2cb8e4706d28046cad1046c46f0fb60d0ea6fb591e16fd3c\",\n"
           ]
         }
       ]
@@ -169,7 +169,7 @@
       "baseline_bytes": 16204,
       "current_bytes": 16204,
       "baseline_sha256": "dd57182d722f38eaeca6c7af1d0a65ced6d184872d1b56d83733b53654f9b703",
-      "current_sha256": "d03764aa17a0a5289918950d9352a0f76ef5473616a42ecfb67328ad6b7d7367",
+      "current_sha256": "f6f2628e6a3922be2c15807a47c9e9af3ac323a99b1c3a2cc8f54ac81543d065",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -179,7 +179,7 @@
             "      \"sha256\": \"c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3\",\n"
           ],
           "current_lines": [
-            "      \"sha256\": \"1239be79d963a8b4f4c2ae5748a74e0b3472f7e1afce6da52f4a74ec9693223f\",\n"
+            "      \"sha256\": \"7b7dd032444c792a8411a9f4c9d7b588cfa4341dded14f33c591510adfa91d2d\",\n"
           ]
         }
       ]
