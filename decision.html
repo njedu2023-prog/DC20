@@ -1344,7 +1344,7 @@
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
     </section>
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
-      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级成功率与次日表现</h2><span class="count">晋1 / 晋2 / 晋3 / 全名单</span></div>
+      <div class="panel-head"><h2 id="compactStatisticsTitle">晋级表现</h2><span class="count">晋1 / 晋2 / 晋3 / 全名单</span></div>
       <div id="compactStatisticsContent"><div class="empty">正在校验晋级结果。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
@@ -1811,8 +1811,7 @@
       if (!c) return `<dd class="success-sample">${performance?.status === "loading" ? "次日涨跌统计加载中" : "次日涨跌统计暂不可用"}</dd>`;
       return `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>
         <dd class="market-metric"><span>平均涨跌幅</span><strong class="${tone(c.mean)}">${signedPct(c.mean)}</strong></dd>
-        <dd class="market-metric"><span>中位涨跌幅</span><strong class="${tone(c.median)}">${signedPct(c.median)}</strong></dd>
-        <dd class="success-sample">有效 ${c.valid} · 待验证 ${c.pending} · 缺行情 ${c.missing}</dd>`;
+        <dd class="market-metric"><span>中位涨跌幅</span><strong class="${tone(c.median)}">${signedPct(c.median)}</strong></dd>`;
     }
 
     async function refreshCompactStatisticsWindow() {
@@ -2380,7 +2379,7 @@
         return `<div><dt>${rank === "all" ? "全名单" : `晋${rank}`}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">晋级成功率 · ${escapeHtml(sample)}</dd>${renderNextDayMarketMetrics(promotion && state.currentCompactStatisticsWindow?.marketPerformance, rank)}</div>`;
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
-      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p><p class="stats-note">次日涨跌幅＝T日收盘价／T日前收盘价−1；上涨率仅计涨幅＞0，平盘计入分母；平均值含下跌。各名次独立统计，非前N名组合；缺失、停牌及未到T日不记零。不是竞价买入收益，不含交易费用；小样本仅供观察。</p>`;
+      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
     }
 
     function publicStatisticsPlan(plan) {

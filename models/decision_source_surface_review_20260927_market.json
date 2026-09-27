@@ -7,9 +7,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 496802,
-      "current_bytes": 502279,
+      "current_bytes": 501843,
       "baseline_sha256": "38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835",
-      "current_sha256": "26e614d6c0c61933c461a638406e0b1a57ba42b4a325c1f14edce8d66d52e966",
+      "current_sha256": "5cc137c4434eed245669e5eeb3ebdc58db4b081ec0a74e5c8087b1ba86ddc5d2",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -27,7 +27,7 @@
             "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率</h2><span class=\"count\">Top1 / Top2 / Top3 / 全名单</span></div>\n"
           ],
           "current_lines": [
-            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级成功率与次日表现</h2><span class=\"count\">晋1 / 晋2 / 晋3 / 全名单</span></div>\n"
+            "      <div class=\"panel-head\"><h2 id=\"compactStatisticsTitle\">晋级表现</h2><span class=\"count\">晋1 / 晋2 / 晋3 / 全名单</span></div>\n"
           ]
         },
         {
@@ -118,13 +118,12 @@
             "      if (!c) return `<dd class=\"success-sample\">${performance?.status === \"loading\" ? \"次日涨跌统计加载中\" : \"次日涨跌统计暂不可用\"}</dd>`;\n",
             "      return `<dd class=\"market-metric\"><span>上涨率</span><strong>${pct(c.upRate)} <small>(${c.up}/${c.valid})</small></strong></dd>\n",
             "        <dd class=\"market-metric\"><span>平均涨跌幅</span><strong class=\"${tone(c.mean)}\">${signedPct(c.mean)}</strong></dd>\n",
-            "        <dd class=\"market-metric\"><span>中位涨跌幅</span><strong class=\"${tone(c.median)}\">${signedPct(c.median)}</strong></dd>\n",
-            "        <dd class=\"success-sample\">有效 ${c.valid} · 待验证 ${c.pending} · 缺行情 ${c.missing}</dd>`;\n"
+            "        <dd class=\"market-metric\"><span>中位涨跌幅</span><strong class=\"${tone(c.median)}\">${signedPct(c.median)}</strong></dd>`;\n"
           ]
         },
         {
           "baseline_start": 1768,
-          "current_start": 1834,
+          "current_start": 1833,
           "baseline_lines": [],
           "current_lines": [
             "        // Do not await optional quote loading: existing statistics and D delivery stay independent.\n",
@@ -133,22 +132,12 @@
         },
         {
           "baseline_start": 2312,
-          "current_start": 2380,
+          "current_start": 2379,
           "baseline_lines": [
             "        return `<div><dt>${rank === \"all\" ? \"全名单\" : `Top${rank}`}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">${escapeHtml(sample)}</dd></div>`;\n"
           ],
           "current_lines": [
             "        return `<div><dt>${rank === \"all\" ? \"全名单\" : `晋${rank}`}</dt><dd class=\"success-rate\">${c ? pct(c.hit_rate) : \"—\"}</dd><dd class=\"success-sample\">晋级成功率 · ${escapeHtml(sample)}</dd>${renderNextDayMarketMetrics(promotion && state.currentCompactStatisticsWindow?.marketPerformance, rank)}</div>`;\n"
-          ]
-        },
-        {
-          "baseline_start": 2315,
-          "current_start": 2383,
-          "baseline_lines": [
-            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
-          ],
-          "current_lines": [
-            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p><p class=\"stats-note\">次日涨跌幅＝T日收盘价／T日前收盘价−1；上涨率仅计涨幅＞0，平盘计入分母；平均值含下跌。各名次独立统计，非前N名组合；缺失、停牌及未到T日不记零。不是竞价买入收益，不含交易费用；小样本仅供观察。</p>`;\n"
           ]
         }
       ]
@@ -159,7 +148,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3",
-      "current_sha256": "687203996b1f825839bb144588316c8bed2378cd87ce69c6f27a1e50bd3cae2d",
+      "current_sha256": "1239be79d963a8b4f4c2ae5748a74e0b3472f7e1afce6da52f4a74ec9693223f",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -169,7 +158,7 @@
             "    \"decision.html\": \"38ba5f472e60ae0cff48281b96cba386f7c46e87af6a59163a6443f90286d835\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"26e614d6c0c61933c461a638406e0b1a57ba42b4a325c1f14edce8d66d52e966\",\n"
+            "    \"decision.html\": \"5cc137c4434eed245669e5eeb3ebdc58db4b081ec0a74e5c8087b1ba86ddc5d2\",\n"
           ]
         }
       ]
@@ -180,7 +169,7 @@
       "baseline_bytes": 16204,
       "current_bytes": 16204,
       "baseline_sha256": "dd57182d722f38eaeca6c7af1d0a65ced6d184872d1b56d83733b53654f9b703",
-      "current_sha256": "c8495113b44e329f7bb01189f1828f0079784d6ca432ac91f9fbb601bd90f7f0",
+      "current_sha256": "d03764aa17a0a5289918950d9352a0f76ef5473616a42ecfb67328ad6b7d7367",
       "reason": "Optional source-bound T-close descriptive statistics from D20260910. No model, rank, settlement, schedule, backend or source-check changes.",
       "inverse_changes": [
         {
@@ -190,7 +179,7 @@
             "      \"sha256\": \"c52616b187911bbaefe787a2bb379f7fa7987586373bfde91c2c4c9ca0f9dcd3\",\n"
           ],
           "current_lines": [
-            "      \"sha256\": \"687203996b1f825839bb144588316c8bed2378cd87ce69c6f27a1e50bd3cae2d\",\n"
+            "      \"sha256\": \"1239be79d963a8b4f4c2ae5748a74e0b3472f7e1afce6da52f4a74ec9693223f\",\n"
           ]
         }
       ]

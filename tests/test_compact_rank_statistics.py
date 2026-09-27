@@ -233,7 +233,7 @@ def test_compact_view_has_only_three_promotion_success_results():
     assert "D 2026-09-10起" in result["html"]
     assert "最新累计截至 2026-09-10" in result["html"]
     assert "晋级不代表盈利" in result["html"]
-    assert '<h2 id="compactStatisticsTitle">晋级成功率与次日表现</h2>' in (ROOT / "decision.html").read_text()
+    assert '<h2 id="compactStatisticsTitle">晋级表现</h2>' in (ROOT / "decision.html").read_text()
     assert result["hidden"]["shadowWorkspace"] and result["hidden"]["historicalResearchDetails"]
     archive = run("location.search='?view=research';renderCompactDashboard();console.log(JSON.stringify(Object.fromEntries([...nodes].map(([k,v])=>[k,v.hidden]))))")
     assert archive["compactStatistics"] and not archive["historicalResearchDetails"]
