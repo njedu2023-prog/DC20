@@ -108,8 +108,8 @@ def test_source_review_changes_only_frontend_and_its_pins():
     manifest=json.loads((ROOT/'models/decision_model_freeze.json').read_bytes())
     html=(ROOT/'decision.html').read_bytes()
     assert manifest['pinned_files']['decision.html']==hashlib.sha256(html).hexdigest()
-    review=json.loads((ROOT/'models/decision_source_surface_review_20260928_profitday.json').read_bytes())
-    assert {c['path'] for c in review['source_changes']}=={'decision.html','models/decision_model_freeze.json','forward/model_inventory.json'}
+    review=json.loads((ROOT/'models/decision_source_surface_review_20260928_nightly_stats.json').read_bytes())
+    assert {c['path'] for c in review['source_changes']}=={'.github/workflows/deploy_dc20_pages.yml','decision.html','models/decision_model_freeze.json','forward/model_inventory.json'}
     for item in review['source_changes']:
         assert item['current_sha256']==hashlib.sha256((ROOT/item['path']).read_bytes()).hexdigest()
     entry=next(a for a in json.loads((ROOT/'forward/model_inventory.json').read_bytes())['assets'] if a['path']=='models/decision_model_freeze.json')

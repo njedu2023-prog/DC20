@@ -1900,7 +1900,8 @@
           <dd class="market-metric"><span>中位涨跌幅</span><strong class="${valueTone(c.median)}">${signedPct(c.median)}</strong></dd>` :
           `<dd class="success-sample">${performance?.status === "loading" ? "次日行情加载中" : "次日行情暂不可用"}</dd>`}</div>`;
       });
-      node.innerHTML = `<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl><p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
+      const stale = loaded?.marketInputs && loaded.marketInputs.summary.as_of_date < loaded.marketInputs.payload?.report_signal_date;
+      node.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl><p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
     }
 
     async function refreshCompactStatisticsWindow() {
@@ -2469,7 +2470,8 @@
         return `<div><dt>${rank === "all" ? "全名单" : `晋${rank}`}</dt><dd class="success-rate">${c ? pct(c.hit_rate) : "—"}</dd><dd class="success-sample">晋级成功率 · ${escapeHtml(sample)}</dd>${renderNextDayMarketMetrics(promotion && state.currentCompactStatisticsWindow?.marketPerformance, rank)}</div>`;
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
-      els.compactStatisticsContent.innerHTML = `<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
+      const stale = promotion && promotion.as_of_date < window.report_signal_date;
+      els.compactStatisticsContent.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
     }
 
     function publicStatisticsPlan(plan) {

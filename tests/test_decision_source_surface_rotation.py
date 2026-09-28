@@ -388,7 +388,18 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _nightly_statistics_previous(path, raw):
+    review_raw = (ROOT / 'models/decision_source_surface_review_20260928_nightly_stats.json').read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == '5f141bf6fd029c481ff0d7657c94b710e797f2f73bca96d6d90a952715d145a3'
+    review = json.loads(review_raw)
+    assert review['approved_base_commit'] == 'bc48a054ec1ffc903787dcc1445756be3cda31fd'
+    assert review['scope'] == 'NIGHTLY_VERIFIED_CLOSE_STATISTICS_NONBLOCKING'
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
 def _profit_next_day_previous(path, raw):
+    raw = _nightly_statistics_previous(path, raw)
     review_raw = (ROOT / 'models/decision_source_surface_review_20260928_profitday.json').read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == '4294a635560df3b6d8dcdb412109a00698f6c7da3f915eccd927520cee65d61e'
     review = json.loads(review_raw)

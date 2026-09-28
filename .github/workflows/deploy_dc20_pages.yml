@@ -121,21 +121,87 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import os
           import subprocess
           import sys
+          import time
+          from datetime import datetime
           from pathlib import Path
+          from zoneinfo import ZoneInfo
+          from scripts.publish_primary_three_rank import (
+              build_primary_d_runtime_index, validate_primary_d_runtime_index,
+          )
+          from top10decision.decision.executable_profit_shadow_settlement import (
+              _strict_open_dates, _find_market_file, _market_rows,
+          )
 
-          # This is a rebuildable daily-open observation view, NOT a frozen
-          # selection or the auction-entry profit shadow ledger. Later raw-data
-          # writers can replace its inputs after Verify generated the view.
-          # Keep its existing as-of date; never advance it using wall-clock time.
-          summary = Path('outputs/decision/primary_observation/summary.json')
-          if summary.exists():
-              asof = json.loads(summary.read_bytes())['as_of_date']
+          def refresh_target(root, now):
+              # Writer-owned nightly P0/P1/candidate deployments all call this
+              # same reusable workflow. Bind the cutoff to their committed D,
+              # never to a guessed date or an unverified newer market file.
+              pointer = root / 'outputs/decision/primary_d_runtime_index.json'
+              summary = root / 'outputs/decision/primary_observation/summary.json'
+              previous = json.loads(summary.read_bytes())['as_of_date'] if summary.exists() else None
+              if not pointer.exists():
+                  return previous
+              index = json.loads(pointer.read_bytes())
+              validate_primary_d_runtime_index(index)
+              rebuilt = build_primary_d_runtime_index(root,
+                  receipt_path=root/index['latest_receipt_url'],
+                  runtime_path=root/index['latest_runtime_features_url'],
+                  three_rank_json_path=root/index['latest_three_rank_json_url'],
+                  three_rank_csv_path=root/index['latest_three_rank_csv_url'])
+              if rebuilt != index:
+                  raise ValueError('nightly statistics P0 source binding mismatch')
+              target = max(previous or '', index['latest_signal_date'])
+              close = datetime.strptime(target+'150000', '%Y%m%d%H%M%S').replace(tzinfo=ZoneInfo('Asia/Shanghai'))
+              if target not in _strict_open_dates(root) or now < close:
+                  raise ValueError('nightly statistics date is not a completed exchange session')
+              for name in ('daily', 'stk_limit'):
+                  path = _find_market_file(root, target, name)
+                  if path is None or not _market_rows(path, target):
+                      raise ValueError('nightly statistics missing close input: '+name)
+              return target
+
+          def refresh_statistics(root):
+              paths = [root/'outputs/decision/primary_observation'/name for name in ('summary.json','rows.csv')]
+              original = {p:p.read_bytes() if p.exists() else None for p in paths}
+              error = None
+              for attempt in range(2):
+                  try:
+                      target = refresh_target(root, datetime.now(ZoneInfo('Asia/Shanghai')))
+                      if target is None:
+                          return {'status':'NO_SOURCE','reason':'No frozen D or previous observation exists'}
+                      rebuild_and_validate(root, target)
+                      return {'status':'READY','as_of_date':target,'attempts':attempt+1}
+                  except Exception as exc:
+                      error = str(exc)
+                      # Only restore this disposable projection pair. Frozen
+                      # selections, historical ledgers and market sources stay untouched.
+                      for path, raw in original.items():
+                          if raw is None:
+                              path.unlink(missing_ok=True)
+                          else:
+                              path.parent.mkdir(parents=True,exist_ok=True)
+                              path.write_bytes(raw)
+                      if attempt == 0:
+                          time.sleep(2)
+              return {'status':'STALE_OR_UNAVAILABLE','attempts':2,'reason':error}
+
+          def rebuild_and_validate(root, asof):
               command = [sys.executable, 'scripts/settle_primary_observations.py',
-                         '--root', '.', '--as-of-date', asof]
-              subprocess.run(command, check=True)
-              subprocess.run(command + ['--validate-existing'], check=True)
+                         '--root', str(root), '--as-of-date', asof]
+              subprocess.run(command, check=True, timeout=180)
+              subprocess.run(command + ['--validate-existing'], check=True, timeout=180)
+
+          if __name__ == '__main__':
+              result = refresh_statistics(Path('.').resolve())
+              print(json.dumps({'nightly_next_day_statistics':result},ensure_ascii=False))
+              if result['status'] != 'READY':
+                  print('::warning::Next-day statistics not refreshed; publish rankings with explicit dated/unavailable statistics')
+              if os.environ.get('GITHUB_STEP_SUMMARY'):
+                  with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
+                      out.write('\n### Nightly next-day statistics\n'+json.dumps(result,ensure_ascii=False)+'\n')
           PY
 
       - name: Validate optional legacy-profit relative research chain

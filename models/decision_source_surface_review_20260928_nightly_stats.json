@@ -1,0 +1,226 @@
+{
+  "schema_version": "dc20_nightly_statistics_review_v1",
+  "approved_base_commit": "bc48a054ec1ffc903787dcc1445756be3cda31fd",
+  "scope": "NIGHTLY_VERIFIED_CLOSE_STATISTICS_NONBLOCKING",
+  "source_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 194522,
+      "current_bytes": 198460,
+      "baseline_sha256": "430cc7ebbdeadd2954d1fe049965e98c2a09edf7ca66f7fecfda402aca93c25f",
+      "current_sha256": "b5282a3c37fbc42d70e2249336a7bba2e0aba7a49fef9f31a8993d82ee5093b1",
+      "reason": "Bind next-day statistics cutoff to validated nightly D close; bounded retry and explicit nonblocking stale state. No frozen selections/model/fees/exits/cron changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 124,
+          "current_start": 124,
+          "baseline_lines": [],
+          "current_lines": [
+            "          import os\n"
+          ]
+        },
+        {
+          "baseline_start": 126,
+          "current_start": 127,
+          "baseline_lines": [],
+          "current_lines": [
+            "          import time\n",
+            "          from datetime import datetime\n"
+          ]
+        },
+        {
+          "baseline_start": 127,
+          "current_start": 130,
+          "baseline_lines": [],
+          "current_lines": [
+            "          from zoneinfo import ZoneInfo\n",
+            "          from scripts.publish_primary_three_rank import (\n",
+            "              build_primary_d_runtime_index, validate_primary_d_runtime_index,\n",
+            "          )\n",
+            "          from top10decision.decision.executable_profit_shadow_settlement import (\n",
+            "              _strict_open_dates, _find_market_file, _market_rows,\n",
+            "          )\n"
+          ]
+        },
+        {
+          "baseline_start": 128,
+          "current_start": 138,
+          "baseline_lines": [
+            "          # This is a rebuildable daily-open observation view, NOT a frozen\n",
+            "          # selection or the auction-entry profit shadow ledger. Later raw-data\n",
+            "          # writers can replace its inputs after Verify generated the view.\n",
+            "          # Keep its existing as-of date; never advance it using wall-clock time.\n",
+            "          summary = Path('outputs/decision/primary_observation/summary.json')\n",
+            "          if summary.exists():\n",
+            "              asof = json.loads(summary.read_bytes())['as_of_date']\n"
+          ],
+          "current_lines": [
+            "          def refresh_target(root, now):\n",
+            "              # Writer-owned nightly P0/P1/candidate deployments all call this\n",
+            "              # same reusable workflow. Bind the cutoff to their committed D,\n",
+            "              # never to a guessed date or an unverified newer market file.\n",
+            "              pointer = root / 'outputs/decision/primary_d_runtime_index.json'\n",
+            "              summary = root / 'outputs/decision/primary_observation/summary.json'\n",
+            "              previous = json.loads(summary.read_bytes())['as_of_date'] if summary.exists() else None\n",
+            "              if not pointer.exists():\n",
+            "                  return previous\n",
+            "              index = json.loads(pointer.read_bytes())\n",
+            "              validate_primary_d_runtime_index(index)\n",
+            "              rebuilt = build_primary_d_runtime_index(root,\n",
+            "                  receipt_path=root/index['latest_receipt_url'],\n",
+            "                  runtime_path=root/index['latest_runtime_features_url'],\n",
+            "                  three_rank_json_path=root/index['latest_three_rank_json_url'],\n",
+            "                  three_rank_csv_path=root/index['latest_three_rank_csv_url'])\n",
+            "              if rebuilt != index:\n",
+            "                  raise ValueError('nightly statistics P0 source binding mismatch')\n",
+            "              target = max(previous or '', index['latest_signal_date'])\n",
+            "              close = datetime.strptime(target+'150000', '%Y%m%d%H%M%S').replace(tzinfo=ZoneInfo('Asia/Shanghai'))\n",
+            "              if target not in _strict_open_dates(root) or now < close:\n",
+            "                  raise ValueError('nightly statistics date is not a completed exchange session')\n",
+            "              for name in ('daily', 'stk_limit'):\n",
+            "                  path = _find_market_file(root, target, name)\n",
+            "                  if path is None or not _market_rows(path, target):\n",
+            "                      raise ValueError('nightly statistics missing close input: '+name)\n",
+            "              return target\n",
+            "\n",
+            "          def refresh_statistics(root):\n",
+            "              paths = [root/'outputs/decision/primary_observation'/name for name in ('summary.json','rows.csv')]\n",
+            "              original = {p:p.read_bytes() if p.exists() else None for p in paths}\n",
+            "              error = None\n",
+            "              for attempt in range(2):\n",
+            "                  try:\n",
+            "                      target = refresh_target(root, datetime.now(ZoneInfo('Asia/Shanghai')))\n",
+            "                      if target is None:\n",
+            "                          return {'status':'NO_SOURCE','reason':'No frozen D or previous observation exists'}\n",
+            "                      rebuild_and_validate(root, target)\n",
+            "                      return {'status':'READY','as_of_date':target,'attempts':attempt+1}\n",
+            "                  except Exception as exc:\n",
+            "                      error = str(exc)\n",
+            "                      # Only restore this disposable projection pair. Frozen\n",
+            "                      # selections, historical ledgers and market sources stay untouched.\n",
+            "                      for path, raw in original.items():\n",
+            "                          if raw is None:\n",
+            "                              path.unlink(missing_ok=True)\n",
+            "                          else:\n",
+            "                              path.parent.mkdir(parents=True,exist_ok=True)\n",
+            "                              path.write_bytes(raw)\n",
+            "                      if attempt == 0:\n",
+            "                          time.sleep(2)\n",
+            "              return {'status':'STALE_OR_UNAVAILABLE','attempts':2,'reason':error}\n",
+            "\n",
+            "          def rebuild_and_validate(root, asof):\n"
+          ]
+        },
+        {
+          "baseline_start": 136,
+          "current_start": 193,
+          "baseline_lines": [
+            "                         '--root', '.', '--as-of-date', asof]\n",
+            "              subprocess.run(command, check=True)\n",
+            "              subprocess.run(command + ['--validate-existing'], check=True)\n"
+          ],
+          "current_lines": [
+            "                         '--root', str(root), '--as-of-date', asof]\n",
+            "              subprocess.run(command, check=True, timeout=180)\n",
+            "              subprocess.run(command + ['--validate-existing'], check=True, timeout=180)\n",
+            "\n",
+            "          if __name__ == '__main__':\n",
+            "              result = refresh_statistics(Path('.').resolve())\n",
+            "              print(json.dumps({'nightly_next_day_statistics':result},ensure_ascii=False))\n",
+            "              if result['status'] != 'READY':\n",
+            "                  print('::warning::Next-day statistics not refreshed; publish rankings with explicit dated/unavailable statistics')\n",
+            "              if os.environ.get('GITHUB_STEP_SUMMARY'):\n",
+            "                  with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:\n",
+            "                      out.write('\\n### Nightly next-day statistics\\n'+json.dumps(result,ensure_ascii=False)+'\\n')\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 508600,
+      "current_bytes": 509079,
+      "baseline_sha256": "bfa6af40f99c55450af2b9edf648c8aab1d8c4439a824f93044c660a3472e3cb",
+      "current_sha256": "29ef1dc72307e25528dfc16f7aaa6b4228d0e250eb40ece2b151fdf92ef4c199",
+      "reason": "Bind next-day statistics cutoff to validated nightly D close; bounded retry and explicit nonblocking stale state. No frozen selections/model/fees/exits/cron changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1903,
+          "current_start": 1903,
+          "baseline_lines": [
+            "      node.innerHTML = `<dl class=\"promotion-success-summary profit-next-day-summary\">${cards.join(\"\")}</dl><p class=\"stats-note\">D 2026-09-14起${performance?.status === \"ready\" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : \"\"} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;\n"
+          ],
+          "current_lines": [
+            "      const stale = loaded?.marketInputs && loaded.marketInputs.summary.as_of_date < loaded.marketInputs.payload?.report_signal_date;\n",
+            "      node.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary profit-next-day-summary\">${cards.join(\"\")}</dl><p class=\"stats-note\">D 2026-09-14起${performance?.status === \"ready\" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : \"\"} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2472,
+          "current_start": 2473,
+          "baseline_lines": [
+            "      els.compactStatisticsContent.innerHTML = `<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
+          ],
+          "current_lines": [
+            "      const stale = promotion && promotion.as_of_date < window.report_signal_date;\n",
+            "      els.compactStatisticsContent.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "9d5eb036dfa501e9fbef8e79a0eb50a3f4f70d3ce88163f938caf8b0ef94845d",
+      "current_sha256": "d2de62ce810df40d6c23f57c8e5cae5877301458c68ed7af2137e7b7dc02fd4e",
+      "reason": "Bind next-day statistics cutoff to validated nightly D close; bounded retry and explicit nonblocking stale state. No frozen selections/model/fees/exits/cron changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 632,
+          "current_start": 632,
+          "baseline_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"430cc7ebbdeadd2954d1fe049965e98c2a09edf7ca66f7fecfda402aca93c25f\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"b5282a3c37fbc42d70e2249336a7bba2e0aba7a49fef9f31a8993d82ee5093b1\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"bfa6af40f99c55450af2b9edf648c8aab1d8c4439a824f93044c660a3472e3cb\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"29ef1dc72307e25528dfc16f7aaa6b4228d0e250eb40ece2b151fdf92ef4c199\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "9154d7635201c9f399f1003f3f4944010d1876c33acd0330348ba853b8d8d524",
+      "current_sha256": "380b5435b998219bad1428d75b9ea281cc6734a6608f9dc4011d52f6a0ed1b1f",
+      "reason": "Bind next-day statistics cutoff to validated nightly D close; bounded retry and explicit nonblocking stale state. No frozen selections/model/fees/exits/cron changes.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"9d5eb036dfa501e9fbef8e79a0eb50a3f4f70d3ce88163f938caf8b0ef94845d\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"d2de62ce810df40d6c23f57c8e5cae5877301458c68ed7af2137e7b7dc02fd4e\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
