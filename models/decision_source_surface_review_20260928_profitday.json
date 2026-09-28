@@ -7,9 +7,9 @@
       "path": "decision.html",
       "baseline_exists": true,
       "baseline_bytes": 501807,
-      "current_bytes": 508579,
+      "current_bytes": 508600,
       "baseline_sha256": "2af770651afc557f2cb8e4706d28046cad1046c46f0fb60d0ea6fb591e16fd3c",
-      "current_sha256": "5c40487c0859d1a9a204fe91d1a2a020d13223bf936d6e3918b2316b1532b36c",
+      "current_sha256": "bfa6af40f99c55450af2b9edf648c8aab1d8c4439a824f93044c660a3472e3cb",
       "reason": "Independent new-model frozen Top1/Top2 T-close statistics from D20260914; no model, settlement, scheduling or source validation changes.",
       "inverse_changes": [
         {
@@ -123,7 +123,7 @@
             "      const cards = [1,2].map(rank => {\n",
             "        const c = performance?.status === \"ready\" && performance.cohorts.find(c => c.rank === rank);\n",
             "        return `<div><dt>盈${rank}</dt>${c ?\n",
-            "          `<dd class=\"market-metric\"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>\n",
+            "          `<dd class=\"market-metric\"><span>上涨率</span><strong class=\"success-rate\">${pct(c.upRate)}</strong></dd>\n",
             "          <dd class=\"market-metric\" title=\"按有有效成交行情及涨停价的T日样本，统计收盘封板比例\"><span>涨停率</span><strong>${pct(c.limitRate)}</strong></dd>\n",
             "          <dd class=\"market-metric\"><span>平均涨跌幅</span><strong class=\"${valueTone(c.mean)}\">${signedPct(c.mean)}</strong></dd>\n",
             "          <dd class=\"market-metric\"><span>中位涨跌幅</span><strong class=\"${valueTone(c.median)}\">${signedPct(c.median)}</strong></dd>` :\n",
@@ -158,7 +158,7 @@
       "baseline_bytes": 52795,
       "current_bytes": 52795,
       "baseline_sha256": "7b7dd032444c792a8411a9f4c9d7b588cfa4341dded14f33c591510adfa91d2d",
-      "current_sha256": "59c98146e97daf35ca04c8bda1d10d0e80a4c2d23155b9266745b43f01a79013",
+      "current_sha256": "9d5eb036dfa501e9fbef8e79a0eb50a3f4f70d3ce88163f938caf8b0ef94845d",
       "reason": "Independent new-model frozen Top1/Top2 T-close statistics from D20260914; no model, settlement, scheduling or source validation changes.",
       "inverse_changes": [
         {
@@ -168,7 +168,7 @@
             "    \"decision.html\": \"2af770651afc557f2cb8e4706d28046cad1046c46f0fb60d0ea6fb591e16fd3c\",\n"
           ],
           "current_lines": [
-            "    \"decision.html\": \"5c40487c0859d1a9a204fe91d1a2a020d13223bf936d6e3918b2316b1532b36c\",\n"
+            "    \"decision.html\": \"bfa6af40f99c55450af2b9edf648c8aab1d8c4439a824f93044c660a3472e3cb\",\n"
           ]
         }
       ]
@@ -179,7 +179,7 @@
       "baseline_bytes": 16204,
       "current_bytes": 16204,
       "baseline_sha256": "f6f2628e6a3922be2c15807a47c9e9af3ac323a99b1c3a2cc8f54ac81543d065",
-      "current_sha256": "464dd798bf9ca4c0977e0886d2b6794f004dea83ad0c2bae8f5ff597ad96aef1",
+      "current_sha256": "9154d7635201c9f399f1003f3f4944010d1876c33acd0330348ba853b8d8d524",
       "reason": "Independent new-model frozen Top1/Top2 T-close statistics from D20260914; no model, settlement, scheduling or source validation changes.",
       "inverse_changes": [
         {
@@ -189,7 +189,7 @@
             "      \"sha256\": \"7b7dd032444c792a8411a9f4c9d7b588cfa4341dded14f33c591510adfa91d2d\",\n"
           ],
           "current_lines": [
-            "      \"sha256\": \"59c98146e97daf35ca04c8bda1d10d0e80a4c2d23155b9266745b43f01a79013\",\n"
+            "      \"sha256\": \"9d5eb036dfa501e9fbef8e79a0eb50a3f4f70d3ce88163f938caf8b0ef94845d\",\n"
           ]
         }
       ]

@@ -46,6 +46,7 @@ renderProfitNextDayStatistics();console.log(JSON.stringify(document.getElementBy
     assert r.count('上涨率')==r.count('涨停率')==r.count('平均涨跌幅')==r.count('中位涨跌幅')==2
     assert 'D 2026-09-14起' in r and '盈1' in r and '盈2' in r
     assert '70.00%' in r and '+5.81%' in r and '(7/10)' not in r
+    assert r.count('<strong class="success-rate">70.00%</strong>') == 2
 
 
 @pytest.mark.parametrize('mode',['ok','sha','unbound'])

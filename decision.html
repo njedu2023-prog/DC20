@@ -1894,7 +1894,7 @@
       const cards = [1,2].map(rank => {
         const c = performance?.status === "ready" && performance.cohorts.find(c => c.rank === rank);
         return `<div><dt>盈${rank}</dt>${c ?
-          `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>
+          `<dd class="market-metric"><span>上涨率</span><strong class="success-rate">${pct(c.upRate)}</strong></dd>
           <dd class="market-metric" title="按有有效成交行情及涨停价的T日样本，统计收盘封板比例"><span>涨停率</span><strong>${pct(c.limitRate)}</strong></dd>
           <dd class="market-metric"><span>平均涨跌幅</span><strong class="${valueTone(c.mean)}">${signedPct(c.mean)}</strong></dd>
           <dd class="market-metric"><span>中位涨跌幅</span><strong class="${valueTone(c.median)}">${signedPct(c.median)}</strong></dd>` :

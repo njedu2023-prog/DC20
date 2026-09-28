@@ -390,7 +390,7 @@ OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda
 
 def _profit_next_day_previous(path, raw):
     review_raw = (ROOT / 'models/decision_source_surface_review_20260928_profitday.json').read_bytes()
-    assert hashlib.sha256(review_raw).hexdigest() == '785b30a7831ec9119733183acd4c4df482e45c9249d265fca1a7f7310496657b'
+    assert hashlib.sha256(review_raw).hexdigest() == '4294a635560df3b6d8dcdb412109a00698f6c7da3f915eccd927520cee65d61e'
     review = json.loads(review_raw)
     assert review['approved_base_commit'] == '3546ffc41589b4bd93bea3569885abb5d5f623c2'
     assert review['scope'] == 'OPTIONAL_FROZEN_PROFIT_T_CLOSE_FROM_D20260914'
