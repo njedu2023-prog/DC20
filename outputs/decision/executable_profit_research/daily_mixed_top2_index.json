@@ -831,12 +831,53 @@
       "source_bundle_sha256": "4e236e3a0a490a7846011c0005e3d56b37958053c538b5db81f4e51245159250",
       "source_feature_snapshot_sha256": "61c6428e9881e61b14307ee8713b016ad569c018beb7a76a2b37cf98cd007542",
       "top10_members_sha256": "782e4cd8792018bbc1231107cac107d291ab183d7c80f1cb3865f0eaac4ea2c8"
+    },
+    {
+      "candidate_count": 6,
+      "entry_sha256": "1d516b47b4aedbf76810dcb7263ab71160099be938e2bb987797ed9b90fc82fa",
+      "exec_date": "20260929",
+      "exit_date": "20260930",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "597e20abd5cee9ae5db3716262b4f32b0c089a0858a1d85d11490795701f2a78",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260928.csv",
+      "projection_json_sha256": "6cd58c054491f9e02537c5daa1dbb88295ecbcac24ea595b26083ccde6322817",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260928.json",
+      "projection_snapshot_sha256": "94bc12f10615dbf33a6f9560eaa1ba1166811a3723a478f403ced7ff47966720",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "光伏设备",
+          "mixed_profit_rank": 1,
+          "name": "金辰股份",
+          "promotion_rank": 3,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "603396.SH"
+        },
+        {
+          "industry": "汽车零部件",
+          "mixed_profit_rank": 2,
+          "name": "雪龙集团",
+          "promotion_rank": 1,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "603949.SH"
+        }
+      ],
+      "signal_date": "20260928",
+      "source_bundle_sha256": "cfdc70238a2238e129f2d87df4cc312970fdabe6eb5d08bd2a533390f8886e72",
+      "source_feature_snapshot_sha256": "27d4f157fcbbdea552faa7b31086b0ff0d485ed940f00aeee19d6523477e5d01",
+      "top10_members_sha256": "daba86dc98cb13f0745d8a0d2f2294d9463fcd24f80bef4c08d1ebb5c89e586f"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260924",
+  "latest_signal_date": "20260928",
   "public_start_signal_date": "20260828",
-  "recorded_days": 20,
+  "recorded_days": 21,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -857,9 +898,10 @@
     "20260921",
     "20260922",
     "20260923",
-    "20260924"
+    "20260924",
+    "20260928"
   ],
-  "recorded_slots": 40,
+  "recorded_slots": 42,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "cfe57da885d2efb03073841cc6f8e01297cacfa23321e81f42d0782bccf6206b"
+  "snapshot_sha256": "f1ec9e8a9b5836332d2b68e45d49f37eb7f02b5baba70eaca1d30b108145529a"
 }
