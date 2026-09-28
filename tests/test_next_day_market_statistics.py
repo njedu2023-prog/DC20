@@ -95,7 +95,7 @@ renderCompactDashboard();console.log(JSON.stringify(els.compactStatisticsContent
     assert '(1/1)' not in r and '(0/0)' not in r
     assert '有效 1 · 待验证 0 · 缺行情 0' not in r
     assert '次日涨跌幅＝' not in r
-    assert '<h2 id="compactStatisticsTitle">晋级表现</h2>' in (ROOT/'decision.html').read_text()
+    assert '<h2 id="compactStatisticsTitle">晋级次日表现</h2>' in (ROOT/'decision.html').read_text()
 
 
 def test_optional_async_is_not_awaited_and_production_backend_unchanged():
