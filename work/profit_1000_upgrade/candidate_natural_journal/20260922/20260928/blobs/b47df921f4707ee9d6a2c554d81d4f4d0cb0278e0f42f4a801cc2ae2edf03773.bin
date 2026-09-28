@@ -1,0 +1,50 @@
+{
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "amount_unit": "CNY",
+  "api_code": 0,
+  "basis": "POSTHOC_ENTRY_PRICE_CHECK_NOT_PRE0925_FEATURE",
+  "credential_persisted": false,
+  "data_sha256": "202923cc701dca7234889e5bb4252789e84d132a81eb6d37bc97e875bb723820",
+  "diagnostic_table_imported": false,
+  "event_semantics": "CANONICAL_OPENING_AUCTION_AVAILABLE_0926_0929",
+  "fetched_at_utc": "2026-09-23T07:54:42.497331+00:00",
+  "full_response_envelope_retained": false,
+  "http_response_bytes": 254,
+  "http_response_sha256": "323a542df4276786cc0e16114e020f4ca883ae66ad3b923291c4df897209255d",
+  "immutable": true,
+  "ingestion": "ORIGINAL_HTTP_RESPONSE_ONLY",
+  "known_before_0925": false,
+  "network_request_performed": true,
+  "numeric_qualification_scope": "REQUESTED_CANDIDATE_ONLY",
+  "old_codec_sha256": "b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af",
+  "price_reporting_precision_confirmed": false,
+  "price_unit": "CNY_PER_SHARE",
+  "production_activation_allowed": false,
+  "production_integrated": false,
+  "reported_price_preserved": true,
+  "request": {
+    "api_name": "stk_auction",
+    "fields": [
+      "ts_code",
+      "trade_date",
+      "price",
+      "vol",
+      "amount",
+      "pre_close"
+    ],
+    "params": {
+      "trade_date": "20260923",
+      "ts_code": "600825.SH"
+    }
+  },
+  "research_only": true,
+  "rows": 1,
+  "schema_version": "dc20_research_canonical_auction_source_v3",
+  "server_messages_persisted": false,
+  "source": "tushare:stk_auction",
+  "source_policy_id": "dc20_research_canonical_price_capacity_split_20260912_v3",
+  "status": "CANONICAL_TABLE_PRESENT",
+  "trade_date": "20260923",
+  "volume_unit": "SHARES"
+}
