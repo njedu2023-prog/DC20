@@ -50,7 +50,7 @@ def fixed_promotion_fixture():
 def run(body, data=None, extra=""):
     names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "compactStatisticsWindowView", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus", "valueTone",
-             "sha256Hex", "isSha256", "parseStrictCsvBytes", "renderNextDayMarketMetrics"]
+             "sha256Hex", "isSha256", "parseStrictCsvBytes", "renderNextDayMarketMetrics", "renderProfitNextDayStatistics"]
     prelude = """
 const fs=require('fs'),vm=require('vm');
 const PUBLIC_STATISTICS_START_SIGNAL_DATE='20260828';

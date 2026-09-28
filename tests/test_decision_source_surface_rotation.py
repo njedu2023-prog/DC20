@@ -388,7 +388,18 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _profit_next_day_previous(path, raw):
+    review_raw = (ROOT / 'models/decision_source_surface_review_20260928_profitday.json').read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == '44121583db0fafdf88621e560783749daf8b1a86ce6d615a078cb7a8a276c135'
+    review = json.loads(review_raw)
+    assert review['approved_base_commit'] == '3546ffc41589b4bd93bea3569885abb5d5f623c2'
+    assert review['scope'] == 'OPTIONAL_FROZEN_PROFIT_T_CLOSE_FROM_D20260914'
+    item = next((x for x in review['source_changes'] if x['path'] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
 def _market_statistics_previous(path, raw):
+    raw = _profit_next_day_previous(path, raw)
     review_raw = (ROOT / 'models/decision_source_surface_review_20260927_market.json').read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == '54c60392c21f0573f98bdb409de127a4f9ee35771be1c262a8ad7beedc8c3cca'
     review = json.loads(review_raw)

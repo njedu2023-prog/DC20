@@ -1211,6 +1211,7 @@
     .ledger-detail-link:focus-visible { outline:2px solid #17675a; outline-offset:4px; border-radius:3px; }
     #compactLedger .profit-summary-table th:first-child, #compactLedger .profit-summary-table td:first-child { min-width: 72px; }
     .promotion-success-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+    .profit-next-day-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
     .promotion-success-summary > div:last-child { border-right: 0; }
     .promotion-success-summary dt { font-size: 14px; font-weight: 700; }
@@ -1346,6 +1347,10 @@
     <section id="compactStatistics" class="panel" aria-labelledby="compactStatisticsTitle">
       <div class="panel-head"><h2 id="compactStatisticsTitle">晋级表现</h2><span class="count">晋1 / 晋2 / 晋3 / 全名单</span></div>
       <div id="compactStatisticsContent"><div class="empty">正在校验晋级结果。</div></div>
+    </section>
+    <section id="profitNextDay" class="panel" aria-labelledby="profitNextDayTitle">
+      <div class="panel-head"><h2 id="profitNextDayTitle">盈利次日表现</h2><span class="count">盈1 / 盈2</span></div>
+      <div id="profitNextDayContent"><div class="empty">正在校验次日行情。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
 
@@ -1812,6 +1817,90 @@
       return `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>
         <dd class="market-metric"><span>平均涨跌幅</span><strong class="${tone(c.mean)}">${signedPct(c.mean)}</strong></dd>
         <dd class="market-metric"><span>中位涨跌幅</span><strong class="${tone(c.median)}">${signedPct(c.median)}</strong></dd>`;
+    }
+
+    // Independent descriptive panel: frozen new-model selections, not shadow returns.
+    function profitNextDayStatistics(rows, reportDate, asOf, daily, limits) {
+      const cohorts = nextDayMarketStatistics(rows, "20260914", reportDate, asOf, daily).slice(0, 2);
+      for (const c of cohorts) {
+        let verified = 0, hits = 0;
+        for (const row of rows.filter(r => Number(r.promotion_rank) === c.rank && r.signal_date >= "20260914"
+            && r.signal_date <= reportDate && r.signal_date <= asOf && r.exec_date <= asOf)) {
+          const quotes = (daily.get(row.exec_date) || []).filter(q => q.ts_code === row.ts_code && q.trade_date === row.exec_date);
+          const bands = (limits.get(row.exec_date) || []).filter(q => q.ts_code === row.ts_code && q.trade_date === row.exec_date);
+          const q = quotes.length === 1 ? quotes[0] : null, band = bands.length === 1 ? bands[0] : null;
+          if (!q || !band || ![q.close,q.pre_close,q.vol,band.up_limit].every(v => Number.isFinite(Number(v)) && Number(v) > 0)) continue;
+          verified++;
+          // Compare exchange prices at cent precision; never infer limit-up from +10%.
+          hits += Number(Math.round(Number(q.close)*100) === Math.round(Number(band.up_limit)*100));
+        }
+        c.limitVerified = verified; c.limitHits = hits; c.limitRate = verified ? hits / verified : null;
+      }
+      return cohorts;
+    }
+
+    async function loadProfitNextDayStatistics(active, inputs) {
+      const {payload, summary} = inputs;
+      const rows = [];
+      await Promise.all(active.index.days.filter(d => d.signal_date >= "20260914" && d.signal_date <= payload.report_signal_date
+        && d.signal_date <= summary.as_of_date).map(async entry => {
+        const path = `outputs/decision/three_rank_top10_${entry.signal_date}.json`;
+        const p0 = (await fetchPagesOnlyShaBoundJson(path, entry.p0_file_sha256, "盈利次日原名单")).payload;
+        executableProfitExpect(p0.signal_date === entry.signal_date, "盈利次日D身份不一致");
+        const loaded = await loadCandidateProfitDay({signal_date:p0.signal_date,exec_date:p0.exec_date,exit_date:p0.exit_date,
+          three_rank:p0,three_rank_source_index:{json_path:path,json_sha256:entry.p0_file_sha256}});
+        executableProfitExpect(loaded.activation === active.config, "盈利次日加载版本已改变");
+        for (const slot of loaded.projection.candidate_slots) {
+          rows.push({signal_date:p0.signal_date,exec_date:p0.exec_date,ts_code:slot.ts_code,promotion_rank:slot.slot});
+        }
+      }));
+      const daily = new Map(), limits = new Map();
+      const dates = [...new Set(rows.filter(r => r.exec_date <= summary.as_of_date).map(r => r.exec_date))];
+      await Promise.all(dates.flatMap(day => [["daily",daily,["close","pre_close","vol"]],["stk_limit",limits,["up_limit"]]].map(async ([name, table, fields]) => {
+        const path = `data/market/raw/${day.slice(0,4)}/${day}/${name}.csv`;
+        const bindings = payload.source_files.filter(b => b.path === path);
+        if (!bindings.length) return;
+        executableProfitExpect(bindings.length === 1, "盈利次日行情绑定重复");
+        const bytes = await fetchPagesOnlyPath(path, "bytes");
+        executableProfitExpect(await sha256Hex(bytes) === bindings[0].sha256, "盈利次日行情SHA不一致");
+        table.set(day, parseStrictCsvBytes(bytes,["ts_code","trade_date",...fields],"盈利次日行情"));
+      })));
+      return profitNextDayStatistics(rows, payload.report_signal_date, summary.as_of_date, daily, limits);
+    }
+
+    async function refreshProfitNextDayStatistics(loaded, active) {
+      const performance = {status:"loading",active};
+      loaded.profitNextDay = performance;
+      const current = () => state.currentCompactStatisticsWindow === loaded && state.candidateProfitActivation === active
+        && !state.compactFatalError && loaded.profitNextDay === performance;
+      let timer;
+      try {
+        const cohorts = await Promise.race([loadProfitNextDayStatistics(active, loaded.marketInputs),
+          new Promise((_,reject) => { timer=setTimeout(() => reject(new Error("盈利次日行情加载超时")),20000); })]);
+        if (current()) Object.assign(performance,{status:"ready",cohorts});
+      } catch (error) {
+        if (current()) Object.assign(performance,{status:"unavailable",reason:String(error?.message || error)});
+      } finally { clearTimeout(timer); }
+      if (current()) renderProfitNextDayStatistics();
+    }
+
+    function renderProfitNextDayStatistics() {
+      const node = document.getElementById("profitNextDayContent");
+      if (!node) return;
+      const loaded = state.currentCompactStatisticsWindow, active = state.candidateProfitActivation;
+      if (loaded?.marketInputs && active?.status === "ready" && loaded.profitNextDay?.active !== active)
+        void refreshProfitNextDayStatistics(loaded,active);
+      const performance = loaded?.profitNextDay?.active === active ? loaded?.profitNextDay : null;
+      const cards = [1,2].map(rank => {
+        const c = performance?.status === "ready" && performance.cohorts.find(c => c.rank === rank);
+        return `<div><dt>盈${rank}</dt>${c ?
+          `<dd class="market-metric"><span>上涨率</span><strong>${pct(c.upRate)}</strong></dd>
+          <dd class="market-metric" title="按有有效成交行情及涨停价的T日样本，统计收盘封板比例"><span>涨停率</span><strong>${pct(c.limitRate)}</strong></dd>
+          <dd class="market-metric"><span>平均涨跌幅</span><strong class="${valueTone(c.mean)}">${signedPct(c.mean)}</strong></dd>
+          <dd class="market-metric"><span>中位涨跌幅</span><strong class="${valueTone(c.median)}">${signedPct(c.median)}</strong></dd>` :
+          `<dd class="success-sample">${performance?.status === "loading" ? "次日行情加载中" : "次日行情暂不可用"}</dd>`}</div>`;
+      });
+      node.innerHTML = `<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl><p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
     }
 
     async function refreshCompactStatisticsWindow() {
@@ -2357,9 +2446,10 @@
         const panel = document.getElementById(id);
         if (panel) panel.hidden = !research || state.index !== 0;
       }
-      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics"]) document.getElementById(id).hidden = research;
+      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics", "profitNextDay"]) document.getElementById(id).hidden = research;
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
       const window = compactStatisticsWindowView();
+      renderProfitNextDayStatistics();
       const profit = window?.profit?.status === "READY" ? window.profit : null;
       const source = window && state.currentCompactStatisticsWindow.profitSource;
       els.compactLedgerState.textContent = `D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起 · 最新累计` + (profit ? ` · 截至 ${dateText(profit.as_of_date)} · ${profit.recorded_days}日 / ${profit.recorded_slots}席` : " · 统计窗口待验证");
