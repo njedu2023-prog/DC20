@@ -3,19 +3,19 @@
   "scope": "frozen_primary_topn",
   "public_start_signal_date": "20260828",
   "status": "PARTIAL_TRUTH",
-  "as_of_date": "20260928",
-  "latest_signal_date": "20260928",
-  "latest_exec_date": "20260929",
-  "latest_exit_date": "20260930",
+  "as_of_date": "20260929",
+  "latest_signal_date": "20260929",
+  "latest_exec_date": "20260930",
+  "latest_exit_date": "20261008",
   "statistics": {
-    "observation_dates": 19,
-    "observation_rows": 161,
+    "observation_dates": 20,
+    "observation_rows": 168,
     "path_performance": {
       "分歧回封": {
         "label": "分歧回封",
-        "t_validated_rows": 23,
-        "continuation_hit_rate": 0.17391304347826086,
-        "final_verified_trades": 18,
+        "t_validated_rows": 25,
+        "continuation_hit_rate": 0.2,
+        "final_verified_trades": 20,
         "mean_final_net_return": null,
         "win_rate": null
       },
@@ -23,14 +23,14 @@
         "label": "加速一致",
         "t_validated_rows": 51,
         "continuation_hit_rate": 0.45098039215686275,
-        "final_verified_trades": 35,
+        "final_verified_trades": 37,
         "mean_final_net_return": null,
         "win_rate": null
       },
       "弱转强": {
         "label": "弱转强",
-        "t_validated_rows": 18,
-        "continuation_hit_rate": 0.3888888888888889,
+        "t_validated_rows": 19,
+        "continuation_hit_rate": 0.3684210526315789,
         "final_verified_trades": 14,
         "mean_final_net_return": null,
         "win_rate": null
@@ -39,13 +39,13 @@
         "label": "强转弱",
         "t_validated_rows": 15,
         "continuation_hit_rate": 0.4666666666666667,
-        "final_verified_trades": 13,
+        "final_verified_trades": 14,
         "mean_final_net_return": null,
         "win_rate": null
       },
       "持续强势": {
         "label": "持续强势",
-        "t_validated_rows": 28,
+        "t_validated_rows": 30,
         "continuation_hit_rate": 0.5,
         "final_verified_trades": 18,
         "mean_final_net_return": null,
@@ -53,51 +53,51 @@
       },
       "路径混合": {
         "label": "路径混合",
-        "t_validated_rows": 20,
-        "continuation_hit_rate": 0.3,
-        "final_verified_trades": 15,
+        "t_validated_rows": 21,
+        "continuation_hit_rate": 0.2857142857142857,
+        "final_verified_trades": 18,
         "mean_final_net_return": null,
         "win_rate": null
       }
     },
-    "premarket_valid_rows": 161,
-    "t_validated_rows": 155,
-    "t_pending_rows": 6,
-    "pending_t_rows": 6,
-    "pending_t1_rows": 9,
+    "premarket_valid_rows": 168,
+    "t_validated_rows": 161,
+    "t_pending_rows": 7,
+    "pending_t_rows": 7,
+    "pending_t1_rows": 6,
     "missing_t_truth_rows": 0,
     "missing_t1_truth_rows": 0,
-    "unresolved_exit_rows": 2,
+    "unresolved_exit_rows": 1,
     "pending_exit_rows": 0,
     "excluded_retrospective_rows": 20,
-    "final_verified_trades": 113,
-    "daily_open_proxy_truth_rows": 155,
-    "matured_portfolio_dates": 16,
-    "continuation_hit_rate": 0.3935483870967742,
+    "final_verified_trades": 121,
+    "daily_open_proxy_truth_rows": 161,
+    "matured_portfolio_dates": 17,
+    "continuation_hit_rate": 0.391304347826087,
     "stage_2_to_3": {
-      "samples": 110,
-      "hits": 40,
-      "hit_rate": 0.36363636363636365
+      "samples": 113,
+      "hits": 41,
+      "hit_rate": 0.36283185840707965
     },
     "stage_3_to_4": {
-      "samples": 45,
-      "hits": 21,
-      "hit_rate": 0.4666666666666667
+      "samples": 48,
+      "hits": 22,
+      "hit_rate": 0.4583333333333333
     },
     "top1_continuation": {
-      "samples": 18,
-      "hits": 10,
-      "hit_rate": 0.5555555555555556
+      "samples": 19,
+      "hits": 11,
+      "hit_rate": 0.5789473684210527
     },
     "top3_continuation": {
-      "samples": 54,
-      "hits": 29,
-      "hit_rate": 0.5370370370370371
+      "samples": 57,
+      "hits": 30,
+      "hit_rate": 0.5263157894736842
     },
-    "market_positive_rate": 0.6,
-    "mean_market_daily_return": 0.024548292929181016,
-    "mean_t_observation_return": -0.00551636022556836,
-    "observation_fill_rate": 0.7870967741935484,
+    "market_positive_rate": 0.5962732919254659,
+    "mean_market_daily_return": 0.02392310782906759,
+    "mean_t_observation_return": -0.005722221544767667,
+    "observation_fill_rate": 0.782608695652174,
     "final_win_rate": null,
     "mean_final_net_return": null,
     "median_final_net_return": null,
@@ -116,29 +116,29 @@
     "return_statistics_scope": "SEPARATE_EXIT_POLICIES",
     "return_statistics_by_exit_policy": {
       "dc20_exit_1000_limit_hold_20260912_v1": {
-        "observation_dates": 12,
-        "observation_rows": 99,
+        "observation_dates": 13,
+        "observation_rows": 106,
         "path_performance": {
           "分歧回封": {
             "label": "分歧回封",
-            "t_validated_rows": 14,
-            "continuation_hit_rate": 0.2857142857142857,
-            "final_verified_trades": 10,
-            "mean_final_net_return": -0.03266177388405602,
-            "win_rate": 0.3
+            "t_validated_rows": 16,
+            "continuation_hit_rate": 0.3125,
+            "final_verified_trades": 12,
+            "mean_final_net_return": -0.029927082756221014,
+            "win_rate": 0.3333333333333333
           },
           "加速一致": {
             "label": "加速一致",
             "t_validated_rows": 27,
             "continuation_hit_rate": 0.5555555555555556,
-            "final_verified_trades": 16,
-            "mean_final_net_return": -0.03002643030004151,
-            "win_rate": 0.375
+            "final_verified_trades": 18,
+            "mean_final_net_return": -0.0429574719376297,
+            "win_rate": 0.3333333333333333
           },
           "弱转强": {
             "label": "弱转强",
-            "t_validated_rows": 13,
-            "continuation_hit_rate": 0.3076923076923077,
+            "t_validated_rows": 14,
+            "continuation_hit_rate": 0.2857142857142857,
             "final_verified_trades": 10,
             "mean_final_net_return": -0.056931448195266215,
             "win_rate": 0.2
@@ -147,71 +147,71 @@
             "label": "强转弱",
             "t_validated_rows": 8,
             "continuation_hit_rate": 0.625,
-            "final_verified_trades": 7,
-            "mean_final_net_return": 0.06789539707415157,
-            "win_rate": 0.7142857142857143
+            "final_verified_trades": 8,
+            "mean_final_net_return": 0.061848975442885645,
+            "win_rate": 0.75
           },
           "持续强势": {
             "label": "持续强势",
-            "t_validated_rows": 14,
-            "continuation_hit_rate": 0.5714285714285714,
+            "t_validated_rows": 16,
+            "continuation_hit_rate": 0.5625,
             "final_verified_trades": 8,
             "mean_final_net_return": -0.04407643469688326,
             "win_rate": 0.125
           },
           "路径混合": {
             "label": "路径混合",
-            "t_validated_rows": 17,
-            "continuation_hit_rate": 0.29411764705882354,
-            "final_verified_trades": 13,
-            "mean_final_net_return": 0.059851445632467394,
-            "win_rate": 0.6923076923076923
+            "t_validated_rows": 18,
+            "continuation_hit_rate": 0.2777777777777778,
+            "final_verified_trades": 16,
+            "mean_final_net_return": 0.02749287908597154,
+            "win_rate": 0.5625
           }
         },
-        "premarket_valid_rows": 99,
-        "t_validated_rows": 93,
-        "t_pending_rows": 6,
-        "pending_t_rows": 6,
-        "pending_t1_rows": 9,
+        "premarket_valid_rows": 106,
+        "t_validated_rows": 99,
+        "t_pending_rows": 7,
+        "pending_t_rows": 7,
+        "pending_t1_rows": 6,
         "missing_t_truth_rows": 0,
         "missing_t1_truth_rows": 0,
-        "unresolved_exit_rows": 2,
+        "unresolved_exit_rows": 1,
         "pending_exit_rows": 0,
         "excluded_retrospective_rows": 0,
-        "final_verified_trades": 64,
-        "daily_open_proxy_truth_rows": 93,
-        "matured_portfolio_dates": 9,
-        "continuation_hit_rate": 0.44086021505376344,
+        "final_verified_trades": 72,
+        "daily_open_proxy_truth_rows": 99,
+        "matured_portfolio_dates": 10,
+        "continuation_hit_rate": 0.43434343434343436,
         "stage_2_to_3": {
-          "samples": 65,
-          "hits": 27,
-          "hit_rate": 0.4153846153846154
+          "samples": 68,
+          "hits": 28,
+          "hit_rate": 0.4117647058823529
         },
         "stage_3_to_4": {
-          "samples": 28,
-          "hits": 14,
-          "hit_rate": 0.5
+          "samples": 31,
+          "hits": 15,
+          "hit_rate": 0.4838709677419355
         },
         "top1_continuation": {
-          "samples": 11,
-          "hits": 7,
-          "hit_rate": 0.6363636363636364
+          "samples": 12,
+          "hits": 8,
+          "hit_rate": 0.6666666666666666
         },
         "top3_continuation": {
-          "samples": 33,
-          "hits": 19,
-          "hit_rate": 0.5757575757575758
+          "samples": 36,
+          "hits": 20,
+          "hit_rate": 0.5555555555555556
         },
-        "market_positive_rate": 0.6021505376344086,
-        "mean_market_daily_return": 0.02665120424005913,
-        "mean_t_observation_return": -0.0014769673117804073,
-        "observation_fill_rate": 0.7849462365591398,
-        "final_win_rate": 0.40625,
-        "mean_final_net_return": -0.007431718912934617,
-        "median_final_net_return": -0.03347939478821826,
+        "market_positive_rate": 0.5959595959595959,
+        "mean_market_daily_return": 0.02550703990689216,
+        "mean_t_observation_return": -0.002056563573132086,
+        "observation_fill_rate": 0.7777777777777778,
+        "final_win_rate": 0.3888888888888889,
+        "mean_final_net_return": -0.01555010525779285,
+        "median_final_net_return": -0.042219302571385835,
         "worst_final_net_return": -0.3204922928709057,
-        "tail_10pct_mean_return": -0.1933045139441469,
-        "profit_factor": 0.866047570408155,
+        "tail_10pct_mean_return": -0.19207734681335442,
+        "profit_factor": 0.7385143086704924,
         "equal_slot_cumulative_return": null,
         "equal_slot_max_drawdown": null,
         "portfolio_curve_reason": "UNRESOLVED_OR_MISSING_MATURE_TRUTH",
@@ -261,6 +261,11 @@
             "signal_date": "20260922",
             "exec_date": "20260923",
             "equal_slot_net_return": -0.012799159199532882
+          },
+          {
+            "signal_date": "20260923",
+            "exec_date": "20260924",
+            "equal_slot_net_return": -0.06744698759518092
           }
         ]
       },
@@ -644,13 +649,13 @@
       "exit_date": "20260928",
       "rows": 10,
       "t_validated_rows": 10,
-      "final_verified_trades": 6,
+      "final_verified_trades": 8,
       "pending_t_rows": 0,
       "pending_t1_rows": 0,
       "missing_t_truth_rows": 0,
       "missing_t1_truth_rows": 0,
-      "unresolved_exit_rows": 2,
-      "settled_rows": 8,
+      "unresolved_exit_rows": 0,
+      "settled_rows": 10,
       "pending_exit_rows": 0
     },
     {
@@ -659,13 +664,13 @@
       "exit_date": "20260929",
       "rows": 9,
       "t_validated_rows": 9,
-      "final_verified_trades": 0,
+      "final_verified_trades": 6,
       "pending_t_rows": 0,
-      "pending_t1_rows": 9,
+      "pending_t1_rows": 0,
       "missing_t_truth_rows": 0,
       "missing_t1_truth_rows": 0,
-      "unresolved_exit_rows": 0,
-      "settled_rows": 0,
+      "unresolved_exit_rows": 1,
+      "settled_rows": 8,
       "pending_exit_rows": 0
     },
     {
@@ -673,9 +678,24 @@
       "exec_date": "20260929",
       "exit_date": "20260930",
       "rows": 6,
+      "t_validated_rows": 6,
+      "final_verified_trades": 0,
+      "pending_t_rows": 0,
+      "pending_t1_rows": 6,
+      "missing_t_truth_rows": 0,
+      "missing_t1_truth_rows": 0,
+      "unresolved_exit_rows": 0,
+      "settled_rows": 0,
+      "pending_exit_rows": 0
+    },
+    {
+      "signal_date": "20260929",
+      "exec_date": "20260930",
+      "exit_date": "20261008",
+      "rows": 7,
       "t_validated_rows": 0,
       "final_verified_trades": 0,
-      "pending_t_rows": 6,
+      "pending_t_rows": 7,
       "pending_t1_rows": 0,
       "missing_t_truth_rows": 0,
       "missing_t1_truth_rows": 0,
@@ -1229,6 +1249,32 @@
         "latest_three_rank_csv_url": "outputs/decision/three_rank_top10_20260928.csv",
         "latest_three_rank_csv_sha256": "26176573f71467de0f80edeabceb23d8f286b8c05bcd39ae3738d2ac2239ef62",
         "latest_bundle_sha256": "cfdc70238a2238e129f2d87df4cc312970fdabe6eb5d08bd2a533390f8886e72"
+      }
+    },
+    {
+      "signal_date": "20260929",
+      "status": "PROSPECTIVE",
+      "p0": {
+        "schema_version": "dc20_primary_d_runtime_index_v1",
+        "index_kind": "dated_primary_d_runtime_pointer_only",
+        "data_alias": false,
+        "latest_signal_date": "20260929",
+        "latest_exec_date": "20260930",
+        "latest_exit_date": "20261008",
+        "latest_receipt_url": "outputs/decision/primary_d_receipt_20260929.json",
+        "latest_receipt_sha256": "0572cf37390344ebf147214d56d537336e98f76700ca08ce755715c9c1a5c1ff",
+        "latest_runtime_features_url": "outputs/decision/primary_d_runtime_features_20260929.csv",
+        "latest_runtime_features_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+        "runtime_feature_row_count": 7,
+        "runtime_selected_count": 7,
+        "runtime_identity_sha256": "1b5315e1b61d21fe4d08758b41d140135ae1d49eb937f8a823a79d062e99b34f",
+        "latest_feature_snapshot_sha256": "1f8e7bf3eac844693c1571b08db9a17111615e25d920d84e9a1de869eefcf3a2",
+        "latest_top10_members_sha256": "8e03fec8f789bc552603f59d07cb38a269434b347bef6ebfb7eac6eee142a990",
+        "latest_three_rank_json_url": "outputs/decision/three_rank_top10_20260929.json",
+        "latest_three_rank_json_sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd",
+        "latest_three_rank_csv_url": "outputs/decision/three_rank_top10_20260929.csv",
+        "latest_three_rank_csv_sha256": "4c2c3108519f3245d5b4ccc8208d99ca01846f0a98cfeb5378ba681f6b45b888",
+        "latest_bundle_sha256": "9d896691ef06ead7bb47fe8a612a245d9e97b4bfd9b2985cadfe8ca7c38718e5"
       }
     }
   ],
@@ -1822,6 +1868,70 @@
       "sha256": "a3634523aa4ae1e906e1bfd39bcab8d987841caa1fd8a8f585a80572de9dbb12"
     },
     {
+      "path": "data/market/exit_1000_1m/2026/20260929/000850_SZ.csv",
+      "sha256": "7617ff5622b932900e7670db9ef876bd58126619f3416ae9ba941f44623ed3b7"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/000850_SZ.meta.json",
+      "sha256": "44c9a33ba25395d0f552534db2922ad9053c4c6b0b5664c49bdc47f474369846"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002119_SZ.csv",
+      "sha256": "79e84bd8e1b6740c0b63b71cbdd1055b0617066286aedff634bc23f116651919"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002119_SZ.meta.json",
+      "sha256": "cdb705b2632f0ab6834509c5da548cbd29c9e10f5d396f1860b6bb167a6f1154"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002238_SZ.csv",
+      "sha256": "62aa90bebf4e2d807029b7aa1612f4629b91683d3b21cc342c5b6facf1c71653"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002238_SZ.meta.json",
+      "sha256": "80972cdcfa5780c539695203e526cc3d81260596a53b069f395c1cae1315815e"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002819_SZ.csv",
+      "sha256": "1e728440c1cb8c620f8b0af2870ab41e13c74aca0ce4088026b2e1714a82b666"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002819_SZ.meta.json",
+      "sha256": "0fa6f8bb55cf9caf59635082ee48d359eaf8b59828033e4b263058e46638f574"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002909_SZ.csv",
+      "sha256": "50954b7aab06c5d1450a97c01aa64b63db0f8684cf2201e47bd9f3db5fbf34c9"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/002909_SZ.meta.json",
+      "sha256": "2ea25265ab6badf32d475bee28a8462f1af9156bd584b1ba0dc8d4ff2825b281"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/600802_SH.csv",
+      "sha256": "9fd05cef6503cd2d9a0481762dd3bb1eb43d20c8611e703c06d5e54a98bb79f6"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/600802_SH.meta.json",
+      "sha256": "3ec4a33d555ae8fb1a353db8e281782b14538414b8bc43dd290cf416f23bb4c4"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/600843_SH.csv",
+      "sha256": "0d7b8c33303dd3e22412eb184e23a7f47285acf56e30f735242b293bab91ecd6"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/600843_SH.meta.json",
+      "sha256": "6d09c2fdfbcba2010db1e655256a96ccd199327e01d42331761b1e4ae2b04995"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/605058_SH.csv",
+      "sha256": "95bd5ce216ee55c5c28b0688900551ec53c6a3396e5fc527ac458606656b700f"
+    },
+    {
+      "path": "data/market/exit_1000_1m/2026/20260929/605058_SH.meta.json",
+      "sha256": "7211ea4f26a22950bd780e01d868bc0959d793941cf1cf270eb2089ece9002bb"
+    },
+    {
       "path": "data/market/raw/2026/20260831/daily.csv",
       "sha256": "605577c7a43dbe170adb833a8ad5bf902be4a14de07595fdcc9dda0ea55acb78"
     },
@@ -1982,6 +2092,14 @@
       "sha256": "2cfce31ae0434a436fe8ef98403b80cc83a7f85ecaccdbf759b815c424a35f06"
     },
     {
+      "path": "data/market/raw/2026/20260929/daily.csv",
+      "sha256": "454f2025427349b011bf24ba8b2acf86a6c8c040d3fa82665f63332958d24166"
+    },
+    {
+      "path": "data/market/raw/2026/20260929/stk_limit.csv",
+      "sha256": "afa6dea1391c811784da93703195ac2d4e51edb922d3b87d2aeeb2981bc3c4be"
+    },
+    {
       "path": "models/decision_shadow_exit_policy_1000_v1.json",
       "sha256": "2a4feb3937aa9ad221d7b9f7a089c6968fe8a3ce13e949023ae7207f5cbccc31"
     }
@@ -1994,7 +2112,7 @@
     "return_policy_was_frozen_on_signal_D": false,
     "return_strategy_forward_evidence": false,
     "policy_definition_date": "20260912",
-    "reconstruction_as_of_date": "20260928",
+    "reconstruction_as_of_date": "20260929",
     "entry": "positive volume and daily open strictly below up limit; not an auction fill claim",
     "exit": "scheduled exit before 20260914 retains legacy open; otherwise 10:00 unless sealed limit-up, observed break exits at next executable minute proxy",
     "corporate_action_adjustment": "chain close/pre_close across held or blocked sessions; policy-bound exit price/pre_close",
@@ -2012,6 +2130,6 @@
     "mixed_exit_returns_combined": false
   },
   "rows_path": "outputs/decision/primary_observation/rows.csv",
-  "rows_sha256": "24b48d4a7f56ab0125ed850ffb6bc5332462eb4dd0bfcaf8e68197bf5eaae40d",
-  "generated_at_utc": "2026-09-28T17:50:11.263036+00:00"
+  "rows_sha256": "7a8013dbc1850652d8f6a1ab03d829b92c5e11cc9f2c4a79a85d41532db0e180",
+  "generated_at_utc": "2026-09-29T14:53:57.099699+00:00"
 }
