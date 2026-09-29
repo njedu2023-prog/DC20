@@ -1,0 +1,275 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "8cdaeb10ec1692a608f428488a1131a5187484360e388cb5bddf9b354689e422",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20260929.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20260929.json",
+    "row_count": 7
+  },
+  "exec_date": "20260930",
+  "exit_date": "20261008",
+  "feature_as_of_date": "20260929",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "房地产开发",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "深物业A",
+      "predicted_promotion_probability": 0.38861968655665,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.32331639445541355,
+      "research_fill_proxy_score": 0.9598486336090916,
+      "research_joint_proxy_score": 0.31033479944144676,
+      "shadow_max_price": 11.13,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "000011.SZ"
+    },
+    {
+      "industry": "化学制药",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "津药药业",
+      "predicted_promotion_probability": 0.26353349561749934,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.32045739332018885,
+      "research_fill_proxy_score": 0.9459773029869052,
+      "research_joint_proxy_score": 0.30314542065524613,
+      "shadow_max_price": 6.9,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "2→3",
+      "ts_code": "600488.SH"
+    },
+    {
+      "industry": "小家电",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "九阳股份",
+      "predicted_promotion_probability": 0.43125824388967865,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.32103548032084755,
+      "research_fill_proxy_score": 0.9295370752245967,
+      "research_joint_proxy_score": 0.2984143814207642,
+      "shadow_max_price": 11.36,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "2→3",
+      "ts_code": "002242.SZ"
+    },
+    {
+      "industry": "电力",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "浙江新能",
+      "predicted_promotion_probability": 0.36611255243844243,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.30459917986414575,
+      "research_fill_proxy_score": 0.895217125831718,
+      "research_joint_proxy_score": 0.2726824023286791,
+      "shadow_max_price": 8.17,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "2→3",
+      "ts_code": "600032.SH"
+    },
+    {
+      "industry": "计算机设",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "中新赛克",
+      "predicted_promotion_probability": 0.21855852913978696,
+      "promotion_rank": 7,
+      "research_conditional_profit_score": 0.2712149186354859,
+      "research_fill_proxy_score": 0.9791154892895694,
+      "research_joint_proxy_score": 0.26555072776241456,
+      "shadow_max_price": 29.12,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "2→3",
+      "ts_code": "002912.SZ"
+    },
+    {
+      "industry": "电池",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "时代万恒",
+      "predicted_promotion_probability": 0.3155643469872392,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.30488625416926096,
+      "research_fill_proxy_score": 0.8226534251288955,
+      "research_joint_proxy_score": 0.25081572126706153,
+      "shadow_max_price": 8.84,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "2→3",
+      "ts_code": "600241.SH"
+    },
+    {
+      "industry": "汽车零部件",
+      "internal_shadow_order": 7,
+      "internal_shadow_selected": 0,
+      "name": "襄阳轴承",
+      "predicted_promotion_probability": 0.5961847438253229,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.27163781142511384,
+      "research_fill_proxy_score": 0.8306956387269999,
+      "research_joint_proxy_score": 0.2256483452641893,
+      "shadow_max_price": 11.72,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 7,
+      "stage_transition": "3→4",
+      "ts_code": "000678.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-09-29T13:03:31.294890Z",
+  "selection_identity_sha256": "395765203261211e50698e51a72c702ddaaa05a0b6ef9d29e6c2cd88f5da6b93",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "深物业A",
+        "promotion_rank": 3,
+        "research_conditional_profit_score": 0.32331639445541355,
+        "research_fill_proxy_score": 0.9598486336090916,
+        "research_joint_proxy_score": 0.31033479944144676,
+        "shadow_max_price": 11.13,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+        "shadow_slot": 1,
+        "ts_code": "000011.SZ"
+      },
+      {
+        "name": "津药药业",
+        "promotion_rank": 6,
+        "research_conditional_profit_score": 0.32045739332018885,
+        "research_fill_proxy_score": 0.9459773029869052,
+        "research_joint_proxy_score": 0.30314542065524613,
+        "shadow_max_price": 6.9,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177",
+        "shadow_slot": 2,
+        "ts_code": "600488.SH"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20260929",
+  "snapshot_sha256": "e56bd10776fbdc698ccecaa18b7e3996c1de22531dae0789b2ca166a55c2af06",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "26f73b571e829e7b6ceb0ccaa2d24302606ecf46b2325d696b9a45005246bc0c"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20260929.csv",
+      "csv_sha256": "c566e140beffcf5befdc6cacdf796ca503e14e8dc12bcdad8e114cf27431d98a",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20260929.json",
+      "sha256": "23105698b26b2ca02445b277c47f8088c4482b818118e439b4bf9bf2286625d9",
+      "snapshot_sha256": "c817fbbca9f9e436377b68f488e7e7c961fec68608880a772c2f57944bae5538"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20260929.json",
+      "sha256": "0572cf37390344ebf147214d56d537336e98f76700ca08ce755715c9c1a5c1ff"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "1f8e7bf3eac844693c1571b08db9a17111615e25d920d84e9a1de869eefcf3a2",
+      "identity_sha256": "1b5315e1b61d21fe4d08758b41d140135ae1d49eb937f8a823a79d062e99b34f",
+      "path": "outputs/decision/primary_d_runtime_features_20260929.csv",
+      "row_count": 7,
+      "selected_count": 7,
+      "sha256": "65b6b9e939f31efcd7385dd2f20facb050c2971bbc74a8175bba47ef1fb1a177"
+    },
+    "three_rank": {
+      "bundle_sha256": "9d896691ef06ead7bb47fe8a612a245d9e97b4bfd9b2985cadfe8ca7c38718e5",
+      "csv_path": "outputs/decision/three_rank_top10_20260929.csv",
+      "csv_sha256": "4c2c3108519f3245d5b4ccc8208d99ca01846f0a98cfeb5378ba681f6b45b888",
+      "feature_snapshot_sha256": "1f8e7bf3eac844693c1571b08db9a17111615e25d920d84e9a1de869eefcf3a2",
+      "json_path": "outputs/decision/three_rank_top10_20260929.json",
+      "json_sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd",
+      "top10_members_sha256": "8e03fec8f789bc552603f59d07cb38a269434b347bef6ebfb7eac6eee142a990"
+    }
+  },
+  "source_generated_at_utc": "2026-09-29T12:56:30Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 7,
+  "top10_members_sha256": "8e03fec8f789bc552603f59d07cb38a269434b347bef6ebfb7eac6eee142a990"
+}
