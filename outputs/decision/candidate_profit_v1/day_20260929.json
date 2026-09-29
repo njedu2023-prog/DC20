@@ -1,0 +1,279 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 7,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.002947543884507087,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000011.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.007485556647173719,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002912.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000678.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000011.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600032.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600241.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600488.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002912.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20260930",
+  "exit_date": "20261008",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-09-30T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 7,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "襄阳轴承",
+      "promotion_rank": 1,
+      "ts_code": "000678.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 2,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产开发",
+      "name": "深物业A",
+      "promotion_rank": 3,
+      "ts_code": "000011.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电力",
+      "name": "浙江新能",
+      "promotion_rank": 4,
+      "ts_code": "600032.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "时代万恒",
+      "promotion_rank": 5,
+      "ts_code": "600241.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制药",
+      "name": "津药药业",
+      "promotion_rank": 6,
+      "ts_code": "600488.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "计算机设",
+      "name": "中新赛克",
+      "promotion_rank": 7,
+      "ts_code": "002912.SZ"
+    }
+  ],
+  "p0_file_sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20260929.json",
+    "sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd"
+  },
+  "pre_cas_freeze_at_utc": "2026-09-29T13:01:29.709512+00:00",
+  "prediction_generated_at_utc": "2026-09-29T13:01:29.683166+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-09-29T13:07:41.085551+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000678.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002242.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "553719f923db86b8a22c82c617ac62a1d4bc6417",
+    "evidence_manifest_sha256": "0dce76e060655ea80229dcbf45ee31c0c8df26d18f04fafc7b1979b1842e703d",
+    "observer_run_id": 36572147878,
+    "publication_observation_sha256": "ba67a6b323229972d2b95af6d4d2ba26dd93196b25344483f517de12aa3a02de"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.002947543884507087,
+      "industry": "房地产开发",
+      "name": "深物业A",
+      "promotion_rank": 3,
+      "ts_code": "000011.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.007485556647173719,
+      "industry": "计算机设",
+      "name": "中新赛克",
+      "promotion_rank": 7,
+      "ts_code": "002912.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.007835455179966018,
+      "industry": "化学制药",
+      "name": "津药药业",
+      "promotion_rank": 6,
+      "ts_code": "600488.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.011428037590890325,
+      "industry": "电池",
+      "name": "时代万恒",
+      "promotion_rank": 5,
+      "ts_code": "600241.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.01162695256869393,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 2,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.01578172203050542,
+      "industry": "电力",
+      "name": "浙江新能",
+      "promotion_rank": 4,
+      "ts_code": "600032.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.02252915856779277,
+      "industry": "汽车零部件",
+      "name": "襄阳轴承",
+      "promotion_rank": 1,
+      "ts_code": "000678.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20260929",
+  "snapshot_file_sha256": "5e61a47d61722b453cb819daacf5c1aa764b190ca506aea0d7375d44631a39da",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260929.json",
+    "sha256": "5e61a47d61722b453cb819daacf5c1aa764b190ca506aea0d7375d44631a39da"
+  },
+  "source_main_sha": "553719f923db86b8a22c82c617ac62a1d4bc6417",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
