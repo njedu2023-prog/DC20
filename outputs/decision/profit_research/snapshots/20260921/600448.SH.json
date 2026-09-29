@@ -1,0 +1,48 @@
+{
+  "record": {
+    "board_stage": null,
+    "eligibility_reason": "NO_FROZEN_PROFIT_SCORE",
+    "exec_date": "20260922",
+    "feature_snapshot_present": false,
+    "features": {
+      "d_pct_change": null,
+      "five_year_board_stage_delta": null,
+      "five_year_pre_streak_1d_return": null,
+      "five_year_recent_20d_rate": null,
+      "five_year_recent_60d_rate": null,
+      "five_year_stock_prior_rate": null,
+      "five_year_streak_runup": null,
+      "focus_pool_size": null,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": null,
+      "ret_10d": null,
+      "ret_2d": null,
+      "ret_5d": null,
+      "stage2_pool_size": null,
+      "stage3_pool_size": null,
+      "stage_pool_share": null,
+      "volatility_20d": null,
+      "volatility_5d": null,
+      "volume_ratio": null
+    },
+    "frozen_at": null,
+    "industry": "纺织制造",
+    "model_sha256": null,
+    "name": "华纺股份",
+    "profit_eligible": false,
+    "profit_rank": null,
+    "promotion_rank": 9,
+    "provenance": "RETROSPECTIVE_UNVERIFIED",
+    "scheduled_exit_date": "20260923",
+    "score": null,
+    "signal_date": "20260921",
+    "ts_code": "600448.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260921.json",
+      "sha256": "9a3c3a17e4de9f1452fd35ae694f56717fa97d78da15dd784166b91c368d16af"
+    }
+  ]
+}

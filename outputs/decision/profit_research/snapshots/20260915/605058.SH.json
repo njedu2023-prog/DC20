@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20260916",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.989082969432305,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": 0.021592442645074206,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.25,
+      "five_year_streak_runup": 0.33091149273447806,
+      "focus_pool_size": 4.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": 0.45539906103286376,
+      "ret_2d": 0.20984689282497726,
+      "ret_5d": 0.40271493212669673,
+      "stage2_pool_size": 2.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.04080382404523413,
+      "volatility_5d": 0.03607144838874871,
+      "volume_ratio": 2.552500020340485
+    },
+    "frozen_at": "2026-09-15T12:05:46.876665+00:00",
+    "industry": "元件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "澳弘电子",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260917",
+    "score": -0.0056108792522803555,
+    "signal_date": "20260915",
+    "ts_code": "605058.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260915.json",
+      "sha256": "ac64302eb51f6564b19e20075cae775c4e95b2f436631a005e4905077065f1e4"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260915.json",
+      "sha256": "c2c4d78f94318a380e89590c407b77cbd8997ea42d49a8494d8c7ac3ff1fb028"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260915.json",
+      "sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1"
+    }
+  ]
+}

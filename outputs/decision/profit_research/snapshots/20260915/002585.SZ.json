@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20260916",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.03649635036496,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.007795100222717233,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.332596685082873,
+      "focus_pool_size": 4.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 3,
+      "ret_10d": 0.2601880877742946,
+      "ret_2d": 0.21084337349397586,
+      "ret_5d": 0.3385127635960046,
+      "stage2_pool_size": 2.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.04625723586875456,
+      "volatility_5d": 0.048239871779551496,
+      "volume_ratio": 3.2869855323531687
+    },
+    "frozen_at": "2026-09-15T12:05:46.876665+00:00",
+    "industry": "塑料",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "双星新材",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 3,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260917",
+    "score": -0.004313427636165863,
+    "signal_date": "20260915",
+    "ts_code": "002585.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260915.json",
+      "sha256": "ac64302eb51f6564b19e20075cae775c4e95b2f436631a005e4905077065f1e4"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260915.json",
+      "sha256": "c2c4d78f94318a380e89590c407b77cbd8997ea42d49a8494d8c7ac3ff1fb028"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260915.json",
+      "sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1"
+    }
+  ]
+}

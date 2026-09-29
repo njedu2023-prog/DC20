@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20260915",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.905660377358489,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.044554455445544594,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.3888888888888889,
+      "five_year_streak_runup": 0.20725388601036276,
+      "focus_pool_size": 10.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.37869822485207116,
+      "ret_2d": 0.20725388601036276,
+      "ret_5d": 0.39520958083832336,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.7,
+      "volatility_20d": 0.04816349884177541,
+      "volatility_5d": 0.057550226427076,
+      "volume_ratio": 1.2907053724345294
+    },
+    "frozen_at": "2026-09-14T11:51:09.238285+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "众泰汽车",
+    "profit_eligible": true,
+    "profit_rank": 10,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260916",
+    "score": -0.022561188028784887,
+    "signal_date": "20260914",
+    "ts_code": "000980.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260914.json",
+      "sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260914.json",
+      "sha256": "8bc1aaf1842f705c20f9f6b785c5c808c36632513dd5735f042d9536051f8da7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260914.json",
+      "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+    }
+  ]
+}

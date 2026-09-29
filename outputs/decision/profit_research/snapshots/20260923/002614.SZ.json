@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20260924",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.029069767441866,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.019748653500897495,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.3327464788732395,
+      "focus_pool_size": 10.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.32342657342657355,
+      "ret_2d": 0.21120000000000005,
+      "ret_5d": 0.38391224862888484,
+      "stage2_pool_size": 3.0,
+      "stage3_pool_size": 7.0,
+      "stage_pool_share": 0.7,
+      "volatility_20d": 0.03886367435199134,
+      "volatility_5d": 0.03991303281234909,
+      "volume_ratio": 13.801664180259479
+    },
+    "frozen_at": "2026-09-23T17:56:02.513638+00:00",
+    "industry": "其他家电",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "奥佳华",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260928",
+    "score": 0.007975587121599912,
+    "signal_date": "20260923",
+    "ts_code": "002614.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260923.json",
+      "sha256": "9c65343a0517001f036fd97407f9b4471d9a998f51c12a0aad5cf78cc54acb41"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260923.json",
+      "sha256": "f8c7f44db328c9ec7e756260b9b95b86a27c9c8f6eabb9759e49a93e26b07404"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260923.json",
+      "sha256": "caf80b82b1503a03641a3b4b86e72bc3c761200306d4b5c055c773defecf0ccc"
+    }
+  ]
+}

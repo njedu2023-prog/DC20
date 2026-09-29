@@ -1,0 +1,70 @@
+{
+  "actual_execution_claimed": false,
+  "actual_exit_date": null,
+  "as_of_date": "20260929",
+  "basis": "COUNTERFACTUAL_NATIVE_POLICY",
+  "collector_test_only": false,
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "label_available_date": "20260928",
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "net_return": 0.0,
+  "proxy_fill": 0,
+  "raw_provider_data_public": false,
+  "request_receipts": [
+    {
+      "api": "daily",
+      "date": "20260928",
+      "fetched_at": "2026-09-29T16:14:22.106365+00:00",
+      "response_sha256": "dbeb4c3d09f2af6f926dcd5d48c1794f5fd4c89ec9db71b23fb6d53ea455b7fa",
+      "ts_code": "603949.SH"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20260928",
+      "fetched_at": "2026-09-29T16:14:23.765579+00:00",
+      "response_sha256": "93fc559354911ad3a6791b73818f984e76ef2cad9ea5faf45a3598a5a2265a92",
+      "ts_code": "603949.SH"
+    },
+    {
+      "api": "stk_auction",
+      "date": "20260928",
+      "fetched_at": "2026-09-29T16:14:25.349267+00:00",
+      "response_sha256": "07898449d41455a562287c94cef1088feb2bb6fa032f591e3f5f7bef8d77bfb2",
+      "ts_code": "603949.SH"
+    }
+  ],
+  "round_trip_cost_rate": 0.0045,
+  "schema_version": "dc20_research_counterfactual_label_v1",
+  "signal_date": "20260924",
+  "snapshot_sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a",
+  "source_bindings": [
+    {
+      "path": "data/market/raw/2026/20260928/daily.csv",
+      "sha256": "9c6f561a4e410248835bb269a72e0d30df7193fbb65cd3d3c1f9881bd688b23a"
+    },
+    {
+      "path": "data/market/raw/2026/20260928/stk_limit.csv",
+      "sha256": "a34bcd3a0990e1573313ac2ef2556a5b335dc40757a41f4281101a1fd2c6304f"
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260928/stk_auction.data.json",
+      "sha256": "576db28a1d95497e61db002e605564f732660612fad70508ddbae3ebeb585651"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260928/stk_auction.meta.json",
+      "sha256": "508b6c327e2e76c57d50a07cac51dd7cabe6c16111b0870c494ba93027dd97f4"
+    },
+    {
+      "path": "research_inputs/candidate_natural_forward/day_20260924.json",
+      "sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a"
+    }
+  ],
+  "source_revision": "07a5a32c63ac3dcb43647a1eaeb6cdf1fed27365",
+  "status": "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED",
+  "ts_code": "603949.SH"
+}

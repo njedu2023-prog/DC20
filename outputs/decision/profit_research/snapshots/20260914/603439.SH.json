@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20260915",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.968102073365232,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.043624161073825496,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.20964912280701742,
+      "focus_pool_size": 10.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 10,
+      "ret_10d": 0.15204678362573087,
+      "ret_2d": 0.20964912280701742,
+      "ret_5d": 0.08072100313479624,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.7,
+      "volatility_20d": 0.040710627547001124,
+      "volatility_5d": 0.06753559638970617,
+      "volume_ratio": 2.730320251028614
+    },
+    "frozen_at": "2026-09-14T11:51:09.238285+00:00",
+    "industry": "中药Ⅱ",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "三力制药",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 10,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260916",
+    "score": -0.014386470911731546,
+    "signal_date": "20260914",
+    "ts_code": "603439.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260914.json",
+      "sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260914.json",
+      "sha256": "8bc1aaf1842f705c20f9f6b785c5c808c36632513dd5735f042d9536051f8da7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260914.json",
+      "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20260918",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.016602102933032,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.026098901098901006,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.6923076923076923,
+      "five_year_streak_runup": 0.33065595716198115,
+      "focus_pool_size": 8.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.33872053872053876,
+      "ret_2d": 0.2099817407181983,
+      "ret_5d": 0.3625771076079507,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.375,
+      "volatility_20d": 0.03681955130643267,
+      "volatility_5d": 0.04396533281733828,
+      "volume_ratio": 9.900543712573327
+    },
+    "frozen_at": "2026-09-17T11:30:24.875094+00:00",
+    "industry": "家居用品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "华瓷股份",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260921",
+    "score": -0.012086085265192772,
+    "signal_date": "20260917",
+    "ts_code": "001216.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260917.json",
+      "sha256": "2fb22d3596d95779a20ca1a110e15d782335aa858485692c9b205bdd2109c352"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260917.json",
+      "sha256": "f496803f872fbb0623cc79ad5f37c76755f4cdc8a86a436d0e1ecb5a693532e5"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260917.json",
+      "sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77"
+    }
+  ]
+}

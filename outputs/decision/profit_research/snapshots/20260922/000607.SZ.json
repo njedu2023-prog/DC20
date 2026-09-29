@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20260923",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.933774834437088,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.01980198019801982,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.4166666666666667,
+      "five_year_streak_runup": 0.20873786407767003,
+      "focus_pool_size": 20.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 3,
+      "ret_10d": 0.23880597014925398,
+      "ret_2d": 0.20873786407767003,
+      "ret_5d": 0.32800000000000007,
+      "stage2_pool_size": 16.0,
+      "stage3_pool_size": 4.0,
+      "stage_pool_share": 0.8,
+      "volatility_20d": 0.035108262293067724,
+      "volatility_5d": 0.03374086216327065,
+      "volume_ratio": 0.5249990529705687
+    },
+    "frozen_at": "2026-09-22T17:32:43.047193+00:00",
+    "industry": "广告营销",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "华媒控股",
+    "profit_eligible": true,
+    "profit_rank": 8,
+    "promotion_rank": 3,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260924",
+    "score": -0.017586101006824305,
+    "signal_date": "20260922",
+    "ts_code": "000607.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260922.json",
+      "sha256": "f6286f65c5fcad9521375a8031107569ec4ca44c77a4829c6d6f0aae37a44e6b"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260922.json",
+      "sha256": "1d9dafffd8f3ab9db73b6ab940be4d332a7e0e7bce9aaa23f9a7707f1f6f627f"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260922.json",
+      "sha256": "1e69e1657d4712849569e3a9b305b1bb31d39f0e09fcd9e9f89d82fc30a3f688"
+    }
+  ]
+}

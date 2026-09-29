@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20260929",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.020661157024799,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.010123734533183382,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.6666666666666666,
+      "five_year_streak_runup": 0.2102272727272727,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.18994413407821242,
+      "ret_2d": 0.2102272727272727,
+      "ret_5d": 0.1886160714285714,
+      "stage2_pool_size": 3.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.03443136325028171,
+      "volatility_5d": 0.052430675172870846,
+      "volume_ratio": 3.113793317789556
+    },
+    "frozen_at": "2026-09-28T11:25:09.577914+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "襄阳轴承",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260930",
+    "score": -0.02571590285909075,
+    "signal_date": "20260928",
+    "ts_code": "000678.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260928.json",
+      "sha256": "6f561017fc143bb88c73642e528a3507718c7c2b2d41107bd47b5edad57a1b2c"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260928.json",
+      "sha256": "0453a44a52690931eb2ac61e44d5f56ff32b4f9bc022fd835c9f36c75663f677"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260928.json",
+      "sha256": "f2db6f1f6234584f0f6d9e49904e657bb397913641c46c09791ca9504fc2ec0c"
+    }
+  ]
+}

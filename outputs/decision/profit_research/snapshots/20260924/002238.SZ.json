@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20260928",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.052219321148819,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.012799999999999923,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.33175355450236954,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 3,
+      "ret_10d": 0.2909647779479325,
+      "ret_2d": 0.2112068965517242,
+      "ret_5d": 0.34235668789808904,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.1111111111111111,
+      "volatility_20d": 0.03931019124739659,
+      "volatility_5d": 0.04745444942513477,
+      "volume_ratio": 11.081460001518149
+    },
+    "frozen_at": "2026-09-24T15:09:47.281403+00:00",
+    "industry": "电视广播",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "天威视讯",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 3,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260929",
+    "score": -0.006084525723635608,
+    "signal_date": "20260924",
+    "ts_code": "002238.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260924.json",
+      "sha256": "f3b16912d48174e620e3abf7bd4059e9850f5c0799f10130e16126e8ff986fe9"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260924.json",
+      "sha256": "72ea10aa56da498ef2f9f407af0ed215ea2089de942c6a2eb83e07d5c8aed702"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260924.json",
+      "sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a"
+    }
+  ]
+}

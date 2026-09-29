@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20260921",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.004697040864269,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": 0.024894067796610297,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.21033591731266155,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.30619074177356387,
+      "ret_2d": 0.21033591731266155,
+      "ret_5d": 0.29106945975744214,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.7777777777777778,
+      "volatility_20d": 0.06365415679464331,
+      "volatility_5d": 0.06129896360518166,
+      "volume_ratio": 1.7288830296616136
+    },
+    "frozen_at": "2026-09-18T11:26:34.349371+00:00",
+    "industry": "消费电子",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "科森科技",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20260922",
+    "score": -0.005723322036737054,
+    "signal_date": "20260918",
+    "ts_code": "603626.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260918.json",
+      "sha256": "9818d1b2fb0e0de35d42a755ffaf53794e322b97ca38e39737dad94f11da9ab6"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260918.json",
+      "sha256": "186dfd807d85c2ec63d09dd780f77b9983b66d24a8e641368d4e3f14f9c7c9e0"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260918.json",
+      "sha256": "0c8ae1d8f288f48817f08a3a23782a8761bcfaf154a22535a9c83acd05fa34af"
+    }
+  ]
+}
