@@ -1,0 +1,107 @@
+{
+  "actual_execution_claimed": false,
+  "actual_exit_date": "20260916",
+  "as_of_date": "20260929",
+  "basis": "COUNTERFACTUAL_NATIVE_POLICY",
+  "collector_test_only": false,
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "label_available_date": "20260916",
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "net_return": 0.08030565371024728,
+  "proxy_fill": 1,
+  "raw_provider_data_public": false,
+  "request_receipts": [
+    {
+      "api": "daily",
+      "date": "20260915",
+      "fetched_at": "2026-09-29T16:26:52.635487+00:00",
+      "response_sha256": "39b897b293608f870ba82aa6aba2010860d882de2742aa7a68e05a5531b8b450",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20260915",
+      "fetched_at": "2026-09-29T16:26:54.266066+00:00",
+      "response_sha256": "83d2567f7a8e6e593e47a3ccffde8d84b7f5eebda6890e580ee4e4c872301722",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "api": "stk_auction",
+      "date": "20260915",
+      "fetched_at": "2026-09-29T16:26:55.921993+00:00",
+      "response_sha256": "f0acf4e66e743d1b62658c424d2655388d4062f72954a1bcac0766ca4fbc676c",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "api": "daily",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:26:58.600797+00:00",
+      "response_sha256": "d2539e7dcc7bd8917ff948f7f720bbda25eb35d7b37bb1bfecb891c8c15e0eaa",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:27:00.237646+00:00",
+      "response_sha256": "c7f5a2b8211a8d026ef199808f0666b11d8a7fdf27c90c532df81f6823c294ae",
+      "ts_code": "002585.SZ"
+    },
+    {
+      "api": "stk_mins",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:27:02.716722+00:00",
+      "response_sha256": "acc7fc5b0ebf7a1685b1c288dab63418ca6cd3c4982a530a431ce9ff271f508e",
+      "ts_code": "002585.SZ"
+    }
+  ],
+  "round_trip_cost_rate": 0.0045,
+  "schema_version": "dc20_research_counterfactual_label_v1",
+  "signal_date": "20260914",
+  "snapshot_sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
+  "source_bindings": [
+    {
+      "path": "data/market/raw/2026/20260915/daily.csv",
+      "sha256": "d621d0325017bce3be188dfd2cc82f4fc28c9f5dec0362891f769757d6003de0"
+    },
+    {
+      "path": "data/market/raw/2026/20260915/stk_limit.csv",
+      "sha256": "d0cf8f97578f8d9af057de3c683712484eb1727574f036eae41a8ff04e5c81a9"
+    },
+    {
+      "path": "data/market/raw/2026/20260916/daily.csv",
+      "sha256": "a60ff24948da4b0a909989eaa758d5d3d66ef74cda8dec2a3421d0410aac1a4d"
+    },
+    {
+      "path": "data/market/raw/2026/20260916/stk_limit.csv",
+      "sha256": "89bc2ee311605ca7b98fa14a99005be8710f2a52da4274a07083461dc389e732"
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260915/stk_auction.data.json",
+      "sha256": "e99334344f37ca15bdcbeaf76c0f92dd0e1dd1bfcf533ef2ac239cde1d1a06cf"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260915/stk_auction.meta.json",
+      "sha256": "d8766463d245491f9d7f1b3dbc77349f476e2bd7807c2cbde773c36561e77352"
+    },
+    {
+      "path": "research_inputs/candidate_natural_forward/day_20260914.json",
+      "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20260916/002585_SZ.data.json",
+      "sha256": "abe057c7fbbb0549b6deb0265c09f575b6fd1b4ad8d65631f9f432a462fcb6eb"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20260916/002585_SZ.meta.json",
+      "sha256": "7fc9e7e7042fd7a20ec06e9c658a204494eaa5ffc46628a4b8946c50c55bf20f"
+    }
+  ],
+  "source_revision": "84d5a29f02197f99b9f1e3e2cabbd7aaa637c2b9",
+  "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+  "ts_code": "002585.SZ"
+}

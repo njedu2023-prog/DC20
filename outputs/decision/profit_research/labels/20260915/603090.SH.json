@@ -1,0 +1,107 @@
+{
+  "actual_execution_claimed": false,
+  "actual_exit_date": "20260917",
+  "as_of_date": "20260929",
+  "basis": "COUNTERFACTUAL_NATIVE_POLICY",
+  "collector_test_only": false,
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "label_available_date": "20260917",
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "net_return": -0.07878571428571418,
+  "proxy_fill": 1,
+  "raw_provider_data_public": false,
+  "request_receipts": [
+    {
+      "api": "daily",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:25:41.545291+00:00",
+      "response_sha256": "5986bac2a1eb453bc34aa9dad8f8426249bd93d921e9e30d729c9258be3f8605",
+      "ts_code": "603090.SH"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:25:43.208174+00:00",
+      "response_sha256": "6fc8e715979554d580f52dd37bf3c7d1cb84120e803a7708e00d454084c8f3e3",
+      "ts_code": "603090.SH"
+    },
+    {
+      "api": "stk_auction",
+      "date": "20260916",
+      "fetched_at": "2026-09-29T16:25:45.178110+00:00",
+      "response_sha256": "dc65c7f15c9a0cd9b08c07bfde33de46c2b91857234ccbb0fb9bac4820ce5ea0",
+      "ts_code": "603090.SH"
+    },
+    {
+      "api": "daily",
+      "date": "20260917",
+      "fetched_at": "2026-09-29T16:25:46.944268+00:00",
+      "response_sha256": "95bf6e09d8901f964d040b7fdde28d672b905956947dd842e96cacaa46aeb374",
+      "ts_code": "603090.SH"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20260917",
+      "fetched_at": "2026-09-29T16:25:48.539391+00:00",
+      "response_sha256": "83686a802324e44d72da57b8d77f61e88f22dbeb8fb7f9914bf1688f4dad7ac0",
+      "ts_code": "603090.SH"
+    },
+    {
+      "api": "stk_mins",
+      "date": "20260917",
+      "fetched_at": "2026-09-29T16:25:51.986356+00:00",
+      "response_sha256": "aefce1e8d5479465b9099de4af3b181ff2774b263d9b706408817a3de7798adf",
+      "ts_code": "603090.SH"
+    }
+  ],
+  "round_trip_cost_rate": 0.0045,
+  "schema_version": "dc20_research_counterfactual_label_v1",
+  "signal_date": "20260915",
+  "snapshot_sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1",
+  "source_bindings": [
+    {
+      "path": "data/market/raw/2026/20260916/daily.csv",
+      "sha256": "8ab1db1d6882a4a5f87bd42c2ad0b8d09bb5079c5d3a5b7848c0d02cb35bb842"
+    },
+    {
+      "path": "data/market/raw/2026/20260916/stk_limit.csv",
+      "sha256": "52af1489980c7f7fe1e3ecfeea0d5af6aa2255733838623015bf73e01ad48f01"
+    },
+    {
+      "path": "data/market/raw/2026/20260917/daily.csv",
+      "sha256": "85d3704e9a8f3dd1c4e1b05472c012a54af18bb049cf7e64e57ec5c39dfc039a"
+    },
+    {
+      "path": "data/market/raw/2026/20260917/stk_limit.csv",
+      "sha256": "45e3ca80f0d650b7fe7ec1cd1ddc27c4e45f191a69d8a741556626e9d1f0bd99"
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260916/stk_auction.data.json",
+      "sha256": "2c75d439098ccd53d05269ef55909ee27ecce24202b24d54d41614f5130c3127"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20260916/stk_auction.meta.json",
+      "sha256": "73fe70d23b63c477769d5ef5d6599a2124c3429689f350688cc8b1a3ae6e0f8f"
+    },
+    {
+      "path": "research_inputs/candidate_natural_forward/day_20260915.json",
+      "sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20260917/603090_SH.data.json",
+      "sha256": "cecd9a231ed75cd6f7ca91341e7eaf7eb20f23037418bef7925a25fee3146c3e"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20260917/603090_SH.meta.json",
+      "sha256": "5c7bba55e91a72a8317800491b8a02ec532b59f2029057a29b6227d58c798069"
+    }
+  ],
+  "source_revision": "84d5a29f02197f99b9f1e3e2cabbd7aaa637c2b9",
+  "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+  "ts_code": "603090.SH"
+}
