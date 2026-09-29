@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from scripts import build_profit_research as b
-from scripts.publish_profit_research import allowed
+from scripts.publish_profit_research import allowed, sources_unchanged
 
 class ResearchTests(unittest.TestCase):
     def setUp(self):
@@ -79,6 +79,15 @@ class ResearchTests(unittest.TestCase):
         self.assertTrue(allowed(b.OUT+'/labels/20260914/000001.SZ.json'))
         for p in ['decision.html','models/foo.json',b.OUT+'/../../evil.json',b.OUT+'/index.html']:
             self.assertFalse(allowed(p))
+    def test_safe_unrelated_append(self):
+        diff={'status':'ahead','total_commits':1,'files':[{'filename':'outputs/decision/primary_observation/summary.json'}]}
+        self.assertTrue(sources_unchanged(diff,{'outputs/decision/candidate_profit_v1/summary.json'}))
+    def test_source_or_research_change_rejects_rebase(self):
+        for path in ['scripts/build_profit_research.py',b.OUT+'/latest.json','bound.json']:
+            self.assertFalse(sources_unchanged({'status':'ahead','files':[{'filename':path}]},{'bound.json'}))
+    def test_truncated_or_divergent_diff_rejected(self):
+        self.assertFalse(sources_unchanged({'status':'diverged','files':[]},set()))
+        self.assertFalse(sources_unchanged({'status':'ahead','files':[{'filename':'x'}]*300},set()))
     def test_public_html_contract(self):
         html=Path('outputs/decision/profit_research/index.html').read_text()
         for text in ['id="year"','id="month"','id="from"','id="to"','crypto.subtle.digest','模型透明档案','textContent']:
