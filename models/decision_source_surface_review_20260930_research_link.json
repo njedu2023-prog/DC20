@@ -1,0 +1,68 @@
+{
+  "schema_version": "dc20_home_research_link_review_v1",
+  "approved_base_commit": "4a5a4a5c0da16fd809d328822a7cea1cd67a0d66",
+  "scope": "HOMEPAGE_NEW_WINDOW_RESEARCH_LINK_ONLY",
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 509079,
+      "current_bytes": 509255,
+      "baseline_sha256": "29ef1dc72307e25528dfc16f7aaa6b4228d0e250eb40ece2b151fdf92ef4c199",
+      "current_sha256": "9f3cb6074845588c2a56d3cfc285b2eb8d0d14f6fb59929b22bd48bf316856f6",
+      "reason": "Homepage research link only; model, historical data and workflows unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1305,
+          "current_start": 1305,
+          "baseline_lines": [],
+          "current_lines": [
+            "      <a href=\"/DC20/outputs/decision/profit_research/\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"在新窗口打开盈利模型研究台\">盈利模型研究台 ↗</a>\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 52795,
+      "current_bytes": 52795,
+      "baseline_sha256": "d2de62ce810df40d6c23f57c8e5cae5877301458c68ed7af2137e7b7dc02fd4e",
+      "current_sha256": "d9bed14fb3608d30afa5260910f87a685e89e09c94d6766522976e7c2e1ae16b",
+      "reason": "Homepage research link only; model, historical data and workflows unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"29ef1dc72307e25528dfc16f7aaa6b4228d0e250eb40ece2b151fdf92ef4c199\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"9f3cb6074845588c2a56d3cfc285b2eb8d0d14f6fb59929b22bd48bf316856f6\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "380b5435b998219bad1428d75b9ea281cc6734a6608f9dc4011d52f6a0ed1b1f",
+      "current_sha256": "2fc6ab68e82a84ef3b12bcd4256cd58dfb98051a8a5883a6eee781c522553769",
+      "reason": "Homepage research link only; model, historical data and workflows unchanged.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"d2de62ce810df40d6c23f57c8e5cae5877301458c68ed7af2137e7b7dc02fd4e\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"d9bed14fb3608d30afa5260910f87a685e89e09c94d6766522976e7c2e1ae16b\",\n"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -388,7 +388,19 @@ OBS_ISOLATION_REVIEW_PATH = "models/decision_source_surface_review_20260915_obse
 OBS_ISOLATION_REVIEW_SHA = "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
 
 
+def _home_research_link_previous(path, raw):
+    review_raw = (ROOT / "models/decision_source_surface_review_20260930_research_link.json").read_bytes()
+    assert hashlib.sha256(review_raw).hexdigest() == "0f499f61ca1e01b21ec63c1ecf6b294a5b7382ac14d413cedf13b6ddc43be898"
+    review = json.loads(review_raw)
+    assert review["approved_base_commit"] == "4a5a4a5c0da16fd809d328822a7cea1cd67a0d66"
+    assert review["scope"] == "HOMEPAGE_NEW_WINDOW_RESEARCH_LINK_ONLY"
+    assert {x["path"] for x in review["source_changes"]} == {"decision.html", "models/decision_model_freeze.json", "forward/model_inventory.json"}
+    item = next((x for x in review["source_changes"] if x["path"] == path), None)
+    return _candidate_activation_inverse(raw, item) if item else raw
+
+
 def _nightly_statistics_previous(path, raw):
+    raw = _home_research_link_previous(path, raw)
     review_raw = (ROOT / 'models/decision_source_surface_review_20260928_nightly_stats.json').read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == '5f141bf6fd029c481ff0d7657c94b710e797f2f73bca96d6d90a952715d145a3'
     review = json.loads(review_raw)
