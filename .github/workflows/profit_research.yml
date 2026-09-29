@@ -1,0 +1,73 @@
+name: DC20 · Independent profit research data
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["DC20 · Publish active candidate profit"]
+    types: [completed]
+  schedule:
+    - cron: "20 15 * * 1-5"
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_profit_research.py
+      - scripts/collect_profit_research.py
+      - scripts/publish_profit_research.py
+      - tests/test_profit_research.py
+      - .github/workflows/profit_research.yml
+      - outputs/decision/profit_research/index.html
+permissions:
+  contents: read
+concurrency:
+  group: dc20-independent-profit-research
+  cancel-in-progress: false
+jobs:
+  accumulate:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    outputs:
+      head: ${{ steps.publish.outputs.head }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Bind one immutable source revision
+        run: echo "RESEARCH_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Targeted research checks only
+        run: python -m unittest discover -s tests -p test_profit_research.py -v
+      - name: Install existing hash-locked label runtime
+        run: python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
+      - name: Import complete candidate feature snapshots
+        run: python scripts/build_profit_research.py --revision "$RESEARCH_BASE"
+      - name: Bounded independent counterfactual labels
+        id: quotes
+        continue-on-error: true
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          PYTHONPATH: src:.
+        run: python scripts/collect_profit_research.py --revision "$RESEARCH_BASE"
+      - name: Publish explicit data gaps and immutable research versions
+        run: |
+          python scripts/build_profit_research.py --revision "$RESEARCH_BASE"
+          echo "Research collection outcome: ${{ steps.quotes.outcome }}. No training or production model changes." >> "$GITHUB_STEP_SUMMARY"
+      - name: Write only research evidence through GitHub API
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_profit_research.py
+  deploy:
+    needs: accumulate
+    if: needs.accumulate.outputs.head != ''
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ needs.accumulate.outputs.head }}
