@@ -123,7 +123,9 @@ def build(root, revision):
                      'exec_date':exec_date,'scheduled_exit_date':exit_date}
                 frozen=dict(rec)
                 observation=outcomes.get((day,code),{})
-                status=observation.get('status','PENDING_T' if exec_date and exec_date>asof else 'MISSING_COUNTERFACTUAL_LABEL')
+                default_status=('PENDING_T' if exec_date and exec_date>asof else
+                                'PENDING_T1' if exit_date and exit_date>asof else 'MISSING_COUNTERFACTUAL_LABEL')
+                status=observation.get('status',default_status)
                 value=number(observation.get('slot_net_return'))
                 terminal=terminal_valid(status,value,observation.get('proxy_fill'))
                 if observation and observation.get('snapshot_file_sha256') != (bindings[-1]['sha256'] if source_rows else None):

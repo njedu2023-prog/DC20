@@ -39,6 +39,10 @@ class ResearchTests(unittest.TestCase):
     def test_future_label_excluded(self):
         self.summary['groups']['candidate_top1']['daily_sequence'][0]['label_available_date']='20260917';self.save_summary()
         self.assertEqual(self.doc()['counts']['ready_pairs'],0)
+    def test_not_due_candidate_is_pending_not_missing(self):
+        self.summary['groups']={};self.summary['as_of_date']='20260915';self.save_summary()
+        d=self.doc();self.assertEqual(d['days'][0]['records'][0]['outcome']['status'],'PENDING_T1')
+        self.assertEqual(d['counts']['missing_counterfactual_labels'],0)
     def test_no_fill_valid_slot_not_fill(self):
         r=self.summary['groups']['candidate_top1']['daily_sequence'][0];r.update(status='NO_FILL_CAPACITY',proxy_fill=0,slot_net_return=0)
         self.save_summary();self.assertEqual(self.doc()['counts']['ready_pairs'],1)
