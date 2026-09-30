@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261008",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.02604166666666,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.023776223776223793,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.4666666666666667,
+      "five_year_streak_runup": 0.21060171919770765,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.168741355463347,
+      "ret_2d": 0.21060171919770765,
+      "ret_5d": 0.1607142857142856,
+      "stage2_pool_size": 6.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": 0.03384216301344908,
+      "volatility_5d": 0.056237357392466325,
+      "volume_ratio": 5.697584539424682
+    },
+    "frozen_at": "2026-09-30T11:31:17.565127+00:00",
+    "industry": "消费电子",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "传艺科技",
+    "profit_eligible": true,
+    "profit_rank": 5,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261009",
+    "score": -0.016288621168819788,
+    "signal_date": "20260930",
+    "ts_code": "002866.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260930.json",
+      "sha256": "4cd6088dc3de9ca4ddbc4b780bc2c10a2d35b960366651c841972e6fc6921149"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260930.json",
+      "sha256": "4f0faf0fc8113273f21d512e4178310dd61e8b630643b6f5b6ede2b6231bfd4d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260930.json",
+      "sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b"
+    }
+  ]
+}

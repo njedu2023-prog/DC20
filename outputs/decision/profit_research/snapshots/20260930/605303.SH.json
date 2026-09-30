@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": "INSUFFICIENT_OBSERVED_HISTORY",
+    "exec_date": "20261008",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": null,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": null,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.5384615384615384,
+      "five_year_streak_runup": null,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": null,
+      "ret_2d": null,
+      "ret_5d": null,
+      "stage2_pool_size": 6.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": null,
+      "volatility_5d": null,
+      "volume_ratio": null
+    },
+    "frozen_at": "2026-09-30T11:31:17.565127+00:00",
+    "industry": "基础建设",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "园林股份",
+    "profit_eligible": false,
+    "profit_rank": null,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261009",
+    "score": null,
+    "signal_date": "20260930",
+    "ts_code": "605303.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20260930.json",
+      "sha256": "4cd6088dc3de9ca4ddbc4b780bc2c10a2d35b960366651c841972e6fc6921149"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20260930.json",
+      "sha256": "4f0faf0fc8113273f21d512e4178310dd61e8b630643b6f5b6ede2b6231bfd4d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260930.json",
+      "sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b"
+    }
+  ]
+}
