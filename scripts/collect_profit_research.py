@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from scripts.build_profit_research import build, encoded, sha, OUT, SNAPS
+from scripts.profit_research_extensions import ENTRY_FIELDS
 
 def collect(root, revision, max_calls=180, seconds=540):
     # Import guards in these existing modules enforce the frozen economics.
@@ -86,7 +87,9 @@ def collect(root, revision, max_calls=180, seconds=540):
                             'round_trip_cost_rate':dataset['model']['round_trip_cost_rate'],
                             'source_bindings':[{'path':p,'sha256':sha(b)} for p,b in sorted(bodies.items())],
                             'request_receipts':request_log,'source_revision':revision,
-                            'raw_provider_data_public':False,'collector_test_only':False}
+                            'raw_provider_data_public':False,'collector_test_only':False,
+                            'entry_observation':{k:native.get(k) for k in ENTRY_FIELDS
+                                                 if native.get(k) is not None}}
                         if c.code_guard()!=guard: raise ValueError('CODE_CHANGED')
                         dest.parent.mkdir(parents=True,exist_ok=True)
                         with dest.open('xb') as f:f.write(encoded(safe))

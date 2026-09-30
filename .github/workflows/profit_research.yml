@@ -12,7 +12,9 @@ on:
       - scripts/build_profit_research.py
       - scripts/collect_profit_research.py
       - scripts/publish_profit_research.py
+      - scripts/profit_research_extensions.py
       - tests/test_profit_research.py
+      - tests/test_profit_research_extensions.py
       - .github/workflows/profit_research.yml
       - outputs/decision/profit_research/index.html
 permissions:
@@ -40,12 +42,14 @@ jobs:
         with:
           python-version: "3.12.13"
       - name: Targeted research checks only
-        run: python -m unittest discover -s tests -p test_profit_research.py -v
+        run: |
+          python -m unittest discover -s tests -p test_profit_research.py -v
+          python -m unittest discover -s tests -p test_profit_research_extensions.py -v
       - name: Install existing hash-locked label runtime
         run: |
           python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements.lock
       - name: Import complete candidate feature snapshots
-        run: python scripts/build_profit_research.py --revision "$RESEARCH_BASE"
+        run: python -m scripts.build_profit_research --revision "$RESEARCH_BASE"
       - name: Bounded independent counterfactual labels
         id: quotes
         continue-on-error: true
@@ -55,7 +59,7 @@ jobs:
         run: python scripts/collect_profit_research.py --revision "$RESEARCH_BASE"
       - name: Publish explicit data gaps and immutable research versions
         run: |
-          python scripts/build_profit_research.py --revision "$RESEARCH_BASE"
+          python -m scripts.build_profit_research --revision "$RESEARCH_BASE"
           echo "Research collection outcome: ${{ steps.quotes.outcome }}. No training or production model changes." >> "$GITHUB_STEP_SUMMARY"
       - name: Write only research evidence through GitHub API
         id: publish

@@ -188,6 +188,8 @@ def write(root, revision):
         if p.exists() and p.read_bytes()!=raw: raise ValueError('IMMUTABLE_RESEARCH_SNAPSHOT_CHANGED:'+key)
         p.parent.mkdir(parents=True,exist_ok=True)
         if not p.exists(): p.write_bytes(raw)
+    from scripts.profit_research_extensions import enrich
+    doc=enrich(root,doc,revision)
     version=encoded(doc); digest=sha(version)
     p=out/'versions'/f'{digest}.json'; p.parent.mkdir(exist_ok=True)
     if not p.exists(): p.write_bytes(version)
