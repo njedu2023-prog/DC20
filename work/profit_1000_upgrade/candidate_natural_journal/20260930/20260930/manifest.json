@@ -1,0 +1,63 @@
+{
+  "actual_execution_claimed": false,
+  "as_of_date": "20260930",
+  "endpoints": {
+    "daily_manifest": {
+      "bytes": 3298,
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/daily_manifest.json",
+      "sha256": "12f37e5263a963d94e72313cf8286fe37d108bd2202b3a11f048ee006b3c4325"
+    },
+    "final_collection_receipt": {
+      "bytes": 3314,
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/collection_1/candidate_natural_outcome_sources/receipt.json",
+      "sha256": "fc8c8b9d20afcecf70e6adcb645ce49fff02bd5d3bfb868fa9383cfcf8ac0852"
+    },
+    "final_outcomes": {
+      "bytes": 44870,
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/observation_1/candidate_natural_outcomes/day_20260930.json",
+      "sha256": "4955cca7458a2362a1e5be42d6cf841c5db576dc26046c94c0ac6598a8819c3d"
+    }
+  },
+  "files": [
+    {
+      "bytes": 3314,
+      "content_path": "blobs/fc8c8b9d20afcecf70e6adcb645ce49fff02bd5d3bfb868fa9383cfcf8ac0852.bin",
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/collection_1/candidate_natural_outcome_sources/receipt.json",
+      "sha256": "fc8c8b9d20afcecf70e6adcb645ce49fff02bd5d3bfb868fa9383cfcf8ac0852"
+    },
+    {
+      "bytes": 821,
+      "content_path": "blobs/c3f1b511d7a7560fece0b02394f98e6a0a86e5820559d24ee1debaad55f61c26.bin",
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/collection_1/candidate_natural_outcome_sources/source_bundle.json",
+      "sha256": "c3f1b511d7a7560fece0b02394f98e6a0a86e5820559d24ee1debaad55f61c26"
+    },
+    {
+      "bytes": 3298,
+      "content_path": "blobs/12f37e5263a963d94e72313cf8286fe37d108bd2202b3a11f048ee006b3c4325.bin",
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/daily_manifest.json",
+      "sha256": "12f37e5263a963d94e72313cf8286fe37d108bd2202b3a11f048ee006b3c4325"
+    },
+    {
+      "bytes": 44870,
+      "content_path": "blobs/4955cca7458a2362a1e5be42d6cf841c5db576dc26046c94c0ac6598a8819c3d.bin",
+      "origin_path": "/tmp/dc20-candidate-natural-state/20260930/20260930/observation_1/candidate_natural_outcomes/day_20260930.json",
+      "sha256": "4955cca7458a2362a1e5be42d6cf841c5db576dc26046c94c0ac6598a8819c3d"
+    }
+  ],
+  "natural_forward_admission_issued": false,
+  "previous_manifest_sha256": null,
+  "production_activation_allowed": false,
+  "publication_binding": {
+    "evidence_commit": "7f223de4c3909aad3811648b39b6931a2c58e9d7",
+    "evidence_manifest_sha256": "67230ee7857ba31a66fc280e2c216ece1151ca09db0dd6ce8fcba38587a705b0",
+    "observer_run_id": 36709076985,
+    "snapshot_file_sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b"
+  },
+  "schema_version": "dc20_candidate_natural_day_journal_v1",
+  "signal_date": "20260930",
+  "snapshot_file_sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b",
+  "source_authority_issued": false,
+  "state_root": "/tmp/dc20-candidate-natural-state",
+  "storage_integrity_only": true,
+  "test_only": false
+}
