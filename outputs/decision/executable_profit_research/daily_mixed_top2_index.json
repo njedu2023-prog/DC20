@@ -913,12 +913,53 @@
       "source_bundle_sha256": "9d896691ef06ead7bb47fe8a612a245d9e97b4bfd9b2985cadfe8ca7c38718e5",
       "source_feature_snapshot_sha256": "1f8e7bf3eac844693c1571b08db9a17111615e25d920d84e9a1de869eefcf3a2",
       "top10_members_sha256": "8e03fec8f789bc552603f59d07cb38a269434b347bef6ebfb7eac6eee142a990"
+    },
+    {
+      "candidate_count": 9,
+      "entry_sha256": "353ce457c60af72e2e0a55d6409014c585ad08eae2c1ada87eb6bf118926f963",
+      "exec_date": "20261008",
+      "exit_date": "20261009",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "0c129c77acfb67f3f733498c62f0b8fa97039966b56e2df353141626d1d2f896",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20260930.csv",
+      "projection_json_sha256": "ac8f160d9a36c464be8510513107e236ddad0ddac633a1a22e5986872c5cbf2a",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20260930.json",
+      "projection_snapshot_sha256": "ad9f4ea94dc88da658d1ff101a4d3263beb61a89f2e3cda33eec5297de721241",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "环境治理",
+          "mixed_profit_rank": 1,
+          "name": "上海洗霸",
+          "promotion_rank": 9,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "603200.SH"
+        },
+        {
+          "industry": "化学制品",
+          "mixed_profit_rank": 2,
+          "name": "亚邦股份",
+          "promotion_rank": 7,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "603188.SH"
+        }
+      ],
+      "signal_date": "20260930",
+      "source_bundle_sha256": "2089857d519bdd6a04fc7f61710200d3d93ee5fe8f1cff01a0f6de1a7d8494d8",
+      "source_feature_snapshot_sha256": "d13ed7bc0c53d90f06901d0279874b0b396adeb4bbfdead0ec52b12f95393685",
+      "top10_members_sha256": "222f91ff753b8a0c9e1d7031258ec579d835cc55fc53538dd18f2bf4f2416151"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20260929",
+  "latest_signal_date": "20260930",
   "public_start_signal_date": "20260828",
-  "recorded_days": 22,
+  "recorded_days": 23,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -941,9 +982,10 @@
     "20260923",
     "20260924",
     "20260928",
-    "20260929"
+    "20260929",
+    "20260930"
   ],
-  "recorded_slots": 44,
+  "recorded_slots": 46,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "988f2f7a313fb81bbe85e89c7d508ed3fa6d98aaa22ea594c4ab81c983e7277c"
+  "snapshot_sha256": "b8362024cbf042dd7689686b8454c9a955f4de9b3d73732849ff485c748c9d60"
 }
