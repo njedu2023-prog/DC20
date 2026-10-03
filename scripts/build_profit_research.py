@@ -190,6 +190,8 @@ def write(root, revision):
         if not p.exists(): p.write_bytes(raw)
     from scripts.profit_research_extensions import enrich
     doc=enrich(root,doc,revision)
+    from scripts.profit_research_comparison import build_comparison
+    doc['research_comparison']=build_comparison(doc['days'])
     version=encoded(doc); digest=sha(version)
     p=out/'versions'/f'{digest}.json'; p.parent.mkdir(exist_ok=True)
     if not p.exists(): p.write_bytes(version)

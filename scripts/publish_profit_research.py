@@ -10,7 +10,7 @@ PREFIX='outputs/decision/profit_research/'
 def allowed(path):
     return (path==PREFIX+'latest.json' or path.startswith(PREFIX+'versions/') or
             path.startswith(PREFIX+'snapshots/') or path.startswith(PREFIX+'labels/') or
-            path.startswith(PREFIX+'extensions/')) and path.endswith('.json') and '..' not in path.split('/')
+            path.startswith(PREFIX+'extensions/') or path.startswith(PREFIX+'enrichment/')) and path.endswith('.json') and '..' not in path.split('/')
 
 def sources_unchanged(comparison, bound_paths):
     files=comparison.get('files',[])
