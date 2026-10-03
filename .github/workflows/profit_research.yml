@@ -15,11 +15,13 @@ on:
       - scripts/profit_research_extensions.py
       - scripts/profit_research_enrichment.py
       - scripts/profit_research_comparison.py
+      - scripts/profit_research_operations.py
       - tests/test_profit_research.py
       - tests/test_profit_research_extensions.py
       - tests/test_profit_research_enrichment.py
       - tests/test_profit_research_comparison.py
       - tests/test_profit_research_integration.py
+      - tests/test_profit_research_operations.py
       - tests/test_profit_research_ui.js
       - .github/workflows/profit_research.yml
       - outputs/decision/profit_research/index.html
@@ -43,7 +45,9 @@ jobs:
           ref: main
           persist-credentials: false
       - name: Bind one immutable source revision
-        run: echo "RESEARCH_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+        run: |
+          echo "RESEARCH_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "RESEARCH_RUN_STARTED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" >> "$GITHUB_ENV"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12.13"
@@ -74,6 +78,14 @@ jobs:
           python -m scripts.build_profit_research --revision "$RESEARCH_BASE"
           echo "Research collection outcome: ${{ steps.quotes.outcome }}. No training or production model changes." >> "$GITHUB_STEP_SUMMARY"
           echo "D feature enrichment: ${{ steps.enrichment.outcome }}. Backfills remain separate from frozen production inputs." >> "$GITHUB_STEP_SUMMARY"
+      - name: Append read-only collection acceptance receipt
+        id: acceptance
+        continue-on-error: true
+        run: python -m scripts.profit_research_operations --record
+      - name: Render acceptance state without hiding collection failures
+        run: |
+          python -m scripts.build_profit_research --revision "$RESEARCH_BASE"
+          echo "Read-only acceptance: ${{ steps.acceptance.outcome }}. Natural collection, replay, backfill and private storage remain separate." >> "$GITHUB_STEP_SUMMARY"
       - name: Write only research evidence through GitHub API
         id: publish
         env:

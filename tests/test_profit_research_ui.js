@@ -102,3 +102,67 @@ test('no-fill stays non-trade in evidence, never masquerades as zero return', ()
   const p=page(f);p.get('stockSearch').value='profit-second';p.run('render()');const rows=p.get('rows').innerHTML;
   assert.match(rows,/未买入，不计成交收益/);assert.doesNotMatch(rows,/0\.00%/);
 });
+
+function operationsFixture() {
+  return {schema_version:'dc20_research_operation_v1',receipt_count:5,natural_receipt_count:1,
+    controlled_receipt_count:2,replay_receipt_count:2,natural_new_d_evidence_days:['20261008'],
+    status:'OVERDUE_COLLECTION_GAP',training_admitted_days:0,training_allowed:false,errors:[],
+    private_storage:{status:'NOT_CONFIGURED',independently_verified:false,expected_hashes:null,covered_hashes:null},
+    latest_receipt:{observed_at_utc:'2026-10-09T00:00:00+00:00',
+      run_context:{event_name:'workflow_dispatch',trigger_class:'CONTROLLED_TRIGGER',run_id:'12345'},
+      natural_evidence_status:'CONTROLLED_RUN_NOT_NATURAL_EVIDENCE',counts:{overdue_gap_days:1},
+      latest_closed_d:{signal_date:'20261008',exec_date:'20261009'}}};
+}
+test('legacy operations summary stays unknown instead of claiming success or failure', () => {
+  const p=page(fixture());p.run('render()');
+  assert.equal(p.get('operationsSummary').textContent,'验收未登记 · 原文状态未知');
+  assert.match(p.get('operationsContent').innerHTML,/未登记不等于运行失败/);
+  assert.doesNotMatch(p.get('operationsContent').innerHTML,/strong>0/);
+  assert.match(html,/<section id="operations"><details class="fold">/);
+});
+test('operations distinguish natural days, controlled runs, replay and overdue gaps', () => {
+  const f=fixture();f.operations_summary=operationsFixture();const p=page(f);p.run('render()');
+  const o=p.get('operationsContent').innerHTML;
+  assert.match(p.get('operationsSummary').textContent,/自然新采集 1 日/);
+  assert.match(o,/自然新采集<\/small><strong>1/);
+  assert.match(o,/受控验证<\/small><strong>2/);
+  assert.match(o,/自然旧数据重放<\/small><strong>2/);
+  assert.match(o,/按时采集缺口<\/small><strong>1/);
+  assert.match(o,/受控验证，不算自然新采集/);
+  assert.match(o,/不含正常待结算/);assert.match(o,/训练准入仍为 0 日/);
+  assert.match(o,/actions\/runs\/12345/);
+});
+test('private original storage NOT_CONFIGURED is visible even while panel is collapsed', () => {
+  const f=fixture();f.operations_summary=operationsFixture();const p=page(f);p.run('render()');
+  assert.match(p.get('operationsSummary').textContent,/原文未配置/);
+  assert.match(p.get('operationsContent').innerHTML,/尚未建立私有云原文留存/);
+  assert.match(p.get('operationsContent').innerHTML,/哈希和补采摘要不能代替原文/);
+});
+test('reported complete storage does not turn into independently verified retention', () => {
+  const f=fixture();f.operations_summary=operationsFixture();
+  f.operations_summary.private_storage={status:'CONFIGURED_UNVERIFIED',reported_status:'REPORTED_COMPLETE',expected_hashes:101,covered_hashes:101,independently_verified:false};
+  const p=page(f);p.run('render()');const o=p.get('operationsContent').innerHTML;
+  assert.match(p.get('operationsSummary').textContent,/原文留存待核验/);
+  assert.match(o,/尚未独立核验，不能视作完成/);
+  assert.match(o,/来源声明覆盖 101 \/ 101 个哈希/);
+});
+test('missing counts are unknown and operation evidence remains all-history', () => {
+  const f=fixture();f.operations_summary=operationsFixture();
+  delete f.operations_summary.controlled_receipt_count;delete f.operations_summary.replay_receipt_count;
+  f.operations_summary.latest_receipt=null;
+  const p=page(f);p.run('render()');const before=p.get('operationsContent').innerHTML;
+  assert.match(before,/受控验证<\/small><strong>—/);
+  assert.match(before,/按时采集缺口<\/small><strong>—/);
+  p.get('to').value='2026-09-29';p.run('render()');assert.equal(p.get('operationsContent').innerHTML,before);
+});
+test('untrusted receipt values and unknown schemas cannot inject links or success', () => {
+  const f=fixture();f.operations_summary=operationsFixture();
+  f.operations_summary.errors=['<img src=x onerror=alert(1)>'];
+  f.operations_summary.status='ACCEPTANCE_FAILED';
+  f.operations_summary.latest_receipt.run_context.run_id='123"><script>bad</script>';
+  const p=page(f);p.run('render()');const o=p.get('operationsContent').innerHTML;
+  assert.match(p.get('operationsSummary').textContent,/验收未通过/);
+  assert.match(o,/&lt;img/);assert.doesNotMatch(o,/<img|<script|actions\/runs/);
+  p.run('data.operations_summary.schema_version="future_version";render()');
+  assert.match(p.get('operationsSummary').textContent,/验收未登记/);
+});

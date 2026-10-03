@@ -10,7 +10,8 @@ PREFIX='outputs/decision/profit_research/'
 def allowed(path):
     return (path==PREFIX+'latest.json' or path.startswith(PREFIX+'versions/') or
             path.startswith(PREFIX+'snapshots/') or path.startswith(PREFIX+'labels/') or
-            path.startswith(PREFIX+'extensions/') or path.startswith(PREFIX+'enrichment/')) and path.endswith('.json') and '..' not in path.split('/')
+            path.startswith(PREFIX+'extensions/') or path.startswith(PREFIX+'enrichment/') or
+            path.startswith(PREFIX+'operations/receipts/') or path.startswith(PREFIX+'operations/calendars/')) and path.endswith('.json') and '..' not in path.split('/')
 
 def sources_unchanged(comparison, bound_paths):
     files=comparison.get('files',[])
@@ -38,6 +39,7 @@ def main():
     bound_paths.add(dataset['model']['source']['path'])
     bound_paths.update(b['path'] for d in dataset['days'] for b in d['source_bindings'])
     bound_paths.update(b['path'] for b in dataset.get('extension_source_bindings',[]))
+    bound_paths.update(b['path'] for b in dataset.get('operations_summary',{}).get('source_bindings',[]))
     entries=[]
     for p in changed:
         raw=Path(p).read_bytes()

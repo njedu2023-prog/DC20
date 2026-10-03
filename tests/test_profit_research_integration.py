@@ -58,10 +58,26 @@ class IntegrationTests(unittest.TestCase):
 
     def test_public_allowlist_excludes_raw_minute_and_private_cache(self):
         self.assertTrue(allowed(self.envelope['source_binding']['path']))
+        self.assertTrue(allowed('outputs/decision/profit_research/operations/receipts/20261004/'+'a'*64+'.json'))
+        self.assertTrue(allowed('outputs/decision/profit_research/operations/calendars/'+'a'*64+'.json'))
         for path in ['data/market/minute_1m/2026/20260921/000504.SZ.csv',
                      'outputs/decision/profit_research/private_cache/source.json',
+                     'outputs/decision/profit_research/operations/raw/source.json',
+                     'outputs/decision/profit_research/operations/storage-secrets.json',
                      'outputs/decision/profit_research/enrichment/../secret.json']:
             self.assertFalse(allowed(path))
+
+    def test_workflow_records_after_collection_and_publishes_failed_acceptance(self):
+        workflow=Path('.github/workflows/profit_research.yml').read_text()
+        self.assertIn('RESEARCH_RUN_STARTED_AT_UTC=',workflow)
+        self.assertIn('scripts/profit_research_operations.py',workflow)
+        self.assertLess(workflow.index('Bounded research-only D feature enrichment'),
+                        workflow.index('Append read-only collection acceptance receipt'))
+        record=workflow.split('Append read-only collection acceptance receipt',1)[1]
+        self.assertIn('continue-on-error: true',record.split('- name:',1)[0])
+        self.assertLess(record.index('python -m scripts.profit_research_operations --record'),
+                        record.index('python -m scripts.build_profit_research'))
+        self.assertNotIn('upload-artifact',workflow)
 
 
 if __name__=='__main__':unittest.main()
