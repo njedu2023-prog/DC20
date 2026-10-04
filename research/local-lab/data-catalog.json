@@ -1,0 +1,147 @@
+[
+  {
+    "id": "leader_indices",
+    "name": "强势群体：883900 / 883958",
+    "priority": "P0",
+    "hypothesis": "隔夜高开与开盘后承接分离；连板相对涨停群体强弱",
+    "action": "采集两指数同日OHLC、1/3/5/10/20日及分时；核验异常K线、计算口径和日期",
+    "required_instruments": [
+      "883900",
+      "883958"
+    ],
+    "sources": [
+      "https://q.10jqka.com.cn/thshy/detail/code/883900",
+      "https://q.10jqka.com.cn/thshy/detail/code/883958"
+    ],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "cohort_breadth",
+    "name": "历史成分与涨跌分布",
+    "priority": "P0",
+    "hypothesis": "中位数、红盘率、亏损尾部；避免龙头掩盖多数亏损",
+    "action": "冻结两指数全部成分及日期，核对分页总数、ST/北交所/20%涨跌幅分组",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "failed_leaders",
+    "name": "断板与炸板损失",
+    "priority": "P0",
+    "hypothesis": "弱势连板股是否出现无法退出的亏损尾部",
+    "action": "采集昨日断板/炸板群体，按原名单追踪次日开盘、10:00、收盘及跌停状态",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "ladder",
+    "name": "连板高度与晋级分层",
+    "priority": "P0",
+    "hypothesis": "二板、三板、四板以上群体的收益和退潮传导",
+    "action": "保存各高度分母、晋级/断板数量及断板亏损；不把晋级率当盈利率",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "sector_flow",
+    "name": "行业与交易题材资金持续性",
+    "priority": "P0",
+    "hypothesis": "资金是否持续集中、是否轮动撤出",
+    "action": "采集同源1/3/5/10/20日净额、成交额占比与排名；记录主力口径，不能混用资金净流入",
+    "required_instruments": [],
+    "sources": [
+      "https://data.10jqka.com.cn/funds/ggzjl/",
+      "https://data.10jqka.com.cn/funds/gnzjl/",
+      "https://data.10jqka.com.cn/funds/hyzjl/"
+    ],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "sector_breadth",
+    "name": "题材扩散与候选地位",
+    "priority": "P0",
+    "hypothesis": "独涨还是整条题材共同走强",
+    "action": "核验交易题材与行业映射，统计涨停/上涨覆盖、成交集中度、龙头断板、候选相对强度",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "execution",
+    "name": "竞价与退出可执行性",
+    "priority": "P0",
+    "hypothesis": "实际能买入且次日10:00能卖出才讨论条件盈利",
+    "action": "采集成交量、买卖盘口、涨跌停/停牌、历史竞价及10:00分钟；09:25最终结果不可作同次竞价事前输入",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "price_volume",
+    "name": "日线与分时量价路径",
+    "priority": "P1",
+    "hypothesis": "趋势延续、过度透支、承接/抛压分离",
+    "action": "至少60交易日同口径OHLCV；MA斜率/ATR/乖离/相对强弱；分时VWAP及尾盘回撤需原始分钟",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "limit_quality",
+    "name": "封板质量与成交筹码",
+    "priority": "P1",
+    "hypothesis": "封单是否稳定以及打开后的真实承接",
+    "action": "采集首封末封/炸板次数/封单与成交额、换手分位；静态封单不可冒充队列或撤单轨迹",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "positioning",
+    "name": "龙虎榜/融资/筹码供给",
+    "priority": "P1",
+    "hypothesis": "短线拥挤、持仓成本和卖压线索",
+    "action": "区分龙虎榜单日与多日及机构/营业部口径；融资变化、解禁/减持；无上榜不等于零交易",
+    "required_instruments": [],
+    "sources": [
+      "https://data.10jqka.com.cn/market/longhu/",
+      "https://data.10jqka.com.cn/market/rzrq/",
+      "https://data.10jqka.com.cn/market/xsjj/"
+    ],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  },
+  {
+    "id": "catalyst",
+    "name": "公告与短期催化兑现",
+    "priority": "P0",
+    "hypothesis": "隔夜新增信息是否改变交易逻辑或成交限制",
+    "action": "逐股采集同花顺涨停原因原文，保存D/采集/可获得/消息首发时间，核验原公告、题材归属、新颖性及兑现/澄清/减持/跨节假日风险；供应商标签未核验不加分",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重",
+    "fields": [
+      "raw_limit_reason",
+      "original_published_at",
+      "available_at",
+      "captured_at",
+      "announcement_refs",
+      "primary_theme",
+      "secondary_themes",
+      "verification",
+      "realization_risk"
+    ]
+  },
+  {
+    "id": "market_regime",
+    "name": "市场广度、流动性与环境",
+    "priority": "P1",
+    "hypothesis": "同样形态在不同情绪环境下的失败率",
+    "action": "采集全市场涨跌家数、成交额、大小盘相对强弱、跌停扩散及节前后持有跨度",
+    "required_instruments": [],
+    "sources": [],
+    "validation": "待逐项检验样本外增益；不预设概率权重"
+  }
+]

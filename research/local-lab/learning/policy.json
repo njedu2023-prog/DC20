@@ -1,0 +1,25 @@
+{
+  "version": "NET_RETURN_LEARNING_V2_ANY_EXECUTABLE",
+  "method": "daily_net_return_v1",
+  "feature_schema": "pit_numeric_v1",
+  "target": "exit_price/entry_price-1-cost",
+  "cost": 0.0045,
+  "costs": [
+    0.002,
+    0.0045,
+    0.008
+  ],
+  "scenario": "ANY_EXECUTABLE_AUCTION",
+  "train_days": 60,
+  "calibration_days": 20,
+  "test_days": 20,
+  "min_rows": 300,
+  "ridge_alpha": 10.0,
+  "logistic_l2": 1.0,
+  "missing_train_fraction_max": 0.5,
+  "seed": 20260926,
+  "ranking": "predicted_net_return_descending; equal boundary ties",
+  "capital": "conditional equal-weight selected fills; NOT portfolio NAV; unfilled weight shown separately",
+  "promotion": "REVIEW_ONLY_WITH_NEW_FORWARD_SHADOW_EVIDENCE",
+  "note": "Minimum sizes are governance assumptions, not proof of statistical power. Fixed hyperparameters; no test-set optimization. ACTUAL and QUOTE_PROXY separate. Retrospective backfills excluded from prospective claims. User authorized unrestricted auction gap on 2026-10-02. Historical conditional probabilities retain their original applicability."
+}

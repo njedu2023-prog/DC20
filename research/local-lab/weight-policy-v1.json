@@ -1,0 +1,59 @@
+{
+  "version": "research_weights_v1",
+  "feature_schema": "signed_evidence_v1",
+  "kind": "RESEARCH_SCORE_NOT_PROBABILITY",
+  "effective_at": "2026-09-26T05:05:41.279275+00:00",
+  "status": "UNVALIDATED_INITIAL_HYPOTHESIS",
+  "weights": {
+    "market": 0.2,
+    "theme": 0.2,
+    "price_volume": 0.2,
+    "limit_quality": 0.15,
+    "catalyst": 0.15,
+    "payoff": 0.1
+  },
+  "dimensions": {
+    "market": {
+      "name": "市场情绪与强势群体",
+      "rule": "883900/883958相对强弱、失败股亏损扩散；有完整同日成分才使用广度"
+    },
+    "theme": {
+      "name": "题材资金持续性与地位",
+      "rule": "1/3/5/10/20日资金、广度、梯队；行业上涨不能冒充题材资金流"
+    },
+    "price_volume": {
+      "name": "量价路径与筹码压力",
+      "rule": "MA斜率、相对强弱、ATR、乖离、换手及前高压力；相关指标合并判断"
+    },
+    "limit_quality": {
+      "name": "封板质量与分时承接",
+      "rule": "首末封、开板次数、回封及封单成交额；日汇总不冒充逐笔承接"
+    },
+    "catalyst": {
+      "name": "涨停原因与催化兑现",
+      "rule": "原始消息核验、首次发布时间、新颖性、与主营关联、兑现/澄清风险；标签数量不加分，“华”字辈仅属情绪标签"
+    },
+    "payoff": {
+      "name": "入场价格与收益风险结构",
+      "rule": "相同0–3%跳空、固定10:00退出；节假日事件窗口、抛压及费用敏感性"
+    }
+  },
+  "rubric": {
+    "-1": "强负向且有直接证据",
+    "-0.5": "偏负向",
+    "0": "证据齐全但正反平衡，绝非缺失",
+    "0.5": "偏正向",
+    "1": "强正向且有直接证据"
+  },
+  "execution_gate": "停牌、买不到或不能按时退出单列执行状态，任何正分不能抵消；评分不预测成交概率",
+  "missing_policy": "不重分权重；缺项输出上下界并退出自动评分排名",
+  "evolution": {
+    "min_days": 80,
+    "min_rows": 240,
+    "min_train_days": 60,
+    "holdout_days": 20,
+    "max_change": 0.05,
+    "regularization": 1.0
+  },
+  "evolution_note": "上述门槛是初始治理假设，不保证统计效力；分日训练/留出并清除持仓跨界。先提出影子版本，需后续新样本、成本敏感性和概率校准审查，禁止自动修改生产权重或旧概率。"
+}
