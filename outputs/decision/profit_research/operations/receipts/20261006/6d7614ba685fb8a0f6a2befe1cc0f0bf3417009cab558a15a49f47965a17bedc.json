@@ -1,0 +1,1063 @@
+{
+  "calendar": {
+    "binding": {
+      "path": "outputs/decision/profit_research/operations/calendars/14391e62b72d50ce97cb3c211d9b37501f7c2e2daa8dc95daf248e34fb34868e.json",
+      "sha256": "14391e62b72d50ce97cb3c211d9b37501f7c2e2daa8dc95daf248e34fb34868e"
+    },
+    "coverage_end": "20261231",
+    "coverage_start": "20200101",
+    "source_binding": {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    }
+  },
+  "counts": {
+    "complete_before_entry_days": 1,
+    "expected_closed_days": 12,
+    "late_or_unverified_complete_days": 10,
+    "overdue_gap_days": 1
+  },
+  "data_as_of_date": "20260930",
+  "dataset_binding": {
+    "path": "outputs/decision/profit_research/versions/8cb3fdfeafde8c23f77bbbc488850e1e367696e77a38a0234386ac63e7cdceb1.json",
+    "sha256": "8cb3fdfeafde8c23f77bbbc488850e1e367696e77a38a0234386ac63e7cdceb1"
+  },
+  "dataset_sha256": "8cb3fdfeafde8c23f77bbbc488850e1e367696e77a38a0234386ac63e7cdceb1",
+  "days": [
+    {
+      "before_entry_records": 0,
+      "candidate_records": 10,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-15T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260915",
+      "feature_complete_records": 10,
+      "feature_field_count": 27,
+      "frozen_feature_records": 10,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 2,
+        "pending": 0,
+        "settled": 8
+      },
+      "minute_complete_records": 10,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260914",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260914.json",
+          "sha256": "40780906741b57063e4d07b82e038c46611114e7dd1fb00020bed86db2c7a4f7"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260914.json",
+          "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260914/0859320c6f0ac3046342ee3770bc7186e287d80742aea1295a66822ad7c14667.json",
+          "sha256": "83430ce660abe7a224bb1e373ff0421f19918ceed569db72febe9bf03ffd7aa6"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/002912.SZ/998453060316c22cbe7c89f7b41d1c276abd3fded638c094c0adb65f8e989490.json",
+          "sha256": "21c7407afe9910124747c865def76cc1a7db4e656d78d6f3721b5fe03121fee5"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/600876.SH/4516850dda64c784b804cc691baf8da279392f5b27347ec31cca6f3726ee3b27.json",
+          "sha256": "d34a467e9f653a1bc0316c7476eead1dd572da04ccfe2785574cc83eaadf958f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/605069.SH/378419df3565184272517386acdb0bb29140697ab0be00768349c0b8b7a5c3a0.json",
+          "sha256": "e95968ea3ad8d69d8cfad2e15846255e9bf6eac69deda983d59669170e56350c"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/002560.SZ/da8e8ac8b37ae363f25ef5f632cd7840795ca7435fa300fb2231ef431517e2d1.json",
+          "sha256": "61aa152fc0f326d05f144006c9b15bc042c837cb0f9eb2dd7f6ba5772b5954ce"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/000980.SZ/9e4dc6a3930f5347e2c7ffd927ebc454866ee4def276276aa8e27aba10938047.json",
+          "sha256": "21dcca04cb0a22f0e84ecf1b684760d95262b24bc89a5aff22c5dcf24879bced"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/000823.SZ/399c89ab9fbd352f6244cb82871f917eb54fb467f93dcfbf6b0f9579670aa7f2.json",
+          "sha256": "66c5ad05cc09ab443d81bd9f9abe2f05f5ea6cf0f22f34a8a2363084b36eecd1"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/002585.SZ/c5be056c329a6424c3a87d67da5931f68a5f18953ad3ed6702db7dea2fbaacf8.json",
+          "sha256": "9d7e78a54a097b3be55def28d8cc090aae8fdaa95cc344d34bd705c1b8364210"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/605058.SH/524e63dccffc217d1494d25181e3d9ccf09f4fd5358d49aa8da58fa79706f120.json",
+          "sha256": "86e8a995932e49d6f388c2f294f6f352efef598e9e197c9669cb8879be6728aa"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/600088.SH/a7f09e92d963a6e5d657214e096b80929ce7ac6813ae4db67ff906f2ca9f4f61.json",
+          "sha256": "9a4b434882330e915d4c6c5f832914a2b1e21c2a5ba3e0507f4fe629a22219b4"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260914/603439.SH/f78ba1726db7235913be268f5f90e13f8327743963d40b91b41f5a83bf44ad99.json",
+          "sha256": "5c070274dc659735f300091b7b94226d8d96e45e028a328541cdc09a2e261fb6"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 4,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-16T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260916",
+      "feature_complete_records": 4,
+      "feature_field_count": 27,
+      "frozen_feature_records": 4,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 0,
+        "pending": 0,
+        "settled": 4
+      },
+      "minute_complete_records": 4,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260915",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260915.json",
+          "sha256": "ac64302eb51f6564b19e20075cae775c4e95b2f436631a005e4905077065f1e4"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260915.json",
+          "sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260915/312357cb9c02d602f931de9bee476feab695d9f0c37f6f1214d528d12b780e8f.json",
+          "sha256": "6f112db22def02901d3d14553703d260d77756257d7982ecbfaece1256a9aee3"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260915/002232.SZ/4a2c86f7bcedf6b08448b3376de253850484a983037035585d6882b77a379983.json",
+          "sha256": "fa95f32870527a00d6c2b0e3a40f93d2aaec803f46228d3360f36f75672061d0"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260915/605058.SH/5aa6777752461565a81c9d07cf0f68956dc2c863f4d8ff4716db0a835ff72177.json",
+          "sha256": "a674536314a170cd2641953aebbd7ec2f629de8e621b4305c4b2c28a3477e368"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260915/002585.SZ/f9c17c20952ffca4d1d3ca5e79a06e8db69101e84504184a9f5597761efa4782.json",
+          "sha256": "e0f568217eac980a7142054b3cb5a23d67e4e3f9158a56f4e1c643f9f3a8de23"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260915/603090.SH/7927f6e4c7e2aa9b2ca9019cbe4cae4ceb3262d55931d3f87a138e206f68c115.json",
+          "sha256": "81ff47aac7cc5c468f318deb03588dccf77e9332e9ebb7c6387e219ea1d42615"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 9,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-17T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260917",
+      "feature_complete_records": 9,
+      "feature_field_count": 27,
+      "frozen_feature_records": 9,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 1,
+        "pending": 0,
+        "settled": 8
+      },
+      "minute_complete_records": 9,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260916",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260916.json",
+          "sha256": "5d0d26fde37b22d595c922b364a7209834053158afb66e49ffed3ff7b90c43ca"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260916.json",
+          "sha256": "c1f5a09baa08690a3a3db1f960d3f2df5a152ca7736db745f75043dd67ebf102"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260916/d78e47ca1b17341186e863877a710bc2c1cea5a5f444727c52fe98e0b41bcbb6.json",
+          "sha256": "5caea4a2585ce9f807934aab578245aae3a8018cc0a74755f67ce81022682d21"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/002584.SZ/fa029e7239babb17b4418a6263560117655e88488f3e0c1c79015ea2136ef283.json",
+          "sha256": "aec428dfd7db212f9c6eeaa8a5d8925694e876a42f3bc49979153e84a1df5391"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/001216.SZ/d2f892056a59da840d1c3b96fe6379ea3660fae63ab52c3ac6d7d632bc935ca4.json",
+          "sha256": "a99da902d4488ac2efcc48f039d046da86d3fd7b32a80b6ab53da1ca4805bc60"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/003026.SZ/f294456605e359bda1c6725d2048716ad670ec37a97618533161a32566c0c50a.json",
+          "sha256": "f5e91d9c52c51f59420e4f784978e65120ac77a0845dce1b95040546f33d245f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/002846.SZ/08ef06d768eed503c101ff3597ede61d003f21403d7e5ad2fe4193e6fd707edb.json",
+          "sha256": "0d7355433a3d20970f6dee5a09e26ef83349d5d540a7442307f71d805fe3c07f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/603248.SH/7ccc530482998ddb9b55feeb651204773784f75b5e61dca0e9016c0337144a47.json",
+          "sha256": "6c18efa241f76a27bf6bf32a6f796b14381515cb2a863b039c696807a2e3745f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/002631.SZ/730e3e39c4f5f0abb301f718d47f08aaee85d02b1871381b707c586e953ea05b.json",
+          "sha256": "2441170d5c2df13231a85777d89c1129833a4c72add1bca240477117e0d56067"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/601579.SH/ffee3c762f3fd3724e89bc97be3c0405b0ed63bca14708d67523dbc54d4ba746.json",
+          "sha256": "fd7c2f38753f8f47017718086f1b19739a6909ce6e5e8e1a0f408c3bd355899b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/603082.SH/c850bd5e4ea17bc4a532ede324377008f4be29c50cb279d79f7f5efafb035541.json",
+          "sha256": "bb780764f36a3053967b62aa54032fa954a7514626b9b68eb40670b0ba272610"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260916/002491.SZ/806d68ae550f7c96b41e4781879c39d64d1a387c82bcb845e5496e4df3850363.json",
+          "sha256": "e5d5c36c11c31961f1bfa922f53e0e8b9f72991970aef43c3b3b232f6dd3cd68"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 8,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-18T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260918",
+      "feature_complete_records": 8,
+      "feature_field_count": 27,
+      "frozen_feature_records": 8,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 2,
+        "pending": 0,
+        "settled": 6
+      },
+      "minute_complete_records": 8,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260917",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260917.json",
+          "sha256": "2fb22d3596d95779a20ca1a110e15d782335aa858485692c9b205bdd2109c352"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260917.json",
+          "sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260917/0e8174141a95abf077a5dedc7deb1992e3ce0e3974d28f4c0026afe6c622c162.json",
+          "sha256": "2b212158df56b3976a4b7655c4a6f82c7388b2edde08864beb93a760717c45d1"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/603230.SH/4403ea1c0d95b77c4ebbb75e00038f54fa6b2b1041ab1de2f2a54610f56807b7.json",
+          "sha256": "baa16edcc70205c8acd3437db19641311b3cd04427d2b146337908a1a252d158"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/603248.SH/c009c8e77a6b30ea50ce5c72af70651aba8738870b12bd8bef5f672241f42b5e.json",
+          "sha256": "5f3074b51898976dd36f05286091faa22e4d40bdcdd062daf0f889a7ffc90a85"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/002285.SZ/6c99b2fa172720d943a80a9ec720d8f063dab27204fd74ee5cfc8114797f30ae.json",
+          "sha256": "40fe77ea9f227a605fdc09444b04208e80d1ba26065fd7778b33dd3ca546f62b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/003026.SZ/9941a3bb0e0bf393f3cacae24885081b5973eee9fa0cc59a16629de6f415c63d.json",
+          "sha256": "9a4d660628c5e0c4f285a210fef3adeefddae78b210d60d43e211ede03e1af4e"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/001216.SZ/989184500c003cd9aa5c17acf0731c03bba033fe24973d9d3da9e921e91268a9.json",
+          "sha256": "d9f05e817182f5af8a56faa7014bff0a5a1ade58363751ce0860eaf4cc7e6f99"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/600371.SH/85ecf8dd6d17e9a90129ea64d40aac22df5fb5e1cf87051cf02742b2d4740147.json",
+          "sha256": "f59305a207d02f23e99c5387031ddbc1b9c60f6deee333692b505257cf18bb01"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/003001.SZ/09ebd36750433b7163e2ca075b68fc1b6f19336e5478821cee1c86a99c6f89aa.json",
+          "sha256": "4f411f8dd6d753f2059d46a92488bd1719400c799915c5b78d7ea6843a53a1bc"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260917/002655.SZ/13707620a0d203ea87b9ee51b96df98641e7bdd8a5d0056a254ffd5db4aefc4b.json",
+          "sha256": "5061c11f3aaac29cde21356338efe4fd7ac7a2ace5f5bea6e0d0e854b34082ce"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 9,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-21T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260921",
+      "feature_complete_records": 9,
+      "feature_field_count": 27,
+      "frozen_feature_records": 9,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 3,
+        "pending": 0,
+        "settled": 6
+      },
+      "minute_complete_records": 9,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260918",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260918.json",
+          "sha256": "9818d1b2fb0e0de35d42a755ffaf53794e322b97ca38e39737dad94f11da9ab6"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260918.json",
+          "sha256": "0c8ae1d8f288f48817f08a3a23782a8761bcfaf154a22535a9c83acd05fa34af"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260918/62ad608726703ca3ebbacbf73bf34cb8f09395a70350a381196181ebb8d9823e.json",
+          "sha256": "acb0698077df7f98759f36956fd3b4e0adadbaf7ad254a23c3d2474e721dc5e3"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/600448.SH/a234094b9a0366e673bc7a6efc55c60fce4812bf92edeb93106e4c3115079a7f.json",
+          "sha256": "7ff0438089d450d849bfaf912fa6820d3137997570b5dfdad69e73608cc4da6f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/603230.SH/ad48924552063d224d02ee30e7b4b588a19d2bdaa80f321ae89584085567d643.json",
+          "sha256": "ebd91893fe15c0c18b0a5f140e3586d1c2d1d8908a21abc762e447e9056a67f8"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/002285.SZ/c3d2f559d6be9c26c79709fa7da5d3dec7624b6094fd819fee83033c79229710.json",
+          "sha256": "0e72dd6c06e35a5ef9a5595601f0733a4da0f48cc7881fe9f13fcf4f077afb7b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/002453.SZ/d6b476bdf679369329696fd730f66e9ee5970dbe0dd825ef58bfa8efebfb25ea.json",
+          "sha256": "01d55ffd46d7b65af8e7c49b2b5ab1d0b3ab249db60fbd9952f0cd075fc22cd4"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/000504.SZ/4b249d7de98545697f39a7ef9feafd45bdced14f4dfc1417d965b52175051e87.json",
+          "sha256": "67a9d014c9efc4876b9288efbd5f0e30f71daf4d0ec3a6ee24f9d1f690e3e4e2"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/600630.SH/bd30bf3065faaf41b515e84cd832f7cb4fa0133acd5ff3a3e9923e41bb94481f.json",
+          "sha256": "27c9b5a6e6d465f84d6781ebab18a56bfbc8f537e8947e63d666662621304386"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/002836.SZ/ee37d4b63208fe5faa812098cc7cded82adf1f461bc304bd0779161342621edc.json",
+          "sha256": "61823aadb0c67d7cab92bd88a979bd2f88f627eee86aa39c041149744f5e4028"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/603626.SH/540d3ca3129238144613382b4a01d8c2c40a51bb1182dda152b1fa1973c9a44b.json",
+          "sha256": "ea24d563f22895613a5dcb3480a9ccc260b6b4896380c6dc99dbd10dea7a2003"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260918/600127.SH/e53727d990cda61ee2c912d497751807efcd6d9dc5a812fc665550b6ab44c820.json",
+          "sha256": "f0683e48c6ff5aa0080f6788cf4f77ecc9da9fa525eb5e84fda8c2787daf1f5c"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 10,
+      "collection_complete": false,
+      "collection_deadline_utc": "2026-09-22T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260922",
+      "feature_complete_records": 0,
+      "feature_field_count": 27,
+      "frozen_feature_records": 0,
+      "frozen_membership_matched": false,
+      "label_counts": {
+        "missing_or_invalid": 10,
+        "no_fill": 0,
+        "pending": 0,
+        "settled": 0
+      },
+      "minute_complete_records": 10,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [
+        "FROZEN_BINDING_OR_MEMBERSHIP_REJECTED"
+      ],
+      "signal_date": "20260921",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/profit_research/extensions/20260921/b0a0631dfd86eba720ba4b9998fd1a87f220abe2c13fd1dff5b564fedbf0270b.json",
+          "sha256": "6b6560d999d5a8a08331a8d2dfe85e768c4cf6f9c44bbb4e902fbcd446e7b376"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/000504.SZ/765b07817ca0547ac4072f5f5d687285cc105d7e18b2a6e41bf1b893990fb105.json",
+          "sha256": "716d05c6434170573cf07eb21d1d2eee777f3823c3db4e6c324eb8b56a3efd50"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/600630.SH/309c2c6b13bcff2d63320531e0936bf27f5727882c1a049fbffb64764b7a58b2.json",
+          "sha256": "07d3223e1ea4a54955ce13a94ecc3bf7e6d53d956cadc2167f7508cc0845a5ca"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/002453.SZ/914b7c2d6c73b7a06fd0c96adb5d32a4da627315bcf3f808659f80cf4fb0e389.json",
+          "sha256": "e23fa118fa48c31862e6f59cab5dd2d8137b15281cf8135d22560e763590c167"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/000910.SZ/330d494d1dce0e2351f1f35b315c8029ee7b9db469041593bd62e205f8e248ef.json",
+          "sha256": "c8210eff437340c50fed0ad5e24b7f4b5cd86f088d11327bda0435cd967338a0"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/001376.SZ/59c2dcb05b06e3e5d8a068ea8da5c1b6363a391296db5fbadfcf3f5296aac70d.json",
+          "sha256": "f473097f67f4fef26118316211cefa6e69109fd47f6fd0f7105140885427ef2c"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/002589.SZ/74b08cbeb49d4f75796bba87a3c9f88ebfb48551a600df7a0bf3354e0572ee59.json",
+          "sha256": "ff66d2cd9674f2b822fff5a900e33ac31481cecc008dc07e73083aad1b63a537"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/600606.SH/ef88b0a4f160b82fe4d94be3f68ad84bdfd2836563dd7f860992bd409d5fbe57.json",
+          "sha256": "8a4654edf8ef182d7bd464ab2759e1892d14726332722ef61d0ccc0002c6dcba"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/000532.SZ/dd6d8993e1877d5636b4b56995de141adc5419f4e98fe0d1b26d06adfd70db72.json",
+          "sha256": "a7d5d10d916442191262aa32bce7bbdcc4b314a0162e9253895d6042a54dafc5"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/600448.SH/3137f14648508799e9c3a3bcc68ce64d9b2783e6e79298941031d4d9a968c71a.json",
+          "sha256": "325cc6d3ae485951b1bb1aa5f03c2919b27499ed6aab3300f077432b12b79ed5"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260921/601123.SH/cd9576964f2603276f44de5b2de93923023068c3082688aec0374df661ffad6e.json",
+          "sha256": "2ed169e249b31f2a900511dd768dc7483fc717a223af71e0416bde3e55bca7bf"
+        }
+      ],
+      "status": "OVERDUE_COLLECTION_GAP"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 10,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-23T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260923",
+      "feature_complete_records": 10,
+      "feature_field_count": 27,
+      "frozen_feature_records": 10,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 1,
+        "no_fill": 4,
+        "pending": 0,
+        "settled": 5
+      },
+      "minute_complete_records": 10,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260922",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260922.json",
+          "sha256": "f6286f65c5fcad9521375a8031107569ec4ca44c77a4829c6d6f0aae37a44e6b"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260922.json",
+          "sha256": "1e69e1657d4712849569e3a9b305b1bb31d39f0e09fcd9e9f89d82fc30a3f688"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260922/30f99f01560558a8564c9e1061da206e7fecde6a5a12606113c3314ee333f911.json",
+          "sha256": "14bc87df367bee52a993dff66fc2bd1d5dab970355f160b7ebdb51df129aea42"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/601811.SH/b5344078f698be79a8ca94c52b666883cf7b7d0f6979a7b70f8afb91170e80e3.json",
+          "sha256": "24cc2c8ebba7941effb8287a8d005e8523feb187951dd884cfca5813353931c9"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/600825.SH/773562870b22b2d7ed55effd16a782a410cd0de3adda87c4803a4fa540022c1c.json",
+          "sha256": "af66f5a3020f23e635e7f61dd9f787e1cfff91a2c70201ede6d6e2ccf26c58fb"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/000607.SZ/11dfc4d2e4a8f66762c9c89052657fc38a294d58fb124348e7c4e44e40ae1288.json",
+          "sha256": "ba00d09b84f647c7a0fcbb63a43ac8ae05569b291720456c534386f6e31b8c5c"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/600743.SH/5dab581a58c507238e7b4deb2c3efa351de0186a09c16e45be669712ca69e107.json",
+          "sha256": "409ee4ea73aaf6e722af48771760efae7e457f7894894a7b0dc46c8671d5e815"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/002614.SZ/c879f915391453e7498f1f1d2cb1e743c9ff152d449d176d11f426b2e48e8983.json",
+          "sha256": "a0bc12ae3b0bceba1920fed5ef2d0937de325fafb5fb89f8a0cd89c94024cabd"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/000910.SZ/c6b5bca1ec9cac07068bb8a88055ff1137d90b856680f06097df43beddb4b1b4.json",
+          "sha256": "c6d68a60a3f3de4cb0ba084435e010960b8d9d9defbe2bbbac1e56b012f8c7cb"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/002303.SZ/703b9bbea9c46c4df057cf8313bb21a665d3962773a63f7559601ea9891f4de9.json",
+          "sha256": "8ed2a3f2a5d25140180e42efac34ce710640cdee89382fe53cc087886cd9594e"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/603636.SH/73b185c6570b62c84c1bd0283e8abe9e95ccb36737437ad0823dc5e2955266f5.json",
+          "sha256": "edf44590a40ff4d449d25ecd990598c5154e44a51c7f93a3fa4f8b51ca9d7e6f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/001234.SZ/f8f3f83fd85c144926af2cc3095e59b8ed97a41c989e2933f970e628e86f4716.json",
+          "sha256": "965af5ef10512175da3bafa91d4cffafe206368ec5b02d5ea5fd6aabb9e9fa23"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260922/002259.SZ/b327b43899b2b4957ec748ab74e9c070e686d4ba9febd022f09f1e24fa882518.json",
+          "sha256": "81f47f5e2eedf2b902666bf1a2382000d39f00aeb96aa700dd528c70c03536a8"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 10,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-24T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260924",
+      "feature_complete_records": 10,
+      "feature_field_count": 27,
+      "frozen_feature_records": 10,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 1,
+        "no_fill": 1,
+        "pending": 0,
+        "settled": 8
+      },
+      "minute_complete_records": 10,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260923",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260923.json",
+          "sha256": "9c65343a0517001f036fd97407f9b4471d9a998f51c12a0aad5cf78cc54acb41"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260923.json",
+          "sha256": "caf80b82b1503a03641a3b4b86e72bc3c761200306d4b5c055c773defecf0ccc"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260923/9f7440fee8aa5e34c0897122d00ffb3ae73fc32eda92ccb896f7bb2b939c12e7.json",
+          "sha256": "7527f26988ccf88b9306bf7b32386039504714f4f8743fde5a29b2da493bce5c"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/600825.SH/18de98c5d1b25757fb849ae6b98ceffff04106d3377dc17f1cc1d55668427692.json",
+          "sha256": "7e1cd753f695210fc51ec854a50b665357d5581c7d8c3269592d2d280634a374"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/001234.SZ/612aa0a4877c17e438fb7b21412392652de5b7e53953a9b2bd9deaf8aec45156.json",
+          "sha256": "3ec71ccb22aa044f168f7cdfce145efd161ca6c3f05b450e863b70ff4cad54c4"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/002238.SZ/89004594950b99b1a531474e1220c9d103ac1859c01322a88ebfac00a70ee33f.json",
+          "sha256": "991c871243ec4ed31eebd93e40668392d02f7c78e0deb8968bdb4e0c6380f8b6"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/600743.SH/2b4afb02735b4824987ea2baf898efe0d178262b3a4c379a1c958f313a6d6808.json",
+          "sha256": "62a02ca04d98f9512dbb2da3f03b8a63740463e5c496f7ef6d0487760deb1f18"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/600503.SH/2a740ae444ea9f8101484cb6b2363948ad3f03b5df550224de7557bf7c41aa77.json",
+          "sha256": "ef86959bab3565760cd1906d1d5b08320667935b4919f919a1672e441e623f4f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/000560.SZ/1436c8c08983adf0508c8b92000d18b9bb01c91af9514c852d23af3f95add4e7.json",
+          "sha256": "3e83acf9b9154ba4729526318ad95c9beaa1bc14f36a9b7f0bdcddc57e22cb7b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/603636.SH/de7c9fe229241dcb4f9aca078ca895ca027af4422bacc2009e853c885b738327.json",
+          "sha256": "7d927e5094abc40069fa208d294a040d4eb964f1828063d82989025b9ddbb88d"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/002614.SZ/735d68f6245ebcaa3ab762c393941cb2ab57ae0110ee869799c42741ede53d41.json",
+          "sha256": "b333b89dad43c04ac64bceb1a1d269183608db823f1dcc171717180defa4eb33"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/600418.SH/ddcf32f28da3112db14caab6f06a4df09de344767b3ff9caca13a52c9b6f1076.json",
+          "sha256": "8b50536836cbc493fbcc85e28a92169dab15fcb1eb70735f914e3af796cd5b9f"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260923/605058.SH/060a9ced3b6b562f7d8289435e70da75d6221e49dc2263056069175e1d224bf6.json",
+          "sha256": "5e3889d248b13d84f05c88edc8cc01894cff65c6497bad102c96827c0e892421"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 9,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-28T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260928",
+      "feature_complete_records": 9,
+      "feature_field_count": 27,
+      "frozen_feature_records": 9,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 2,
+        "pending": 0,
+        "settled": 7
+      },
+      "minute_complete_records": 9,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260924",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260924.json",
+          "sha256": "f3b16912d48174e620e3abf7bd4059e9850f5c0799f10130e16126e8ff986fe9"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260924.json",
+          "sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260924/0efd06aa9dd396ced7344b06d420e4ab9a563e1ac983c3275349cf6d2dbeb367.json",
+          "sha256": "e350dd4c4aeda9a8013e497db9b9ec154b5bcf2d0ed1c04db2d455ffdbe09571"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/000850.SZ/940dbdcc40ec37c8ab181df0826acde249fa7a98b31b55a48bc59b1b2909ce1b.json",
+          "sha256": "8025127caadc1021f6f528764eabe3f8243f260460a6fa17b927011a358e7e0b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/002909.SZ/6a8470f5bdf74c5c981421fe5cc49080dfa37a928a69ec0f0f48e1473f433218.json",
+          "sha256": "c0f7f3dadbef2d03cd5d554cbbb80afe1a89792962f9da38fcb03cc8c1cf284c"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/002238.SZ/e64da7f73d8d206204005308dbf1f99b0e3844c8df96687fcb203e5647ce5089.json",
+          "sha256": "8d4330d9d5ceea09e29ab3085317154eeb3a37bffe8c503ddc6f491cad1652fd"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/600843.SH/72c0652870797f55ce6f116553f3fc0a6eeffa26e58082a57f964be0e16804c1.json",
+          "sha256": "84e163b0dbe36eb24436c1b428d6443880948b0c85700b0c1846213b4c477d6a"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/600802.SH/0f68b28b370acfff7d03a3a784020a4405d8527010c44ccae983a22c243c7985.json",
+          "sha256": "4aeeba91f87bf02d820c88fc8eaf1339e3a5cea9c2d5cd5826111b23d12f38f7"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/603949.SH/8662999eff3f1b06c9aee272535dd5758148b86875c5e3b4bb3e9437b662f8ee.json",
+          "sha256": "82fc8b74758bcd500bfb523312b86e77bdfff0608c2a1d17f8202d5e6c8bc952"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/002119.SZ/7a532f75aa2a534afabbca0c50cb2a8db8c6e6a8c71e10ae156af8c4e90a0f39.json",
+          "sha256": "00fa330af0695c29dcf47479b4030e1d7e29c40a5b31012518d19da67b78fe49"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/603396.SH/64a9c445856a3b54ca2858d1d0843c9d651b5c236612b8930c2fff150e790ae3.json",
+          "sha256": "bcb8b265bfbba044585bb85c2a2ea13ea0b4dd194578e9b859c33ac92b6a92e3"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260924/002819.SZ/5c18bb5a0f9caded2a0f91926ded180013049859845e6dd5e47bce48d5a3ccb2.json",
+          "sha256": "82a3c9825f8109d06d2e716e084019fca7d1f28b910dff57f31be068bb73d535"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 6,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-29T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260929",
+      "feature_complete_records": 6,
+      "feature_field_count": 27,
+      "frozen_feature_records": 6,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 2,
+        "pending": 0,
+        "settled": 4
+      },
+      "minute_complete_records": 6,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260928",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260928.json",
+          "sha256": "6f561017fc143bb88c73642e528a3507718c7c2b2d41107bd47b5edad57a1b2c"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260928.json",
+          "sha256": "f2db6f1f6234584f0f6d9e49904e657bb397913641c46c09791ca9504fc2ec0c"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260928/0132fa0e5f829e996d179dd6f028783ab70b1cbfcb4d60e5e72f46c422a56e68.json",
+          "sha256": "b673976e8ff9052e83bded556fca048c36b3780731ae8368788f29ba3de17159"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/603949.SH/d339ef667782064e792146eb7197150656b47b9f8257519fab13871b9c9fcf0c.json",
+          "sha256": "bc80ee08c3afda5bba348c54ea6a196bdc9138e48ed5acd2a978016bf9beeb96"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/600802.SH/e87296f537c15f707f762112c2ee1c256fe04206cdfd1f039389944ee0c09329.json",
+          "sha256": "491246b85386b691c9618b286e58846ec8cc17797badbe8709cc8f2f5e66b9c2"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/603396.SH/7c11981da4527bf2157e5ea855ff5fb8f8b1a473c6976a15fa9a71747a189b01.json",
+          "sha256": "4e9c7d6197d0938e5e7ffbe3ddbfc3cd89cc62cf5dd2f3e7e96d84dcfb410d08"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/000678.SZ/69efb77a6c9fffedf9f6fd20ec0d4c499bd707b4122e9ca9d5a1b53cd326fae5.json",
+          "sha256": "b512d28d3f86036df4bcf37d94a5b6ef0c2a9979e5089f124ebdfaa883c37242"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/603278.SH/803a44bc9653ad5a4ea3cddfc3e357cd2113d4a1f09674082fb7c89934d06933.json",
+          "sha256": "2ff2f6a85eb8a2289b23896f11aa9259cb7158a9cb90c504654a15d6abbeff7b"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260928/601218.SH/9bc80b2b5734739b38a4cbc3898cd20a69ca388149aa8bd5cb14d1b76482c62d.json",
+          "sha256": "a194343d322848270cd2bfb4e56aa1295e6db43d4fc6565ac6eb5609476ba28c"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 0,
+      "candidate_records": 7,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-09-30T01:25:00+00:00",
+      "deadline_passed": true,
+      "exec_date": "20260930",
+      "feature_complete_records": 7,
+      "feature_field_count": 27,
+      "frozen_feature_records": 7,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 2,
+        "pending": 5,
+        "settled": 0
+      },
+      "minute_complete_records": 7,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260929",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260929.json",
+          "sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260929.json",
+          "sha256": "5e61a47d61722b453cb819daacf5c1aa764b190ca506aea0d7375d44631a39da"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260929/791dc28fa956c5b047e12f32cdeae7110e801c32b033a9f8a80f8fc819d10dc6.json",
+          "sha256": "818a12ba0c4cc197aa607fe0cde1a48924281cea65066981764cbec5dbfe42ee"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/000678.SZ/eeeaf4dd8097c416af1c6a62052c1266f2b3ab16785c236492a5f7e2a6b390bc.json",
+          "sha256": "de07eaed39e8715fd70f2d5b881f2626aeb30325a698834ef4a1487047b1fe98"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/002242.SZ/270ff13f5181a55eac2248d4d2da1e40cb845514dda1ccdb632f3a330894ad03.json",
+          "sha256": "36521877005cd9ae32d240cdd388ef983f31968b5ee516e699a16056fad8e05a"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/000011.SZ/efe123213ad340a829274735e50b6aff4a9fef3db90caaf2592dea7c747a2dcd.json",
+          "sha256": "1795e0178eeb22ca4d8ad0bceb5f48d545ce5ec983258d5bc4913f18eb88c84d"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/600032.SH/316bbf86a4d23ba6a74ab4dec5f0ea1f80cb6a6a9f3baed88e68fae9bf97a8bd.json",
+          "sha256": "85d96334f51fb3d0d22f8f66ec6b9af9e587473364c2575b68bf2b127c553c68"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/600241.SH/136cd2f56c0bf3c835a07315597180878703eecb943c28122f3d44c9927fb88c.json",
+          "sha256": "0fa1137e30471d53c6c98d675d057b63fcc6d44a0f73e556b3a00dda60f7a4f0"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/600488.SH/177e13f8a0afe739fbf35d7e0227d3318db7587c65d453af031ddc5ed04c7e6d.json",
+          "sha256": "1d56ca84d8712cfee6443f9912e951e2685060141f4c5d196bd92fa0970e6b97"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260929/002912.SZ/852ce72db5638e32121a99866df82e245e43adabaf8034e43c7be367dd7fa68b.json",
+          "sha256": "575a89a4d372af6f5aa0a062efecc5ce76343d266c26a2cbd0bc414c1453a773"
+        }
+      ],
+      "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+    },
+    {
+      "before_entry_records": 9,
+      "candidate_records": 9,
+      "collection_complete": true,
+      "collection_deadline_utc": "2026-10-08T01:25:00+00:00",
+      "deadline_passed": false,
+      "exec_date": "20261008",
+      "feature_complete_records": 9,
+      "feature_field_count": 27,
+      "frozen_feature_records": 9,
+      "frozen_membership_matched": true,
+      "label_counts": {
+        "missing_or_invalid": 0,
+        "no_fill": 0,
+        "pending": 9,
+        "settled": 0
+      },
+      "minute_complete_records": 9,
+      "new_in_this_run_records": 0,
+      "new_natural_eligible": false,
+      "reasons": [],
+      "signal_date": "20260930",
+      "source_bindings": [
+        {
+          "path": "outputs/decision/three_rank_top10_20260930.json",
+          "sha256": "4cd6088dc3de9ca4ddbc4b780bc2c10a2d35b960366651c841972e6fc6921149"
+        },
+        {
+          "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260930.json",
+          "sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b"
+        },
+        {
+          "path": "outputs/decision/profit_research/extensions/20260930/e307d69fc50ed09913c141ba2405bac359f0e5e0c36e202c1043b78254d182d6.json",
+          "sha256": "a837f1b8b7d0458a6879f9554376a921fc8654644cea82342f39d0dcbacee214"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/605303.SH/770ae2f769ee17fe659a5043563e006b209af214402a2e878b96dc50bb921fb0.json",
+          "sha256": "043c362701c3b1f07725da3cb15734603e6169d35ec5c76fe3d5e7aef8f86990"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/600241.SH/49d02aae923c98e0f3001ad625441904c4de4117138c17b9f84a64136c220157.json",
+          "sha256": "b83a5a81a61547d94cf9003690af8285f8e4f5daa9768bcb4a326d7a1bc323d9"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/002058.SZ/c7108a2375ded3f2961fb816566c9fcf3e050c138b84d438ceae459d27d46718.json",
+          "sha256": "a1696ea46f31e87e2ae581020a0bca3cd86c46a081d1b375d5ab4957f86d1ffc"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/000011.SZ/8dcb6ed1d48d57bee581e17846f55890c7a00f4e5c6264465e8658522b3a594e.json",
+          "sha256": "28aa2999ea96b286e6c4e56528cb264ce949d289902a3cfaa07d1f699691c3f4"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/605388.SH/30820285f4f227c9112eda8a1b379634824b3c01890548782012c2afa46c8461.json",
+          "sha256": "8e6eb0f539f5438c61d4f5e2da1131833fd85b2f5c96a28999c260e3ed4391fa"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/002242.SZ/3cddd87f318b35d355750699b2d15e01fb54c7d77affd2afb83c22842d3a8cdd.json",
+          "sha256": "fa50d4f765186006e182091bd8bf71bed105cd5ec10e27c0d140249d99c01af9"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/603188.SH/a2c2f12327532201d4a69902de2dfd1f98f02b460d985bfc37ae16bb1f107f1b.json",
+          "sha256": "3d2f75c43fa002281380e99602025c5291c0c3d3312af3a394793f7945c3f403"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/002866.SZ/ddfbded9d5ab4c91afc6c287c9e8a441d9d56167a439141192df78a82cee27c2.json",
+          "sha256": "925fc6b4e2baa13d3f550d3576f73c15814e51a82bca5f045605170063b727bd"
+        },
+        {
+          "path": "outputs/decision/profit_research/enrichment/20260930/603200.SH/ee49eeaa7b094b38ec565e98eb6074a444d7857daf1347feea2430ba9116976d.json",
+          "sha256": "04fe5a18fb70ff6a543cfcf30ed69bd6668a95ced71976f4ce410a7dff5f9568"
+        }
+      ],
+      "status": "COMPLETE_BEFORE_ENTRY"
+    }
+  ],
+  "errors": [],
+  "latest_closed_d": {
+    "before_entry_records": 9,
+    "candidate_records": 9,
+    "collection_complete": true,
+    "collection_deadline_utc": "2026-10-08T01:25:00+00:00",
+    "deadline_passed": false,
+    "exec_date": "20261008",
+    "feature_complete_records": 9,
+    "feature_field_count": 27,
+    "frozen_feature_records": 9,
+    "frozen_membership_matched": true,
+    "label_counts": {
+      "missing_or_invalid": 0,
+      "no_fill": 0,
+      "pending": 9,
+      "settled": 0
+    },
+    "minute_complete_records": 9,
+    "new_in_this_run_records": 0,
+    "new_natural_eligible": false,
+    "reasons": [],
+    "signal_date": "20260930",
+    "source_bindings": [
+      {
+        "path": "outputs/decision/three_rank_top10_20260930.json",
+        "sha256": "4cd6088dc3de9ca4ddbc4b780bc2c10a2d35b960366651c841972e6fc6921149"
+      },
+      {
+        "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260930.json",
+        "sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b"
+      },
+      {
+        "path": "outputs/decision/profit_research/extensions/20260930/e307d69fc50ed09913c141ba2405bac359f0e5e0c36e202c1043b78254d182d6.json",
+        "sha256": "a837f1b8b7d0458a6879f9554376a921fc8654644cea82342f39d0dcbacee214"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/605303.SH/770ae2f769ee17fe659a5043563e006b209af214402a2e878b96dc50bb921fb0.json",
+        "sha256": "043c362701c3b1f07725da3cb15734603e6169d35ec5c76fe3d5e7aef8f86990"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/600241.SH/49d02aae923c98e0f3001ad625441904c4de4117138c17b9f84a64136c220157.json",
+        "sha256": "b83a5a81a61547d94cf9003690af8285f8e4f5daa9768bcb4a326d7a1bc323d9"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/002058.SZ/c7108a2375ded3f2961fb816566c9fcf3e050c138b84d438ceae459d27d46718.json",
+        "sha256": "a1696ea46f31e87e2ae581020a0bca3cd86c46a081d1b375d5ab4957f86d1ffc"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/000011.SZ/8dcb6ed1d48d57bee581e17846f55890c7a00f4e5c6264465e8658522b3a594e.json",
+        "sha256": "28aa2999ea96b286e6c4e56528cb264ce949d289902a3cfaa07d1f699691c3f4"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/605388.SH/30820285f4f227c9112eda8a1b379634824b3c01890548782012c2afa46c8461.json",
+        "sha256": "8e6eb0f539f5438c61d4f5e2da1131833fd85b2f5c96a28999c260e3ed4391fa"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/002242.SZ/3cddd87f318b35d355750699b2d15e01fb54c7d77affd2afb83c22842d3a8cdd.json",
+        "sha256": "fa50d4f765186006e182091bd8bf71bed105cd5ec10e27c0d140249d99c01af9"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/603188.SH/a2c2f12327532201d4a69902de2dfd1f98f02b460d985bfc37ae16bb1f107f1b.json",
+        "sha256": "3d2f75c43fa002281380e99602025c5291c0c3d3312af3a394793f7945c3f403"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/002866.SZ/ddfbded9d5ab4c91afc6c287c9e8a441d9d56167a439141192df78a82cee27c2.json",
+        "sha256": "925fc6b4e2baa13d3f550d3576f73c15814e51a82bca5f045605170063b727bd"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260930/603200.SH/ee49eeaa7b094b38ec565e98eb6074a444d7857daf1347feea2430ba9116976d.json",
+        "sha256": "04fe5a18fb70ff6a543cfcf30ed69bd6668a95ced71976f4ce410a7dff5f9568"
+      }
+    ],
+    "status": "COMPLETE_BEFORE_ENTRY"
+  },
+  "latest_due_d": {
+    "before_entry_records": 0,
+    "candidate_records": 7,
+    "collection_complete": true,
+    "collection_deadline_utc": "2026-09-30T01:25:00+00:00",
+    "deadline_passed": true,
+    "exec_date": "20260930",
+    "feature_complete_records": 7,
+    "feature_field_count": 27,
+    "frozen_feature_records": 7,
+    "frozen_membership_matched": true,
+    "label_counts": {
+      "missing_or_invalid": 0,
+      "no_fill": 2,
+      "pending": 5,
+      "settled": 0
+    },
+    "minute_complete_records": 7,
+    "new_in_this_run_records": 0,
+    "new_natural_eligible": false,
+    "reasons": [],
+    "signal_date": "20260929",
+    "source_bindings": [
+      {
+        "path": "outputs/decision/three_rank_top10_20260929.json",
+        "sha256": "0296b01eae1f656859ae296ff9ed067e1e093e6dff0013becc0338cdad3bf0dd"
+      },
+      {
+        "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260929.json",
+        "sha256": "5e61a47d61722b453cb819daacf5c1aa764b190ca506aea0d7375d44631a39da"
+      },
+      {
+        "path": "outputs/decision/profit_research/extensions/20260929/791dc28fa956c5b047e12f32cdeae7110e801c32b033a9f8a80f8fc819d10dc6.json",
+        "sha256": "818a12ba0c4cc197aa607fe0cde1a48924281cea65066981764cbec5dbfe42ee"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/000678.SZ/eeeaf4dd8097c416af1c6a62052c1266f2b3ab16785c236492a5f7e2a6b390bc.json",
+        "sha256": "de07eaed39e8715fd70f2d5b881f2626aeb30325a698834ef4a1487047b1fe98"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/002242.SZ/270ff13f5181a55eac2248d4d2da1e40cb845514dda1ccdb632f3a330894ad03.json",
+        "sha256": "36521877005cd9ae32d240cdd388ef983f31968b5ee516e699a16056fad8e05a"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/000011.SZ/efe123213ad340a829274735e50b6aff4a9fef3db90caaf2592dea7c747a2dcd.json",
+        "sha256": "1795e0178eeb22ca4d8ad0bceb5f48d545ce5ec983258d5bc4913f18eb88c84d"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/600032.SH/316bbf86a4d23ba6a74ab4dec5f0ea1f80cb6a6a9f3baed88e68fae9bf97a8bd.json",
+        "sha256": "85d96334f51fb3d0d22f8f66ec6b9af9e587473364c2575b68bf2b127c553c68"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/600241.SH/136cd2f56c0bf3c835a07315597180878703eecb943c28122f3d44c9927fb88c.json",
+        "sha256": "0fa1137e30471d53c6c98d675d057b63fcc6d44a0f73e556b3a00dda60f7a4f0"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/600488.SH/177e13f8a0afe739fbf35d7e0227d3318db7587c65d453af031ddc5ed04c7e6d.json",
+        "sha256": "1d56ca84d8712cfee6443f9912e951e2685060141f4c5d196bd92fa0970e6b97"
+      },
+      {
+        "path": "outputs/decision/profit_research/enrichment/20260929/002912.SZ/852ce72db5638e32121a99866df82e245e43adabaf8034e43c7be367dd7fa68b.json",
+        "sha256": "575a89a4d372af6f5aa0a062efecc5ce76343d266c26a2cbd0bc414c1453a773"
+      }
+    ],
+    "status": "COMPLETE_WITH_LATE_OR_UNVERIFIED_COLLECTION"
+  },
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "natural_evidence_status": "NATURAL_REUSED_NOT_NEW",
+  "natural_new_d_evidence": [],
+  "notices": [
+    "PRIVATE_STORAGE_NOT_CONFIGURED",
+    "NO_NATURAL_NEW_D_EVIDENCE_IN_THIS_RUN",
+    "OPERATIONAL_RECEIPT_IS_NOT_INDEPENDENT_PIT_OR_TRAINING_ADMISSION"
+  ],
+  "observed_at_utc": "2026-10-06T18:39:41.576767+00:00",
+  "point_in_time_independently_verified": false,
+  "private_storage": {
+    "covered_hashes": null,
+    "expected_hashes": null,
+    "independently_verified": false,
+    "status": "NOT_CONFIGURED"
+  },
+  "production_model_changed": false,
+  "run_context": {
+    "event_name": "workflow_run",
+    "github_head_sha": "7e1da9444a0623ec058c4e7c722fe9a2e6c46f48",
+    "ref_name": "main",
+    "repository": "njedu2023-prog/DC20",
+    "run_attempt": "1",
+    "run_id": "37512864825",
+    "run_started_at_utc": "2026-10-06T18:38:44+00:00",
+    "source_revision": "7e1da9444a0623ec058c4e7c722fe9a2e6c46f48",
+    "trigger_class": "NATURAL_TRIGGER",
+    "upstream": {
+      "conclusion": "success",
+      "head_branch": "main",
+      "name": "DC20 · Publish active candidate profit",
+      "repository": "njedu2023-prog/DC20"
+    }
+  },
+  "schema_version": "dc20_research_operation_v1",
+  "source_revision": "7e1da9444a0623ec058c4e7c722fe9a2e6c46f48",
+  "status": "OVERDUE_COLLECTION_GAP",
+  "test_only": false,
+  "training_admitted_days": 0,
+  "training_allowed": false
+}
