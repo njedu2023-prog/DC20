@@ -1,0 +1,271 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 6,
+  "candidate_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 1,
+      "candidate_score": -0.006447716051311078,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603200.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 2,
+      "candidate_score": -0.010953015612465908,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002058.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 11,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "605303.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002058.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600663.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002866.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603928.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603200.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603906.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261009",
+  "exit_date": "20261012",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-09T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 7,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "基础建设",
+      "name": "园林股份",
+      "promotion_rank": 1,
+      "ts_code": "605303.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "紫竹高科",
+      "promotion_rank": 2,
+      "ts_code": "002058.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产开发",
+      "name": "陆家嘴",
+      "promotion_rank": 3,
+      "ts_code": "600663.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "消费电子",
+      "name": "传艺科技",
+      "promotion_rank": 4,
+      "ts_code": "002866.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "塑料",
+      "name": "兴业股份",
+      "promotion_rank": 5,
+      "ts_code": "603928.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "环境治理",
+      "name": "上海洗霸",
+      "promotion_rank": 6,
+      "ts_code": "603200.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "龙蟠科技",
+      "promotion_rank": 7,
+      "ts_code": "603906.SH"
+    }
+  ],
+  "p0_file_sha256": "9e48ca0298367c1164e4288a980dfec917d5529b07f55aaf0c15996dd6891397",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261008.json",
+    "sha256": "9e48ca0298367c1164e4288a980dfec917d5529b07f55aaf0c15996dd6891397"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-08T14:28:06.060758+00:00",
+  "prediction_generated_at_utc": "2026-10-08T14:28:06.032877+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-08T14:33:58.348348+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "605303.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002058.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "90c4fdc4ab786c84d9eb3e9f1c9dfe196ff2c598",
+    "evidence_manifest_sha256": "51f0a88018114e31a3ad8e022ad4578c07eef2ff52f8e349ac7e179e8b896e11",
+    "observer_run_id": 37792737026,
+    "publication_observation_sha256": "d35d1c58d524a06938ddcfeb23ab2885315db0c1e106f0ef980e13b662ba8015"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.006447716051311078,
+      "industry": "环境治理",
+      "name": "上海洗霸",
+      "promotion_rank": 6,
+      "ts_code": "603200.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.010953015612465908,
+      "industry": "电池",
+      "name": "紫竹高科",
+      "promotion_rank": 2,
+      "ts_code": "002058.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.012601602527910073,
+      "industry": "消费电子",
+      "name": "传艺科技",
+      "promotion_rank": 4,
+      "ts_code": "002866.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.01589920590643347,
+      "industry": "电池",
+      "name": "龙蟠科技",
+      "promotion_rank": 7,
+      "ts_code": "603906.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.022249985830741486,
+      "industry": "房地产开发",
+      "name": "陆家嘴",
+      "promotion_rank": 3,
+      "ts_code": "600663.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.024018631044442372,
+      "industry": "塑料",
+      "name": "兴业股份",
+      "promotion_rank": 5,
+      "ts_code": "603928.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261008",
+  "snapshot_file_sha256": "feb8cc8d27afc46e090cfea6db0078380ab141e07fe050a46812bd51038d601b",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261008.json",
+    "sha256": "feb8cc8d27afc46e090cfea6db0078380ab141e07fe050a46812bd51038d601b"
+  },
+  "source_main_sha": "90c4fdc4ab786c84d9eb3e9f1c9dfe196ff2c598",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
