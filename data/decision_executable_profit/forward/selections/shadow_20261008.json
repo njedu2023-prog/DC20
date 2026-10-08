@@ -1,0 +1,275 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "5da17cfac3774a3709b7a8808a31ccb09afcaf198f4aea25369f298ca1a22cc3",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20261008.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20261008.json",
+    "row_count": 7
+  },
+  "exec_date": "20261009",
+  "exit_date": "20261012",
+  "feature_as_of_date": "20261008",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "电池",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "龙蟠科技",
+      "predicted_promotion_probability": 0.17134634188111342,
+      "promotion_rank": 7,
+      "research_conditional_profit_score": 0.34823272935504923,
+      "research_fill_proxy_score": 0.9697860045009977,
+      "research_joint_proxy_score": 0.3377112272377105,
+      "shadow_max_price": 20.94,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "603906.SH"
+    },
+    {
+      "industry": "环境治理",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "上海洗霸",
+      "predicted_promotion_probability": 0.22824940053235876,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.33927827607265587,
+      "research_fill_proxy_score": 0.9793760728134695,
+      "research_joint_proxy_score": 0.33228102561096184,
+      "shadow_max_price": 49.21,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "3→4",
+      "ts_code": "603200.SH"
+    },
+    {
+      "industry": "房地产开发",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "陆家嘴",
+      "predicted_promotion_probability": 0.33980873145582585,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.31800103768379073,
+      "research_fill_proxy_score": 0.9026735220699043,
+      "research_joint_proxy_score": 0.2870511167079117,
+      "shadow_max_price": 11.12,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "2→3",
+      "ts_code": "600663.SH"
+    },
+    {
+      "industry": "塑料",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "兴业股份",
+      "predicted_promotion_probability": 0.29097970775543314,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.2832767900138639,
+      "research_fill_proxy_score": 0.9477765604957661,
+      "research_joint_proxy_score": 0.2684831017076213,
+      "shadow_max_price": 14.38,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "2→3",
+      "ts_code": "603928.SH"
+    },
+    {
+      "industry": "消费电子",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "传艺科技",
+      "predicted_promotion_probability": 0.32228171515518717,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.26544983044676734,
+      "research_fill_proxy_score": 0.9752521822008967,
+      "research_joint_proxy_score": 0.25888052640806786,
+      "shadow_max_price": 18.59,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "3→4",
+      "ts_code": "002866.SZ"
+    },
+    {
+      "industry": "电池",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "紫竹高科",
+      "predicted_promotion_probability": 0.605802600594654,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.27136169255857046,
+      "research_fill_proxy_score": 0.9240042866103673,
+      "research_joint_proxy_score": 0.2507393671459637,
+      "shadow_max_price": 22.22,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "3→4",
+      "ts_code": "002058.SZ"
+    },
+    {
+      "industry": "基础建设",
+      "internal_shadow_order": 7,
+      "internal_shadow_selected": 0,
+      "name": "园林股份",
+      "predicted_promotion_probability": 0.8891311610639537,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.26087595333664665,
+      "research_fill_proxy_score": 0.2717279705618556,
+      "research_joint_proxy_score": 0.07088729336855634,
+      "shadow_max_price": 31.53,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 7,
+      "stage_transition": "3→4",
+      "ts_code": "605303.SH"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-10-08T14:29:40.863521Z",
+  "selection_identity_sha256": "68ffeab756871d7573a1d4e626bca02ca027223857e8fb14afd7b619deb700e6",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "龙蟠科技",
+        "promotion_rank": 7,
+        "research_conditional_profit_score": 0.34823272935504923,
+        "research_fill_proxy_score": 0.9697860045009977,
+        "research_joint_proxy_score": 0.3377112272377105,
+        "shadow_max_price": 20.94,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+        "shadow_slot": 1,
+        "ts_code": "603906.SH"
+      },
+      {
+        "name": "上海洗霸",
+        "promotion_rank": 6,
+        "research_conditional_profit_score": 0.33927827607265587,
+        "research_fill_proxy_score": 0.9793760728134695,
+        "research_joint_proxy_score": 0.33228102561096184,
+        "shadow_max_price": 49.21,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f",
+        "shadow_slot": 2,
+        "ts_code": "603200.SH"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20261008",
+  "snapshot_sha256": "eb440c5826145dd27d5b5b946b99c7a3a6ac8ac39f3f43ee6a1190c8eeebe3db",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "8538dfdfd9918b3737b5a68a53b7cfa15ddef0b6551f55e59670fc8419c719d8"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20261008.csv",
+      "csv_sha256": "52f58c6fd2a0412419417818e1d1e286509ab6abacd845d3e41819a04671205b",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20261008.json",
+      "sha256": "c2fbd299181e2b13a2fe0e9193d95f208d50873b47db4b0950d7b83ce210e15a",
+      "snapshot_sha256": "688cd82c6629b6d7050ea0e2f207d1a420b82b478464211d26a3a91b7be8b820"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20261008.json",
+      "sha256": "d7a26b2f6fefdd691f42aab066ea6ec611a4af6b28da3a6fc182932584c5914f"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "d0468cd30136527a45f55516116535999566b98e4270fae49a3b78493832761b",
+      "identity_sha256": "48a62b6e2d7e75a293fae1b94a247190e1bc2c54093ff430cbc7ed98aad87a39",
+      "path": "outputs/decision/primary_d_runtime_features_20261008.csv",
+      "row_count": 7,
+      "selected_count": 7,
+      "sha256": "f63f9a2cb6182b181741ee3a6fff2919e173ba02e8da69cb814bc8e336c20d7f"
+    },
+    "three_rank": {
+      "bundle_sha256": "4bf83183688944de0a2369bbe3cd445656275613edcdd048c4f4889a8eec6923",
+      "csv_path": "outputs/decision/three_rank_top10_20261008.csv",
+      "csv_sha256": "3140f711979e53a448c96dbd61b0f998019b950b4749fbbb7b07d99401979b21",
+      "feature_snapshot_sha256": "d0468cd30136527a45f55516116535999566b98e4270fae49a3b78493832761b",
+      "json_path": "outputs/decision/three_rank_top10_20261008.json",
+      "json_sha256": "9e48ca0298367c1164e4288a980dfec917d5529b07f55aaf0c15996dd6891397",
+      "top10_members_sha256": "f700eb00458dd833e0787d964d557f968465f2361cf9b1ec03538559ce37f51f"
+    }
+  },
+  "source_generated_at_utc": "2026-10-08T14:22:56Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 7,
+  "top10_members_sha256": "f700eb00458dd833e0787d964d557f968465f2361cf9b1ec03538559ce37f51f"
+}
