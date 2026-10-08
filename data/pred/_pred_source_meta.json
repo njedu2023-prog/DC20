@@ -1,15 +1,15 @@
 {
-  "created_at_utc": "2026-09-30T11:26:43+00:00",
+  "created_at_utc": "2026-10-08T14:22:56+00:00",
   "source": "url",
-  "source_ref": "https://raw.githubusercontent.com/njedu2023-prog/a-top10/36ceebc9cedc0c50008ea8a4f7ede08b27830169/outputs/decisio/pred_decisio_20260930.csv",
-  "sha256": "15cd5df1b81d5f4dd65e899a7be79b2d0fe347c4d9a914d286f561f1b4272c8f",
-  "body_sha256": "15cd5df1b81d5f4dd65e899a7be79b2d0fe347c4d9a914d286f561f1b4272c8f",
-  "body_bytes": 35007,
-  "resolved_commit": "36ceebc9cedc0c50008ea8a4f7ede08b27830169",
+  "source_ref": "https://raw.githubusercontent.com/njedu2023-prog/a-top10/3dfe5ede8e03e42d52fb34af78c972d7a29fc9eb/outputs/decisio/pred_decisio_20261008.csv",
+  "sha256": "bd1c8d33ce3d8e17c4d60a85ba32f8ce5f4666f2284005484226c712815b72c9",
+  "body_sha256": "bd1c8d33ce3d8e17c4d60a85ba32f8ce5f4666f2284005484226c712815b72c9",
+  "body_bytes": 27926,
+  "resolved_commit": "3dfe5ede8e03e42d52fb34af78c972d7a29fc9eb",
   "source_repository": "njedu2023-prog/a-top10",
-  "resolved_trade_date": "20260930",
+  "resolved_trade_date": "20261008",
   "csv_profile": {
-    "rows_sampled": 48,
+    "rows_sampled": 38,
     "columns": [
       "trade_date",
       "verify_date",
@@ -77,15 +77,15 @@
       "prob_final",
       "rank_v2"
     ],
-    "trade_date": "20260930",
-    "target_trade_date": "20261008",
+    "trade_date": "20261008",
+    "target_trade_date": "20261009",
     "has_intraday_fields": true,
     "missing_intraday_fields": []
   },
   "consistency": {
     "snapshot_path": "data/pred/pred_source_latest.csv",
-    "archive_path": "data/pred/archive/pred_source_20260930.csv",
+    "archive_path": "data/pred/archive/pred_source_20261008.csv",
     "has_intraday_fields": true,
-    "target_trade_date": "20261008"
+    "target_trade_date": "20261009"
   }
 }
