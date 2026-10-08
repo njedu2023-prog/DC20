@@ -1,0 +1,163 @@
+{
+  "first_collected_at_utc": "2026-10-08T18:11:44.778067+00:00",
+  "first_collected_revision": "1a80e5b2624ffe83cdec2c6e8a329351124f897f",
+  "payload": {
+    "collection_kind": "BEFORE_ENTRY_COLLECTION",
+    "collector_code_sha256": "5f9963c6839e44171aacbaebb64e881fa562e41ae704f4970412291c61966c89",
+    "field_sources": {
+      "limit_last_time_minutes": {
+        "collection_kind": "BEFORE_ENTRY_COLLECTION",
+        "observed_at_utc": "2026-10-08T18:11:43.369906+00:00",
+        "point_in_time_independently_verified": false,
+        "raw_cache_written": false,
+        "raw_sha256": "cb22a80a3ef39d7f398bd730a7f5032936af63ab9630d5679c977af82b8ce97a",
+        "request_receipt": {
+          "api": "repository_csv",
+          "fields": [
+            "trade_date",
+            "ts_code",
+            "last_time"
+          ],
+          "params": {
+            "path": "data/market/raw/2026/20261008/limit_list_d.csv",
+            "trade_date": "20261008",
+            "ts_code": "605303.SH"
+          }
+        },
+        "source_event_date": "20261008",
+        "source_id": "repository:limit_list_d",
+        "source_path": "data/market/raw/2026/20261008/limit_list_d.csv",
+        "source_timestamp_before_entry": true,
+        "timezone": "Asia/Shanghai"
+      },
+      "minute_first_30m_return": {
+        "collection_kind": "BEFORE_ENTRY_COLLECTION",
+        "observed_at_utc": "2026-10-08T18:11:44.777795+00:00",
+        "point_in_time_independently_verified": false,
+        "raw_cache_written": false,
+        "raw_sha256": "fcf9834f34136706ddcda8dbd8d4be0d957fde3ccdee805547e8587bed12b3a1",
+        "request_receipt": {
+          "api": "stk_mins",
+          "fields": [
+            "ts_code",
+            "trade_time",
+            "open",
+            "close",
+            "high",
+            "low",
+            "vol",
+            "amount"
+          ],
+          "params": {
+            "end_date": "2026-10-08 15:00:00",
+            "freq": "1min",
+            "start_date": "2026-10-08 09:30:00",
+            "ts_code": "605303.SH"
+          }
+        },
+        "source_event_date": "20261008",
+        "source_id": "tushare:stk_mins",
+        "source_timestamp_before_entry": true,
+        "timezone": "Asia/Shanghai"
+      },
+      "minute_last_30m_return": {
+        "collection_kind": "BEFORE_ENTRY_COLLECTION",
+        "observed_at_utc": "2026-10-08T18:11:44.777795+00:00",
+        "point_in_time_independently_verified": false,
+        "raw_cache_written": false,
+        "raw_sha256": "fcf9834f34136706ddcda8dbd8d4be0d957fde3ccdee805547e8587bed12b3a1",
+        "request_receipt": {
+          "api": "stk_mins",
+          "fields": [
+            "ts_code",
+            "trade_time",
+            "open",
+            "close",
+            "high",
+            "low",
+            "vol",
+            "amount"
+          ],
+          "params": {
+            "end_date": "2026-10-08 15:00:00",
+            "freq": "1min",
+            "start_date": "2026-10-08 09:30:00",
+            "ts_code": "605303.SH"
+          }
+        },
+        "source_event_date": "20261008",
+        "source_id": "tushare:stk_mins",
+        "source_timestamp_before_entry": true,
+        "timezone": "Asia/Shanghai"
+      },
+      "minute_realized_vol": {
+        "collection_kind": "BEFORE_ENTRY_COLLECTION",
+        "observed_at_utc": "2026-10-08T18:11:44.777795+00:00",
+        "point_in_time_independently_verified": false,
+        "raw_cache_written": false,
+        "raw_sha256": "fcf9834f34136706ddcda8dbd8d4be0d957fde3ccdee805547e8587bed12b3a1",
+        "request_receipt": {
+          "api": "stk_mins",
+          "fields": [
+            "ts_code",
+            "trade_time",
+            "open",
+            "close",
+            "high",
+            "low",
+            "vol",
+            "amount"
+          ],
+          "params": {
+            "end_date": "2026-10-08 15:00:00",
+            "freq": "1min",
+            "start_date": "2026-10-08 09:30:00",
+            "ts_code": "605303.SH"
+          }
+        },
+        "source_event_date": "20261008",
+        "source_id": "tushare:stk_mins",
+        "source_timestamp_before_entry": true,
+        "timezone": "Asia/Shanghai"
+      }
+    },
+    "field_status": {
+      "limit_last_time_minutes": "AVAILABLE",
+      "minute_first_30m_return": "AVAILABLE",
+      "minute_last_30m_return": "AVAILABLE",
+      "minute_realized_vol": "AVAILABLE"
+    },
+    "formula_version": "d_minute_full_session_log_std_windows_v2",
+    "minute_quality": {
+      "excluded_outside_session_bars": 0,
+      "first_window": "09:30<=bar_time<=10:00; first observed regular bar open to 10:00 close",
+      "formula_version": "d_minute_full_session_log_std_windows_v2",
+      "last_window": "15:00 close / 14:30 close - 1; exact 30-minute interval",
+      "missing_required_bars": 0,
+      "required_minute_bars": 240,
+      "session_complete": true,
+      "timezone": "Asia/Shanghai",
+      "valid_minute_bars": 241,
+      "volatility_definition": "population std of consecutive regular-session log close returns, including lunch transition; not annualized"
+    },
+    "missing_reasons": {
+      "limit_last_time_minutes": null,
+      "minute_first_30m_return": null,
+      "minute_last_30m_return": null,
+      "minute_realized_vol": null
+    },
+    "point_in_time_independently_verified": false,
+    "production_inputs_modified": false,
+    "rule_version": "d_minute_full_session_log_std_windows_v2",
+    "schema_version": "dc20_research_enrichment_v1",
+    "signal_date": "20261008",
+    "ts_code": "605303.SH",
+    "values": {
+      "limit_last_time_minutes": 565.0333333333333,
+      "minute_first_30m_return": 0.0,
+      "minute_last_30m_return": 0.0,
+      "minute_realized_vol": 0.0
+    }
+  },
+  "payload_sha256": "05cf5cd5da925133c4b0eee3b6ea601be6306b862757a99c9ee7567d0e59de15"
+}
