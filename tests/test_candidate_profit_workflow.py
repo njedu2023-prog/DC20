@@ -169,7 +169,15 @@ def test_unrelated_tree_mutation_prevents_cas(monkeypatch):
 def test_workflow_has_no_market_token_or_git_push_and_deploys_exact_head():
     raw = (m.ROOT / m.WORKFLOW_PATH).read_text()
     flow = yaml.load(raw, Loader=yaml.BaseLoader)
-    assert "TUSHARE_TOKEN" not in raw and "git push" not in raw and "ssh" not in raw
+    assert "git push" not in raw and "ssh" not in raw
+    # Only the isolated research collector receives the market token.
+    for job in ("validate", "publish", "deploy"):
+        assert "TUSHARE_TOKEN" not in str(flow["jobs"][job])
+    research = flow["jobs"]["research"]
+    assert research["uses"] == "./.github/workflows/profit_research.yml"
+    assert research["secrets"] == {"TUSHARE_TOKEN": "${{ secrets.TUSHARE_TOKEN }}"}
+    assert research["needs"] == ["publish", "deploy"]
+    assert "inputs.dry_run == false" in research["if"]
     assert flow["permissions"] == {"contents": "read"}
     assert flow["jobs"]["publish"]["if"] == "github.event_name != 'push'"
     assert flow["jobs"]["deploy"]["with"]["expected_head"] == "${{ needs.publish.outputs.commit_sha }}"
