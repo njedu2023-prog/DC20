@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261012",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.944751381215465,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.006042296072507614,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.3,
+      "five_year_streak_runup": 0.20972644376899696,
+      "focus_pool_size": 7.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.19519519519519513,
+      "ret_2d": 0.20972644376899696,
+      "ret_5d": 0.1671554252199412,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 0.0,
+      "stage_pool_share": 1.0,
+      "volatility_20d": 0.042500620831023454,
+      "volatility_5d": 0.05530585781046879,
+      "volume_ratio": 3.797362599915927
+    },
+    "frozen_at": "2026-10-09T14:07:23.890029+00:00",
+    "industry": "服装家纺",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "红豆股份",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261013",
+    "score": -0.003098054913580026,
+    "signal_date": "20261009",
+    "ts_code": "600400.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261009.json",
+      "sha256": "06dceb5c1686c973225821d0825336ed2dd67f70e71845c4af16323e3032938c"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261009.json",
+      "sha256": "6777cd2694d46390e791f96a55abfc4a36b55ccf74933355acdebe108abe1b47"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261009.json",
+      "sha256": "a6e0df48040899b496d8301303ec46f65324fd9479ae6ff424516c0790c2ce91"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261012",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.992598075499627,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.011272141706924366,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.6666666666666666,
+      "five_year_streak_runup": 0.21009771986970693,
+      "focus_pool_size": 7.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": 0.2832469775474957,
+      "ret_2d": 0.21009771986970693,
+      "ret_5d": 0.19935431799838566,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 0.0,
+      "stage_pool_share": 1.0,
+      "volatility_20d": 0.038244665086509214,
+      "volatility_5d": 0.05111684648438709,
+      "volume_ratio": 2.1463314966309563
+    },
+    "frozen_at": "2026-10-09T14:07:23.890029+00:00",
+    "industry": "文娱用品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "三柏硕",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261013",
+    "score": -0.0140503091901048,
+    "signal_date": "20261009",
+    "ts_code": "001300.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261009.json",
+      "sha256": "06dceb5c1686c973225821d0825336ed2dd67f70e71845c4af16323e3032938c"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261009.json",
+      "sha256": "6777cd2694d46390e791f96a55abfc4a36b55ccf74933355acdebe108abe1b47"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261009.json",
+      "sha256": "a6e0df48040899b496d8301303ec46f65324fd9479ae6ff424516c0790c2ce91"
+    }
+  ]
+}
