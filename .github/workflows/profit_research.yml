@@ -1,9 +1,11 @@
 name: DC20 · Independent profit research data
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["DC20 · Publish active candidate profit"]
-    types: [completed]
+  # Called inside the publisher: a fourth workflow_run hop is never delivered.
+  workflow_call:
+    secrets:
+      TUSHARE_TOKEN:
+        required: true
   schedule:
     - cron: "20 15 * * 1-5"
   push:
@@ -16,6 +18,8 @@ on:
       - scripts/profit_research_enrichment.py
       - scripts/profit_research_comparison.py
       - scripts/profit_research_operations.py
+      - scripts/profit_research_delivery.py
+      - tests/test_profit_research_delivery.py
       - tests/test_profit_research.py
       - tests/test_profit_research_extensions.py
       - tests/test_profit_research_enrichment.py
@@ -37,17 +41,28 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
+      actions: read
     outputs:
       head: ${{ steps.publish.outputs.head }}
+      signal_date: ${{ steps.bind.outputs.signal_date }}
+      source_revision: ${{ steps.bind.outputs.source_revision }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: main
           persist-credentials: false
       - name: Bind one immutable source revision
+        id: bind
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          python scripts/profit_research_delivery.py wait
+          git fetch --no-tags origin main
+          git checkout --detach FETCH_HEAD
           echo "RESEARCH_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "RESEARCH_RUN_STARTED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" >> "$GITHUB_ENV"
+          echo "source_revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          python scripts/profit_research_delivery.py bind >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12.13"
@@ -101,3 +116,20 @@ jobs:
     uses: ./.github/workflows/deploy_dc20_pages.yml
     with:
       expected_head: ${{ needs.accumulate.outputs.head }}
+  verify_public:
+    name: Accept exact research date and public fingerprint
+    needs: [accumulate, deploy]
+    if: always() && needs.accumulate.result == 'success' && needs.deploy.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ needs.accumulate.outputs.head }}
+          persist-credentials: false
+      - env:
+          EXPECTED_RESEARCH_D: ${{ needs.accumulate.outputs.signal_date }}
+          EXPECTED_RESEARCH_SOURCE: ${{ needs.accumulate.outputs.source_revision }}
+          EXPECTED_RESEARCH_HEAD: ${{ needs.accumulate.outputs.head }}
+        run: python scripts/profit_research_delivery.py verify
+

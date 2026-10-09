@@ -127,3 +127,20 @@ jobs:
     uses: ./.github/workflows/deploy_dc20_pages.yml
     with:
       expected_head: ${{ needs.publish.outputs.commit_sha }}
+  research:
+    name: Update and accept the profit research dashboard
+    needs: [publish, deploy]
+    if: >-
+      always() && needs.publish.result == 'success' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      github.event_name != 'push' &&
+      (github.event_name != 'workflow_dispatch' || inputs.dry_run == false)
+    permissions:
+      contents: write
+      actions: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/profit_research.yml
+    secrets:
+      TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+

@@ -152,6 +152,16 @@ def _context(raw, observed, test_only):
     if event == 'workflow_run':
         upstream = raw.get('upstream', {})
         allowed = {'name': UPSTREAM, 'conclusion': 'success', 'head_branch': 'main', 'repository': REPOSITORY}
+        # Reusable jobs retain the caller's event. Preserve that real identity;
+        # never invent a new workflow_run event or turn a manual run natural.
+        caller_ref = REPOSITORY + '/.github/workflows/publish_candidate_profit.yml@refs/heads/main'
+        if (raw.get('caller_workflow') == UPSTREAM and raw.get('caller_workflow_ref') == caller_ref
+                and isinstance(upstream, dict) and upstream.get('name') in {
+                    'DC20 · Preserve natural candidate publication (research)',
+                    'DC20 · Settle natural candidate research slots'}):
+            allowed['name'] = upstream['name']
+            context['caller_workflow'] = UPSTREAM
+            context['caller_workflow_ref'] = caller_ref
         if isinstance(upstream, dict) and all(upstream.get(k) == v for k, v in allowed.items()):
             context['upstream'] = allowed
         else:
@@ -619,6 +629,8 @@ def main():
         context = {key: getattr(args, key) for key in ('event_name', 'run_id', 'run_attempt',
                    'github_head_sha', 'source_revision', 'run_started_at_utc')}
         context.update(repository=os.environ.get('GITHUB_REPOSITORY'), ref_name=os.environ.get('GITHUB_REF_NAME'))
+        context.update(caller_workflow=os.environ.get('GITHUB_WORKFLOW'),
+                       caller_workflow_ref=os.environ.get('GITHUB_WORKFLOW_REF'))
         if context['event_name'] == 'workflow_run':
             event_path = os.environ.get('GITHUB_EVENT_PATH')
             if event_path:
@@ -640,3 +652,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
