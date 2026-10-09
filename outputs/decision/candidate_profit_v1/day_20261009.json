@@ -1,0 +1,279 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 7,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.0018383020688475492,
+      "net_return": null,
+      "promotion_rank": 4,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600812.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.003098054913580026,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600400.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001336.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001300.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002733.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600812.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600408.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002805.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600400.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261012",
+  "exit_date": "20261013",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-12T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 7,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "环保设备",
+      "name": "楚环科技",
+      "promotion_rank": 1,
+      "ts_code": "001336.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "文娱用品",
+      "name": "三柏硕",
+      "promotion_rank": 2,
+      "ts_code": "001300.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "雄韬股份",
+      "promotion_rank": 3,
+      "ts_code": "002733.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制药",
+      "name": "华北制药",
+      "promotion_rank": 4,
+      "ts_code": "600812.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "焦炭Ⅱ",
+      "name": "安泰集团",
+      "promotion_rank": 5,
+      "ts_code": "600408.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "丰元股份",
+      "promotion_rank": 6,
+      "ts_code": "002805.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "服装家纺",
+      "name": "红豆股份",
+      "promotion_rank": 7,
+      "ts_code": "600400.SH"
+    }
+  ],
+  "p0_file_sha256": "06dceb5c1686c973225821d0825336ed2dd67f70e71845c4af16323e3032938c",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261009.json",
+    "sha256": "06dceb5c1686c973225821d0825336ed2dd67f70e71845c4af16323e3032938c"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-09T14:07:23.890029+00:00",
+  "prediction_generated_at_utc": "2026-10-09T14:07:23.869495+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-09T14:13:16.466366+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001336.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001300.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "d3b0b55dd698e4c73a5aafeeb1cc632d0fafca3c",
+    "evidence_manifest_sha256": "459a150a8b9a6aff59a2386929b767988ab1655ce691b1be8ffc0de5bd7256b4",
+    "observer_run_id": 37941877280,
+    "publication_observation_sha256": "33a591f585625023a2c556eb86817e9269afae42b71784a3103ec45e840651e4"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.0018383020688475492,
+      "industry": "化学制药",
+      "name": "华北制药",
+      "promotion_rank": 4,
+      "ts_code": "600812.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.003098054913580026,
+      "industry": "服装家纺",
+      "name": "红豆股份",
+      "promotion_rank": 7,
+      "ts_code": "600400.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.009168655262901977,
+      "industry": "环保设备",
+      "name": "楚环科技",
+      "promotion_rank": 1,
+      "ts_code": "001336.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.01130016956003756,
+      "industry": "焦炭Ⅱ",
+      "name": "安泰集团",
+      "promotion_rank": 5,
+      "ts_code": "600408.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.01171128143957672,
+      "industry": "电池",
+      "name": "丰元股份",
+      "promotion_rank": 6,
+      "ts_code": "002805.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.0140503091901048,
+      "industry": "文娱用品",
+      "name": "三柏硕",
+      "promotion_rank": 2,
+      "ts_code": "001300.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.0148159377444106,
+      "industry": "电池",
+      "name": "雄韬股份",
+      "promotion_rank": 3,
+      "ts_code": "002733.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261009",
+  "snapshot_file_sha256": "a6e0df48040899b496d8301303ec46f65324fd9479ae6ff424516c0790c2ce91",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261009.json",
+    "sha256": "a6e0df48040899b496d8301303ec46f65324fd9479ae6ff424516c0790c2ce91"
+  },
+  "source_main_sha": "d3b0b55dd698e4c73a5aafeeb1cc632d0fafca3c",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
