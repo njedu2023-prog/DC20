@@ -1,28 +1,31 @@
-"""Multiple reusable Pages deployments must select their own artifact."""
+"""Multiple reusable Pages deployments must select their own artifact.
+
+These checks run before dependency installation, so use only the standard library.
+"""
 from pathlib import Path
 import hashlib
 import json
+import re
 import unittest
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
 class PagesArtifactIdentityTests(unittest.TestCase):
     def test_candidate_and_research_deployments_do_not_ambiguous_match(self):
-        pages = yaml.load((ROOT / '.github/workflows/deploy_dc20_pages.yml').read_text(), Loader=yaml.BaseLoader)
-        research = yaml.load((ROOT / '.github/workflows/profit_research.yml').read_text(), Loader=yaml.BaseLoader)
-        default = pages['on']['workflow_call']['inputs']['artifact_name']['default']
-        second = research['jobs']['deploy']['with']['artifact_name']
-        steps = pages['jobs']['deploy']['steps']
-        upload = next(s for s in steps if s.get('uses', '').startswith('actions/upload-pages-artifact@'))
-        deploy = next(s for s in steps if s.get('uses', '').startswith('actions/deploy-pages@'))
+        pages = (ROOT / '.github/workflows/deploy_dc20_pages.yml').read_text()
+        research = (ROOT / '.github/workflows/profit_research.yml').read_text()
+        inputs = pages.split('  workflow_call:', 1)[1].split('permissions:', 1)[0]
+        default = re.search(r'artifact_name:\n(?:(?:        .*|\s*)\n)*?        default: (\S+)', inputs).group(1)
+        second = re.search(r'^      artifact_name: (\S+)$', research, re.M).group(1)
+        upload = re.search(r'uses: actions/upload-pages-artifact@[^\n]+\n(.*?)(?=\n      -)', pages, re.S).group(1)
+        deploy = re.search(r'uses: actions/deploy-pages@[^\n]+\n(.*?)(?=\n      -)', pages, re.S).group(1)
         binding = "${{ inputs.artifact_name || 'github-pages' }}"
-        self.assertEqual(upload['with']['name'], binding)
-        self.assertEqual(deploy['with']['artifact_name'], binding)
+        self.assertIn('          name: ' + binding, upload)
+        self.assertIn('          artifact_name: ' + binding, deploy)
         artifacts = [{'name': default, 'id': 1}, {'name': second, 'id': 2}]
         for requested, expected in [(default, 1), (second, 2)]:
             self.assertEqual([a['id'] for a in artifacts if a['name'] == requested], [expected])
-        self.assertEqual(research['jobs']['deploy']['with']['expected_head'], '${{ needs.accumulate.outputs.head }}')
+        self.assertIn('expected_head: ${{ needs.accumulate.outputs.head }}', research)
 
     def test_frozen_deployment_pin_matches_updated_workflow(self):
         path = '.github/workflows/deploy_dc20_pages.yml'
