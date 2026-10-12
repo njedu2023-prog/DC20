@@ -116,6 +116,7 @@ jobs:
     uses: ./.github/workflows/deploy_dc20_pages.yml
     with:
       expected_head: ${{ needs.accumulate.outputs.head }}
+      artifact_name: github-pages-profit-research
   verify_public:
     name: Accept exact research date and public fingerprint
     needs: [accumulate, deploy]
