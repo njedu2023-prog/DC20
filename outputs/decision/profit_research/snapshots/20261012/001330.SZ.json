@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261013",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.043041606886659,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.03647416413373861,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.45454545454545453,
+      "five_year_streak_runup": 0.20977917981072558,
+      "focus_pool_size": 15.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 9,
+      "ret_10d": 0.40219378427787933,
+      "ret_2d": 0.20977917981072558,
+      "ret_5d": 0.2059748427672956,
+      "stage2_pool_size": 14.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9333333333333333,
+      "volatility_20d": 0.049604871646381,
+      "volatility_5d": 0.05529992388100182,
+      "volume_ratio": 1.0722304979761255
+    },
+    "frozen_at": "2026-10-12T11:23:04.674489+00:00",
+    "industry": "影视院线",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "博纳影业",
+    "profit_eligible": true,
+    "profit_rank": 5,
+    "promotion_rank": 9,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261014",
+    "score": -0.00878048335203377,
+    "signal_date": "20261012",
+    "ts_code": "001330.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261012.json",
+      "sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261012.json",
+      "sha256": "ac327b7bd15b20b7474bdbbd9ca71c82f15ec89b2591c4da436350dd47d6717a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+      "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2"
+    }
+  ]
+}

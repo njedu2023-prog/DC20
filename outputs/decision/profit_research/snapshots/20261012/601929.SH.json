@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261013",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.0,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.017316017316017285,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.21145374449339216,
+      "focus_pool_size": 15.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.1410788381742738,
+      "ret_2d": 0.21145374449339216,
+      "ret_5d": 0.21145374449339216,
+      "stage2_pool_size": 14.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9333333333333333,
+      "volatility_20d": 0.04344316947991279,
+      "volatility_5d": 0.05463812613651675,
+      "volume_ratio": 4.116063610579124
+    },
+    "frozen_at": "2026-10-12T11:23:04.674489+00:00",
+    "industry": "电视广播",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "吉视传媒",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261014",
+    "score": -0.002296549426421376,
+    "signal_date": "20261012",
+    "ts_code": "601929.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261012.json",
+      "sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261012.json",
+      "sha256": "ac327b7bd15b20b7474bdbbd9ca71c82f15ec89b2591c4da436350dd47d6717a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+      "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2"
+    }
+  ]
+}

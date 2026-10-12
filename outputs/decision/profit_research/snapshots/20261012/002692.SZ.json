@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261013",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.084033613445387,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.026066350710900466,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.210161662817552,
+      "focus_pool_size": 15.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 6,
+      "ret_10d": 0.22429906542056077,
+      "ret_2d": 0.210161662817552,
+      "ret_5d": 0.23584905660377364,
+      "stage2_pool_size": 14.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9333333333333333,
+      "volatility_20d": 0.033789125263334795,
+      "volatility_5d": 0.047510460493044165,
+      "volume_ratio": 4.655366777029608
+    },
+    "frozen_at": "2026-10-12T11:23:04.674489+00:00",
+    "industry": "电网设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "远程股份",
+    "profit_eligible": true,
+    "profit_rank": 8,
+    "promotion_rank": 6,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261014",
+    "score": -0.010698720173477103,
+    "signal_date": "20261012",
+    "ts_code": "002692.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261012.json",
+      "sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261012.json",
+      "sha256": "ac327b7bd15b20b7474bdbbd9ca71c82f15ec89b2591c4da436350dd47d6717a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+      "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2"
+    }
+  ]
+}

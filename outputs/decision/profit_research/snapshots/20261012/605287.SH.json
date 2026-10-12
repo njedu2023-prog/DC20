@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261013",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.004977600796424,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.023000802353570493,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.4,
+      "five_year_streak_runup": 0.209964412811388,
+      "focus_pool_size": 15.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": 0.23809523809523814,
+      "ret_2d": 0.209964412811388,
+      "ret_5d": 0.34428223844282235,
+      "stage2_pool_size": 14.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9333333333333333,
+      "volatility_20d": 0.0445530447707706,
+      "volatility_5d": 0.049707860383739144,
+      "volume_ratio": 0.3623906058859356
+    },
+    "frozen_at": "2026-10-12T11:23:04.674489+00:00",
+    "industry": "装修装饰",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "德才股份",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261014",
+    "score": -0.008225690371829325,
+    "signal_date": "20261012",
+    "ts_code": "605287.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261012.json",
+      "sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261012.json",
+      "sha256": "ac327b7bd15b20b7474bdbbd9ca71c82f15ec89b2591c4da436350dd47d6717a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+      "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2"
+    }
+  ]
+}
