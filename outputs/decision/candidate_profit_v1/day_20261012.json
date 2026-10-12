@@ -1,0 +1,346 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.0022896015993944764,
+      "net_return": null,
+      "promotion_rank": 4,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002696.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.002296549426421376,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "601929.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "605136.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "605287.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603096.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002343.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002692.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "601929.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600812.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001330.SZ"
+    },
+    {
+      "eligible": false,
+      "observed_bar_count": 18,
+      "promotion_rank": 10,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "605577.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261013",
+  "exit_date": "20261014",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-13T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "互联网电",
+      "name": "丽人丽妆",
+      "promotion_rank": 1,
+      "ts_code": "605136.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "装修装饰",
+      "name": "德才股份",
+      "promotion_rank": 2,
+      "ts_code": "605287.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "新经典",
+      "promotion_rank": 3,
+      "ts_code": "603096.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饲料",
+      "name": "百洋股份",
+      "promotion_rank": 4,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "影视院线",
+      "name": "慈文传媒",
+      "promotion_rank": 5,
+      "ts_code": "002343.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电网设备",
+      "name": "远程股份",
+      "promotion_rank": 6,
+      "ts_code": "002692.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电视广播",
+      "name": "吉视传媒",
+      "promotion_rank": 7,
+      "ts_code": "601929.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制药",
+      "name": "华北制药",
+      "promotion_rank": 8,
+      "ts_code": "600812.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "影视院线",
+      "name": "博纳影业",
+      "promotion_rank": 9,
+      "ts_code": "001330.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "龙版传媒",
+      "promotion_rank": 10,
+      "ts_code": "605577.SH"
+    }
+  ],
+  "p0_file_sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261012.json",
+    "sha256": "1934af78efaef87e5c2446406826e3472e0bf279f44a119b9ec436ab929d1ac1"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-12T11:23:04.674489+00:00",
+  "prediction_generated_at_utc": "2026-10-12T11:23:04.648404+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-12T11:29:00.951427+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "605136.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "605287.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "d4ea5fa43c9e49ccaf545ec7a022092b87d9becc",
+    "evidence_manifest_sha256": "bb0f75b7fa4c78d806c2f24d9315c3e6f6d943368fa9bea255622938f4f41ae7",
+    "observer_run_id": 38242320540,
+    "publication_observation_sha256": "4ae085a72b3f4ddac80f8c4246770fd54b4ce6defc9c75eb6f09b912cf8b0bdb"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.0022896015993944764,
+      "industry": "饲料",
+      "name": "百洋股份",
+      "promotion_rank": 4,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.002296549426421376,
+      "industry": "电视广播",
+      "name": "吉视传媒",
+      "promotion_rank": 7,
+      "ts_code": "601929.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.006518964949938401,
+      "industry": "出版",
+      "name": "新经典",
+      "promotion_rank": 3,
+      "ts_code": "603096.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.008225690371829325,
+      "industry": "装修装饰",
+      "name": "德才股份",
+      "promotion_rank": 2,
+      "ts_code": "605287.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.00878048335203377,
+      "industry": "影视院线",
+      "name": "博纳影业",
+      "promotion_rank": 9,
+      "ts_code": "001330.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.00946694086426295,
+      "industry": "化学制药",
+      "name": "华北制药",
+      "promotion_rank": 8,
+      "ts_code": "600812.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.009893161578771946,
+      "industry": "影视院线",
+      "name": "慈文传媒",
+      "promotion_rank": 5,
+      "ts_code": "002343.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.010698720173477103,
+      "industry": "电网设备",
+      "name": "远程股份",
+      "promotion_rank": 6,
+      "ts_code": "002692.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.014200262308596091,
+      "industry": "互联网电",
+      "name": "丽人丽妆",
+      "promotion_rank": 1,
+      "ts_code": "605136.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261012",
+  "snapshot_file_sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+    "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2"
+  },
+  "source_main_sha": "d4ea5fa43c9e49ccaf545ec7a022092b87d9becc",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
