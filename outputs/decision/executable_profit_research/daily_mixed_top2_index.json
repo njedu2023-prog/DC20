@@ -1077,12 +1077,53 @@
       "source_bundle_sha256": "84437c1441f1b65ed5000256ac6f689f197646c8f1c786b453030c29d40fe525",
       "source_feature_snapshot_sha256": "dde71f300f473f2384777638d3d5cbf5450fd02705609ec23e46db4473f09729",
       "top10_members_sha256": "b1d3a2bb458d7d0470dd008624f56180b84a5962834ff8c53fc635f85f2a4b0b"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "edf9e782e0a8c576881016b7c9220affb88539217bcc735628ffee10a4431db9",
+      "exec_date": "20261014",
+      "exit_date": "20261015",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "b0ac36e6e99fb4a29c5c3f4dc51544ebad1cab657dea09ad763ad23b2d74048c",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261013.csv",
+      "projection_json_sha256": "d7a32bd6ab36487559466445aa17500bee7fdf609c473e496a8a08e35260182d",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261013.json",
+      "projection_snapshot_sha256": "1ee47944c9ee0d923d4d30b3374c4e657c85db859db4ffc2587bcdeaa7676011",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "一般零售",
+          "mixed_profit_rank": 1,
+          "name": "东百集团",
+          "promotion_rank": 10,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "600693.SH"
+        },
+        {
+          "industry": "出版",
+          "mixed_profit_rank": 2,
+          "name": "龙版传媒",
+          "promotion_rank": 8,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "605577.SH"
+        }
+      ],
+      "signal_date": "20261013",
+      "source_bundle_sha256": "ef966f0362bc168dcae24920b79cbeb4555b584058ea440d300885e041f32540",
+      "source_feature_snapshot_sha256": "176d8825dd05278321445224469d4f663457fd985e39ff95dbc0ece22db0197f",
+      "top10_members_sha256": "88b13c79a91c24670f13d6a11ab92f875706792adad014735e1fdb765cfee539"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261012",
+  "latest_signal_date": "20261013",
   "public_start_signal_date": "20260828",
-  "recorded_days": 26,
+  "recorded_days": 27,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1109,9 +1150,10 @@
     "20260930",
     "20261008",
     "20261009",
-    "20261012"
+    "20261012",
+    "20261013"
   ],
-  "recorded_slots": 52,
+  "recorded_slots": 54,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "4668ad717f80d230deaebfba94e354fc5e52d28193645e3d9e0ee030f930db87"
+  "snapshot_sha256": "f126b230acfcaf71e185f8460c61f00ad5718ff959833b008d8172eb48258a0b"
 }
