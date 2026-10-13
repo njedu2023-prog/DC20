@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261014",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.019267822736023,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": -0.009237875288683584,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.3310023310023309,
+      "focus_pool_size": 10.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.32945285215366704,
+      "ret_2d": 0.2097457627118644,
+      "ret_5d": 0.2717149220489976,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 5.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.040420355669227595,
+      "volatility_5d": 0.06056013373053564,
+      "volume_ratio": 1.84754739954216
+    },
+    "frozen_at": "2026-10-13T11:33:07.187852+00:00",
+    "industry": "互联网电",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "丽人丽妆",
+    "profit_eligible": true,
+    "profit_rank": 7,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261015",
+    "score": -0.01851899820224019,
+    "signal_date": "20261013",
+    "ts_code": "605136.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261013.json",
+      "sha256": "209ab4d7e5588f7a95fc859b4adb70ddf8bf65af80807486a5c627ae6938b4fe"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261013.json",
+      "sha256": "3819b3bc4fc9d2c14330ca96e644ac631ae00a848d542edeef7bb928262315a1"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261013.json",
+      "sha256": "6bdcf8e971b1b6cc6714b2d3b9d2cea0e30ccab0b9f61d04ff4f304a8ab1f03c"
+    }
+  ]
+}
