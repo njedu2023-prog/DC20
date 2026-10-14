@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": "INSUFFICIENT_OBSERVED_HISTORY",
+    "exec_date": "20261015",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": null,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": null,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": null,
+      "focus_pool_size": 12.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": null,
+      "ret_2d": null,
+      "ret_5d": null,
+      "stage2_pool_size": 11.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9166666666666666,
+      "volatility_20d": null,
+      "volatility_5d": null,
+      "volume_ratio": null
+    },
+    "frozen_at": "2026-10-14T18:24:39.734051+00:00",
+    "industry": "房地产开发",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "荣丰控股",
+    "profit_eligible": false,
+    "profit_rank": null,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261016",
+    "score": null,
+    "signal_date": "20261014",
+    "ts_code": "000668.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261014.json",
+      "sha256": "8f48575fb9a22e3818bac57226cada444b1efe70d8993b99f1b5427a72835124"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261014.json",
+      "sha256": "2f6d9ef7c9f146939b3b5f6371a0c463fceeca2bb53c803d1ee90012fddeaad5"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261014.json",
+      "sha256": "0a5da6c6dce78938480ef99cb2a508cb2c6089be82f1ca381f4d0e8ef03bbdb7"
+    }
+  ]
+}
