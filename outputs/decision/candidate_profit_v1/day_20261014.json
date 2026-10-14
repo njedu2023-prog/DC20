@@ -1,0 +1,330 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 7,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.002543595175128338,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000823.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0034524280912342853,
+      "net_return": null,
+      "promotion_rank": 10,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600202.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 11,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002860.SZ"
+    },
+    {
+      "eligible": false,
+      "observed_bar_count": 18,
+      "promotion_rank": 2,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "000668.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000530.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603968.SH"
+    },
+    {
+      "eligible": false,
+      "observed_bar_count": 16,
+      "promotion_rank": 5,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002813.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000823.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600847.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002917.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600202.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261015",
+  "exit_date": "20261016",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-15T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "家电零部",
+      "name": "星帅尔",
+      "promotion_rank": 1,
+      "ts_code": "002860.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "房地产开发",
+      "name": "荣丰控股",
+      "promotion_rank": 2,
+      "ts_code": "000668.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "冰山冷热",
+      "promotion_rank": 3,
+      "ts_code": "000530.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "醋化股份",
+      "promotion_rank": 4,
+      "ts_code": "603968.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "路畅科技",
+      "promotion_rank": 5,
+      "ts_code": "002813.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "元件",
+      "name": "超声电子",
+      "promotion_rank": 6,
+      "ts_code": "000823.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饮料乳品",
+      "name": "阳光乳业",
+      "promotion_rank": 7,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "万里股份",
+      "promotion_rank": 8,
+      "ts_code": "600847.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "金奥博",
+      "promotion_rank": 9,
+      "ts_code": "002917.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "哈空调",
+      "promotion_rank": 10,
+      "ts_code": "600202.SH"
+    }
+  ],
+  "p0_file_sha256": "8f48575fb9a22e3818bac57226cada444b1efe70d8993b99f1b5427a72835124",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261014.json",
+    "sha256": "8f48575fb9a22e3818bac57226cada444b1efe70d8993b99f1b5427a72835124"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-14T18:24:39.734051+00:00",
+  "prediction_generated_at_utc": "2026-10-14T18:24:39.712985+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-14T18:59:59.746971+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002860.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000668.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "cf14d7afe3578344d5c53c9bec5c9a013ff84a34",
+    "evidence_manifest_sha256": "ebeb71c0d5b9ff127d61c73d870ba714c9f1fee1cdfdb0366722292bc7b0cb61",
+    "observer_run_id": 38618612788,
+    "publication_observation_sha256": "43dab8b18c7d68945069d8ca9167437b1cfd852fd326856bd1d9d2c7b35ffa3b"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.002543595175128338,
+      "industry": "元件",
+      "name": "超声电子",
+      "promotion_rank": 6,
+      "ts_code": "000823.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0034524280912342853,
+      "industry": "通用设备",
+      "name": "哈空调",
+      "promotion_rank": 10,
+      "ts_code": "600202.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.004125069595128166,
+      "industry": "电池",
+      "name": "万里股份",
+      "promotion_rank": 8,
+      "ts_code": "600847.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.010189725262408694,
+      "industry": "化学制品",
+      "name": "醋化股份",
+      "promotion_rank": 4,
+      "ts_code": "603968.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.010777475479573199,
+      "industry": "化学制品",
+      "name": "金奥博",
+      "promotion_rank": 9,
+      "ts_code": "002917.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.012655172815712514,
+      "industry": "饮料乳品",
+      "name": "阳光乳业",
+      "promotion_rank": 7,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.015395058142588718,
+      "industry": "通用设备",
+      "name": "冰山冷热",
+      "promotion_rank": 3,
+      "ts_code": "000530.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261014",
+  "snapshot_file_sha256": "0a5da6c6dce78938480ef99cb2a508cb2c6089be82f1ca381f4d0e8ef03bbdb7",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261014.json",
+    "sha256": "0a5da6c6dce78938480ef99cb2a508cb2c6089be82f1ca381f4d0e8ef03bbdb7"
+  },
+  "source_main_sha": "cf14d7afe3578344d5c53c9bec5c9a013ff84a34",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
