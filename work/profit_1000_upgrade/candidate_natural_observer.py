@@ -15,7 +15,7 @@ import tempfile
 
 ROOT = Path(__file__).absolute().parents[2]
 WORKFLOW_PATH = '.github/workflows/research_candidate_natural_observer.yml'
-CAPTURE_SHA = '7ad5fd013a616487a24e217edf4082801c64ce6713c8d61c0ba1e35aa438cbf6'
+CAPTURE_SHA = '1501a23e51d6e3867af2b1d457cd1690b88b38b750f9d1a50cb42521da4910bc'
 WRITER_SHA = '407ec6b9c7fbf36127b9453b15e0c7f25a6c7ea04f7547de5ac8f5310595fc2c'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 CONTEXT_SCHEMA = 'dc20_candidate_natural_observer_context_v1'

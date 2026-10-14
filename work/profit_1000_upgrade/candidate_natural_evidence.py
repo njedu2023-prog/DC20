@@ -38,6 +38,10 @@ HISTORICAL_CAPTURE_CONTRACT = ('2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed0
 
 SCHEMA = "dc20_candidate_natural_durable_evidence_v1"
 MAX_FILE_BYTES = 8 * 1024 * 1024
+# This one immutable training ledger is 4,764,361 gzip bytes and exactly
+# 14,069,289 UTF-8 CSV bytes. Its persisted API envelope remains below 8 MiB.
+ORIGINAL_HISTORY_GZIP_SHA256 = "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
+ORIGINAL_HISTORY_EXPANDED_BYTES = 14_069_289
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FILES = 64
 MAX_CONTINUATION_FILES = 160
@@ -145,13 +149,16 @@ def _safe_body(raw, token=None, *, blob_response=False, continuation_blob=False)
             # Registered original prediction history is gzip. Scan its one
             # bounded text member; the pair replay independently checks the
             # exact source path, Git blob and receipt binding below.
+            original_history = sha(decoded) == gh.adapter.HISTORY_SHA == ORIGINAL_HISTORY_GZIP_SHA256
+            expanded_limit = ORIGINAL_HISTORY_EXPANDED_BYTES if original_history else MAX_FILE_BYTES
             inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
             try:
-                decoded = inflater.decompress(decoded, MAX_FILE_BYTES + 1)
+                decoded = inflater.decompress(decoded, expanded_limit + 1)
             except zlib.error:
                 raise ValueError("ORIGINAL_SOURCE_GZIP_INVALID") from None
-            require(len(decoded) <= MAX_FILE_BYTES and inflater.eof
-                and not inflater.unused_data and not inflater.unconsumed_tail,
+            require(len(decoded) <= expanded_limit and inflater.eof
+                and not inflater.unused_data and not inflater.unconsumed_tail
+                and (not original_history or len(decoded) == ORIGINAL_HISTORY_EXPANDED_BYTES),
                 "ORIGINAL_SOURCE_GZIP_BOUNDARY")
             require(not token or token.encode() not in decoded, "BLOB_CREDENTIAL_IN_EVIDENCE_REJECTED")
         try:

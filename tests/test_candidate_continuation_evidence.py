@@ -219,3 +219,29 @@ def test_published_observer_replays_dual_run_capsule_without_live_authority(tmp_
     assert observed["successful_reuse_run_id"] == int(pair.R1)
     assert observed["captured_continuation_pair_replayed"] is True
     assert all(not value for key, value in observed.items() if key.endswith("_allowed") or key.endswith("_issued"))
+
+
+def test_real_registered_history_gzip_uses_its_exact_expansion_size(monkeypatch):
+    raw = (capture.ROOT / gh.adapter.HISTORY_PATH).read_bytes()
+    assert capture.sha(raw) == gh.adapter.HISTORY_SHA == capture.ORIGINAL_HISTORY_GZIP_SHA256
+    assert len(raw) == 4_764_361
+    assert len(gzip.decompress(raw)) == capture.ORIGINAL_HISTORY_EXPANDED_BYTES == 14_069_289
+    def envelope(value):
+        return gh.json_bytes({"encoding": "base64", "content": base64.b64encode(value).decode(),
+            "sha": gh.git_blob(value), "size": len(value)})
+    wrapped = envelope(raw)
+    assert len(wrapped) < capture.MAX_FILE_BYTES
+    assert capture._safe_body(wrapped, blob_response=True, continuation_blob=True)
+    # An unregistered byte stream never receives the history-sized allowance.
+    with monkeypatch.context() as m:
+        m.setattr(gh.adapter, "HISTORY_SHA", "0" * 64)
+        with pytest.raises(ValueError, match="GZIP_BOUNDARY"):
+            capture._safe_body(wrapped, blob_response=True, continuation_blob=True)
+    for changed in (raw + b"trailing", raw + raw, raw[:-1]):
+        with pytest.raises(ValueError):
+            capture._safe_body(envelope(changed), blob_response=True, continuation_blob=True)
+    for size in (14_069_288, 14_069_290):
+        with monkeypatch.context() as m:
+            m.setattr(capture, "ORIGINAL_HISTORY_EXPANDED_BYTES", size)
+            with pytest.raises(ValueError, match="GZIP_BOUNDARY"):
+                capture._safe_body(wrapped, blob_response=True, continuation_blob=True)
