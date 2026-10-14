@@ -21,7 +21,7 @@ import stat
 SCHEMA = "dc20_bound_p0_candidate_d_source_projection_20260913_v1"
 CODE_ROOT = Path(__file__).absolute().parents[2]
 CODE_PINS = {
-    "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
+    "scripts/publish_primary_three_rank.py": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1",
     "work/profit_1000_upgrade/candidate_d_feature_projection.py": "aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f",
     "work/profit_1000_upgrade/candidate_live_feature_math.py": "922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68",
     "src/top10decision/decision/d_close_features.py": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e",
@@ -31,6 +31,7 @@ HISTORY_PATH = "data/decision_three_engines/five_year_supervised_ledger.csv.gz"
 HISTORY_SHA = "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
 HISTORY_ROWS = 12322
 CALENDAR_PATH = "data/market/trade_cal_sse.csv"
+SUSPENSION_PATH = "data/market/confirmed_suspensions.json"
 MAX_BYTES = 64 * 1024 * 1024
 RUNTIME_ID = ("signal_date", "ts_code", "stage_transition", "identity", "feature_snapshot_sha256",
     "promotion_model_as_of_date", "promotion_model_artifact_sha256")
@@ -196,8 +197,18 @@ def _registration(receipt, contract, day):
         "REGISTERED_CALENDAR_CONTEXT_MISMATCH")
     declarations = inputs["runtime_consumed_market_files"]
     require(type(declarations) is list and all(type(x) is dict for x in declarations), "REGISTERED_MARKET_LIST_REQUIRED")
+    suspension = [item for item in declarations if item.get("table") == "confirmed_suspensions"]
+    require(len(suspension) <= 1, "UNIQUE_SUSPENSION_EVIDENCE_REQUIRED")
+    for item in suspension:
+        require(set(item) == {"path", "sha256", "git_blob_sha1", "git_mode", "table", "used_intervals"}
+            and item["path"] == SUSPENSION_PATH and item["git_mode"] == "100644"
+            and type(item["git_blob_sha1"]) is str and re.fullmatch(r"[0-9a-f]{40}", item["git_blob_sha1"])
+            and type(item["used_intervals"]) is list, "STRICT_SUSPENSION_REGISTRATION_REQUIRED")
+        _sha(item["sha256"])
     # Validate the dates of all declared market sources before opening any values.
     for item in declarations:
+        if item.get("table") == "confirmed_suspensions":
+            continue
         require(projection._date(item["trade_date"]) <= day, "FUTURE_REGISTERED_MARKET_SOURCE")
     daily = [item for item in declarations if item.get("table") == "daily"]
     require(len(daily) == 21 and sorted(item["trade_date"] for item in daily) == dates, "EXACT_REGISTERED_DAILY_SET_REQUIRED")
@@ -207,6 +218,7 @@ def _registration(receipt, contract, day):
         and sorted(item["trade_date"] for item in historical) == dates[:-1], "EXACT_COMMITTED_HISTORY_DAILY_SET_REQUIRED")
     historical_by_date = {item["trade_date"]: item for item in historical}
     registered = {HISTORY_PATH: HISTORY_SHA, CALENDAR_PATH: _sha(calendar["sha256"])}
+    registered.update({item["path"]: item["sha256"] for item in suspension})
     for item in daily:
         d = item["trade_date"]
         require(item["path"] == f"data/market/raw/{d[:4]}/{d}/daily.csv", "STRICT_DAILY_REGISTRATION_REQUIRED")
@@ -225,8 +237,47 @@ def _registration(receipt, contract, day):
     meta_path = f"data/market/raw/{day[:4]}/{day}/_sync_meta.json"
     require(market["meta_path"] == meta_path, "EXACT_D_META_PATH_REQUIRED")
     registered[meta_path] = _sha(market["meta_sha256"])
-    require(len(registered) == 24, "EXACT_REGISTERED_SOURCE_SET_REQUIRED")
+    require(len(registered) == 24 + len(suspension), "EXACT_REGISTERED_SOURCE_SET_REQUIRED")
     return registered, daily, dates, market
+
+
+def _suspension_provenance(receipt, sources, dates, day):
+    """Bind optional official-disclosure bytes; never synthesize missing bars."""
+    for item in receipt["inputs"]["runtime_consumed_market_files"]:
+        if item.get("table") != "confirmed_suspensions":
+            continue
+        body = sources[SUSPENSION_PATH]
+        require(_git_blob(body) == item["git_blob_sha1"], "SUSPENSION_GIT_BLOB_MISMATCH")
+        payload = _json(body)
+        require(payload.get("schema_version") == "dc20_confirmed_suspensions_v1"
+            and type(payload.get("suspensions")) is list, "SUSPENSION_SCHEMA_REQUIRED")
+        known = set()
+        for record in payload["suspensions"]:
+            require(type(record) is dict, "SUSPENSION_RECORD_REQUIRED")
+            code = projection._code(record.get("ts_code"))
+            start, resume = projection._date(record.get("start_date")), projection._date(record.get("resume_date"))
+            require(start < resume and type(record.get("sources")) is list and record["sources"],
+                "SUSPENSION_INTERVAL_AND_SOURCES_REQUIRED")
+            for source in record["sources"]:
+                require(type(source) is dict and type(source.get("url")) is str
+                    and source["url"].startswith("https://"), "SUSPENSION_DISCLOSURE_REQUIRED")
+                published = projection._date(source.get("published_date"))
+                _sha(source.get("pdf_sha256"))
+                if resume <= day:
+                    require(published <= day, "FUTURE_SUSPENSION_DISCLOSURE")
+            require((code, start, resume) not in known, "DUPLICATE_SUSPENSION_INTERVAL")
+            known.add((code, start, resume))
+        used = set()
+        for interval in item["used_intervals"]:
+            require(type(interval) is dict and set(interval) == {"ts_code", "start_date", "resume_date",
+                "previous_trading_date", "skipped_sessions"}, "SUSPENSION_USED_INTERVAL_REQUIRED")
+            identity = (interval["ts_code"], interval["start_date"], interval["resume_date"])
+            require(identity in known and identity not in used and identity[2] <= day
+                and identity[1] in dates and identity[2] in dates, "SUSPENSION_USED_INTERVAL_NOT_DISCLOSED")
+            first, last = dates.index(identity[1]), dates.index(identity[2])
+            require(first > 0 and first < last and interval["previous_trading_date"] == dates[first - 1]
+                and interval["skipped_sessions"] == dates[first:last], "SUSPENSION_USED_CALENDAR_MISMATCH")
+            used.add(identity)
 
 
 def _identities(runtime, history, daily_rows, day):
@@ -298,6 +349,7 @@ def project_bound_p0_d(source_root, *, signal_date, expected_p0_sha256, source_p
     registered, daily, dates, market = _registration(receipt, contract, day)
     require(set(mapping) <= set(registered), "SOURCE_MAP_CANNOT_EXPAND_REGISTERED_SCOPE")
     sources = {path: read_bound(path, sha, mapping.get(path)) for path, sha in registered.items()}
+    _suspension_provenance(receipt, sources, dates, day)
     require(len({record[0] for record in bindings.values()}) == len(bindings), "SOURCE_ORIGIN_REUSED_FOR_DIFFERENT_PATHS")
     meta = _json(sources[market["meta_path"]])
     require(meta["trade_date"] == day and meta["source_repo"]["resolved_commit"] == market["resolved_commit"]
@@ -372,3 +424,4 @@ def project_bound_p0_d(source_root, *, signal_date, expected_p0_sha256, source_p
 
 
 __all__ = ["project_bound_p0_d", "DSourceBlocked"]
+

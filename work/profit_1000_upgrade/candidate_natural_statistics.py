@@ -16,10 +16,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_bound_statistics_v1"
-OUTCOMES_SHA = "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77"
+OUTCOMES_SHA = "58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737"
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 PUBLICATION_MODULE = "work.profit_1000_upgrade.candidate_natural_evidence_publication"
-PUBLICATION_SHA = "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c"
+PUBLICATION_SHA = "6a299837e148f0d19f93b88844c4496fa0172d0bf0ffe776f919dd837fb1610f"
+
 GROUPS = ("candidate_top1", "candidate_top2", "promotion_top1", "promotion_top2")
 DAY_FIELDS = frozenset({"signal_date", "snapshot_raw", "expected_snapshot_sha256",
     "ledger_raw", "expected_ledger_sha256", "ledger_as_of_date", "publication_proof",
@@ -160,14 +161,14 @@ def _version(version, frozen, expected_snapshot, dates, now):
     outcomes._seal(version, "report_sha256")
     eligible = frozen["schema_version"] == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2"
     writer = version.get("writer_sha256")
-    require(writer in ({OUTCOMES_SHA} if eligible else {LEGACY_OUTCOMES_SHA, OUTCOMES_SHA}), "UNREGISTERED_OUTCOME_WRITER_PROFILE")
+    outcomes.validate_report_profile(version, frozen)
     for field, expected in {"schema_version": outcomes.REPORT_SCHEMA,
         "snapshot_file_sha256": expected_snapshot, "snapshot_sha256": frozen["snapshot_sha256"],
         "registration_sha256": frozen["registration_sha256"], "model_canonical_sha256": natural.MODEL_SHA,
         "model_evaluation_sha256": natural.EVALUATION_SHA, "model_feature_order": list(natural.scorer.FEATURES),
         "full_frozen_prediction": frozen["prediction"], "full_frozen_candidate_count": len(frozen["prediction"]["rows"]),
         "calendar_sha256": labels.settlement.CALENDAR_SHA256, "writer_sha256": writer,
-        "dependencies": outcomes.PINS, "clock_mode": "HOST_SYSTEM_UTC", "frozen_clock_mode": "HOST_SYSTEM_UTC",
+        "dependencies": version["dependencies"], "clock_mode": "HOST_SYSTEM_UTC", "frozen_clock_mode": "HOST_SYSTEM_UTC",
         "original_snapshot_bytes_preserved": True, "round_trip_cost_rate": .0045,
         "shadow_notional_cny": 100000, "fees_subtracted_again": False,
         "native_report_scope": "ONE_STOCK_NOT_FULL_N_TRAINING_COHORT",

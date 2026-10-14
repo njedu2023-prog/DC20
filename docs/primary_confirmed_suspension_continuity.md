@@ -17,7 +17,7 @@ Evidence was collected on D after close and must exist in the dispatch HEAD.
 
 ## Runtime behavior
 
-Only `PrimaryDReadOnlyEngine` has changed. It reads the disclosure manifest
+The streak correction is confined to `PrimaryDReadOnlyEngine`. It reads the disclosure manifest
 through the existing Git HEAD verifier and records consumed intervals in the
 P0 receipt. It independently validates the complete SSE span, the absence of
 daily bars during every confirmed suspended session, both boundary bars, and
@@ -59,3 +59,51 @@ A new controlled NATURAL P0 may be dispatched only after local checks pass,
 with fresh same-D deduplication, immutable source commits and the existing
 23:30/CAS guards. This document does not claim publication success. P0, P1,
 independent Shadow and exact Pages acceptance must still be checked separately.
+
+## Candidate provenance compatibility
+
+The 20261014 repair changes the P0 source bytes, so the candidate adapter and
+its current dependency guards require an explicit pin update. Historical
+predictions keep the original complete tuple of runner SHA256, registration
+SHA256 and dependency map. The v1 and v2 readers select either the reviewed
+historical tuple (for D before 20261014) or the current complete tuple. Mixing
+an old runner with a new registration or dependency map remains an error.
+An unknown SHA is never accepted. Current source bytes, module origin and the
+start/end guards remain strict even while reading an old snapshot.
+
+The same separation applies to publication code bindings, original importer
+receipts, capture/verifier pairs, observer capsules and outcome writer pairs.
+Historical artifacts are read without rewriting their bytes or their hashes.
+An original outcome, collection or daily writer is accepted only with the complete
+historical snapshot tuple it could actually consume; the current writer may
+continue either reviewed snapshot version. The publication runner, importer,
+legacy coordinator and observer/capture code graph must also belong to the same
+selected profile. Cross-layer combinations are rejected even when each individual
+hash is separately known.
+New writes identify the current code and registration; they retain the
+original snapshot registration and prediction when appending an observation.
+This compatibility change does not grant a new freeze or backdate publication.
+
+The P0 receipt's optional `confirmed_suspensions` entry is a typed disclosure
+source, not a daily-price row. The adapter binds its exact Git blob and SHA256,
+validates the declared intervals and disclosure dates, and keeps the file in
+all subsequent source inventories. An inventory therefore has the original
+28 files, or exactly 29 with that one registered disclosure file. The original
+21 SSE-session daily-file registration and the stock's 21-observed-bar feature
+requirement are unchanged. Suspension evidence never fills a missing price.
+
+Read-only verification of the actual D=20261014 receipt and fixed Ridge model
+preserved all ten promotion members in their original order. Seven members
+had scoreable candidate features. The observed-bar counts for 002860.SZ,
+000668.SZ and 002813.SZ were 11, 18 and 16 respectively; their insufficient
+history states remain explicit and they receive no invented profit score.
+The model canonical SHA256 remains
+`999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589`.
+This local check is not a forward freeze, publication or trade execution.
+
+Compatibility regression checks cover original 20260914 v1 and 20261013 v2
+snapshot bytes and their original durable evidence bodies, mixed/unknown
+profiles, external-byte changes, current-code drift, and reading old snapshots
+through the current collector and outcome writer. Pending observations retain
+null returns. The dated P0 JSON, CSV, runtime features and receipt, existing
+model artifacts, score math and historical frozen predictions are unchanged.

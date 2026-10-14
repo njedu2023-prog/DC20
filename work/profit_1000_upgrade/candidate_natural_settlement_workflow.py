@@ -31,12 +31,12 @@ SNAPSHOT_PREFIX = "work/profit_1000_upgrade/candidate_natural_forward/"
 EVIDENCE_PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 JOURNAL_PREFIX = "work/profit_1000_upgrade/candidate_natural_journal/"
 PINS = {
-    "candidate_natural_evidence_publication": "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c",
-    "candidate_natural_outcome_collect": "210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca",
-    "candidate_natural_daily": "5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d",
+    "candidate_natural_evidence_publication": "6a299837e148f0d19f93b88844c4496fa0172d0bf0ffe776f919dd837fb1610f",
+    "candidate_natural_outcome_collect": "cb50fa02290aba5e2f01c75b7565aa2c705a50d61a14e2f132c939c324a6e02c",
+    "candidate_natural_daily": "d68c18c8d5313aa0b1338b8d73ec74677f877fbe4aaa679f0ea87d1a95f4855b",
     "candidate_natural_journal": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
     "candidate_natural_journal_git": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74",
-    "candidate_natural_statistics": "657238cade20b67c65178b9e87e222b9007c6834e609c191e1cda16b4be80554",
+    "candidate_natural_statistics": "82438cc58472e7fe0c42d34c2dfca491465c7e7b8878188ced7cac21639a8f45",
 }
 FLAGS = {"research_only": True, "production_activation_allowed": False,
     "source_authority_issued": False, "natural_outcome_admission_issued": False,
@@ -46,6 +46,10 @@ FLAGS = {"research_only": True, "production_activation_allowed": False,
     "provider_timestamp_semantics_confirmed": False,
     "whole_history_cumulative_statistics_claimed": False}
 
+
+HISTORICAL_DAILY_PROFILE = ('5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d',
+ {'work/profit_1000_upgrade/candidate_natural_outcome_collect.py': '210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca',
+  'scripts/diagnose_core_supervisor.py': 'b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99'})
 
 def require(ok, reason):
     if not ok: raise ValueError(reason)
@@ -264,10 +268,12 @@ def daily_metadata_profile(daily, frozen, modules):
     """Exact reviewed writer/dependency pairs, never cross-version pin mixing."""
     current = (PINS["candidate_natural_daily"], modules["daily"].PINS)
     profiles = [current]
-    if frozen.get("schema_version") == "dc20_fixed_candidate_natural_research_snapshot_20260913_v1":
-        profiles.append(("88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321", {
-            "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced",
-            "scripts/diagnose_core_supervisor.py": "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"}))
+    if modules["outcome_collect"].outcomes.is_historical_snapshot_profile(frozen):
+        profiles.append(HISTORICAL_DAILY_PROFILE)
+        if frozen.get("schema_version") == "dc20_fixed_candidate_natural_research_snapshot_20260913_v1":
+            profiles.append(("88d75a131946be1884da459b8d357942b29f18fd4d83839ea918951291d7e321", {
+                "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced",
+                "scripts/diagnose_core_supervisor.py": "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"}))
     return any(daily.get("daily_module_sha256") == writer and daily.get("dependencies") == pins
         for writer, pins in profiles)
 

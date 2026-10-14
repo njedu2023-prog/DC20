@@ -23,7 +23,7 @@ REGISTRATION_PATH = Path(__file__).with_name("candidate_eligible_forward_registr
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EVALUATION_SHA = "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
 PINS = {
-    "work/profit_1000_upgrade/candidate_d_source_adapter.py": "bb9b32de5be84b55793d8e8c19dd6960727e90de83605c4f5a1c360dbd3d982e",
+    "work/profit_1000_upgrade/candidate_d_source_adapter.py": "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b",
     "work/profit_1000_upgrade/candidate_forward_predict.py": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719",
     "forward/storage.py": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098",
     "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
@@ -36,6 +36,26 @@ BOUNDARIES = {"research_only": True, "production_activation_allowed": False,
     "natural_forward_admission_issued": False, "formal_ledger_written": False,
     "model_retrained": False, "actual_execution_claimed": False,
     "profitability_improvement_proven": False, "replacement_gate": "NOT_CONFIGURED"}
+
+
+# Exact pre-suspension profile; immutable old snapshots retain these bytes.
+HISTORICAL_SNAPSHOT_PROFILE = {'registration_sha256': '9aa093c0cb83cc7c6bccf86e912e29bb266a18f1112e19e7238435a07f28da1d',
+ 'runner_sha256': '9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c',
+ 'dependency_sha256': {'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'bb9b32de5be84b55793d8e8c19dd6960727e90de83605c4f5a1c360dbd3d982e',
+                       'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719',
+                       'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098',
+                       'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23'}}
+
+def snapshot_profile(value):
+    """Select one complete reviewed provenance tuple, never mixed old pins."""
+    _, plan_sha, _ = registration()
+    current = {"registration_sha256": plan_sha, "runner_sha256": SELF_SHA,
+        "dependency_sha256": dict(PINS)}
+    actual = {key: value.get(key) for key in current}
+    require(actual == current or (actual == HISTORICAL_SNAPSHOT_PROFILE
+        and type(value.get("signal_date")) is str and value["signal_date"] < "20261014"),
+        "UNREGISTERED_SNAPSHOT_PROVENANCE_PROFILE")
+    return actual
 
 
 def require(ok, reason):
@@ -315,9 +335,9 @@ def validate_snapshot(raw, expected_sha256):
     _, plan_sha, _ = registration()
     value = _json(raw)
     _sealed(value)
+    provenance = snapshot_profile(value)
     for key, wanted in {"schema_version": SCHEMA, "registration_id": REGISTRATION_ID,
-            "registration_sha256": plan_sha, "runner_sha256": SELF_SHA,
-            "dependency_sha256": PINS, "model_canonical_sha256": MODEL_SHA,
+            **provenance, "model_canonical_sha256": MODEL_SHA,
             "entry_policy_id": scorer.ENTRY_POLICY_ID, "exit_policy_id": scorer.EXIT_POLICY_ID,
             "round_trip_cost_rate": .0045, "shadow_notional_cny": 100000, **BOUNDARIES}.items():
         scorer._exact(value.get(key), wanted, "ELIGIBLE_SNAPSHOT_CONTRACT_CHANGED:"+key)

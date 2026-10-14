@@ -23,7 +23,7 @@ REGISTRATION_PATH = Path(__file__).with_name("candidate_natural_forward_registra
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EVALUATION_SHA = "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
 PINS = {
-    "work/profit_1000_upgrade/candidate_d_source_adapter.py": "bb9b32de5be84b55793d8e8c19dd6960727e90de83605c4f5a1c360dbd3d982e",
+    "work/profit_1000_upgrade/candidate_d_source_adapter.py": "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b",
     "work/profit_1000_upgrade/candidate_forward_predict.py": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719",
     "forward/storage.py": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098",
 }
@@ -35,6 +35,25 @@ BOUNDARIES = {"research_only": True, "production_activation_allowed": False,
     "natural_forward_admission_issued": False, "formal_ledger_written": False,
     "model_retrained": False, "actual_execution_claimed": False,
     "profitability_improvement_proven": False, "replacement_gate": "NOT_CONFIGURED"}
+
+
+# Exact pre-suspension profile; immutable old snapshots retain these bytes.
+HISTORICAL_SNAPSHOT_PROFILE = {'registration_sha256': '2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2',
+ 'runner_sha256': '5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15',
+ 'dependency_sha256': {'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'bb9b32de5be84b55793d8e8c19dd6960727e90de83605c4f5a1c360dbd3d982e',
+                       'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719',
+                       'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098'}}
+
+def snapshot_profile(value):
+    """Select one complete reviewed provenance tuple, never mixed old pins."""
+    _, plan_sha, _ = registration()
+    current = {"registration_sha256": plan_sha, "runner_sha256": SELF_SHA,
+        "dependency_sha256": dict(PINS)}
+    actual = {key: value.get(key) for key in current}
+    require(actual == current or (actual == HISTORICAL_SNAPSHOT_PROFILE
+        and type(value.get("signal_date")) is str and value["signal_date"] < "20261014"),
+        "UNREGISTERED_SNAPSHOT_PROVENANCE_PROFILE")
+    return actual
 
 
 def require(ok, reason):

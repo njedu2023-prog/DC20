@@ -24,9 +24,9 @@ REPO = 'njedu2023-prog/DC20'
 API = '/repos/' + REPO
 PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
-RUNNER_SHA = '5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15'
+RUNNER_SHA = 'eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = '6adc11beaef7c5b940043a4063dc812f6f56c169c71ecaafd9c9be6364729cb4'
+IMPORTER_SHA = '18d0759519d9dde8d0d958aa1071b3b31c1e55ca43be2015d19bceda03c36ecb'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -99,8 +99,9 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
     runner._sealed(record)
     plan, plan_sha, _ = runner.registration()
     day = runner.scorer._date(record['signal_date'], 'signal_date')
-    require(day >= '20260914' and record['runner_sha256'] == RUNNER_SHA
-        and record['registration_sha256'] == plan_sha
+    provenance = runner.snapshot_profile(record)
+    require(day >= '20260914' and record['runner_sha256'] == provenance['runner_sha256']
+        and record['registration_sha256'] == provenance['registration_sha256']
         and record['model_canonical_sha256'] == runner.MODEL_SHA
         and record['model_evaluation']['sha256'] == runner.EVALUATION_SHA,
         'EXACT_REGISTERED_NEW_MODEL_SNAPSHOT_REQUIRED')
@@ -115,7 +116,8 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
         and record['input_arguments']['source_root'] == imported['source_root'], 'P0_SOURCE_ARGUMENTS_CHANGED')
     original = imported['source_file_bindings']
     projected = record['D_source_evidence']['source_file_bindings']
-    require(type(original) is list and type(projected) is list and len(original) == len(projected) == 28,
+    count = 28 + sum(b.get('path') == 'data/market/confirmed_suspensions.json' for b in original if type(b) is dict)
+    require(type(original) is list and type(projected) is list and count in (28, 29) and len(original) == len(projected) == count,
         'EXACT_28_SOURCE_ROWS_REQUIRED')
     require(all(type(b) is dict and set(b) == {'path', 'sha256', 'git_blob_sha1', 'git_mode', 'bytes'}
         and b['git_mode'] == '100644' for b in original), 'EXACT_ORIGINAL_SOURCE_BINDING_SHAPE')
@@ -123,7 +125,7 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
         for b in projected), 'EXACT_PROJECTED_SOURCE_BINDING_SHAPE')
     expected = {b['path']: (b['sha256'], b['bytes']) for b in original}
     actual = {b['receipt_path']: (b['sha256'], b['bytes']) for b in projected}
-    require(len(expected) == len(actual) == 28 and actual == expected, 'EXACT_28_ORIGINAL_SOURCE_BINDINGS_REQUIRED')
+    require(len(expected) == len(actual) == count and actual == expected, 'EXACT_28_ORIGINAL_SOURCE_BINDINGS_REQUIRED')
     require(local_receipt['status'] == 'LOCAL_RESEARCH_SNAPSHOT_FROZEN'
         and local_receipt['snapshot_file_sha256'] == digest(snapshot_raw)
         and local_receipt['snapshot_sha256'] == record['snapshot_sha256']

@@ -136,8 +136,8 @@ def _dependencies():
     # These original modules remain research-only and frozen. Their own guards
     # check the complete unchanged source/model/label chain.
     pins = {
-        "candidate_natural_outcomes": "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77",
-        "candidate_natural_evidence_publication": "9bf6448e57794b61e7b0965226a70220d8160750b2447a3cb557a4fd341c5d8c",
+        "candidate_natural_outcomes": "58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737",
+        "candidate_natural_evidence_publication": "6a299837e148f0d19f93b88844c4496fa0172d0bf0ffe776f919dd837fb1610f",
     }
     for name, expected in pins.items():
         path = ROOT / "work/profit_1000_upgrade" / (name + ".py")

@@ -20,12 +20,12 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = "2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90"
+CAPTURE_SHA = "994aa08f9cd34d662e8a197bca991adc7ccce9a3ef2fc59e6e78a90455d87d72"
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = "4a2372ae03b64239d4924c1159d0f31114c34da22556ed213ca38faf6f627e68"
+OBSERVER_SHA = "c3f5d945192c43df559017ea511c4fd04e8ad1a0381d5a35a7037745272ba04b"
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
 WRITER_SHA = "e876d5865d72e8dddef1e920a68dfdf9d24e26d7b647b96672a7ff89c6358a76"
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
@@ -45,6 +45,13 @@ LEGACY_OBSERVER_BLOBS = {
     WORKFLOW_PATH: "10d2870fd7a032430544ca111821b36bd78df28a",
 }
 
+
+HISTORICAL_OBSERVER_PROFILE = ('4a2372ae03b64239d4924c1159d0f31114c34da22556ed213ca38faf6f627e68',
+ {'work/profit_1000_upgrade/candidate_natural_evidence.py': 'c31a3ce6979de8fe2b105ebaa841df1e5c44eb8b',
+  'work/profit_1000_upgrade/candidate_natural_observer.py': '48ac8c1afe11d83a6cb972bb414dcde1e10bda05',
+  'work/profit_1000_upgrade/candidate_natural_evidence_git.py': 'c69bd32b0c799fd3f3b64d1d37e44f88a93dbd10'})
+HISTORICAL_OBSERVER_WRITER_SHA = 'e876d5865d72e8dddef1e920a68dfdf9d24e26d7b647b96672a7ff89c6358a76'
+HISTORICAL_OBSERVER_WRITER_BLOB = 'c69bd32b0c799fd3f3b64d1d37e44f88a93dbd10'
 
 def require(ok, reason):
     if not ok: raise ValueError(reason)
@@ -195,20 +202,25 @@ def _observer_profile(manifest):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     require(contract in capture.capture_contracts(), "EXACT_CAPTURE_PROFILE_REQUIRED")
     if contract == capture.LEGACY_CAPTURE_CONTRACT:
-        return LEGACY_OBSERVER_SHA, LEGACY_OBSERVER_BLOBS
+        return LEGACY_OBSERVER_SHA, {**LEGACY_OBSERVER_BLOBS, WRITER_PATH: HISTORICAL_OBSERVER_WRITER_BLOB}
     if contract == capture.PRE_ELIGIBLE_CAPTURE_CONTRACT:
-        return PRE_ELIGIBLE_OBSERVER_SHA, PRE_ELIGIBLE_OBSERVER_BLOBS
+        return PRE_ELIGIBLE_OBSERVER_SHA, {**PRE_ELIGIBLE_OBSERVER_BLOBS, WRITER_PATH: HISTORICAL_OBSERVER_WRITER_BLOB}
+    if contract == capture.HISTORICAL_CAPTURE_CONTRACT:
+        return HISTORICAL_OBSERVER_PROFILE
     return OBSERVER_SHA, {}
 
 
 def _context(context, run, manifest, observation):
+    contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
+    historical = contract in (capture.LEGACY_CAPTURE_CONTRACT, capture.PRE_ELIGIBLE_CAPTURE_CONTRACT,
+        capture.HISTORICAL_CAPTURE_CONTRACT)
     expected = {"observer_workflow_path": WORKFLOW_PATH, "observer_run_id": run["id"], "run_attempt": 1,
         "code_head_sha": run["head_sha"], "repository": gh.REPOSITORY, "branch": "main",
         "schema_version": "dc20_candidate_natural_observer_context_v1", "signal_date": manifest["signal_date"],
         "freeze_run_id": int(manifest["freeze_run_id"]), "snapshot_file_sha256": manifest["snapshot_file_sha256"],
         "manifest_sha256": None, "publication_observation_sha256": manifest["native_observation"]["sha256"],
         "capture_module_sha256": manifest["capture_code_sha256"],
-        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": WRITER_SHA,
+        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": HISTORICAL_OBSERVER_WRITER_SHA if historical else WRITER_SHA,
         "created_at_host_utc": context.get("created_at_host_utc"), "original_prospective_publication_observed": True,
         "evidence_natural_admission_issued": False, "production_activation_allowed": False, "actual_execution_claimed": False}
     expected["manifest_sha256"] = context["manifest_sha256"]
@@ -221,10 +233,17 @@ def _context(context, run, manifest, observation):
 def match_observer_code(code_tree, published_tree, local, manifest):
     """An old capsule keeps its exact old observer contract, without rewriting it."""
     _, overrides = _observer_profile(manifest)
-    if overrides:
+    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) != capture.HISTORICAL_CAPTURE_CONTRACT:
         require(code_tree.get(publication.COORDINATOR_PATH, {}).get("sha")
             == publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"],
             "HISTORICAL_CAPTURE_REQUIRES_ORIGINAL_COORDINATOR")
+    contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
+    current = contract == (capture.SELF_SHA, capture.PUBLICATION_SHA)
+    old_importer = next(b["git_blob_sha1"] for b in publication.HISTORICAL_CODE_BINDINGS
+        if b["path"] == publication.IMPORTER_PATH)
+    expected_importer = gh.git_blob(local[publication.IMPORTER_PATH]) if current else old_importer
+    require(code_tree.get(publication.IMPORTER_PATH, {}).get("sha") == expected_importer,
+        "OBSERVER_PUBLICATION_PROFILE_MISMATCH")
     observer_paths = {CAPTURE_PATH, OBSERVER_PATH, WORKFLOW_PATH, WRITER_PATH}
     publication.match_publication_code(code_tree, published_tree,
         {p: raw for p, raw in local.items() if p not in observer_paths})

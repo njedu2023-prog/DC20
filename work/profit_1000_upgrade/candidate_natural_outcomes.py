@@ -17,10 +17,10 @@ import tempfile
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_outcomes_append_only_v1"
 REPORT_SCHEMA = "dc20_candidate_natural_posthoc_price_observation_v1"
-REGISTRATION_SHA = "2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2"
-PROFILE_READER_SHA = "bda60c1f947e2b16c520ec457cf56fcf38bec6cb6775b0a8839eb6ebef1dac27"
+REGISTRATION_SHA = "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b"
+PROFILE_READER_SHA = "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8"
 PINS = {
-    "work/profit_1000_upgrade/candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
+    "work/profit_1000_upgrade/candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
     "work/profit_1000_upgrade/labels_v3.py": "cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b",
     "work/profit_1000_upgrade/policy_v3.py": "a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b",
     "work/profit_1000_upgrade/auction_truth_v3.py": "889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665",
@@ -33,6 +33,20 @@ PINS = {
     "src/top10decision/decision/executable_profit_shadow.py": "872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c",
 }
 
+
+HISTORICAL_REPORT_PROFILE = ('bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77',
+ {'work/profit_1000_upgrade/candidate_natural_forward.py': '5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15',
+  'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b',
+  'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b',
+  'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665',
+  'work/profit_1000_upgrade/auction_truth.py': 'b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af',
+  'work/profit_1000_upgrade/auction_http_v3.py': '289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c',
+  'work/profit_1000_upgrade/minute_truth.py': '69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268',
+  'src/top10decision/decision/shadow_exit_1000.py': '23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af',
+  'src/top10decision/decision/shadow_exit_minute_truth.py': '0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65',
+  'src/top10decision/decision/executable_profit_shadow_settlement.py': 'acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12',
+  'src/top10decision/decision/executable_profit_shadow.py': '872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c'})
+LEGACY_REPORT_WRITER_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 
 def require(ok, reason):
     if not ok:
@@ -87,6 +101,29 @@ def _guard():
     return tuple(state), identity, natural._guard(), profile_state
 
 
+def is_historical_snapshot_profile(frozen):
+    """Old writers can only have consumed their complete original snapshot tuple."""
+    runner = natural
+    if frozen.get("schema_version") != natural.SCHEMA:
+        from work.profit_1000_upgrade import candidate_eligible_forward as runner
+        if frozen.get("schema_version") != runner.SCHEMA:
+            return False
+    expected = runner.HISTORICAL_SNAPSHOT_PROFILE
+    return {key: frozen.get(key) for key in expected} == expected
+
+
+def validate_report_profile(report, frozen):
+    """Read one possible writer/snapshot pair; current writers may continue old days."""
+    profiles = [(SELF_SHA, PINS)]
+    if is_historical_snapshot_profile(frozen):
+        profiles.append(HISTORICAL_REPORT_PROFILE)
+        if frozen.get("schema_version") == natural.SCHEMA:
+            profiles.append((LEGACY_REPORT_WRITER_SHA, HISTORICAL_REPORT_PROFILE[1]))
+    actual = (report.get("writer_sha256"), report.get("dependencies"))
+    require(any(actual == profile for profile in profiles), "UNREGISTERED_OUTCOME_WRITER_PROFILE")
+    return actual
+
+
 def _snapshot(raw, expected):
     natural.scorer._sha(expected)
     require(_sha(raw) == expected, "EXTERNAL_FROZEN_SNAPSHOT_SHA_MISMATCH")
@@ -96,9 +133,9 @@ def _snapshot(raw, expected):
         from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
         return profiles.validate_snapshot(raw, expected)
     natural._sealed(value)
+    provenance = natural.snapshot_profile(value)
     for key, wanted in {"schema_version": natural.SCHEMA, "registration_id": natural.REGISTRATION_ID,
-            "registration_sha256": REGISTRATION_SHA, "runner_sha256": PINS[next(iter(PINS))],
-            "dependency_sha256": natural.PINS, "model_canonical_sha256": natural.MODEL_SHA,
+            **provenance, "model_canonical_sha256": natural.MODEL_SHA,
             "entry_policy_id": natural.scorer.ENTRY_POLICY_ID, "exit_policy_id": natural.scorer.EXIT_POLICY_ID,
             "round_trip_cost_rate": .0045, "shadow_notional_cny": 100000, **natural.BOUNDARIES}.items():
         natural.scorer._exact(value.get(key), wanted, "FROZEN_SNAPSHOT_CONTRACT_CHANGED:" + key)
@@ -255,7 +292,7 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
     if frozen["schema_version"] == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2":
         from work.profit_1000_upgrade import candidate_eligible_forward as freeze_runner
     plan, plan_sha, plan_identity = freeze_runner.registration()
-    require(plan_sha == frozen["registration_sha256"]
+    require(freeze_runner.snapshot_profile(frozen)["registration_sha256"] == frozen["registration_sha256"]
         and (freeze_runner is not natural or plan_sha == REGISTRATION_SHA), "FIXED_NATURAL_REGISTRATION_REQUIRED")
     require(labels._timestamp(frozen["pre_cas_freeze_at_utc"]) <= now, "FROZEN_PREDICTION_IS_IN_CLOCK_FUTURE")
     day, t, t1 = (frozen[key] for key in ("signal_date", "exec_date", "exit_date"))
@@ -367,6 +404,7 @@ def evaluate_natural_outcomes(snapshot_path, output_root, *, expected_snapshot_s
         previous_asof = ""
         for version in versions:
             _seal(version, "report_sha256")
+            validate_report_profile(version, frozen)
             require(previous_asof < version["as_of_date"] <= asof
                 and version["snapshot_file_sha256"] == expected_snapshot_sha256, "OUTCOME_ASOF_MUST_APPEND_NOT_REDATE")
             previous_asof = version["as_of_date"]

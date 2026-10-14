@@ -25,10 +25,13 @@ from urllib import request
 
 ROOT = Path(__file__).absolute().parents[2]
 OUTCOMES_PATH = Path(__file__).with_name("candidate_natural_outcomes.py")
-OUTCOMES_SHA = "bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77"
+OUTCOMES_SHA = "58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737"
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 LEGACY_COLLECTOR_SHA = "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced"
 
+
+HISTORICAL_COLLECTION_PROFILE = ('210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca',
+ 'bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77')
 
 def require(ok, reason):
     if not ok:
@@ -242,7 +245,12 @@ def original_rows(frozen):
 
 
 def accepted_outcome_writers(frozen):
-    return {OUTCOMES_SHA} if frozen["schema_version"] == profiles.eligible.SCHEMA else {LEGACY_OUTCOMES_SHA, OUTCOMES_SHA}
+    writers = {OUTCOMES_SHA}
+    if outcomes.is_historical_snapshot_profile(frozen):
+        writers.add(HISTORICAL_COLLECTION_PROFILE[1])
+        if frozen["schema_version"] != profiles.eligible.SCHEMA:
+            writers.add(LEGACY_OUTCOMES_SHA)
+    return writers
 
 
 def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, codes, dates, asof, states, injected):
@@ -251,8 +259,10 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
     if path is None: return {}, [], {}, None
     receipt = natural._json(read_bound(path, expected, states)); outcomes._seal(receipt, "receipt_sha256")
     pairs = {(SELF_SHA, OUTCOMES_SHA)}
-    if frozen["schema_version"] != profiles.eligible.SCHEMA:
-        pairs.add((LEGACY_COLLECTOR_SHA, LEGACY_OUTCOMES_SHA))
+    if outcomes.is_historical_snapshot_profile(frozen):
+        pairs.add(HISTORICAL_COLLECTION_PROFILE)
+        if frozen["schema_version"] != profiles.eligible.SCHEMA:
+            pairs.add((LEGACY_COLLECTOR_SHA, LEGACY_OUTCOMES_SHA))
     require(receipt["schema_version"] == SCHEMA and (receipt["writer_sha256"], receipt["outcomes_wrapper_sha256"]) in pairs
         and receipt["snapshot_file_sha256"] == frozen["file_sha256"] and receipt["signal_date"] == frozen["signal_date"]
         and receipt["exec_date"] == frozen["exec_date"] and receipt["exit_date"] == frozen["exit_date"]
@@ -349,6 +359,7 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
         require(ledger["schema_version"] == outcomes.SCHEMA and ledger["signal_date"] == frozen["signal_date"]
             and ledger["snapshot_file_sha256"] == frozen["file_sha256"] and ledger["versions"], "PRIOR_OUTCOME_IDENTITY_CHANGED")
         observed = ledger["versions"][-1]; outcomes._seal(observed, "report_sha256")
+        outcomes.validate_report_profile(observed, frozen)
         require(observed["as_of_date"] <= asof and observed["snapshot_file_sha256"] == frozen["file_sha256"]
             and observed["writer_sha256"] in accepted_outcome_writers(frozen) and set(observed["native_singleton_reports"]) == set(codes)
             and observed["clock_mode"] == ("INJECTED_TEST_CLOCK_RESEARCH_ONLY" if injected else "HOST_SYSTEM_UTC")
@@ -427,7 +438,7 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
     frozen = outcomes._snapshot(raw_snapshot, expected_snapshot_sha256)
     freeze_runner = profiles.eligible if frozen["schema_version"] == profiles.eligible.SCHEMA else natural
     registration = freeze_runner.registration()
-    require(registration[1] == frozen["registration_sha256"], "FIXED_REGISTRATION_REQUIRED")
+    require(freeze_runner.snapshot_profile(frozen)["registration_sha256"] == frozen["registration_sha256"], "FIXED_REGISTRATION_REQUIRED")
     require(injected or frozen["clock_mode"] == "HOST_SYSTEM_UTC", "TEST_FROZEN_SELECTION_CANNOT_TRIGGER_REAL_NETWORK")
     require(frozen["signal_date"] <= asof and labels._timestamp(frozen["pre_cas_freeze_at_utc"]) <= now, "ASOF_OR_CLOCK_BEFORE_FROZEN_SELECTION")
     require(expected_calendar_sha256 == labels.settlement.CALENDAR_SHA256, "PINNED_CALENDAR_REQUIRED")

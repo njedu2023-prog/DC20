@@ -9,8 +9,8 @@ import hashlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PINS = {
-    "candidate_natural_forward.py": "5a3967c88829be0e6b9a0d7c384b6d2cf12ac7c257bac4dff40d1a15ce2d5c15",
-    "candidate_eligible_forward.py": "9177b183813626de51affaf6f9f17a0aed6c557b50a56018023fe8a62f28ea2c",
+    "candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
+    "candidate_eligible_forward.py": "86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2",
 }
 
 def require(ok, reason):
@@ -29,7 +29,7 @@ guard()
 from work.profit_1000_upgrade import candidate_natural_forward as natural
 from work.profit_1000_upgrade import candidate_eligible_forward as eligible
 import re
-REGISTRATION_SHA = "2b24d549c16b5ad6bb3c682eb491a56907ccd7cd986c4c2c9e494a76f4d79de2"
+REGISTRATION_SHA = "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b"
 LEGACY_RUNNER_SHA = PINS["candidate_natural_forward.py"]
 
 def timestamp(value):
@@ -43,9 +43,9 @@ def _snapshot(raw, expected):
     require(_sha(raw) == expected, "EXTERNAL_FROZEN_SNAPSHOT_SHA_MISMATCH")
     value = natural._json(raw)
     natural._sealed(value)
+    provenance = natural.snapshot_profile(value)
     for key, wanted in {"schema_version": natural.SCHEMA, "registration_id": natural.REGISTRATION_ID,
-            "registration_sha256": REGISTRATION_SHA, "runner_sha256": LEGACY_RUNNER_SHA,
-            "dependency_sha256": natural.PINS, "model_canonical_sha256": natural.MODEL_SHA,
+            **provenance, "model_canonical_sha256": natural.MODEL_SHA,
             "entry_policy_id": natural.scorer.ENTRY_POLICY_ID, "exit_policy_id": natural.scorer.EXIT_POLICY_ID,
             "round_trip_cost_rate": .0045, "shadow_notional_cny": 100000, **natural.BOUNDARIES}.items():
         natural.scorer._exact(value.get(key), wanted, "FROZEN_SNAPSHOT_CONTRACT_CHANGED:" + key)

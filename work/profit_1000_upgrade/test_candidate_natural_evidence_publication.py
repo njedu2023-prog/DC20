@@ -90,13 +90,18 @@ def test_exact_legacy_observer_context_and_code_pair_is_preserved():
     original_run = {"id": context["observer_run_id"], "head_sha": context["code_head_sha"]}
     m._context(context, original_run, manifest, observation)
     local, _ = m.code_guard()
-    tree = {path: {"type": "blob", "mode": "100644", "sha": m.LEGACY_OBSERVER_BLOBS.get(path, m.gh.git_blob(raw))}
-        for path, raw in local.items() if path not in m.publication.ELIGIBLE_ONLY_FILES}
+    # A historical observer must use its complete historical publication graph.
+    tree = {b["path"]: {"type": "blob", "mode": "100644", "sha": b["git_blob_sha1"]}
+        for b in m.publication.HISTORICAL_CODE_BINDINGS
+        if b["path"] not in m.publication.ELIGIBLE_ONLY_FILES}
     tree[m.publication.COORDINATOR_PATH]["sha"] = m.publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"]
+    _, overrides = m._observer_profile(manifest)
+    for path in (m.CAPTURE_PATH, m.OBSERVER_PATH, m.WORKFLOW_PATH, m.WRITER_PATH):
+        tree[path] = {"type": "blob", "mode": "100644", "sha": overrides[path]}
     m.match_observer_code(tree, tree, local, manifest)
     current_manifest = {**manifest, "capture_code_sha256": m.CAPTURE_SHA,
         "publication_verifier_sha256": m.capture.PUBLICATION_SHA}
-    with pytest.raises(ValueError, match="CODE_VERSION_CHANGED"):
+    with pytest.raises(ValueError, match="OBSERVER_PUBLICATION_PROFILE_MISMATCH"):
         m.match_observer_code(tree, tree, local, current_manifest)
     changed = deepcopy(tree)
     changed[m.OBSERVER_PATH]["sha"] = m.gh.git_blob(local[m.OBSERVER_PATH])

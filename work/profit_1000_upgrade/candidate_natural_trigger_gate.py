@@ -128,7 +128,7 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
     if not eligible:
         from work.profit_1000_upgrade import candidate_legacy_workflow as legacy
         require(Path(legacy.__file__).absolute() == workflow.ROOT / "work/profit_1000_upgrade/candidate_legacy_workflow.py"
-            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == "0623a000570a7994b4f3687f778eda66499e1026d8b606c4376f31b44031f0ce",
+            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == "bc3e84d52a15e5a0733bfcdfefd22b71cb0fc7f499129bf8b2291a5593045687",
             "LEGACY_COORDINATOR_CODE_CHANGED")
         coordinator = legacy
     prepared, _ = coordinator.prepare_publication(raw[0], local, imported, context,

@@ -22,7 +22,7 @@ import zipfile
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = "3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f"
+PUBLICATION_SHA = "b5bf339e19c15edd354a5c883a3cf38eb8800243414ec8ebbb1b2cbf551b7375"
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -31,6 +31,9 @@ PRE_ELIGIBLE_CAPTURE_CONTRACT = (
     "d70d2d7dac62cf6f3618f92aa69bfd638747642818c43db0c61ff05228f4d089",
     "e2f9abea634cb4a7c0b75af1026c15d7b64e67d6dd4111768bbdf805028d1932",
 )
+HISTORICAL_CAPTURE_CONTRACT = ('2304a7e9bbf2000de7b42f9d8ab8bb2948bf736a95228ed06271d51f91dc3b90',
+ '3a6b5e8434f083200454d5474f6bec0c20d80436b4b86fe7d0a3befd93b2d04f')
+
 SCHEMA = "dc20_candidate_natural_durable_evidence_v1"
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
@@ -62,7 +65,7 @@ SELF_SHA = sha(gh.read(Path(__file__).absolute())[0])
 
 
 def capture_contracts():
-    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
+    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -284,7 +287,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     require(gh.validate_revision(revision, p0_run, p0_id) == (day, observation["exec_date"], observation["exit_date"], observation["original_p0_commit_sha"]),
         "ORIGINAL_PAGES_REVISION_IDENTITY_CHANGED")
     require(manifest["original_source_bindings"] == observation["original_source_bindings"]
-        and len(manifest["original_source_bindings"]) == 28, "ORIGINAL_SOURCE_GIT_BINDINGS_CHANGED")
+        and len(manifest["original_source_bindings"]) == 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in manifest["original_source_bindings"] if type(b) is dict), "ORIGINAL_SOURCE_GIT_BINDINGS_CHANGED")
     for b in manifest["original_source_bindings"]:
         publication._source_path(b["path"], day)
     return manifest
