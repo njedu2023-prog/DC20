@@ -47,10 +47,15 @@ class EvidenceGitWriter:
     def __init__(self, token):
         require(type(token) is str and token and not any(c.isspace() for c in token), 'TOKEN_REQUIRED')
         self.token, self.calls, self.started = token, 0, time.monotonic()
+        self._continuation_budget = False
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
                 return None
         self.opener = urllib.request.build_opener(NoRedirect())
+
+    def enable_continuation_budget(self):
+        require(self.calls == 0, 'CONTINUATION_WRITER_MUST_START_BEFORE_ANY_CALL')
+        self._continuation_budget = True
 
     def call(self, method, suffix, payload=None):
         allowed = ((method == 'GET' and (suffix == '/git/ref/heads/main' or
@@ -59,7 +64,7 @@ class EvidenceGitWriter:
             (method == 'PATCH' and suffix == '/git/refs/heads/main'))
         require(allowed, 'NON_GIT_ROUTE_REJECTED')
         self.calls += 1
-        require(self.calls <= 128 and time.monotonic() - self.started < 300, 'GIT_BUDGET_EXCEEDED')
+        require(self.calls <= (192 if self._continuation_budget else 128) and time.monotonic() - self.started < 300, 'GIT_BUDGET_EXCEEDED')
         body = None if payload is None else encoded(payload)
         forbidden = (self.token.encode(), json.dumps(self.token)[1:-1].encode())
         require(body is None or not any(x in body for x in forbidden), 'CREDENTIAL_PAYLOAD_REJECTED')
@@ -78,8 +83,27 @@ class EvidenceGitWriter:
             raise ValueError('GIT_API_FAILED_NO_FORCE_OR_RETRY') from None
 
 
+def _capsule_file_limit(files):
+    require(type(files) is dict, 'CAPSULE_FILES_MAPPING_REQUIRED')
+    manifests = [(p, raw) for p, raw in files.items() if p.endswith('/manifest.json')]
+    if len(manifests) != 1:
+        return MAX_FILES
+    name, raw = manifests[0]
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return MAX_FILES
+    if not isinstance(value, dict) or value.get('p0_provenance_kind') != 'ORIGINAL_GENERATION_REDEPLOYMENT':
+        return MAX_FILES
+    from work.profit_1000_upgrade import candidate_natural_evidence as capture
+    prefix = name.removesuffix('manifest.json')
+    bodies = {p.removeprefix(prefix): b for p,b in files.items() if p.startswith(prefix + 'bodies/')}
+    capture.verify_materials(raw, bodies, expected_manifest_sha256=digest(raw))
+    return capture._file_limit(value) + 1
+
+
 def validate_files(files):
-    require(type(files) is dict and 3 <= len(files) <= MAX_FILES, 'BOUNDED_CAPSULE_FILES_REQUIRED')
+    require(type(files) is dict and 3 <= len(files) <= _capsule_file_limit(files), 'BOUNDED_CAPSULE_FILES_REQUIRED')
     days, names, total = set(), set(), 0
     for path, raw in files.items():
         match = re.fullmatch(re.escape(PREFIX) + r'([0-9]{8})/(manifest\.json|context\.json|bodies/([0-9a-f]{64})\.bin)', path)
@@ -99,6 +123,8 @@ def validate_files(files):
 
 def publish_new_evidence(files, *, github_client, deadline, clock=lambda: datetime.now(timezone.utc), pre_cas_guard=None):
     day = validate_files(files)
+    if type(github_client) is EvidenceGitWriter and _capsule_file_limit(files) > MAX_FILES:
+        github_client.enable_continuation_budget()
     sealed = tuple(sorted(files.items()))
     require(deadline.tzinfo is not None and clock() < deadline, 'EVIDENCE_PUBLICATION_DEADLINE_PASSED')
     head = sha40(github_client.call('GET', '/git/ref/heads/main')['object']['sha'])

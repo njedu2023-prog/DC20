@@ -7,6 +7,7 @@ The original fresh-source importer and publication admission stay unchanged.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import io
 import json
 import os
@@ -107,7 +108,7 @@ def _tree(gh, client, commit_sha):
     return commit, tree
 
 
-def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision):
+def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision, *, verified_continuation=None):
     names = [workflow.PREFIX + f"{kind}_{day}.json" for kind in ("day", "p0_sources", "local_freeze", "workflow")]
     present = [name in tree for name in names]
     if not any(present):
@@ -128,7 +129,7 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
     if not eligible:
         from work.profit_1000_upgrade import candidate_legacy_workflow as legacy
         require(Path(legacy.__file__).absolute() == workflow.ROOT / "work/profit_1000_upgrade/candidate_legacy_workflow.py"
-            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == "bc3e84d52a15e5a0733bfcdfefd22b71cb0fc7f499129bf8b2291a5593045687",
+            and gh.sha256(gh.read(Path(legacy.__file__).absolute())[0]) == "c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee",
             "LEGACY_COORDINATOR_CODE_CHANGED")
         coordinator = legacy
     prepared, _ = coordinator.prepare_publication(raw[0], local, imported, context,
@@ -158,10 +159,21 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
             "ORIGINAL_28_SOURCE_BLOB_IDENTITY_CHANGED")
     original_id = gh.exact_id(str(imported["run"]["id"]))
     original_path = gh.API_PREFIX + "/actions/runs/" + original_id
-    original_run = client.get_json(original_path)
-    require(gh.validate_run(original_run, original_id) == imported["run"]
-        and gh.validate_jobs(client.get_json(original_path + "/attempts/1/jobs?per_page=100"), original_run, original_id)
-            == imported["critical_jobs"], "ORIGINAL_GENERATING_P0_RUN_CHANGED")
+    continuation, _ = gh.continuation_dependencies()
+    if imported.get("schema_version") == continuation.IMPORT_SCHEMA:
+        proof = continuation.validate_import_receipt(gh, imported)
+        if verified_continuation is not None and verified_continuation.get("source_main_sha") != proof["source_main_sha"]:
+            verified_continuation = None
+        if verified_continuation is None:
+            verified_continuation, _, _ = continuation.verify_pair(gh, client,
+                original_run_id=original_id, original_cas_commit=imported["published_git_sha"],
+                reuse_run_id=str(proof["successful_reuse_run"]["id"]), source_main_sha=proof["source_main_sha"])
+        require(verified_continuation == proof, "EXISTING_CONTINUATION_ORIGINAL_PROOF_CHANGED")
+    else:
+        original_run = client.get_json(original_path)
+        require(gh.validate_run(original_run, original_id) == imported["run"]
+            and gh.validate_jobs(client.get_json(original_path + "/attempts/1/jobs?per_page=100"), original_run, original_id)
+                == imported["critical_jobs"], "ORIGINAL_GENERATING_P0_RUN_CHANGED")
     observer_id = _existing_evidence(gh, client, tree, day, snapshot, context)
     return {"snapshot_file_sha256": gh.sha256(raw[0]), "original_freeze_run_id": context["run_id"],
         "original_observer_run_id": observer_id,
@@ -187,7 +199,7 @@ def _existing_evidence(gh, client, tree, day, snapshot, freeze_context):
             in issuer.capture.capture_contracts(),
         "EXISTING_OBSERVER_MANIFEST_BINDING_CHANGED")
     files = manifest.get("files")
-    require(type(files) is list and 0 < len(files) < issuer.capture.MAX_FILES, "EXISTING_OBSERVER_INVENTORY_INVALID")
+    require(type(files) is list and 0 < len(files) < issuer.capture._file_limit(manifest), "EXISTING_OBSERVER_INVENTORY_INVALID")
     seen = set()
     for binding in files:
         require(type(binding) is dict and binding.get("path") == "bodies/" + gh.exact_sha(binding.get("sha256")) + ".bin"
@@ -284,6 +296,31 @@ def inspect_p0(*, run_id, github_client):
         "existing": existing, **FLAGS}
 
 
+def inspect_continuation(*, run_id, original_generation_run_id, original_cas_commit, github_client,
+                         clock=lambda: datetime.now(timezone.utc)):
+    runner, gh = workflow.dependencies()
+    continuation, _ = gh.continuation_dependencies()
+    proof, _, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,
+        original_cas_commit=original_cas_commit, reuse_run_id=run_id)
+    day, trade, exit_day = (proof[k] for k in ("signal_date", "exec_date", "exit_date"))
+    _, current_tree = _tree(gh, github_client, proof["source_main_sha"])
+    _, original_tree = _tree(gh, github_client, original_cas_commit)
+    existing = _existing_day(gh, runner, github_client, current_tree, original_tree, day, trade, exit_day, revision,
+        verified_continuation=proof)
+    if existing is None:
+        close, auction = runner._window(day, trade)
+        now = clock()
+        require(now.tzinfo is not None and close <= now < auction - workflow.timedelta(minutes=10),
+            "CONTINUATION_NEW_FREEZE_T0915_DEADLINE")
+    workflow.publication_guard()
+    return {"schema_version": SCHEMA, "status": "VERIFIED_ORIGINAL_GENERATION_REDEPLOYMENT_REQUIRES_NEW_FREEZE"
+        if existing is None else "EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE", "needs_work": existing is None,
+        "p0_run_id": int(run_id), "p0_new_generation": False, "signal_date": day,
+        "original_generation_run_id": int(original_generation_run_id), "original_cas_commit": original_cas_commit,
+        "observed_main_sha": proof["source_main_sha"], "p0_pages_revision_sha256": proof["successful_reuse_revision_sha256"],
+        "existing": existing, **FLAGS}
+
+
 def inspect_freeze(*, run_id, github_client):
     _, gh = workflow.dependencies()
     run_id = gh.exact_id(run_id)
@@ -327,7 +364,11 @@ def inspect_freeze(*, run_id, github_client):
     require(receipt.get("schema_version") == SCHEMA and receipt.get("status") == "EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE"
         and receipt.get("needs_work") is False and type(receipt.get("p0_run_id")) is int,
         "PREFLIGHT_DID_NOT_VERIFY_EXISTING_FREEZE")
-    rechecked = inspect_p0(run_id=str(receipt["p0_run_id"]), github_client=github_client)
+    paired = (receipt.get("original_generation_run_id"), receipt.get("original_cas_commit"))
+    require(bool(paired[0]) == bool(paired[1]), "PREFLIGHT_CONTINUATION_PAIR_CHANGED")
+    rechecked = (inspect_continuation(run_id=str(receipt["p0_run_id"]), original_generation_run_id=str(paired[0]),
+        original_cas_commit=paired[1], github_client=github_client) if paired[0] else
+        inspect_p0(run_id=str(receipt["p0_run_id"]), github_client=github_client))
     require(rechecked["needs_work"] is False and rechecked["existing"] == receipt.get("existing")
         and rechecked["signal_date"] == receipt.get("signal_date"), "EXISTING_FREEZE_CHANGED_AFTER_PREFLIGHT")
     require(github_client.get_json(path) == run
@@ -340,15 +381,21 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kind", choices=("p0", "freeze"))
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--original-generation-run-id")
+    parser.add_argument("--original-cas-commit")
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args(argv)
+    require(bool(args.original_generation_run_id) == bool(args.original_cas_commit)
+        and (not args.original_generation_run_id or args.kind == "p0"), "PAIRED_P0_CONTINUATION_ARGUMENTS_REQUIRED")
     _, gh = workflow.dependencies()
     target = gh.path(args.receipt, exists=False)
     require(workflow.ROOT != target and workflow.ROOT not in target.parents and not target.exists(),
         "NEW_PREFLIGHT_RECEIPT_OUTSIDE_REPOSITORY_REQUIRED")
     gh.path(target.parent, directory=True)
     client = gh.GitHubReadClient(os.environ.get(gh.TOKEN_ENV, ""))
-    result = (inspect_p0 if args.kind == "p0" else inspect_freeze)(run_id=args.run_id, github_client=client)
+    result = (inspect_continuation(run_id=args.run_id, original_generation_run_id=args.original_generation_run_id,
+        original_cas_commit=args.original_cas_commit, github_client=client) if args.original_generation_run_id else
+        (inspect_p0 if args.kind == "p0" else inspect_freeze)(run_id=args.run_id, github_client=client))
     gh.write_new(target.parent, target.name, gh.json_bytes(result))
     output = gh.path(os.environ.get("GITHUB_OUTPUT"))
     with output.open("a", encoding="utf-8") as handle:

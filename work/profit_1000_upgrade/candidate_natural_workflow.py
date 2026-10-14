@@ -26,7 +26,7 @@ PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
 RUNNER_SHA = '86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = '18d0759519d9dde8d0d958aa1071b3b31c1e55ca43be2015d19bceda03c36ecb'
+IMPORTER_SHA = 'fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -108,7 +108,13 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
         'EXACT_REGISTERED_NEW_MODEL_SNAPSHOT_REQUIRED')
     require(all(record.get(k) == v and type(record.get(k)) is type(v) for k, v in runner.BOUNDARIES.items()),
         'RESEARCH_BOUNDARIES_CHANGED')
-    require(imported['schema_version'] == importer.SCHEMA
+    valid_schema = imported.get('schema_version') == importer.SCHEMA
+    if not valid_schema:
+        continuation, _ = importer.continuation_dependencies()
+        valid_schema = imported.get('schema_version') == continuation.IMPORT_SCHEMA
+        if valid_schema:
+            continuation.validate_import_receipt(importer, imported)
+    require(valid_schema
         and imported['status'] == 'IMPORTED_ORIGINAL_P0_BYTES_REQUIRES_D_ADAPTER'
         and imported['injected_client_for_test'] is False, 'ACTUAL_IN_PROCESS_GITHUB_SOURCE_IMPORT_REQUIRED')
     require([record[k] for k in ('signal_date', 'exec_date', 'exit_date')]
@@ -255,9 +261,12 @@ def publish_exact_new_day(files, *, github_client, deadline, clock=lambda: datet
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--p0-run-id', required=True)
+    parser.add_argument('--original-generation-run-id')
+    parser.add_argument('--original-cas-commit')
     parser.add_argument('--work-parent', type=Path, required=True)
     parser.add_argument('--publish', action='store_true')
     args = parser.parse_args(argv)
+    require(bool(args.original_generation_run_id) == bool(args.original_cas_commit), 'PAIRED_ORIGINAL_GENERATION_ARGUMENTS_REQUIRED')
     runner, importer = dependencies()
     context = execution_context()
     importer.exact_id(args.p0_run_id)
@@ -268,7 +277,10 @@ def main(argv=None):
     work = Path(tempfile.mkdtemp(prefix='dc20-candidate-natural-', dir=parent))
     sources = work / 'sources'
     sources.mkdir()
-    imported = importer.import_p0_sources(sources, expected_run_id=args.p0_run_id, github_client=client)
+    imported = (importer.import_redeployed_p0_sources(sources, expected_run_id=args.p0_run_id,
+        original_generation_run_id=args.original_generation_run_id, original_cas_commit=args.original_cas_commit,
+        github_client=client) if args.original_generation_run_id else
+        importer.import_p0_sources(sources, expected_run_id=args.p0_run_id, github_client=client))
     local = runner.freeze_natural_day(sources, work / 'candidate_natural_forward', MODEL_PATH,
         signal_date=imported['signal_date'], expected_p0_sha256=imported['expected_p0_sha256'])
     snapshot_raw = runner._read(Path(local['snapshot_path']))[0]
@@ -284,7 +296,22 @@ def main(argv=None):
     retain('p0_source_receipt.json', imported)
     retain('local_freeze_receipt.json', local)
     # Only the actual same-process source import reaches a repository write.
-    result = (publish_exact_new_day(files, github_client=GitHubWriter(token), deadline=cutoff, pre_cas_guard=publication_guard)
+    checked_before_cas = False
+    def guarded_publication():
+        nonlocal checked_before_cas
+        publication_guard()
+        if args.original_generation_run_id:
+            continuation, _ = importer.continuation_dependencies()
+            proof = continuation.validate_import_receipt(importer, imported)
+            observed, _, _ = continuation.verify_pair(importer, importer.GitHubReadClient(token),
+                original_run_id=args.original_generation_run_id, original_cas_commit=args.original_cas_commit,
+                reuse_run_id=args.p0_run_id, source_main_sha=proof['source_main_sha'],
+                original_sources={b['path']: importer.read(sources / b['path'])[0] for b in imported['source_file_bindings']},
+                require_same_main=not checked_before_cas, require_absent=not checked_before_cas,
+                now=datetime.now(timezone.utc))
+            require(observed == proof, 'CONTINUATION_EVIDENCE_CHANGED_BEFORE_OR_AFTER_CAS')
+            checked_before_cas = True
+    result = (publish_exact_new_day(files, github_client=GitHubWriter(token), deadline=cutoff, pre_cas_guard=guarded_publication)
         if args.publish else {'status': 'DRY_RUN_LOCAL_RESEARCH_ONLY', 'remote_writes': 0,
             'natural_forward_admission_issued': False, 'production_activation_allowed': False})
     retain('publication.json', result)

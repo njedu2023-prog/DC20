@@ -12,6 +12,14 @@ on:
         description: "已成功自然发布本日名单的原始 P0 run ID；不接受历史恢复"
         required: true
         type: string
+      original_generation_run_id:
+        description: "仅原生成 CAS 成功而部署失败时，填写原始受控 P0 run ID；须与原 CAS 成对"
+        required: false
+        type: string
+      original_cas_commit:
+        description: "原生成 run 唯一 CAS 提交的完整 40 位 SHA；p0_run_id 必须为后继自然复用成功 run"
+        required: false
+        type: string
       dry_run:
         description: "只读演练，不提交新模型研究冻表"
         required: true
@@ -22,6 +30,9 @@ on:
     paths:
       - ".github/workflows/research_candidate_natural_forward.yml"
       - "work/profit_1000_upgrade/candidate_natural_*.py"
+      - "work/profit_1000_upgrade/candidate_p0_generation_artifact.py"
+      - "tests/test_candidate_p0_generation_artifact.py"
+      - "tests/test_candidate_continuation_evidence.py"
       - "work/profit_1000_upgrade/test_candidate_natural_*.py"
       - "work/profit_1000_upgrade/candidate_natural_forward_registration.json"
       - "work/profit_1000_upgrade/candidate_natural_model/evaluation.json"
@@ -77,7 +88,7 @@ jobs:
           --require-hashes -r requirements-dev.lock
       - name: Validate new components and unchanged formal freeze
         run: |
-          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py
+          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py work/profit_1000_upgrade/test_candidate_natural_p0_continuation.py tests/test_candidate_p0_generation_artifact.py tests/test_candidate_continuation_evidence.py
           python scripts/validate_decision_model_freeze.py --root .
           test -z "$(git status --porcelain=v1)"
       - name: Check whether original P0 needs a new candidate freeze
@@ -86,9 +97,14 @@ jobs:
         env:
           DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
           P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}
-        run: >-
-          python -m work.profit_1000_upgrade.candidate_natural_trigger_gate p0
-          --run-id "$P0_RUN_ID" --receipt "$RUNNER_TEMP/candidate-preflight.json"
+          ORIGINAL_GENERATION_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.original_generation_run_id || '' }}
+          ORIGINAL_CAS_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.original_cas_commit || '' }}
+        run: |
+          args=(p0 --run-id "$P0_RUN_ID" --receipt "$RUNNER_TEMP/candidate-preflight.json")
+          if [ -n "$ORIGINAL_GENERATION_RUN_ID" ] || [ -n "$ORIGINAL_CAS_COMMIT" ]; then
+            args+=(--original-generation-run-id "$ORIGINAL_GENERATION_RUN_ID" --original-cas-commit "$ORIGINAL_CAS_COMMIT")
+          fi
+          python -m work.profit_1000_upgrade.candidate_natural_trigger_gate "${args[@]}"
       - name: Preserve read-only trigger classification
         if: always() && steps.trigger.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -124,9 +140,14 @@ jobs:
         env:
           DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
           P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}
+          ORIGINAL_GENERATION_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.original_generation_run_id || '' }}
+          ORIGINAL_CAS_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.original_cas_commit || '' }}
           PUBLISH_RESEARCH: ${{ github.event_name == 'workflow_run' || inputs.dry_run == false }}
         run: |
           args=(--p0-run-id "$P0_RUN_ID" --work-parent "$RUNNER_TEMP")
+          if [ -n "$ORIGINAL_GENERATION_RUN_ID" ] || [ -n "$ORIGINAL_CAS_COMMIT" ]; then
+            args+=(--original-generation-run-id "$ORIGINAL_GENERATION_RUN_ID" --original-cas-commit "$ORIGINAL_CAS_COMMIT")
+          fi
           if [ "$PUBLISH_RESEARCH" = "true" ]; then args+=(--publish); fi
           python -m work.profit_1000_upgrade.candidate_natural_workflow "${args[@]}"
       - name: Verify local formal files remain untouched

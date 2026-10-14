@@ -2,7 +2,8 @@
 
 Only an explicitly supplied successful P0 run is considered. Its own immutable
 Pages artifact identifies a Git commit; the current public site is never read.
-The 28 files are copied verbatim into a fresh source directory. This establishes
+The 28 registered files, plus at most one exact typed suspension disclosure,
+are copied verbatim into a fresh source directory. This establishes
 API-observed provenance and byte identity, NOT new prediction timing, complete
 feature admission, model authority or permission to trade. No market API/fit.
 """
@@ -10,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -39,6 +40,7 @@ WORKFLOW_NAME = "DC2.0 · Publish Primary D List (P0)"
 WORKFLOW_PATH = ".github/workflows/run_primary_d_daily.yml"
 ADAPTER_PATH = "work/profit_1000_upgrade/candidate_d_source_adapter.py"
 ADAPTER_SHA = "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b"
+CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9', 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e'}
 TOKEN_ENV = "DC20_CANDIDATE_GITHUB_TOKEN"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 MAX_JSON_BYTES = 88 * 1024 * 1024
@@ -47,6 +49,7 @@ MAX_TAR_BYTES = 512 * 1024 * 1024
 MAX_REVISION_BYTES = 1024 * 1024
 MAX_ENTRIES = 20000
 MAX_API_CALLS = 50
+MAX_CONTINUATION_API_CALLS = 200
 SOCKET_TIMEOUT_SECONDS = 20
 CRITICAL_JOBS = (
     "Build immutable promotion-only D candidate",
@@ -164,6 +167,17 @@ require(sha256(read(CODE_ROOT / ADAPTER_PATH)[0]) == ADAPTER_SHA, "FROZEN_ADAPTE
 from work.profit_1000_upgrade import candidate_d_source_adapter as adapter
 
 
+def continuation_dependencies():
+    for logical, expected in CONTINUATION_PINS.items():
+        require(sha256(read(CODE_ROOT / logical)[0]) == expected, "FROZEN_CONTINUATION_CODE_CHANGED")
+    from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation
+    from work.profit_1000_upgrade import candidate_p0_generation_artifact as artifact
+    for module in (continuation, artifact):
+        require(Path(module.__file__).absolute() == CODE_ROOT / ("work/profit_1000_upgrade/" + module.__name__.split(".")[-1] + ".py"),
+            "CONTINUATION_IMPORT_ORIGIN_CHANGED")
+    return continuation, artifact
+
+
 def code_guard():
     require(Path(adapter.__file__).absolute() == CODE_ROOT / ADAPTER_PATH, "ADAPTER_IMPORT_ORIGIN_CHANGED")
     own, own_stat = read(Path(__file__).absolute())
@@ -192,10 +206,15 @@ class GitHubReadClient:
         self._token = token
         self._opener = urllib.request.build_opener(NoRedirect())
         self.calls = 0
+        self._continuation_reads = False
+
+    def enable_continuation_reads(self):
+        continuation_dependencies()
+        self._continuation_reads = True
 
     def _open(self, url, *, authorization, limit, allow_302=False):
         self.calls += 1
-        require(self.calls <= MAX_API_CALLS, "GET_BUDGET_EXCEEDED")
+        require(self.calls <= (MAX_CONTINUATION_API_CALLS if self._continuation_reads else MAX_API_CALLS), "GET_BUDGET_EXCEEDED")
         parsed = urllib.parse.urlsplit(url)
         require(parsed.scheme == "https" and parsed.username is None and parsed.password is None
             and not parsed.fragment and parsed.port in (None, 443), "UNSAFE_GET_URL")
@@ -226,7 +245,8 @@ class GitHubReadClient:
             raise ImportBlocked("GITHUB_GET_FAILED") from None
 
     def get_json(self, api_path):
-        require(type(api_path) is str and api_path.startswith(API_PREFIX + "/")
+        require(type(api_path) is str and (api_path.startswith(API_PREFIX + "/")
+            or (self._continuation_reads and re.fullmatch(r"/repos/njedu2023-prog/(?:a-top10|a-share-top3-data)/git/commits/[0-9a-f]{40}", api_path)))
             and "#" not in api_path and "\\" not in api_path and ".." not in api_path
             and "@" not in api_path, "EXACT_REPOSITORY_API_PATH_REQUIRED")
         return parse_json(self._open("https://api.github.com" + api_path,
@@ -484,6 +504,20 @@ def write_new(root, logical, body):
         os.close(fd)
 
 
+def validate_original_source_inventory(receipt, contract, sources, day):
+    """A closed original source set; the sole optional file is typed disclosure."""
+    registered, _, dates, _ = adapter._registration(receipt, contract, day)
+    expected_paths = set(adapter._p0_paths(day).values()) | set(registered)
+    expected_count = 28 + int(adapter.SUSPENSION_PATH in registered)
+    require(set(sources) == expected_paths and len(sources) == expected_count,
+        "EXACT_REGISTERED_ORIGINAL_SOURCE_SET_REQUIRED")
+    for logical, expected in registered.items():
+        require(type(sources[logical]) is bytes and sha256(sources[logical]) == expected,
+            "RECEIPT_ORIGINAL_SOURCE_SHA_MISMATCH")
+    adapter._suspension_provenance(receipt, sources, dates, day)
+    return expected_count
+
+
 def import_p0_sources(source_root, *, expected_run_id, github_client):
     """Import exact published bytes. Injected clients are explicitly test-only.
 
@@ -535,7 +569,7 @@ def import_p0_sources(source_root, *, expected_run_id, github_client):
         body = load_blob(github_client, entries, logical)
         require(sha256(body) == expected, "RECEIPT_ORIGINAL_SOURCE_SHA_MISMATCH")
         sources[logical] = body
-    require(len(sources) == 28, "EXACT_28_ORIGINAL_FILES_REQUIRED")
+    source_count = validate_original_source_inventory(receipt, contract, sources, day)
     for item in daily:
         if item["trade_date"] != day:
             require(entries[item["path"]]["sha"] == item["git_blob_sha1"], "RECEIPT_HISTORICAL_GIT_BLOB_MISMATCH")
@@ -567,10 +601,56 @@ def import_p0_sources(source_root, *, expected_run_id, github_client):
         "published_git_sha": published, "published_tree_sha": tree_sha, "published_parent_sha": receipt["inputs"]["git_head"],
         "expected_p0_sha256": {role: sha256(sources[logical]) for role, logical in paths.items()},
         "source_file_bindings": [{k: v for k, v in item.items() if k != "identity"} for item in bindings.values()],
-        "original_file_count": 28, "run": run_bound, "critical_jobs": jobs, "pages_artifact": artifact,
+        "original_file_count": source_count, "run": run_bound, "critical_jobs": jobs, "pages_artifact": artifact,
         "pages_revision_sha256": revision_sha, "observed_p0_cas_job_completed_at": jobs[1]["completed_at"],
         "timing_semantics": "GITHUB_API_OBSERVED_JOB_COMPLETION_NOT_NEW_PREDICTION_FREEZE",
         "importer_sha256": SELF_SHA, "source_adapter_sha256": ADAPTER_SHA, "source_adapter_dependency_sha256": dict(adapter.CODE_PINS),
+        "injected_client_for_test": type(github_client) is not GitHubReadClient,
+        "network_calls_performed": github_client.calls if type(github_client) is GitHubReadClient else None,
+        "github_original_byte_bindings_verified": True, "p0_native_four_file_contract_checked": True,
+        "source_authority_issued": False, "complete_d_feature_admission_performed": False,
+        "new_prediction_freeze_verified": False, "production_activation_allowed": False,
+        "model_training_performed": False, "model_predictions_computed": False, "future_outcomes_read": False,
+        "research_only": True, "remote_writes_performed": 0}
+
+
+def import_redeployed_p0_sources(source_root, *, expected_run_id, original_generation_run_id,
+                                original_cas_commit, github_client, clock=lambda: datetime.now(timezone.utc)):
+    """Original failed-deploy generation plus a distinct successful natural reuse."""
+    root = path(source_root, directory=True)
+    root_identity = fingerprint(root)[:3]
+    require(not any(root.iterdir()), "EMPTY_NEW_SOURCE_ROOT_REQUIRED")
+    code_before = code_guard()
+    continuation, _ = continuation_dependencies()
+    proof, sources, revision = continuation.verify_pair(sys.modules[__name__], github_client,
+        original_run_id=original_generation_run_id, original_cas_commit=original_cas_commit,
+        reuse_run_id=expected_run_id, require_absent=True, now=clock())
+    require(fingerprint(path(root, directory=True))[:3] == root_identity and not any(root.iterdir()),
+        "SOURCE_ROOT_CHANGED_BEFORE_WRITE")
+    bindings = {}
+    for logical, body in sorted(sources.items()):
+        write_new(root, logical, body)
+        _, identity = read(root / logical)
+        bindings[logical] = {"path": logical, "sha256": sha256(body), "git_blob_sha1": git_blob(body),
+            "git_mode": "100644", "bytes": len(body), "identity": identity}
+    day = proof["signal_date"]
+    index = _index(root, day)
+    inventory(root, bindings)
+    continuation_dependencies()
+    require(code_guard() == code_before and _index(root, day) == index, "CONTINUATION_CODE_OR_INDEX_CHANGED")
+    require(fingerprint(path(root, directory=True))[:3] == root_identity, "CONTINUATION_ROOT_CHANGED")
+    return {"schema_version": continuation.IMPORT_SCHEMA, "status": "IMPORTED_ORIGINAL_P0_BYTES_REQUIRES_D_ADAPTER",
+        "repository": REPOSITORY, "source_root": str(root), "signal_date": day, "exec_date": proof["exec_date"], "exit_date": proof["exit_date"],
+        "published_git_sha": original_cas_commit, "published_tree_sha": proof["original_cas_tree"],
+        "published_parent_sha": proof["original_cas_parent"], "expected_p0_sha256": proof["expected_p0_sha256"],
+        "source_file_bindings": proof["source_file_bindings"], "original_file_count": proof["original_file_count"],
+        "run": proof["original_generation_run"], "critical_jobs": proof["original_generation_jobs"],
+        "pages_artifact": proof["successful_reuse_pages_artifact"], "pages_revision_sha256": proof["successful_reuse_revision_sha256"],
+        "successful_publication_git_sha": proof["successful_publication_git_sha"], "continuation": proof,
+        "observed_p0_cas_job_completed_at": proof["observed_p0_cas_job_completed_at"],
+        "timing_semantics": "ORIGINAL_CAS_AND_LATER_REDEPLOYMENT_DISTINCT_NOT_NEW_PREDICTION_FREEZE",
+        "importer_sha256": SELF_SHA, "source_adapter_sha256": ADAPTER_SHA, "source_adapter_dependency_sha256": dict(adapter.CODE_PINS),
+        "continuation_dependency_sha256": dict(CONTINUATION_PINS),
         "injected_client_for_test": type(github_client) is not GitHubReadClient,
         "network_calls_performed": github_client.calls if type(github_client) is GitHubReadClient else None,
         "github_original_byte_bindings_verified": True, "p0_native_four_file_contract_checked": True,
@@ -602,7 +682,7 @@ def main(argv=None):
     code_guard()
     require(read(target)[0] == body, "RECEIPT_CHANGED_AFTER_FINAL_GUARDS")
     print(json.dumps({"status": result["status"], "signal_date": result["signal_date"],
-        "original_file_count": 28, "receipt_sha256": sha256(body), "new_prediction_freeze_verified": False}))
+        "original_file_count": result["original_file_count"], "receipt_sha256": sha256(body), "new_prediction_freeze_verified": False}))
     return 0
 
 

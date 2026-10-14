@@ -107,3 +107,54 @@ profiles, external-byte changes, current-code drift, and reading old snapshots
 through the current collector and outcome writer. Pending observations retain
 null returns. The dated P0 JSON, CSV, runtime features and receipt, existing
 model artifacts, score math and historical frozen predictions are unchanged.
+
+## Explicit continuation after original P0 deployment failure
+
+The candidate importer retains the original single-run contract: that P0's
+compute, CAS and deployment must all succeed. A separate, paired-input entry
+supports one narrowly defined case: a first-attempt controlled NATURAL P0
+created and committed its D output before D 23:30, but its canonical deployment
+failed; a later first-attempt natural P0 then verified the same D output,
+skipped all six generation steps and CAS, and successfully deployed its own
+exact head in its own Pages artifact. A push-only Pages run cannot stand in
+for that successor P0. Neither run is relabeled.
+
+Use the existing candidate workflow's `p0_run_id` for the successful natural
+reuse, and supply both `original_generation_run_id` and `original_cas_commit`.
+The original CAS remains `published_git_sha`; the later deployment has its
+own `successful_publication_git_sha`. The receipt retains both run identities,
+job outcomes, artifact digests, original source production times and the real
+new candidate freeze time. Local synchronization timestamps are not source
+production timestamps.
+
+Admission reconstructs every file in the original four-member candidate ZIP,
+including bounded Git binary literal/delta patches, and matches the complete
+patch to the original base-to-CAS Git tree difference. The CAS has exactly the
+original run head as its parent. Its four new P0 files and the closed 28/typed
+29 source inventory must remain identical at the original CAS, later deployment
+and current main. Both upstream commits must predate the original dispatch.
+The original base, CAS and later deployment must retain the registered P0
+workflow and its 27 code/model/lock bindings, including the freeze loader and
+all 18 receipt runtime-code bindings. The original promotion model bytes are
+independently hashed; they are never deserialized by the continuation reader.
+
+The entry requires four absent candidate files before a new write, a genuine
+host-clock freeze and publication before T 09:15, and the existing non-force
+CAS with no overwrite, retiming or automatic retry. A complete existing day
+is revalidated and reused; a partial day is an error. The independent observer
+rechecks both runs and the same source proof. Its typed capsule contains three
+archive identities and preserves the complete original candidate ZIP as a
+bounded base64 envelope for offline digest, member, patch and Git-tree replay.
+The original two-archive capsule format and historical v1/v2 profiles remain
+valid with their original limits and bytes. Only typed continuation capsules
+may use their separately bounded larger inventory. Unknown binary blobs remain
+invalid; gzip history is bounded and scanned, and the sole binary model
+exception requires the exact registered Git blob, SHA256 and byte length.
+
+Tests distinguish portable synthetic successor runs from actual acceptance.
+The actual 20261014 original run, original ZIP, 21 patch changes and 29 original
+sources are checked independently; a synthetic successor proves mechanics,
+not that a successful live successor or forward freeze has occurred. Final
+acceptance still requires the actual successful natural reuse, new candidate
+freeze, independent observer and public revision. This candidate continuation
+is independent of the P1 and Shadow branch and grants no trading authority.

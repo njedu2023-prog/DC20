@@ -1,6 +1,7 @@
 """Synthetic settlement reports, not independent publication evidence."""
 from datetime import datetime, timezone
 from copy import deepcopy
+import hashlib
 import pytest
 from work.profit_1000_upgrade import candidate_natural_statistics as m
 from work.profit_1000_upgrade import test_candidate_natural_outcomes as fixtures
@@ -8,12 +9,21 @@ from work.profit_1000_upgrade import candidate_natural_forward_test as forward
 from work.profit_1000_upgrade import candidate_eligible_forward as eligible
 
 
-def report_case(tmp_path,monkeypatch,v2):
+def report_case(tmp_path,monkeypatch,v2,*,historical=False):
     if v2:
         monkeypatch.setattr(forward,'m',eligible)
         original=fixtures.setup_case
         monkeypatch.setattr(fixtures,'setup_case',lambda *a,**k:original(*a,missing_bar=True,**k))
     case=fixtures.make_case(tmp_path,monkeypatch,size=10)
+    if historical:
+        # Synthetic structural fixture: select the whole registered old tuple.
+        runner=eligible if v2 else fixtures.m.natural
+        case['frozen'].update(deepcopy(runner.HISTORICAL_SNAPSHOT_PROFILE))
+        case['frozen']['snapshot_sha256']=runner.scorer.canonical_sha({
+            k:v for k,v in case['frozen'].items() if k!='snapshot_sha256'})
+        raw=fixtures.m.natural.storage.encoded(case['frozen'])
+        case['snapshot'].write_bytes(raw)
+        case['snapshot_sha']=hashlib.sha256(raw).hexdigest()
     report=fixtures.report(fixtures.run(case))
     # Exercise structural report admission only, never issue a publication proof.
     report['clock_mode']=report['frozen_clock_mode']='HOST_SYSTEM_UTC'
@@ -35,7 +45,19 @@ def test_versioned_statistics_accepts_original_union(tmp_path,monkeypatch,v2):
         assert case['frozen']['promotion_slots'][0]['ts_code'] in report['native_singleton_reports']
     else:
         report['writer_sha256']=m.LEGACY_OUTCOMES_SHA;reseal(report)
+        with pytest.raises(ValueError,match='UNREGISTERED_OUTCOME_WRITER_PROFILE'):
+            m._version(report,case['frozen'],case['snapshot_sha'],dates,datetime(2026,9,18,tzinfo=timezone.utc))
+
+
+def test_legacy_writer_requires_complete_historical_snapshot_and_dependencies(tmp_path,monkeypatch):
+    case,report,dates=report_case(tmp_path,monkeypatch,False,historical=True)
+    report['writer_sha256']=m.LEGACY_OUTCOMES_SHA
+    reseal(report)
+    with pytest.raises(ValueError,match='UNREGISTERED_OUTCOME_WRITER_PROFILE'):
         m._version(report,case['frozen'],case['snapshot_sha'],dates,datetime(2026,9,18,tzinfo=timezone.utc))
+    report['dependencies']=deepcopy(fixtures.m.HISTORICAL_REPORT_PROFILE[1])
+    reseal(report)
+    m._version(report,case['frozen'],case['snapshot_sha'],dates,datetime(2026,9,18,tzinfo=timezone.utc))
 
 
 def test_v2_cannot_claim_legacy_writer(tmp_path,monkeypatch):

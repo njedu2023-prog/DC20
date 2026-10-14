@@ -18,15 +18,18 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = "18d0759519d9dde8d0d958aa1071b3b31c1e55ca43be2015d19bceda03c36ecb"
+IMPORTER_SHA = "fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507"
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
+CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
 FIXED_FILES = {
     IMPORTER_PATH: IMPORTER_SHA,
-    COORDINATOR_PATH: "25a59de187c0123f4783ac55db9abd18f11c56344ecc42f058635447d9114a6a",
-    WORKFLOW_PATH: "337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c",
+    'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9',
+    'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e',
+    COORDINATOR_PATH: "ce8d282b19b1aa934c520ea501e1efa03cada8f13eea58c054693db8bb7e4b4e",
+    WORKFLOW_PATH: "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd",
     "requirements-dev.lock": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
     "work/profit_1000_upgrade/candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
     "work/profit_1000_upgrade/candidate_natural_forward_registration.json": "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b",
@@ -35,7 +38,7 @@ FIXED_FILES = {
     "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": "6f68eb804ae4e894b56f5d245a0b45f08f9a6c4a315c9edae4b9345be85a6878",
     "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
     "work/profit_1000_upgrade/candidate_snapshot_versions.py": "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8",
-    "work/profit_1000_upgrade/candidate_legacy_workflow.py": "bc3e84d52a15e5a0733bfcdfefd22b71cb0fc7f499129bf8b2291a5593045687",
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": "c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee",
 }
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
@@ -173,7 +176,9 @@ def match_publication_code(code_tree, published_tree, local_files):
     historical = {item["path"]: item for item in HISTORICAL_CODE_BINDINGS}
     historical_profile = code_tree.get(IMPORTER_PATH, {}).get("sha") == historical[IMPORTER_PATH]["git_blob_sha1"]
     if historical_profile:
-        bindings = [dict(historical[p]) for p in sorted(local_files)]
+        historical_paths = set(local_files) - CONTINUATION_ONLY_FILES
+        require(historical_paths == set(historical), "HISTORICAL_PUBLICATION_CODE_SET_CHANGED")
+        bindings = [dict(historical[p]) for p in sorted(historical_paths)]
     current_legacy_raw = local_files["work/profit_1000_upgrade/candidate_legacy_workflow.py"]
     current_legacy = {"path": COORDINATOR_PATH, "sha256": gh.sha256(current_legacy_raw),
         "git_blob_sha1": gh.git_blob(current_legacy_raw)}
@@ -550,15 +555,36 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     # Independently revisit the original P0 API evidence, without reimporting.
     p0_id = gh.exact_id(str(imported["run"]["id"]))
     p0_path = "/actions/runs/" + p0_id
-    p0_run = reads.json(p0_path)
-    require(gh.validate_run(p0_run, p0_id) == imported["run"], "ORIGINAL_P0_RUN_CHANGED")
-    p0_jobs = gh.validate_jobs(reads.json(p0_path + "/attempts/1/jobs?per_page=100"), p0_run, p0_id)
-    p0_artifact = gh.select_artifact(reads.json(p0_path + "/artifacts?per_page=100"), p0_run, p0_id)
-    require(p0_jobs == imported["critical_jobs"] and p0_artifact == imported["pages_artifact"], "ORIGINAL_P0_JOBS_OR_ARTIFACT_CHANGED")
-    p0_revision, revision_sha = gh.revision_from_zip(reads.archive(p0_artifact))
-    p0_day, p0_t, p0_t1, p0_commit = gh.validate_revision(p0_revision, p0_run, p0_id)
-    require([p0_day, p0_t, p0_t1] == [day, snapshot["exec_date"], snapshot["exit_date"]]
-        and p0_commit == imported["published_git_sha"] and revision_sha == imported["pages_revision_sha256"], "ORIGINAL_P0_REVISION_CHANGED")
+    continuation_proof = None
+    if imported.get("schema_version") == "dc20_candidate_p0_continuation_import_v1":
+        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA, "CONTINUATION_REQUIRES_CURRENT_COMPLETE_CODE_PROFILE")
+        continuation, _ = gh.continuation_dependencies()
+        expected_proof = imported["continuation"]
+        continuation_proof, checked_sources, p0_revision = continuation.verify_pair(gh, github_client,
+            original_run_id=p0_id, original_cas_commit=imported["published_git_sha"],
+            reuse_run_id=str(expected_proof["successful_reuse_run"]["id"]),
+            original_sources=archive["sources"], source_main_sha=expected_proof["source_main_sha"])
+        require(continuation_proof == expected_proof and checked_sources == archive["sources"],
+            "ORIGINAL_CONTINUATION_PAIR_OR_SOURCES_CHANGED")
+        p0_jobs = continuation_proof["original_generation_jobs"]
+        p0_artifact = continuation_proof["successful_reuse_pages_artifact"]
+        p0_commit = continuation_proof["original_cas_commit"]
+        require(imported["run"] == continuation_proof["original_generation_run"]
+            and imported["critical_jobs"] == p0_jobs and imported["pages_artifact"] == p0_artifact
+            and imported["pages_revision_sha256"] == continuation_proof["successful_reuse_revision_sha256"]
+            and [continuation_proof[k] for k in ("signal_date", "exec_date", "exit_date")]
+                == [day, snapshot["exec_date"], snapshot["exit_date"]],
+            "ORIGINAL_CONTINUATION_RECEIPT_IDENTITY_CHANGED")
+    else:
+        p0_run = reads.json(p0_path)
+        require(gh.validate_run(p0_run, p0_id) == imported["run"], "ORIGINAL_P0_RUN_CHANGED")
+        p0_jobs = gh.validate_jobs(reads.json(p0_path + "/attempts/1/jobs?per_page=100"), p0_run, p0_id)
+        p0_artifact = gh.select_artifact(reads.json(p0_path + "/artifacts?per_page=100"), p0_run, p0_id)
+        require(p0_jobs == imported["critical_jobs"] and p0_artifact == imported["pages_artifact"], "ORIGINAL_P0_JOBS_OR_ARTIFACT_CHANGED")
+        p0_revision, revision_sha = gh.revision_from_zip(reads.archive(p0_artifact))
+        p0_day, p0_t, p0_t1, p0_commit = gh.validate_revision(p0_revision, p0_run, p0_id)
+        require([p0_day, p0_t, p0_t1] == [day, snapshot["exec_date"], snapshot["exit_date"]]
+            and p0_commit == imported["published_git_sha"] and revision_sha == imported["pages_revision_sha256"], "ORIGINAL_P0_REVISION_CHANGED")
     p0_commit_value, p0_tree = reads.tree(p0_commit)
     require(p0_commit_value["tree"]["sha"] == imported["published_tree_sha"]
         and [p["sha"] for p in p0_commit_value.get("parents", [])] == [imported["published_parent_sha"]], "ORIGINAL_P0_GIT_IDENTITY_CHANGED")
@@ -598,6 +624,24 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     for suffix in (workflow_path, run_path, run_path + "/attempts/1/jobs?per_page=100", run_path + "/artifacts?per_page=100",
             p0_path, p0_path + "/attempts/1/jobs?per_page=100", p0_path + "/artifacts?per_page=100"):
         reads.json(suffix)
+    if continuation_proof is not None:
+        # Match both completed API identities after the common immutable checks.
+        for original, run_key, job_key, artifact_key in (
+                (True, "original_generation_run", "original_generation_jobs", "original_generation_artifact"),
+                (False, "successful_reuse_run", "successful_reuse_jobs", "successful_reuse_pages_artifact")):
+            expected_run = continuation_proof[run_key]
+            identity = str(expected_run["id"])
+            route = gh.API_PREFIX + "/actions/runs/" + identity
+            actual_run = github_client.get_json(route)
+            actual_bound = (continuation.validate_original_run(gh, actual_run, identity, day) if original
+                else gh.validate_run(actual_run, identity))
+            actual_jobs = continuation._jobs(gh, github_client.get_json(route + "/attempts/1/jobs?per_page=100"),
+                actual_run, identity, original=original)
+            artifact_document = github_client.get_json(route + "/artifacts?per_page=100")
+            actual_artifact = (continuation.select_generation_artifact(gh, artifact_document, actual_run, identity)
+                if original else gh.select_artifact(artifact_document, actual_run, identity))
+            require(actual_bound == expected_run and actual_jobs == continuation_proof[job_key]
+                and actual_artifact == continuation_proof[artifact_key], "CONTINUATION_FINAL_API_IDENTITY_CHANGED")
     current = reads.json("/git/ref/heads/main", immutable=False)
     require(current.get("ref") == "refs/heads/main" and current.get("object", {}).get("type") == "commit",
         "EXACT_CURRENT_MAIN_REF_REQUIRED")
@@ -615,6 +659,8 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "snapshot_file_sha256": gh.sha256(snapshot_raw), "snapshot_sha256": snapshot["snapshot_sha256"],
         "publication_ack_sha256": gh.sha256(archive["ack_raw"]), "publication_artifact": artifact,
         "published_file_bindings": files, "original_p0_run_id": int(p0_id), "original_p0_commit_sha": p0_commit,
+        **({"p0_provenance_kind": "ORIGINAL_GENERATION_REDEPLOYMENT", "p0_continuation": continuation_proof}
+            if continuation_proof is not None else {}),
         "original_source_bindings": imported["source_file_bindings"], "independent_critical_jobs": jobs,
         "latest_publication_bound_utc": jobs[1]["completed_at"], "publication_deadline": cutoff.isoformat(),
         "current_main_sha": current_sha, "current_main_four_file_bytes_preserved": True,
@@ -623,7 +669,8 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "timestamp_basis": "GITHUB_SUCCESSFUL_FREEZE_JOB_COMPLETION_NOT_GIT_AUTHOR_OR_COMMITTER_CLOCK",
         "model_canonical_sha256": natural.MODEL_SHA, "model_evaluation_sha256": natural.EVALUATION_SHA,
         "verified_code_bindings": code_bindings,
-        "verifier_sha256": SELF_SHA, "bounded_request_cost": reads.cost,
+        "verifier_sha256": SELF_SHA, "bounded_request_cost": (github_client.calls
+            if continuation_proof is not None and actual else reads.cost),
         "network_calls_performed": github_client.calls if actual else None,
         "research_only": True, "source_authority_issued": False, "natural_outcome_admission_issued": False,
         "production_activation_allowed": False, "formal_model_replacement_allowed": False,

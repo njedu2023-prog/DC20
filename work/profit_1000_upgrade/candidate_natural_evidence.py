@@ -1,7 +1,8 @@
 """Preserve a successful live research publication observation, without admission.
 
-Original JSON HTTP bodies and Pages revision bytes are content-addressed. ZIP
-bodies, Authorization headers and signed redirect URLs are never persisted.
+Original JSON HTTP bodies and Pages revision bytes are content-addressed. A
+typed continuation also retains its small generation ZIP in a bounded JSON
+envelope. Pages/freeze ZIPs, headers and signed URLs are never persisted.
 Local integrity alone cannot reissue cross-day prospective-publication proof.
 """
 from __future__ import annotations
@@ -19,10 +20,11 @@ import tarfile
 import urllib.error
 import urllib.parse
 import zipfile
+import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = "b5bf339e19c15edd354a5c883a3cf38eb8800243414ec8ebbb1b2cbf551b7375"
+PUBLICATION_SHA = "e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6"
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -38,6 +40,10 @@ SCHEMA = "dc20_candidate_natural_durable_evidence_v1"
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FILES = 64
+MAX_CONTINUATION_FILES = 160
+MAX_CONTINUATION_HTTP = 200
+CONTINUATION_KIND = "ORIGINAL_GENERATION_REDEPLOYMENT"
+GENERATION_ARCHIVE_SCHEMA = "dc20_original_generation_zip_bytes_v1"
 MAX_CAPTURE_BYTES = 320 * 1024 * 1024
 FLAGS = {"research_only": True, "source_authority_issued": False, "natural_forward_admission_issued": False,
     "observer_workflow_publication_verified": False, "production_activation_allowed": False,
@@ -78,7 +84,10 @@ def code_guard():
 
 
 def _route(path):
-    require(type(path) is str and path.startswith(gh.API_PREFIX + "/"), "EXACT_OBSERVED_REPOSITORY_ROUTE_REQUIRED")
+    require(type(path) is str, "EXACT_OBSERVED_REPOSITORY_ROUTE_REQUIRED")
+    if re.fullmatch(r"/repos/njedu2023-prog/(?:a-top10|a-share-top3-data)/git/commits/[0-9a-f]{40}", path):
+        return path
+    require(path.startswith(gh.API_PREFIX + "/"), "EXACT_OBSERVED_REPOSITORY_ROUTE_REQUIRED")
     suffix = path[len(gh.API_PREFIX):]
     patterns = (r"/actions/workflows/research_candidate_natural_forward\.yml",
         r"/actions/runs/[1-9][0-9]*(?:/attempts/1/jobs\?per_page=100|/artifacts\?per_page=100)?",
@@ -109,7 +118,7 @@ def _safe_text(value, token):
             _safe_text(item, token)
 
 
-def _safe_body(raw, token=None, *, blob_response=False):
+def _safe_body(raw, token=None, *, blob_response=False, continuation_blob=False):
     require(type(raw) is bytes and 0 < len(raw) <= MAX_FILE_BYTES, "EVIDENCE_BODY_SIZE_LIMIT")
     require(not token or token.encode() not in raw, "RAW_CREDENTIAL_IN_EVIDENCE_REJECTED")
     value = gh.parse_json(raw)
@@ -118,6 +127,33 @@ def _safe_body(raw, token=None, *, blob_response=False):
         require(value.get("encoding") == "base64" and type(value.get("content")) is str, "ORIGINAL_BLOB_ENVELOPE_REQUIRED")
         decoded = base64.b64decode(value["content"], validate=False)
         require(not token or token.encode() not in decoded, "BLOB_CREDENTIAL_IN_EVIDENCE_REJECTED")
+        if continuation_blob:
+            require(type(value.get("size")) is int and value["size"] == len(decoded)
+                and value.get("sha") == gh.git_blob(decoded), "CAPTURED_CONTINUATION_BLOB_IDENTITY_CHANGED")
+            continuation, _ = gh.continuation_dependencies()
+            expected_model = continuation.ORIGINAL_PROMOTION_MODEL["artifact_sha256"]
+            if sha(decoded) == expected_model:
+                require(value.get("sha") == gh.git_blob(decoded)
+                    == continuation.ORIGINAL_P0_CODE_PROFILE["models/decision_three_engines/promotion.joblib"]
+                    and type(value.get("size")) is int and value["size"] == len(decoded),
+                    "ORIGINAL_PINNED_MODEL_BLOB_REQUIRED")
+                # Fixed artifact bytes are inspected as bytes only. Never
+                # deserialize an untrusted pickle or execute a model here.
+                _safe_text(decoded.decode("latin1"), token)
+                return value
+        if continuation_blob and decoded.startswith(b"\x1f\x8b"):
+            # Registered original prediction history is gzip. Scan its one
+            # bounded text member; the pair replay independently checks the
+            # exact source path, Git blob and receipt binding below.
+            inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            try:
+                decoded = inflater.decompress(decoded, MAX_FILE_BYTES + 1)
+            except zlib.error:
+                raise ValueError("ORIGINAL_SOURCE_GZIP_INVALID") from None
+            require(len(decoded) <= MAX_FILE_BYTES and inflater.eof
+                and not inflater.unused_data and not inflater.unconsumed_tail,
+                "ORIGINAL_SOURCE_GZIP_BOUNDARY")
+            require(not token or token.encode() not in decoded, "BLOB_CREDENTIAL_IN_EVIDENCE_REJECTED")
         try:
             inside = gh.parse_json(decoded)
         except ValueError:
@@ -168,7 +204,7 @@ class _Recorder:
             self.redirect = None
         record["ordinal"] = len(self.records) + 1
         self.records.append(record)
-        require(len(self.records) <= gh.MAX_API_CALLS, "OBSERVATION_HTTP_COUNT_LIMIT")
+        require(len(self.records) <= MAX_CONTINUATION_HTTP, "OBSERVATION_HTTP_COUNT_LIMIT")
         try:
             response = self.opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
@@ -205,6 +241,92 @@ def _result(root, manifest, manifest_raw):
         "test_transport_injected": manifest["test_transport_injected"], **FLAGS}
 
 
+def _file_limit(manifest):
+    kind = manifest.get("p0_provenance_kind")
+    require(kind in (None, CONTINUATION_KIND), "UNKNOWN_P0_CAPSULE_PROVENANCE")
+    return MAX_CONTINUATION_FILES if kind == CONTINUATION_KIND else MAX_FILES
+
+
+class _ContinuationReplayClient:
+    """Replay captured HTTP bytes only; this class cannot issue live authority."""
+    continuation_replay = True
+
+    def __init__(self, api, artifact, archive):
+        self.api, self.artifact, self.archive = api, artifact, archive
+        self.positions, self.calls = {}, 0
+
+    def get_json(self, path):
+        _route(path)
+        self.calls += 1
+        require(self.calls <= MAX_CONTINUATION_HTTP and path in self.api, "CONTINUATION_REPLAY_ROUTE_MISSING")
+        position = self.positions.get(path, 0)
+        values = self.api[path]
+        require(position < len(values), "CONTINUATION_REPLAY_RESPONSE_EXHAUSTED")
+        self.positions[path] = position + 1
+        return gh.parse_json(gh.json_bytes(values[position]))
+
+    def get_artifact_zip(self, artifact_id):
+        self.calls += 2
+        require(self.calls <= MAX_CONTINUATION_HTTP and artifact_id == self.artifact["id"],
+            "CONTINUATION_REPLAY_ONLY_ORIGINAL_GENERATION_ARCHIVE")
+        return self.archive
+
+
+def _generation_archive_body(raw, artifact):
+    value = _safe_body(raw)
+    require(type(value) is dict and set(value) == {"schema_version", "artifact_id", "encoding",
+        "archive_sha256", "archive_bytes", "body"}
+        and value["schema_version"] == GENERATION_ARCHIVE_SCHEMA
+        and type(value["artifact_id"]) is int and value["artifact_id"] == artifact["id"]
+        and value["encoding"] == "base64" and value["archive_sha256"] == artifact["digest"][7:]
+        and type(value["archive_bytes"]) is int and value["archive_bytes"] == artifact["size_in_bytes"]
+        and type(value["body"]) is str, "ORIGINAL_GENERATION_ARCHIVE_ENVELOPE")
+    try:
+        archive = base64.b64decode(value["body"], validate=True)
+    except (ValueError, base64.binascii.Error):
+        raise ValueError("ORIGINAL_GENERATION_ARCHIVE_BASE64") from None
+    require(base64.b64encode(archive).decode() == value["body"]
+        and len(archive) == value["archive_bytes"] and sha(archive) == value["archive_sha256"],
+        "ORIGINAL_GENERATION_ARCHIVE_BYTES_CHANGED")
+    return archive
+
+
+def _verify_continuation_materials(manifest, body, observation, api, archives):
+    continuation, _ = gh.continuation_dependencies()
+    proof = observation.get("p0_continuation")
+    require(observation.get("p0_provenance_kind") == CONTINUATION_KIND and type(proof) is dict
+        and proof.get("schema_version") == continuation.SCHEMA, "ORIGINAL_CONTINUATION_OBSERVATION_REQUIRED")
+    original_id, reuse_id = (str(proof[k]["id"]) for k in ("original_generation_run", "successful_reuse_run"))
+    original_path, reuse_path = (gh.API_PREFIX + "/actions/runs/" + x for x in (original_id, reuse_id))
+    original, reused = api[original_path][0], api[reuse_path][0]
+    generation = continuation.select_generation_artifact(gh,
+        api[original_path + "/artifacts?per_page=100"][0], original, original_id)
+    pages = gh.select_artifact(api[reuse_path + "/artifacts?per_page=100"][0], reused, reuse_id)
+    require(manifest["generation_archive_evidence"] == generation == proof["original_generation_artifact"]
+        and manifest["pages_archive_evidence"] == pages == proof["successful_reuse_pages_artifact"],
+        "CONTINUATION_ARCHIVE_METADATA_CHANGED")
+    require(set(archives) == {generation["id"], pages["id"], observation["publication_artifact"]["id"]},
+        "THREE_EXACT_CONTINUATION_ARCHIVES_REQUIRED")
+    for artifact in (generation, pages, observation["publication_artifact"]):
+        recorded = archives[artifact["id"]]
+        require(recorded["body_sha256"] == artifact["digest"][7:]
+            and recorded["body_bytes"] == artifact["size_in_bytes"], "CONTINUATION_ARCHIVE_EXTERNAL_DIGEST_CHANGED")
+    archive = _generation_archive_body(body(manifest["generation_archive_body"]), generation)
+    revision_raw = body(manifest["pages_revision"])
+    revision = _safe_body(revision_raw)
+    require(gh.validate_revision(revision, reused, reuse_id) == (manifest["signal_date"], observation["exec_date"],
+        observation["exit_date"], proof["successful_publication_git_sha"])
+        and sha(revision_raw) == proof["successful_reuse_revision_sha256"], "CONTINUATION_CAPTURED_REVISION_CHANGED")
+    replay = _ContinuationReplayClient(api, generation, archive)
+    checked, _, checked_revision = continuation.verify_pair(gh, replay,
+        original_run_id=original_id, original_cas_commit=observation["original_p0_commit_sha"], reuse_run_id=reuse_id,
+        source_main_sha=proof["source_main_sha"], cached_reuse_revision=(revision, sha(revision_raw)))
+    require(checked == proof and checked_revision == revision
+        and int(original_id) == observation["original_p0_run_id"]
+        and proof["source_file_bindings"] == observation["original_source_bindings"],
+        "CONTINUATION_CAPTURED_PROVENANCE_REPLAY_CHANGED")
+
+
 def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     """Pure byte integrity. This NEVER issues prospective/publication authority."""
     gh.exact_sha(expected_manifest_sha256)
@@ -220,7 +342,11 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     day = gh.date(manifest.get("signal_date"))
     require(day >= "20260914", "EVIDENCE_NATURAL_START_REQUIRED")
     gh.exact_id(manifest.get("freeze_run_id")); gh.exact_sha(manifest.get("snapshot_file_sha256"))
-    require(type(bodies) is dict and type(manifest.get("files")) is list and len(manifest["files"]) < MAX_FILES,
+    file_limit = _file_limit(manifest)
+    continuation_kind = manifest.get("p0_provenance_kind") == CONTINUATION_KIND
+    require(not continuation_kind or (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"])
+        == (SELF_SHA, PUBLICATION_SHA), "CONTINUATION_REQUIRES_CURRENT_CAPTURE_PROFILE")
+    require(type(bodies) is dict and type(manifest.get("files")) is list and len(manifest["files"]) < file_limit,
         "BOUNDED_EVIDENCE_INVENTORY_REQUIRED")
     expected_paths, total = set(), len(manifest_raw)
     def body(binding):
@@ -243,7 +369,8 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         and observation.get("research_prospective_publication_observed") is True
         and observation.get("injected_client_for_test") is False, "ORIGINAL_PUBLICATION_OBSERVATION_CHANGED")
     records = manifest.get("http_observations")
-    require(type(records) is list and 0 < len(records) <= gh.MAX_API_CALLS, "BOUNDED_ORIGINAL_HTTP_OBSERVATIONS_REQUIRED")
+    http_limit = MAX_CONTINUATION_HTTP if continuation_kind else gh.MAX_API_CALLS
+    require(type(records) is list and 0 < len(records) <= http_limit, "BOUNDED_ORIGINAL_HTTP_OBSERVATIONS_REQUIRED")
     redirects, archives, api = [], {}, {}
     for ordinal, record in enumerate(records, 1):
         require(type(record) is dict and set(record) == {"ordinal", "kind", "api_path", "artifact_id", "status", "body_bytes", "body_sha256", "retained_body"}
@@ -252,11 +379,13 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         require(type(record["status"]) is int and type(record["body_bytes"]) is int, "EXACT_HTTP_COUNTER_TYPES_REQUIRED")
         if kind == "API_JSON":
             _route(record["api_path"])
+            require(continuation_kind or record["api_path"].startswith(gh.API_PREFIX + "/"),
+                "SINGLE_RUN_CAPSULE_EXTERNAL_ROUTE_REJECTED")
             require(record["artifact_id"] is None and record["status"] == 200 and type(record["status"]) is int,
                 "SUCCESSFUL_JSON_OBSERVATION_REQUIRED")
             raw = body(record["retained_body"])
             require(record["body_sha256"] == sha(raw) and record["body_bytes"] == len(raw), "ORIGINAL_HTTP_BODY_BINDING_CHANGED")
-            api.setdefault(record["api_path"], []).append(_safe_body(raw, blob_response="/git/blobs/" in record["api_path"]))
+            api.setdefault(record["api_path"], []).append(_safe_body(raw, blob_response="/git/blobs/" in record["api_path"], continuation_blob=continuation_kind))
         elif kind in ("ARTIFACT_REDIRECT", "ARTIFACT_ZIP"):
             require(type(record["artifact_id"]) is int and record["artifact_id"] > 0 and record["retained_body"] is None,
                 "ARCHIVE_NOT_PERSISTED_ONLY_BOUND_DIGEST")
@@ -272,20 +401,27 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
                 gh.exact_sha(record["body_sha256"]); archives[record["artifact_id"]] = record
         else:
             require(False, "UNKNOWN_HTTP_OBSERVATION_KIND")
-    require(len(archives) == 2 and sorted(redirects) == sorted(archives), "TWO_ORIGINAL_ARCHIVE_OBSERVATIONS_REQUIRED")
-    p0_id = str(observation["original_p0_run_id"])
-    p0_run = api[gh.API_PREFIX + "/actions/runs/" + p0_id][0]
-    gh.validate_run(p0_run, p0_id)
-    p0_artifact = gh.select_artifact(api[gh.API_PREFIX + "/actions/runs/" + p0_id + "/artifacts?per_page=100"][0], p0_run, p0_id)
-    require(manifest["pages_archive_evidence"] == p0_artifact, "ORIGINAL_P0_ARTIFACT_METADATA_CHANGED")
-    for artifact in (p0_artifact, observation["publication_artifact"]):
-        recorded = archives[artifact["id"]]
-        require(recorded["body_sha256"] == artifact["digest"][7:] and recorded["body_bytes"] == artifact["size_in_bytes"],
-            "ORIGINAL_ARCHIVE_EXTERNAL_DIGEST_CHANGED")
-    revision_raw = body(manifest["pages_revision"])
-    revision = _safe_body(revision_raw)
-    require(gh.validate_revision(revision, p0_run, p0_id) == (day, observation["exec_date"], observation["exit_date"], observation["original_p0_commit_sha"]),
-        "ORIGINAL_PAGES_REVISION_IDENTITY_CHANGED")
+    require(len(archives) == (3 if continuation_kind else 2) and sorted(redirects) == sorted(archives),
+        "EXACT_TYPED_ORIGINAL_ARCHIVE_OBSERVATIONS_REQUIRED")
+    if continuation_kind:
+        _verify_continuation_materials(manifest, body, observation, api, archives)
+    else:
+        require(not {"generation_archive_evidence", "generation_archive_body"}.intersection(manifest)
+            and "p0_continuation" not in observation and "p0_provenance_kind" not in observation,
+            "SINGLE_RUN_CAPSULE_CANNOT_HIDE_CONTINUATION")
+        p0_id = str(observation["original_p0_run_id"])
+        p0_run = api[gh.API_PREFIX + "/actions/runs/" + p0_id][0]
+        gh.validate_run(p0_run, p0_id)
+        p0_artifact = gh.select_artifact(api[gh.API_PREFIX + "/actions/runs/" + p0_id + "/artifacts?per_page=100"][0], p0_run, p0_id)
+        require(manifest["pages_archive_evidence"] == p0_artifact, "ORIGINAL_P0_ARTIFACT_METADATA_CHANGED")
+        for artifact in (p0_artifact, observation["publication_artifact"]):
+            recorded = archives[artifact["id"]]
+            require(recorded["body_sha256"] == artifact["digest"][7:] and recorded["body_bytes"] == artifact["size_in_bytes"],
+                "ORIGINAL_ARCHIVE_EXTERNAL_DIGEST_CHANGED")
+        revision_raw = body(manifest["pages_revision"])
+        revision = _safe_body(revision_raw)
+        require(gh.validate_revision(revision, p0_run, p0_id) == (day, observation["exec_date"], observation["exit_date"], observation["original_p0_commit_sha"]),
+            "ORIGINAL_PAGES_REVISION_IDENTITY_CHANGED")
     require(manifest["original_source_bindings"] == observation["original_source_bindings"]
         and len(manifest["original_source_bindings"]) == 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in manifest["original_source_bindings"] if type(b) is dict), "ORIGINAL_SOURCE_GIT_BINDINGS_CHANGED")
     for b in manifest["original_source_bindings"]:
@@ -353,11 +489,13 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
     observed = publication.verify_publication(expected_freeze_run_id=freeze_run_id, github_client=client)
     require(observed["research_prospective_publication_observed"] is True and observed["network_calls_performed"] == len(recorder.records),
         "COMPLETE_SAME_PROCESS_PUBLICATION_OBSERVATION_REQUIRED")
+    continuation_kind = observed.get("p0_provenance_kind") == CONTINUATION_KIND
+    file_limit = MAX_CONTINUATION_FILES if continuation_kind else MAX_FILES
     bodies = {}
     def retain(raw, *, blob_response=False):
-        _safe_body(raw, token, blob_response=blob_response)
+        _safe_body(raw, token, blob_response=blob_response, continuation_blob=continuation_kind)
         ref = _ref(raw); bodies[ref["path"]] = raw
-        require(len(bodies) < MAX_FILES and sum(map(len, bodies.values())) <= MAX_TOTAL_BYTES, "BOUNDED_PERSISTED_EVIDENCE_REQUIRED")
+        require(len(bodies) < file_limit and sum(map(len, bodies.values())) <= MAX_TOTAL_BYTES, "BOUNDED_PERSISTED_EVIDENCE_REQUIRED")
         return ref
     observations, zip_bytes, api = [], {}, {}
     for record in recorder.records:
@@ -370,10 +508,23 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
             zip_bytes[record["artifact_id"]] = raw
         observations.append({k: record[k] for k in ("ordinal", "kind", "api_path", "artifact_id", "status")}
             | {"body_bytes": len(raw), "body_sha256": sha(raw), "retained_body": binding})
-    p0_id = str(observed["original_p0_run_id"])
+    continuation_fields = {}
+    p0_id = str(observed["p0_continuation"]["successful_reuse_run"]["id"] if continuation_kind
+        else observed["original_p0_run_id"])
     p0_run = api[gh.API_PREFIX + "/actions/runs/" + p0_id][0]
     pages = gh.select_artifact(api[gh.API_PREFIX + "/actions/runs/" + p0_id + "/artifacts?per_page=100"][0], p0_run, p0_id)
     revision = retain(_revision(zip_bytes[pages["id"]]))
+    if continuation_kind:
+        generation = observed["p0_continuation"]["original_generation_artifact"]
+        original_zip = zip_bytes[generation["id"]]
+        require(not token or token.encode() not in original_zip, "CREDENTIAL_IN_GENERATION_ARCHIVE_REJECTED")
+        envelope = gh.json_bytes({"schema_version": GENERATION_ARCHIVE_SCHEMA, "artifact_id": generation["id"],
+            "encoding": "base64", "archive_sha256": sha(original_zip), "archive_bytes": len(original_zip),
+            "body": base64.b64encode(original_zip).decode()})
+        _generation_archive_body(envelope, generation)
+        continuation_fields = {"p0_provenance_kind": CONTINUATION_KIND,
+            "generation_archive_evidence": generation, "generation_archive_body": retain(envelope),
+            "original_generation_archive_bytes_persisted": True}
     native_ref = retain(gh.json_bytes(observed))
     manifest = {"schema_version": SCHEMA, "status": "LOCAL_UNPUBLISHED_OBSERVATION", "signal_date": observed["signal_date"],
         "freeze_run_id": freeze_run_id, "snapshot_file_sha256": observed["snapshot_file_sha256"], "native_observation": native_ref,
@@ -382,10 +533,11 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
         "capture_code_sha256": SELF_SHA, "publication_verifier_sha256": PUBLICATION_SHA,
         "test_transport_injected": transport is not None, "large_zip_bodies_persisted": False,
         "headers_or_signed_redirect_urls_persisted": False,
+        **continuation_fields,
         "trust_boundary": "REQUIRES_INDEPENDENT_OBSERVER_RUN_JOB_AND_GIT_MANIFEST_BINDING_FOR_CROSS_DAY_ADMISSION", **FLAGS}
     manifest_raw = gh.json_bytes(manifest)
     verify_materials(manifest_raw, bodies, expected_manifest_sha256=sha(manifest_raw))
-    require(len(manifest_raw) <= MAX_FILE_BYTES and len(bodies) + 1 <= MAX_FILES
+    require(len(manifest_raw) <= MAX_FILE_BYTES and len(bodies) + 1 <= file_limit
         and sum(map(len, bodies.values())) + len(manifest_raw) <= MAX_TOTAL_BYTES, "BOUNDED_COMPLETE_CAPSULE_REQUIRED")
     require(code_guard() == before, "CAPTURE_CODE_CHANGED_BEFORE_WRITE")
     require(not output.exists(), "EVIDENCE_OUTPUT_APPEARED")

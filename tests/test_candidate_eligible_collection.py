@@ -27,4 +27,11 @@ def test_legacy_writer_is_not_accepted_for_v2():
     c = fixture.c
     v2 = {"schema_version": eligible.SCHEMA}
     assert c.accepted_outcome_writers(v2) == {c.OUTCOMES_SHA}
-    assert c.LEGACY_OUTCOMES_SHA in c.accepted_outcome_writers({"schema_version": c.natural.SCHEMA})
+    assert c.accepted_outcome_writers({"schema_version": c.natural.SCHEMA}) == {c.OUTCOMES_SHA}
+    historical = {"schema_version": c.natural.SCHEMA, **c.natural.HISTORICAL_SNAPSHOT_PROFILE}
+    assert c.LEGACY_OUTCOMES_SHA in c.accepted_outcome_writers(historical)
+    for field in c.natural.HISTORICAL_SNAPSHOT_PROFILE:
+        mixed = {**historical, field: "unregistered"}
+        assert c.accepted_outcome_writers(mixed) == {c.OUTCOMES_SHA}
+    historical_v2 = {"schema_version": eligible.SCHEMA, **eligible.HISTORICAL_SNAPSHOT_PROFILE}
+    assert c.LEGACY_OUTCOMES_SHA not in c.accepted_outcome_writers(historical_v2)

@@ -76,9 +76,9 @@ class StubClient:
         return self.archive
 
 
-def fixture(tmp_path, monkeypatch, *, size=2):
+def fixture(tmp_path, monkeypatch, *, size=2, suspension=False):
     original_checker = m.adapter.publisher.build_primary_d_runtime_index
-    case = make_case(tmp_path, monkeypatch, size=size)
+    case = make_case(tmp_path, monkeypatch, size=size, missing_bar=suspension)
     synthetic_checker = m.adapter.publisher.build_primary_d_runtime_index
     monkeypatch.setattr(m.adapter.publisher, "build_primary_d_runtime_index", original_checker)
     # Stub the importer's explicit four-file check boundary, not its frozen
@@ -91,6 +91,19 @@ def fixture(tmp_path, monkeypatch, *, size=2):
         action_authorized=False, action_input_consumed=False, formal_trade_count=0,
         exec_date=contract["exec_date"], exit_date=contract["exit_date"])
     receipt["inputs"]["git_head"] = BASE
+    if suspension:
+        dates = receipt["inputs"]["calendar"]["runtime_context_dates"]
+        interval = {"ts_code": case["runtime"][0]["ts_code"], "start_date": dates[3],
+            "resume_date": dates[4], "previous_trading_date": dates[2], "skipped_sessions": [dates[3]]}
+        disclosure = {"schema_version": "dc20_confirmed_suspensions_v1", "suspensions": [{
+            **{k: interval[k] for k in ("ts_code", "start_date", "resume_date")},
+            "sources": [{"url": "https://static.cninfo.com.cn/synthetic.pdf",
+                "published_date": dates[3], "pdf_sha256": "a" * 64}]}]}
+        raw = json_bytes(disclosure)
+        receipt["inputs"]["runtime_consumed_market_files"].append({
+            "path": m.adapter.SUSPENSION_PATH, "table": "confirmed_suspensions",
+            "sha256": write(case["root"] / m.adapter.SUSPENSION_PATH, raw),
+            "git_blob_sha1": m.git_blob(raw), "git_mode": "100644", "used_intervals": [interval]})
     calendar = receipt["inputs"]["calendar"]
     calendar.update(git_blob_sha1=m.git_blob((case["root"] / calendar["path"]).read_bytes()), git_mode="100644")
     write(case["root"] / m.adapter._p0_paths(day)["receipt"], json_bytes(receipt))
@@ -389,16 +402,20 @@ def test_strict_json(body):
     with pytest.raises(m.ImportBlocked): m.parse_json(body)
 
 
-def test_cli_receipt_outside_source_no_secret_persistence(tmp_path, monkeypatch, capsys):
-    c = fixture(tmp_path, monkeypatch)
+@pytest.mark.parametrize("suspension", [False, True])
+def test_cli_receipt_outside_source_no_secret_persistence(tmp_path, monkeypatch, capsys, suspension):
+    c = fixture(tmp_path, monkeypatch, suspension=suspension)
     monkeypatch.setenv(m.TOKEN_ENV, "synthetic-private")
     monkeypatch.setattr(m, "GitHubReadClient", lambda token: c["client"])
     receipt_path = tmp_path.resolve() / "import_receipt.json"
     assert m.main(["--output", str(c["output"]), "--expected-run-id", RUN_ID, "--receipt", str(receipt_path)]) == 0
     report = json.loads(receipt_path.read_bytes())
     assert report["injected_client_for_test"] is True
-    assert "synthetic-private" not in receipt_path.read_text() + capsys.readouterr().out
-    assert len([p for p in c["output"].rglob("*") if p.is_file()]) == 28
+    stdout = capsys.readouterr().out
+    assert "synthetic-private" not in receipt_path.read_text() + stdout
+    assert json.loads(stdout)["original_file_count"] == 28 + int(suspension)
+    assert report["original_file_count"] == 28 + int(suspension)
+    assert len([p for p in c["output"].rglob("*") if p.is_file()]) == 28 + int(suspension)
     with pytest.raises(m.ImportBlocked): m.main(["--output", str(c["output"]), "--expected-run-id", RUN_ID, "--receipt", str(receipt_path)])
 
 
@@ -469,3 +486,38 @@ def test_late_unknown_future_file_after_code_guard_not_read(tmp_path, monkeypatc
     monkeypatch.setattr(m, "code_guard", guard)
     monkeypatch.setattr(m, "read", read_guard)
     with pytest.raises(m.ImportBlocked, match="UNREGISTERED_SOURCE_FILE"): execute(c)
+
+
+def test_exact_typed_suspension_is_the_only_29th_original_source(tmp_path, monkeypatch):
+    case = fixture(tmp_path, monkeypatch, suspension=True)
+    report = execute(case)
+    assert report["original_file_count"] == len(report["source_file_bindings"]) == 29
+    source = next(b for b in report["source_file_bindings"] if b["path"] == m.adapter.SUSPENSION_PATH)
+    raw = case["sources"][m.adapter.SUSPENSION_PATH]
+    assert source["sha256"] == m.sha256(raw) and source["git_blob_sha1"] == m.git_blob(raw)
+    assert (case["output"] / m.adapter.SUSPENSION_PATH).read_bytes() == raw
+    assert len([p for p in case["client"].requests if type(p) is str and "/git/blobs/" in p]) == 29
+    assert report["source_authority_issued"] is report["new_prediction_freeze_verified"] is False
+
+
+@pytest.mark.parametrize("mutation", ["extra", "missing", "duplicate", "unknown_path", "sha", "blob", "future", "interval"])
+def test_typed_source_inventory_rejects_unregistered_or_unbound_disclosure(tmp_path, monkeypatch, mutation):
+    case = fixture(tmp_path, monkeypatch, suspension=True)
+    receipt, sources = deepcopy(case["receipt"]), dict(case["sources"])
+    declared = receipt["inputs"]["runtime_consumed_market_files"][-1]
+    if mutation == "extra": sources["data/market/unregistered.json"] = b"{}"
+    elif mutation == "missing": del sources[m.adapter.SUSPENSION_PATH]
+    elif mutation == "duplicate": receipt["inputs"]["runtime_consumed_market_files"].append(deepcopy(declared))
+    elif mutation == "unknown_path": declared["path"] = "data/market/latest/suspensions.json"
+    elif mutation == "sha": declared["sha256"] = "0" * 64
+    elif mutation == "blob": declared["git_blob_sha1"] = "0" * 40
+    elif mutation == "interval": declared["used_intervals"][0]["skipped_sessions"] = []
+    else:
+        payload = json.loads(sources[m.adapter.SUSPENSION_PATH])
+        payload["suspensions"][0]["sources"][0]["published_date"] = "20990101"
+        sources[m.adapter.SUSPENSION_PATH] = json_bytes(payload)
+        declared["sha256"] = m.sha256(sources[m.adapter.SUSPENSION_PATH])
+        declared["git_blob_sha1"] = m.git_blob(sources[m.adapter.SUSPENSION_PATH])
+    with pytest.raises(ValueError):
+        m.validate_original_source_inventory(receipt, case["contract"], sources, case["day"])
+    assert not list(case["output"].iterdir())

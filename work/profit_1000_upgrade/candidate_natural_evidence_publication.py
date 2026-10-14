@@ -20,18 +20,18 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = "994aa08f9cd34d662e8a197bca991adc7ccce9a3ef2fc59e6e78a90455d87d72"
+CAPTURE_SHA = "7ad5fd013a616487a24e217edf4082801c64ce6713c8d61c0ba1e35aa438cbf6"
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = "c3f5d945192c43df559017ea511c4fd04e8ad1a0381d5a35a7037745272ba04b"
+OBSERVER_SHA = "799b73eb2e0b6903b1022baef32eeb39a4e92428a4f69a462d8de7f16e305f4d"
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
-WRITER_SHA = "e876d5865d72e8dddef1e920a68dfdf9d24e26d7b647b96672a7ff89c6358a76"
+WRITER_SHA = "407ec6b9c7fbf36127b9453b15e0c7f25a6c7ea04f7547de5ac8f5310595fc2c"
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
 PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 SCHEMA = "dc20_independently_observed_durable_research_publication_v1"
-MAX_ZIP_BYTES, MAX_EXPANDED_BYTES, MAX_MEMBERS = 96 * 1024**2, 65 * 1024**2, 80
+MAX_ZIP_BYTES, MAX_EXPANDED_BYTES, MAX_MEMBERS = 96 * 1024**2, 65 * 1024**2, 170
 LEGACY_OBSERVER_SHA = "d96a5c349ceea76a3fe2f74111f75bfa87a652bdb556883bf97d761bb9345774"
 PRE_ELIGIBLE_OBSERVER_SHA = "245ded4b5c0ac0df3b8d07249f91078998c26184ea97ef5b815acf59f6f43f80"
 PRE_ELIGIBLE_OBSERVER_BLOBS = {
@@ -177,7 +177,7 @@ def read_observer_archive(raw):
                 "COMPLETE_OBSERVER_OUTPUT_REQUIRED")
             manifest_raw = archive.read(normalized["capsule/manifest.json"])
             preview = capture._safe_body(manifest_raw)
-            require(type(preview.get("files")) is list and len(preview["files"]) < capture.MAX_FILES,
+            require(type(preview.get("files")) is list and len(preview["files"]) < capture._file_limit(preview),
                 "BOUNDED_ORIGINAL_CAPSULE_INDEX_REQUIRED")
             indexed = set()
             for binding in preview["files"]:
@@ -352,6 +352,11 @@ def verify_published_evidence(*, evidence_commit, observer_run_id, github_client
         "research_prospective_publication_observed": reads.actual, "injected_client_for_test": not reads.actual,
         "current_main_evidence_bytes_preserved": True, "current_main_sha": current_sha, "git_ancestry_verified": False,
         "original_p0_artifact_refetched": False, "reissuance_requires_unexpired_observer_ack_artifact": True,
+        **({"p0_provenance_kind": capture.CONTINUATION_KIND,
+            "original_generation_run_id": observation["original_p0_run_id"],
+            "successful_reuse_run_id": observation["p0_continuation"]["successful_reuse_run"]["id"],
+            "captured_continuation_pair_replayed": True}
+            if manifest.get("p0_provenance_kind") == capture.CONTINUATION_KIND else {}),
         "permanent_offline_attestation_verified": False, "evidence_file_bindings": expected_ack,
         "issuer_sha256": SELF_SHA, "capture_sha256": manifest["capture_code_sha256"], "bounded_request_cost": reads.cost,
         "source_authority_issued": False, "natural_outcome_admission_issued": False, "production_activation_allowed": False,
