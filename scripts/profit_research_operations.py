@@ -17,6 +17,7 @@ import re
 from zoneinfo import ZoneInfo
 
 SCHEMA = 'dc20_research_operation_v1'
+LABEL_COUNT_CONTRACT = 'canonical_pending_v2'
 OUT = 'outputs/decision/profit_research/operations/receipts'
 CALENDAR_OUT = 'outputs/decision/profit_research/operations/calendars'
 CALENDAR = 'data/market/trade_cal_sse.csv'
@@ -315,9 +316,21 @@ def _record_timing(root, record, fields, cutoff, observed, run_start, source_rev
         return False, False, bindings, 'TIMING_EVIDENCE_UNAVAILABLE_OR_REJECTED'
 
 
-def _audit_day(root, date, next_date, day, observed, run_start, source_revision):
+def _pending_label_states(contract):
+    # Missing contracts belong to immutable v1 receipts. Their original counts
+    # must replay exactly, including the former selected-slot counting omission.
+    if contract is None:
+        return ('PENDING_T', 'PENDING_T1')
+    if contract == LABEL_COUNT_CONTRACT:
+        return ('PENDING_T', 'PENDING_T1', 'PENDING_T_NOT_DUE')
+    raise ValueError('INVALID_LABEL_COUNT_CONTRACT')
+
+
+def _audit_day(root, date, next_date, day, observed, run_start, source_revision,
+               label_count_contract=LABEL_COUNT_CONTRACT):
     from scripts.profit_research_extensions import catalogue
     from scripts.profit_research_comparison import SETTLED, NO_FILL
+    pending_states = _pending_label_states(label_count_contract)
     fields = [field['key'] for field in catalogue()]
     cutoff = _time_on(next_date, '0925')
     result = {'signal_date': date, 'exec_date': next_date,
@@ -371,7 +384,7 @@ def _audit_day(root, date, next_date, day, observed, run_start, source_revision)
             bucket = 'settled'
         elif status in NO_FILL and value == 0 and type(fill) is int and fill == 0:
             bucket = 'no_fill'
-        elif status in ('PENDING_T', 'PENDING_T1') and value is None:
+        elif status in pending_states and value is None:
             bucket = 'pending'
         else:
             bucket = 'missing_or_invalid'
@@ -405,8 +418,9 @@ def build_operation_receipt(root, doc, *, run_context, observed_at=None,
 
 
 def _build_receipt_at(root, doc, run_context, observed, private_storage_configured, storage_summary, test_only,
-                      calendar_binding=None):
+                      calendar_binding=None, label_count_contract=LABEL_COUNT_CONTRACT):
     """Internal deterministic replay; public recording obtains a real clock."""
+    _pending_label_states(label_count_contract)
     context, errors = _context(run_context, observed, test_only)
     if doc.get('source_revision') != context['source_revision']:
         errors.append('DATASET_SOURCE_REVISION_MISMATCH')
@@ -422,6 +436,8 @@ def _build_receipt_at(root, doc, run_context, observed, private_storage_configur
         'calendar': None, 'latest_closed_d': None, 'latest_due_d': None,
         'days': [], 'natural_new_d_evidence': [], 'errors': errors,
         'status': 'ACCEPTANCE_FAILED', 'natural_evidence_status': 'NO_NATURAL_NEW_D_EVIDENCE'}
+    if label_count_contract is not None:
+        receipt['label_count_contract'] = label_count_contract
     try:
         cal = _calendar(root, observed, calendar_binding)
         receipt['calendar'] = {k: cal[k] for k in ('binding', 'source_binding', 'coverage_start', 'coverage_end')}
@@ -438,7 +454,8 @@ def _build_receipt_at(root, doc, run_context, observed, private_storage_configur
         expected = [date for date in cal['closed'] if date >= start]
         if not expected:
             raise ValueError('NO_EXPECTED_D_WITHIN_RESEARCH_WINDOW')
-        receipt['days'] = [_audit_day(root, date, cal['nexts'][date], grouped.get(date), observed, run_start, context['source_revision'])
+        receipt['days'] = [_audit_day(root, date, cal['nexts'][date], grouped.get(date), observed, run_start,
+                                    context['source_revision'], label_count_contract)
                            for date in expected]
         receipt['latest_closed_d'] = receipt['days'][-1]
         due = [day for day in receipt['days'] if day['deadline_passed']]
@@ -515,6 +532,9 @@ def write_operation_receipt(root, receipt):
 
 
 def _revalidate_receipt(root, receipt):
+    contract = receipt.get('label_count_contract')
+    if 'label_count_contract' in receipt and contract != LABEL_COUNT_CONTRACT:
+        raise ValueError('INVALID_LABEL_COUNT_CONTRACT')
     binding = receipt.get('dataset_binding', {})
     if not re.fullmatch(r'outputs/decision/profit_research/versions/[0-9a-f]{64}\.json', binding.get('path', '')):
         raise ValueError('INVALID_OPERATION_DATASET_PATH')
@@ -527,7 +547,7 @@ def _revalidate_receipt(root, receipt):
         storage_input['status'] = storage['reported_status']
     replay = _build_receipt_at(root, doc, receipt['run_context'], _instant(receipt['observed_at_utc']),
         storage.get('status') == 'CONFIGURED_UNVERIFIED', storage_input, receipt['test_only'],
-        (receipt.get('calendar') or {}).get('binding'))
+        (receipt.get('calendar') or {}).get('binding'), label_count_contract=contract)
     # The whole canonical object must match: a freshly hashed false natural
     # flag, injected metadata, a zeroed gap count or a changed clock is rejected.
     if replay != receipt:
