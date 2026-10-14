@@ -15,7 +15,7 @@ ROOT = Path(__file__).absolute().parents[2]
 PINS = {
     "candidate_natural_journal.py": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
     # Current version-aware daily runner; journal bytes/protocol stay unchanged.
-    "candidate_natural_daily.py": "5d616c7a194d2278b4308db84743f7b229c6eecea5e60d62d5572f31443adb7d",
+    "candidate_natural_daily.py": "d68c18c8d5313aa0b1338b8d73ec74677f877fbe4aaa679f0ea87d1a95f4855b",
 }
 
 
