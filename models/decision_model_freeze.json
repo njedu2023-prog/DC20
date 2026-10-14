@@ -715,7 +715,7 @@
     "scripts/publish_decision_action.py": "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275",
     "scripts/publish_decision_research_context.py": "095109bedc4536d0691d456f14ca198485e77c1d1c41d0835b1c63fdcaa10096",
     "scripts/publish_primary_profit_rankings.py": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
-    "scripts/publish_primary_three_rank.py": "5996a8f9e0b55f34c22e4e10e78924616cf8a8ebfb08be789ed169a9b3bb8d98",
+    "scripts/publish_primary_three_rank.py": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1",
     "scripts/recover_decision_action_gaps.py": "1a202d22c9b5b72c5334067ba6d362384888ed22c0631a5d0c5f56e1a67813c8",
     "scripts/refreeze_decision_three_rank.py": "152e6f83b8a2ad53a591187b06a6367aa3c7c7eece27facc710425e2144297ad",
     "scripts/replay_frozen_canonical_v2.py": "ce30629fcf88de0046fe306c8394c5ae7674518188afa181791f001680e2a39a",
@@ -860,6 +860,8 @@
     "src/top10decision/decision/shadow_exit_minute_truth.py": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
     "src/top10decision/decision/primary_profit_shadow_statistics.py": "9ddacf0573fd704cea59c210800c744ec171b682376b273c19146f35c38f090f",
     "tests/test_primary_profit_shadow_statistics.py": "743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1",
-    "src/top10decision/decision/shadow_exit_continuous_truth.py": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a"
+    "src/top10decision/decision/shadow_exit_continuous_truth.py": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a",
+    "data/market/confirmed_suspensions.json": "ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68",
+    "tests/test_primary_confirmed_suspension.py": "1f79d4fac4082bcccdfcf20193b33b72e6b34fec4b62b140632f3d8ded9c3cb3"
   }
 }

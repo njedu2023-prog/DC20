@@ -24,6 +24,7 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 
 from top10decision.auction_v3 import AuctionV3Config, AuctionV3Engine
+from top10decision.auction_v3.engine import _is_close
 from top10decision.decision.eligibility import filter_standard_limit_universe
 from top10decision.decision.three_engine_models import (
     ProbabilityHeadBundle,
@@ -40,6 +41,7 @@ from top10decision.decision.three_rank import (
     validate_three_rank_contract,
 )
 from top10decision.decision.d_close_features import D_CLOSE_MAX_HISTORY_BARS
+from top10decision.writers.io_contract import next_a_share_trading_day
 
 
 DATE_RE = re.compile(r"^20\d{6}$")
@@ -277,6 +279,148 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         }
         self._primary_consumed: dict[str, dict[str, Any]] = {}
         self._market_dates_cache = list(context_dates)
+        self._confirmed_suspensions: list[dict[str, Any]] | None = None
+        self._confirmed_effective_dates_cache: dict[tuple[str, str], list[str]] = {}
+
+    def _suspension_evidence(self) -> list[dict[str, Any]]:
+        """Read explicit, HEAD-bound disclosures; absent bars alone prove nothing."""
+        if self._confirmed_suspensions is not None:
+            return self._confirmed_suspensions
+        relative = "data/market/confirmed_suspensions.json"
+        path = self.config.root / relative
+        if not path.exists():
+            self._confirmed_suspensions = []
+            return []
+        binding = (
+            self._primary_verifier.bind(relative, label="confirmed suspension disclosures")
+            if self._primary_verifier is not None
+            else {"path": relative, "sha256": _sha256(path)}
+        )
+        payload = _read_json(path, label="confirmed suspension disclosures")
+        records = payload.get("suspensions")
+        if payload.get("schema_version") != "dc20_confirmed_suspensions_v1" or not isinstance(records, list):
+            raise PrimaryDGenerationError("invalid confirmed suspension evidence schema")
+        checked: list[dict[str, Any]] = []
+        for record in records:
+            if not isinstance(record, dict):
+                raise PrimaryDGenerationError("invalid confirmed suspension record")
+            code = str(record.get("ts_code", ""))
+            start, resume = str(record.get("start_date", "")), str(record.get("resume_date", ""))
+            sources = record.get("sources")
+            if (
+                code != _normal_code(code)
+                or not code
+                or DATE_RE.fullmatch(start) is None
+                or DATE_RE.fullmatch(resume) is None
+                or start >= resume
+                or not isinstance(sources, list)
+                or not sources
+            ):
+                raise PrimaryDGenerationError("invalid confirmed suspension identity/dates")
+            for source in sources:
+                if (
+                    not isinstance(source, dict)
+                    or not str(source.get("url", "")).startswith("https://")
+                    or DATE_RE.fullmatch(str(source.get("published_date", ""))) is None
+                    or SHA256_RE.fullmatch(str(source.get("pdf_sha256", ""))) is None
+                ):
+                    raise PrimaryDGenerationError("invalid suspension disclosure provenance")
+            if resume <= self._primary_signal_date:
+                if any(str(source["published_date"]) > self._primary_signal_date for source in sources):
+                    raise PrimaryDGenerationError("suspension disclosure uses future evidence")
+                checked.append(dict(record))
+        for index, record in enumerate(checked):
+            if any(
+                other["ts_code"] == record["ts_code"]
+                and max(other["start_date"], record["start_date"]) < min(other["resume_date"], record["resume_date"])
+                for other in checked[:index]
+            ):
+                raise PrimaryDGenerationError("overlapping confirmed suspension evidence")
+        self._primary_consumed["confirmed_suspensions"] = {
+            **binding, "table": "confirmed_suspensions", "used_intervals": [],
+        }
+        self._confirmed_suspensions = checked
+        return checked
+
+    def _confirmed_trading_dates(self, signal_date: str, code: str) -> list[str]:
+        """Compress only proven full suspensions, never incomplete quote history."""
+        cache_key = (signal_date, _normal_code(code))
+        if cache_key in self._confirmed_effective_dates_cache:
+            return list(self._confirmed_effective_dates_cache[cache_key])
+        dates = self.market_dates()
+        if signal_date not in dates:
+            return dates
+        dates = dates[: dates.index(signal_date) + 1]
+        removed: set[str] = set()
+        for record in self._suspension_evidence():
+            if record["ts_code"] != code or record["resume_date"] > signal_date:
+                continue
+            if any(str(source["published_date"]) > signal_date for source in record["sources"]):
+                raise PrimaryDGenerationError("suspension disclosure uses evidence after queried signal_date")
+            start, resume = record["start_date"], record["resume_date"]
+            if resume <= dates[0] or start > dates[-1]:
+                continue
+            if start not in dates or resume not in dates or dates.index(start) == 0:
+                raise PrimaryDGenerationError("confirmed suspension escapes committed history closure")
+            first, last = dates.index(start), dates.index(resume)
+            previous = dates[first - 1]
+            span = dates[first - 1 : last + 1]
+            if any(next_a_share_trading_day(left) != right for left, right in zip(span, span[1:])):
+                raise PrimaryDGenerationError("confirmed suspension has a calendar gap")
+            for day in dates[first:last]:
+                if self._row(self.market_table(day, "daily"), code) is not None:
+                    raise PrimaryDGenerationError("confirmed suspension conflicts with a daily bar")
+            before = self._row(self.market_table(previous, "daily"), code)
+            after = self._row(self.market_table(resume, "daily"), code)
+            if before is None or after is None:
+                raise PrimaryDGenerationError("confirmed suspension lacks boundary bars")
+            before_close, after_pre_close = _finite_number(before.get("close")), _finite_number(after.get("pre_close"))
+            if (
+                not math.isfinite(before_close) or before_close <= 0
+                or not math.isfinite(after_pre_close)
+                or abs(before_close - after_pre_close) > 0.011
+            ):
+                raise PrimaryDGenerationError("confirmed suspension boundary price is discontinuous")
+            removed.update(dates[first:last])
+            self._primary_consumed["confirmed_suspensions"]["used_intervals"].append({
+                "ts_code": code, "start_date": start, "resume_date": resume,
+                "previous_trading_date": previous, "skipped_sessions": dates[first:last],
+            })
+        result = [day for day in dates if day not in removed]
+        self._confirmed_effective_dates_cache[cache_key] = result
+        return list(result)
+
+    def _consecutive_limit_up_count(self, signal_date: str, code: str, dates: Sequence[str] | None = None) -> int:
+        cache_key = (signal_date, _normal_code(code))
+        if cache_key in self._streak_count_cache:
+            return self._streak_count_cache[cache_key]
+        effective = self._confirmed_trading_dates(signal_date, code)
+        original = self.market_dates()
+        original_through_d = original[: original.index(signal_date) + 1] if signal_date in original else original
+        if signal_date not in original or effective == original_through_d:
+            return super()._consecutive_limit_up_count(signal_date, code, dates)
+        if any(
+            next_a_share_trading_day(left) != right
+            for left, right in zip(original_through_d, original_through_d[1:])
+        ):
+            raise PrimaryDGenerationError("committed suspension context has a calendar gap")
+        count = 0
+        for day in reversed(effective):
+            daily = self._row(self.market_table(day, "daily"), code)
+            limit = self._row(self.market_table(day, "stk_limit"), code)
+            close = _finite_number(daily.get("close")) if daily is not None else float("nan")
+            up = _finite_number(limit.get("up_limit")) if limit is not None else float("nan")
+            if not math.isfinite(up) or not _is_close(close, up):
+                break
+            count += 1
+        self._streak_count_cache[cache_key] = count
+        return count
+
+    def _streak_path_features(self, signal_date: str, code: str, dates: Sequence[str] | None = None) -> dict[str, Any]:
+        # The path uses real trading bars. Promotion context deliberately keeps
+        # the original six SSE sessions and their NaNs, matching the frozen ledger.
+        self._consecutive_limit_up_count(signal_date, code, dates)
+        return super()._streak_path_features(signal_date, code, self._confirmed_trading_dates(signal_date, code))
 
     def market_dates(self) -> list[str]:
         return list(self._primary_context_dates)

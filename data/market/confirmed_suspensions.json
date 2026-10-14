@@ -1,0 +1,57 @@
+{
+  "schema_version": "dc20_confirmed_suspensions_v1",
+  "verified_at_utc": "2026-10-14T15:03:15.153929Z",
+  "scope": "P0 observed limit-up session continuity only; never synthetic quotes, settlement, or training admission",
+  "suspensions": [
+    {
+      "ts_code": "002813.SZ",
+      "start_date": "20260930",
+      "resume_date": "20261014",
+      "sources": [
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-09-30/1225589222.PDF",
+          "published_date": "20260930",
+          "pdf_sha256": "fcce28bc349aeaacc741148048fbac47fdf10136eaaef4c8b24bd3dfcf03aa4c"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-10-09/1225597548.PDF",
+          "published_date": "20261009",
+          "pdf_sha256": "272a7d1131f989177b761e41d320868a5bb3a3f61705fe500e3ae61475922239"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-10-14/1225604178.PDF",
+          "published_date": "20261014",
+          "pdf_sha256": "7b96242a1ccf84f1e5b3aebcacca50b02a44bd0aa7be2d81f7edcc30fffdd6e2"
+        }
+      ],
+      "announcement_number": "2026-025",
+      "interval_semantics": "start inclusive, resume exclusive; full-day suspension only",
+      "evidence_checked": "official issuer filings downloaded and excerpts verified; original source PDF hashes retained"
+    },
+    {
+      "ts_code": "002860.SZ",
+      "start_date": "20260922",
+      "resume_date": "20261014",
+      "sources": [
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-09-22/1225575586.PDF",
+          "published_date": "20260922",
+          "pdf_sha256": "c478bc5281775db7c7f0fb6e3dcc90d97236244aaf696c5a375bf1eed903b127"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-09-30/1225586506.PDF",
+          "published_date": "20260930",
+          "pdf_sha256": "b910e79f77fb8add770084e477f81083c7f0d7ab7013ffc4ed5994f53c7b49f4"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-10-14/1225604019.PDF",
+          "published_date": "20261014",
+          "pdf_sha256": "4c9fe6862db1119fbe4090f590ff7c00c76d791ece3be58543559a5c82238eee"
+        }
+      ],
+      "announcement_number": "2026-047",
+      "interval_semantics": "start inclusive, resume exclusive; full-day suspension only",
+      "evidence_checked": "official issuer filings downloaded and excerpts verified; original source PDF hashes retained"
+    }
+  ]
+}
