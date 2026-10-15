@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261016",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.021505376344079,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.0808695652173913,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.42857142857142855,
+      "five_year_streak_runup": 0.21002838221381248,
+      "focus_pool_size": 4.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 3,
+      "ret_10d": 0.38270270270270257,
+      "ret_2d": 0.21002838221381248,
+      "ret_5d": 0.34560757496054695,
+      "stage2_pool_size": 2.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.06848645886876578,
+      "volatility_5d": 0.07234048568407965,
+      "volume_ratio": 1.1359563509380897
+    },
+    "frozen_at": "2026-10-15T11:36:41.398037+00:00",
+    "industry": "出版",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "新华文轩",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 3,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261019",
+    "score": -0.009220851503415228,
+    "signal_date": "20261015",
+    "ts_code": "601811.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261015.json",
+      "sha256": "6b11a56c15297c1bf1c0050676fccdd08282fb8376ae86ddfc5fb0a39750b8ee"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261015.json",
+      "sha256": "217ead32e75852e3ec4438092c1294738f558aebca686bb2ccd2742d2cbaf599"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261015.json",
+      "sha256": "e1441684ace8a32262c3d9b367499fa0ef103df51a0ceca1636384fb30200550"
+    }
+  ]
+}

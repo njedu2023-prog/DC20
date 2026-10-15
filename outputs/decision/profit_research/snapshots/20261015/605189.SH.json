@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261016",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.981515711645109,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": 0.08137829912023453,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.21016949152542375,
+      "focus_pool_size": 4.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.2614840989399294,
+      "ret_2d": 0.21016949152542375,
+      "ret_5d": 0.2623762376237624,
+      "stage2_pool_size": 2.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.037889706095725055,
+      "volatility_5d": 0.05725983456029453,
+      "volume_ratio": 5.156699483664984
+    },
+    "frozen_at": "2026-10-15T11:36:41.398037+00:00",
+    "industry": "纺织制造",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "富春染织",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261019",
+    "score": -0.01680025308727277,
+    "signal_date": "20261015",
+    "ts_code": "605189.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261015.json",
+      "sha256": "6b11a56c15297c1bf1c0050676fccdd08282fb8376ae86ddfc5fb0a39750b8ee"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261015.json",
+      "sha256": "217ead32e75852e3ec4438092c1294738f558aebca686bb2ccd2742d2cbaf599"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261015.json",
+      "sha256": "e1441684ace8a32262c3d9b367499fa0ef103df51a0ceca1636384fb30200550"
+    }
+  ]
+}
