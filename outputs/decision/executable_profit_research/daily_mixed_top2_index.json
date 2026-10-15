@@ -1159,12 +1159,53 @@
       "source_bundle_sha256": "4fb5b74698ffcf504eaae22773614b3491831d274f7933f0c8ad3359d93fea7e",
       "source_feature_snapshot_sha256": "c800fc16faf93f56931fad8bc2cd248d866a42818e871d07471ffb6d1e99c32d",
       "top10_members_sha256": "ae7b624092fb04a886f7b226566205e78fa5fbdffba102ee41028ef8670e25a4"
+    },
+    {
+      "candidate_count": 4,
+      "entry_sha256": "b9156b0755245ea87b01cc8ef550e0c47dd5a25734de72a4e98fe3eba6a5ed34",
+      "exec_date": "20261016",
+      "exit_date": "20261019",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "3f4d5d3b882e0a6898fa542070d36b6f61cf7d6f5a3f8060d18e7836fce3a251",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261015.csv",
+      "projection_json_sha256": "d45d104089af919f9541899a9780169d82b947f017fbf0ff79dbc976b1967516",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261015.json",
+      "projection_snapshot_sha256": "e44429e7a76c4a78e683abe008fa314088abaf5b16f6ce9d5dc2821d2c0d924b",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "通用设备",
+          "mixed_profit_rank": 1,
+          "name": "冰山冷热",
+          "promotion_rank": 2,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "000530.SZ"
+        },
+        {
+          "industry": "饮料乳品",
+          "mixed_profit_rank": 2,
+          "name": "阳光乳业",
+          "promotion_rank": 1,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "001318.SZ"
+        }
+      ],
+      "signal_date": "20261015",
+      "source_bundle_sha256": "c790aad828a112f63329ce6936a98c4a456f269ee03d740ca6c29690174f5ebd",
+      "source_feature_snapshot_sha256": "c9ba9681108d8a0b85c991852e81333a7b8af50b5b305e9585fe67bd0162b7c1",
+      "top10_members_sha256": "f15904887ac81590ba63cee5994ea9fbcdf44f1c14b3d48e9c42b69738d48952"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261014",
+  "latest_signal_date": "20261015",
   "public_start_signal_date": "20260828",
-  "recorded_days": 28,
+  "recorded_days": 29,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1193,9 +1234,10 @@
     "20261009",
     "20261012",
     "20261013",
-    "20261014"
+    "20261014",
+    "20261015"
   ],
-  "recorded_slots": 56,
+  "recorded_slots": 58,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "cdb8260c269d4089d815d3cf662b88abd452909eff1c70cc24b3ff4676c1413f"
+  "snapshot_sha256": "ff0e91acad2d51a9655747a3afdb8e38f8cfcf39daa60831aa9570708b002dca"
 }
