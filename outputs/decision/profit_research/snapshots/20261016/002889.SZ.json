@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261019",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.992313604919298,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.01580698835274541,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.35714285714285715,
+      "five_year_streak_runup": 0.20963651732882504,
+      "focus_pool_size": 5.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.18656716417910446,
+      "ret_2d": 0.20963651732882504,
+      "ret_5d": 0.1964882943143813,
+      "stage2_pool_size": 4.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.8,
+      "volatility_20d": 0.03184917701858397,
+      "volatility_5d": 0.0513765051277298,
+      "volume_ratio": 1.4448704488302726
+    },
+    "frozen_at": "2026-10-16T12:07:59.695438+00:00",
+    "industry": "物流",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "东方嘉盛",
+    "profit_eligible": true,
+    "profit_rank": 5,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261020",
+    "score": -0.018304982426796082,
+    "signal_date": "20261016",
+    "ts_code": "002889.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261016.json",
+      "sha256": "a1a7a55a48da99e3a7f2a99cdfbca0b915b4a3a1573267ee710a284005bc2c34"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261016.json",
+      "sha256": "e753f1e4a97ac469c978d63ed72c66290d6febf7e6ad7927914ba1e35ed80803"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261016.json",
+      "sha256": "8dfe290e0557fba7b05c45b07d04d9be23711333e0033e9d71cffdbc4ec22425"
+    }
+  ]
+}
