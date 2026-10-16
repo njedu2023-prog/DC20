@@ -1,11 +1,11 @@
 {
   "trade_date": "20261016",
-  "created_at_utc": "2026-10-16T13:56:50+00:00",
+  "created_at_utc": "2026-10-16T14:17:48+00:00",
   "source_repo": {
     "owner": "njedu2023-prog",
     "repo": "a-share-top3-data",
     "branch": "main",
-    "resolved_commit": "ad05d1668109ad4032f49a059c9c19c499b745d8"
+    "resolved_commit": "c668c22bb3accc286c21ddfec3d3ff06eedcd99a"
   },
   "requested_trade_date": "20261016",
   "resolved_trade_date": "20261016",
@@ -14,11 +14,11 @@
   "raw_storage_pattern": "data/market/raw/{YYYY}/{YYYYMMDD}/{filename}",
   "raw_latest_pattern": "data/market/raw/latest/{filename}",
   "upstream_primary_pattern": "data/raw/{YYYY}/{YYYYMMDD}/{filename}",
-  "upstream_meta_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/_meta.json",
+  "upstream_meta_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/_meta.json",
   "upstream_meta": {
     "requested_trade_date": null,
     "resolved_trade_date": "20261016",
-    "generated_at_bj": "2026-10-16 21:36:00",
+    "generated_at_bj": "2026-10-16 22:07:38",
     "jobs": [
       {
         "key": "limit_list_d",
@@ -121,8 +121,8 @@
         "kwargs": {
           "trade_date": "20261016"
         },
-        "status": "ok_empty",
-        "rows": 0,
+        "status": "ok",
+        "rows": 61,
         "error": null
       },
       {
@@ -133,8 +133,8 @@
         "kwargs": {
           "trade_date": "20261016"
         },
-        "status": "ok_empty",
-        "rows": 0,
+        "status": "ok",
+        "rows": 1,
         "error": null
       }
     ],
@@ -175,7 +175,7 @@
       "limit_stage": {
         "source": "limit_list_d.limit_times",
         "limit_list_rows": 63,
-        "limit_step_rows": 0,
+        "limit_step_rows": 7,
         "rows": 63,
         "limit_times_nonnull": 61,
         "missing_reason": ""
@@ -189,14 +189,18 @@
     "limit_step": {
       "ok": true,
       "api_name": "limit_step",
-      "rows": 0,
-      "columns": [],
+      "rows": 7,
+      "columns": [
+        "trade_date",
+        "ts_code",
+        "name"
+      ],
       "error": ""
     },
     "auction": {
       "enabled": true,
       "ok": true,
-      "rows": 77,
+      "rows": 6095,
       "columns": [
         "ts_code",
         "trade_date",
@@ -205,7 +209,7 @@
         "amount"
       ],
       "error": "",
-      "feature_rows": 77
+      "feature_rows": 6095
     },
     "minute": {
       "enabled": true,
@@ -232,143 +236,15 @@
       },
       "minute_end": "2026-10-16 15:00:00",
       "symbols_requested": 106,
-      "symbols_success": 73,
-      "symbols_failed": 33,
-      "errors": [
-        {
-          "ts_code": "000099.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000420.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000530.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000576.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000607.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000701.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "000887.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "001319.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "001358.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "001696.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002076.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002085.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002510.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002531.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002535.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002683.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002724.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002767.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002869.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002889.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002917.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "002949.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "003029.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        },
-        {
-          "ts_code": "300045.SZ",
-          "error": "ReadTimeout(ReadTimeoutError(\"HTTPConnectionPool(host='api.waditu.com', port=80): Read timed out. (read timeout=30)\"))"
-        }
-      ],
+      "symbols_success": 106,
+      "symbols_failed": 0,
+      "errors": [],
       "fallback_symbol_query_count": 106,
-      "required_symbols_success": 30,
-      "required_symbols_failed": 33,
-      "required_failed_codes": [
-        "000099.SZ",
-        "000420.SZ",
-        "000530.SZ",
-        "000573.SZ",
-        "000576.SZ",
-        "000607.SZ",
-        "000678.SZ",
-        "000701.SZ",
-        "000887.SZ",
-        "001319.SZ",
-        "001358.SZ",
-        "001696.SZ",
-        "002076.SZ",
-        "002085.SZ",
-        "002510.SZ",
-        "002531.SZ",
-        "002535.SZ",
-        "002683.SZ",
-        "002724.SZ",
-        "002767.SZ",
-        "002869.SZ",
-        "002889.SZ",
-        "002917.SZ",
-        "002933.SZ",
-        "002949.SZ",
-        "003029.SZ",
-        "300045.SZ",
-        "300581.SZ",
-        "300681.SZ",
-        "600148.SH"
-      ],
-      "required_coverage_ratio": 0.47619047619047616,
-      "coverage_status": "partial"
+      "required_symbols_success": 63,
+      "required_symbols_failed": 0,
+      "required_failed_codes": [],
+      "required_coverage_ratio": 1.0,
+      "coverage_status": "complete"
     },
     "intraday_features": {
       "ok": true,
@@ -404,7 +280,7 @@
     },
     "realtime_snapshot": {
       "ok": true,
-      "rows": 73,
+      "rows": 106,
       "columns": [
         "ts_code",
         "trade_date",
@@ -430,7 +306,7 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/daily.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/daily.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -445,7 +321,7 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/daily_basic.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/daily_basic.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -460,7 +336,7 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/hot_boards.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/hot_boards.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -475,14 +351,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/intraday_features.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/intraday_features.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20261016/intraday_features.csv",
       "latest_path": "data/market/raw/latest/intraday_features.csv",
-      "bytes": 13420,
-      "sha256": "4ccd525416c20ac25d33279b85413e369a9deedfd14976af92676e925590d9fc"
+      "bytes": 15293,
+      "sha256": "32006484b30353ac8b53670e156fdaee80c977fd107a0b1c4a586d822bb84ce8"
     },
     {
       "name": "limit_break_d",
@@ -501,7 +377,7 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/limit_list_d.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/limit_list_d.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -516,7 +392,7 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/limit_up_tags.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/limit_up_tags.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -530,11 +406,15 @@
       "upstream_name": "moneyflow_hsgt.csv",
       "required": false,
       "date_scoped": true,
-      "success": false,
-      "source_url": "",
-      "source_trade_date": null,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/moneyflow_hsgt.csv",
+      "source_trade_date": "20261016",
       "status_code": 200,
-      "error": "trade_date_mismatch:requested=20261016,actual=missing"
+      "error": "",
+      "dated_path": "data/market/raw/2026/20261016/moneyflow_hsgt.csv",
+      "latest_path": "data/market/raw/latest/moneyflow_hsgt.csv",
+      "bytes": 133,
+      "sha256": "8fd9ddb7aa995e2c7731d3c29eb3d334be3adec7212043fc3ea071a11d71c886"
     },
     {
       "name": "namechange",
@@ -542,7 +422,7 @@
       "required": false,
       "date_scoped": false,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/namechange.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/namechange.csv",
       "source_trade_date": null,
       "status_code": 200,
       "error": "",
@@ -557,14 +437,14 @@
       "required": false,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/stk_auction.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/stk_auction.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
       "dated_path": "data/market/raw/2026/20261016/stk_auction.csv",
       "latest_path": "data/market/raw/latest/stk_auction.csv",
-      "bytes": 3114,
-      "sha256": "99f55c1973820e4cfd8429044d49ea3601c84811ee53b445caacaa79ea8a5a97"
+      "bytes": 237367,
+      "sha256": "1bf83d0cafe7b6d25139da5d8656157389b317b5d412adaf0cbb09fc14023c80"
     },
     {
       "name": "stk_limit",
@@ -572,7 +452,7 @@
       "required": true,
       "date_scoped": true,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/stk_limit.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/stk_limit.csv",
       "source_trade_date": "20261016",
       "status_code": 200,
       "error": "",
@@ -587,7 +467,7 @@
       "required": true,
       "date_scoped": false,
       "success": true,
-      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/ad05d1668109ad4032f49a059c9c19c499b745d8/data/raw/2026/20261016/stock_basic.csv",
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/stock_basic.csv",
       "source_trade_date": null,
       "status_code": 200,
       "error": "",
@@ -601,11 +481,15 @@
       "upstream_name": "top_list.csv",
       "required": false,
       "date_scoped": true,
-      "success": false,
-      "source_url": "",
-      "source_trade_date": null,
+      "success": true,
+      "source_url": "https://raw.githubusercontent.com/njedu2023-prog/a-share-top3-data/c668c22bb3accc286c21ddfec3d3ff06eedcd99a/data/raw/2026/20261016/top_list.csv",
+      "source_trade_date": "20261016",
       "status_code": 200,
-      "error": "trade_date_mismatch:requested=20261016,actual=missing"
+      "error": "",
+      "dated_path": "data/market/raw/2026/20261016/top_list.csv",
+      "latest_path": "data/market/raw/latest/top_list.csv",
+      "bytes": 11877,
+      "sha256": "9c4d15f59230cab3cf46e6c24cbb07998a3c604e0f1086988279538e51be1fc3"
     }
   ],
   "required_failures": [],
@@ -616,8 +500,8 @@
     "removed_count": 0
   },
   "summary": {
-    "success_count": 10,
-    "failure_count": 3,
+    "success_count": 12,
+    "failure_count": 1,
     "required_failure_count": 0
   }
 }
