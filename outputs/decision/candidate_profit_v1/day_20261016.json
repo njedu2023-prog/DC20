@@ -1,0 +1,229 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 5,
+  "candidate_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 1,
+      "candidate_score": -0.00743402087943504,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "601811.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0097339713924042,
+      "net_return": null,
+      "promotion_rank": 4,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600668.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603999.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "601811.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600668.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "003029.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261019",
+  "exit_date": "20261020",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-19T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 5,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 1,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "读者传媒",
+      "promotion_rank": 2,
+      "ts_code": "603999.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "新华文轩",
+      "promotion_rank": 3,
+      "ts_code": "601811.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "水泥",
+      "name": "尖峰集团",
+      "promotion_rank": 4,
+      "ts_code": "600668.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "软件开发",
+      "name": "吉大正元",
+      "promotion_rank": 5,
+      "ts_code": "003029.SZ"
+    }
+  ],
+  "p0_file_sha256": "a1a7a55a48da99e3a7f2a99cdfbca0b915b4a3a1573267ee710a284005bc2c34",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261016.json",
+    "sha256": "a1a7a55a48da99e3a7f2a99cdfbca0b915b4a3a1573267ee710a284005bc2c34"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-16T12:07:59.695438+00:00",
+  "prediction_generated_at_utc": "2026-10-16T12:07:59.668204+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-16T12:13:46.496834+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603999.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "42a866bc876039402ad7bc2be97247b7555c37fb",
+    "evidence_manifest_sha256": "fbc23eda935c1244e108041d2c35fcbc1393b759d1d9de71b745ee8b6675049f",
+    "observer_run_id": 38898430646,
+    "publication_observation_sha256": "1be00910244f255b92a05464e15c1e402036953cba8fccd701fa9123cb5a4a3d"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.00743402087943504,
+      "industry": "出版",
+      "name": "新华文轩",
+      "promotion_rank": 3,
+      "ts_code": "601811.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0097339713924042,
+      "industry": "水泥",
+      "name": "尖峰集团",
+      "promotion_rank": 4,
+      "ts_code": "600668.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.011307205759911418,
+      "industry": "软件开发",
+      "name": "吉大正元",
+      "promotion_rank": 5,
+      "ts_code": "003029.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.01397713852868943,
+      "industry": "出版",
+      "name": "读者传媒",
+      "promotion_rank": 2,
+      "ts_code": "603999.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.018304982426796082,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 1,
+      "ts_code": "002889.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261016",
+  "snapshot_file_sha256": "8dfe290e0557fba7b05c45b07d04d9be23711333e0033e9d71cffdbc4ec22425",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261016.json",
+    "sha256": "8dfe290e0557fba7b05c45b07d04d9be23711333e0033e9d71cffdbc4ec22425"
+  },
+  "source_main_sha": "42a866bc876039402ad7bc2be97247b7555c37fb",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
