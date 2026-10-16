@@ -1200,12 +1200,53 @@
       "source_bundle_sha256": "c790aad828a112f63329ce6936a98c4a456f269ee03d740ca6c29690174f5ebd",
       "source_feature_snapshot_sha256": "c9ba9681108d8a0b85c991852e81333a7b8af50b5b305e9585fe67bd0162b7c1",
       "top10_members_sha256": "f15904887ac81590ba63cee5994ea9fbcdf44f1c14b3d48e9c42b69738d48952"
+    },
+    {
+      "candidate_count": 5,
+      "entry_sha256": "49754a57b6408fef0cb5bc6a23eb804e9d728bb96d3fc60beb777c8150fafe11",
+      "exec_date": "20261019",
+      "exit_date": "20261020",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "1d3519ddfca04f122c4c703c688bc4681f4ec12398d7513bac68445dbf1be999",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261016.csv",
+      "projection_json_sha256": "77ff395955224962a94f1722a12467b4ca6f53ff21530bc622a4cf8772bfef61",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261016.json",
+      "projection_snapshot_sha256": "02bf8359d03da4fbeca10d77280657e7529f9ee98d1cec7a724040b221bac4ff",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "出版",
+          "mixed_profit_rank": 1,
+          "name": "新华文轩",
+          "promotion_rank": 3,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "601811.SH"
+        },
+        {
+          "industry": "软件开发",
+          "mixed_profit_rank": 2,
+          "name": "吉大正元",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "003029.SZ"
+        }
+      ],
+      "signal_date": "20261016",
+      "source_bundle_sha256": "168b4069db1c1b22aed3519a403f07375731f1c1fa90dfebfe0d222b1661ab14",
+      "source_feature_snapshot_sha256": "2655135a656c6f9c63622282884e635dd51faddab1e0a8961c974e39240ac375",
+      "top10_members_sha256": "87eda967364f77618e4c00d86378e61465f0e51e591d1dd7151ffa344d33cb68"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261015",
+  "latest_signal_date": "20261016",
   "public_start_signal_date": "20260828",
-  "recorded_days": 29,
+  "recorded_days": 30,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1235,9 +1276,10 @@
     "20261012",
     "20261013",
     "20261014",
-    "20261015"
+    "20261015",
+    "20261016"
   ],
-  "recorded_slots": 58,
+  "recorded_slots": 60,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "ff0e91acad2d51a9655747a3afdb8e38f8cfcf39daa60831aa9570708b002dca"
+  "snapshot_sha256": "8ada417009953c5f261c030a666d59a996b592746f50a6f39a19a21de42357ec"
 }

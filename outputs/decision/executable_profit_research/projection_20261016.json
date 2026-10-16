@@ -1,0 +1,184 @@
+{
+  "artifact_kind": "immutable_d_frozen_primary_mixed_profit_research_projection",
+  "boundaries": {
+    "action_input_consumed": false,
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "estimated_probability_calibrated": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "forward_selection_created": false,
+    "forward_statistics_updated": false,
+    "human_decision_support_only": true,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "public_research_projection_allowed": true,
+    "research_only": true
+  },
+  "candidate_count": 5,
+  "contract_file_sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+  "contract_id": "dc20_primary_profit_research_20260827_v1",
+  "display_name": "混合盈利排序",
+  "downloads": {
+    "csv_sha256": "1d3519ddfca04f122c4c703c688bc4681f4ec12398d7513bac68445dbf1be999",
+    "csv_url": "outputs/decision/executable_profit_research/projection_20261016.csv",
+    "json_url": "outputs/decision/executable_profit_research/projection_20261016.json",
+    "row_count": 5
+  },
+  "exec_date": "20261019",
+  "exit_date": "20261020",
+  "generation_mode": "NATURAL",
+  "model": {
+    "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+    "artifact_status": "INTERNAL_FORWARD_RESEARCH_CHALLENGER_ONLY_NOT_READY",
+    "calibrated_probability_output": false,
+    "empty_event_reason": null,
+    "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+    "feature_count": 156,
+    "front_end_formal_rank_allowed": false,
+    "inference_performed": true,
+    "lagged_prior_max_history_exit_date": "20260818",
+    "maximum_used_scheduled_exit_date": "20260818",
+    "mixed_feature_snapshot_sha256": "6bf17ff4d0041c9dc49da669d6dcba7eb945176c9cfda4d94faa21e8a6da3133",
+    "model_loaded": true,
+    "retrospective_confirmation_window_was_viewed": true,
+    "status": "INTERNAL_CHALLENGER_NOT_READY"
+  },
+  "prospective": true,
+  "ranking_contract": {
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "forward_selection_or_statistics_may_change": false,
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "trade_or_action_may_change": false
+  },
+  "research_only": true,
+  "retrospective_non_forward": false,
+  "rows": [
+    {
+      "estimated_executable_profit_probability": 0.3155195229689188,
+      "executable_profit_research_rank": 1,
+      "industry": "出版",
+      "name": "新华文轩",
+      "predicted_promotion_probability": 0.3053756813636355,
+      "promotion_rank": 3,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "research_conditional_profit_score": 0.3222445822209973,
+      "research_fill_proxy_score": 0.9791305746531794,
+      "research_joint_proxy_score": 0.3155195229689188,
+      "stage_transition": "3→4",
+      "ts_code": "601811.SH"
+    },
+    {
+      "estimated_executable_profit_probability": 0.2566216756697041,
+      "executable_profit_research_rank": 2,
+      "industry": "软件开发",
+      "name": "吉大正元",
+      "predicted_promotion_probability": 0.28080015669835034,
+      "promotion_rank": 5,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "research_conditional_profit_score": 0.26343454410057493,
+      "research_fill_proxy_score": 0.9741382875426172,
+      "research_joint_proxy_score": 0.2566216756697041,
+      "stage_transition": "2→3",
+      "ts_code": "003029.SZ"
+    },
+    {
+      "estimated_executable_profit_probability": 0.21825516702733583,
+      "executable_profit_research_rank": 3,
+      "industry": "水泥",
+      "name": "尖峰集团",
+      "predicted_promotion_probability": 0.28392049354627336,
+      "promotion_rank": 4,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "research_conditional_profit_score": 0.2289642441372581,
+      "research_fill_proxy_score": 0.9532281682221856,
+      "research_joint_proxy_score": 0.21825516702733583,
+      "stage_transition": "2→3",
+      "ts_code": "600668.SH"
+    },
+    {
+      "estimated_executable_profit_probability": 0.19093520354545027,
+      "executable_profit_research_rank": 4,
+      "industry": "出版",
+      "name": "读者传媒",
+      "predicted_promotion_probability": 0.4244152224369389,
+      "promotion_rank": 2,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "research_conditional_profit_score": 0.2872192216737788,
+      "research_fill_proxy_score": 0.6647716766056587,
+      "research_joint_proxy_score": 0.19093520354545027,
+      "stage_transition": "2→3",
+      "ts_code": "603999.SH"
+    },
+    {
+      "estimated_executable_profit_probability": 0.1535454826280488,
+      "executable_profit_research_rank": 5,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "predicted_promotion_probability": 0.5197673084596426,
+      "promotion_rank": 1,
+      "rank_group_size": 1,
+      "rank_tied": false,
+      "research_conditional_profit_score": 0.22437997206667673,
+      "research_fill_proxy_score": 0.6843101067078359,
+      "research_joint_proxy_score": 0.1535454826280488,
+      "stage_transition": "2→3",
+      "ts_code": "002889.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_mixed_profit_research_projection_v1",
+  "score_semantics": {
+    "estimated_executable_profit_probability": "display alias for the uncalibrated joint proxy; not formal probability",
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "signal_date": "20261016",
+  "snapshot_sha256": "02bf8359d03da4fbeca10d77280657e7529f9ee98d1cec7a724040b221bac4ff",
+  "source_bindings": {
+    "contract": {
+      "contract_id": "dc20_primary_profit_research_20260827_v1",
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20261016.json",
+      "sha256": "459b0520d07fa2d0ce8e9fddc80ef052b8c0bb3c6f697555258715f7dbe9d931"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "2655135a656c6f9c63622282884e635dd51faddab1e0a8961c974e39240ac375",
+      "identity_sha256": "a2e3450724627de002d4fd7912f89be3514c93aef3d6876827d8eaf8d527744e",
+      "path": "outputs/decision/primary_d_runtime_features_20261016.csv",
+      "row_count": 5,
+      "selected_count": 5,
+      "sha256": "15988b5a2855486baec869b105474c9c1f5e878558c74e1566f4a7866ea5f979"
+    },
+    "three_rank": {
+      "bundle_sha256": "168b4069db1c1b22aed3519a403f07375731f1c1fa90dfebfe0d222b1661ab14",
+      "csv_path": "outputs/decision/three_rank_top10_20261016.csv",
+      "csv_sha256": "9d0f1ac05c65a310f9a18fb66abbe6901968e49d93f98718f1e4d1c383dad08f",
+      "feature_snapshot_sha256": "2655135a656c6f9c63622282884e635dd51faddab1e0a8961c974e39240ac375",
+      "json_path": "outputs/decision/three_rank_top10_20261016.json",
+      "json_sha256": "a1a7a55a48da99e3a7f2a99cdfbca0b915b4a3a1573267ee710a284005bc2c34",
+      "top10_members_sha256": "87eda967364f77618e4c00d86378e61465f0e51e591d1dd7151ffa344d33cb68"
+    }
+  },
+  "source_bundle_sha256": "168b4069db1c1b22aed3519a403f07375731f1c1fa90dfebfe0d222b1661ab14",
+  "source_feature_snapshot_sha256": "2655135a656c6f9c63622282884e635dd51faddab1e0a8961c974e39240ac375",
+  "status": "PROSPECTIVE_RESEARCH",
+  "top10_members_sha256": "87eda967364f77618e4c00d86378e61465f0e51e591d1dd7151ffa344d33cb68"
+}
