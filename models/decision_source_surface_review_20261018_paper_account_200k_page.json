@@ -1,0 +1,51 @@
+{
+  "schema_version": "dc20_paper_account_ui_config_review_v1",
+  "baseline_commit": "29d16c292fc5b47f9eddd2845761b16c21233c4a",
+  "scope": "STANDALONE_PAPER_ACCOUNT_PAGE_AND_200K_PER_RANK_BUDGET",
+  "source_changes": [
+    "decision.html",
+    "models/decision_model_freeze.json",
+    "forward/model_inventory.json",
+    "tests/test_profit_paper_account_engine.cjs",
+    "tests/test_profit_paper_account_ui.cjs",
+    "tests/test_profit_paper_account_build.cjs",
+    "tests/test_profit_paper_account_page.cjs"
+  ],
+  "current_html_sha256": "c37d7bfca8f1a2630f5665d6529cd87995f6a0b2b271092c5a8b87c1ca268634",
+  "route": {
+    "url": "?view=paper-account",
+    "homepage": "entry links only; target=_blank with noopener noreferrer",
+    "standalone": "full account, return link, refresh, source validation, JSON export",
+    "source_failure": "clear previous values and fail closed; no homepage fallback",
+    "main_pipeline": "unchanged shared publication builder; deterministic full replay from D20260914"
+  },
+  "account": {
+    "initial_capital": 1000000,
+    "per_trade_budget": 200000,
+    "ranks": [1, 2],
+    "budget_includes_existing_proxy_costs": true,
+    "cash_limit": "no leverage or smaller substitute stake; insufficient opening cash skips in fixed rank order",
+    "old_100k_account_artifact_rejected": true,
+    "underlying_shadow_notional_cny_unchanged": 100000
+  },
+  "unchanged": [
+    "model parameters and activation",
+    "frozen selections and rankings",
+    "source ledgers and market data",
+    "entry and exit policies, fees and integer lots",
+    "main daily and settlement publication workflows",
+    "same-D frozen company names",
+    "historical source reviews"
+  ],
+  "verification": {
+    "node_tests_passed": 58,
+    "pytest_passed": 105,
+    "pytest_deselected": 1,
+    "deselected_reason": "pre-existing current-source versus historical source-review assertion; historical review unchanged",
+    "browser": "new-window click, independent route, zero homepage account requests, 390px layout, 36 company names, refresh, JSON export",
+    "replay_last_valid_date": "20261014",
+    "known_subset_nav": 1283984.13,
+    "historical_gaps_remain_disclosed": true,
+    "complete_strategy_performance_claimed": false
+  }
+}

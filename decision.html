@@ -1237,6 +1237,18 @@
     #profitPaperAccount .paper-toolbar { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0; font-size:12px; color:var(--muted); }
     #profitPaperAccount button { border:1px solid var(--line); border-radius:6px; background:#fff; padding:7px 10px; color:#17675a; cursor:pointer; }
     #profitPaperAccount button:focus-visible,#profitPaperAccount summary:focus-visible { outline:2px solid #17675a; outline-offset:2px; }
+    #profitPaperAccount .paper-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 12px; }
+    #profitPaperAccount .paper-entry p { margin:0; color:var(--muted); font-size:12px; line-height:1.65; }
+    .paper-page-link,.paper-page-link:visited { display:inline-flex; align-items:center; justify-content:center; padding:9px 13px; border:1px solid #bad0c8; border-radius:6px; background:#edf6f1; color:#17675a; font-size:13px; font-weight:650; text-decoration:none; white-space:nowrap; }
+    .paper-page-link:hover { background:#dfeee6; }
+    .paper-page-link:focus-visible { outline:2px solid #17675a; outline-offset:3px; }
+    .paper-page-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
+    .paper-page-heading h1 { margin:0 0 5px; font-size:22px; }
+    .paper-page-heading p { margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
+    .paper-page-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .paper-page-actions button { font:inherit; cursor:pointer; }
+    .paper-page-actions button:disabled { opacity:.5; cursor:wait; }
+    .paper-page-note { color:var(--muted); font-size:12px; line-height:1.7; padding:4px 0; }
     @media(max-width:760px) { #profitPaperAccount .paper-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media(max-width:400px) { #profitPaperAccount .paper-body { padding:8px; } #profitPaperAccount .paper-card { padding:9px; } #profitPaperAccount .paper-card dd { font-size:17px; } }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
@@ -1329,7 +1341,7 @@
       <a class="active" href="#rankingWorkspace" aria-current="location">名单与两项排序</a>
       <a href="#compactLedger" data-current-only>盈利前二累计统计</a>
       <a href="#compactStatistics" data-current-only>晋级成功率</a>
-      <a href="#profitPaperAccount" data-current-only>模拟账户</a>
+      <a href="?view=paper-account" target="_blank" rel="noopener noreferrer" title="在新窗口打开模拟账户" data-current-only>模拟账户 ↗</a>
       <a href="/DC20/outputs/decision/profit_research/" target="_blank" rel="noopener noreferrer" title="在新窗口打开盈利模型研究台">盈利模型研究台 ↗</a>
     </nav>
 
@@ -1382,8 +1394,8 @@
       <div id="profitNextDayContent"><div class="empty">正在校验次日行情。</div></div>
     </section>
     <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle">
-      <div class="panel-head"><h2 id="profitPaperAccountTitle">盈利前二 · 模拟账户</h2><span class="count">本金100万元 · 盈1 / 盈2各10万元</span></div>
-      <div id="profitPaperAccountContent" class="paper-body" aria-live="polite"><div class="empty">正在校验模拟账户数据。</div></div>
+      <div class="panel-head"><h2 id="profitPaperAccountTitle">盈利前二 · 模拟账户</h2><span class="count">本金100万元 · 盈1 / 盈2各20万元</span></div>
+      <div class="paper-entry"><p>D 2026-09-14起 · 固定预算、不翻倍、不加杠杆。独立看板查看净值曲线、最大回撤、持仓和逐笔交易；数据随主任务发布自动更新。</p><a class="paper-page-link" href="?view=paper-account" target="_blank" rel="noopener noreferrer" title="在新窗口打开盈利前二模拟账户">打开模拟账户看板 ↗</a></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
 
@@ -1942,7 +1954,7 @@
     // This is not an order simulator or a claim that the proxy prices were executable.
     function buildProfitPaperAccount(summary, dailyQuotes, identities = new Map()) {
       const initialCapital = 1000000;
-      const tradeBudget = 100000;
+      const tradeBudget = 200000;
       const start = "20260914";
       const fee = Number(summary && summary.round_trip_cost_rate);
       const dateOK = value => typeof value === "string" && /^\d{8}$/.test(value);
@@ -2096,7 +2108,7 @@
             }
             // Decisions use cash available before the opening auction, never later sale proceeds.
             if (nextCash + 0.000001 < tradeBudget) {
-              trade.status = "INSUFFICIENT_CASH"; trade.reason = "竞价时可用现金不足 10 万元，不缩注、不融资；同日盈1优先";
+              trade.status = "INSUFFICIENT_CASH"; trade.reason = "竞价时可用现金不足 20 万元，不缩注、不融资；同日盈1优先";
               continue;
             }
             if (row.proxy_fill !== 1 || !positive(trade.entry_price) || !trade.ts_code) {
@@ -2113,7 +2125,7 @@
               fail("INVALID_EXIT_DATE", `${trade.id} 已结算退出日不在交易日序列内`, trade); continue;
             }
             trade.shares = Math.floor(tradeBudget / (trade.entry_price * 100 * (1 + fee))) * 100;
-            if (!trade.shares) { trade.status = "BUDGET_BELOW_ONE_LOT"; trade.reason = "10万元预算不足一手，不买入"; continue; }
+            if (!trade.shares) { trade.status = "BUDGET_BELOW_ONE_LOT"; trade.reason = "20万元预算不足一手，不买入"; continue; }
             trade.notional = money(trade.shares * trade.entry_price);
             trade.costs = money(trade.notional * fee);
             while (trade.notional + trade.costs > tradeBudget + 0.000001 && trade.shares > 0) {
@@ -2230,13 +2242,13 @@
         missing_signal_dates: missingSignalDates, days, trades: currentTrades, metrics,
         rank_contributions: rankContributions,
         assumptions: [
-          "初始100万元；盈1、盈2各10万元含综合成本预算；固定金额、不复利加注、不融资。",
+          "初始100万元；盈1、盈2各20万元含综合成本预算；固定金额、不复利加注、不融资。",
           "100股整数手；整笔往返综合成本按原始买入金额预提，退出不再重复扣费；这是统一代理成本，不是券商逐项收费。",
-          "09:25入场先于同日退出；现金不足10万元则跳过，同日按盈1、盈2顺序；已知未成交不计入成交胜率。",
+          "09:25入场先于同日退出；现金不足20万元则跳过，同日按盈1、盈2顺序；已知未成交不计入成交胜率。",
           "沿用已核验代理入场和实际退出日期、时间；涨停顺延持仓每日按原始收盘价估值。",
           "缺少正式冻结的信号日只在已知交易参考组合中跳过；完整策略的收益、净值和回撤仍未获验证。",
           "未知到期退出、未确认成交、缺失估值或未核验除权会截断曲线；截断后不补零、不假设继续持有。",
-          "现金不计利息；无杠杆、无额外资金流；未验证真实排队、冲击成本和十万元成交容量。",
+          "现金不计利息；无杠杆、无额外资金流；未验证真实排队、冲击成本和二十万元成交容量。",
           "回撤为每日收盘资产曲线，不含日内最大回撤；资金占用率为收盘持仓市值/总资产。",
           "连亏按已平仓交易退出时间排列，同时退出按盈1优先；不是连续亏损交易日。",
           "不展示年化收益和夏普比，避免短样本或缺档产生误导。"
@@ -2338,7 +2350,7 @@
       const loaded = await fetchPagesOnlyShaBoundJson(revision.profit_paper_account_url, revision.profit_paper_account_sha256, "主任务模拟账户");
       const result = loaded.payload;
       executableProfitExpect(result.schema_version === "dc20_paper_capital_account_v1"
-        && result.initial_capital === 1000000 && result.per_trade_budget === 100000
+        && result.initial_capital === 1000000 && result.per_trade_budget === 200000
         && result.cost_rate === loadedSummary.summary.round_trip_cost_rate
         && result.as_of_date === loadedSummary.summary.as_of_date
         && result.as_of_date === revision.profit_paper_account_as_of_date
@@ -2449,7 +2461,7 @@
       const published = result.publication?.published_at_utc;
       const publishedTime = published && Number.isFinite(Date.parse(published))
         ? new Date(published).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}) : "待核验";
-      return `<p class="paper-intro">模拟，不是券商实盘。D 2026-09-14起 · 数据截至 ${escapeHtml(asOf)} · 展示最新累计账户，不随上方历史名单日期切换。盈1、盈2每笔预算各10万元，固定金额、不翻倍、不使用杠杆。</p>
+      return `<p class="paper-intro">模拟，不是券商实盘。D 2026-09-14起 · 数据截至 ${escapeHtml(asOf)} · 展示最新累计账户，不随历史名单日期切换。盈1、盈2每笔预算各20万元，固定金额、不翻倍、不使用杠杆。</p>
         <p class="paper-intro paper-publication">更新方式：已绑定主任务发布流程 · 最近发布（北京时间）${escapeHtml(publishedTime)} · 任务 ${escapeHtml(result.publication?.run_id||"待核验")}。主任务及结算发布时自动重算；已打开的页面需刷新读取新版。</p>
         ${warnings.map(w=>`<p class="paper-warning">${escapeHtml(w)}</p>`).join("")}
         <dl class="paper-cards">${cards.map(([label,value,note])=>`<div class="paper-card"><dt>${label}</dt><dd>${value}</dd><small>${note}</small></div>`).join("")}</dl>
@@ -2461,12 +2473,12 @@
         <details><summary>逐日净值与回撤数值（${result.days.length} 日）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="净值曲线逐日数值，可横向滚动"><table><thead><tr><th>估值日</th><th>账户资产</th><th>现金</th><th>持仓市值</th><th>已实现盈亏</th><th>浮动盈亏</th><th>回撤</th><th>持仓笔数</th></tr></thead><tbody>${dayRows}</tbody></table></div></details>
         <details><summary>模拟规则、成交假设与缺口说明</summary><ul class="paper-rules">
           <li>只消费当日已冻结盈1、盈2，不重排、不替补；一字涨停等系统判定未买入的记录保持现金。</li>
-          <li>每笔10万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>
+          <li>每笔20万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>
           <li>按系统竞价入场代理及实际退出记录回放：T+1 10:00未封涨停退出；封涨停延持，开板后依系统分钟退出规则，不按收盘涨停倒推当天是否卖出。</li>
           <li>每日先处理09:25买入，再按记录的实际退出时点卖出。卖出前的资金不提前复用；现金不足按固定名次顺序跳过，不借款、不缩小每笔预算。</li>
           <li>顺延持仓逐日按已绑定收盘价估值。退出日已到但缺少退出证据、入场证据不足或估值价格缺失时，暂停后续净值，不填零、不假定已卖出。</li>
           <li>净值＝现金＋持仓市值；最大回撤按每日收盘净值相对先前最高值计算，不代表盘中最大损失。最大比例与最大金额回撤可能发生在不同区间；比例峰谷 ${escapeHtml(dateText(m.drawdown_peak_date))} → ${escapeHtml(dateText(m.drawdown_trough_date))}。日内最高占用本金及计提成本 ${money(m.max_committed_cost_intraday)}。最长连亏按已退出交易顺序，非连续亏损天数。</li>
-          <li>未验证真实排队成交、10万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>
+          <li>未验证真实排队成交、20万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>
         </ul></details>`;
     }
 
@@ -7629,6 +7641,83 @@
       }
     }
 
+    function showProfitPaperAccountPageError(error) {
+      state.compactFatalError = true;
+      state.profitPaperAccount = null;
+      const node = document.getElementById("profitPaperAccountContent");
+      if (node) node.innerHTML = `<div class="empty">模拟账户暂不可核验：${escapeHtml(String(error?.message || error || "未知错误"))}。已清空旧净值；请稍后刷新，不使用旧数据或零收益替代。</div>`;
+      els.mainContent.setAttribute("aria-busy", "false");
+      const button = document.getElementById("paperAccountRefresh");
+      if (button) button.disabled = false;
+    }
+
+    async function refreshProfitPaperAccountPage(force = false) {
+      const sequence = (state.compactLoadSequence || 0) + 1;
+      state.compactLoadSequence = sequence;
+      state.compactFatalError = false;
+      state.profitPaperAccount = null;
+      state.candidateProfitActivation = null;
+      state.candidateProfitSummary = null;
+      state.currentCompactStatisticsWindow = null;
+      state.candidateProfitSummaryLoad = {status:"loading",message:"正在校验冻结账本。"};
+      state.compactStatisticsWindowLoad = {status:"loading",message:"正在校验统计窗口。"};
+      if (force) {
+        state.resourceReads = new Map();
+        state.publishedRevision = null;
+        state.publishedRevisionSha = null;
+      }
+      const current = () => sequence === state.compactLoadSequence && !state.compactFatalError;
+      const button = document.getElementById("paperAccountRefresh");
+      button.disabled = true;
+      els.mainContent.setAttribute("aria-busy", "true");
+      document.getElementById("profitPaperAccountContent").innerHTML = '<div class="empty">正在校验本次主任务发布的模拟账户、冻结账本和行情版本…</div>';
+      try {
+        await refreshCandidateProfitActivation();
+        if (!current()) return;
+        executableProfitExpect(state.candidateProfitActivation?.status === "ready",
+          state.candidateProfitActivation?.message || "新盈利模型索引尚未发布");
+        const revision = state.candidateProfitActivation.revision;
+        // Keep the full source validation, but do not launch homepage/next-day
+        // rendering or optional quote loads on this independent account route.
+        const loadWindow = async () => {
+          executableProfitExpect(revision.compact_statistics_window_url === COMPACT_STATISTICS_WINDOW_PATH
+            && revision.compact_statistics_window_start_signal_date === COMPACT_STATISTICS_WINDOW_START
+            && isSha256(revision.compact_statistics_window_sha256)
+            && canonicalYmd(revision.primary_d_signal_date) === revision.primary_d_signal_date,
+            "统计窗口未绑定Pages精确revision");
+          const loaded = await fetchPagesOnlyShaBoundJson(COMPACT_STATISTICS_WINDOW_PATH, revision.compact_statistics_window_sha256, "模拟账户统计窗口");
+          const validated = await validateCompactStatisticsWindow(loaded.payload, revision.primary_d_signal_date);
+          if (!current()) return;
+          state.currentCompactStatisticsWindow = {...validated,reportSignalDate:revision.primary_d_signal_date,compactLoadSequence:sequence};
+          state.compactStatisticsWindowLoad = {status:"ready",message:""};
+        };
+        await Promise.all([refreshCandidateProfitSummary(),loadWindow()]);
+        if (!current()) return;
+        executableProfitExpect(state.candidateProfitSummaryLoad?.status === "ready" && state.compactStatisticsWindowLoad?.status === "ready",
+          state.candidateProfitSummaryLoad?.message || "模拟账户来源未通过校验");
+        await refreshProfitPaperAccount(state.candidateProfitSummary,state.currentCompactStatisticsWindow,state.candidateProfitActivation);
+      } catch (error) {
+        if (current()) showProfitPaperAccountPageError(error);
+      } finally {
+        if (sequence === state.compactLoadSequence) {
+          button.disabled = false;
+          els.mainContent.setAttribute("aria-busy", "false");
+        }
+      }
+    }
+
+    async function initializeProfitPaperAccount() {
+      document.title = "盈利前二 · 模拟账户 | DC20";
+      document.querySelector("header").hidden = true;
+      document.querySelector(".skip-link")?.remove();
+      els.mainContent.innerHTML = `<div class="paper-page-heading"><div><h1>盈利前二 · 模拟账户</h1><p>本金100万元 · 盈1、盈2每笔预算各20万元 · D 2026-09-14起</p></div><nav class="paper-page-actions" aria-label="模拟账户导航"><a class="paper-page-link" href="?">← 返回每日名单</a><button id="paperAccountRefresh" class="paper-page-link" type="button">刷新最新数据</button></nav></div>
+        <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle"><div class="panel-head"><h2 id="profitPaperAccountTitle">账户净值与交易明细</h2><span class="count">固定预算 · 非券商实盘</span></div><div id="profitPaperAccountContent" class="paper-body" aria-live="polite"><div class="empty">正在校验模拟账户数据。</div></div></section>
+        <p class="paper-page-note">数据绑定主任务及结算发布流程；本页读取已发布、指纹校验通过的账户结果，不在浏览器重跑交易。此页无下单、训练或模型替换权限。</p>`;
+      if (els.footer) els.footer.textContent = "DC20 · 独立模拟账户 · 已打开的页面需刷新读取最新版。";
+      document.getElementById("paperAccountRefresh").onclick = () => refreshProfitPaperAccountPage(true).catch(showProfitPaperAccountPageError);
+      await refreshProfitPaperAccountPage();
+    }
+
     async function initializeProfitLedger() {
       document.title = "盈利 Top1 / Top2 · 影子账本";
       document.querySelector("header").hidden = true;
@@ -7955,7 +8044,10 @@
       els.reportContent.innerHTML = '<div class="empty"><strong>报告读取失败</strong>页面已清空上一次成功渲染，避免把旧结果误认为当前数据。</div>';
     }
 
-    window.addEventListener("error", event => showError(event.error || event.message));
+    window.addEventListener("error", event => {
+      if (new URLSearchParams(location.search).get("view") === "paper-account") showProfitPaperAccountPageError(event.error || event.message);
+      else showError(event.error || event.message);
+    });
     window.addEventListener("resize", () => {
       const chart = document.querySelector("#profitPaperAccount .paper-chart svg");
       const view = state.profitPaperAccount;
@@ -7971,7 +8063,9 @@
         document.getElementById(id)?.remove?.();
       }
     }
-    if (new URLSearchParams(location.search).get("view") === "profit-ledger") {
+    if (new URLSearchParams(location.search).get("view") === "paper-account") {
+      initializeProfitPaperAccount().catch(showProfitPaperAccountPageError);
+    } else if (new URLSearchParams(location.search).get("view") === "profit-ledger") {
       initializeProfitLedger().catch(error => {
         document.getElementById("ledgerMessage").textContent = `读取失败：${error.message}。未使用旧账本或未校验数据。`;
         document.getElementById("ledgerSummary").innerHTML = "";

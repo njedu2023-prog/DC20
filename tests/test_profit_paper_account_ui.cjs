@@ -1,4 +1,6 @@
 "use strict";
+// Run standalone-route regressions in the shared publication's existing UI suite.
+require("./test_profit_paper_account_page.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -47,6 +49,8 @@ test("markup distinguishes latest unavailable and last valid NAV, escaping sourc
   assert.match(out,/最新账户资产：暂不可核验/);assert.match(out,/截至 2026-09-15/);assert.match(out,/已知交易子集/);
   assert.match(out,/&lt;unsafe&gt;/);assert.doesNotMatch(out,/<unsafe>/);assert.match(out,/冻结缺失 · 跳过/);
   assert.match(out,/暂不报告年化收益、夏普比/);assert.match(out,/990,000\.00 元/);
+  assert.match(out,/盈1、盈2每笔预算各20万元/);assert.match(out,/每笔20万元为含研究成本的预算/);
+  assert.match(out,/未验证真实排队成交、20万元容量/);assert.doesNotMatch(out,/(?:各|每笔)10万元/);
   assert.doesNotMatch(out,/onclick=/);
 });
 test("trade table puts company name immediately after code, escapes text and labels missing names",()=>{
@@ -132,7 +136,7 @@ function publishedInputs() {
     profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_valid_date,
     head_sha:'2'.repeat(40),run_id:'12345',profit_paper_account_producer_run_id:'12345',profit_paper_account_updated_at:'2026-10-18T00:00:00Z',
     candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};
-  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:1000000,per_trade_budget:100000,cost_rate:.0045,
+  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:1000000,per_trade_budget:200000,cost_rate:.0045,
     publication:{mode:'main_pipeline',source_head_sha:revision.head_sha,run_id:revision.run_id,published_at_utc:revision.profit_paper_account_updated_at},
     data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,
       engine_sha256:'6'.repeat(64),source_files:[source]}});
@@ -149,7 +153,7 @@ test('published account accepts only the current bound main-task artifact and di
   assert.match(markup,/主任务/);assert.match(markup,/12345/);assert.match(markup,/2026\/10\/18 08:00:00/);
 });
 test('published account rejects mismatched run, commit, dates, summary or statistics window',async()=>{
-  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode']) {
+  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget']) {
     const x=publishedInputs();
     if(mode==='run')x.account.publication.run_id='old';
     if(mode==='producer')x.revision.profit_paper_account_producer_run_id='old';
@@ -161,6 +165,7 @@ test('published account rejects mismatched run, commit, dates, summary or statis
     if(mode==='window-sha')x.account.data_bindings.window_sha256='0'.repeat(64);
     if(mode==='updated-at')x.account.publication.published_at_utc='2026-10-17T00:00:00Z';
     if(mode==='mode')x.account.publication.mode='browser';
+    if(mode==='old-budget')x.account.per_trade_budget=100000;
     const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
     await assert.rejects(()=>c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),undefined,mode);
   }

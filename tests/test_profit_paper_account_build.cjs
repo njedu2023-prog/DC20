@@ -71,7 +71,8 @@ test('build binds published account to same revision, engine, ledger, calendar a
   assert.match(account.data_bindings.engine_sha256,/^[0-9a-f]{64}$/);
   assert.equal(account.trades[0].name,'平安银行'); assert.equal(account.trades[1].name,'万科A');
   assert.equal(account.trades[0].name_source.signal_date,'20260914');
-  assert.equal(account.metrics.nav,1018909); assert.equal(account.metrics.closed_trades,2);
+  assert.equal(account.initial_capital,1000000); assert.equal(account.per_trade_budget,200000);
+  assert.equal(account.metrics.nav,1038009); assert.equal(account.metrics.closed_trades,2);
   const revision=JSON.parse(await fs.readFile(path.join(f.root,'revision.json'),'utf8'));
   assert.equal(revision.profit_paper_account_sha256,hash(await fs.readFile(path.join(f.root,ACCOUNT_PATH))));
   assert.equal(revision.profit_paper_account_last_valid_date,'20260916');
@@ -122,7 +123,7 @@ test('P0 may advance ahead of the bound ledger; only the ledger cutoff is replay
   await f.updateWindow();await f.build();const account=await f.account();
   assert.equal(account.as_of_date,'20260916');assert.equal(account.last_valid_date,'20260916');
   assert.equal(account.publication.latest_signal_date,'20260917');assert.equal(account.publication.ledger_lagging,true);
-  assert.equal(account.days.at(-1).date,'20260916');assert.equal(account.metrics.nav,1018909);
+  assert.equal(account.days.at(-1).date,'20260916');assert.equal(account.metrics.nav,1038009);
   assert.equal(account.data_bindings.source_files.some(row=>row.path===futurePath),false);
 });
 test('a ledger beyond the main signal date and impossible date strings are refused',async t=>{
@@ -156,7 +157,7 @@ test('a deployed HTML differing from the shared engine source is a hard failure'
 test('expected deployment banner injection is allowed when engine/loaders are unchanged',async t=>{
   const f=await fixture(t),withBanner=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('</body>','<aside>历史正文提示</aside></body>'));
   await f.write('index.html',withBanner);await f.write('decision.html',withBanner);
-  await f.build();assert.equal((await f.account()).metrics.nav,1018909);
+  await f.build();assert.equal((await f.account()).metrics.nav,1038009);
 });
 test('public verification requires exact artifact/revision bytes and rejects stale publication',async t=>{
   const f=await fixture(t);await f.build();const seen=[];

@@ -46,18 +46,43 @@ function settled(source, rank = 1, signal = '20260914') { return source.groups[`
 test('integer lots, total fee reserve, gain, exact cash/P&L identity', () => {
   const s = summary([row('20260914')]); const out = replay(s, quotesFor(s));
   const trade = out.trades.find(t => t.id === '20260914:R1');
-  assert.equal(trade.shares, 9900); assert.equal(trade.notional, 99000); assert.equal(trade.costs, 445.5);
-  assert.equal(trade.status, 'CLOSED'); near(trade.net_pnl, 9454.5); near(out.metrics.nav, 1009454.5);
+  assert.equal(out.initial_capital, 1000000); assert.equal(out.per_trade_budget, 200000);
+  assert.equal(trade.shares, 19900); assert.equal(trade.notional, 199000); assert.equal(trade.costs, 895.5);
+  assert.equal(trade.status, 'CLOSED'); near(trade.net_pnl, 19004.5); near(out.metrics.nav, 1019004.5);
   assert.equal(out.complete, true); assert.equal(out.blocked, false); assert.equal(out.metrics.win_rate, 1);
   for (const d of out.days) near(d.nav, 1000000 + d.realized_pnl + d.unrealized_pnl);
   near(out.rank_contributions.reduce((sum, r) => sum + r.total_pnl, 0), out.metrics.total_pnl);
 });
+test('both ranks receive their own fixed 200k budget, within the original 1m account', () => {
+  const s = summary([row('20260914', 1), row('20260914', 2)]);
+  const out = replay(s, quotesFor(s));
+  const pair = out.trades.filter(t => t.signal_date === '20260914');
+  assert.equal(pair.length, 2);
+  for (const trade of pair) {
+    assert.equal(trade.shares, 19900);
+    assert.equal(trade.notional + trade.costs, 199895.5);
+    assert.ok(trade.notional + trade.costs <= 200000);
+  }
+  near(out.days[1].cash, 600209);
+  near(out.metrics.nav, 1038009);
+  assert.equal(out.initial_capital, 1000000);
+  assert.ok(out.assumptions.some(value => value.includes('盈1、盈2各20万元')));
+});
+test('a single lot exceeding the 200k fee-inclusive budget is skipped without cost', () => {
+  const s = summary([row('20260914', 1, {entry_price: 2000, exit_price: 2100})]);
+  const out = replay(s, quotesFor(s));
+  const trade = out.trades.find(t => t.id === '20260914:R1');
+  assert.equal(trade.status, 'BUDGET_BELOW_ONE_LOT');
+  assert.match(trade.reason, /20万元/);
+  assert.equal(trade.costs, 0); assert.equal(trade.shares, 0);
+  assert.equal(out.metrics.nav, 1000000); assert.equal(out.metrics.filled_trades, 0);
+});
 test('MTM losses affect daily drawdown before sale; cost is not deducted twice', () => {
   const s = summary([row('20260914', 1, {exit_price: 8})]);
   const q = quotesFor(s, {'20260915': {'000001.SZ': {close: 9}}, '20260916': {'000001.SZ': {pre_close: 9, close: 8}}});
-  const out = replay(s, q); near(out.days[1].nav, 989654.5); near(out.metrics.nav, 979754.5);
-  near(out.metrics.max_drawdown, 0.0202455, 1e-12); near(out.metrics.max_drawdown_amount, 20245.5);
-  assert.equal(out.metrics.longest_loss_streak, 1); assert.equal(out.metrics.total_costs, 445.5);
+  const out = replay(s, q); near(out.days[1].nav, 979204.5); near(out.metrics.nav, 959304.5);
+  near(out.metrics.max_drawdown, 0.0406955, 1e-12); near(out.metrics.max_drawdown_amount, 40695.5);
+  assert.equal(out.metrics.longest_loss_streak, 1); assert.equal(out.metrics.total_costs, 895.5);
 });
 test('no fill is excluded from filled-trade denominator, no fees or synthetic zero trade', () => {
   const s = summary([]); const out = replay(s, new Map());
@@ -68,7 +93,7 @@ test('no fill is excluded from filled-trade denominator, no fees or synthetic ze
 test('known entry awaiting T+1 is marked to market, not zeroed or prematurely sold', () => {
   const s = summary([row('20260914', 1, {status: 'PENDING_T1', actual_exit_date: null, actual_exit_time: null, exit_price: null, slot_net_return: null})], '20260915');
   const out = replay(s, quotesFor(s, {'20260915': {'000001.SZ': {close: 11}}}));
-  assert.equal(out.blocked, false); assert.equal(out.metrics.open_trades, 1); near(out.metrics.unrealized_pnl, 9454.5);
+  assert.equal(out.blocked, false); assert.equal(out.metrics.open_trades, 1); near(out.metrics.unrealized_pnl, 19004.5);
   assert.equal(out.metrics.realized_pnl, 0); assert.equal(out.metrics.closed_trades, 0);
 });
 test('due missing exit stops entire day, leaving the last verified holding intact', () => {
@@ -94,18 +119,21 @@ test('cash is checked before same-day exits; no financing or partial stake', () 
     ...(signal === '20260921' ? {actual_exit_date: '20260923', actual_exit_time: '2026-09-23T10:00:00+08:00'} : {})
   }));
   const s = summary(rows, exit); const out = replay(s, quotesFor(s));
-  assert.equal(out.metrics.insufficient_cash_trades, 2); assert.equal(out.metrics.closed_trades, 10);
-  assert.equal(out.metrics.max_open_positions, 10); assert.equal(out.blocked, false);
-  near(out.metrics.nav, 995545); assert.ok(out.days.every(d => d.cash >= 0));
+  assert.equal(out.metrics.insufficient_cash_trades, 7); assert.equal(out.metrics.closed_trades, 5);
+  assert.equal(out.metrics.max_open_positions, 5); assert.equal(out.blocked, false);
+  near(out.metrics.nav, 995522.5); assert.ok(out.days.every(d => d.cash >= 0));
+  assert.equal(out.trades.find(t => t.id === '20260916:R1').status, 'CLOSED');
+  assert.equal(out.trades.find(t => t.id === '20260916:R2').status, 'INSUFFICIENT_CASH');
+  assert.match(out.trades.find(t => t.id === '20260916:R2').reason, /20 万元/);
 });
 test('same stock bought on multiple dates remains separate lots and T+1 exits', () => {
   const s = summary([row('20260914'), row('20260915', 1)], '20260917');
   const out = replay(s, quotesFor(s)); assert.equal(out.metrics.closed_trades, 2);
   assert.equal(out.trades.filter(t => t.status === 'CLOSED' && t.ts_code === '000001.SZ').length, 2);
-  near(out.metrics.total_pnl, 2 * 9454.5);
+  near(out.metrics.total_pnl, 2 * 19004.5);
   assert.equal(out.metrics.max_open_positions, 1);
   assert.equal(out.metrics.max_open_positions_intraday, 2);
-  near(out.metrics.max_committed_cost_intraday, 198891);
+  near(out.metrics.max_committed_cost_intraday, 399791);
 });
 test('unknown fill is not converted into zero return or assumed entry', () => {
   const s = summary([row('20260914', 1, {proxy_fill: null, status: 'PENDING_ENTRY', slot_net_return: null})]);
