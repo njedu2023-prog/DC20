@@ -1,0 +1,113 @@
+{
+  "schema_version": "dc20_paper_account_pipeline_review_v1",
+  "baseline_commit": "13610ef07f4f6f8903e8555269eb119fa04eadef",
+  "scope": "MAIN_PIPELINE_PUBLISHED_PAPER_ACCOUNT_AND_POINT_IN_TIME_COMPANY_NAMES",
+  "changes": [
+    {
+      "path": "decision.html",
+      "chars": 522734,
+      "bytes": 559868,
+      "sha": "c7aa8ebf3326b916a48825264849a3e3d52d317d",
+      "sha256": "69654cfb75b814f3cf8f456dafb02d36a17ad584386c59620268bf94c80ad506"
+    },
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "chars": 199879,
+      "bytes": 200042,
+      "sha": "964fee17ba8d184874810d2fe664b3dc9cceba15",
+      "sha256": "2fe64c5d9788411766c76f9502fa496088706ce71d72e9ca88600232e5fb0ec7"
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "chars": 53027,
+      "bytes": 53027,
+      "sha": "efafcf6ec1033c8745c22efe9fb17adda63a7312",
+      "sha256": "b1a6e288113dc4ec4075018799f4396ef05636b8d92b7f80d9761ecfbd0ea06c"
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "chars": 16204,
+      "bytes": 16204,
+      "sha": "83f506f1ba12d9e67e603db7b97eef3f10ae3116",
+      "sha256": "49087bbc56dcdfbd1c1dc08f28f55457512ce5c35be30e8063793e89cb38467a"
+    },
+    {
+      "path": "scripts/build_profit_paper_account.cjs",
+      "chars": 15340,
+      "bytes": 15340,
+      "sha": "a96991250c68e4c93cee196102aed2d02cb139a5",
+      "sha256": "222c3c1e8a428c272a05ebc60107eccdd6f717113c7210a9ed0159c3fcad6ad2"
+    },
+    {
+      "path": "tests/test_profit_paper_account_engine.cjs",
+      "chars": 12966,
+      "bytes": 13030,
+      "sha": "45ce69c3b6fa9e5e0cb95b9a3bee588eee7182f0",
+      "sha256": "7e10c0f752f2b355b46d1234239c176ec09f1dbe56786df9f17e3ddb3cd68545"
+    },
+    {
+      "path": "tests/test_profit_paper_account_ui.cjs",
+      "chars": 17109,
+      "bytes": 17352,
+      "sha": "1f0027bdcce1d03c149a73d350bf32bde7559ceb",
+      "sha256": "252583ccacbe6f880b397363079533d4f2464cd6808c0d116a6c72d9893aa2d3"
+    },
+    {
+      "path": "tests/test_profit_paper_account_build.cjs",
+      "chars": 13775,
+      "bytes": 13811,
+      "sha": "6273a1f8e3c7f0f863adf693104b4c21518ea0c4",
+      "sha256": "e583ad2de58060d252a3432b8516330b81e2f201a754ecf591396de7f5925d43"
+    },
+    {
+      "path": "tests/test_profit_paper_account_frontend.py",
+      "chars": 1531,
+      "bytes": 1531,
+      "sha": "35346c26435b08ab00e613701ca014fbda16a6d9",
+      "sha256": "4cb02e769ba8bc1c990c05c932baaa3630d59fa740968aa45df95495de85d27b"
+    },
+    {
+      "path": "tests/test_profit_paper_account_workflow.py",
+      "chars": 2287,
+      "bytes": 2340,
+      "sha": "d2d6da9e8466b09667d58acffec65b5c66758392",
+      "sha256": "67853dd705b892777f78a930c458a3d613a03c988ac57e3c64952dd18e784bd1"
+    }
+  ],
+  "pipeline": {
+    "shared_workflow": ".github/workflows/deploy_dc20_pages.yml",
+    "after": "Bind active candidate ranking and independent versioned summary",
+    "before": "actions/upload-pages-artifact",
+    "artifact": "outputs/decision/profit_paper_account/account.json",
+    "verification": "exact public revision and account bytes with SHA binding",
+    "producer_identity": "exact source head and run from Pages revision",
+    "duplicate_prevention": "deterministic full replay, no append-only capital updates",
+    "lagging_ledger": "allow older bound ledger, expose cutoff, never read future market days"
+  },
+  "unchanged": [
+    "production model parameters and activation",
+    "rankings and frozen selections",
+    "source ledgers and market data",
+    "entry/exit policies and fees",
+    "schedules and permissions",
+    "historical source review records"
+  ],
+  "names": {
+    "source": "same-D SHA-bound candidate frozen projection",
+    "identity": [
+      "signal_date",
+      "slot",
+      "ts_code",
+      "snapshot_file_sha256",
+      "formal_projection_sha256"
+    ],
+    "missing": "explicit name pending; no cross-day substitution"
+  },
+  "verification": {
+    "node_tests_passed": 49,
+    "pytest_passed": 105,
+    "pytest_deselected": 1,
+    "deselected_reason": "pre-existing exact-current-vs-historical-source-review assertion; historical reviews unchanged",
+    "browser": "real public bound inputs; 36 named ticker rows; desktop and 390px mobile; export and historical navigation; unchanged NAV 1141380.65"
+  }
+}

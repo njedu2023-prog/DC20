@@ -1940,7 +1940,7 @@
     // BEGIN DC20 PAPER ACCOUNT ENGINE
     // Pure replay of externally validated, point-in-time selected proxy transactions.
     // This is not an order simulator or a claim that the proxy prices were executable.
-    function buildProfitPaperAccount(summary, dailyQuotes) {
+    function buildProfitPaperAccount(summary, dailyQuotes, identities = new Map()) {
       const initialCapital = 1000000;
       const tradeBudget = 100000;
       const start = "20260914";
@@ -1953,7 +1953,7 @@
       if (!dateOK(asOf) || asOf < start || !Number.isFinite(fee) || fee < 0 || fee > 0.1) {
         throw new Error("模拟账户的日期或综合成本参数无效");
       }
-      if (!Array.isArray(summary.signal_dates) || !(dailyQuotes instanceof Map)) {
+      if (!Array.isArray(summary.signal_dates) || !(dailyQuotes instanceof Map) || !(identities instanceof Map)) {
         throw new Error("模拟账户需要完整交易日序列及已校验行情 Map");
       }
       const dates = [...new Set([start, ...summary.signal_dates.filter(d => dateOK(d) && d >= start && d <= asOf)])].sort();
@@ -1980,9 +1980,15 @@
           if (missing) missingDates.add(signalDate);
           const future = dateOK(row.exec_date) && row.exec_date > asOf;
           const id = `${signalDate}:R${rank}`;
+          const identity = identities.get(id);
+          if (identity && (identity.signal_date !== signalDate || identity.rank !== rank || identity.ts_code !== row.ts_code)) {
+            throw new Error(`${id} 公司名称与同日冻结股票身份不一致`);
+          }
+          const name = identity && typeof identity.name === "string" && identity.name.trim() ? identity.name.trim() : null;
           sourceById.set(id, row);
           trades.push({
-            id, signal_date: signalDate, rank, ts_code: row.ts_code || null,
+            id, signal_date: signalDate, rank, ts_code: row.ts_code || null, name,
+            name_source: identity ? {signal_date:signalDate,path:identity.source_path,sha256:identity.source_sha256} : null,
             source_status: row.status || "UNKNOWN", status: missing ? "MISSING_FROZEN" : future ? "FUTURE_ENTRY" : "PLANNED",
             reason: missing ? "正式冻结缺档；仅在已知交易参考组合中跳过，不补排、不当作未买入" : future ? "尚未到入场日" : "",
             shares: 0, entry_date: row.exec_date || null, scheduled_exit_date: row.exit_date || null,
@@ -2241,7 +2247,61 @@
     // END DC20 PAPER ACCOUNT ENGINE
 
     // Read-only cash-account view. Never changes frozen selections or outcomes.
-    async function loadProfitPaperAccountInputs(summary, windowPayload) {
+    async function loadProfitPaperAccountIdentities(summary, revision) {
+      const identities = new Map(), sourceFiles = [];
+      if (!revision) return {identities,source_files:sourceFiles};
+      const prefix = "outputs/decision/candidate_profit_v1";
+      executableProfitExpect(revision.candidate_profit_index_url === `${prefix}/index.json`
+        && isSha256(revision.candidate_profit_index_sha256), "模拟账户公司名称目录未绑定发布版本");
+      async function boundJson(path, expectedSha) {
+        const bytes = await fetchPagesOnlyPath(path, "bytes");
+        executableProfitExpect(await sha256Hex(bytes) === expectedSha, "模拟账户公司名称来源SHA不一致");
+        const payload = JSON.parse(new TextDecoder().decode(bytes));
+        sourceFiles.push({path,sha256:expectedSha});
+        return {payload,bytes};
+      }
+      const {payload:index} = await boundJson(revision.candidate_profit_index_url,revision.candidate_profit_index_sha256);
+      executableProfitExpect(index.schema_version === "dc20_candidate_formal_profit_index_v1"
+        && index.activation_id === summary.activation_id && index.model_canonical_sha256 === summary.model_canonical_sha256
+        && Array.isArray(index.days) && canonicalJson(index.days.map(d=>d.signal_date)) === canonicalJson(summary.published_signal_dates),
+        "模拟账户公司名称目录与冻结账本日期或模型不一致");
+      await Promise.all(index.days.map(async entry => {
+        const date = entry.signal_date;
+        executableProfitExpect(entry.path === `${prefix}/day_${date}.json` && isSha256(entry.sha256)
+          && isSha256(entry.snapshot_file_sha256), "模拟账户公司名称目录路径或指纹无效");
+        const {payload:day,bytes} = await boundJson(entry.path,entry.sha256);
+        executableProfitExpect(["dc20_candidate_formal_profit_day_v1","dc20_candidate_formal_profit_day_v2_eligible"].includes(day.schema_version)
+          && day.signal_date === date && day.activation_id === summary.activation_id
+          && day.model_canonical_sha256 === summary.model_canonical_sha256
+          && day.snapshot_file_sha256 === entry.snapshot_file_sha256 && Array.isArray(day.rows)
+          && Array.isArray(day.candidate_slots) && day.candidate_slots.length === 2
+          && new Set(day.rows.map(r=>r.ts_code)).size === day.rows.length,
+          "模拟账户公司名称不是同日正式冻结来源");
+        const projectionSha = await sha256Hex(new TextEncoder().encode(ledgerCanonicalSource(bytes)));
+        for (const rank of [1,2]) {
+          const row = summary.groups[`candidate_top${rank}`].daily_sequence.find(r=>r.signal_date === date);
+          const slot = day.candidate_slots[rank-1];
+          executableProfitExpect(row && row.slot === rank && slot?.slot === rank
+            && row.formal_projection_sha256 === projectionSha && row.snapshot_file_sha256 === day.snapshot_file_sha256
+            && row.exec_date === day.exec_date && row.exit_date === day.exit_date
+            && ["ts_code","candidate_rank","candidate_score","promotion_rank"].every(key=>row[key] === slot[key]),
+            "模拟账户公司名称与同日冻结席位不一致");
+          const identity = day.rows.find(r=>r.ts_code === row.ts_code);
+          if (!identity) {
+            executableProfitExpect(row.status === "MISSING_CANDIDATE", "模拟账户同日冻结股票身份缺失");
+            continue;
+          }
+          executableProfitExpect(identity.candidate_rank === rank && identity.promotion_rank === row.promotion_rank,
+            "模拟账户公司名称对应的冻结排名不一致");
+          identities.set(`${date}:R${rank}`, {signal_date:date,rank,ts_code:row.ts_code,
+            name:typeof identity.name === "string" && identity.name.trim() ? identity.name.trim() : null,
+            source_path:entry.path,source_sha256:entry.sha256});
+        }
+      }));
+      return {identities,source_files:sourceFiles.sort((a,b)=>a.path.localeCompare(b.path))};
+    }
+
+    async function loadProfitPaperAccountInputs(summary, windowPayload, revision) {
       const bindings = windowPayload.source_files;
       executableProfitExpect(Array.isArray(bindings), "模拟账户行情清单不可用");
       const calendar = bindings.filter(b => b.path === "data/market/trade_cal_sse.csv");
@@ -2267,7 +2327,42 @@
           "模拟账户行情日期不符或股票重复");
         quotes.set(day, rows); used.push(matches[0]);
       }));
-      return {quotes, source_files:used.sort((a,b) => a.path.localeCompare(b.path)), missing_market_dates:missing.sort()};
+      const names = await loadProfitPaperAccountIdentities(summary,revision);
+      return {quotes,identities:names.identities,source_files:[...used,...names.source_files].sort((a,b) => a.path.localeCompare(b.path)), missing_market_dates:missing.sort()};
+    }
+
+    async function loadPublishedProfitPaperAccount(loadedSummary, loadedWindow, active) {
+      const revision = active.revision || {};
+      executableProfitExpect(revision.profit_paper_account_url === "outputs/decision/profit_paper_account/account.json"
+        && isSha256(revision.profit_paper_account_sha256), "主任务尚未发布可核验的模拟账户数据，不使用旧结果");
+      const loaded = await fetchPagesOnlyShaBoundJson(revision.profit_paper_account_url, revision.profit_paper_account_sha256, "主任务模拟账户");
+      const result = loaded.payload;
+      executableProfitExpect(result.schema_version === "dc20_paper_capital_account_v1"
+        && result.initial_capital === 1000000 && result.per_trade_budget === 100000
+        && result.cost_rate === loadedSummary.summary.round_trip_cost_rate
+        && result.as_of_date === loadedSummary.summary.as_of_date
+        && result.as_of_date === revision.profit_paper_account_as_of_date
+        && result.last_valid_date === revision.profit_paper_account_last_valid_date,
+        "模拟账户参数或统计日期与当前正式账本不一致");
+      executableProfitExpect(result.publication?.mode === "main_pipeline"
+        && result.publication.source_head_sha === revision.head_sha
+        && String(result.publication.run_id) === String(revision.run_id)
+        && String(result.publication.run_id) === String(revision.profit_paper_account_producer_run_id)
+        && result.publication.published_at_utc === revision.profit_paper_account_updated_at,
+        "模拟账户不是本次主任务发布结果");
+      executableProfitExpect(result.data_bindings?.summary_sha256 === revision.candidate_profit_summary_sha256
+        && result.data_bindings.window_sha256 === revision.compact_statistics_window_sha256
+        && isSha256(result.data_bindings.engine_sha256)
+        && Array.isArray(result.data_bindings.source_files), "模拟账户与主任务数据源版本不一致");
+      const sources = new Map((loadedWindow.payload.source_files || []).map(source => [source.path, source.sha256]));
+      for (const source of result.data_bindings.source_files) {
+        if (source.path.startsWith("data/market/")) executableProfitExpect(sources.get(source.path) === source.sha256,
+          "模拟账户行情来源不属于本次主任务");
+      }
+      executableProfitExpect(Array.isArray(result.trades) && Array.isArray(result.days) && Array.isArray(result.rank_contributions)
+        && result.metrics && typeof result.blocked === "boolean" && Array.isArray(result.missing_signal_dates),
+        "主任务模拟账户结果结构不完整");
+      return result;
     }
 
     async function refreshProfitPaperAccount(loadedSummary, loadedWindow, active) {
@@ -2279,13 +2374,9 @@
         && state.currentCompactStatisticsWindow === loadedWindow && state.candidateProfitActivation === active;
       let timer;
       try {
-        const inputs = await Promise.race([loadProfitPaperAccountInputs(loadedSummary.summary, loadedWindow.payload),
-          new Promise((_,reject) => { timer = setTimeout(() => reject(new Error("模拟账户行情校验超时，请刷新重试")),30000); })]);
+        const result = await Promise.race([loadPublishedProfitPaperAccount(loadedSummary, loadedWindow, active),
+          new Promise((_,reject) => { timer = setTimeout(() => reject(new Error("模拟账户发布数据校验超时，请刷新重试")),30000); })]);
         if (!current()) return;
-        const result = buildProfitPaperAccount(loadedSummary.summary, inputs.quotes);
-        result.data_bindings = {summary_sha256:active.revision?.candidate_profit_summary_sha256 || null,
-          window_sha256:active.revision?.compact_statistics_window_sha256 || null,
-          source_files:inputs.source_files, missing_market_dates:inputs.missing_market_dates};
         Object.assign(view,{status:"ready",result});
       } catch (error) {
         if (current()) Object.assign(view,{status:"unavailable",reason:String(error?.message || error)});
@@ -2348,20 +2439,25 @@
         ["最高收盘仓位",percent(m.max_capital_usage),`收盘最多 ${m.max_open_positions} 笔；日内最多 ${m.max_open_positions_intraday} 笔`]
       ];
       const warnings=[];
+      if(result.publication?.ledger_lagging) warnings.push(`主任务名单已更新至 ${dateText(result.publication.latest_signal_date)}，盈利账本目前截至 ${asOf}，等待上游冻结或结算发布；本看板未使用之后的行情推算结果。`);
       if(result.missing_signal_dates?.length) warnings.push(`正式冻结缺失 D：${result.missing_signal_dates.map(dateText).join("、")}。这部分不猜名单、不补零收益，只跳过；本看板是“已知交易子集”，不是完整策略历史。`);
       if(result.blocked) warnings.push(`最新账户资产：暂不可核验。曲线与全部金额停在 ${last}；数据截至 ${asOf}。${result.blocking_reason||"后续交易或估值证据存在缺口。"} 不把未结算当成零，不把旧资产冒充最新值。`);
       const rankRows=result.rank_contributions.map(r=>`<tr><th scope="row">盈${r.rank}</th><td>${r.closed_trades}</td><td>${r.open_trades}</td><td>${percent(r.win_rate)}</td><td>${money(r.realized_pnl,true)}</td><td>${money(r.unrealized_pnl,true)}</td><td>${money(r.total_pnl,true)}</td></tr>`).join("");
-      const tradeRows=result.trades.map(t=>`<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>盈${t.rank}</td><td>${escapeHtml(t.ts_code||"—")}</td><td title="${escapeHtml(t.reason||t.source_status||"")}">${escapeHtml(paperAccountTradeStatus(t))}</td><td>${escapeHtml(t.shares??"—")}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${money(t.notional)}</td><td class="${valueTone(t.net_pnl)}">${money(t.net_pnl,true)}</td><td>${money(t.unrealized_pnl,true)}</td></tr>`).join("");
+      const tradeRows=result.trades.map(t=>`<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>盈${t.rank}</td><td>${escapeHtml(t.ts_code||"—")}</td><td class="left">${escapeHtml(t.name||"名称待补")}</td><td title="${escapeHtml(t.reason||t.source_status||"")}">${escapeHtml(paperAccountTradeStatus(t))}</td><td>${escapeHtml(t.shares??"—")}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${money(t.notional)}</td><td class="${valueTone(t.net_pnl)}">${money(t.net_pnl,true)}</td><td>${money(t.unrealized_pnl,true)}</td></tr>`).join("");
       const dayRows=result.days.map(d=>`<tr><td>${escapeHtml(dateText(d.date))}</td><td>${money(d.nav)}</td><td>${money(d.cash)}</td><td>${money(d.market_value)}</td><td>${money(d.realized_pnl,true)}</td><td>${money(d.unrealized_pnl,true)}</td><td>${percent(d.drawdown)}</td><td>${d.open_positions}</td></tr>`).join("");
       const pf=Number.isFinite(m.profit_factor)?m.profit_factor.toFixed(2):"—";
+      const published = result.publication?.published_at_utc;
+      const publishedTime = published && Number.isFinite(Date.parse(published))
+        ? new Date(published).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}) : "待核验";
       return `<p class="paper-intro">模拟，不是券商实盘。D 2026-09-14起 · 数据截至 ${escapeHtml(asOf)} · 展示最新累计账户，不随上方历史名单日期切换。盈1、盈2每笔预算各10万元，固定金额、不翻倍、不使用杠杆。</p>
+        <p class="paper-intro paper-publication">更新方式：已绑定主任务发布流程 · 最近发布（北京时间）${escapeHtml(publishedTime)} · 任务 ${escapeHtml(result.publication?.run_id||"待核验")}。主任务及结算发布时自动重算；已打开的页面需刷新读取新版。</p>
         ${warnings.map(w=>`<p class="paper-warning">${escapeHtml(w)}</p>`).join("")}
         <dl class="paper-cards">${cards.map(([label,value,note])=>`<div class="paper-card"><dt>${label}</dt><dd>${value}</dd><small>${note}</small></div>`).join("")}</dl>
         <figure class="paper-chart"><figcaption>已知交易 · 收盘净值曲线（含持仓浮盈亏）</figcaption>${paperAccountCurveSvg(result.days)}</figure>
         <div class="paper-toolbar"><span>已退出胜率 ${percent(m.win_rate)} · 盈亏比值 ${pf}（盈利总额 / 亏损总额） · 最长连亏 ${m.longest_loss_streak} 笔 · 计提成本 ${money(m.total_costs)}</span><button id="profitPaperAccountExport" type="button">导出核验数据 JSON</button></div>
         <p class="paper-intro">未买入 ${m.no_fill_trades} 笔 · 缺失 ${m.missing_trades} 笔 · 现金不足跳过 ${m.insufficient_cash_trades} 笔。未买入不计交易胜率；缺失与未买入不是一回事。样本短且历史有缺口，暂不报告年化收益、夏普比或稳定盈利结论。</p>
         <details open><summary>盈1 / 盈2收益贡献 · 截至 ${escapeHtml(last)}</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="盈1盈2模拟收益贡献，可横向滚动"><table><thead><tr><th>名次</th><th>已退出</th><th>持仓</th><th>胜率</th><th>已实现盈亏</th><th>浮动盈亏</th><th>总贡献</th></tr></thead><tbody>${rankRows}</tbody></table></div></details>
-        <details><summary>逐笔模拟交易与跳过原因（${result.trades.length} 条）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="逐笔模拟交易，可横向滚动"><table><thead><tr><th>D日期</th><th>名次</th><th>代码</th><th>模拟状态</th><th>股数</th><th>买入日</th><th>实际退出日</th><th>股票本金</th><th>已实现盈亏</th><th>浮动盈亏</th></tr></thead><tbody>${tradeRows}</tbody></table></div></details>
+        <details><summary>逐笔模拟交易与跳过原因（${result.trades.length} 条）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="逐笔模拟交易，可横向滚动"><table><thead><tr><th>D日期</th><th>名次</th><th>代码</th><th class="left">公司名称</th><th>模拟状态</th><th>股数</th><th>买入日</th><th>实际退出日</th><th>股票本金</th><th>已实现盈亏</th><th>浮动盈亏</th></tr></thead><tbody>${tradeRows}</tbody></table></div></details>
         <details><summary>逐日净值与回撤数值（${result.days.length} 日）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="净值曲线逐日数值，可横向滚动"><table><thead><tr><th>估值日</th><th>账户资产</th><th>现金</th><th>持仓市值</th><th>已实现盈亏</th><th>浮动盈亏</th><th>回撤</th><th>持仓笔数</th></tr></thead><tbody>${dayRows}</tbody></table></div></details>
         <details><summary>模拟规则、成交假设与缺口说明</summary><ul class="paper-rules">
           <li>只消费当日已冻结盈1、盈2，不重排、不替补；一字涨停等系统判定未买入的记录保持现金。</li>

@@ -149,3 +149,26 @@ test('input objects remain unchanged and repeated replay is deterministic', () =
   const s = summary([row('20260914')]); const q = quotesFor(s); const before = JSON.stringify(s);
   const first = replay(s, q); const second = replay(s, q); assert.deepEqual(first, second); assert.equal(JSON.stringify(s), before);
 });
+test('company names use same-D rank/code identities and stay distinct across renamed lots', () => {
+  const s = summary([row('20260914'), row('20260915', 1)], '20260917');
+  const identities = new Map(['20260914','20260915'].map((date, i) => [`${date}:R1`, {
+    signal_date:date,rank:1,ts_code:'000001.SZ',name:i ? ' 新名称 ' : '旧名称',
+    source_path:`outputs/decision/candidate_profit_v1/day_${date}.json`,source_sha256:'a'.repeat(64)
+  }]));
+  const before = JSON.stringify([...identities]);
+  const out = replay(s,quotesFor(s),identities);
+  const old = out.trades.find(t=>t.id === '20260914:R1'), renamed = out.trades.find(t=>t.id === '20260915:R1');
+  assert.equal(old.name,'旧名称'); assert.equal(renamed.name,'新名称');
+  assert.equal(old.name_source.signal_date,'20260914');
+  assert.equal(renamed.name_source.path,'outputs/decision/candidate_profit_v1/day_20260915.json');
+  assert.equal(out.trades.find(t=>t.id === '20260914:R2').name,null);
+  assert.equal(JSON.stringify([...identities]),before);
+  near(out.metrics.nav,replay(s,quotesFor(s)).metrics.nav);
+});
+test('wrong-day, rank or ticker company identity fails without cross-day name substitution', () => {
+  const s=summary([row('20260914')]);
+  for (const change of [{signal_date:'20260915'},{rank:2},{ts_code:'000002.SZ'}]) {
+    const identities=new Map([['20260914:R1',{signal_date:'20260914',rank:1,ts_code:'000001.SZ',name:'不能错配',...change}]]);
+    assert.throws(()=>replay(s,quotesFor(s),identities),/公司名称与同日冻结股票身份不一致/);
+  }
+});
