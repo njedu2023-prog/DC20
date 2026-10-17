@@ -1,0 +1,60 @@
+{
+  "schema_version": "dc20_paper_account_source_review_v1",
+  "baseline_commit": "6c9982b570977c0d426d8f2ce0be26796c763193",
+  "scope": "READ_ONLY_KNOWN_TRADE_PAPER_ACCOUNT_VIEW",
+  "source_changes": [
+    {
+      "path": "decision.html",
+      "baseline_sha256": "9f3cb6074845588c2a56d3cfc285b2eb8d0d14f6fb59929b22bd48bf316856f6",
+      "current_sha256": "802a4bf534d81da9fb7c200b50646eeb4741271cdcc3a18e899b13116cd11473",
+      "baseline_bytes": 509255,
+      "current_bytes": 551894
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_sha256": "7a41ec3bb20569af8cd70d690042caef50075b770eea8aa38675316d26d725b6",
+      "current_sha256": "3e1a5054fa941a51507848809eafb0cdb3fd1264b84e3b6324c549614b4e18b0",
+      "baseline_bytes": 53027,
+      "current_bytes": 53027
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_sha256": "2fc6ab68e82a84ef3b12bcd4256cd58dfb98051a8a5883a6eee781c522553769",
+      "current_sha256": "a49ef9f28b79c33c0453b8a46463b213c2c9040dc49db6f0a7da3f5d665aa362",
+      "baseline_bytes": 16204,
+      "current_bytes": 16204
+    }
+  ],
+  "unchanged": [
+    "model parameters and activation",
+    "frozen selections and rankings",
+    "entry and exit policies",
+    "original ledgers and market evidence",
+    "workflow definitions and schedules",
+    "historical source reviews"
+  ],
+  "account_contract": {
+    "initial_capital_cny": 1000000,
+    "budget_per_rank_cny": 100000,
+    "rank_slots": [
+      1,
+      2
+    ],
+    "from_signal_date": "20260914",
+    "integer_lot_size": 100,
+    "fee_reserve": "existing round_trip_cost_rate once on entry notional, included in budget",
+    "cash_order": "09:25 entries before recorded exit events; no leverage; skip insufficient budget",
+    "missing_frozen": "skip only in explicitly incomplete known-trade subset",
+    "uncertain_exit": "truncate account before first unverified day; never zero or assume continuation",
+    "valuation": "unadjusted close per lot; stop on changed pre_close basis without verified corporate actions",
+    "risk": "daily close NAV drawdown, separate intraday count/cost exposure; not intraday MDD",
+    "performance_claim": "proxy research, not broker execution or proven future profit"
+  },
+  "verification": {
+    "node_account_tests": 26,
+    "existing_selected_pytest_passed": 101,
+    "browser": "isolated desktop Chrome and 390px mobile; actual SHA-bound public data; no page errors",
+    "known_baseline_issue": "20260928_nightly_stats historical review hashes already differ from baseline HEAD. Historical review left immutable; old exact-current-review test excluded, not claimed passing."
+  },
+  "baseline_inventory_note": "Existing inventory freeze hash was stale; only this asset hash and byte count refreshed to current manifest."
+}

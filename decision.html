@@ -1212,6 +1212,33 @@
     #compactLedger .profit-summary-table th:first-child, #compactLedger .profit-summary-table td:first-child { min-width: 72px; }
     .promotion-success-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
     .profit-next-day-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #profitPaperAccount { min-width:0; overflow:hidden; scroll-margin-top:80px; }
+    #profitPaperAccount .paper-body { padding:12px; min-width:0; }
+    #profitPaperAccount .paper-intro { margin:0 0 12px; color:var(--muted); font-size:12px; line-height:1.65; }
+    #profitPaperAccount .paper-warning { padding:10px 12px; margin:0 0 12px; border-left:3px solid #b37924; background:#fff7e7; color:#78551e; font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
+    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 14px; }
+    #profitPaperAccount .paper-card { min-width:0; padding:12px; background:#f5f8f7; border:1px solid var(--line); border-radius:8px; }
+    #profitPaperAccount .paper-card dt { font-size:12px; color:var(--muted); }
+    #profitPaperAccount .paper-card dd { margin:6px 0 0; font-size:20px; font-weight:700; overflow-wrap:anywhere; }
+    #profitPaperAccount .paper-card small { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.5; }
+    #profitPaperAccount .paper-chart { margin:0 0 14px; padding:10px; border:1px solid var(--line); border-radius:8px; min-width:0; }
+    #profitPaperAccount .paper-chart figcaption { font-size:13px; font-weight:650; }
+    #profitPaperAccount .paper-chart svg { display:block; width:100%; height:auto; max-height:350px; }
+    #profitPaperAccount .paper-chart text { font-family:inherit; font-size:12px; fill:var(--muted); }
+    #profitPaperAccount .paper-chart .paper-narrow-chart text { font-size:24px; }
+    #profitPaperAccount details { margin-top:10px; border-top:1px solid var(--line); }
+    #profitPaperAccount summary { padding:10px 0; font-size:13px; cursor:pointer; color:#17675a; }
+    #profitPaperAccount .paper-table-wrap { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    #profitPaperAccount table { width:100%; min-width:680px; border-collapse:collapse; font-size:12px; }
+    #profitPaperAccount th,#profitPaperAccount td { padding:8px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    #profitPaperAccount th { background:#edf4f1; }
+    #profitPaperAccount th:first-child,#profitPaperAccount td:first-child { text-align:left; }
+    #profitPaperAccount .paper-rules { padding-left:20px; font-size:12px; line-height:1.8; color:var(--muted); }
+    #profitPaperAccount .paper-toolbar { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0; font-size:12px; color:var(--muted); }
+    #profitPaperAccount button { border:1px solid var(--line); border-radius:6px; background:#fff; padding:7px 10px; color:#17675a; cursor:pointer; }
+    #profitPaperAccount button:focus-visible,#profitPaperAccount summary:focus-visible { outline:2px solid #17675a; outline-offset:2px; }
+    @media(max-width:760px) { #profitPaperAccount .paper-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:400px) { #profitPaperAccount .paper-body { padding:8px; } #profitPaperAccount .paper-card { padding:9px; } #profitPaperAccount .paper-card dd { font-size:17px; } }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
     .promotion-success-summary > div:last-child { border-right: 0; }
     .promotion-success-summary dt { font-size: 14px; font-weight: 700; }
@@ -1302,6 +1329,7 @@
       <a class="active" href="#rankingWorkspace" aria-current="location">名单与两项排序</a>
       <a href="#compactLedger" data-current-only>盈利前二累计统计</a>
       <a href="#compactStatistics" data-current-only>晋级成功率</a>
+      <a href="#profitPaperAccount" data-current-only>模拟账户</a>
       <a href="/DC20/outputs/decision/profit_research/" target="_blank" rel="noopener noreferrer" title="在新窗口打开盈利模型研究台">盈利模型研究台 ↗</a>
     </nav>
 
@@ -1352,6 +1380,10 @@
     <section id="profitNextDay" class="panel" aria-labelledby="profitNextDayTitle">
       <div class="panel-head"><h2 id="profitNextDayTitle">盈利次日表现</h2><span class="count">盈1 / 盈2</span></div>
       <div id="profitNextDayContent"><div class="empty">正在校验次日行情。</div></div>
+    </section>
+    <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle">
+      <div class="panel-head"><h2 id="profitPaperAccountTitle">盈利前二 · 模拟账户</h2><span class="count">本金100万元 · 盈1 / 盈2各10万元</span></div>
+      <div id="profitPaperAccountContent" class="paper-body" aria-live="polite"><div class="empty">正在校验模拟账户数据。</div></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
 
@@ -1905,6 +1937,473 @@
       node.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl><p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
     }
 
+    // BEGIN DC20 PAPER ACCOUNT ENGINE
+    // Pure replay of externally validated, point-in-time selected proxy transactions.
+    // This is not an order simulator or a claim that the proxy prices were executable.
+    function buildProfitPaperAccount(summary, dailyQuotes) {
+      const initialCapital = 1000000;
+      const tradeBudget = 100000;
+      const start = "20260914";
+      const fee = Number(summary && summary.round_trip_cost_rate);
+      const dateOK = value => typeof value === "string" && /^\d{8}$/.test(value);
+      const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+      const positive = value => finite(value) && Number(value) > 0;
+      const money = value => Math.round((value + Number.EPSILON) * 100) / 100;
+      const asOf = summary && summary.as_of_date;
+      if (!dateOK(asOf) || asOf < start || !Number.isFinite(fee) || fee < 0 || fee > 0.1) {
+        throw new Error("模拟账户的日期或综合成本参数无效");
+      }
+      if (!Array.isArray(summary.signal_dates) || !(dailyQuotes instanceof Map)) {
+        throw new Error("模拟账户需要完整交易日序列及已校验行情 Map");
+      }
+      const dates = [...new Set([start, ...summary.signal_dates.filter(d => dateOK(d) && d >= start && d <= asOf)])].sort();
+      if (!dates.includes(asOf)) throw new Error("账户统计截止日不在交易日序列内");
+      const dateSet = new Set(dates);
+      const sourceMissingDates = (summary.missing_signal_dates || []).filter(d => dateOK(d) && d >= start && d <= asOf);
+      const missingDates = new Set(sourceMissingDates);
+      const trades = [];
+      const sourceById = new Map();
+      for (const rank of [1, 2]) {
+        const group = summary.groups && summary.groups[`candidate_top${rank}`];
+        if (!group || !Array.isArray(group.daily_sequence)) throw new Error(`缺少盈利${rank}完整逐日账本`);
+        const rows = new Map();
+        for (const row of group.daily_sequence) {
+          if (!dateOK(row.signal_date)) throw new Error("账本信号日期无效");
+          if (row.signal_date < start || row.signal_date > asOf) continue;
+          if (rows.has(row.signal_date)) throw new Error("同日同排名账本重复");
+          rows.set(row.signal_date, row);
+        }
+        for (const signalDate of dates) {
+          const row = rows.get(signalDate) || {signal_date: signalDate, status: "MISSING_D_PUBLICATION", slot: rank};
+          if (row.slot !== undefined && Number(row.slot) !== rank) throw new Error("账本排名与分组不一致");
+          const missing = row.status === "MISSING_D_PUBLICATION" || row.status === "MISSING_CANDIDATE";
+          if (missing) missingDates.add(signalDate);
+          const future = dateOK(row.exec_date) && row.exec_date > asOf;
+          const id = `${signalDate}:R${rank}`;
+          sourceById.set(id, row);
+          trades.push({
+            id, signal_date: signalDate, rank, ts_code: row.ts_code || null,
+            source_status: row.status || "UNKNOWN", status: missing ? "MISSING_FROZEN" : future ? "FUTURE_ENTRY" : "PLANNED",
+            reason: missing ? "正式冻结缺档；仅在已知交易参考组合中跳过，不补排、不当作未买入" : future ? "尚未到入场日" : "",
+            shares: 0, entry_date: row.exec_date || null, scheduled_exit_date: row.exit_date || null,
+            exit_date: row.actual_exit_date || null, entry_price: finite(row.entry_price) ? Number(row.entry_price) : null,
+            exit_price: finite(row.exit_price) ? Number(row.exit_price) : null, notional: 0, costs: 0,
+            net_pnl: null, market_value: 0, unrealized_pnl: 0, last_close: null,
+            actual_exit_time: row.actual_exit_time || null
+          });
+        }
+      }
+      trades.sort((a, b) => a.signal_date.localeCompare(b.signal_date) || a.rank - b.rank);
+      const quoteCache = new Map();
+      function quoteFor(date, code) {
+        if (!quoteCache.has(date)) {
+          const raw = dailyQuotes.get(date);
+          const rows = raw instanceof Map ? [...raw.values()] : Array.isArray(raw) ? raw : [];
+          const byCode = new Map();
+          for (const row of rows) {
+            if (!row || String(row.trade_date) !== date || !row.ts_code) continue;
+            if (byCode.has(row.ts_code)) byCode.set(row.ts_code, null);
+            else byCode.set(row.ts_code, row);
+          }
+          quoteCache.set(date, byCode);
+        }
+        return quoteCache.get(date).get(code);
+      }
+      function problem(date, code, message, trade) {
+        return {date, code, message, trade_id: trade ? trade.id : null};
+      }
+      const noFillStates = new Set([
+        "NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME", "NO_FILL_SUSPENDED",
+        "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED", "NO_FILL_CAPACITY"
+      ]);
+      let cash = initialCapital;
+      let currentTrades = trades;
+      let peak = initialCapital;
+      let peakDate = start;
+      let worstDrawdown = 0;
+      let worstAmount = 0;
+      let worstPeak = start;
+      let worstTrough = start;
+      let worstAmountPeak = start;
+      let worstAmountTrough = start;
+      let maxIntradayPositions = 0;
+      let maxIntradayCommittedCost = 0;
+      const days = [];
+      const blockers = [];
+      for (const date of dates) {
+        // Commit each day's state atomically: an uncertain exit cannot produce a partial NAV.
+        const nextTrades = currentTrades.map(t => ({...t}));
+        let nextCash = cash;
+        let dayPeakPositions = nextTrades.filter(t => t.status === "OPEN").length;
+        let dayPeakCommittedCost = money(nextTrades.filter(t => t.status === "OPEN").reduce((sum, t) => sum + t.notional + t.costs, 0));
+        let dayProblem = null;
+        const fail = (code, message, trade) => { if (!dayProblem) dayProblem = problem(date, code, message, trade); };
+        for (const trade of nextTrades) {
+          if (trade.status === "PLANNED" && (!dateOK(trade.entry_date) || !dateSet.has(trade.entry_date))) {
+            if (date >= trade.signal_date) fail("INVALID_ENTRY_DATE", `${trade.id} 缺少可核验的交易日入场日期`, trade);
+          }
+          if (trade.status !== "OPEN") continue;
+          const quote = quoteFor(date, trade.ts_code);
+          if (!quote || !positive(quote.pre_close)) {
+            fail("MISSING_QUOTE", `${trade.ts_code} ${date} 缺少持仓日的前收盘价，无法核验除权或估值`, trade);
+          } else if (!positive(trade.last_close) || Math.round(Number(quote.pre_close) * 100) !== Math.round(trade.last_close * 100)) {
+            fail("CORPORATE_ACTION_UNVERIFIED", `${trade.ts_code} ${date} 前收盘价与上一持仓日收盘不连续；未核验分红、送转或价格修订`, trade);
+          }
+          const row = sourceById.get(trade.id);
+          if (!dateOK(trade.scheduled_exit_date) || trade.scheduled_exit_date <= trade.entry_date) {
+            fail("INVALID_T1", `${trade.id} 缺少合法的 T+1 最早退出日`, trade);
+          } else if (!trade.exit_date && date >= trade.scheduled_exit_date) {
+            // A pending label is not proof of another limit-up hold. Stop at earliest ambiguity.
+            fail("UNRESOLVED_EXIT", `${trade.ts_code} ${date} 已到最早退出日，但 ${row.status} 未给出可核验的退出或完整顺延记录`, trade);
+          }
+        }
+        if (dayProblem) { blockers.push(dayProblem); break; }
+        const events = [];
+        for (const trade of nextTrades) {
+          if (trade.status === "PLANNED" && trade.entry_date === date) events.push({kind: "entry", time: "09:25:00", trade});
+          if (trade.status === "OPEN" && trade.exit_date === date) {
+            const stamp = String(trade.actual_exit_time || "");
+            const isoDate = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
+            const match = stamp.match(/T(\d{2}:\d{2}:\d{2})(?:\.\d+)?\+08:00$/);
+            if (!stamp.startsWith(isoDate + "T") || !match || match[1] < "09:30:00" || match[1] > "15:00:00") {
+              fail("INVALID_EXIT_TIME", `${trade.id} 缺少合法的已核验退出时间`, trade);
+            } else events.push({kind: "exit", time: match[1], trade});
+          }
+        }
+        events.sort((a, b) => a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1) || a.trade.rank - b.trade.rank || a.trade.id.localeCompare(b.trade.id));
+        for (const event of events) {
+          if (dayProblem) break;
+          const trade = event.trade;
+          const row = sourceById.get(trade.id);
+          if (event.kind === "entry") {
+            if (trade.entry_date <= trade.signal_date) { fail("INVALID_T1", `${trade.id} 入场不得早于或等于 D 信号日`, trade); continue; }
+            const nextSignalSession = dates[dates.indexOf(trade.signal_date) + 1];
+            if (nextSignalSession && trade.entry_date !== nextSignalSession) {
+              fail("INVALID_ENTRY_DATE", `${trade.id} 入场日不是 D 后下一交易日`, trade); continue;
+            }
+            if (noFillStates.has(row.status)) {
+              if (row.proxy_fill !== 0 || (row.slot_net_return !== 0 && row.slot_net_return !== null)) {
+                fail("INVALID_NO_FILL", `${trade.id} 未买入状态与成交标记冲突`, trade); continue;
+              }
+              trade.status = "NO_FILL"; trade.reason = "按系统未成交规则跳过；不扣成本，不计入成交胜率";
+              continue;
+            }
+            // Decisions use cash available before the opening auction, never later sale proceeds.
+            if (nextCash + 0.000001 < tradeBudget) {
+              trade.status = "INSUFFICIENT_CASH"; trade.reason = "竞价时可用现金不足 10 万元，不缩注、不融资；同日盈1优先";
+              continue;
+            }
+            if (row.proxy_fill !== 1 || !positive(trade.entry_price) || !trade.ts_code) {
+              fail("UNRESOLVED_ENTRY", `${trade.id} 已到入场日，成交代理或入场价尚未核验（${row.status}）`, trade); continue;
+            }
+            if (!dateOK(trade.scheduled_exit_date) || trade.scheduled_exit_date <= trade.entry_date || (trade.exit_date && trade.exit_date < trade.scheduled_exit_date)) {
+              fail("INVALID_T1", `${trade.id} 退出日不满足系统 T+1 约束`, trade); continue;
+            }
+            const nextSession = dates[dates.indexOf(trade.entry_date) + 1];
+            if (nextSession && trade.scheduled_exit_date !== nextSession) {
+              fail("INVALID_T1", `${trade.id} 最早退出日不是入场后的下一交易日`, trade); continue;
+            }
+            if (trade.exit_date && (!dateOK(trade.exit_date) || (trade.exit_date <= asOf && !dateSet.has(trade.exit_date)))) {
+              fail("INVALID_EXIT_DATE", `${trade.id} 已结算退出日不在交易日序列内`, trade); continue;
+            }
+            trade.shares = Math.floor(tradeBudget / (trade.entry_price * 100 * (1 + fee))) * 100;
+            if (!trade.shares) { trade.status = "BUDGET_BELOW_ONE_LOT"; trade.reason = "10万元预算不足一手，不买入"; continue; }
+            trade.notional = money(trade.shares * trade.entry_price);
+            trade.costs = money(trade.notional * fee);
+            while (trade.notional + trade.costs > tradeBudget + 0.000001 && trade.shares > 0) {
+              trade.shares -= 100; trade.notional = money(trade.shares * trade.entry_price); trade.costs = money(trade.notional * fee);
+            }
+            nextCash = money(nextCash - trade.notional - trade.costs);
+            trade.status = "OPEN"; trade.reason = "模拟持仓；综合往返成本已在入场预提";
+          } else {
+            if (!positive(trade.exit_price) || !finite(row.slot_net_return) || !String(row.status).startsWith("SETTLED_")) {
+              fail("UNRESOLVED_EXIT", `${trade.id} 缺少已结算价格及净收益证据`, trade); continue;
+            }
+            const priceReturn = trade.exit_price / trade.entry_price - 1 - fee;
+            if (Math.abs(priceReturn - Number(row.slot_net_return)) > 1e-8) {
+              fail("RETURN_PRICE_MISMATCH", `${trade.id} 账本收益与原始买卖价不一致，需核验复权、分红或成本`, trade); continue;
+            }
+            const proceeds = money(trade.shares * trade.exit_price);
+            nextCash = money(nextCash + proceeds);
+            trade.net_pnl = money(proceeds - trade.notional - trade.costs);
+            trade.market_value = 0; trade.unrealized_pnl = 0; trade.status = "CLOSED";
+            trade.reason = "沿用已核验退出代理；不是券商实际成交";
+          }
+          const eventOpen = nextTrades.filter(t => t.status === "OPEN");
+          dayPeakPositions = Math.max(dayPeakPositions, eventOpen.length);
+          dayPeakCommittedCost = Math.max(dayPeakCommittedCost, money(eventOpen.reduce((sum, t) => sum + t.notional + t.costs, 0)));
+        }
+        let marketValue = 0;
+        let unrealized = 0;
+        for (const trade of nextTrades) {
+          if (dayProblem || trade.status !== "OPEN") continue;
+          const quote = quoteFor(date, trade.ts_code);
+          if (!quote || !positive(quote.close) || !positive(quote.pre_close)) {
+            fail("MISSING_QUOTE", `${trade.ts_code} ${date} 缺少有效收盘估值；不沿用旧价或记零`, trade); continue;
+          }
+          trade.last_close = Number(quote.close);
+          trade.market_value = money(trade.shares * trade.last_close);
+          trade.unrealized_pnl = money(trade.market_value - trade.notional - trade.costs);
+          marketValue += trade.market_value; unrealized += trade.unrealized_pnl;
+        }
+        if (dayProblem) { blockers.push(dayProblem); break; }
+        const realized = money(nextTrades.filter(t => t.status === "CLOSED").reduce((sum, t) => sum + t.net_pnl, 0));
+        marketValue = money(marketValue); unrealized = money(unrealized);
+        const nav = money(nextCash + marketValue);
+        if (nextCash < -0.001 || Math.abs(nav - initialCapital - realized - unrealized) > 0.011) {
+          blockers.push(problem(date, "ACCOUNTING_IDENTITY", "现金、持仓和盈亏勾稽不平衡，暂停展示", null)); break;
+        }
+        if (nav > peak) { peak = nav; peakDate = date; }
+        const drawdown = nav / peak - 1;
+        const drawdownAmount = money(peak - nav);
+        if (-drawdown > worstDrawdown) { worstDrawdown = -drawdown; worstPeak = peakDate; worstTrough = date; }
+        if (drawdownAmount > worstAmount) { worstAmount = drawdownAmount; worstAmountPeak = peakDate; worstAmountTrough = date; }
+        maxIntradayPositions = Math.max(maxIntradayPositions, dayPeakPositions);
+        maxIntradayCommittedCost = Math.max(maxIntradayCommittedCost, dayPeakCommittedCost);
+        days.push({date, nav, cash: nextCash, market_value: marketValue, realized_pnl: realized,
+          unrealized_pnl: unrealized, total_pnl: money(nav - initialCapital), cumulative_return: nav / initialCapital - 1,
+          drawdown, drawdown_amount: drawdownAmount, capital_usage: nav > 0 ? marketValue / nav : null,
+          open_positions: nextTrades.filter(t => t.status === "OPEN").length,
+          costs: money(nextTrades.reduce((sum, t) => sum + t.costs, 0))});
+        currentTrades = nextTrades; cash = nextCash;
+      }
+      for (const trade of currentTrades) {
+        if (trade.status === "PLANNED") {
+          trade.status = "DEFERRED_AFTER_BLOCKER";
+          trade.reason = "前序账目存在缺口，未继续推演现金和交易";
+        }
+        delete trade.last_close;
+      }
+      const last = days.length ? days[days.length - 1] : null;
+      const closed = currentTrades.filter(t => t.status === "CLOSED").sort((a, b) => String(a.actual_exit_time).localeCompare(String(b.actual_exit_time)) || a.rank - b.rank || a.id.localeCompare(b.id));
+      const wins = closed.filter(t => t.net_pnl > 0);
+      const losses = closed.filter(t => t.net_pnl < 0);
+      const grossGains = wins.reduce((s, t) => s + t.net_pnl, 0);
+      const grossLosses = -losses.reduce((s, t) => s + t.net_pnl, 0);
+      let streak = 0; let longestStreak = 0;
+      for (const trade of closed) { streak = trade.net_pnl < 0 ? streak + 1 : 0; longestStreak = Math.max(longestStreak, streak); }
+      const rankContributions = [1, 2].map(rank => {
+        const own = currentTrades.filter(t => t.rank === rank);
+        const done = own.filter(t => t.status === "CLOSED");
+        const realized = money(done.reduce((s, t) => s + t.net_pnl, 0));
+        const floating = money(own.reduce((s, t) => s + t.unrealized_pnl, 0));
+        return {rank, realized_pnl: realized, unrealized_pnl: floating, total_pnl: money(realized + floating),
+          costs: money(own.reduce((s, t) => s + t.costs, 0)), closed_trades: done.length,
+          open_trades: own.filter(t => t.status === "OPEN").length,
+          win_rate: done.length ? done.filter(t => t.net_pnl > 0).length / done.length : null};
+      });
+      const missingSignalDates = [...missingDates].sort();
+      const complete = blockers.length === 0 && missingSignalDates.length === 0 && summary.coverage_complete !== false;
+      const metrics = {
+        nav: last ? last.nav : null, cash: last ? last.cash : null, market_value: last ? last.market_value : null,
+        total_pnl: last ? last.total_pnl : null, cumulative_return: last ? last.cumulative_return : null,
+        realized_pnl: last ? last.realized_pnl : null, unrealized_pnl: last ? last.unrealized_pnl : null,
+        total_costs: last ? last.costs : null, max_drawdown: days.length ? worstDrawdown : null,
+        max_drawdown_amount: days.length ? worstAmount : null, drawdown_peak_date: days.length ? worstPeak : null,
+        drawdown_trough_date: days.length ? worstTrough : null,
+        drawdown_amount_peak_date: days.length ? worstAmountPeak : null,
+        drawdown_amount_trough_date: days.length ? worstAmountTrough : null,
+        max_capital_usage: days.length ? Math.max(...days.map(d => d.capital_usage || 0)) : null,
+        max_open_positions: days.length ? Math.max(...days.map(d => d.open_positions)) : null,
+        max_open_positions_intraday: days.length ? maxIntradayPositions : null,
+        max_committed_cost_intraday: days.length ? maxIntradayCommittedCost : null,
+        filled_trades: currentTrades.filter(t => t.status === "OPEN" || t.status === "CLOSED").length,
+        closed_trades: closed.length, open_trades: currentTrades.filter(t => t.status === "OPEN").length,
+        no_fill_trades: currentTrades.filter(t => t.status === "NO_FILL").length,
+        missing_trades: currentTrades.filter(t => t.status === "MISSING_FROZEN").length,
+        insufficient_cash_trades: currentTrades.filter(t => t.status === "INSUFFICIENT_CASH").length,
+        win_rate: closed.length ? wins.length / closed.length : null,
+        profit_factor: grossLosses > 0 ? grossGains / grossLosses : null,
+        longest_loss_streak: longestStreak, annualized_return: null, sharpe: null
+      };
+      return {
+        schema_version: "dc20_paper_capital_account_v1", as_of_date: asOf,
+        last_valid_date: last ? last.date : null, initial_capital: initialCapital,
+        per_trade_budget: tradeBudget, cost_rate: fee, complete, blocked: blockers.length > 0,
+        blocking_reason: blockers.length ? blockers[0].message : null, blockers,
+        missing_signal_dates: missingSignalDates, days, trades: currentTrades, metrics,
+        rank_contributions: rankContributions,
+        assumptions: [
+          "初始100万元；盈1、盈2各10万元含综合成本预算；固定金额、不复利加注、不融资。",
+          "100股整数手；整笔往返综合成本按原始买入金额预提，退出不再重复扣费；这是统一代理成本，不是券商逐项收费。",
+          "09:25入场先于同日退出；现金不足10万元则跳过，同日按盈1、盈2顺序；已知未成交不计入成交胜率。",
+          "沿用已核验代理入场和实际退出日期、时间；涨停顺延持仓每日按原始收盘价估值。",
+          "缺少正式冻结的信号日只在已知交易参考组合中跳过；完整策略的收益、净值和回撤仍未获验证。",
+          "未知到期退出、未确认成交、缺失估值或未核验除权会截断曲线；截断后不补零、不假设继续持有。",
+          "现金不计利息；无杠杆、无额外资金流；未验证真实排队、冲击成本和十万元成交容量。",
+          "回撤为每日收盘资产曲线，不含日内最大回撤；资金占用率为收盘持仓市值/总资产。",
+          "连亏按已平仓交易退出时间排列，同时退出按盈1优先；不是连续亏损交易日。",
+          "不展示年化收益和夏普比，避免短样本或缺档产生误导。"
+        ]
+      };
+    }
+    if (typeof module !== "undefined" && module.exports) module.exports = {buildProfitPaperAccount};
+    // END DC20 PAPER ACCOUNT ENGINE
+
+    // Read-only cash-account view. Never changes frozen selections or outcomes.
+    async function loadProfitPaperAccountInputs(summary, windowPayload) {
+      const bindings = windowPayload.source_files;
+      executableProfitExpect(Array.isArray(bindings), "模拟账户行情清单不可用");
+      const calendar = bindings.filter(b => b.path === "data/market/trade_cal_sse.csv");
+      executableProfitExpect(calendar.length === 1 && calendar[0].sha256 === summary.calendar_sha256,
+        "模拟账户交易日历与正式账本不一致");
+      const calendarBytes = await fetchPagesOnlyPath(calendar[0].path, "bytes");
+      executableProfitExpect(await sha256Hex(calendarBytes) === calendar[0].sha256, "模拟账户交易日历SHA不一致");
+      const dates = parseStrictCsvBytes(calendarBytes, ["cal_date", "is_open"], "模拟账户交易日历")
+        .filter(r => String(r.is_open) === "1" && r.cal_date >= "20260914" && r.cal_date <= summary.as_of_date)
+        .map(r => r.cal_date).sort();
+      executableProfitExpect(new Set(dates).size === dates.length && canonicalJson(dates) === canonicalJson(summary.signal_dates),
+        "模拟账户交易日范围与冻结账本不一致");
+      const quotes = new Map(), used = [calendar[0]], missing = [];
+      await Promise.all(dates.map(async day => {
+        const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;
+        const matches = bindings.filter(b => b.path === path);
+        executableProfitExpect(matches.length <= 1, "模拟账户每日行情绑定重复");
+        if (!matches.length) { missing.push(day); return; }
+        const raw = await fetchPagesOnlyPath(path, "bytes");
+        executableProfitExpect(await sha256Hex(raw) === matches[0].sha256, `模拟账户${dateText(day)}行情SHA不一致`);
+        const rows = parseStrictCsvBytes(raw, ["ts_code", "trade_date", "close", "pre_close"], "模拟账户收盘估值");
+        executableProfitExpect(rows.every(r => r.trade_date === day) && new Set(rows.map(r => r.ts_code)).size === rows.length,
+          "模拟账户行情日期不符或股票重复");
+        quotes.set(day, rows); used.push(matches[0]);
+      }));
+      return {quotes, source_files:used.sort((a,b) => a.path.localeCompare(b.path)), missing_market_dates:missing.sort()};
+    }
+
+    async function refreshProfitPaperAccount(loadedSummary, loadedWindow, active) {
+      const loadSequence = state.compactLoadSequence;
+      const view = {status:"loading", loadedSummary, loadedWindow, active, loadSequence};
+      state.profitPaperAccount = view;
+      const current = () => !state.compactFatalError && state.compactLoadSequence === loadSequence
+        && state.profitPaperAccount === view && state.candidateProfitSummary === loadedSummary
+        && state.currentCompactStatisticsWindow === loadedWindow && state.candidateProfitActivation === active;
+      let timer;
+      try {
+        const inputs = await Promise.race([loadProfitPaperAccountInputs(loadedSummary.summary, loadedWindow.payload),
+          new Promise((_,reject) => { timer = setTimeout(() => reject(new Error("模拟账户行情校验超时，请刷新重试")),30000); })]);
+        if (!current()) return;
+        const result = buildProfitPaperAccount(loadedSummary.summary, inputs.quotes);
+        result.data_bindings = {summary_sha256:active.revision?.candidate_profit_summary_sha256 || null,
+          window_sha256:active.revision?.compact_statistics_window_sha256 || null,
+          source_files:inputs.source_files, missing_market_dates:inputs.missing_market_dates};
+        Object.assign(view,{status:"ready",result});
+      } catch (error) {
+        if (current()) Object.assign(view,{status:"unavailable",reason:String(error?.message || error)});
+      } finally { clearTimeout(timer); }
+      if (current()) renderProfitPaperAccount();
+    }
+
+    function paperAccountMoney(value, signed = false) {
+      if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+      return `${signed && value > 0 ? "+" : ""}${value.toLocaleString("zh-CN", {minimumFractionDigits:2,maximumFractionDigits:2})} 元`;
+    }
+
+    function paperAccountTradeStatus(trade) {
+      const labels = {SETTLED:"已退出",CLOSED:"已退出",OPEN:"持仓中",HOLDING:"持仓中",NO_FILL:"未买入",PLANNED:"计划待核验",
+        MISSING_FROZEN:"冻结缺失 · 跳过",BUDGET_BELOW_ONE_LOT:"预算不足一手 · 跳过",FUTURE_ENTRY:"等待买入日",
+        SKIPPED_NO_FILL:"未买入",SKIPPED_MISSING:"冻结缺失 · 跳过",MISSING_D_PUBLICATION:"冻结缺失 · 跳过",
+        SKIPPED_INSUFFICIENT_CASH:"现金不足 · 跳过",INSUFFICIENT_CASH:"现金不足 · 跳过",
+        PENDING_ENTRY:"等待买入日",PENDING_T:"等待买入日",NOT_DUE:"等待买入日",DEFERRED_AFTER_BLOCKER:"未续算 · 先核验缺口"};
+      return labels[trade.status] || (String(trade.status).startsWith("NO_FILL") ? "未买入"
+        : String(trade.status).startsWith("MISSING") ? "缺少证据" : trade.status || "待核验");
+    }
+
+    function paperAccountCurveSvg(days, narrow = typeof window !== "undefined" && window.innerWidth <= 600) {
+      const points = days.filter(d => Number.isFinite(d.nav) && Number.isFinite(d.drawdown));
+      if (!points.length) return '<p class="paper-intro">尚无可核验的连续净值，不绘制零收益线。</p>';
+      const left=narrow?125:80,right=narrow?620:775,top=narrow?35:28,bottom=narrow?210:175,ddTop=narrow?290:226,ddBottom=narrow?370:286;
+      const values=points.map(d=>d.nav), low=Math.min(1000000,...values),high=Math.max(1000000,...values);
+      const padding=Math.max((high-low)*0.12,1000),ymin=low-padding,ymax=high+padding;
+      const ddMin=Math.min(-0.005,...points.map(d=>d.drawdown));
+      const x=i=>left+(right-left)*(points.length===1?0:i/(points.length-1));
+      const y=v=>bottom-(v-ymin)/(ymax-ymin)*(bottom-top);
+      const yd=v=>ddTop+(v/ddMin)*(ddBottom-ddTop);
+      const line=(fn)=>points.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(2)},${fn(p).toFixed(2)}`).join(" ");
+      const navPath=line(p=>y(p.nav)),ddPath=line(p=>yd(p.drawdown));
+      const ticks=[ymin,(ymin+ymax)/2,ymax].map(v=>`<line x1="${left}" y1="${y(v)}" x2="${right}" y2="${y(v)}" stroke="#e2e9e6"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end">${(v/10000).toFixed(1)}万</text>`).join("");
+      const first=escapeHtml(dateText(points[0].date)),last=escapeHtml(dateText(points.at(-1).date));
+      return `<svg class="${narrow?"paper-narrow-chart":"paper-wide-chart"}" viewBox="${narrow?"0 0 640 430":"0 0 800 320"}" role="img" aria-label="已知交易模拟账户净值及收盘回撤，${first}至${last}。逐日数值见下方展开表格。">
+        ${ticks}<line x1="${left}" y1="${y(1000000)}" x2="${right}" y2="${y(1000000)}" stroke="#9bada6" stroke-dasharray="5 4"/>
+        <path d="${navPath}" fill="none" stroke="#21735f" stroke-width="3"/>
+        <circle cx="${x(points.length-1)}" cy="${y(points.at(-1).nav)}" r="3.5" fill="#21735f"/>
+        <text x="${left}" y="${bottom+(narrow?32:21)}">${first}</text><text x="${right}" y="${bottom+(narrow?32:21)}" text-anchor="end">${last}</text>
+        <text x="${left}" y="${ddTop-(narrow?16:10)}">收盘净值回撤</text><line x1="${left}" y1="${ddTop}" x2="${right}" y2="${ddTop}" stroke="#dce3df"/>
+        <text x="${left-10}" y="${ddTop+4}" text-anchor="end">0%</text><text x="${left-10}" y="${ddBottom+4}" text-anchor="end">${(ddMin*100).toFixed(2)}%</text>
+        <path d="${ddPath} L${x(points.length-1)},${ddTop} L${left},${ddTop} Z" fill="#dca15d" opacity=".18"/>
+        <path d="${ddPath}" fill="none" stroke="#ac741e" stroke-width="2"/>
+      </svg>`;
+    }
+
+    function profitPaperAccountMarkup(result) {
+      const m=result.metrics, last=dateText(result.last_valid_date), asOf=dateText(result.as_of_date);
+      const money=(v,s=false)=>escapeHtml(paperAccountMoney(v,s)), percent=v=>typeof v==="number"&&Number.isFinite(v)?pct(v):"—";
+      const cards=[
+        ["最后可核验资产",money(m.nav),`截至 ${last}；${result.blocked?"并非最新账户资产":"最新收盘估值"}`],
+        ["累计盈亏",money(m.total_pnl,true),`相对100万元本金 ${percent(m.cumulative_return)}`],
+        ["可用现金",money(m.cash),"持仓本金与预留成本不重复使用"],
+        ["持仓市值",money(m.market_value),`${m.open_trades} 笔未退出持仓`],
+        ["已实现盈亏",money(m.realized_pnl,true),`${m.closed_trades} 笔已退出；已扣研究成本`],
+        ["浮动盈亏",money(m.unrealized_pnl,true),"收盘盯市；已计提全程研究成本"],
+        ["最大收盘回撤",percent(m.max_drawdown),`最大金额回撤 ${money(m.max_drawdown_amount)} · 仅已核验片段`],
+        ["最高收盘仓位",percent(m.max_capital_usage),`收盘最多 ${m.max_open_positions} 笔；日内最多 ${m.max_open_positions_intraday} 笔`]
+      ];
+      const warnings=[];
+      if(result.missing_signal_dates?.length) warnings.push(`正式冻结缺失 D：${result.missing_signal_dates.map(dateText).join("、")}。这部分不猜名单、不补零收益，只跳过；本看板是“已知交易子集”，不是完整策略历史。`);
+      if(result.blocked) warnings.push(`最新账户资产：暂不可核验。曲线与全部金额停在 ${last}；数据截至 ${asOf}。${result.blocking_reason||"后续交易或估值证据存在缺口。"} 不把未结算当成零，不把旧资产冒充最新值。`);
+      const rankRows=result.rank_contributions.map(r=>`<tr><th scope="row">盈${r.rank}</th><td>${r.closed_trades}</td><td>${r.open_trades}</td><td>${percent(r.win_rate)}</td><td>${money(r.realized_pnl,true)}</td><td>${money(r.unrealized_pnl,true)}</td><td>${money(r.total_pnl,true)}</td></tr>`).join("");
+      const tradeRows=result.trades.map(t=>`<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>盈${t.rank}</td><td>${escapeHtml(t.ts_code||"—")}</td><td title="${escapeHtml(t.reason||t.source_status||"")}">${escapeHtml(paperAccountTradeStatus(t))}</td><td>${escapeHtml(t.shares??"—")}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${money(t.notional)}</td><td class="${valueTone(t.net_pnl)}">${money(t.net_pnl,true)}</td><td>${money(t.unrealized_pnl,true)}</td></tr>`).join("");
+      const dayRows=result.days.map(d=>`<tr><td>${escapeHtml(dateText(d.date))}</td><td>${money(d.nav)}</td><td>${money(d.cash)}</td><td>${money(d.market_value)}</td><td>${money(d.realized_pnl,true)}</td><td>${money(d.unrealized_pnl,true)}</td><td>${percent(d.drawdown)}</td><td>${d.open_positions}</td></tr>`).join("");
+      const pf=Number.isFinite(m.profit_factor)?m.profit_factor.toFixed(2):"—";
+      return `<p class="paper-intro">模拟，不是券商实盘。D 2026-09-14起 · 数据截至 ${escapeHtml(asOf)} · 展示最新累计账户，不随上方历史名单日期切换。盈1、盈2每笔预算各10万元，固定金额、不翻倍、不使用杠杆。</p>
+        ${warnings.map(w=>`<p class="paper-warning">${escapeHtml(w)}</p>`).join("")}
+        <dl class="paper-cards">${cards.map(([label,value,note])=>`<div class="paper-card"><dt>${label}</dt><dd>${value}</dd><small>${note}</small></div>`).join("")}</dl>
+        <figure class="paper-chart"><figcaption>已知交易 · 收盘净值曲线（含持仓浮盈亏）</figcaption>${paperAccountCurveSvg(result.days)}</figure>
+        <div class="paper-toolbar"><span>已退出胜率 ${percent(m.win_rate)} · 盈亏比值 ${pf}（盈利总额 / 亏损总额） · 最长连亏 ${m.longest_loss_streak} 笔 · 计提成本 ${money(m.total_costs)}</span><button id="profitPaperAccountExport" type="button">导出核验数据 JSON</button></div>
+        <p class="paper-intro">未买入 ${m.no_fill_trades} 笔 · 缺失 ${m.missing_trades} 笔 · 现金不足跳过 ${m.insufficient_cash_trades} 笔。未买入不计交易胜率；缺失与未买入不是一回事。样本短且历史有缺口，暂不报告年化收益、夏普比或稳定盈利结论。</p>
+        <details open><summary>盈1 / 盈2收益贡献 · 截至 ${escapeHtml(last)}</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="盈1盈2模拟收益贡献，可横向滚动"><table><thead><tr><th>名次</th><th>已退出</th><th>持仓</th><th>胜率</th><th>已实现盈亏</th><th>浮动盈亏</th><th>总贡献</th></tr></thead><tbody>${rankRows}</tbody></table></div></details>
+        <details><summary>逐笔模拟交易与跳过原因（${result.trades.length} 条）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="逐笔模拟交易，可横向滚动"><table><thead><tr><th>D日期</th><th>名次</th><th>代码</th><th>模拟状态</th><th>股数</th><th>买入日</th><th>实际退出日</th><th>股票本金</th><th>已实现盈亏</th><th>浮动盈亏</th></tr></thead><tbody>${tradeRows}</tbody></table></div></details>
+        <details><summary>逐日净值与回撤数值（${result.days.length} 日）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="净值曲线逐日数值，可横向滚动"><table><thead><tr><th>估值日</th><th>账户资产</th><th>现金</th><th>持仓市值</th><th>已实现盈亏</th><th>浮动盈亏</th><th>回撤</th><th>持仓笔数</th></tr></thead><tbody>${dayRows}</tbody></table></div></details>
+        <details><summary>模拟规则、成交假设与缺口说明</summary><ul class="paper-rules">
+          <li>只消费当日已冻结盈1、盈2，不重排、不替补；一字涨停等系统判定未买入的记录保持现金。</li>
+          <li>每笔10万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>
+          <li>按系统竞价入场代理及实际退出记录回放：T+1 10:00未封涨停退出；封涨停延持，开板后依系统分钟退出规则，不按收盘涨停倒推当天是否卖出。</li>
+          <li>每日先处理09:25买入，再按记录的实际退出时点卖出。卖出前的资金不提前复用；现金不足按固定名次顺序跳过，不借款、不缩小每笔预算。</li>
+          <li>顺延持仓逐日按已绑定收盘价估值。退出日已到但缺少退出证据、入场证据不足或估值价格缺失时，暂停后续净值，不填零、不假定已卖出。</li>
+          <li>净值＝现金＋持仓市值；最大回撤按每日收盘净值相对先前最高值计算，不代表盘中最大损失。最大比例与最大金额回撤可能发生在不同区间；比例峰谷 ${escapeHtml(dateText(m.drawdown_peak_date))} → ${escapeHtml(dateText(m.drawdown_trough_date))}。日内最高占用本金及计提成本 ${money(m.max_committed_cost_intraday)}。最长连亏按已退出交易顺序，非连续亏损天数。</li>
+          <li>未验证真实排队成交、10万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>
+        </ul></details>`;
+    }
+
+    function renderProfitPaperAccount() {
+      const node=document.getElementById("profitPaperAccountContent");
+      if(!node) return;
+      const loadedSummary=state.candidateProfitSummary, loadedWindow=state.currentCompactStatisticsWindow, active=state.candidateProfitActivation;
+      if(state.compactFatalError) { node.innerHTML='<div class="empty">页面来源校验失败，已清空模拟账户。</div>'; return; }
+      const usable=state.candidateProfitSummaryLoad?.status==="ready" && state.compactStatisticsWindowLoad?.status==="ready"
+        && active?.status==="ready" && loadedSummary?.activation===active.config && loadedWindow?.compactLoadSequence===state.compactLoadSequence;
+      if(!usable) {
+        const invalid=state.candidateProfitSummaryLoad?.status==="invalid" || state.compactStatisticsWindowLoad?.status==="invalid";
+        node.innerHTML=`<div class="empty">${invalid?"模拟账户来源暂不可核验，不显示旧净值或零收益。":"正在校验最新冻结账本和每日行情，模拟账户独立加载。"}</div>`;
+        return;
+      }
+      let view=state.profitPaperAccount;
+      if(!view || view.loadedSummary!==loadedSummary || view.loadedWindow!==loadedWindow || view.active!==active || view.loadSequence!==state.compactLoadSequence) {
+        void refreshProfitPaperAccount(loadedSummary,loadedWindow,active);
+        view=state.profitPaperAccount;
+      }
+      if(view.status!=="ready") {
+        node.innerHTML=`<div class="empty">${view.status==="loading"?"正在计算逐日现金、持仓与回撤…":`模拟账户暂不可用：${escapeHtml(view.reason)}。不影响正式名单。`}</div>`;
+        return;
+      }
+      node.innerHTML=profitPaperAccountMarkup(view.result);
+      const button=document.getElementById("profitPaperAccountExport");
+      if(button) button.onclick=()=>{
+        const blob=new Blob([JSON.stringify(view.result,null,2)],{type:"application/json;charset=utf-8"});
+        const url=URL.createObjectURL(blob),link=document.createElement("a");
+        link.href=url;link.download=`DC20-模拟账户-${view.result.as_of_date}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      };
+    }
+
     async function refreshCompactStatisticsWindow() {
       const loadSequence = (state.compactStatisticsWindowSequence || 0) + 1;
       state.compactStatisticsWindowSequence = loadSequence;
@@ -2448,10 +2947,11 @@
         const panel = document.getElementById(id);
         if (panel) panel.hidden = !research || state.index !== 0;
       }
-      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics", "profitNextDay"]) document.getElementById(id).hidden = research;
+      for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics", "profitNextDay", "profitPaperAccount"]) document.getElementById(id).hidden = research;
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
       const window = compactStatisticsWindowView();
       renderProfitNextDayStatistics();
+      renderProfitPaperAccount();
       const profit = window?.profit?.status === "READY" ? window.profit : null;
       const source = window && state.currentCompactStatisticsWindow.profitSource;
       els.compactLedgerState.textContent = `D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起 · 最新累计` + (profit ? ` · 截至 ${dateText(profit.as_of_date)} · ${profit.recorded_days}日 / ${profit.recorded_slots}席` : " · 统计窗口待验证");
@@ -7174,6 +7674,7 @@
       state.candidateProfitActivation = null;
       state.candidateProfitSummary = null;
       state.candidateProfitSummaryLoad = {status: "loading", message: "新模型累计待验证"};
+      state.profitPaperAccount = null;
       state.currentLegacyProfitRelativeResearch = null;
       state.currentPrimaryMixedDailyTop2 = { status: "loading", message: "正在校验每日账本" };
       state.currentCompactStatisticsWindow = null;
@@ -7312,6 +7813,7 @@
 
     function showError(error) {
       state.compactFatalError = true;
+      renderProfitPaperAccount();
       if (els.compactLedgerContent) {
         els.compactLedgerContent.innerHTML = '<div class="empty">读取失败，已清空旧账本展示。</div>';
         els.compactStatisticsContent.innerHTML = '<div class="empty">读取失败，已清空旧累计展示。</div>';
@@ -7358,6 +7860,14 @@
     }
 
     window.addEventListener("error", event => showError(event.error || event.message));
+    window.addEventListener("resize", () => {
+      const chart = document.querySelector("#profitPaperAccount .paper-chart svg");
+      const view = state.profitPaperAccount;
+      const narrow = window.innerWidth <= 600;
+      if (chart && view?.status === "ready" && chart.classList.contains("paper-narrow-chart") !== narrow) {
+        chart.outerHTML = paperAccountCurveSvg(view.result.days, narrow);
+      }
+    });
     if (new URLSearchParams(location.search).get("view") !== "research") {
       // Remove unused homepage blocks from the DOM. The explicit research route
       // and the underlying model, archive and ledger files remain untouched.
@@ -7375,3 +7885,4 @@
   </script>
 </body>
 </html>
+
