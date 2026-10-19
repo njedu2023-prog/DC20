@@ -53,8 +53,15 @@ def fixture(tmp_path,monkeypatch,*,suspension=False):
         'source_repository':'njedu2023-prog/a-top10','resolved_commit':PRED,'row_count':1,
         'sha256':gh.sha256(pred),'meta_sha256':gh.sha256(gh.json_bytes(pred_meta))}
     sources[gh.adapter._p0_paths(day)['receipt']]=gh.json_bytes(receipt)
+    # The dual-run fixture describes the reviewed historical code profile.
+    # Keep its original freeze document even when the live freeze gains metadata.
+    freeze_path = 'models/decision_model_freeze.json'
+    historical_freeze = (gh.CODE_ROOT / 'tests/fixtures/candidate_continuation/decision_model_freeze.json').read_bytes()
+    assert gh.git_blob(historical_freeze) == m.ORIGINAL_P0_CODE_PROFILE[freeze_path]
+    profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in m.ORIGINAL_P0_CODE_PROFILE}
+    profile_files[freeze_path] = historical_freeze
     all_new={**sources,pred_path:pred,'data/pred/_pred_source_meta.json':gh.json_bytes(pred_meta),
-        **{p:(gh.CODE_ROOT/p).read_bytes() for p in m.ORIGINAL_P0_CODE_PROFILE}}
+        **profile_files}
     changed=set(gh.adapter._p0_paths(day).values())|{receipt['inputs']['market']['meta_path'],
         receipt['inputs']['market']['tables']['daily']['path'],pred_path,'data/pred/_pred_source_meta.json'}
     old={p:b for p,b in all_new.items() if p not in changed}
