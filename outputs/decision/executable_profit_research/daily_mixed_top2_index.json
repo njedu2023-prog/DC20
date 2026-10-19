@@ -1241,12 +1241,53 @@
       "source_bundle_sha256": "168b4069db1c1b22aed3519a403f07375731f1c1fa90dfebfe0d222b1661ab14",
       "source_feature_snapshot_sha256": "2655135a656c6f9c63622282884e635dd51faddab1e0a8961c974e39240ac375",
       "top10_members_sha256": "87eda967364f77618e4c00d86378e61465f0e51e591d1dd7151ffa344d33cb68"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "f3bfc31789657539a1c58e5c18423e9ccdf6009557b13c0908e7223eefe5fe1b",
+      "exec_date": "20261020",
+      "exit_date": "20261021",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "df5be50228f9703659f37dc17a9144867351d2f6bfc2579298bc15c0f2cf8fe8",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261019.csv",
+      "projection_json_sha256": "a066b51a4d5e83ed352f5db5cd7c0defc802f595bd34af3652b62ac1740f95b6",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261019.json",
+      "projection_snapshot_sha256": "a1d6fbf5b26b565074b1e4ee88b355e3c14b74d19e26705e42b572fb62542141",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "物流",
+          "mixed_profit_rank": 1,
+          "name": "东方嘉盛",
+          "promotion_rank": 5,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "002889.SZ"
+        },
+        {
+          "industry": "地面兵装",
+          "mixed_profit_rank": 2,
+          "name": "甘化科工",
+          "promotion_rank": 7,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "000576.SZ"
+        }
+      ],
+      "signal_date": "20261019",
+      "source_bundle_sha256": "6c634cf91e915ea355263163b46e3765371365747e5d0323875c0273857a5180",
+      "source_feature_snapshot_sha256": "ae0353ed56f93ca2c4718ac050cb92540a8cb079d979a4df90486e94928086b6",
+      "top10_members_sha256": "a677a029729febdc8ce61a8232aba9358c50926a6362494c37dcc22b695c9537"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261016",
+  "latest_signal_date": "20261019",
   "public_start_signal_date": "20260828",
-  "recorded_days": 30,
+  "recorded_days": 31,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1277,9 +1318,10 @@
     "20261013",
     "20261014",
     "20261015",
-    "20261016"
+    "20261016",
+    "20261019"
   ],
-  "recorded_slots": 60,
+  "recorded_slots": 62,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "8ada417009953c5f261c030a666d59a996b592746f50a6f39a19a21de42357ec"
+  "snapshot_sha256": "6957a9b6216e910a062190641136d78724100b2d582d1be10cb668cae62a9b9f"
 }
