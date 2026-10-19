@@ -1394,8 +1394,8 @@
       <div id="profitNextDayContent"><div class="empty">正在校验次日行情。</div></div>
     </section>
     <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle">
-      <div class="panel-head"><h2 id="profitPaperAccountTitle">盈利前二 · 模拟账户</h2><span class="count">本金100万元 · 盈1 / 盈2各20万元</span></div>
-      <div class="paper-entry"><p>D 2026-09-14起 · 固定预算、不翻倍、不加杠杆。独立看板查看净值曲线、最大回撤、持仓和逐笔交易；数据随主任务发布自动更新。</p><a class="paper-page-link" href="?view=paper-account" target="_blank" rel="noopener noreferrer" title="在新窗口打开盈利前二模拟账户">打开模拟账户看板 ↗</a></div>
+      <div class="panel-head"><h2 id="profitPaperAccountTitle">盈利前二 · 模拟账户</h2><span class="count">本金73.5万元 · 盈1 / 盈2各10万元</span></div>
+      <div class="paper-entry"><p>D 2026-10-19起重新统计 · 固定预算、不翻倍、不加杠杆。此前持仓和收益不带入；独立看板查看净值曲线、最大回撤、持仓和逐笔交易，随主任务发布自动更新。</p><a class="paper-page-link" href="?view=paper-account" target="_blank" rel="noopener noreferrer" title="在新窗口打开盈利前二模拟账户">打开模拟账户看板 ↗</a></div>
     </section>
     <p id="researchReturn" class="stats-note" hidden><a href="?">← 返回每日名单</a> · 以下为研究归档，不迁入重建后的新账本。</p>
 
@@ -1953,23 +1953,24 @@
     // Pure replay of externally validated, point-in-time selected proxy transactions.
     // This is not an order simulator or a claim that the proxy prices were executable.
     function buildProfitPaperAccount(summary, dailyQuotes, identities = new Map()) {
-      const initialCapital = 1000000;
-      const tradeBudget = 200000;
-      const start = "20260914";
+      const initialCapital = 735000;
+      const tradeBudget = 100000;
+      const start = "20261019";
       const fee = Number(summary && summary.round_trip_cost_rate);
       const dateOK = value => typeof value === "string" && /^\d{8}$/.test(value);
       const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
       const positive = value => finite(value) && Number(value) > 0;
       const money = value => Math.round((value + Number.EPSILON) * 100) / 100;
       const asOf = summary && summary.as_of_date;
-      if (!dateOK(asOf) || asOf < start || !Number.isFinite(fee) || fee < 0 || fee > 0.1) {
+      if (!dateOK(asOf) || !Number.isFinite(fee) || fee < 0 || fee > 0.1) {
         throw new Error("模拟账户的日期或综合成本参数无效");
       }
       if (!Array.isArray(summary.signal_dates) || !(dailyQuotes instanceof Map) || !(identities instanceof Map)) {
         throw new Error("模拟账户需要完整交易日序列及已校验行情 Map");
       }
-      const dates = [...new Set([start, ...summary.signal_dates.filter(d => dateOK(d) && d >= start && d <= asOf)])].sort();
-      if (!dates.includes(asOf)) throw new Error("账户统计截止日不在交易日序列内");
+      const waitingForStart = asOf < start;
+      const dates = waitingForStart ? [] : [...new Set([start, ...summary.signal_dates.filter(d => dateOK(d) && d >= start && d <= asOf)])].sort();
+      if (!waitingForStart && !dates.includes(asOf)) throw new Error("账户统计截止日不在交易日序列内");
       const dateSet = new Set(dates);
       const sourceMissingDates = (summary.missing_signal_dates || []).filter(d => dateOK(d) && d >= start && d <= asOf);
       const missingDates = new Set(sourceMissingDates);
@@ -2108,7 +2109,7 @@
             }
             // Decisions use cash available before the opening auction, never later sale proceeds.
             if (nextCash + 0.000001 < tradeBudget) {
-              trade.status = "INSUFFICIENT_CASH"; trade.reason = "竞价时可用现金不足 20 万元，不缩注、不融资；同日盈1优先";
+              trade.status = "INSUFFICIENT_CASH"; trade.reason = "竞价时可用现金不足 10 万元，不缩注、不融资；同日盈1优先";
               continue;
             }
             if (row.proxy_fill !== 1 || !positive(trade.entry_price) || !trade.ts_code) {
@@ -2125,7 +2126,7 @@
               fail("INVALID_EXIT_DATE", `${trade.id} 已结算退出日不在交易日序列内`, trade); continue;
             }
             trade.shares = Math.floor(tradeBudget / (trade.entry_price * 100 * (1 + fee))) * 100;
-            if (!trade.shares) { trade.status = "BUDGET_BELOW_ONE_LOT"; trade.reason = "20万元预算不足一手，不买入"; continue; }
+            if (!trade.shares) { trade.status = "BUDGET_BELOW_ONE_LOT"; trade.reason = "10万元预算不足一手，不买入"; continue; }
             trade.notional = money(trade.shares * trade.entry_price);
             trade.costs = money(trade.notional * fee);
             while (trade.notional + trade.costs > tradeBudget + 0.000001 && trade.shares > 0) {
@@ -2211,9 +2212,11 @@
           win_rate: done.length ? done.filter(t => t.net_pnl > 0).length / done.length : null};
       });
       const missingSignalDates = [...missingDates].sort();
-      const complete = blockers.length === 0 && missingSignalDates.length === 0 && summary.coverage_complete !== false;
+      // Coverage belongs to this reset cohort, not the source ledger's older history.
+      const complete = !waitingForStart && blockers.length === 0 && missingSignalDates.length === 0;
       const metrics = {
-        nav: last ? last.nav : null, cash: last ? last.cash : null, market_value: last ? last.market_value : null,
+        nav: last ? last.nav : waitingForStart ? initialCapital : null,
+        cash: last ? last.cash : waitingForStart ? initialCapital : null, market_value: last ? last.market_value : waitingForStart ? 0 : null,
         total_pnl: last ? last.total_pnl : null, cumulative_return: last ? last.cumulative_return : null,
         realized_pnl: last ? last.realized_pnl : null, unrealized_pnl: last ? last.unrealized_pnl : null,
         total_costs: last ? last.costs : null, max_drawdown: days.length ? worstDrawdown : null,
@@ -2236,19 +2239,20 @@
       };
       return {
         schema_version: "dc20_paper_capital_account_v1", as_of_date: asOf,
+        start_signal_date: start, waiting_for_start: waitingForStart,
         last_valid_date: last ? last.date : null, initial_capital: initialCapital,
         per_trade_budget: tradeBudget, cost_rate: fee, complete, blocked: blockers.length > 0,
         blocking_reason: blockers.length ? blockers[0].message : null, blockers,
         missing_signal_dates: missingSignalDates, days, trades: currentTrades, metrics,
         rank_contributions: rankContributions,
         assumptions: [
-          "初始100万元；盈1、盈2各20万元含综合成本预算；固定金额、不复利加注、不融资。",
+          "D 2026-10-19起重新统计，初始73.5万元；盈1、盈2各10万元含综合成本预算；固定金额、不复利加注、不融资；此前持仓和收益不带入。",
           "100股整数手；整笔往返综合成本按原始买入金额预提，退出不再重复扣费；这是统一代理成本，不是券商逐项收费。",
-          "09:25入场先于同日退出；现金不足20万元则跳过，同日按盈1、盈2顺序；已知未成交不计入成交胜率。",
+          "09:25入场先于同日退出；现金不足10万元则跳过，同日按盈1、盈2顺序；已知未成交不计入成交胜率。",
           "沿用已核验代理入场和实际退出日期、时间；涨停顺延持仓每日按原始收盘价估值。",
           "缺少正式冻结的信号日只在已知交易参考组合中跳过；完整策略的收益、净值和回撤仍未获验证。",
           "未知到期退出、未确认成交、缺失估值或未核验除权会截断曲线；截断后不补零、不假设继续持有。",
-          "现金不计利息；无杠杆、无额外资金流；未验证真实排队、冲击成本和二十万元成交容量。",
+          "现金不计利息；无杠杆、无额外资金流；未验证真实排队、冲击成本和十万元成交容量。",
           "回撤为每日收盘资产曲线，不含日内最大回撤；资金占用率为收盘持仓市值/总资产。",
           "连亏按已平仓交易退出时间排列，同时退出按盈1优先；不是连续亏损交易日。",
           "不展示年化收益和夏普比，避免短样本或缺档产生误导。"
@@ -2277,7 +2281,7 @@
         && index.activation_id === summary.activation_id && index.model_canonical_sha256 === summary.model_canonical_sha256
         && Array.isArray(index.days) && canonicalJson(index.days.map(d=>d.signal_date)) === canonicalJson(summary.published_signal_dates),
         "模拟账户公司名称目录与冻结账本日期或模型不一致");
-      await Promise.all(index.days.map(async entry => {
+      await Promise.all(index.days.filter(entry => entry.signal_date >= "20261019" && entry.signal_date <= summary.as_of_date).map(async entry => {
         const date = entry.signal_date;
         executableProfitExpect(entry.path === `${prefix}/day_${date}.json` && isSha256(entry.sha256)
           && isSha256(entry.snapshot_file_sha256), "模拟账户公司名称目录路径或指纹无效");
@@ -2327,7 +2331,7 @@
       executableProfitExpect(new Set(dates).size === dates.length && canonicalJson(dates) === canonicalJson(summary.signal_dates),
         "模拟账户交易日范围与冻结账本不一致");
       const quotes = new Map(), used = [calendar[0]], missing = [];
-      await Promise.all(dates.map(async day => {
+      await Promise.all(dates.filter(day => day >= "20261019").map(async day => {
         const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;
         const matches = bindings.filter(b => b.path === path);
         executableProfitExpect(matches.length <= 1, "模拟账户每日行情绑定重复");
@@ -2350,7 +2354,8 @@
       const loaded = await fetchPagesOnlyShaBoundJson(revision.profit_paper_account_url, revision.profit_paper_account_sha256, "主任务模拟账户");
       const result = loaded.payload;
       executableProfitExpect(result.schema_version === "dc20_paper_capital_account_v1"
-        && result.initial_capital === 1000000 && result.per_trade_budget === 200000
+        && result.initial_capital === 735000 && result.per_trade_budget === 100000
+        && result.start_signal_date === "20261019" && result.waiting_for_start === (result.as_of_date < result.start_signal_date)
         && result.cost_rate === loadedSummary.summary.round_trip_cost_rate
         && result.as_of_date === loadedSummary.summary.as_of_date
         && result.as_of_date === revision.profit_paper_account_as_of_date
@@ -2374,6 +2379,10 @@
       executableProfitExpect(Array.isArray(result.trades) && Array.isArray(result.days) && Array.isArray(result.rank_contributions)
         && result.metrics && typeof result.blocked === "boolean" && Array.isArray(result.missing_signal_dates),
         "主任务模拟账户结果结构不完整");
+      executableProfitExpect(result.trades.every(t => t.signal_date >= result.start_signal_date)
+        && result.days.every(d => d.date >= result.start_signal_date)
+        && result.missing_signal_dates.every(d => d >= result.start_signal_date),
+        "模拟账户混入重新起算日前的旧记录");
       return result;
     }
 
@@ -2415,7 +2424,7 @@
       const points = days.filter(d => Number.isFinite(d.nav) && Number.isFinite(d.drawdown));
       if (!points.length) return '<p class="paper-intro">尚无可核验的连续净值，不绘制零收益线。</p>';
       const left=narrow?125:80,right=narrow?620:775,top=narrow?35:28,bottom=narrow?210:175,ddTop=narrow?290:226,ddBottom=narrow?370:286;
-      const values=points.map(d=>d.nav), low=Math.min(1000000,...values),high=Math.max(1000000,...values);
+      const values=points.map(d=>d.nav), low=Math.min(735000,...values),high=Math.max(735000,...values);
       const padding=Math.max((high-low)*0.12,1000),ymin=low-padding,ymax=high+padding;
       const ddMin=Math.min(-0.005,...points.map(d=>d.drawdown));
       const x=i=>left+(right-left)*(points.length===1?0:i/(points.length-1));
@@ -2426,7 +2435,7 @@
       const ticks=[ymin,(ymin+ymax)/2,ymax].map(v=>`<line x1="${left}" y1="${y(v)}" x2="${right}" y2="${y(v)}" stroke="#e2e9e6"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end">${(v/10000).toFixed(1)}万</text>`).join("");
       const first=escapeHtml(dateText(points[0].date)),last=escapeHtml(dateText(points.at(-1).date));
       return `<svg class="${narrow?"paper-narrow-chart":"paper-wide-chart"}" viewBox="${narrow?"0 0 640 430":"0 0 800 320"}" role="img" aria-label="已知交易模拟账户净值及收盘回撤，${first}至${last}。逐日数值见下方展开表格。">
-        ${ticks}<line x1="${left}" y1="${y(1000000)}" x2="${right}" y2="${y(1000000)}" stroke="#9bada6" stroke-dasharray="5 4"/>
+        ${ticks}<line x1="${left}" y1="${y(735000)}" x2="${right}" y2="${y(735000)}" stroke="#9bada6" stroke-dasharray="5 4"/>
         <path d="${navPath}" fill="none" stroke="#21735f" stroke-width="3"/>
         <circle cx="${x(points.length-1)}" cy="${y(points.at(-1).nav)}" r="3.5" fill="#21735f"/>
         <text x="${left}" y="${bottom+(narrow?32:21)}">${first}</text><text x="${right}" y="${bottom+(narrow?32:21)}" text-anchor="end">${last}</text>
@@ -2441,8 +2450,8 @@
       const m=result.metrics, last=dateText(result.last_valid_date), asOf=dateText(result.as_of_date);
       const money=(v,s=false)=>escapeHtml(paperAccountMoney(v,s)), percent=v=>typeof v==="number"&&Number.isFinite(v)?pct(v):"—";
       const cards=[
-        ["最后可核验资产",money(m.nav),`截至 ${last}；${result.blocked?"并非最新账户资产":"最新收盘估值"}`],
-        ["累计盈亏",money(m.total_pnl,true),`相对100万元本金 ${percent(m.cumulative_return)}`],
+        [result.waiting_for_start?"起始资金（待起算）":"最后可核验资产",money(m.nav),result.waiting_for_start?"尚无起算日之后的冻结账本":`截至 ${last}；${result.blocked?"并非最新账户资产":"最新收盘估值"}`],
+        ["累计盈亏",money(m.total_pnl,true),`相对73.5万元本金 ${percent(m.cumulative_return)}`],
         ["可用现金",money(m.cash),"持仓本金与预留成本不重复使用"],
         ["持仓市值",money(m.market_value),`${m.open_trades} 笔未退出持仓`],
         ["已实现盈亏",money(m.realized_pnl,true),`${m.closed_trades} 笔已退出；已扣研究成本`],
@@ -2451,6 +2460,7 @@
         ["最高收盘仓位",percent(m.max_capital_usage),`收盘最多 ${m.max_open_positions} 笔；日内最多 ${m.max_open_positions_intraday} 笔`]
       ];
       const warnings=[];
+      if(result.waiting_for_start) warnings.push("正在等待D 2026-10-19及之后的正式冻结账本；73.5万元为初始现金，尚未开始模拟交易，起算日前的持仓与收益不带入。");
       if(result.publication?.ledger_lagging) warnings.push(`主任务名单已更新至 ${dateText(result.publication.latest_signal_date)}，盈利账本目前截至 ${asOf}，等待上游冻结或结算发布；本看板未使用之后的行情推算结果。`);
       if(result.missing_signal_dates?.length) warnings.push(`正式冻结缺失 D：${result.missing_signal_dates.map(dateText).join("、")}。这部分不猜名单、不补零收益，只跳过；本看板是“已知交易子集”，不是完整策略历史。`);
       if(result.blocked) warnings.push(`最新账户资产：暂不可核验。曲线与全部金额停在 ${last}；数据截至 ${asOf}。${result.blocking_reason||"后续交易或估值证据存在缺口。"} 不把未结算当成零，不把旧资产冒充最新值。`);
@@ -2461,24 +2471,24 @@
       const published = result.publication?.published_at_utc;
       const publishedTime = published && Number.isFinite(Date.parse(published))
         ? new Date(published).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}) : "待核验";
-      return `<p class="paper-intro">模拟，不是券商实盘。D 2026-09-14起 · 数据截至 ${escapeHtml(asOf)} · 展示最新累计账户，不随历史名单日期切换。盈1、盈2每笔预算各20万元，固定金额、不翻倍、不使用杠杆。</p>
+      return `<p class="paper-intro">模拟，不是券商实盘。D 2026-10-19起重新统计 · 初始73.5万元 · 数据截至 ${escapeHtml(asOf)} · 此前持仓与收益不带入，不随历史名单日期切换。盈1、盈2每天每笔预算各10万元，合计最多20万元新开仓，固定金额、不翻倍、不使用杠杆。D为信号日，下一交易日T才模拟买入。</p>
         <p class="paper-intro paper-publication">更新方式：已绑定主任务发布流程 · 最近发布（北京时间）${escapeHtml(publishedTime)} · 任务 ${escapeHtml(result.publication?.run_id||"待核验")}。主任务及结算发布时自动重算；已打开的页面需刷新读取新版。</p>
         ${warnings.map(w=>`<p class="paper-warning">${escapeHtml(w)}</p>`).join("")}
         <dl class="paper-cards">${cards.map(([label,value,note])=>`<div class="paper-card"><dt>${label}</dt><dd>${value}</dd><small>${note}</small></div>`).join("")}</dl>
         <figure class="paper-chart"><figcaption>已知交易 · 收盘净值曲线（含持仓浮盈亏）</figcaption>${paperAccountCurveSvg(result.days)}</figure>
         <div class="paper-toolbar"><span>已退出胜率 ${percent(m.win_rate)} · 盈亏比值 ${pf}（盈利总额 / 亏损总额） · 最长连亏 ${m.longest_loss_streak} 笔 · 计提成本 ${money(m.total_costs)}</span><button id="profitPaperAccountExport" type="button">导出核验数据 JSON</button></div>
-        <p class="paper-intro">未买入 ${m.no_fill_trades} 笔 · 缺失 ${m.missing_trades} 笔 · 现金不足跳过 ${m.insufficient_cash_trades} 笔。未买入不计交易胜率；缺失与未买入不是一回事。样本短且历史有缺口，暂不报告年化收益、夏普比或稳定盈利结论。</p>
+        <p class="paper-intro">未买入 ${m.no_fill_trades} 笔 · 缺失 ${m.missing_trades} 笔 · 现金不足跳过 ${m.insufficient_cash_trades} 笔。未买入不计交易胜率；缺失与未买入不是一回事。新账户样本尚短；有缺口时单独披露，暂不报告年化收益、夏普比或稳定盈利结论。</p>
         <details open><summary>盈1 / 盈2收益贡献 · 截至 ${escapeHtml(last)}</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="盈1盈2模拟收益贡献，可横向滚动"><table><thead><tr><th>名次</th><th>已退出</th><th>持仓</th><th>胜率</th><th>已实现盈亏</th><th>浮动盈亏</th><th>总贡献</th></tr></thead><tbody>${rankRows}</tbody></table></div></details>
         <details><summary>逐笔模拟交易与跳过原因（${result.trades.length} 条）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="逐笔模拟交易，可横向滚动"><table><thead><tr><th>D日期</th><th>名次</th><th>代码</th><th class="left">公司名称</th><th>模拟状态</th><th>股数</th><th>买入日</th><th>实际退出日</th><th>股票本金</th><th>已实现盈亏</th><th>浮动盈亏</th></tr></thead><tbody>${tradeRows}</tbody></table></div></details>
         <details><summary>逐日净值与回撤数值（${result.days.length} 日）</summary><div class="paper-table-wrap" tabindex="0" role="region" aria-label="净值曲线逐日数值，可横向滚动"><table><thead><tr><th>估值日</th><th>账户资产</th><th>现金</th><th>持仓市值</th><th>已实现盈亏</th><th>浮动盈亏</th><th>回撤</th><th>持仓笔数</th></tr></thead><tbody>${dayRows}</tbody></table></div></details>
         <details><summary>模拟规则、成交假设与缺口说明</summary><ul class="paper-rules">
           <li>只消费当日已冻结盈1、盈2，不重排、不替补；一字涨停等系统判定未买入的记录保持现金。</li>
-          <li>每笔20万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>
+          <li>每笔10万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>
           <li>按系统竞价入场代理及实际退出记录回放：T+1 10:00未封涨停退出；封涨停延持，开板后依系统分钟退出规则，不按收盘涨停倒推当天是否卖出。</li>
           <li>每日先处理09:25买入，再按记录的实际退出时点卖出。卖出前的资金不提前复用；现金不足按固定名次顺序跳过，不借款、不缩小每笔预算。</li>
           <li>顺延持仓逐日按已绑定收盘价估值。退出日已到但缺少退出证据、入场证据不足或估值价格缺失时，暂停后续净值，不填零、不假定已卖出。</li>
           <li>净值＝现金＋持仓市值；最大回撤按每日收盘净值相对先前最高值计算，不代表盘中最大损失。最大比例与最大金额回撤可能发生在不同区间；比例峰谷 ${escapeHtml(dateText(m.drawdown_peak_date))} → ${escapeHtml(dateText(m.drawdown_trough_date))}。日内最高占用本金及计提成本 ${money(m.max_committed_cost_intraday)}。最长连亏按已退出交易顺序，非连续亏损天数。</li>
-          <li>未验证真实排队成交、20万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>
+          <li>未验证真实排队成交、10万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>
         </ul></details>`;
     }
 
@@ -7710,7 +7720,7 @@
       document.title = "盈利前二 · 模拟账户 | DC20";
       document.querySelector("header").hidden = true;
       document.querySelector(".skip-link")?.remove();
-      els.mainContent.innerHTML = `<div class="paper-page-heading"><div><h1>盈利前二 · 模拟账户</h1><p>本金100万元 · 盈1、盈2每笔预算各20万元 · D 2026-09-14起</p></div><nav class="paper-page-actions" aria-label="模拟账户导航"><a class="paper-page-link" href="?">← 返回每日名单</a><button id="paperAccountRefresh" class="paper-page-link" type="button">刷新最新数据</button></nav></div>
+      els.mainContent.innerHTML = `<div class="paper-page-heading"><div><h1>盈利前二 · 模拟账户</h1><p>本金73.5万元 · 盈1、盈2每笔预算各10万元 · D 2026-10-19起重新统计</p></div><nav class="paper-page-actions" aria-label="模拟账户导航"><a class="paper-page-link" href="?">← 返回每日名单</a><button id="paperAccountRefresh" class="paper-page-link" type="button">刷新最新数据</button></nav></div>
         <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle"><div class="panel-head"><h2 id="profitPaperAccountTitle">账户净值与交易明细</h2><span class="count">固定预算 · 非券商实盘</span></div><div id="profitPaperAccountContent" class="paper-body" aria-live="polite"><div class="empty">正在校验模拟账户数据。</div></div></section>
         <p class="paper-page-note">数据绑定主任务及结算发布流程；本页读取已发布、指纹校验通过的账户结果，不在浏览器重跑交易。此页无下单、训练或模型替换权限。</p>`;
       if (els.footer) els.footer.textContent = "DC20 · 独立模拟账户 · 已打开的页面需刷新读取最新版。";

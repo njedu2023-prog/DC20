@@ -181,6 +181,11 @@ async function materialize({siteRoot, sourceHtml}) {
   vm.runInContext('var input = JSON.parse(inputJson);', context, {timeout:1000});
   context.inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});
   const result = vm.runInContext('buildProfitPaperAccount(input.summary, inputs.quotes, inputs.identities)', context, {timeout:30000});
+  check(result.start_signal_date === '20261019' && result.initial_capital === 735000 && result.per_trade_budget === 100000
+    && result.waiting_for_start === (result.as_of_date < result.start_signal_date), 'paper account reset configuration mismatch');
+  check(result.trades.every(t => t.signal_date >= result.start_signal_date)
+    && result.days.every(d => d.date >= result.start_signal_date)
+    && result.missing_signal_dates.every(d => d >= result.start_signal_date), 'paper account contains pre-reset records');
   result.data_bindings = {summary_sha256:revision.candidate_profit_summary_sha256,
     window_sha256:revision.compact_statistics_window_sha256,
     engine_sha256:sha256(Buffer.from(extractFunction(new TextDecoder('utf-8', {fatal:true}).decode(htmlBytes), 'buildProfitPaperAccount'))),

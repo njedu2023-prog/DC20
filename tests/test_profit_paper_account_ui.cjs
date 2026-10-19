@@ -34,28 +34,41 @@ function context(extra={}) {
   vm.createContext(c);vm.runInContext(canonicalSource,c);vm.runInContext(source,c);return c;
 }
 function result() {
-  const days=[{date:"20260914",nav:1e6,cash:1e6,market_value:0,realized_pnl:0,unrealized_pnl:0,drawdown:0,open_positions:0},
-    {date:"20260915",nav:990000,cash:800000,market_value:190000,realized_pnl:0,unrealized_pnl:-10000,drawdown:-.01,open_positions:2}];
-  return {as_of_date:"20261016",last_valid_date:"20260915",blocked:true,blocking_reason:"退出价格缺失 <unsafe>",missing_signal_dates:["20260921"],days,
-    metrics:{nav:990000,cash:800000,market_value:190000,total_pnl:-10000,cumulative_return:-.01,realized_pnl:0,unrealized_pnl:-10000,
+  const days=[{date:"20261019",nav:735000,cash:735000,market_value:0,realized_pnl:0,unrealized_pnl:0,drawdown:0,open_positions:0},
+    {date:"20261020",nav:725000,cash:535000,market_value:190000,realized_pnl:0,unrealized_pnl:-10000,drawdown:-10000/735000,open_positions:2}];
+  return {as_of_date:"20261022",last_valid_date:"20261020",start_signal_date:"20261019",waiting_for_start:false,
+    blocked:true,blocking_reason:"退出价格缺失 <unsafe>",missing_signal_dates:["20261021"],days,
+    metrics:{nav:725000,cash:535000,market_value:190000,total_pnl:-10000,cumulative_return:-10000/735000,realized_pnl:0,unrealized_pnl:-10000,
       open_trades:2,closed_trades:0,max_drawdown:.01,max_drawdown_amount:10000,max_capital_usage:.2,max_open_positions:2,
       max_open_positions_intraday:2,max_committed_cost_intraday:200000,
       total_costs:900,win_rate:null,profit_factor:null,longest_loss_streak:0,no_fill_trades:1,missing_trades:2,insufficient_cash_trades:0},
     rank_contributions:[{rank:1,closed_trades:0,open_trades:1,win_rate:null,realized_pnl:0,unrealized_pnl:-5000,total_pnl:-5000}],
-    trades:[{signal_date:"20260921",rank:1,ts_code:null,status:"MISSING_FROZEN",net_pnl:null,unrealized_pnl:null}]};
+    trades:[{signal_date:"20261021",rank:1,ts_code:null,status:"MISSING_FROZEN",net_pnl:null,unrealized_pnl:null}]};
 }
 test("markup distinguishes latest unavailable and last valid NAV, escaping source text",()=>{
   const c=context();const out=c.profitPaperAccountMarkup(result());
-  assert.match(out,/最新账户资产：暂不可核验/);assert.match(out,/截至 2026-09-15/);assert.match(out,/已知交易子集/);
+  assert.match(out,/最新账户资产：暂不可核验/);assert.match(out,/截至 2026-10-20/);assert.match(out,/已知交易子集/);
   assert.match(out,/&lt;unsafe&gt;/);assert.doesNotMatch(out,/<unsafe>/);assert.match(out,/冻结缺失 · 跳过/);
-  assert.match(out,/暂不报告年化收益、夏普比/);assert.match(out,/990,000\.00 元/);
-  assert.match(out,/盈1、盈2每笔预算各20万元/);assert.match(out,/每笔20万元为含研究成本的预算/);
-  assert.match(out,/未验证真实排队成交、20万元容量/);assert.doesNotMatch(out,/(?:各|每笔)10万元/);
+  assert.match(out,/暂不报告年化收益、夏普比/);assert.match(out,/725,000\.00 元/);
+  assert.match(out,/盈1、盈2每天每笔预算各10万元/);assert.match(out,/每笔10万元为含研究成本的预算/);
+  assert.match(out,/D 2026-10-19起重新统计/);assert.match(out,/初始73\.5万元/);
+  assert.match(out,/未验证真实排队成交、10万元容量/);assert.doesNotMatch(out,/(?:各|每笔)20万元/);
   assert.doesNotMatch(out,/onclick=/);
+});
+test('pre-start markup shows a waiting account rather than stale history or a source error',()=>{
+  const c=context(),data=result();
+  Object.assign(data,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,
+    blocking_reason:null,missing_signal_dates:[],days:[],trades:[]});
+  Object.assign(data.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,cumulative_return:0,
+    realized_pnl:0,unrealized_pnl:0,open_trades:0,closed_trades:0});
+  const out=c.profitPaperAccountMarkup(data);
+  assert.match(out,/起始资金（待起算）/);assert.match(out,/等待D 2026-10-19/);
+  assert.match(out,/735,000\.00 元/);assert.match(out,/此前持仓与收益不带入/);
+  assert.doesNotMatch(out,/最新账户资产：暂不可核验|冻结缺失 · 跳过/);
 });
 test("trade table puts company name immediately after code, escapes text and labels missing names",()=>{
   const c=context(), data=result();
-  data.trades.push({signal_date:'20260914',rank:1,ts_code:'000823.SZ',name:'超声电子 <unsafe>',status:'CLOSED'});
+  data.trades.push({signal_date:'20261019',rank:1,ts_code:'000823.SZ',name:'超声电子 <unsafe>',status:'CLOSED'});
   const out=c.profitPaperAccountMarkup(data);
   assert.match(out,/<th>代码<\/th><th class="left">公司名称<\/th>/);
   assert.match(out,/<td>000823\.SZ<\/td><td class="left">超声电子 &lt;unsafe&gt;<\/td>/);
@@ -70,31 +83,43 @@ test("responsive curve handles one point and no valid data without NaN",()=>{
 });
 function inputs() {
   const raw=new Map();
-  raw.set("data/market/trade_cal_sse.csv",Buffer.from(JSON.stringify([{cal_date:"20260914",is_open:"1"},{cal_date:"20260915",is_open:"1"}])));
-  raw.set("data/market/raw/2026/20260915/daily.csv",Buffer.from(JSON.stringify([{trade_date:"20260915",ts_code:"000001.SZ",close:"10",pre_close:"9"}])));
+  raw.set("data/market/trade_cal_sse.csv",Buffer.from(JSON.stringify([{cal_date:"20260914",is_open:"1"},{cal_date:"20261019",is_open:"1"},{cal_date:"20261020",is_open:"1"}])));
+  raw.set("data/market/raw/2026/20261020/daily.csv",Buffer.from(JSON.stringify([{trade_date:"20261020",ts_code:"000001.SZ",close:"10",pre_close:"9"}])));
   const windowPayload={source_files:[...raw].map(([path,b])=>({path,sha256:sha(b)}))};
-  const summary={as_of_date:"20260915",signal_dates:["20260914","20260915"],calendar_sha256:sha(raw.get("data/market/trade_cal_sse.csv"))};
+  const summary={as_of_date:"20261020",signal_dates:["20260914","20261019","20261020"],calendar_sha256:sha(raw.get("data/market/trade_cal_sse.csv"))};
   return {raw,summary,windowPayload};
 }
 test("loader only reads bound calendar and daily prices, leaves missing day absent",async()=>{
   const x=inputs(), calls=[];const c=context({fetchPagesOnlyPath:async(p,kind)=>{calls.push([p,kind]);return x.raw.get(p)}});
   const data=await c.loadProfitPaperAccountInputs(x.summary,x.windowPayload);
   assert.equal(data.quotes.size,1);assert.equal(data.quotes.has("20260914"),false);
-  assert.equal(JSON.stringify(data.missing_market_dates),'["20260914"]');assert.equal(calls.length,2);
+  assert.equal(JSON.stringify(data.missing_market_dates),'["20261019"]');assert.equal(calls.length,2);
+});
+test('loader still checks the full legacy calendar but does not read legacy quote bindings',async()=>{
+  const x=inputs(),calls=[],old='data/market/raw/2026/20260914/daily.csv';
+  x.windowPayload.source_files.push({path:old,sha256:'0'.repeat(64)});
+  const c=context({fetchPagesOnlyPath:async p=>{calls.push(p);assert.notEqual(p,old);return x.raw.get(p)}});
+  const data=await c.loadProfitPaperAccountInputs(x.summary,x.windowPayload);
+  assert.deepEqual(calls,['data/market/trade_cal_sse.csv','data/market/raw/2026/20261020/daily.csv']);
+  assert.equal(JSON.stringify(data.missing_market_dates),'["20261019"]');
+  x.summary.as_of_date='20261016';x.summary.signal_dates=['20260914'];calls.length=0;
+  const before=await c.loadProfitPaperAccountInputs(x.summary,x.windowPayload);
+  assert.equal(before.quotes.size,0);assert.equal(before.missing_market_dates.length,0);
+  assert.deepEqual(calls,['data/market/trade_cal_sse.csv']);
 });
 test("loader rejects SHA mismatch, duplicate symbols, and calendar drift",async()=>{
   for(const mode of ["sha","duplicate","calendar"]){
     const x=inputs();
     if(mode==="sha")x.windowPayload.source_files[1].sha256="0".repeat(64);
-    if(mode==="calendar")x.summary.signal_dates=["20260915"];
-    if(mode==="duplicate") {const p="data/market/raw/2026/20260915/daily.csv";const q=JSON.parse(x.raw.get(p));q.push(q[0]);x.raw.set(p,Buffer.from(JSON.stringify(q)));x.windowPayload.source_files[1].sha256=sha(x.raw.get(p));}
+    if(mode==="calendar")x.summary.signal_dates=["20261019","20261020"];
+    if(mode==="duplicate") {const p="data/market/raw/2026/20261020/daily.csv";const q=JSON.parse(x.raw.get(p));q.push(q[0]);x.raw.set(p,Buffer.from(JSON.stringify(q)));x.windowPayload.source_files[1].sha256=sha(x.raw.get(p));}
     const c=context({fetchPagesOnlyPath:async p=>x.raw.get(p)});
     await assert.rejects(()=>c.loadProfitPaperAccountInputs(x.summary,x.windowPayload));
   }
 });
 function identityInputs(c) {
-  const prefix='outputs/decision/candidate_profit_v1', date='20260914', raw=new Map();
-  const day={schema_version:'dc20_candidate_formal_profit_day_v1',signal_date:date,exec_date:'20260915',exit_date:'20260916',
+  const prefix='outputs/decision/candidate_profit_v1', date='20261019', raw=new Map();
+  const day={schema_version:'dc20_candidate_formal_profit_day_v1',signal_date:date,exec_date:'20261020',exit_date:'20261021',
     activation_id:'test-model',model_canonical_sha256:'a'.repeat(64),snapshot_file_sha256:'b'.repeat(64),
     rows:[1,2].map(rank=>({ts_code:`00000${rank}.SZ`,candidate_rank:rank,candidate_score:0.1*rank,promotion_rank:rank,name:rank===1?'超声电子':'澳弘电子'}))};
   day.candidate_slots=day.rows.map(r=>({...r,slot:r.candidate_rank}));
@@ -102,7 +127,7 @@ function identityInputs(c) {
   const index={schema_version:'dc20_candidate_formal_profit_index_v1',activation_id:day.activation_id,model_canonical_sha256:day.model_canonical_sha256,
     days:[{signal_date:date,path,sha256:sha(bytes),snapshot_file_sha256:day.snapshot_file_sha256}]};
   const indexPath=`${prefix}/index.json`;raw.set(indexPath,Buffer.from(JSON.stringify(index)));
-  const summary={activation_id:day.activation_id,model_canonical_sha256:day.model_canonical_sha256,published_signal_dates:[date],groups:{}};
+  const summary={as_of_date:date,activation_id:day.activation_id,model_canonical_sha256:day.model_canonical_sha256,published_signal_dates:[date],groups:{}};
   const canonicalSha=sha(Buffer.from(c.ledgerCanonicalSource(bytes)));
   for(const rank of [1,2]) summary.groups[`candidate_top${rank}`]={daily_sequence:[{...day.candidate_slots[rank-1],signal_date:date,
     exec_date:day.exec_date,exit_date:day.exit_date,formal_projection_sha256:canonicalSha,snapshot_file_sha256:day.snapshot_file_sha256}]};
@@ -111,18 +136,31 @@ function identityInputs(c) {
 test('company loader uses bound same-day frozen names and records their provenance',async()=>{
   const c=context(),x=identityInputs(c);c.fetchPagesOnlyPath=async p=>x.raw.get(p);
   const names=await c.loadProfitPaperAccountIdentities(x.summary,x.revision);
-  assert.equal(names.identities.get('20260914:R1').name,'超声电子');
-  assert.equal(names.identities.get('20260914:R2').name,'澳弘电子');
-  assert.equal(names.identities.get('20260914:R1').source_sha256,x.index.days[0].sha256);
+  assert.equal(names.identities.get('20261019:R1').name,'超声电子');
+  assert.equal(names.identities.get('20261019:R2').name,'澳弘电子');
+  assert.equal(names.identities.get('20261019:R1').source_sha256,x.index.days[0].sha256);
   assert.equal(names.source_files.length,2);
   const absent=await c.loadProfitPaperAccountIdentities(x.summary);
   assert.equal(absent.identities.size,0);assert.equal(absent.source_files.length,0);
+});
+test('company loader validates full index date coverage but reads only reset-period names',async()=>{
+  const c=context(),x=identityInputs(c),calls=[];
+  x.index.days.unshift({signal_date:'20260914',path:'outputs/decision/candidate_profit_v1/day_20260914.json',sha256:'0'.repeat(64),snapshot_file_sha256:'b'.repeat(64)});
+  x.summary.published_signal_dates.unshift('20260914');
+  x.raw.set(x.indexPath,Buffer.from(JSON.stringify(x.index)));
+  x.revision.candidate_profit_index_sha256=sha(x.raw.get(x.indexPath));
+  c.fetchPagesOnlyPath=async p=>{calls.push(p);return x.raw.get(p)};
+  const names=await c.loadProfitPaperAccountIdentities(x.summary,x.revision);
+  assert.equal(names.identities.size,2);assert.equal(names.identities.has('20260914:R1'),false);
+  assert.deepEqual(calls,[x.indexPath,x.path]);
+  x.summary.published_signal_dates=['20261019'];
+  await assert.rejects(()=>c.loadProfitPaperAccountIdentities(x.summary,x.revision),/目录与冻结账本日期/);
 });
 test('company loader rejects changed SHA, date, slot or source projection and never uses another day',async()=>{
   for(const mode of ['sha','index-date','projection','snapshot','ticker','slot']) {
     const c=context(),x=identityInputs(c);c.fetchPagesOnlyPath=async p=>x.raw.get(p);
     if(mode==='sha') x.revision.candidate_profit_index_sha256='0'.repeat(64);
-    if(mode==='index-date') x.summary.published_signal_dates=['20260915'];
+    if(mode==='index-date') x.summary.published_signal_dates=['20261020'];
     if(mode==='projection') x.summary.groups.candidate_top1.daily_sequence[0].formal_projection_sha256='0'.repeat(64);
     if(mode==='snapshot') x.summary.groups.candidate_top1.daily_sequence[0].snapshot_file_sha256='0'.repeat(64);
     if(mode==='ticker') x.summary.groups.candidate_top1.daily_sequence[0].ts_code='999999.SZ';
@@ -131,12 +169,12 @@ test('company loader rejects changed SHA, date, slot or source projection and ne
   }
 });
 function publishedInputs() {
-  const account=result(), source={path:'data/market/raw/2026/20260915/daily.csv',sha256:'5'.repeat(64)};
+  const account=result(), source={path:'data/market/raw/2026/20261020/daily.csv',sha256:'5'.repeat(64)};
   const revision={profit_paper_account_url:'outputs/decision/profit_paper_account/account.json',profit_paper_account_sha256:'1'.repeat(64),
     profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_valid_date,
-    head_sha:'2'.repeat(40),run_id:'12345',profit_paper_account_producer_run_id:'12345',profit_paper_account_updated_at:'2026-10-18T00:00:00Z',
+    head_sha:'2'.repeat(40),run_id:'12345',profit_paper_account_producer_run_id:'12345',profit_paper_account_updated_at:'2026-10-22T00:00:00Z',
     candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};
-  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:1000000,per_trade_budget:200000,cost_rate:.0045,
+  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:735000,per_trade_budget:100000,cost_rate:.0045,
     publication:{mode:'main_pipeline',source_head_sha:revision.head_sha,run_id:revision.run_id,published_at_utc:revision.profit_paper_account_updated_at},
     data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,
       engine_sha256:'6'.repeat(64),source_files:[source]}});
@@ -150,22 +188,40 @@ test('published account accepts only the current bound main-task artifact and di
   assert.equal(loaded,x.account);assert.equal(calls.length,1);
   assert.equal(calls[0][0],x.revision.profit_paper_account_url);assert.equal(calls[0][1],x.revision.profit_paper_account_sha256);
   const markup=c.profitPaperAccountMarkup(loaded);
-  assert.match(markup,/主任务/);assert.match(markup,/12345/);assert.match(markup,/2026\/10\/18 08:00:00/);
+  assert.match(markup,/主任务/);assert.match(markup,/12345/);assert.match(markup,/2026\/10\/22 08:00:00/);
+});
+test('published account accepts explicitly waiting pre-start artifact with no carried-in positions',async()=>{
+  const x=publishedInputs();
+  Object.assign(x.account,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,
+    missing_signal_dates:[],days:[],trades:[]});
+  Object.assign(x.account.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,open_trades:0});
+  x.summary.summary.as_of_date='20261016';
+  x.revision.profit_paper_account_as_of_date='20261016';x.revision.profit_paper_account_last_valid_date=null;
+  const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
+  assert.equal(await c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),x.account);
 });
 test('published account rejects mismatched run, commit, dates, summary or statistics window',async()=>{
-  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget']) {
+  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget','old-capital','old-start','missing-start','missing-waiting','wrong-waiting','old-trade','old-day','old-missing-date']) {
     const x=publishedInputs();
     if(mode==='run')x.account.publication.run_id='old';
     if(mode==='producer')x.revision.profit_paper_account_producer_run_id='old';
     if(mode==='head')x.account.publication.source_head_sha='f'.repeat(40);
     if(mode==='asof')x.account.as_of_date='20260930';
     if(mode==='revision-asof')x.revision.profit_paper_account_as_of_date='20260930';
-    if(mode==='last-date')x.account.last_valid_date='20260914';
+    if(mode==='last-date')x.account.last_valid_date='20261019';
     if(mode==='summary-sha')x.account.data_bindings.summary_sha256='0'.repeat(64);
     if(mode==='window-sha')x.account.data_bindings.window_sha256='0'.repeat(64);
     if(mode==='updated-at')x.account.publication.published_at_utc='2026-10-17T00:00:00Z';
     if(mode==='mode')x.account.publication.mode='browser';
-    if(mode==='old-budget')x.account.per_trade_budget=100000;
+    if(mode==='old-budget')x.account.per_trade_budget=200000;
+    if(mode==='old-capital')x.account.initial_capital=1000000;
+    if(mode==='old-start')x.account.start_signal_date='20260914';
+    if(mode==='missing-start')delete x.account.start_signal_date;
+    if(mode==='missing-waiting')delete x.account.waiting_for_start;
+    if(mode==='wrong-waiting')x.account.waiting_for_start=true;
+    if(mode==='old-trade')x.account.trades[0].signal_date='20261016';
+    if(mode==='old-day')x.account.days[0].date='20261016';
+    if(mode==='old-missing-date')x.account.missing_signal_dates=['20260921'];
     const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
     await assert.rejects(()=>c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),undefined,mode);
   }
@@ -174,7 +230,7 @@ test('published account rejects market input from another source version',async(
   for(const mode of ['sha','path']) {
     const x=publishedInputs();
     if(mode==='sha')x.account.data_bindings.source_files[0].sha256='0'.repeat(64);
-    else x.account.data_bindings.source_files[0].path='data/market/raw/2026/20260916/daily.csv';
+    else x.account.data_bindings.source_files[0].path='data/market/raw/2026/20261021/daily.csv';
     const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
     await assert.rejects(()=>c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),/行情来源不属于本次主任务/);
   }
@@ -210,7 +266,7 @@ test("renderer does not bind latest account to selected historical D",()=>{
   Object.assign(c.state,{candidateProfitSummary:summary,currentCompactStatisticsWindow:window,candidateProfitActivation:active,
     candidateProfitSummaryLoad:{status:"ready"},compactStatisticsWindowLoad:{status:"ready"},dailyRequestedDate:"20260914",
     profitPaperAccount:{status:"ready",loadedSummary:summary,loadedWindow:window,active,loadSequence:1,result:result()}});
-  c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/数据截至 2026-10-16/);
+  c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/数据截至 2026-10-22/);
   assert.equal(typeof c.document.getElementById("profitPaperAccountExport").onclick,"function");
   c.state.compactFatalError=true;c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/已清空模拟账户/);
 });
@@ -219,3 +275,4 @@ test("same homepage entry and existing refresh hooks include isolated account",(
   assert.match(html,/renderProfitNextDayStatistics\(\);\s+renderProfitPaperAccount\(\);/);
   assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-table-wrap[^}]*overflow-x:auto/);
 });
+

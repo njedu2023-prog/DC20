@@ -48,7 +48,8 @@ test("homepage has new-window entry links and no inline account loader", () => {
   }
   assert.match(main,/id="profitPaperAccount"/);
   assert.doesNotMatch(main,/id="profitPaperAccountContent"/);
-  assert.match(main,/本金100万元 · 盈1 \/ 盈2各20万元/);
+  assert.match(main,/本金73\.5万元 · 盈1 \/ 盈2各10万元/);
+  assert.match(main,/D 2026-10-19/);
 });
 
 test("standalone route selects account initializer before ledger and homepage", () => {
@@ -61,7 +62,9 @@ test("independent page shell has explicit budget, return link and usable refresh
   await f.context.initializeProfitPaperAccount();
   assert.equal(f.context.document.title,"盈利前二 · 模拟账户 | DC20");
   assert.equal(f.header.hidden,true);
-  assert.match(f.context.els.mainContent.innerHTML,/每笔预算各20万元/);
+  assert.match(f.context.els.mainContent.innerHTML,/每笔预算各10万元/);
+  assert.match(f.context.els.mainContent.innerHTML,/73\.5万元/);
+  assert.match(f.context.els.mainContent.innerHTML,/2026-10-19/);
   assert.match(f.context.els.mainContent.innerHTML,/href="\?"/);
   assert.match(f.context.els.mainContent.innerHTML,/id="profitPaperAccountContent"/);
   assert.equal(typeof f.node("paperAccountRefresh").onclick,"function");
@@ -126,3 +129,4 @@ test("stale page load cannot overwrite a newer load", async () => {
   assert.equal(f.node("profitPaperAccountContent").innerHTML,"newer account");
   assert.equal(f.calls.filter(c=>Array.isArray(c)&&c[0]==="account").length,0);
 });
+
