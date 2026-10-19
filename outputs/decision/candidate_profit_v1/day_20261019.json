@@ -1,0 +1,354 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 10,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.006936365151987985,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002724.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 2,
+      "candidate_score": -0.0070928222389631595,
+      "net_return": null,
+      "promotion_rank": 5,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002889.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002724.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600148.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "003029.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600860.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603197.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000576.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600178.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603278.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002085.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261020",
+  "exit_date": "20261021",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-20T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "照明设备",
+      "name": "海洋王",
+      "promotion_rank": 1,
+      "ts_code": "002724.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "长春一东",
+      "promotion_rank": 2,
+      "ts_code": "600148.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "软件开发",
+      "name": "吉大正元",
+      "promotion_rank": 3,
+      "ts_code": "003029.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "京城股份",
+      "promotion_rank": 4,
+      "ts_code": "600860.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 5,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "保隆科技",
+      "promotion_rank": 6,
+      "ts_code": "603197.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "地面兵装",
+      "name": "甘化科工",
+      "promotion_rank": 7,
+      "ts_code": "000576.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "东安动力",
+      "promotion_rank": 8,
+      "ts_code": "600178.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "大业股份",
+      "promotion_rank": 9,
+      "ts_code": "603278.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "万丰奥威",
+      "promotion_rank": 10,
+      "ts_code": "002085.SZ"
+    }
+  ],
+  "p0_file_sha256": "64a0985631055d3a6debbb1393cf9ce8888e6ca7db2206726f5a8ee8b388f303",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261019.json",
+    "sha256": "64a0985631055d3a6debbb1393cf9ce8888e6ca7db2206726f5a8ee8b388f303"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-19T11:50:03.413886+00:00",
+  "prediction_generated_at_utc": "2026-10-19T11:50:03.396449+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-19T11:56:25.546770+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002724.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600148.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "e370faf01d59e1f7f49bc5a50c3903e84084641e",
+    "evidence_manifest_sha256": "d49f9f3210f276d063b32b17ee983dc71c17587160ee196a61c3133d36892290",
+    "observer_run_id": 39247526266,
+    "publication_observation_sha256": "e206b6d74ca8e16a7187496dad0b7bfb18eac2e1c809adc76046ee334a1c9be9"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.006936365151987985,
+      "industry": "照明设备",
+      "name": "海洋王",
+      "promotion_rank": 1,
+      "ts_code": "002724.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0070928222389631595,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 5,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.00862969106701249,
+      "industry": "地面兵装",
+      "name": "甘化科工",
+      "promotion_rank": 7,
+      "ts_code": "000576.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.011661770634602917,
+      "industry": "汽车零部件",
+      "name": "长春一东",
+      "promotion_rank": 2,
+      "ts_code": "600148.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.014605020449317059,
+      "industry": "通用设备",
+      "name": "大业股份",
+      "promotion_rank": 9,
+      "ts_code": "603278.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.014678973812990041,
+      "industry": "汽车零部件",
+      "name": "万丰奥威",
+      "promotion_rank": 10,
+      "ts_code": "002085.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.015251844496949926,
+      "industry": "通用设备",
+      "name": "京城股份",
+      "promotion_rank": 4,
+      "ts_code": "600860.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01602244337652295,
+      "industry": "汽车零部件",
+      "name": "保隆科技",
+      "promotion_rank": 6,
+      "ts_code": "603197.SH"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.016228951453076748,
+      "industry": "软件开发",
+      "name": "吉大正元",
+      "promotion_rank": 3,
+      "ts_code": "003029.SZ"
+    },
+    {
+      "candidate_rank": 10,
+      "candidate_score": -0.016407875825665108,
+      "industry": "汽车零部件",
+      "name": "东安动力",
+      "promotion_rank": 8,
+      "ts_code": "600178.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261019",
+  "snapshot_file_sha256": "94916a19214b733b24ad633cd837bf17faa9923d42981d15477ce836cd96a4c5",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261019.json",
+    "sha256": "94916a19214b733b24ad633cd837bf17faa9923d42981d15477ce836cd96a4c5"
+  },
+  "source_main_sha": "e370faf01d59e1f7f49bc5a50c3903e84084641e",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
