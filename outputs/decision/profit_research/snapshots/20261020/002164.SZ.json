@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261021",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.006807351940099,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.02696793002915454,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.46153846153846156,
+      "five_year_streak_runup": 0.21048689138576782,
+      "focus_pool_size": 12.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.34107883817427376,
+      "ret_2d": 0.21048689138576782,
+      "ret_5d": 0.21048689138576782,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 5.0,
+      "stage_pool_share": 0.5833333333333334,
+      "volatility_20d": 0.0486509696573323,
+      "volatility_5d": 0.05149952656244481,
+      "volume_ratio": 1.6147549073149308
+    },
+    "frozen_at": "2026-10-20T18:04:00.700281+00:00",
+    "industry": "通用设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "宁波东力",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261022",
+    "score": -0.012962494027886306,
+    "signal_date": "20261020",
+    "ts_code": "002164.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261020.json",
+      "sha256": "3fe3a0df140620492f8d7277db91a20a128613c9198bf2979daa838ddcd9c407"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261020.json",
+      "sha256": "ce1c4a425907ecf4e50517b007021de9a14f6feb134a9cee2e759f38538d5fda"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261020.json",
+      "sha256": "68555120a68556d53b902036d459018f137df1cb77cbc4b0ccb25256f2432b86"
+    }
+  ]
+}
