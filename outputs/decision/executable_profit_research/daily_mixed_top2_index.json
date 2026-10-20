@@ -1282,12 +1282,53 @@
       "source_bundle_sha256": "6c634cf91e915ea355263163b46e3765371365747e5d0323875c0273857a5180",
       "source_feature_snapshot_sha256": "ae0353ed56f93ca2c4718ac050cb92540a8cb079d979a4df90486e94928086b6",
       "top10_members_sha256": "a677a029729febdc8ce61a8232aba9358c50926a6362494c37dcc22b695c9537"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "95afc77d7fd2516a7e03ed3457a5bfea96382a9fe074786045bf1634aed32a8f",
+      "exec_date": "20261021",
+      "exit_date": "20261022",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "918a5422ed34c4caaa849961a8960b017549366b4063e4b69f0bf9ccee7574c5",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261020.csv",
+      "projection_json_sha256": "c7602d7b13a3eed9c2b5ca88e58bfe502c0bb7c1710c090e2abde401c04cc3ee",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261020.json",
+      "projection_snapshot_sha256": "67de4badbee20fde73b10b49766425452d873e531562bec0a0800898f344c398",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "照明设备",
+          "mixed_profit_rank": 1,
+          "name": "海洋王",
+          "promotion_rank": 3,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "002724.SZ"
+        },
+        {
+          "industry": "汽车零部件",
+          "mixed_profit_rank": 2,
+          "name": "长春一东",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "600148.SH"
+        }
+      ],
+      "signal_date": "20261020",
+      "source_bundle_sha256": "bc6416aad3af23bd08abe9d1f96655734dc0c1fd4ce21ca099311f7e5f82797e",
+      "source_feature_snapshot_sha256": "0d9651cd43caf81d55b6730a897467d456cf55a5bc19ba53f9c289efe1937c9f",
+      "top10_members_sha256": "2d25102fd73408280dfa320f8921046388b33f1f4639c91324a83c87800eca1b"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261019",
+  "latest_signal_date": "20261020",
   "public_start_signal_date": "20260828",
-  "recorded_days": 31,
+  "recorded_days": 32,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1319,9 +1360,10 @@
     "20261014",
     "20261015",
     "20261016",
-    "20261019"
+    "20261019",
+    "20261020"
   ],
-  "recorded_slots": 62,
+  "recorded_slots": 64,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "6957a9b6216e910a062190641136d78724100b2d582d1be10cb668cae62a9b9f"
+  "snapshot_sha256": "c6645e42778bc3efa35e234ddb2fbd04000abc881284e467f571b09519528b69"
 }
