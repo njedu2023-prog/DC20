@@ -1,0 +1,346 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.004300579406839743,
+      "net_return": null,
+      "promotion_rank": 10,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603636.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0025963193944285104,
+      "net_return": null,
+      "promotion_rank": 9,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002242.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 11,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "600293.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002347.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002076.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002313.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002181.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002835.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001239.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603636.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261022",
+  "exit_date": "20261023",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-22T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "玻璃玻纤",
+      "name": "三峡新材",
+      "promotion_rank": 1,
+      "ts_code": "600293.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "泰尔股份",
+      "promotion_rank": 2,
+      "ts_code": "002347.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "照明设备",
+      "name": "星光股份",
+      "promotion_rank": 3,
+      "ts_code": "002076.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通信设备",
+      "name": "日海智能",
+      "promotion_rank": 4,
+      "ts_code": "002313.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饲料",
+      "name": "百洋股份",
+      "promotion_rank": 5,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "粤 传 媒",
+      "promotion_rank": 6,
+      "ts_code": "002181.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "计算机设",
+      "name": "同为股份",
+      "promotion_rank": 7,
+      "ts_code": "002835.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "工程机械",
+      "name": "永达股份",
+      "promotion_rank": 8,
+      "ts_code": "001239.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 9,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "IT服务Ⅱ",
+      "name": "南威软件",
+      "promotion_rank": 10,
+      "ts_code": "603636.SH"
+    }
+  ],
+  "p0_file_sha256": "08613052f6d481509534d554355a40ce47cfa78549de8afe6c789971e9034e14",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261021.json",
+    "sha256": "08613052f6d481509534d554355a40ce47cfa78549de8afe6c789971e9034e14"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-21T11:26:12.894341+00:00",
+  "prediction_generated_at_utc": "2026-10-21T11:26:12.874891+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-21T11:38:53.655924+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600293.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002347.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "851a25a9ecdfe3c899d55ab7022d5f09bad6e091",
+    "evidence_manifest_sha256": "34e828a1ab3d091e0ca444d1bbd72eb980fc8d2e4b58cf7f8423b54fabac473a",
+    "observer_run_id": 39592760619,
+    "publication_observation_sha256": "41a4631f70688367ea41f1da9bd491b65f9af1d9618913a1968235351751269c"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.004300579406839743,
+      "industry": "IT服务Ⅱ",
+      "name": "南威软件",
+      "promotion_rank": 10,
+      "ts_code": "603636.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0025963193944285104,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 9,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.0031718496509074816,
+      "industry": "饲料",
+      "name": "百洋股份",
+      "promotion_rank": 5,
+      "ts_code": "002696.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.007543616650102229,
+      "industry": "工程机械",
+      "name": "永达股份",
+      "promotion_rank": 8,
+      "ts_code": "001239.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.01089284501597283,
+      "industry": "出版",
+      "name": "粤 传 媒",
+      "promotion_rank": 6,
+      "ts_code": "002181.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.01182865814813443,
+      "industry": "计算机设",
+      "name": "同为股份",
+      "promotion_rank": 7,
+      "ts_code": "002835.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.01426854445911865,
+      "industry": "通信设备",
+      "name": "日海智能",
+      "promotion_rank": 4,
+      "ts_code": "002313.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01695944962513793,
+      "industry": "通用设备",
+      "name": "泰尔股份",
+      "promotion_rank": 2,
+      "ts_code": "002347.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.02572971847426222,
+      "industry": "照明设备",
+      "name": "星光股份",
+      "promotion_rank": 3,
+      "ts_code": "002076.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261021",
+  "snapshot_file_sha256": "c199e2728ae4c83862a2a956eb31396af35cb89883ae2ca8ef4c844731a37534",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261021.json",
+    "sha256": "c199e2728ae4c83862a2a956eb31396af35cb89883ae2ca8ef4c844731a37534"
+  },
+  "source_main_sha": "851a25a9ecdfe3c899d55ab7022d5f09bad6e091",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
