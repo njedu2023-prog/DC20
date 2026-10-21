@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261022",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.0,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.004950495049504955,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.42857142857142855,
+      "five_year_streak_runup": 0.2101806239737274,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.19837398373983728,
+      "ret_2d": 0.2101806239737274,
+      "ret_5d": 0.20424836601307184,
+      "stage2_pool_size": 12.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9230769230769231,
+      "volatility_20d": 0.031946991672227046,
+      "volatility_5d": 0.05196408617910866,
+      "volume_ratio": 9.529989027264202
+    },
+    "frozen_at": "2026-10-21T11:26:12.894341+00:00",
+    "industry": "工程机械",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "永达股份",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261023",
+    "score": -0.007543616650102229,
+    "signal_date": "20261021",
+    "ts_code": "001239.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261021.json",
+      "sha256": "08613052f6d481509534d554355a40ce47cfa78549de8afe6c789971e9034e14"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261021.json",
+      "sha256": "6556e20ee844cda97973339f75ab29ff8b707560091d895fbbfd9c729cc4aad2"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261021.json",
+      "sha256": "c199e2728ae4c83862a2a956eb31396af35cb89883ae2ca8ef4c844731a37534"
+    }
+  ]
+}
