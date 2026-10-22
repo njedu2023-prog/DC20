@@ -108,12 +108,17 @@
           "synthetic_cumulative_net_return": 1.3293814227202811
         },
         {
+          "signal_date": "20261019",
+          "slot_net_return": 0.2494863325740319,
+          "synthetic_cumulative_net_return": 1.910530251040845
+        },
+        {
           "signal_date": "20261020",
           "slot_net_return": -0.08061548556430437,
-          "synthetic_cumulative_net_return": 1.1415972082632155
+          "synthetic_cumulative_net_return": 1.6758964416035904
         }
       ],
-      "complete_day_count": 18,
+      "complete_day_count": 19,
       "cumulative_available": false,
       "daily_sequence": [
         {
@@ -573,27 +578,27 @@
           "ts_code": "601811.SH"
         },
         {
-          "actual_exit_date": null,
-          "actual_exit_time": null,
+          "actual_exit_date": "20261022",
+          "actual_exit_time": "2026-10-22T14:36:00+08:00",
           "candidate_rank": 1,
           "candidate_score": -0.006936365151987985,
           "entry_price": 8.78,
           "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261020",
           "exit_date": "20261021",
-          "exit_price": null,
+          "exit_price": 11.01,
           "formal_projection_sha256": "7f418a03d3d5f6539f7dc9c560b7232c2695cf0adb51b714bec07cb3350242f9",
-          "held_limit_up_sessions": null,
-          "label_available_date": null,
-          "ledger_as_of_date": "20261021",
+          "held_limit_up_sessions": 1,
+          "label_available_date": "20261022",
+          "ledger_as_of_date": "20261022",
           "promotion_rank": 1,
           "proxy_fill": 1,
           "signal_date": "20261019",
           "slot": 1,
-          "slot_net_return": null,
+          "slot_net_return": 0.2494863325740319,
           "snapshot_file_sha256": "94916a19214b733b24ad633cd837bf17faa9923d42981d15477ce836cd96a4c5",
-          "status": "PENDING_EXIT_LIMIT_UP_HELD",
-          "terminal_economic_source_sha256": null,
+          "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+          "terminal_economic_source_sha256": "c554e4a31ef7ccea194a446eb9d6d58e2b822b30521b772d074cc7a5caab9818",
           "ts_code": "002724.SZ"
         },
         {
@@ -671,31 +676,30 @@
       ],
       "entire_window_settled": false,
       "expected_selection_days": 23,
-      "filled_proxy_win_rate": 0.625,
-      "filled_settled_slots": 16,
+      "filled_proxy_win_rate": 0.6470588235294118,
+      "filled_settled_slots": 17,
       "known_no_fill_slots": 2,
-      "mean_net_filled_proxy_return": 0.05553273464266675,
-      "mean_net_slot_return": 0.04936243079348156,
+      "mean_net_filled_proxy_return": 0.0669417698151,
+      "mean_net_slot_return": 0.059895267729300004,
       "minimum_net_slot_return": -0.14753797468354451,
       "missing_candidate_slots": 0,
       "missing_ledger_slots": 0,
       "missing_publication_slots": 2,
       "negative_filled_slots": 6,
       "not_due_slots": 1,
-      "pending_slots": 3,
-      "positive_filled_slots": 10,
+      "pending_slots": 2,
+      "positive_filled_slots": 11,
       "status_counts": {
         "MISSING_D_PUBLICATION": 2,
         "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED": 2,
-        "PENDING_EXIT_LIMIT_UP_HELD": 1,
         "PENDING_EXIT_MISSING_DAILY": 1,
         "PENDING_T1": 1,
-        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 16
+        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 17
       },
       "synthetic_cumulative_net_return": null,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
       "synthetic_max_drawdown": null,
-      "terminal_slots": 18,
+      "terminal_slots": 19,
       "verified_selection_days": 21,
       "zero_filled_slots": 0
     },
@@ -1265,7 +1269,7 @@
           "formal_projection_sha256": "7f418a03d3d5f6539f7dc9c560b7232c2695cf0adb51b714bec07cb3350242f9",
           "held_limit_up_sessions": 0,
           "label_available_date": "20261021",
-          "ledger_as_of_date": "20261021",
+          "ledger_as_of_date": "20261022",
           "promotion_rank": 5,
           "proxy_fill": 1,
           "signal_date": "20261019",
@@ -1600,14 +1604,14 @@
     {
       "evidence_commit": "e370faf01d59e1f7f49bc5a50c3903e84084641e",
       "evidence_manifest_sha256": "d49f9f3210f276d063b32b17ee983dc71c17587160ee196a61c3133d36892290",
-      "ledger_as_of_date": "20261021",
-      "ledger_file_sha256": "c2f3c518d55c697393e4181cd8314ed6bdaa799b751738c6f6bd92809ebb2185",
-      "ledger_version_count": 3,
+      "ledger_as_of_date": "20261022",
+      "ledger_file_sha256": "810575daeab9323a82a8e3ead3b3b39b4d0879c3efe9b2905a68602926b78a39",
+      "ledger_version_count": 4,
       "observer_run_id": 39247526266,
       "publication_observation_sha256": "e206b6d74ca8e16a7187496dad0b7bfb18eac2e1c809adc76046ee334a1c9be9",
       "signal_date": "20261019",
       "snapshot_file_sha256": "94916a19214b733b24ad633cd837bf17faa9923d42981d15477ce836cd96a4c5",
-      "source_collection_receipt_sha256": "1f52d85ad1b7874f3b8317a357b8ad3e9e5cf24d143da024db85d3588e8a3a01"
+      "source_collection_receipt_sha256": "4512cb5cde13859bbafe1026565bdd6e440968fc86125056e8dcd19f655bd014"
     },
     {
       "evidence_commit": "42375c871aafe39a1b54c546be7b28116b9ef12a",
@@ -1699,9 +1703,9 @@
     "20261022"
   ],
   "status": "FULL_ENUMERATED_WITH_MISSING_D",
-  "summary_sha256": "e0dc1e0600de479dca0b644d568f45a185827fed5f94dacd3074e2fac26a6801",
+  "summary_sha256": "b4d8727e6e854daa99c220e0ea81f2fda3c8621cfe8f5fdc9a676237bda3ed73",
   "test_only": false,
   "universe_scope": "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF",
-  "verified_native_inputs_sha256": "ded03de801a732dd8edf51c33ff74f31598189574b5a24bbd041e864b4290de8",
+  "verified_native_inputs_sha256": "07a463ff3091059ad043192074e1d465f768e66afaf415faabca1a2362d65b32",
   "win_rate_denominator": "FILLED_SETTLED_SLOTS_ONLY_ZERO_NOT_WIN"
 }
