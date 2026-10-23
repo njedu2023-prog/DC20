@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261026",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.97506234413966,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.02408563782337214,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.6666666666666666,
+      "five_year_streak_runup": 0.2093235831809872,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.04833597464342332,
+      "ret_2d": 0.2093235831809872,
+      "ret_5d": 0.2104300091491309,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.8888888888888888,
+      "volatility_20d": 0.06393038695785568,
+      "volatility_5d": 0.05048921841252457,
+      "volume_ratio": 1.6090327556282051
+    },
+    "frozen_at": "2026-10-23T11:28:26.680056+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "襄阳轴承",
+    "profit_eligible": true,
+    "profit_rank": 3,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261027",
+    "score": -0.007816949266052791,
+    "signal_date": "20261023",
+    "ts_code": "000678.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261023.json",
+      "sha256": "1bff5235673614f77785e7770a1393cd12a3b90588ac98595b79f96e3c42e67d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261023.json",
+      "sha256": "2136d3bb8e2868bf0f683a33b31ac8ec6d1f22c1e4be3cee0b5cd621f482e2a3"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261023.json",
+      "sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e"
+    }
+  ]
+}

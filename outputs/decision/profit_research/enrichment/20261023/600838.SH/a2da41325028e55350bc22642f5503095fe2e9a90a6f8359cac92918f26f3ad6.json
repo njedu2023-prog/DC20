@@ -1,0 +1,62 @@
+{
+  "first_collected_at_utc": "2026-10-23T11:40:36.488613+00:00",
+  "first_collected_revision": "c9fb6b01698bb16bb7f5bc3d06becd2f3f49136e",
+  "payload": {
+    "collection_kind": "BEFORE_ENTRY_COLLECTION",
+    "collector_code_sha256": "5f9963c6839e44171aacbaebb64e881fa562e41ae704f4970412291c61966c89",
+    "field_sources": {
+      "limit_last_time_minutes": {
+        "collection_kind": "BEFORE_ENTRY_COLLECTION",
+        "observed_at_utc": "2026-10-23T11:40:34.967112+00:00",
+        "point_in_time_independently_verified": false,
+        "raw_cache_written": false,
+        "raw_sha256": "f9ec6891f455a387e3946b7216fb806899555bdc34034b5d02a9efd182b18888",
+        "request_receipt": {
+          "api": "repository_csv",
+          "fields": [
+            "trade_date",
+            "ts_code",
+            "last_time"
+          ],
+          "params": {
+            "path": "data/market/raw/2026/20261023/limit_list_d.csv",
+            "trade_date": "20261023",
+            "ts_code": "600838.SH"
+          }
+        },
+        "source_event_date": "20261023",
+        "source_id": "repository:limit_list_d",
+        "source_path": "data/market/raw/2026/20261023/limit_list_d.csv",
+        "source_timestamp_before_entry": true,
+        "timezone": "Asia/Shanghai"
+      }
+    },
+    "field_status": {
+      "limit_last_time_minutes": "AVAILABLE",
+      "minute_first_30m_return": "MISSING",
+      "minute_last_30m_return": "MISSING",
+      "minute_realized_vol": "MISSING"
+    },
+    "formula_version": "d_minute_full_session_log_std_windows_v2",
+    "minute_quality": null,
+    "missing_reasons": {
+      "limit_last_time_minutes": null,
+      "minute_first_30m_return": "INCOMPLETE_MINUTE_SESSION",
+      "minute_last_30m_return": "INCOMPLETE_MINUTE_SESSION",
+      "minute_realized_vol": "INCOMPLETE_MINUTE_SESSION"
+    },
+    "point_in_time_independently_verified": false,
+    "production_inputs_modified": false,
+    "rule_version": "d_minute_full_session_log_std_windows_v2",
+    "schema_version": "dc20_research_enrichment_v1",
+    "signal_date": "20261023",
+    "ts_code": "600838.SH",
+    "values": {
+      "limit_last_time_minutes": 565.0,
+      "minute_first_30m_return": null,
+      "minute_last_30m_return": null,
+      "minute_realized_vol": null
+    }
+  },
+  "payload_sha256": "a2da41325028e55350bc22642f5503095fe2e9a90a6f8359cac92918f26f3ad6"
+}

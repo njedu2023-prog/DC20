@@ -1,0 +1,48 @@
+{
+  "record": {
+    "board_stage": null,
+    "eligibility_reason": "NO_FROZEN_PROFIT_SCORE",
+    "exec_date": "20261023",
+    "feature_snapshot_present": false,
+    "features": {
+      "d_pct_change": null,
+      "five_year_board_stage_delta": null,
+      "five_year_pre_streak_1d_return": null,
+      "five_year_recent_20d_rate": null,
+      "five_year_recent_60d_rate": null,
+      "five_year_stock_prior_rate": null,
+      "five_year_streak_runup": null,
+      "focus_pool_size": null,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": null,
+      "ret_10d": null,
+      "ret_2d": null,
+      "ret_5d": null,
+      "stage2_pool_size": null,
+      "stage3_pool_size": null,
+      "stage_pool_share": null,
+      "volatility_20d": null,
+      "volatility_5d": null,
+      "volume_ratio": null
+    },
+    "frozen_at": null,
+    "industry": "照明设备",
+    "model_sha256": null,
+    "name": "星光股份",
+    "profit_eligible": false,
+    "profit_rank": null,
+    "promotion_rank": 2,
+    "provenance": "RETROSPECTIVE_UNVERIFIED",
+    "scheduled_exit_date": "20261026",
+    "score": null,
+    "signal_date": "20261022",
+    "ts_code": "002076.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261022.json",
+      "sha256": "ef243b16fb85ee4bbbb37020b054b6cf9722b141ea58de4b9b9961c96d59172c"
+    }
+  ]
+}

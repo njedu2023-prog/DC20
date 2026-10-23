@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261026",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.000000000000004,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.004437869822485063,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.45454545454545453,
+      "five_year_streak_runup": 0.20950965824665668,
+      "focus_pool_size": 9.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.2698907956318253,
+      "ret_2d": 0.20950965824665668,
+      "ret_5d": 0.24655436447166923,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.8888888888888888,
+      "volatility_20d": 0.042023472206234015,
+      "volatility_5d": 0.04462934424685887,
+      "volume_ratio": 2.589654816148802
+    },
+    "frozen_at": "2026-10-23T11:28:26.680056+00:00",
+    "industry": "软件开发",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "多伦科技",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261027",
+    "score": -0.008704396125650575,
+    "signal_date": "20261023",
+    "ts_code": "603528.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261023.json",
+      "sha256": "1bff5235673614f77785e7770a1393cd12a3b90588ac98595b79f96e3c42e67d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261023.json",
+      "sha256": "2136d3bb8e2868bf0f683a33b31ac8ec6d1f22c1e4be3cee0b5cd621f482e2a3"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261023.json",
+      "sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e"
+    }
+  ]
+}
