@@ -1,0 +1,329 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.0008406819931254545,
+      "net_return": null,
+      "promotion_rank": 9,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "003021.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.006941031453717233,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603028.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600838.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603028.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002535.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603933.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603280.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603089.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603528.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000678.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "003021.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261026",
+  "exit_date": "20261027",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-26T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 9,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "上海九百",
+      "promotion_rank": 1,
+      "ts_code": "600838.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "赛福天",
+      "promotion_rank": 2,
+      "ts_code": "603028.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "专用设备",
+      "name": "林州重机",
+      "promotion_rank": 3,
+      "ts_code": "002535.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "其他电子",
+      "name": "睿能科技",
+      "promotion_rank": 4,
+      "ts_code": "603933.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "工程机械",
+      "name": "南方路机",
+      "promotion_rank": 5,
+      "ts_code": "603280.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "正裕工业",
+      "promotion_rank": 6,
+      "ts_code": "603089.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "软件开发",
+      "name": "多伦科技",
+      "promotion_rank": 7,
+      "ts_code": "603528.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "襄阳轴承",
+      "promotion_rank": 8,
+      "ts_code": "000678.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电机Ⅱ",
+      "name": "兆威机电",
+      "promotion_rank": 9,
+      "ts_code": "003021.SZ"
+    }
+  ],
+  "p0_file_sha256": "1bff5235673614f77785e7770a1393cd12a3b90588ac98595b79f96e3c42e67d",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261023.json",
+    "sha256": "1bff5235673614f77785e7770a1393cd12a3b90588ac98595b79f96e3c42e67d"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-23T11:28:26.680056+00:00",
+  "prediction_generated_at_utc": "2026-10-23T11:28:26.663994+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-23T11:35:13.576085+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600838.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603028.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "f87bb05b2879b899533e371b8ca445537e90a96f",
+    "evidence_manifest_sha256": "8f4e1dee975fa498e2f6888b9305584287b8d06fca3dbe38be667b62d3553ab1",
+    "observer_run_id": 39946341317,
+    "publication_observation_sha256": "258147328349ed00074819c7c8856075173cf33787101a785a695cb10aa2686f"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.0008406819931254545,
+      "industry": "电机Ⅱ",
+      "name": "兆威机电",
+      "promotion_rank": 9,
+      "ts_code": "003021.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.006941031453717233,
+      "industry": "通用设备",
+      "name": "赛福天",
+      "promotion_rank": 2,
+      "ts_code": "603028.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.007816949266052791,
+      "industry": "汽车零部件",
+      "name": "襄阳轴承",
+      "promotion_rank": 8,
+      "ts_code": "000678.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.008704396125650575,
+      "industry": "软件开发",
+      "name": "多伦科技",
+      "promotion_rank": 7,
+      "ts_code": "603528.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.011207564805269025,
+      "industry": "专用设备",
+      "name": "林州重机",
+      "promotion_rank": 3,
+      "ts_code": "002535.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.011571828979995678,
+      "industry": "汽车零部件",
+      "name": "正裕工业",
+      "promotion_rank": 6,
+      "ts_code": "603089.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.013704071452814237,
+      "industry": "一般零售",
+      "name": "上海九百",
+      "promotion_rank": 1,
+      "ts_code": "600838.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.014129238912470598,
+      "industry": "工程机械",
+      "name": "南方路机",
+      "promotion_rank": 5,
+      "ts_code": "603280.SH"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.015961922827069795,
+      "industry": "其他电子",
+      "name": "睿能科技",
+      "promotion_rank": 4,
+      "ts_code": "603933.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261023",
+  "snapshot_file_sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261023.json",
+    "sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e"
+  },
+  "source_main_sha": "f87bb05b2879b899533e371b8ca445537e90a96f",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
