@@ -31,12 +31,12 @@ jobs:
 
     steps:
       - name: Checkout exact dispatch revision
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
 
       - name: Checkout immutable C6 frozen references
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: c6de497aaab48c40e205aa7fe8401ad6ad9780ad
           path: _dc20_fingerprint_reference_c6
@@ -50,7 +50,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12.13"
           cache: pip
