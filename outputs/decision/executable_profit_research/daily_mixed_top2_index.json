@@ -1405,12 +1405,53 @@
       "source_bundle_sha256": "428ed5d87a608b195ff811da2ba52b12739d50a5ba298a11eeccd04fc2670436",
       "source_feature_snapshot_sha256": "ce781c1674d2555e4972a720b6299e660ba50bf6176b7f8e9aeca65bd8011495",
       "top10_members_sha256": "7a6d1fefe884916fdb55fdc77abd4a87d08c4121a04669b9eea8219b5e1aa749"
+    },
+    {
+      "candidate_count": 9,
+      "entry_sha256": "776a27f6a08f6362d563120d8aaaf08867638084fc4b15c872b675eaaf8ef306",
+      "exec_date": "20261026",
+      "exit_date": "20261027",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "73d2f5417bc5f970cfb7b26777f14825bcd40af9b1faf2e5cacff39aca606bd0",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261023.csv",
+      "projection_json_sha256": "80a2f4cd9cd34eefe08a2340a707276ca5af1fc6c57e25328037d14d990196dc",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261023.json",
+      "projection_snapshot_sha256": "6696a61aa288e04f0d92fc8eb5745b75c4a39ae353fd52a211d24e5f7db96f5d",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "电机Ⅱ",
+          "mixed_profit_rank": 1,
+          "name": "兆威机电",
+          "promotion_rank": 9,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "003021.SZ"
+        },
+        {
+          "industry": "专用设备",
+          "mixed_profit_rank": 2,
+          "name": "林州重机",
+          "promotion_rank": 3,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "002535.SZ"
+        }
+      ],
+      "signal_date": "20261023",
+      "source_bundle_sha256": "dba8c00ba0f8e809283c27bc013a82fa0a5369cab195a38e3688cc8c91d03c1c",
+      "source_feature_snapshot_sha256": "b59b571e07c2a770039f5cdfa0fc1fa95032a03790cb97d875aa63c75d9f8821",
+      "top10_members_sha256": "149b54d209ae3fbc9bd42802e8f47e4c0131fcaa87bb67622ae6b30fc0dfa183"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261022",
+  "latest_signal_date": "20261023",
   "public_start_signal_date": "20260828",
-  "recorded_days": 34,
+  "recorded_days": 35,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1445,9 +1486,10 @@
     "20261019",
     "20261020",
     "20261021",
-    "20261022"
+    "20261022",
+    "20261023"
   ],
-  "recorded_slots": 68,
+  "recorded_slots": 70,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "d7c5ae8416599e7b45944ddbf616010e9be3d730764beb126e6dfad75b2353ff"
+  "snapshot_sha256": "4943415999eebb77c255e3353f0b258b0ffb359fb985245cd16fed69d355e072"
 }
