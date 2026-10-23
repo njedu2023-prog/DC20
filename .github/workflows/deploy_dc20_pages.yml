@@ -26,6 +26,7 @@ on:
       - models/decision_compact_statistics_window_v1.json
       - models/decision_shadow_exit_policy_1000_v1.json
       - models/decision_candidate_profit_activation_v1.json
+      - scripts/stage_current_profit_research.py
       - scripts/candidate_profit_pages.py
       - scripts/build_profit_paper_account.cjs
       - tests/test_profit_paper_account*.cjs
@@ -311,7 +312,10 @@ jobs:
               if child.name == optional_name:
                   continue
               target = destination / child.name
-              if child.is_dir():
+              if child.name == 'profit_research':
+                  from scripts.stage_current_profit_research import stage
+                  stage(child, target)
+              elif child.is_dir():
                   shutil.copytree(child, target)
               else:
                   shutil.copy2(child, target)
