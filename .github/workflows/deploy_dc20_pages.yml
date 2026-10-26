@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.expected_head || github.sha }}
           fetch-depth: 1
@@ -106,7 +106,7 @@ jobs:
           test "${actual}" = "${EXPECTED_HEAD}"
 
       - name: Set up pinned Python runtime
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: "3.12.13"
           cache: pip
@@ -281,7 +281,7 @@ jobs:
               handle.write(f'contract={contract}\n')
           PY
 
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Build isolated DC2.0 Decision site
         id: site
@@ -1916,7 +1916,7 @@ jobs:
       # All enabled daily/settlement publishers reuse this workflow. Build from
       # the same exact-head source bundle, before uploading the Pages artifact.
       - name: Set up pinned simulated-account runtime
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24.19.0"
 
@@ -1926,14 +1926,14 @@ jobs:
           node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs
           node scripts/build_profit_paper_account.cjs --site-root _site --source-html decision.html
 
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           name: ${{ inputs.artifact_name || 'github-pages' }}
           path: _site
 
       - name: Deploy DC2.0 Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
         with:
           artifact_name: ${{ inputs.artifact_name || 'github-pages' }}
 
