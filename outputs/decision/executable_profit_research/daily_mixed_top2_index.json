@@ -1446,12 +1446,53 @@
       "source_bundle_sha256": "dba8c00ba0f8e809283c27bc013a82fa0a5369cab195a38e3688cc8c91d03c1c",
       "source_feature_snapshot_sha256": "b59b571e07c2a770039f5cdfa0fc1fa95032a03790cb97d875aa63c75d9f8821",
       "top10_members_sha256": "149b54d209ae3fbc9bd42802e8f47e4c0131fcaa87bb67622ae6b30fc0dfa183"
+    },
+    {
+      "candidate_count": 10,
+      "entry_sha256": "8fc15f63b2e85a4496da7c3056d9db8ac05440bf2b544632a695b2e336e763aa",
+      "exec_date": "20261027",
+      "exit_date": "20261028",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "05f7aae0fa22579488d347b532d861757acaa798c5de201b3a9cedb1bb800ee2",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261026.csv",
+      "projection_json_sha256": "997d8f6c5355de711f749327ebda15492eed9cffbcff2e5265ee83622df428c4",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261026.json",
+      "projection_snapshot_sha256": "442b3fc0e6f2c416ccaaf57df67c0868fa211a907cac8ba49276da60e1953e55",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "汽车零部件",
+          "mixed_profit_rank": 1,
+          "name": "正裕工业",
+          "promotion_rank": 4,
+          "slot": 1,
+          "stage_transition": "3→4",
+          "ts_code": "603089.SH"
+        },
+        {
+          "industry": "汽车零部件",
+          "mixed_profit_rank": 2,
+          "name": "襄阳轴承",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "000678.SZ"
+        }
+      ],
+      "signal_date": "20261026",
+      "source_bundle_sha256": "fe660dcda9784a4cfa52480e92fc11059596601cbc8a9c9a5b5b86b0e8f4538a",
+      "source_feature_snapshot_sha256": "b7152dc41fab4405bc03889defc1d98c2edf04b547aa7ca153a07afe880b32d3",
+      "top10_members_sha256": "70e1bfc9c629a0e11ddbfec20d900c6acd0ab51c121672e2cb63a84d9af440bf"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261023",
+  "latest_signal_date": "20261026",
   "public_start_signal_date": "20260828",
-  "recorded_days": 35,
+  "recorded_days": 36,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1487,9 +1528,10 @@
     "20261020",
     "20261021",
     "20261022",
-    "20261023"
+    "20261023",
+    "20261026"
   ],
-  "recorded_slots": 70,
+  "recorded_slots": 72,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "4943415999eebb77c255e3353f0b258b0ffb359fb985245cd16fed69d355e072"
+  "snapshot_sha256": "8140ab7843d07f9d63a11de3ae9cdbb9c4667f264796c802acf8ed1eeb816942"
 }
