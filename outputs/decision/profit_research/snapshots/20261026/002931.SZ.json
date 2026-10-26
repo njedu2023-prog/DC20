@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261027",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.994807892004138,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.030185544170589718,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.5333333333333333,
+      "five_year_streak_runup": 0.20988006853226704,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 10,
+      "ret_10d": 0.17890929326655547,
+      "ret_2d": 0.20988006853226704,
+      "ret_5d": 0.1782536151279197,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 5.0,
+      "stage_pool_share": 0.6153846153846154,
+      "volatility_20d": 0.03954916312235302,
+      "volatility_5d": 0.055241918170833106,
+      "volume_ratio": 3.1457664972094235
+    },
+    "frozen_at": "2026-10-26T11:24:52.108437+00:00",
+    "industry": "通用设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "锋龙股份",
+    "profit_eligible": true,
+    "profit_rank": 10,
+    "promotion_rank": 10,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261028",
+    "score": -0.020519828251768898,
+    "signal_date": "20261026",
+    "ts_code": "002931.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261026.json",
+      "sha256": "a1ed982e644e654e3d3ffc5099e8b802edf7aeb87b8a5a30a566983bff28fe43"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261026.json",
+      "sha256": "d5091cd00b7a9a2714ed2e1d647c88ee8899258535f12a37dfb8ba2bc7584bb7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261026.json",
+      "sha256": "ee99bfab7c386c6da681da0c87fb480f5a94821a64c15d62b70e01aaf9febfd4"
+    }
+  ]
+}

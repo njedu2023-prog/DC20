@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261027",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.950859950859934,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": -0.004437869822485063,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.45454545454545453,
+      "five_year_streak_runup": 0.3298662704309061,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": 0.2695035460992907,
+      "ret_2d": 0.2094594594594592,
+      "ret_5d": 0.3458646616541352,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 5.0,
+      "stage_pool_share": 0.38461538461538464,
+      "volatility_20d": 0.04565488618890952,
+      "volatility_5d": 0.046349590344532655,
+      "volume_ratio": 0.32174859793240373
+    },
+    "frozen_at": "2026-10-26T11:24:52.108437+00:00",
+    "industry": "软件开发",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "多伦科技",
+    "profit_eligible": true,
+    "profit_rank": 8,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261028",
+    "score": -0.014958953429087608,
+    "signal_date": "20261026",
+    "ts_code": "603528.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261026.json",
+      "sha256": "a1ed982e644e654e3d3ffc5099e8b802edf7aeb87b8a5a30a566983bff28fe43"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261026.json",
+      "sha256": "d5091cd00b7a9a2714ed2e1d647c88ee8899258535f12a37dfb8ba2bc7584bb7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261026.json",
+      "sha256": "ee99bfab7c386c6da681da0c87fb480f5a94821a64c15d62b70e01aaf9febfd4"
+    }
+  ]
+}
