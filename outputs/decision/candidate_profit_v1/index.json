@@ -161,16 +161,23 @@
       "sha256": "2136d3bb8e2868bf0f683a33b31ac8ec6d1f22c1e4be3cee0b5cd621f482e2a3",
       "signal_date": "20261023",
       "snapshot_file_sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e"
+    },
+    {
+      "p0_file_sha256": "a1ed982e644e654e3d3ffc5099e8b802edf7aeb87b8a5a30a566983bff28fe43",
+      "path": "outputs/decision/candidate_profit_v1/day_20261026.json",
+      "sha256": "d5091cd00b7a9a2714ed2e1d647c88ee8899258535f12a37dfb8ba2bc7584bb7",
+      "signal_date": "20261026",
+      "snapshot_file_sha256": "ee99bfab7c386c6da681da0c87fb480f5a94821a64c15d62b70e01aaf9febfd4"
     }
   ],
   "effective_from_signal_date": "20260914",
   "enabled": true,
-  "generated_at_utc": "2026-10-23T11:35:14.404195+00:00",
-  "latest_signal_date": "20261023",
+  "generated_at_utc": "2026-10-26T11:31:36.266850+00:00",
+  "latest_signal_date": "20261026",
   "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
   "old_model_statistics_merged": false,
   "profitability_improvement_proven": false,
   "schema_version": "dc20_candidate_formal_profit_index_v1",
-  "source_main_sha": "f87bb05b2879b899533e371b8ca445537e90a96f",
+  "source_main_sha": "c51593639ef2872a427c906e141be2384e03440a",
   "status": "ACTIVE_FORWARD_VALIDATION"
 }
