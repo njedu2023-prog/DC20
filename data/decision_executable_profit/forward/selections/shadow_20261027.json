@@ -1,0 +1,275 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "404a10088d2f518296562be966ade10b4a3c94d76e418ecfe9ae838f1e84577d",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20261027.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20261027.json",
+    "row_count": 7
+  },
+  "exec_date": "20261028",
+  "exit_date": "20261029",
+  "feature_as_of_date": "20261027",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "饮料乳品",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "阳光乳业",
+      "predicted_promotion_probability": 0.24072074347135297,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.4460060109048467,
+      "research_fill_proxy_score": 0.9752104732268353,
+      "research_joint_proxy_score": 0.4349497329565286,
+      "shadow_max_price": 13.31,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "001318.SZ"
+    },
+    {
+      "industry": "休闲食品",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "桂发祥",
+      "predicted_promotion_probability": 0.4920261325362183,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.4358000441199671,
+      "research_fill_proxy_score": 0.9483638149565353,
+      "research_joint_proxy_score": 0.4132969923998384,
+      "shadow_max_price": 11.21,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "2→3",
+      "ts_code": "002820.SZ"
+    },
+    {
+      "industry": "汽车零部件",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "光洋股份",
+      "predicted_promotion_probability": 0.2829527633750922,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.4279469434631701,
+      "research_fill_proxy_score": 0.9575720424179432,
+      "research_joint_proxy_score": 0.40979002869854386,
+      "shadow_max_price": 17.22,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "2→3",
+      "ts_code": "002708.SZ"
+    },
+    {
+      "industry": "燃气Ⅱ",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "胜通能源",
+      "predicted_promotion_probability": 0.3356130710287295,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.409063298206094,
+      "research_fill_proxy_score": 0.9775671895876104,
+      "research_joint_proxy_score": 0.3998868587907699,
+      "shadow_max_price": 38.52,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "2→3",
+      "ts_code": "001331.SZ"
+    },
+    {
+      "industry": "休闲食品",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "青岛食品",
+      "predicted_promotion_probability": 0.35360283660605507,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.40621229889831656,
+      "research_fill_proxy_score": 0.9585980312036438,
+      "research_joint_proxy_score": 0.38939430997463237,
+      "shadow_max_price": 14.98,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "2→3",
+      "ts_code": "001219.SZ"
+    },
+    {
+      "industry": "汽车零部件",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "沪光股份",
+      "predicted_promotion_probability": 0.18975493072212785,
+      "promotion_rank": 7,
+      "research_conditional_profit_score": 0.4021044936088018,
+      "research_fill_proxy_score": 0.9569650256906748,
+      "research_joint_proxy_score": 0.38479993705668275,
+      "shadow_max_price": 19.91,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "2→3",
+      "ts_code": "605333.SH"
+    },
+    {
+      "industry": "教育",
+      "internal_shadow_order": 7,
+      "internal_shadow_selected": 0,
+      "name": "国脉科技",
+      "predicted_promotion_probability": 0.3385742801615668,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.3881400487530324,
+      "research_fill_proxy_score": 0.9686425211855745,
+      "research_joint_proxy_score": 0.3759689553972291,
+      "shadow_max_price": 7.93,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 7,
+      "stage_transition": "2→3",
+      "ts_code": "002093.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-10-27T11:31:38.220239Z",
+  "selection_identity_sha256": "cdd5e151d23582e4f543672b7de718ae3f9c8b7cd59a7ec86abee9d923054874",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "阳光乳业",
+        "promotion_rank": 6,
+        "research_conditional_profit_score": 0.4460060109048467,
+        "research_fill_proxy_score": 0.9752104732268353,
+        "research_joint_proxy_score": 0.4349497329565286,
+        "shadow_max_price": 13.31,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+        "shadow_slot": 1,
+        "ts_code": "001318.SZ"
+      },
+      {
+        "name": "桂发祥",
+        "promotion_rank": 1,
+        "research_conditional_profit_score": 0.4358000441199671,
+        "research_fill_proxy_score": 0.9483638149565353,
+        "research_joint_proxy_score": 0.4132969923998384,
+        "shadow_max_price": 11.21,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e",
+        "shadow_slot": 2,
+        "ts_code": "002820.SZ"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20261027",
+  "snapshot_sha256": "1b4d449202888bef95d8ec86ebe31e3b2b33eed3010825971fe9763e275acd17",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "cc6550ab0773133db8ad9dcc349e18e9d7fa0b6fa541d2f702a7a24ec0e48436"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20261027.csv",
+      "csv_sha256": "e01ea97b44bea35dea02428eb3548d94133edc2f5db55d40ee1a43eb06cc75f5",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20261027.json",
+      "sha256": "25d1e9c7769081b2f4160c79d751d9df6ae39dbe637a60a41baf891ac62915c7",
+      "snapshot_sha256": "6a23e837689983f9e19d4700a419fc546739bdc06cccd17c5145a0b21a4cb037"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20261027.json",
+      "sha256": "6e3060c92d2f009a39dc4f136fd28641ad3161d8baa477725e67fab9efeb443e"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "bd4f283157500394f045645fab3fa0c2066ed08fb4a3b6b48f8ca8b9a5bdbe77",
+      "identity_sha256": "5377909eec967d489356d828a560dd67c6c7ccf508e77a982d8f8162d7fcc9e2",
+      "path": "outputs/decision/primary_d_runtime_features_20261027.csv",
+      "row_count": 7,
+      "selected_count": 7,
+      "sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e"
+    },
+    "three_rank": {
+      "bundle_sha256": "cc9e9e933e7067ca62e3975d66e0461ad9b26fd30c80bec101d4b7d4a96124b9",
+      "csv_path": "outputs/decision/three_rank_top10_20261027.csv",
+      "csv_sha256": "3e5b76cff17eb83f341005e28db858b136e2e83cb4622c00838ebdd2033788f0",
+      "feature_snapshot_sha256": "bd4f283157500394f045645fab3fa0c2066ed08fb4a3b6b48f8ca8b9a5bdbe77",
+      "json_path": "outputs/decision/three_rank_top10_20261027.json",
+      "json_sha256": "8af693b045788bf763e8f1a3ff2dd3522acd0c0b1bda362dca3ed867fea4c50e",
+      "top10_members_sha256": "47587847b4eb7b7e827b913585156a503b61ce4adce82353543ae3bdf93acc04"
+    }
+  },
+  "source_generated_at_utc": "2026-10-27T11:24:18Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 7,
+  "top10_members_sha256": "47587847b4eb7b7e827b913585156a503b61ce4adce82353543ae3bdf93acc04"
+}
