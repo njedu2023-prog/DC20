@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261028",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.009813542688924,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.018027571580063628,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.21058315334773225,
+      "focus_pool_size": 7.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.12324649298597201,
+      "ret_2d": 0.21058315334773225,
+      "ret_5d": 0.1713688610240336,
+      "stage2_pool_size": 7.0,
+      "stage3_pool_size": 0.0,
+      "stage_pool_share": 1.0,
+      "volatility_20d": 0.03607001191104682,
+      "volatility_5d": 0.05623537103326818,
+      "volume_ratio": 2.5354946222390127
+    },
+    "frozen_at": "2026-10-27T11:30:21.440912+00:00",
+    "industry": "休闲食品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "桂发祥",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261029",
+    "score": -0.012310149320977236,
+    "signal_date": "20261027",
+    "ts_code": "002820.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261027.json",
+      "sha256": "8af693b045788bf763e8f1a3ff2dd3522acd0c0b1bda362dca3ed867fea4c50e"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261027.json",
+      "sha256": "058ffa86581a9ff1cb3a568b9337a7543f1189224b3ac1f57e51ebd1a05692a7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261027.json",
+      "sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11"
+    }
+  ]
+}
