@@ -1,0 +1,279 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 7,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.005001597524801244,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001318.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.005078987307047271,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002093.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002820.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001219.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002093.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001331.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002708.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "605333.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261028",
+  "exit_date": "20261029",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-28T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 7,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "休闲食品",
+      "name": "桂发祥",
+      "promotion_rank": 1,
+      "ts_code": "002820.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "休闲食品",
+      "name": "青岛食品",
+      "promotion_rank": 2,
+      "ts_code": "001219.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "教育",
+      "name": "国脉科技",
+      "promotion_rank": 3,
+      "ts_code": "002093.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "燃气Ⅱ",
+      "name": "胜通能源",
+      "promotion_rank": 4,
+      "ts_code": "001331.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "光洋股份",
+      "promotion_rank": 5,
+      "ts_code": "002708.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饮料乳品",
+      "name": "阳光乳业",
+      "promotion_rank": 6,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "沪光股份",
+      "promotion_rank": 7,
+      "ts_code": "605333.SH"
+    }
+  ],
+  "p0_file_sha256": "8af693b045788bf763e8f1a3ff2dd3522acd0c0b1bda362dca3ed867fea4c50e",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261027.json",
+    "sha256": "8af693b045788bf763e8f1a3ff2dd3522acd0c0b1bda362dca3ed867fea4c50e"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-27T11:30:21.440912+00:00",
+  "prediction_generated_at_utc": "2026-10-27T11:30:21.417807+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-27T11:37:26.692677+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002820.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001219.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "f6a114f987f6b38a70f864bed996a397f29010f5",
+    "evidence_manifest_sha256": "a78733a5f3f93b3ba3a49e4542291fd4163107bfab5fb2a10e1ccb19caf5fed0",
+    "observer_run_id": 40496677571,
+    "publication_observation_sha256": "b4e75296401265b2e88ef93ff7add4993e15c61a8245e3ef9722abb43a3c7a4e"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.005001597524801244,
+      "industry": "饮料乳品",
+      "name": "阳光乳业",
+      "promotion_rank": 6,
+      "ts_code": "001318.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.005078987307047271,
+      "industry": "教育",
+      "name": "国脉科技",
+      "promotion_rank": 3,
+      "ts_code": "002093.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.00671305255866418,
+      "industry": "汽车零部件",
+      "name": "沪光股份",
+      "promotion_rank": 7,
+      "ts_code": "605333.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.012310149320977236,
+      "industry": "休闲食品",
+      "name": "桂发祥",
+      "promotion_rank": 1,
+      "ts_code": "002820.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.012720869401257294,
+      "industry": "休闲食品",
+      "name": "青岛食品",
+      "promotion_rank": 2,
+      "ts_code": "001219.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.013797688333735715,
+      "industry": "燃气Ⅱ",
+      "name": "胜通能源",
+      "promotion_rank": 4,
+      "ts_code": "001331.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.014975528639159274,
+      "industry": "汽车零部件",
+      "name": "光洋股份",
+      "promotion_rank": 5,
+      "ts_code": "002708.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261027",
+  "snapshot_file_sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261027.json",
+    "sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11"
+  },
+  "source_main_sha": "f6a114f987f6b38a70f864bed996a397f29010f5",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
