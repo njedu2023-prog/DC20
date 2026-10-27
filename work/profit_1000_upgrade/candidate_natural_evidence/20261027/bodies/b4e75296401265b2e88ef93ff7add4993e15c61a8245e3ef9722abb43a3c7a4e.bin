@@ -1,0 +1,418 @@
+{
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "bounded_request_cost": 33,
+  "current_main_check_kind": "FOUR_ORIGINAL_BLOBS_NOT_COMMIT_ANCESTRY_PROOF",
+  "current_main_four_file_bytes_preserved": true,
+  "current_main_sha": "5c5ebb93b595c054d56a73265c8fa45532d1eace",
+  "exec_date": "20261028",
+  "exit_date": "20261029",
+  "files_written": 0,
+  "formal_model_replacement_allowed": false,
+  "freeze_code_head_sha": "29feded928128ac5440e1d3fb1538c13d9d0acdb",
+  "freeze_run_id": 40496235396,
+  "future_outcomes_read": false,
+  "git_ancestry_verified": false,
+  "independent_critical_jobs": [
+    {
+      "completed_at": "2026-10-27T11:29:04Z",
+      "conclusion": "success",
+      "id": 122162268995,
+      "name": "Validate fixed natural candidate contracts",
+      "run_id": 40496235396,
+      "started_at": "2026-10-27T11:27:09Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-27T11:30:34Z",
+      "conclusion": "success",
+      "id": 122163106776,
+      "name": "Freeze original P0 bound new model research slots",
+      "run_id": 40496235396,
+      "started_at": "2026-10-27T11:29:07Z",
+      "status": "completed"
+    }
+  ],
+  "injected_client_for_test": false,
+  "latest_publication_bound_utc": "2026-10-27T11:30:34Z",
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_evaluation_sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
+  "model_training_performed": false,
+  "natural_outcome_admission_issued": false,
+  "network_calls_performed": 33,
+  "original_p0_commit_sha": "29feded928128ac5440e1d3fb1538c13d9d0acdb",
+  "original_p0_run_id": 40495773823,
+  "original_source_bindings": [
+    {
+      "bytes": 4764361,
+      "git_blob_sha1": "6ae7a5a5b84506893dcb3996c94773b66053003f",
+      "git_mode": "100644",
+      "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
+    },
+    {
+      "bytes": 2449,
+      "git_blob_sha1": "1a0e25352fa8d862f30ca4cb9c51bd56c18e1966",
+      "git_mode": "100644",
+      "path": "data/market/confirmed_suspensions.json",
+      "sha256": "ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68"
+    },
+    {
+      "bytes": 412228,
+      "git_blob_sha1": "b140ce281a3ed4385e68b0b211965e5688d01902",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260921/daily.csv",
+      "sha256": "23cd309fa75a66fef653479b8f4d245664c0d0ed08da75a0de054e61f5d8a94e"
+    },
+    {
+      "bytes": 414067,
+      "git_blob_sha1": "40ee431661b4ee0a3918f40d49d720709c29354c",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260922/daily.csv",
+      "sha256": "395efce8cfc53e3da4ab0ce04894dcebf5fc905dc3310f47d65f1aae3e827644"
+    },
+    {
+      "bytes": 413963,
+      "git_blob_sha1": "6dc3c72daeaf912478e7817535d85e582f8ccad3",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260923/daily.csv",
+      "sha256": "ab326101b12fc44c355fc2335c10f7d0a905031dcdd68cb1d40c64d198befc4f"
+    },
+    {
+      "bytes": 414155,
+      "git_blob_sha1": "da7e264bccbdb6af75694a776c6c4ac715c82ab7",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260924/daily.csv",
+      "sha256": "27d0d8697c856c10fed8ac48336b94aa665a549e1196dddd35de9ae620eb8b52"
+    },
+    {
+      "bytes": 416056,
+      "git_blob_sha1": "a765e8bf65e2d881bba4fd8c1a6cd1052f6c16d3",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260928/daily.csv",
+      "sha256": "48cf89fa09a0099e9f77a7d218f64ba1fee2ec1ad62b96687ade3b69b0dee1bd"
+    },
+    {
+      "bytes": 411318,
+      "git_blob_sha1": "ecb70192c34db7cd8191c8fd7b6804fb87e67dfb",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260929/daily.csv",
+      "sha256": "454f2025427349b011bf24ba8b2acf86a6c8c040d3fa82665f63332958d24166"
+    },
+    {
+      "bytes": 412336,
+      "git_blob_sha1": "b93ef5f69d4ec073761d363bd9e01eb08d277937",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20260930/daily.csv",
+      "sha256": "7006dd7c3903d6d7a54436b3338639b92bcdc375aacacc42fc5b9ab084e8ad62"
+    },
+    {
+      "bytes": 413778,
+      "git_blob_sha1": "0e13b61bf7985cbf9381b2edce9bb11ad992e13c",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261008/daily.csv",
+      "sha256": "e2067c81ba1ddc9cecb43940562304322aca57c1fd2bc0764b5c71e17e3b1277"
+    },
+    {
+      "bytes": 413333,
+      "git_blob_sha1": "b2d23ffbb39f36d03fcc888f58b6d8d57ecca9dd",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261009/daily.csv",
+      "sha256": "32c260afd7123f49f6ec00ee6845ca22c93f0e50d3d091e0598ade6d26ece793"
+    },
+    {
+      "bytes": 414144,
+      "git_blob_sha1": "07f536e2dfaea82a1de6d9bfa63099ebbc0d4bb8",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261012/daily.csv",
+      "sha256": "4ed9caebda8266f22c62614433a3ce58a253f9fd91bedd75e777ad01df2fc1cf"
+    },
+    {
+      "bytes": 412513,
+      "git_blob_sha1": "f15215d3d3020bd7f30bb2ba13958bd84e66c371",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261013/daily.csv",
+      "sha256": "3e51bd316a03604134dc4b2e6d65b7320998fedd0cc94e6d74204dff84c009e3"
+    },
+    {
+      "bytes": 413706,
+      "git_blob_sha1": "20a64fbe99e676070d07dc6253b26d39b2d829a9",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261014/daily.csv",
+      "sha256": "9527ab4e92c6c74c240c5b2012191bdbf3a052f29862293db24f4f57e1a35edb"
+    },
+    {
+      "bytes": 414981,
+      "git_blob_sha1": "9c9c5ad56eeb990f980e124de4005ab803d77cb5",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261015/daily.csv",
+      "sha256": "37875f273c1bf16f066930244b25f9e539474e5069796468846bd92252962fdd"
+    },
+    {
+      "bytes": 411829,
+      "git_blob_sha1": "1c401df5a3ce254bf2d8cee91bb24bf057019424",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261016/daily.csv",
+      "sha256": "481d6109aedd7be05d8e1468b3734ef22255d074479b9d30e15f0dc5c19fc81d"
+    },
+    {
+      "bytes": 411525,
+      "git_blob_sha1": "d571ad2f9a1e1b805e6bbed48f42af2ce4e2b461",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261019/daily.csv",
+      "sha256": "809c40562f6bc77b05306dc8093228e30e3539a0dc9eebda6db94343da2e1f2f"
+    },
+    {
+      "bytes": 410851,
+      "git_blob_sha1": "a9b85fb67500f72124e801d4bfd86f8b3fe74a55",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261020/daily.csv",
+      "sha256": "45c7b9037716d4650a433a00773d7b4421d53e46e3c1d98e48f4de17448e2410"
+    },
+    {
+      "bytes": 411625,
+      "git_blob_sha1": "679322c17570822541ba46ed4414e684cbc85d02",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261021/daily.csv",
+      "sha256": "32f4db76cd57ee8414229523864b65c16b4b3a2e0dd34f9907206aeab0aff639"
+    },
+    {
+      "bytes": 414286,
+      "git_blob_sha1": "22c780f1ec5e2dfaf69aac612ec97b45c908331a",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261022/daily.csv",
+      "sha256": "3fb3cc39d96d9fdafadb9473832bfb73b8d012e632af316579ef878df94f73d4"
+    },
+    {
+      "bytes": 412642,
+      "git_blob_sha1": "8c0ce9247611a1a48dda4867e74f310080632526",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261023/daily.csv",
+      "sha256": "bcad133e8e8f1d97a4574fbbb54bd60371e71bba7e73b607f4535437ae4e5c8e"
+    },
+    {
+      "bytes": 412837,
+      "git_blob_sha1": "c36a726ef073054e963a141a9317b2f7d7ab070f",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261026/daily.csv",
+      "sha256": "b2153eb423c1ad5deebab5a49383198c85111972fc4c4614d7b4d037d9a36f19"
+    },
+    {
+      "bytes": 16698,
+      "git_blob_sha1": "7d92409553d1b6d24580ed6c06d31c3bab2228fa",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261027/_sync_meta.json",
+      "sha256": "5b5e80d6f24e578dde9f62580e2508f791b119c29a51a4d38313fac503e46543"
+    },
+    {
+      "bytes": 414193,
+      "git_blob_sha1": "6133c6678397cdb4341c434a58448bd4df0caf82",
+      "git_mode": "100644",
+      "path": "data/market/raw/2026/20261027/daily.csv",
+      "sha256": "29f7bffa253170efac2dd5f76a1910953ca8c76b459c8af3549cbbba08ed75ca"
+    },
+    {
+      "bytes": 61411,
+      "git_blob_sha1": "b8cf0e3fc81a67a91f27c2a9098e676ac1449d21",
+      "git_mode": "100644",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    {
+      "bytes": 83388,
+      "git_blob_sha1": "a9335eab2b81d87e0aadc7bc797bd06eb418400b",
+      "git_mode": "100644",
+      "path": "outputs/decision/primary_d_receipt_20261027.json",
+      "sha256": "6e3060c92d2f009a39dc4f136fd28641ad3161d8baa477725e67fab9efeb443e"
+    },
+    {
+      "bytes": 23616,
+      "git_blob_sha1": "afb45139b7528e0c736bc2b7c57d85bbc34945d5",
+      "git_mode": "100644",
+      "path": "outputs/decision/primary_d_runtime_features_20261027.csv",
+      "sha256": "4ae23f6b46aa9d444a75338e87213a307f783fc669cc20b2b576968e350c097e"
+    },
+    {
+      "bytes": 6186,
+      "git_blob_sha1": "2a53437c71daaead20fdec143f6062adbb79a2a4",
+      "git_mode": "100644",
+      "path": "outputs/decision/three_rank_top10_20261027.csv",
+      "sha256": "3e5b76cff17eb83f341005e28db858b136e2e83cb4622c00838ebdd2033788f0"
+    },
+    {
+      "bytes": 7757,
+      "git_blob_sha1": "44450a4553b810fa1af61e842ca6537ee325e08c",
+      "git_mode": "100644",
+      "path": "outputs/decision/three_rank_top10_20261027.json",
+      "sha256": "8af693b045788bf763e8f1a3ff2dd3522acd0c0b1bda362dca3ed867fea4c50e"
+    }
+  ],
+  "predictions_recomputed": false,
+  "production_activation_allowed": false,
+  "provider_timestamp_semantics_confirmed": false,
+  "publication_ack_sha256": "bd006fb63009be892346e30e8f666df555e237d4ca13be7fdebe68494c293706",
+  "publication_artifact": {
+    "created_at": "2026-10-27T11:30:31Z",
+    "digest": "sha256:7e711d2432a37a17304b5d75c035aace6ab6db05d05348f48deb18b6b2afa586",
+    "expired": false,
+    "id": 12729809907,
+    "name": "dc20-candidate-natural-40496235396-1",
+    "size_in_bytes": 8116306,
+    "updated_at": "2026-10-27T11:30:31Z"
+  },
+  "publication_deadline": "2026-10-28T09:25:00+08:00",
+  "published_commit_sha": "23112d9e4e00cc7cc6bd56edcb2ac5a3778b79b8",
+  "published_file_bindings": [
+    {
+      "bytes": 40765,
+      "git_blob_sha1": "d7496e53457141749d0d506396fa669ee345f0b0",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261027.json",
+      "sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11"
+    },
+    {
+      "bytes": 1221,
+      "git_blob_sha1": "92f5eefe8c6a1804e50014057395b3e107141a9b",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261027.json",
+      "sha256": "a173a0583fb778d50d75dc80d4ae4294062b79adcb5d993ea8274011217e9bf7"
+    },
+    {
+      "bytes": 12225,
+      "git_blob_sha1": "004a8922b902b78f0aa9f265f07c8cfbf83f0076",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/p0_sources_20261027.json",
+      "sha256": "39f3938f2f996108e245fb420e60c29980d73eb4eddf4419265c69c91ddddbd3"
+    },
+    {
+      "bytes": 712,
+      "git_blob_sha1": "ee9c821d9f1ba38c098a11df5ea2ddff2ebcced9",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/workflow_20261027.json",
+      "sha256": "d7b1a6339dd0b21dd8a8ad451d34367eefb4b5da1bf9566cab340c744d648176"
+    }
+  ],
+  "published_parent_sha": "993729ce5a020bec14f273404190db0b2091bf6d",
+  "published_tree_sha": "a232c8f8120c57c44a2497962ea21ba1fc89c1ce",
+  "remote_writes_performed": 0,
+  "repository": "njedu2023-prog/DC20",
+  "research_only": true,
+  "research_prospective_publication_observed": true,
+  "schema_version": "dc20_independent_candidate_research_publication_observation_v1",
+  "signal_date": "20261027",
+  "snapshot_file_sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11",
+  "snapshot_sha256": "bfd49b8f2e8645d0142b6f4cebee2ea16196845f79016f7a9a0a2e9fbc01d683",
+  "source_authority_issued": false,
+  "status": "RESEARCH_PROSPECTIVE_PUBLICATION_OBSERVED",
+  "timestamp_basis": "GITHUB_SUCCESSFUL_FREEZE_JOB_COMPLETION_NOT_GIT_AUTHOR_OR_COMMITTER_CLOCK",
+  "verification_window": "IMMEDIATE_POST_PUBLICATION_REQUIRES_UNEXPIRED_ORIGINAL_P0_PAGES_ARTIFACT",
+  "verified_code_bindings": [
+    {
+      "git_blob_sha1": "e35031a9c899cfe68260bddaccd4c7cfe7adb6e8",
+      "path": ".github/workflows/research_candidate_natural_forward.yml",
+      "sha256": "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd"
+    },
+    {
+      "git_blob_sha1": "7e622895c32455123d71244ae491a7302b9b2abe",
+      "path": "forward/storage.py",
+      "sha256": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098"
+    },
+    {
+      "git_blob_sha1": "892183b9e5c4ed2e1c1899589b8793f556b32136",
+      "path": "requirements-dev.lock",
+      "sha256": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2"
+    },
+    {
+      "git_blob_sha1": "a9e4a67d2458309d0faed75f04dafc913a8b68ea",
+      "path": "scripts/publish_primary_three_rank.py",
+      "sha256": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1"
+    },
+    {
+      "git_blob_sha1": "caf8bb44beb93f2d78f9e24af706bbf0b1157ee7",
+      "path": "src/top10decision/decision/d_close_features.py",
+      "sha256": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e"
+    },
+    {
+      "git_blob_sha1": "cf18b86656e71eff5a38e0e57d35494db172528f",
+      "path": "src/top10decision/decision/three_rank.py",
+      "sha256": "f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a"
+    },
+    {
+      "git_blob_sha1": "0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe",
+      "path": "work/profit_1000_upgrade/candidate_d_feature_projection.py",
+      "sha256": "aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f"
+    },
+    {
+      "git_blob_sha1": "838f8b10958fdcad09b896c5e75d7f635ccf281d",
+      "path": "work/profit_1000_upgrade/candidate_d_source_adapter.py",
+      "sha256": "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b"
+    },
+    {
+      "git_blob_sha1": "8d77cbf477ddf96ec9ecde03e4f14d16b3c2bbbe",
+      "path": "work/profit_1000_upgrade/candidate_eligible_forward.py",
+      "sha256": "86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2"
+    },
+    {
+      "git_blob_sha1": "7072d235220ecdfa139cd030c147ba5328694dde",
+      "path": "work/profit_1000_upgrade/candidate_eligible_forward_registration.json",
+      "sha256": "6f68eb804ae4e894b56f5d245a0b45f08f9a6c4a315c9edae4b9345be85a6878"
+    },
+    {
+      "git_blob_sha1": "3855dbedf6e4b6c85454c50d95a22cc128d52273",
+      "path": "work/profit_1000_upgrade/candidate_eligible_pool.py",
+      "sha256": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23"
+    },
+    {
+      "git_blob_sha1": "e69a1792ca8c35cd73deffac53f772d47bcb432c",
+      "path": "work/profit_1000_upgrade/candidate_forward_predict.py",
+      "sha256": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719"
+    },
+    {
+      "git_blob_sha1": "f45464afe541c80b9c3c632bfd4519069a0845b4",
+      "path": "work/profit_1000_upgrade/candidate_legacy_workflow.py",
+      "sha256": "c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee"
+    },
+    {
+      "git_blob_sha1": "4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04",
+      "path": "work/profit_1000_upgrade/candidate_live_feature_math.py",
+      "sha256": "922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68"
+    },
+    {
+      "git_blob_sha1": "15ad20fa489eccf86be313478760b4ff3f776721",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward.py",
+      "sha256": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029"
+    },
+    {
+      "git_blob_sha1": "2c21163392acabaaf6c1f2919a0454df48223b4d",
+      "path": "work/profit_1000_upgrade/candidate_natural_forward_registration.json",
+      "sha256": "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b"
+    },
+    {
+      "git_blob_sha1": "2546af3bfab7ece915d43c86ffa5779b3e19e2a0",
+      "path": "work/profit_1000_upgrade/candidate_natural_model/evaluation.json",
+      "sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
+    },
+    {
+      "git_blob_sha1": "4fef6088fbe25cdfad6e6d19243eed375c27d1da",
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_continuation.py",
+      "sha256": "680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9"
+    },
+    {
+      "git_blob_sha1": "46cbb2a01a5535e7b817b400e250c5292454faca",
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_github.py",
+      "sha256": "fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507"
+    },
+    {
+      "git_blob_sha1": "72ad86bc59d63d2b6272a75f7c0c147d0ec74609",
+      "path": "work/profit_1000_upgrade/candidate_natural_workflow.py",
+      "sha256": "ce8d282b19b1aa934c520ea501e1efa03cada8f13eea58c054693db8bb7e4b4e"
+    },
+    {
+      "git_blob_sha1": "aec9f7eda757e6ab784e9d591da41f7abc43819d",
+      "path": "work/profit_1000_upgrade/candidate_p0_generation_artifact.py",
+      "sha256": "26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e"
+    },
+    {
+      "git_blob_sha1": "0aee931fea4fbf66631c3963dac6cc88c9c66c9d",
+      "path": "work/profit_1000_upgrade/candidate_snapshot_versions.py",
+      "sha256": "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8"
+    }
+  ],
+  "verifier_sha256": "e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6"
+}
