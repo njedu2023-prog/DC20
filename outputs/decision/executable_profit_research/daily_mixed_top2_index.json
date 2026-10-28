@@ -1528,12 +1528,53 @@
       "source_bundle_sha256": "cc9e9e933e7067ca62e3975d66e0461ad9b26fd30c80bec101d4b7d4a96124b9",
       "source_feature_snapshot_sha256": "bd4f283157500394f045645fab3fa0c2066ed08fb4a3b6b48f8ca8b9a5bdbe77",
       "top10_members_sha256": "47587847b4eb7b7e827b913585156a503b61ce4adce82353543ae3bdf93acc04"
+    },
+    {
+      "candidate_count": 7,
+      "entry_sha256": "466f9de2bb8c531c9f94fb5fe208d058511acc503b69123a8e99227815870cef",
+      "exec_date": "20261029",
+      "exit_date": "20261030",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "af503c533e0e3f7260ff4dc85dcae6e3312625f3db5070f0e22d0c85a3497012",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261028.csv",
+      "projection_json_sha256": "247a76cf096183ff6a35e95a9eb72318e7327c135660b168912fadb6df920bb8",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261028.json",
+      "projection_snapshot_sha256": "3c7db0334c2dd41e70d4f5678ae92196a9a58f07fd91290fc9e112c7da16dd6d",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "专用设备",
+          "mixed_profit_rank": 1,
+          "name": "江顺科技",
+          "promotion_rank": 7,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "001400.SZ"
+        },
+        {
+          "industry": "一般零售",
+          "mixed_profit_rank": 2,
+          "name": "茂业商业",
+          "promotion_rank": 3,
+          "slot": 2,
+          "stage_transition": "2→3",
+          "ts_code": "600828.SH"
+        }
+      ],
+      "signal_date": "20261028",
+      "source_bundle_sha256": "ed50ba6e89672c580dd45ed86cdce840f7abaaf8f6a8b58fa5b3882de6241250",
+      "source_feature_snapshot_sha256": "6993a05a06537fe7c6cc0d1d24d5ed71a55feb57b7ae9b1889e3d91e12d29f96",
+      "top10_members_sha256": "45c7496f3898c192092cbbcfaa00c2351d7d9dae7e1b1560f65586ad2543eeed"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261027",
+  "latest_signal_date": "20261028",
   "public_start_signal_date": "20260828",
-  "recorded_days": 37,
+  "recorded_days": 38,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1571,9 +1612,10 @@
     "20261022",
     "20261023",
     "20261026",
-    "20261027"
+    "20261027",
+    "20261028"
   ],
-  "recorded_slots": 74,
+  "recorded_slots": 76,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "656e4432bed0e5ecac2bc07ce23233b8599af84c4c6cda6d7c350417255c4765"
+  "snapshot_sha256": "a7792c6aba4a280357fc652c01b1a4d2e388f9655dc866871ca6922c4eaf9bdb"
 }
