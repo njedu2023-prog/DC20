@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -188,3 +189,246 @@ def test_path_uses_actual_bar_dates_but_context_calendar_stays_full(tmp_path, mo
     assert result["path_days_observed"] == 2
     assert seen == [DATES[0], DATES[-1]]
     assert obj.market_dates() == DATES
+
+
+def committed_boundary_engine(tmp_path, monkeypatch):
+    obj, bars = engine(tmp_path, monkeypatch, evidence())
+    calendar = tmp_path / "data/market/trade_cal_sse.csv"
+    pd.DataFrame({"exchange": "SSE", "cal_date": DATES, "is_open": 1}).to_csv(calendar, index=False)
+    for day in DATES:
+        path = tmp_path / f"data/market/raw/{day[:4]}/{day}/daily.csv"
+        path.parent.mkdir(parents=True)
+        # A nonempty full-market table is still required on suspended days.
+        row = bars.get(day, {"ts_code": "600000.SH", "close": 5, "pre_close": 5})
+        pd.DataFrame([{**row, "trade_date": day}]).to_csv(path, index=False)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    commit_boundary_fixture(tmp_path)
+    obj._primary_verifier = p0.GitHeadInputVerifier(tmp_path)
+    obj._primary_context_dates = tuple(DATES[1:])
+    return obj
+
+
+def commit_boundary_fixture(root):
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run([
+        "git", "-C", str(root), "-c", "user.name=fixture", "-c",
+        "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
+        "commit", "-qm", "immutable diagnostic fixture",
+    ], check=True)
+
+
+@pytest.mark.parametrize("window_start", [1, 2, 3])
+def test_rolling_left_boundary_uses_evidence_without_extending_features(tmp_path, monkeypatch, window_start):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    obj._primary_context_dates = tuple(DATES[window_start:])
+    before = obj.market_dates()
+    assert obj._confirmed_trading_dates(DATES[-1], CODE) == [DATES[-1]]
+    assert obj.market_dates() == before
+    assert DATES[0] not in obj._confirmed_trading_dates(DATES[-1], CODE)
+    binding = obj._primary_consumed[f"suspension_boundary:{DATES[1]}:{DATES[-1]}"]
+    assert binding["git_head"] == obj._primary_verifier.head
+    assert binding["feature_window_extended"] is False
+    assert [f["trade_date"] for f in binding["files"]] == DATES
+    assert all(f["sha256"] and f["git_blob_sha1"] for f in binding["files"])
+
+
+@pytest.mark.parametrize("mutation, message", [
+    ("missing_file", "missing, empty"),
+    ("missing_pre_bar", "lacks boundary bars"),
+    ("traded", "conflicts with a daily bar"),
+    ("discontinuous", "price is discontinuous"),
+    ("future_row", "not exact-D"),
+    ("drift", "drifted from HEAD"),
+    ("uncommitted", "not committed in HEAD"),
+    ("future_disclosure", "future evidence"),
+    ("symlink", "must not be a symlink"),
+])
+def test_clipped_suspension_evidence_fails_closed(tmp_path, monkeypatch, mutation, message):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    first = tmp_path / f"data/market/raw/2026/{DATES[0]}/daily.csv"
+    resume = tmp_path / f"data/market/raw/2026/{DATES[-1]}/daily.csv"
+    if mutation == "missing_file":
+        first.unlink()
+    elif mutation in {"missing_pre_bar", "drift", "future_row"}:
+        frame = pd.read_csv(first)
+        if mutation == "missing_pre_bar":
+            frame["ts_code"] = "600000.SH"
+        elif mutation == "future_row":
+            frame["trade_date"] = "20260929"
+        else:
+            frame["close"] = 9.0
+        frame.to_csv(first, index=False)
+    elif mutation == "traded":
+        pd.DataFrame([{"ts_code": CODE, "trade_date": DATES[2], "close": 10}]).to_csv(
+            tmp_path / f"data/market/raw/2026/{DATES[2]}/daily.csv", index=False)
+    elif mutation == "discontinuous":
+        frame = pd.read_csv(resume)
+        frame["pre_close"] = 9.0
+        frame.to_csv(resume, index=False)
+    elif mutation == "uncommitted":
+        subprocess.run(["git", "-C", str(tmp_path), "rm", "--cached", str(first)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=fixture", "-c",
+                        "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
+                        "commit", "-qm", "remove boundary witness"], check=True)
+    elif mutation == "future_disclosure":
+        payload = evidence()
+        payload["suspensions"][0]["sources"][0]["published_date"] = "20260929"
+        (tmp_path / "data/market/confirmed_suspensions.json").write_text(json.dumps(payload))
+    elif mutation == "symlink":
+        first.unlink()
+        first.symlink_to(resume)
+    if mutation not in {"missing_file", "drift", "uncommitted", "symlink"}:
+        commit_boundary_fixture(tmp_path)
+    obj._primary_verifier = p0.GitHeadInputVerifier(tmp_path)
+    with pytest.raises(p0.PrimaryDGenerationError, match=message):
+        obj._confirmed_trading_dates(DATES[-1], CODE)
+
+
+def test_clipped_boundary_cannot_read_after_query_or_extend_unboundedly(tmp_path, monkeypatch):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    with pytest.raises(p0.PrimaryDGenerationError, match="future date"):
+        obj._suspension_boundary_evidence(DATES[1], DATES[-1], DATES[-2])
+    monkeypatch.setattr(p0, "D_CLOSE_MAX_HISTORY_BARS", 0)
+    with pytest.raises(p0.PrimaryDGenerationError, match="bounded history closure"):
+        obj._suspension_boundary_evidence(DATES[1], DATES[-1], DATES[-1])
+
+
+def test_boundary_verifier_cannot_follow_a_new_head(tmp_path, monkeypatch):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    first = tmp_path / f"data/market/raw/2026/{DATES[0]}/daily.csv"
+    frame = pd.read_csv(first)
+    frame["close"] = 9.0
+    frame.to_csv(first, index=False)
+    commit_boundary_fixture(tmp_path)
+    # Keep the original verifier: changing HEAD must not silently rebind evidence.
+    with pytest.raises(p0.PrimaryDGenerationError, match="drifted from HEAD"):
+        obj._confirmed_trading_dates(DATES[-1], CODE)
+
+
+def test_boundary_calendar_requires_a_committed_preceding_session(tmp_path, monkeypatch):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    calendar = tmp_path / "data/market/trade_cal_sse.csv"
+    frame = pd.read_csv(calendar)
+    frame.iloc[1:].to_csv(calendar, index=False)
+    commit_boundary_fixture(tmp_path)
+    obj._primary_verifier = p0.GitHeadInputVerifier(tmp_path)
+    with pytest.raises(p0.PrimaryDGenerationError, match="lacks preceding SSE session"):
+        obj._confirmed_trading_dates(DATES[-1], CODE)
+
+
+@pytest.mark.parametrize('kind', ['daily', 'calendar'])
+@pytest.mark.parametrize('cached', [False, True])
+def test_boundary_rejects_replacement_after_bind_even_with_cached_binding(tmp_path, monkeypatch, kind, cached):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    relative = ('data/market/trade_cal_sse.csv' if kind == 'calendar'
+                else f'data/market/raw/2026/{DATES[-1]}/daily.csv')
+    verifier = obj._primary_verifier
+    if cached:
+        verifier.bind(relative, label='fixture cache')
+    original = verifier.bind
+    def replace_after_binding(path, *, label):
+        binding = original(path, label=label)
+        if path == relative:
+            target = tmp_path/path
+            replacement = target.with_suffix('.replacement')
+            replacement.write_bytes(target.read_bytes()+b'\n')
+            replacement.replace(target)
+        return binding
+    monkeypatch.setattr(verifier, 'bind', replace_after_binding)
+    with pytest.raises(p0.PrimaryDGenerationError, match='parsed bytes differ from fixed HEAD'):
+        obj._confirmed_trading_dates(DATES[-1], CODE)
+
+
+@pytest.mark.parametrize('kind', ['daily', 'calendar'])
+def test_boundary_parses_verified_bytes_without_rereading_changed_worktree(tmp_path, monkeypatch, kind):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    relative = ('data/market/trade_cal_sse.csv' if kind == 'calendar'
+                else f'data/market/raw/2026/{DATES[0]}/daily.csv')
+    path = tmp_path/relative
+    original_bytes = path.read_bytes()
+    original_reader = p0.pd.read_csv
+    calls = []
+    def change_disk_at_parse(stream, **kwargs):
+        assert isinstance(stream, p0.io.BytesIO)
+        calls.append(stream.getvalue())
+        path.write_bytes(b'not the committed CSV anymore\n')
+        return original_reader(stream, **kwargs)
+    monkeypatch.setattr(p0.pd, 'read_csv', change_disk_at_parse)
+    frame, binding = obj._primary_verifier.read_bound_csv(relative, label='single-byte fixture')
+    assert calls == [original_bytes]
+    assert binding['sha256'] == p0.hashlib.sha256(original_bytes).hexdigest()
+    assert binding['git_blob_sha1'] == p0.hashlib.sha1(b'blob '+str(len(original_bytes)).encode()+b'\0'+original_bytes).hexdigest()
+    assert not frame.empty and path.read_bytes() != original_bytes
+    # A subsequent cached-binding read must reject the new disk contents.
+    with pytest.raises(p0.PrimaryDGenerationError, match='parsed bytes differ from fixed HEAD'):
+        obj._primary_verifier.read_bound_csv(relative, label='cached fixture')
+    assert len(calls) == 1
+
+
+def test_discontinuous_committed_price_cannot_be_repaired_after_bind(tmp_path, monkeypatch):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    relative = f'data/market/raw/2026/{DATES[-1]}/daily.csv'
+    target = tmp_path/relative
+    frame = pd.read_csv(target); frame['pre_close'] = 9.0; frame.to_csv(target, index=False)
+    commit_boundary_fixture(tmp_path)
+    obj._primary_verifier = p0.GitHeadInputVerifier(tmp_path)
+    original = obj._primary_verifier.bind
+    def forged_price(path, *, label):
+        binding = original(path, label=label)
+        if path == relative:
+            frame = pd.read_csv(target); frame['pre_close'] = 10.0; frame.to_csv(target,index=False)
+        return binding
+    monkeypatch.setattr(obj._primary_verifier, 'bind', forged_price)
+    with pytest.raises(p0.PrimaryDGenerationError, match='parsed bytes differ from fixed HEAD'):
+        obj._confirmed_trading_dates(DATES[-1], CODE)
+
+
+@pytest.mark.parametrize('rewrite', ['sha256', 'git_blob_sha1'])
+def test_cached_binding_requires_both_hashes_of_parsed_bytes(tmp_path, monkeypatch, rewrite):
+    obj = committed_boundary_engine(tmp_path, monkeypatch)
+    relative = f'data/market/raw/2026/{DATES[0]}/daily.csv'
+    verifier = obj._primary_verifier
+    verifier.bind(relative,label='cached witness')
+    target=tmp_path/relative; raw=target.read_bytes()+b'\n';target.write_bytes(raw)
+    # Model a race during the original separate hash operations: one hash may
+    # describe changed bytes, but both must describe the same committed blob.
+    verifier._bindings[relative][rewrite] = (p0.hashlib.sha256(raw).hexdigest() if rewrite=='sha256'
+        else p0.hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest())
+    with pytest.raises(p0.PrimaryDGenerationError,match='parsed bytes differ from fixed HEAD'):
+        verifier.read_bound_csv(relative,label='dual digest witness')
+
+
+def test_cached_boundary_binding_does_not_follow_moved_head(tmp_path, monkeypatch):
+    obj=committed_boundary_engine(tmp_path,monkeypatch)
+    relative=f'data/market/raw/2026/{DATES[0]}/daily.csv'
+    verifier=obj._primary_verifier;verifier.bind(relative,label='old HEAD')
+    initial=verifier.head
+    target=tmp_path/relative;target.write_bytes(target.read_bytes()+b'\n');commit_boundary_fixture(tmp_path)
+    assert p0.GitHeadInputVerifier(tmp_path).head != initial
+    with pytest.raises(p0.PrimaryDGenerationError,match='parsed bytes differ from fixed HEAD'):
+        verifier.read_bound_csv(relative,label='must retain old HEAD')
+    assert verifier.head == initial
+
+
+@pytest.mark.parametrize('alias', ['symlink', 'hardlink'])
+def test_cached_boundary_read_rejects_filesystem_alias(tmp_path, monkeypatch, alias):
+    obj=committed_boundary_engine(tmp_path,monkeypatch)
+    relative=f'data/market/raw/2026/{DATES[0]}/daily.csv'
+    verifier=obj._primary_verifier;verifier.bind(relative,label='cached regular file')
+    target=tmp_path/relative;other=tmp_path/'same-bytes.csv';other.write_bytes(target.read_bytes())
+    target.unlink()
+    if alias=='symlink':target.symlink_to(other)
+    else:p0.os.link(other,target)
+    with pytest.raises(p0.PrimaryDGenerationError):verifier.read_bound_csv(relative,label='alias witness')
+
+
+def test_unrelated_head_move_keeps_original_verified_bytes_and_binding(tmp_path, monkeypatch):
+    obj=committed_boundary_engine(tmp_path,monkeypatch)
+    verifier=obj._primary_verifier;initial=verifier.head
+    relative=f'data/market/raw/2026/{DATES[0]}/daily.csv'
+    before=verifier.bind(relative,label='original HEAD')
+    (tmp_path/'unrelated.txt').write_text('new commit must not replace captured HEAD')
+    commit_boundary_fixture(tmp_path)
+    assert p0.GitHeadInputVerifier(tmp_path).head != initial
+    frame,after=verifier.read_bound_csv(relative,label='retained immutable HEAD')
+    assert not frame.empty and before==after and verifier.head==initial

@@ -12,7 +12,8 @@ def validator():
     source=(root/'work/profit_1000_upgrade/candidate_natural_publication.py').read_text()
     tree=ast.parse(source)
     node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_snapshot')
-    ns={'ROOT':root,'Path':Path,'natural':natural,
+    from work.profit_1000_upgrade import candidate_natural_publication as publication
+    ns={'ROOT':root,'Path':Path,'natural':natural,'FIXED_FILES':publication.FIXED_FILES,
         'gh':SimpleNamespace(sha256=natural._sha,read=natural._read),'require':natural.require}
     exec(compile(ast.Module(body=[node],type_ignores=[]),'observer_snapshot_unit','exec'),ns)
     return ns['_snapshot']

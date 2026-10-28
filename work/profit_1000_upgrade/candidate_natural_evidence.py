@@ -24,7 +24,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = "e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6"
+PUBLICATION_SHA = '0fd9e3be0640f19553ca4544552b4a250d6653ec2a047184e7fc798e93e22978'
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -74,8 +74,10 @@ gh = publication.gh
 SELF_SHA = sha(gh.read(Path(__file__).absolute())[0])
 
 
+PRE_BOUNDARY_CAPTURE_CONTRACT = ('1501a23e51d6e3867af2b1d457cd1690b88b38b750f9d1a50cb42521da4910bc', 'e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6')
+
 def capture_contracts():
-    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
+    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -348,6 +350,8 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         "CAPTURE_CODE_CONTRACT_CHANGED")
     day = gh.date(manifest.get("signal_date"))
     require(day >= "20260914", "EVIDENCE_NATURAL_START_REQUIRED")
+    if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_BOUNDARY_CAPTURE_CONTRACT:
+        require(day < "20261028", "PRE_BOUNDARY_CAPTURE_DATE_CHANGED")
     gh.exact_id(manifest.get("freeze_run_id")); gh.exact_sha(manifest.get("snapshot_file_sha256"))
     file_limit = _file_limit(manifest)
     continuation_kind = manifest.get("p0_provenance_kind") == CONTINUATION_KIND
@@ -429,8 +433,27 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         revision = _safe_body(revision_raw)
         require(gh.validate_revision(revision, p0_run, p0_id) == (day, observation["exec_date"], observation["exit_date"], observation["original_p0_commit_sha"]),
             "ORIGINAL_PAGES_REVISION_IDENTITY_CHANGED")
-    require(manifest["original_source_bindings"] == observation["original_source_bindings"]
-        and len(manifest["original_source_bindings"]) == 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in manifest["original_source_bindings"] if type(b) is dict), "ORIGINAL_SOURCE_GIT_BINDINGS_CHANGED")
+    bindings = manifest["original_source_bindings"]
+    count = 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in bindings if type(b) is dict)
+    if "boundary_registration" in manifest:
+        envelope = _safe_body(body(manifest["boundary_registration"]))
+        require(set(envelope) == {"receipt_raw", "contract_raw"}, "BOUNDARY_REGISTRATION_SHAPE")
+        receipt_raw, contract_raw = envelope["receipt_raw"].encode(), envelope["contract_raw"].encode()
+        receipt, contract = gh.parse_json(receipt_raw), gh.parse_json(contract_raw)
+        registered, _, _, _ = gh.adapter._registration(receipt, contract, day)
+        require(any(item.get("table") == gh.adapter.BOUNDARY_TABLE
+            for item in receipt["inputs"]["runtime_consumed_market_files"]), "TYPED_BOUNDARY_REGISTRATION_REQUIRED")
+        paths = gh.adapter._p0_paths(day)
+        wanted = set(registered) | set(paths.values())
+        require({b["path"] for b in bindings} == wanted, "BOUNDARY_REGISTERED_BINDINGS_CHANGED")
+        indexed = {b["path"]: b for b in bindings}
+        require(all(indexed[p]["sha256"] == digest for p, digest in registered.items())
+            and indexed[paths["receipt"]]["sha256"] == sha(receipt_raw)
+            and indexed[paths["three_rank_json"]]["sha256"] == sha(contract_raw),
+            "BOUNDARY_RECEIPT_OR_SOURCE_DIGEST_CHANGED")
+        count = len(wanted)
+    require(bindings == observation["original_source_bindings"] and len(bindings) == count,
+        "ORIGINAL_SOURCE_GIT_BINDINGS_CHANGED")
     for b in manifest["original_source_bindings"]:
         publication._source_path(b["path"], day)
     return manifest
@@ -532,6 +555,15 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
         continuation_fields = {"p0_provenance_kind": CONTINUATION_KIND,
             "generation_archive_evidence": generation, "generation_archive_body": retain(envelope),
             "original_generation_archive_bytes_persisted": True}
+    boundary_fields = {}
+    original = publication.read_archive(zip_bytes[observed["publication_artifact"]["id"]])["sources"]
+    paths = gh.adapter._p0_paths(observed["signal_date"])
+    original_receipt = gh.parse_json(original[paths["receipt"]])
+    if any(item.get("table") == gh.adapter.BOUNDARY_TABLE
+           for item in original_receipt["inputs"]["runtime_consumed_market_files"]):
+        boundary_fields["boundary_registration"] = retain(gh.json_bytes({
+            "receipt_raw": original[paths["receipt"]].decode(),
+            "contract_raw": original[paths["three_rank_json"]].decode()}))
     native_ref = retain(gh.json_bytes(observed))
     manifest = {"schema_version": SCHEMA, "status": "LOCAL_UNPUBLISHED_OBSERVATION", "signal_date": observed["signal_date"],
         "freeze_run_id": freeze_run_id, "snapshot_file_sha256": observed["snapshot_file_sha256"], "native_observation": native_ref,
@@ -540,7 +572,7 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
         "capture_code_sha256": SELF_SHA, "publication_verifier_sha256": PUBLICATION_SHA,
         "test_transport_injected": transport is not None, "large_zip_bodies_persisted": False,
         "headers_or_signed_redirect_urls_persisted": False,
-        **continuation_fields,
+        **continuation_fields, **boundary_fields,
         "trust_boundary": "REQUIRES_INDEPENDENT_OBSERVER_RUN_JOB_AND_GIT_MANIFEST_BINDING_FOR_CROSS_DAY_ADMISSION", **FLAGS}
     manifest_raw = gh.json_bytes(manifest)
     verify_materials(manifest_raw, bodies, expected_manifest_sha256=sha(manifest_raw))

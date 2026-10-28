@@ -25,7 +25,7 @@ TOKEN = "synthetic-continuation-only"
 def make_case(tmp_path, monkeypatch, *, suspension=False):
     c = pair.fixture(tmp_path, monkeypatch, suspension=suspension)
     local, _ = publication.code_guard()
-    parent_files = {**local, **c["all_new"], "protected.txt": b"unchanged formal evidence"}
+    parent_files = {**c["all_new"], **local, "protected.txt": b"unchanged formal evidence"}
     parent_tree = pair.git_tree(parent_files)
     responses = c["client"].responses
     responses[gh.API_PREFIX + "/git/commits/" + publication_fixture.CODE_HEAD] = {

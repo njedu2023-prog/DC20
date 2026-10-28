@@ -17,10 +17,10 @@ import tempfile
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_outcomes_append_only_v1"
 REPORT_SCHEMA = "dc20_candidate_natural_posthoc_price_observation_v1"
-REGISTRATION_SHA = "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b"
-PROFILE_READER_SHA = "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8"
+REGISTRATION_SHA = 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399'
+PROFILE_READER_SHA = '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83'
 PINS = {
-    "work/profit_1000_upgrade/candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
+    "work/profit_1000_upgrade/candidate_natural_forward.py": '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
     "work/profit_1000_upgrade/labels_v3.py": "cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b",
     "work/profit_1000_upgrade/policy_v3.py": "a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b",
     "work/profit_1000_upgrade/auction_truth_v3.py": "889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665",
@@ -112,9 +112,23 @@ def is_historical_snapshot_profile(frozen):
     return {key: frozen.get(key) for key in expected} == expected
 
 
+def is_pre_boundary_snapshot_profile(frozen):
+    runner = natural
+    if frozen.get("schema_version") != natural.SCHEMA:
+        from work.profit_1000_upgrade import candidate_eligible_forward as runner
+        if frozen.get("schema_version") != runner.SCHEMA:
+            return False
+    return (type(frozen.get("signal_date")) is str and frozen["signal_date"] < "20261028"
+        and any({key: frozen.get(key) for key in expected} == expected
+                for expected in (runner.PRE_BOUNDARY_SNAPSHOT_PROFILE, runner.HISTORICAL_SNAPSHOT_PROFILE)))
+
+PRE_BOUNDARY_REPORT_PROFILE = ('58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737', {'work/profit_1000_upgrade/candidate_natural_forward.py': 'eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029', 'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b', 'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b', 'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665', 'work/profit_1000_upgrade/auction_truth.py': 'b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af', 'work/profit_1000_upgrade/auction_http_v3.py': '289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c', 'work/profit_1000_upgrade/minute_truth.py': '69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268', 'src/top10decision/decision/shadow_exit_1000.py': '23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af', 'src/top10decision/decision/shadow_exit_minute_truth.py': '0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65', 'src/top10decision/decision/executable_profit_shadow_settlement.py': 'acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12', 'src/top10decision/decision/executable_profit_shadow.py': '872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c'})
+
 def validate_report_profile(report, frozen):
     """Read one possible writer/snapshot pair; current writers may continue old days."""
     profiles = [(SELF_SHA, PINS)]
+    if is_pre_boundary_snapshot_profile(frozen):
+        profiles.append(PRE_BOUNDARY_REPORT_PROFILE)
     if is_historical_snapshot_profile(frozen):
         profiles.append(HISTORICAL_REPORT_PROFILE)
         if frozen.get("schema_version") == natural.SCHEMA:

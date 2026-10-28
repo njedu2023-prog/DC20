@@ -60,6 +60,11 @@ def fixture(tmp_path,monkeypatch,*,suspension=False):
     assert gh.git_blob(historical_freeze) == m.ORIGINAL_P0_CODE_PROFILE[freeze_path]
     profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in m.ORIGINAL_P0_CODE_PROFILE}
     profile_files[freeze_path] = historical_freeze
+    # This is the unchanged, hash-checked historical producer, not today's code.
+    producer_path = 'scripts/publish_primary_three_rank.py'
+    historical_producer = (gh.CODE_ROOT / 'tests/fixtures/candidate_continuation/publish_primary_three_rank.py.txt').read_bytes()
+    assert gh.git_blob(historical_producer) == m.ORIGINAL_P0_CODE_PROFILE[producer_path]
+    profile_files[producer_path] = historical_producer
     all_new={**sources,pred_path:pred,'data/pred/_pred_source_meta.json':gh.json_bytes(pred_meta),
         **profile_files}
     changed=set(gh.adapter._p0_paths(day).values())|{receipt['inputs']['market']['meta_path'],

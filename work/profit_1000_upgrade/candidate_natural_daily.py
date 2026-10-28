@@ -25,7 +25,7 @@ STATE_PARENT = Path("/tmp/dc20-candidate-natural-state")
 SCHEMA = "dc20_candidate_natural_daily_manifest_v1"
 MAX_STEPS, MAX_CALLS, RESERVED_CALLS, WINDOW_SECONDS = 8, 96, 12, 300
 PINS = {
-    "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": "cb50fa02290aba5e2f01c75b7565aa2c705a50d61a14e2f132c939c324a6e02c",
+    "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": 'c65bc1f58dae7660960676875a788e780d72758f655d14cbeb4e65df9e2ce432',
     "scripts/diagnose_core_supervisor.py": "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"}
 FLAGS = {"research_only": True, "production_activation_allowed": False,
     "source_authority_issued": False, "natural_forward_admission_issued": False,

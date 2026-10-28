@@ -1,0 +1,211 @@
+{
+  "schema_version": "dc20_local_suspension_boundary_review_v1",
+  "status": "LOCAL_VALIDATION_IN_PROGRESS_PARENT_REVIEW_PENDING",
+  "base_commit": "c56c2bde664ee77a16d6e257132209183974aa4a",
+  "generated_at_utc": "2026-10-28T12:32:20.141508+00:00",
+  "remote_write_performed": false,
+  "production_dispatch_performed": false,
+  "external_review_or_approval_claimed": false,
+  "reason": "Validate committed suspension boundary witnesses beyond rolling 21-session feature window, without extending feature dates or relaxing source/as-of/freeze gates. Propagate exact code pins and preserve complete dated historical profiles.",
+  "new_evidence_schema": "dc20_suspension_boundary_evidence_v1",
+  "invariants": [
+    "21 feature daily files unchanged",
+    "model weights/scoring definitions unchanged",
+    "no candidate removal or backfill",
+    "same immutable HEAD/hash/blob/as-of for bounded witnesses",
+    "missing/conflicting/late evidence fails closed",
+    "old audit records and historical snapshots unchanged"
+  ],
+  "model_manifest_non_pin_fields_equal": true,
+  "changed_files": [
+    {
+      "path": "models/decision_model_freeze.json",
+      "old_sha256": "297c747c720b413cd1698de38d72b0c9cba3b30c7ea5a6a8fb4ac13924059ab4",
+      "new_sha256": "1bd7da296636fc55de702de0bfc3f9bf33b81affa0c6cf7442642af8dc6fd6d9"
+    },
+    {
+      "path": "scripts/publish_primary_three_rank.py",
+      "old_sha256": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1",
+      "new_sha256": "a2bc79356f6b5d80d8c4dee03ad7f21f869f88374cd6a46c84e69a4893af79c3"
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "old_sha256": "40da2f8811e8a4e0e0ca69fb6bd38309f983dafde63395191bb958724ffdcdbd",
+      "new_sha256": "1fa49935417dbabecfbf934adfd634455e96051d32bed942cc20c5b4fd2653dc"
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "old_sha256": "7364297e4190fd17a3396c9498172e44da32f2b82e0e127a25c45024fd5b3d07",
+      "new_sha256": "ee441091816409191f2f45661e27d44ed7bfec490b212034005bc46277225c3c"
+    },
+    {
+      "path": "tests/fixtures/candidate_continuation/publish_primary_three_rank.py.txt",
+      "old_sha256": null,
+      "new_sha256": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1"
+    },
+    {
+      "path": "tests/test_candidate_boundary_capsule.py",
+      "old_sha256": null,
+      "new_sha256": "50a002b0c19c127714910404ce7ba0a558b38934f159997cf273de0b569307e0"
+    },
+    {
+      "path": "tests/test_candidate_boundary_import.py",
+      "old_sha256": null,
+      "new_sha256": "8f9de9226dd23954c9e5229291742e23c786ae2fbcd62866d8cfd5e38d6aab8b"
+    },
+    {
+      "path": "tests/test_candidate_continuation_evidence.py",
+      "old_sha256": "22d32e594b68b6dcad6873ae2695ecb3ee834509bef9ba05238a50e56acbfe27",
+      "new_sha256": "495c053e0417c8e4d291800c746468640f77537ada597ab8d114e8ef3ae8c83a"
+    },
+    {
+      "path": "tests/test_candidate_eligible_publication_snapshot.py",
+      "old_sha256": "09ae575ec74db603e0edac900491d3ba960bbdc432b105fe4e4942c1b6a63716",
+      "new_sha256": "96061f7e476312fa14f5e5416d3284bfd9b74cedc760b22929b7d84e3700da7b"
+    },
+    {
+      "path": "tests/test_candidate_pre_boundary_profiles.py",
+      "old_sha256": null,
+      "new_sha256": "f4d45b3c0ca4d31c5bb30a4fb57f506bb2f63c3b7ca90c88d96ed589cf1a2c89"
+    },
+    {
+      "path": "tests/test_candidate_suspension_boundary.py",
+      "old_sha256": null,
+      "new_sha256": "7ee398096da8f54b5d328c3d67879615f95fd182a77583f619db2336111a1de4"
+    },
+    {
+      "path": "tests/test_primary_confirmed_suspension.py",
+      "old_sha256": "1f79d4fac4082bcccdfcf20193b33b72e6b34fec4b62b140632f3d8ded9c3cb3",
+      "new_sha256": "6da621fa33ef9d71c0f42b3d3056ffaedba4552502d23c80ab95b9ae5432493d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_d_source_adapter.py",
+      "old_sha256": "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b",
+      "new_sha256": "68268bbfac5b8d5e8ea0d474f8b00b20fefc8a8b12559f52a24db5c038c6a688"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_eligible_forward.py",
+      "old_sha256": "86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2",
+      "new_sha256": "2bae4becc14c0bdb7de7404fb38a1eb37813ebc618ccb2bdfafcef28aa392eab"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_eligible_forward_registration.json",
+      "old_sha256": "6f68eb804ae4e894b56f5d245a0b45f08f9a6c4a315c9edae4b9345be85a6878",
+      "new_sha256": "933ad20ec3ea94de9d90f179462e430e28ff302c07913ac78d4507c83e7e202a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_legacy_workflow.py",
+      "old_sha256": "c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee",
+      "new_sha256": "b47f30e6eecf45cd849758136ef8db55e3e72f3e21e67629e5bd746bdf67b60f"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_daily.py",
+      "old_sha256": "d68c18c8d5313aa0b1338b8d73ec74677f877fbe4aaa679f0ea87d1a95f4855b",
+      "new_sha256": "e721531850f3e25569ff96efaa513b9a5123edf4e77c23784b5a51d1fe1e8f89"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence.py",
+      "old_sha256": "1501a23e51d6e3867af2b1d457cd1690b88b38b750f9d1a50cb42521da4910bc",
+      "new_sha256": "287b21fdc109e8ac31a06ff06ccdf0eedb9d3d27de8ca656b7e61e1bf6018adf"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "old_sha256": "de086feaec396a477ef0d48447dbcccd7e0538cec80fa9441266fd179ff37691",
+      "new_sha256": "0fd92321a6027b715823ad7324ee0486b4c397b913fb6a708dd4cfccad7f6600"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward.py",
+      "old_sha256": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
+      "new_sha256": "0348e6bc320ad3db10fe7344ca05d410be71e5984a16bfa131f402f3ce636404"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward_registration.json",
+      "old_sha256": "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b",
+      "new_sha256": "d059ef43236135802f115867d3845ced111fa76ac1d9c3309614b4ffbe138d24"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_observer.py",
+      "old_sha256": "7ffd3826814b64b36903e646b684a2ced28c0a2ce2fa97bacf0ebfca2e5355d2",
+      "new_sha256": "9ccfb019ac4b9ba62fe96f7670d31da99de6f190222b25cac852ad9580bf5857"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcome_collect.py",
+      "old_sha256": "cb50fa02290aba5e2f01c75b7565aa2c705a50d61a14e2f132c939c324a6e02c",
+      "new_sha256": "89ca09c62ae37626eebab822a0ba6c3880aebbdc17e340774eaed81adaefe7cc"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcomes.py",
+      "old_sha256": "58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737",
+      "new_sha256": "e76fe5f37d34a64103008ec4571a824cf55621469267d6634b63c6ff5b918db2"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_github.py",
+      "old_sha256": "fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507",
+      "new_sha256": "c7cff8da10300116dd6b0298f4d0d46a57ad106d36850c7fd21cbc95894cfba8"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_publication.py",
+      "old_sha256": "e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6",
+      "new_sha256": "e014c8de29e14de8d3c418df953ea7e00f6dd24d59fda44afba675bbd3473ff4"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "old_sha256": "8d7d07736c43b9bb01d8b773286e3f4aa8622fa2df001f99ed6cdb63e594783a",
+      "new_sha256": "78b0eaa78c9b3d201ac3b855681cdc0624f674ad9850ae07d989e4ca48daf76f"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "old_sha256": "70ba885790fa47de159b1ae2cbbcc70c9a8f0b0b02d049912dd0c164a5c98e2f",
+      "new_sha256": "1412b400c75d6f384b48c1d3eacce7bb4dbaf748ec7bf4eb20a020851d19da84"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_workflow.py",
+      "old_sha256": "ce8d282b19b1aa934c520ea501e1efa03cada8f13eea58c054693db8bb7e4b4e",
+      "new_sha256": "ef53a72269fe8fbe83e24dad931bb6a1f4b2850b6d7c2edd85238b3beca9d636"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_snapshot_versions.py",
+      "old_sha256": "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8",
+      "new_sha256": "95ae31b984ff028371149509d88cce2d78cc2f7eae1f52516ce1210a6ad70998"
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_journal_integration.py",
+      "old_sha256": "bd37f0b9128941cb706d230a805b087625fc7fd99e7e0d0f7d191c69ab56ca4b",
+      "new_sha256": "1d685ff7b5e61287932bf3d7ecb6ec21702c7de8bbd0e162724283e07fb484a7"
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_p0_continuation.py",
+      "old_sha256": "55ac057c9b0f540fc069e6839d68e771d904fc69e41fc772ce803c9bc882d85b",
+      "new_sha256": "e3a01872879c64477d5565f6b2922fd6538864e14ad4b47953c130c195da19c5"
+    }
+  ],
+  "tests": {
+    "candidate_pre_archive_finalization": "2316 passed, 4 skipped",
+    "final_archive_and_boundary_integration": "164 passed",
+    "baseline_candidate": "2283 passed, 4 skipped",
+    "baseline_core": "75 failed, 9187 passed, 10 skipped; failures retained",
+    "baseline_source_surface": "140 failed, 192 passed",
+    "initial_patched_source_surface": "same 140 failing node IDs and messages as baseline",
+    "final_aggregate": "pending",
+    "final_source_surface": "pending"
+  },
+  "replay": {
+    "original_D28": "confirmed suspension escapes committed history closure",
+    "patched_D28": "PASS; 7 candidates; 21 feature daily files",
+    "D27_before_after_score_sha256": "da999dff5cc27eeb448ee2c599af6270ffedac650ac61e2ee4fa01676f9171a5",
+    "D28_score_sha256": "b0466aff48a053c32f9abe30655e9aded542051a5b8de56873a67464353331b2",
+    "original_run_logs_used": false
+  },
+  "environment": {
+    "python": "3.12.14",
+    "CI_python": "3.12.13",
+    "dependencies": "requirements-dev.lock with required wheel hashes; pip check passed",
+    "sklearn": "1.9.0"
+  },
+  "limitations": [
+    "No production run/release acceptance claimed",
+    "Original failed run inputs not completely proved by inaccessible logs",
+    "Source-surface historical audit mismatch retained",
+    "Aggregate baseline failures retained for exact comparison"
+  ]
+}

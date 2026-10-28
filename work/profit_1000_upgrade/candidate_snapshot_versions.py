@@ -9,8 +9,8 @@ import hashlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PINS = {
-    "candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
-    "candidate_eligible_forward.py": "86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2",
+    "candidate_natural_forward.py": '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
+    "candidate_eligible_forward.py": '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f',
 }
 
 def require(ok, reason):
@@ -29,7 +29,7 @@ guard()
 from work.profit_1000_upgrade import candidate_natural_forward as natural
 from work.profit_1000_upgrade import candidate_eligible_forward as eligible
 import re
-REGISTRATION_SHA = "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b"
+REGISTRATION_SHA = 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399'
 LEGACY_RUNNER_SHA = PINS["candidate_natural_forward.py"]
 
 def timestamp(value):

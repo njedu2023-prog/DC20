@@ -18,7 +18,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = "fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507"
+IMPORTER_SHA = '833f6607c078ae25144d333110d018fa142687e49588cbaf099a731ca42e3cbf'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
@@ -28,17 +28,17 @@ FIXED_FILES = {
     IMPORTER_PATH: IMPORTER_SHA,
     'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9',
     'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e',
-    COORDINATOR_PATH: "ce8d282b19b1aa934c520ea501e1efa03cada8f13eea58c054693db8bb7e4b4e",
+    COORDINATOR_PATH: 'ab0dea692440f151658ceac6da442b61b742b94a81bb96c61047fddb0c73088b',
     WORKFLOW_PATH: "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd",
     "requirements-dev.lock": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
-    "work/profit_1000_upgrade/candidate_natural_forward.py": "eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029",
-    "work/profit_1000_upgrade/candidate_natural_forward_registration.json": "b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b",
+    "work/profit_1000_upgrade/candidate_natural_forward.py": '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
+    "work/profit_1000_upgrade/candidate_natural_forward_registration.json": 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399',
     "work/profit_1000_upgrade/candidate_natural_model/evaluation.json": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
-    "work/profit_1000_upgrade/candidate_eligible_forward.py": "86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2",
-    "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": "6f68eb804ae4e894b56f5d245a0b45f08f9a6c4a315c9edae4b9345be85a6878",
+    "work/profit_1000_upgrade/candidate_eligible_forward.py": '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f',
+    "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": '6e23e6f3ce4dc0f67dd31cf3ebe24c238bf62b276cefe203eee756501076755c',
     "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
-    "work/profit_1000_upgrade/candidate_snapshot_versions.py": "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8",
-    "work/profit_1000_upgrade/candidate_legacy_workflow.py": "c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee",
+    "work/profit_1000_upgrade/candidate_snapshot_versions.py": '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83',
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": 'be1b6f9d65e5d5737c5d77c1db1e02539345ef53ed20f78313275f00a7841913',
 }
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
@@ -169,10 +169,20 @@ def code_guard():
     return values, (tuple(state), identity, gh.code_guard(), natural._guard(), eligible_runner._guard())
 
 
-def match_publication_code(code_tree, published_tree, local_files):
+# Exact previously accepted bytes at c56c2bde; old evidence is never rewritten.
+PRE_BOUNDARY_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml', 'sha256': '384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd', 'git_blob_sha1': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8'}, {'path': 'forward/storage.py', 'sha256': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098', 'git_blob_sha1': '7e622895c32455123d71244ae491a7302b9b2abe'}, {'path': 'requirements-dev.lock', 'sha256': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2', 'git_blob_sha1': '892183b9e5c4ed2e1c1899589b8793f556b32136'}, {'path': 'scripts/publish_primary_three_rank.py', 'sha256': 'f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1', 'git_blob_sha1': 'a9e4a67d2458309d0faed75f04dafc913a8b68ea'}, {'path': 'src/top10decision/decision/d_close_features.py', 'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e', 'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7'}, {'path': 'src/top10decision/decision/three_rank.py', 'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a', 'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f'}, {'path': 'work/profit_1000_upgrade/candidate_d_feature_projection.py', 'sha256': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f', 'git_blob_sha1': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe'}, {'path': 'work/profit_1000_upgrade/candidate_d_source_adapter.py', 'sha256': '067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b', 'git_blob_sha1': '838f8b10958fdcad09b896c5e75d7f635ccf281d'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_forward.py', 'sha256': '86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2', 'git_blob_sha1': '8d77cbf477ddf96ec9ecde03e4f14d16b3c2bbbe'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json', 'sha256': '6f68eb804ae4e894b56f5d245a0b45f08f9a6c4a315c9edae4b9345be85a6878', 'git_blob_sha1': '7072d235220ecdfa139cd030c147ba5328694dde'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_pool.py', 'sha256': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23', 'git_blob_sha1': '3855dbedf6e4b6c85454c50d95a22cc128d52273'}, {'path': 'work/profit_1000_upgrade/candidate_forward_predict.py', 'sha256': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719', 'git_blob_sha1': 'e69a1792ca8c35cd73deffac53f772d47bcb432c'}, {'path': 'work/profit_1000_upgrade/candidate_legacy_workflow.py', 'sha256': 'c2020bf627c4c73625b5f8ba7353c08acb663a848ea666fbea2272c05de025ee', 'git_blob_sha1': 'f45464afe541c80b9c3c632bfd4519069a0845b4'}, {'path': 'work/profit_1000_upgrade/candidate_live_feature_math.py', 'sha256': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68', 'git_blob_sha1': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04'}, {'path': 'work/profit_1000_upgrade/candidate_natural_forward.py', 'sha256': 'eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029', 'git_blob_sha1': '15ad20fa489eccf86be313478760b4ff3f776721'}, {'path': 'work/profit_1000_upgrade/candidate_natural_forward_registration.json', 'sha256': 'b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b', 'git_blob_sha1': '2c21163392acabaaf6c1f2919a0454df48223b4d'}, {'path': 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json', 'sha256': '779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872', 'git_blob_sha1': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0'}, {'path': 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py', 'sha256': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9', 'git_blob_sha1': '4fef6088fbe25cdfad6e6d19243eed375c27d1da'}, {'path': 'work/profit_1000_upgrade/candidate_natural_p0_github.py', 'sha256': 'fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507', 'git_blob_sha1': '46cbb2a01a5535e7b817b400e250c5292454faca'}, {'path': 'work/profit_1000_upgrade/candidate_natural_workflow.py', 'sha256': 'ce8d282b19b1aa934c520ea501e1efa03cada8f13eea58c054693db8bb7e4b4e', 'git_blob_sha1': '72ad86bc59d63d2b6272a75f7c0c147d0ec74609'}, {'path': 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'sha256': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e', 'git_blob_sha1': 'aec9f7eda757e6ab784e9d591da41f7abc43819d'}, {'path': 'work/profit_1000_upgrade/candidate_snapshot_versions.py', 'sha256': 'b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8', 'git_blob_sha1': '0aee931fea4fbf66631c3963dac6cc88c9c66c9d'}]
+PRE_BOUNDARY_IMPORT_PROFILE = {'importer_sha256': 'fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507', 'source_adapter_sha256': '067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b', 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': 'f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1', 'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f', 'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68', 'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e', 'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a'}}
+
+def match_publication_code(code_tree, published_tree, local_files, *, day=None):
     """Bind one complete reviewed code version in both immutable Git trees."""
     bindings = [{"path": p, "sha256": gh.sha256(b), "git_blob_sha1": gh.git_blob(b)}
         for p, b in sorted(local_files.items())]
+    previous = {item["path"]: item for item in PRE_BOUNDARY_CODE_BINDINGS}
+    pre_boundary = code_tree.get(IMPORTER_PATH, {}).get("sha") == previous[IMPORTER_PATH]["git_blob_sha1"]
+    if pre_boundary:
+        require(type(day) is str and gh.date(day) < "20261028" and set(local_files) == set(previous),
+                "PRE_BOUNDARY_PUBLICATION_DATE_OR_CODE_SET_CHANGED")
+        bindings = [dict(previous[p]) for p in sorted(previous)]
     historical = {item["path"]: item for item in HISTORICAL_CODE_BINDINGS}
     historical_profile = code_tree.get(IMPORTER_PATH, {}).get("sha") == historical[IMPORTER_PATH]["git_blob_sha1"]
     if historical_profile:
@@ -182,7 +192,9 @@ def match_publication_code(code_tree, published_tree, local_files):
     current_legacy_raw = local_files["work/profit_1000_upgrade/candidate_legacy_workflow.py"]
     current_legacy = {"path": COORDINATOR_PATH, "sha256": gh.sha256(current_legacy_raw),
         "git_blob_sha1": gh.git_blob(current_legacy_raw)}
-    expected_legacy = LEGACY_COORDINATOR_BINDING if historical_profile else current_legacy
+    expected_legacy = (LEGACY_COORDINATOR_BINDING if historical_profile else
+        {**previous["work/profit_1000_upgrade/candidate_legacy_workflow.py"], "path": COORDINATOR_PATH}
+        if pre_boundary else current_legacy)
     legacy_coordinator = expected_legacy if code_tree.get(COORDINATOR_PATH, {}).get("sha") == expected_legacy["git_blob_sha1"] else None
     if legacy_coordinator:
         bindings = [dict(legacy_coordinator) if b["path"] == COORDINATOR_PATH else b
@@ -356,7 +368,7 @@ def read_archive(raw):
             receipt_raw = read("p0_source_receipt.json", MAX_JSON_BYTES)
             receipt = gh.parse_json(receipt_raw)
             bindings = receipt.get("source_file_bindings")
-            require(type(bindings) is list and len(bindings) == 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in bindings if type(b) is dict), "EXACT_28_ARCHIVED_SOURCE_BINDINGS")
+            require(type(bindings) is list and 28 <= len(bindings) <= 50, "EXACT_28_ARCHIVED_SOURCE_BINDINGS")
             wanted = set()
             for b in bindings:
                 require(type(b) is dict and set(b) == {"path", "sha256", "git_blob_sha1", "git_mode", "bytes"}, "ORIGINAL_SOURCE_BINDING_SHAPE")
@@ -375,6 +387,9 @@ def read_archive(raw):
                 require(len(body) == b["bytes"] and gh.sha256(body) == b["sha256"] and gh.git_blob(body) == b["git_blob_sha1"],
                     "ARCHIVED_SOURCE_BYTES_CHANGED")
                 sources[b["path"]] = body
+            p0_paths = gh.adapter._p0_paths(day)
+            gh.validate_original_source_inventory(gh.parse_json(sources[p0_paths["receipt"]]),
+                gh.parse_json(sources[p0_paths["three_rank_json"]]), sources, day)
             return {"ack": ack, "ack_raw": ack_raw, "source_receipt": receipt, "source_receipt_raw": receipt_raw,
                 "local_raw": read("local_freeze_receipt.json", MAX_JSON_BYTES), "snapshot_raw": read(snap_name, MAX_JSON_BYTES),
                 "sources": sources, "prefix": prefix}
@@ -393,7 +408,7 @@ def _snapshot(raw, day):
     value = natural._json(raw)
     if value.get("schema_version") == "dc20_fixed_candidate_eligible_research_snapshot_20260922_v2":
         path = ROOT / "work/profit_1000_upgrade/candidate_snapshot_versions.py"
-        require(gh.sha256(gh.read(path)[0]) == "b3cf21151cb604a3281a1f70e953764a9ed9eff6f9da6f17379f7b50bb316ff8", "ELIGIBLE_PROFILE_READER_CHANGED")
+        require(gh.sha256(gh.read(path)[0]) == FIXED_FILES["work/profit_1000_upgrade/candidate_snapshot_versions.py"], "ELIGIBLE_PROFILE_READER_CHANGED")
         from work.profit_1000_upgrade import candidate_snapshot_versions as profiles
         require(Path(profiles.__file__).absolute() == path, "ELIGIBLE_PROFILE_IMPORT_CHANGED")
         result = profiles.validate_snapshot(raw,gh.sha256(raw))
@@ -496,7 +511,7 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ACK_PUBLISHED_PARENT_OR_TREE_CHANGED")
     _, parent_tree = reads.tree(gh.exact_sha(ack["parent_sha"], 40))
     _, code_tree = reads.tree(run["head_sha"])
-    code_bindings = match_publication_code(code_tree, tree, local_files)
+    code_bindings = match_publication_code(code_tree, tree, local_files, day=day)
     files = ack.get("files")
     names = {PREFIX + f"{kind}_{day}.json" for kind in ("day", "p0_sources", "local_freeze", "workflow")}
     require(type(files) is list and len(files) == 4 and {b.get("path") for b in files if type(b) is dict} == names,
@@ -544,7 +559,8 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     # Pure validation of the original four return payloads; this does no write.
     prepared, safety_cutoff = (workflow if is_eligible else legacy_workflow).prepare_publication(snapshot_raw, local, imported,
         {k: context[k] for k in ("repository", "run_id", "run_attempt", "code_head_sha", "branch", "workflow_path")},
-        now=workflow.aware(ack["acknowledged_at_host_utc"]))
+        now=workflow.aware(ack["acknowledged_at_host_utc"]),
+        **({"original_sources": archive["sources"]} if is_eligible else {}))
     require(prepared == blobs, "ORIGINAL_FOUR_FILE_SERIALIZATION_CHANGED")
     close, cutoff = natural._window(day, snapshot["exec_date"])
     generated, finished, acknowledged = (workflow.aware(x) for x in (snapshot["prediction_generated_at_utc"],
@@ -593,6 +609,11 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     receipt, contract = (gh.parse_json(sources[p0_paths[k]]) for k in ("receipt", "three_rank_json"))
     _p0_contract(receipt, contract, snapshot, p0_revision, imported)
     registered, daily, _, _ = gh.adapter._registration(receipt, contract, day)
+    class BoundaryReads:
+        def get_json(self, path):
+            require(path.startswith(gh.API_PREFIX + "/git/"), "BOUNDARY_GIT_READ_ONLY")
+            return reads.json(path[len(gh.API_PREFIX):])
+    gh.validate_boundary_base_membership(receipt, p0_tree, BoundaryReads())
     gh.adapter._suspension_provenance(receipt, sources, receipt["inputs"]["calendar"]["runtime_context_dates"], day)
     require(set(sources) == set(registered) | set(p0_paths.values()), "ORIGINAL_28_REGISTERED_SOURCE_SET_CHANGED")
     for path, raw in sources.items():
@@ -608,6 +629,9 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ORIGINAL_CALENDAR_GIT_BLOB_CHANGED")
     import_profile = {"importer_sha256": IMPORTER_SHA, "source_adapter_sha256": gh.ADAPTER_SHA,
         "source_adapter_dependency_sha256": gh.adapter.CODE_PINS}
+    if code_profile[IMPORTER_PATH] == PRE_BOUNDARY_IMPORT_PROFILE["importer_sha256"]:
+        require(day < "20261028", "PRE_BOUNDARY_IMPORT_DATE_CHANGED")
+        import_profile = PRE_BOUNDARY_IMPORT_PROFILE
     if code_profile[IMPORTER_PATH] == HISTORICAL_IMPORT_PROFILE["importer_sha256"]:
         import_profile = HISTORICAL_IMPORT_PROFILE
     require(all(imported.get(key) == expected for key, expected in import_profile.items())

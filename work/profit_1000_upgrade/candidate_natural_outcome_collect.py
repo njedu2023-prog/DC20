@@ -25,7 +25,7 @@ from urllib import request
 
 ROOT = Path(__file__).absolute().parents[2]
 OUTCOMES_PATH = Path(__file__).with_name("candidate_natural_outcomes.py")
-OUTCOMES_SHA = "58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737"
+OUTCOMES_SHA = 'a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06'
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 LEGACY_COLLECTOR_SHA = "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced"
 
@@ -244,8 +244,12 @@ def original_rows(frozen):
     return frozen["prediction"]["promotion_rows" if frozen["schema_version"] == profiles.eligible.SCHEMA else "rows"]
 
 
+PRE_BOUNDARY_COLLECTION_PROFILE = ('cb50fa02290aba5e2f01c75b7565aa2c705a50d61a14e2f132c939c324a6e02c', '58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737')
+
 def accepted_outcome_writers(frozen):
     writers = {OUTCOMES_SHA}
+    if outcomes.is_pre_boundary_snapshot_profile(frozen):
+        writers.add(PRE_BOUNDARY_COLLECTION_PROFILE[1])
     if outcomes.is_historical_snapshot_profile(frozen):
         writers.add(HISTORICAL_COLLECTION_PROFILE[1])
         if frozen["schema_version"] != profiles.eligible.SCHEMA:
@@ -259,6 +263,8 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
     if path is None: return {}, [], {}, None
     receipt = natural._json(read_bound(path, expected, states)); outcomes._seal(receipt, "receipt_sha256")
     pairs = {(SELF_SHA, OUTCOMES_SHA)}
+    if outcomes.is_pre_boundary_snapshot_profile(frozen):
+        pairs.add(PRE_BOUNDARY_COLLECTION_PROFILE)
     if outcomes.is_historical_snapshot_profile(frozen):
         pairs.add(HISTORICAL_COLLECTION_PROFILE)
         if frozen["schema_version"] != profiles.eligible.SCHEMA:

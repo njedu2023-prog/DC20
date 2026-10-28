@@ -2,7 +2,7 @@
 
 Only an explicitly supplied successful P0 run is considered. Its own immutable
 Pages artifact identifies a Git commit; the current public site is never read.
-The 28 registered files, plus at most one exact typed suspension disclosure,
+The closed registered files, including typed and bounded suspension witnesses,
 are copied verbatim into a fresh source directory. This establishes
 API-observed provenance and byte identity, NOT new prediction timing, complete
 feature admission, model authority or permission to trade. No market API/fit.
@@ -39,7 +39,7 @@ WORKFLOW_ID = 343703608
 WORKFLOW_NAME = "DC2.0 · Publish Primary D List (P0)"
 WORKFLOW_PATH = ".github/workflows/run_primary_d_daily.yml"
 ADAPTER_PATH = "work/profit_1000_upgrade/candidate_d_source_adapter.py"
-ADAPTER_SHA = "067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b"
+ADAPTER_SHA = 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b'
 CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9', 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e'}
 TOKEN_ENV = "DC20_CANDIDATE_GITHUB_TOKEN"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
@@ -505,10 +505,10 @@ def write_new(root, logical, body):
 
 
 def validate_original_source_inventory(receipt, contract, sources, day):
-    """A closed original source set; the sole optional file is typed disclosure."""
+    """Closed original sources, including only adapter-validated boundary witnesses."""
     registered, _, dates, _ = adapter._registration(receipt, contract, day)
     expected_paths = set(adapter._p0_paths(day).values()) | set(registered)
-    expected_count = 28 + int(adapter.SUSPENSION_PATH in registered)
+    expected_count = len(expected_paths)
     require(set(sources) == expected_paths and len(sources) == expected_count,
         "EXACT_REGISTERED_ORIGINAL_SOURCE_SET_REQUIRED")
     for logical, expected in registered.items():
@@ -516,6 +516,30 @@ def validate_original_source_inventory(receipt, contract, sources, day):
             "RECEIPT_ORIGINAL_SOURCE_SHA_MISMATCH")
     adapter._suspension_provenance(receipt, sources, dates, day)
     return expected_count
+
+
+
+def validate_boundary_base_membership(receipt, published_entries, github_client):
+    """Additional witnesses must already exist at the receipt's immutable base."""
+    evidence = [item for item in receipt["inputs"]["runtime_consumed_market_files"]
+                if item.get("table") == adapter.BOUNDARY_TABLE]
+    if not evidence:
+        return
+    head = exact_sha(receipt["inputs"].get("git_head"), 40)
+    require(all(item["git_head"] == head for item in evidence), "BOUNDARY_RECEIPT_BASE_MISMATCH")
+    commit = github_client.get_json(f"{API_PREFIX}/git/commits/{head}")
+    require(commit.get("sha") == head and type(commit.get("tree")) is dict,
+            "BOUNDARY_EXACT_BASE_COMMIT_REQUIRED")
+    tree_sha = exact_sha(commit["tree"].get("sha"), 40)
+    base = validate_tree(github_client.get_json(f"{API_PREFIX}/git/trees/{tree_sha}?recursive=1"), tree_sha)
+    disclosures = [item for item in receipt["inputs"]["runtime_consumed_market_files"]
+                   if item.get("table") == "confirmed_suspensions"]
+    bindings = disclosures + [binding for item in evidence for binding in [item["calendar"], *item["files"]]]
+    for binding in bindings:
+        require(all(tree.get(binding["path"], {}).get("type") == "blob"
+                    and tree[binding["path"]].get("mode") == "100644"
+                    and tree[binding["path"]].get("sha") == binding["git_blob_sha1"]
+                    for tree in (base, published_entries)), "BOUNDARY_NOT_IN_IMMUTABLE_BASE")
 
 
 def import_p0_sources(source_root, *, expected_run_id, github_client):
@@ -570,6 +594,7 @@ def import_p0_sources(source_root, *, expected_run_id, github_client):
         require(sha256(body) == expected, "RECEIPT_ORIGINAL_SOURCE_SHA_MISMATCH")
         sources[logical] = body
     source_count = validate_original_source_inventory(receipt, contract, sources, day)
+    validate_boundary_base_membership(receipt, entries, github_client)
     for item in daily:
         if item["trade_date"] != day:
             require(entries[item["path"]]["sha"] == item["git_blob_sha1"], "RECEIPT_HISTORICAL_GIT_BLOB_MISMATCH")

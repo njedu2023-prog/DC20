@@ -21,7 +21,7 @@ import stat
 SCHEMA = "dc20_bound_p0_candidate_d_source_projection_20260913_v1"
 CODE_ROOT = Path(__file__).absolute().parents[2]
 CODE_PINS = {
-    "scripts/publish_primary_three_rank.py": "f691fc579b1cd9b44168cd90393b492ffa833fe3a4576a2322bcd307dadbc9d1",
+    "scripts/publish_primary_three_rank.py": 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8',
     "work/profit_1000_upgrade/candidate_d_feature_projection.py": "aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f",
     "work/profit_1000_upgrade/candidate_live_feature_math.py": "922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68",
     "src/top10decision/decision/d_close_features.py": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e",
@@ -33,6 +33,8 @@ HISTORY_ROWS = 12322
 CALENDAR_PATH = "data/market/trade_cal_sse.csv"
 SUSPENSION_PATH = "data/market/confirmed_suspensions.json"
 MAX_BYTES = 64 * 1024 * 1024
+BOUNDARY_TABLE = "confirmed_suspension_boundary_evidence"
+BOUNDARY_SCHEMA = "dc20_suspension_boundary_evidence_v1"
 RUNTIME_ID = ("signal_date", "ts_code", "stage_transition", "identity", "feature_snapshot_sha256",
     "promotion_model_as_of_date", "promotion_model_artifact_sha256")
 RUNTIME_NUMERIC = ("stage", "promotion_rank", "top10_selected", "five_year_board_stage_delta",
@@ -207,7 +209,7 @@ def _registration(receipt, contract, day):
         _sha(item["sha256"])
     # Validate the dates of all declared market sources before opening any values.
     for item in declarations:
-        if item.get("table") == "confirmed_suspensions":
+        if item.get("table") in {"confirmed_suspensions", BOUNDARY_TABLE}:
             continue
         require(projection._date(item["trade_date"]) <= day, "FUTURE_REGISTERED_MARKET_SOURCE")
     daily = [item for item in declarations if item.get("table") == "daily"]
@@ -238,11 +240,95 @@ def _registration(receipt, contract, day):
     require(market["meta_path"] == meta_path, "EXACT_D_META_PATH_REQUIRED")
     registered[meta_path] = _sha(market["meta_sha256"])
     require(len(registered) == 24 + len(suspension), "EXACT_REGISTERED_SOURCE_SET_REQUIRED")
+    _register_boundary_evidence(receipt, registered, dates, day)
     return registered, daily, dates, market
+
+
+def _register_boundary_evidence(receipt, registered, dates, day):
+    inputs = receipt["inputs"]
+    declarations = inputs["runtime_consumed_market_files"]
+    boundary = [item for item in declarations if item.get("table") == BOUNDARY_TABLE]
+    used = {(i["start_date"], i["resume_date"])
+            for item in declarations if item.get("table") == "confirmed_suspensions"
+            for i in item["used_intervals"] if i["start_date"] <= dates[0] < i["resume_date"]}
+    seen = set()
+    for item in boundary:
+        require(set(item) == {"schema_version", "table", "start_date", "resume_date", "git_head",
+            "as_of_date", "calendar", "files", "feature_window_extended"}
+            and item["schema_version"] == BOUNDARY_SCHEMA and item["feature_window_extended"] is False,
+            "STRICT_BOUNDARY_EVIDENCE_SCHEMA_REQUIRED")
+        start, resume, as_of = (projection._date(item[k]) for k in ("start_date", "resume_date", "as_of_date"))
+        require((start, resume) in used and (start, resume) not in seen
+            and start <= dates[0] < resume <= as_of <= day, "BOUNDARY_INTERVAL_OR_ASOF_INVALID")
+        seen.add((start, resume))
+        require(type(item["git_head"]) is str and re.fullmatch(r"[0-9a-f]{40}", item["git_head"])
+            and item["git_head"] == inputs["committed_history_context"].get("git_head"),
+            "BOUNDARY_HEAD_MISMATCH")
+        cal = item["calendar"]
+        require(type(cal) is dict and set(cal) == {"path", "sha256", "git_blob_sha1", "git_mode"}
+            and cal["path"] == CALENDAR_PATH and cal["sha256"] == inputs["calendar"]["sha256"]
+            and cal["git_mode"] == "100644" and type(cal["git_blob_sha1"]) is str
+            and re.fullmatch(r"[0-9a-f]{40}", cal["git_blob_sha1"]), "BOUNDARY_CALENDAR_BINDING_INVALID")
+        files = item["files"]
+        require(type(files) is list and 2 <= len(files) <= 42, "BOUNDED_BOUNDARY_FILES_REQUIRED")
+        days = []
+        for file in files:
+            require(type(file) is dict and set(file) == {"path", "sha256", "git_blob_sha1", "git_mode", "trade_date", "table"}
+                and file["table"] == "daily" and file["git_mode"] == "100644"
+                and type(file["git_blob_sha1"]) is str and re.fullmatch(r"[0-9a-f]{40}", file["git_blob_sha1"]),
+                "BOUNDARY_FILE_BINDING_INVALID")
+            d = projection._date(file["trade_date"])
+            require(d <= resume <= as_of and file["path"] == f"data/market/raw/{d[:4]}/{d}/daily.csv",
+                "BOUNDARY_FILE_DATE_OR_PATH_INVALID")
+            sha = _sha(file["sha256"])
+            require(file["path"] not in registered or registered[file["path"]] == sha,
+                "BOUNDARY_EXISTING_SOURCE_HASH_MISMATCH")
+            registered[file["path"]] = sha
+            days.append(d)
+        require(days == sorted(set(days)) and days[-1] == resume and days[1] == start
+            and len([d for d in days if d not in dates]) <= 21, "BOUNDARY_FILE_RANGE_INVALID")
+    require(seen == used, "MISSING_OR_UNREGISTERED_BOUNDARY_EVIDENCE")
+
+
+def _verify_boundary_evidence(receipt, sources, dates, day):
+    result = {}
+    for item in receipt["inputs"]["runtime_consumed_market_files"]:
+        if item.get("table") != BOUNDARY_TABLE:
+            continue
+        cal = sources[CALENDAR_PATH]
+        require(_git_blob(cal) == item["calendar"]["git_blob_sha1"], "BOUNDARY_CALENDAR_BLOB_MISMATCH")
+        rows = _csv(cal, ("exchange", "cal_date", "is_open"))
+        all_dates = [projection._date(row["cal_date"]) for row in rows]
+        require(len(set(all_dates)) == len(rows) and all_dates == sorted(all_dates)
+            and all(row["exchange"] == "SSE" and row["is_open"] in {"0", "1"} for row in rows),
+            "BOUNDARY_SSE_CALENDAR_INVALID")
+        opened = [row["cal_date"] for row in rows if row["is_open"] == "1"]
+        start, resume = item["start_date"], item["resume_date"]
+        require(start in opened and resume in opened and opened.index(start) > 0,
+            "BOUNDARY_PRECEDING_SESSION_MISSING")
+        span = opened[opened.index(start) - 1:opened.index(resume) + 1]
+        require([f["trade_date"] for f in item["files"]] == span, "BOUNDARY_SESSION_SET_MISMATCH")
+        tables = {}
+        for file in item["files"]:
+            body = sources[file["path"]]
+            require(_git_blob(body) == file["git_blob_sha1"], "BOUNDARY_GIT_BLOB_MISMATCH")
+            values = _csv(body, ("trade_date", "ts_code", "close", "pre_close"))
+            seen = set()
+            for row in values:
+                code = row["ts_code"]
+                require(row["trade_date"] == file["trade_date"] and type(code) is str
+                    and re.fullmatch(r"[0-9]{6}\.(SH|SZ|BJ)", code) and code not in seen,
+                    "BOUNDARY_DAILY_IDENTITY_OR_DATE_INVALID")
+                seen.add(code)
+            require(values, "BOUNDARY_FULL_MARKET_DAILY_EMPTY")
+            tables[file["trade_date"]] = {row["ts_code"]: row for row in values}
+        result[(start, resume)] = (span, tables, item["as_of_date"])
+    return result
 
 
 def _suspension_provenance(receipt, sources, dates, day):
     """Bind optional official-disclosure bytes; never synthesize missing bars."""
+    boundary = _verify_boundary_evidence(receipt, sources, dates, day)
     for item in receipt["inputs"]["runtime_consumed_market_files"]:
         if item.get("table") != "confirmed_suspensions":
             continue
@@ -252,6 +338,7 @@ def _suspension_provenance(receipt, sources, dates, day):
         require(payload.get("schema_version") == "dc20_confirmed_suspensions_v1"
             and type(payload.get("suspensions")) is list, "SUSPENSION_SCHEMA_REQUIRED")
         known = set()
+        disclosed = {}
         for record in payload["suspensions"]:
             require(type(record) is dict, "SUSPENSION_RECORD_REQUIRED")
             code = projection._code(record.get("ts_code"))
@@ -267,16 +354,32 @@ def _suspension_provenance(receipt, sources, dates, day):
                     require(published <= day, "FUTURE_SUSPENSION_DISCLOSURE")
             require((code, start, resume) not in known, "DUPLICATE_SUSPENSION_INTERVAL")
             known.add((code, start, resume))
+            disclosed[(code, start, resume)] = record
         used = set()
         for interval in item["used_intervals"]:
             require(type(interval) is dict and set(interval) == {"ts_code", "start_date", "resume_date",
                 "previous_trading_date", "skipped_sessions"}, "SUSPENSION_USED_INTERVAL_REQUIRED")
             identity = (interval["ts_code"], interval["start_date"], interval["resume_date"])
             require(identity in known and identity not in used and identity[2] <= day
-                and identity[1] in dates and identity[2] in dates, "SUSPENSION_USED_INTERVAL_NOT_DISCLOSED")
-            first, last = dates.index(identity[1]), dates.index(identity[2])
-            require(first > 0 and first < last and interval["previous_trading_date"] == dates[first - 1]
-                and interval["skipped_sessions"] == dates[first:last], "SUSPENSION_USED_CALENDAR_MISMATCH")
+                and identity[2] in dates, "SUSPENSION_USED_INTERVAL_NOT_DISCLOSED")
+            if identity[1] <= dates[0]:
+                require((identity[1], identity[2]) in boundary, "SUSPENSION_BOUNDARY_EVIDENCE_MISSING")
+                span, tables, as_of = boundary[(identity[1], identity[2])]
+                require(all(source["published_date"] <= as_of for source in disclosed[identity]["sources"]),
+                    "BOUNDARY_FUTURE_DISCLOSURE")
+                require(interval["previous_trading_date"] == span[0]
+                    and interval["skipped_sessions"] == span[1:-1], "SUSPENSION_USED_CALENDAR_MISMATCH")
+                code = identity[0]
+                require(all(code not in tables[d] for d in span[1:-1]), "BOUNDARY_SUSPENSION_HAS_DAILY_BAR")
+                require(code in tables[span[0]] and code in tables[span[-1]], "BOUNDARY_PRICE_WITNESS_MISSING")
+                before = _number(tables[span[0]][code]["close"])
+                after = _number(tables[span[-1]][code]["pre_close"])
+                require(before > 0 and abs(before - after) <= 0.011, "BOUNDARY_PRICE_DISCONTINUITY")
+            else:
+                require(identity[1] in dates, "SUSPENSION_USED_INTERVAL_NOT_DISCLOSED")
+                first, last = dates.index(identity[1]), dates.index(identity[2])
+                require(first > 0 and first < last and interval["previous_trading_date"] == dates[first - 1]
+                    and interval["skipped_sessions"] == dates[first:last], "SUSPENSION_USED_CALENDAR_MISMATCH")
             used.add(identity)
 
 

@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -209,7 +211,7 @@ class GitHeadInputVerifier:
         path = _repository_file(self.root, normalized, label=label)
         try:
             listing = subprocess.run(
-                ["git", "-C", str(self.root), "ls-tree", "-z", "HEAD", "--", normalized],
+                ["git", "-C", str(self.root), "ls-tree", "-z", self.head, "--", normalized],
                 check=True,
                 capture_output=True,
             ).stdout
@@ -252,6 +254,47 @@ class GitHeadInputVerifier:
         }
         self._bindings[normalized] = binding
         return dict(binding)
+
+    def read_bound_csv(self, relative: str, *, label: str) -> tuple[pd.DataFrame, dict[str, Any]]:
+        """Parse exactly the bytes verified against the captured HEAD binding.
+
+        Cached bindings never bypass verification of the bytes used by pandas.
+        No filesystem read occurs after this byte verification.
+        """
+        binding = self.bind(relative, label=label)
+        parts = Path(relative).parts
+        if (Path(relative).is_absolute() or not parts or ".." in parts
+                or binding["path"] != Path(relative).as_posix()
+                or binding["git_mode"] != "100644"):
+            raise PrimaryDGenerationError("invalid bound suspension CSV path or mode")
+        limit = 64 * 1024 * 1024
+        directory_fd = None
+        try:
+            directory_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            for part in parts[:-1]:
+                next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+                os.close(directory_fd)
+                directory_fd = next_fd
+            fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= limit:
+                    raise PrimaryDGenerationError("invalid bound suspension CSV file")
+                raw = stream.read(limit + 1)
+        except OSError as exc:
+            raise PrimaryDGenerationError(f"{label} bound bytes are unreadable") from exc
+        finally:
+            if directory_fd is not None:
+                os.close(directory_fd)
+        blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        if (not 0 < len(raw) <= limit or hashlib.sha256(raw).hexdigest() != binding["sha256"]
+                or blob != binding["git_blob_sha1"]):
+            raise PrimaryDGenerationError(f"{label} parsed bytes differ from fixed HEAD binding")
+        try:
+            frame = pd.read_csv(io.BytesIO(raw), low_memory=False)
+        except (UnicodeError, pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
+            raise PrimaryDGenerationError(f"{label} bound CSV bytes are invalid") from exc
+        return frame, binding
 
     def bindings(self) -> list[dict[str, Any]]:
         return [dict(self._bindings[path]) for path in sorted(self._bindings)]
@@ -342,6 +385,67 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         self._confirmed_suspensions = checked
         return checked
 
+    def _suspension_boundary_evidence(
+        self, start: str, resume: str, signal_date: str,
+    ) -> tuple[list[str], dict[str, pd.DataFrame]]:
+        """Audit a clipped suspension without adding bars to the feature window.
+
+        Only the committed interval plus its preceding SSE session may be read.
+        At most 21 extra sessions are admitted as evidence, never as features.
+        """
+        verifier = self._primary_verifier
+        if verifier is None:
+            raise PrimaryDGenerationError("suspension history closure requires HEAD-bound evidence")
+        root = self.config.root
+        calendar_relative = "data/market/trade_cal_sse.csv"
+        calendar, calendar_binding = verifier.read_bound_csv(
+            calendar_relative, label="suspension evidence calendar")
+        if not {"exchange", "cal_date", "is_open"}.issubset(calendar.columns):
+            raise PrimaryDGenerationError("invalid suspension evidence calendar")
+        days = calendar["cal_date"].map(_normal_date)
+        opened = pd.to_numeric(calendar["is_open"], errors="coerce")
+        if (not calendar["exchange"].eq("SSE").all() or days.eq("").any()
+                or days.duplicated().any() or not opened.isin((0, 1)).all()
+                or days.tolist() != sorted(days.tolist())):
+            raise PrimaryDGenerationError("invalid suspension evidence calendar")
+        dates = days[opened.eq(1)].tolist()
+        if start not in dates or resume not in dates or dates.index(start) == 0:
+            raise PrimaryDGenerationError("suspension evidence lacks preceding SSE session")
+        span = dates[dates.index(start) - 1 : dates.index(resume) + 1]
+        if (resume > signal_date or signal_date > self._primary_signal_date
+                or any(day > signal_date for day in span)):
+            raise PrimaryDGenerationError("suspension evidence uses a future date")
+        extra = [day for day in span if day not in self._primary_context_dates]
+        if len(extra) > D_CLOSE_MAX_HISTORY_BARS:
+            raise PrimaryDGenerationError("suspension evidence exceeds bounded history closure")
+        tables: dict[str, pd.DataFrame] = {}
+        bindings: list[dict[str, Any]] = []
+        for day in span:
+            relative = f"data/market/raw/{day[:4]}/{day}/daily.csv"
+            if (root / relative).is_symlink():
+                raise PrimaryDGenerationError("suspension evidence must not be a symlink")
+            frame, binding = verifier.read_bound_csv(
+                relative, label="committed suspension boundary evidence")
+            _validate_exact_dates(frame, day, label="suspension boundary daily")
+            if frame.empty or "ts_code" not in frame.columns:
+                raise PrimaryDGenerationError("suspension boundary daily is empty or invalid")
+            codes = frame["ts_code"].map(_normal_code)
+            if codes.eq("").any() or codes.duplicated().any():
+                raise PrimaryDGenerationError("suspension boundary daily identities are invalid")
+            frame = frame.copy()
+            frame["ts_code"] = codes
+            tables[day] = frame.set_index("ts_code", drop=False)
+            bindings.append({**binding, "trade_date": day, "table": "daily"})
+        self._primary_consumed[f"suspension_boundary:{start}:{resume}"] = {
+            "schema_version": "dc20_suspension_boundary_evidence_v1",
+            "table": "confirmed_suspension_boundary_evidence",
+            "start_date": start, "resume_date": resume,
+            "git_head": verifier.head, "as_of_date": signal_date,
+            "calendar": calendar_binding, "files": bindings,
+            "feature_window_extended": False,
+        }
+        return span, tables
+
     def _confirmed_trading_dates(self, signal_date: str, code: str) -> list[str]:
         """Compress only proven full suspensions, never incomplete quote history."""
         cache_key = (signal_date, _normal_code(code))
@@ -360,18 +464,23 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
             start, resume = record["start_date"], record["resume_date"]
             if resume <= dates[0] or start > dates[-1]:
                 continue
-            if start not in dates or resume not in dates or dates.index(start) == 0:
-                raise PrimaryDGenerationError("confirmed suspension escapes committed history closure")
-            first, last = dates.index(start), dates.index(resume)
-            previous = dates[first - 1]
-            span = dates[first - 1 : last + 1]
+            if start <= dates[0]:
+                span, boundary_tables = self._suspension_boundary_evidence(start, resume, signal_date)
+                daily_table = boundary_tables.__getitem__
+            else:
+                if start not in dates or resume not in dates:
+                    raise PrimaryDGenerationError("confirmed suspension escapes committed history closure")
+                first, last = dates.index(start), dates.index(resume)
+                span = dates[first - 1 : last + 1]
+                daily_table = lambda day: self.market_table(day, "daily")
+            previous = span[0]
             if any(next_a_share_trading_day(left) != right for left, right in zip(span, span[1:])):
                 raise PrimaryDGenerationError("confirmed suspension has a calendar gap")
-            for day in dates[first:last]:
-                if self._row(self.market_table(day, "daily"), code) is not None:
+            for day in span[1:-1]:
+                if self._row(daily_table(day), code) is not None:
                     raise PrimaryDGenerationError("confirmed suspension conflicts with a daily bar")
-            before = self._row(self.market_table(previous, "daily"), code)
-            after = self._row(self.market_table(resume, "daily"), code)
+            before = self._row(daily_table(previous), code)
+            after = self._row(daily_table(resume), code)
             if before is None or after is None:
                 raise PrimaryDGenerationError("confirmed suspension lacks boundary bars")
             before_close, after_pre_close = _finite_number(before.get("close")), _finite_number(after.get("pre_close"))
@@ -381,10 +490,10 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
                 or abs(before_close - after_pre_close) > 0.011
             ):
                 raise PrimaryDGenerationError("confirmed suspension boundary price is discontinuous")
-            removed.update(dates[first:last])
+            removed.update(span[1:-1])
             self._primary_consumed["confirmed_suspensions"]["used_intervals"].append({
                 "ts_code": code, "start_date": start, "resume_date": resume,
-                "previous_trading_date": previous, "skipped_sessions": dates[first:last],
+                "previous_trading_date": previous, "skipped_sessions": span[1:-1],
             })
         result = [day for day in dates if day not in removed]
         self._confirmed_effective_dates_cache[cache_key] = result

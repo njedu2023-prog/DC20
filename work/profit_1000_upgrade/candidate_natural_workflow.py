@@ -24,9 +24,9 @@ REPO = 'njedu2023-prog/DC20'
 API = '/repos/' + REPO
 PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
-RUNNER_SHA = '86c8e6f7f55d17609f02800a5243fa1b5e947bb5e32020d556403e33ecc9f2d2'
+RUNNER_SHA = '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = 'fc068fdf16c9dfd27a9ddaa4230c1d951f2809752b94784a09a6c2fb9be40507'
+IMPORTER_SHA = '833f6607c078ae25144d333110d018fa142687e49588cbaf099a731ca42e3cbf'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -92,7 +92,7 @@ def execution_context():
         'workflow_path': '.github/workflows/research_candidate_natural_forward.yml'}
 
 
-def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
+def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now, original_sources=None):
     """Validate trusted same-process returns and keep their original bytes."""
     runner, importer = dependencies()
     record = runner._json(snapshot_raw)
@@ -123,9 +123,28 @@ def prepare_publication(snapshot_raw, local_receipt, imported, context, *, now):
         and record['input_arguments']['source_root'] == imported['source_root'], 'P0_SOURCE_ARGUMENTS_CHANGED')
     original = imported['source_file_bindings']
     projected = record['D_source_evidence']['source_file_bindings']
+    require(type(original) is list and type(projected) is list, 'EXACT_28_SOURCE_ROWS_REQUIRED')
     count = 28 + sum(b.get('path') == 'data/market/confirmed_suspensions.json' for b in original if type(b) is dict)
-    require(type(original) is list and type(projected) is list and count in (28, 29) and len(original) == len(projected) == count,
-        'EXACT_28_SOURCE_ROWS_REQUIRED')
+    require(all(type(b) is dict and type(b.get('path')) is str for b in original)
+        and len({b['path'] for b in original}) == len(original), 'EXACT_28_SOURCE_ROWS_REQUIRED')
+    if len(original) > count:
+        # Only a validated boundary receipt can extend the historical inventory.
+        paths = importer.adapter._p0_paths(day)
+        if original_sources is None:
+            root = importer.path(imported['source_root'], directory=True)
+            native = {role: importer.read(root / logical)[0] for role, logical in paths.items()}
+            p0_receipt, p0_contract = importer.parse_json(native['receipt']), importer.parse_json(native['three_rank_json'])
+            registered, _, _, _ = importer.adapter._registration(p0_receipt, p0_contract, day)
+            sources = {logical: importer.read(root / logical)[0] for logical in set(paths.values()) | set(registered)}
+        else:
+            # Independent observation has archived bytes, never the old runner's filesystem.
+            sources = original_sources
+            p0_receipt = importer.parse_json(sources[paths['receipt']])
+            p0_contract = importer.parse_json(sources[paths['three_rank_json']])
+        require(all(importer.sha256(sources[paths[role]]) == digest
+            for role, digest in imported['expected_p0_sha256'].items()), 'P0_SOURCE_ARGUMENTS_CHANGED')
+        count = importer.validate_original_source_inventory(p0_receipt, p0_contract, sources, day)
+    require(len(original) == len(projected) == count, 'EXACT_28_SOURCE_ROWS_REQUIRED')
     require(all(type(b) is dict and set(b) == {'path', 'sha256', 'git_blob_sha1', 'git_mode', 'bytes'}
         and b['git_mode'] == '100644' for b in original), 'EXACT_ORIGINAL_SOURCE_BINDING_SHAPE')
     require(all(type(b) is dict and set(b) == {'receipt_path', 'origin_path', 'sha256', 'bytes', 'explicit_original_blob_mapping'}
