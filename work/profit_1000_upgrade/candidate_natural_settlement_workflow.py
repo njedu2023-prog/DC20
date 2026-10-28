@@ -264,10 +264,22 @@ def restore_empty_source_roots(restored, frozen, modules, *, test_state_root=Non
     require(journal.read_bound(receipt_path, bound) == raw, "RESTORED_RECEIPT_CHANGED")
 
 
+# Immutable journals produced before the 2026-10-28 receipt-boundary update.
+# Keep the original writer and dependency pair together; never mix versions.
+PRE_BOUNDARY_DAILY_PROFILE = (
+    "d68c18c8d5313aa0b1338b8d73ec74677f877fbe4aaa679f0ea87d1a95f4855b",
+    {"work/profit_1000_upgrade/candidate_natural_outcome_collect.py":
+        "cb50fa02290aba5e2f01c75b7565aa2c705a50d61a14e2f132c939c324a6e02c",
+     "scripts/diagnose_core_supervisor.py":
+        "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"})
+
+
 def daily_metadata_profile(daily, frozen, modules):
     """Exact reviewed writer/dependency pairs, never cross-version pin mixing."""
     current = (PINS["candidate_natural_daily"], modules["daily"].PINS)
     profiles = [current]
+    if modules["outcome_collect"].outcomes.is_pre_boundary_snapshot_profile(frozen):
+        profiles.append(PRE_BOUNDARY_DAILY_PROFILE)
     if modules["outcome_collect"].outcomes.is_historical_snapshot_profile(frozen):
         profiles.append(HISTORICAL_DAILY_PROFILE)
         if frozen.get("schema_version") == "dc20_fixed_candidate_natural_research_snapshot_20260913_v1":
