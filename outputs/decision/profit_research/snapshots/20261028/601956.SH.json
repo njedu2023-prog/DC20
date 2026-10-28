@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261029",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.927797833935015,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.021359223300970953,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.5714285714285714,
+      "five_year_streak_runup": 0.20833333333333326,
+      "focus_pool_size": 7.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.18482490272373542,
+      "ret_2d": 0.20833333333333326,
+      "ret_5d": 0.18023255813953476,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.7142857142857143,
+      "volatility_20d": 0.0423886456849783,
+      "volatility_5d": 0.0576018272636092,
+      "volume_ratio": 1.9428542911411097
+    },
+    "frozen_at": "2026-10-28T14:58:37.221197+00:00",
+    "industry": "家电零部",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "东贝集团",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261030",
+    "score": -0.020337829998514457,
+    "signal_date": "20261028",
+    "ts_code": "601956.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261028.json",
+      "sha256": "de85f5919de7820a9c8a08d45e087e36754767f8bd7af1cd3dc088a5f81a145a"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261028.json",
+      "sha256": "7970fb9630b7fedcf5b056b11dd74ce16a8df5ab644b381bb3759626920bcd26"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261028.json",
+      "sha256": "eb8d8101211006ac1ff5b1de6ca5919aaf1c39986dc0d3f489d128b2e26b203c"
+    }
+  ]
+}

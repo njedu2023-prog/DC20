@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261029",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.013351134846461,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.014754098360655776,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.33117932148626816,
+      "focus_pool_size": 7.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.27652982184353214,
+      "ret_2d": 0.20998531571218804,
+      "ret_5d": 0.32157177225340816,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.2857142857142857,
+      "volatility_20d": 0.03826741025711094,
+      "volatility_5d": 0.05199431977750177,
+      "volume_ratio": 0.5986813839006784
+    },
+    "frozen_at": "2026-10-28T14:58:37.221197+00:00",
+    "industry": "休闲食品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "青岛食品",
+    "profit_eligible": true,
+    "profit_rank": 7,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261030",
+    "score": -0.020679661417519896,
+    "signal_date": "20261028",
+    "ts_code": "001219.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261028.json",
+      "sha256": "de85f5919de7820a9c8a08d45e087e36754767f8bd7af1cd3dc088a5f81a145a"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261028.json",
+      "sha256": "7970fb9630b7fedcf5b056b11dd74ce16a8df5ab644b381bb3759626920bcd26"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261028.json",
+      "sha256": "eb8d8101211006ac1ff5b1de6ca5919aaf1c39986dc0d3f489d128b2e26b203c"
+    }
+  ]
+}
