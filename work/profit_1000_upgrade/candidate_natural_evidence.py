@@ -76,8 +76,14 @@ SELF_SHA = sha(gh.read(Path(__file__).absolute())[0])
 
 PRE_BOUNDARY_CAPTURE_CONTRACT = ('1501a23e51d6e3867af2b1d457cd1690b88b38b750f9d1a50cb42521da4910bc', 'e550b2a59f1147785d9a89d704158b0ffb1fbd007464f8017119c292fbbbaac6')
 
+# Capture/observer bytes already issued on D20261028 before this reader repair.
+# They remain readable only with their original complete pair and date bound.
+PRE_CONTINUATION_CAPTURE_CONTRACT = (
+    "37122ef4efd86a138c15bfbc4e7487db957bca874a47e18d35688b8c64bc2c10",
+    "0fd9e3be0640f19553ca4544552b4a250d6653ec2a047184e7fc798e93e22978")
+
 def capture_contracts():
-    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
+    return (LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -352,11 +358,14 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     require(day >= "20260914", "EVIDENCE_NATURAL_START_REQUIRED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_BOUNDARY_CAPTURE_CONTRACT:
         require(day < "20261028", "PRE_BOUNDARY_CAPTURE_DATE_CHANGED")
+    if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_CONTINUATION_CAPTURE_CONTRACT:
+        require(day <= "20261028", "PRE_CONTINUATION_CAPTURE_DATE_CHANGED")
     gh.exact_id(manifest.get("freeze_run_id")); gh.exact_sha(manifest.get("snapshot_file_sha256"))
     file_limit = _file_limit(manifest)
     continuation_kind = manifest.get("p0_provenance_kind") == CONTINUATION_KIND
     require(not continuation_kind or (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"])
-        == (SELF_SHA, PUBLICATION_SHA), "CONTINUATION_REQUIRES_CURRENT_CAPTURE_PROFILE")
+        in ((SELF_SHA, PUBLICATION_SHA), PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT),
+        "CONTINUATION_REQUIRES_REVIEWED_CAPTURE_PROFILE")
     require(type(bodies) is dict and type(manifest.get("files")) is list and len(manifest["files"]) < file_limit,
         "BOUNDED_EVIDENCE_INVENTORY_REQUIRED")
     expected_paths, total = set(), len(manifest_raw)
