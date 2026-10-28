@@ -1,0 +1,279 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 7,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.005035320843585049,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600828.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.009936952802385077,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603037.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001219.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002708.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600828.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600715.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "601956.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603037.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001400.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261029",
+  "exit_date": "20261030",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-10-29T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 7,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "休闲食品",
+      "name": "青岛食品",
+      "promotion_rank": 1,
+      "ts_code": "001219.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "光洋股份",
+      "promotion_rank": 2,
+      "ts_code": "002708.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "茂业商业",
+      "promotion_rank": 3,
+      "ts_code": "600828.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "游戏Ⅱ",
+      "name": "文投控股",
+      "promotion_rank": 4,
+      "ts_code": "600715.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "家电零部",
+      "name": "东贝集团",
+      "promotion_rank": 5,
+      "ts_code": "601956.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "凯众股份",
+      "promotion_rank": 6,
+      "ts_code": "603037.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "专用设备",
+      "name": "江顺科技",
+      "promotion_rank": 7,
+      "ts_code": "001400.SZ"
+    }
+  ],
+  "p0_file_sha256": "de85f5919de7820a9c8a08d45e087e36754767f8bd7af1cd3dc088a5f81a145a",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261028.json",
+    "sha256": "de85f5919de7820a9c8a08d45e087e36754767f8bd7af1cd3dc088a5f81a145a"
+  },
+  "pre_cas_freeze_at_utc": "2026-10-28T14:58:37.221197+00:00",
+  "prediction_generated_at_utc": "2026-10-28T14:58:37.199293+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-10-28T16:06:29.652022+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001219.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002708.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "f15a6812887506768e7741d5a62873c34a66cf1e",
+    "evidence_manifest_sha256": "c33250b3509dbd3601e4d5559e5494a7e85b526ee07c44d6e635261e707a0722",
+    "observer_run_id": 40713053509,
+    "publication_observation_sha256": "9eff3b837df6ccb9e160ea327d77360a0e4637d512afa501cdc3ef3d742d2446"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.005035320843585049,
+      "industry": "一般零售",
+      "name": "茂业商业",
+      "promotion_rank": 3,
+      "ts_code": "600828.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.009936952802385077,
+      "industry": "汽车零部件",
+      "name": "凯众股份",
+      "promotion_rank": 6,
+      "ts_code": "603037.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.010335960477220492,
+      "industry": "游戏Ⅱ",
+      "name": "文投控股",
+      "promotion_rank": 4,
+      "ts_code": "600715.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.015595876840994354,
+      "industry": "汽车零部件",
+      "name": "光洋股份",
+      "promotion_rank": 2,
+      "ts_code": "002708.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.018735891917537786,
+      "industry": "专用设备",
+      "name": "江顺科技",
+      "promotion_rank": 7,
+      "ts_code": "001400.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.020337829998514457,
+      "industry": "家电零部",
+      "name": "东贝集团",
+      "promotion_rank": 5,
+      "ts_code": "601956.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.020679661417519896,
+      "industry": "休闲食品",
+      "name": "青岛食品",
+      "promotion_rank": 1,
+      "ts_code": "001219.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261028",
+  "snapshot_file_sha256": "eb8d8101211006ac1ff5b1de6ca5919aaf1c39986dc0d3f489d128b2e26b203c",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261028.json",
+    "sha256": "eb8d8101211006ac1ff5b1de6ca5919aaf1c39986dc0d3f489d128b2e26b203c"
+  },
+  "source_main_sha": "161592672ecc3f66e3c2065f7a48c007b52a2e9c",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
