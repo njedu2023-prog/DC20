@@ -1,0 +1,293 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "8f936e44d62fdb993d4ab69ab77992a3898cadba5072dfefb1b25c2f503bf9eb",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20261029.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20261029.json",
+    "row_count": 8
+  },
+  "exec_date": "20261030",
+  "exit_date": "20261102",
+  "feature_as_of_date": "20261029",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "通用设备",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "上海沪工",
+      "predicted_promotion_probability": 0.30259909606354857,
+      "promotion_rank": 7,
+      "research_conditional_profit_score": 0.42964430315359403,
+      "research_fill_proxy_score": 0.9452195733655807,
+      "research_joint_proxy_score": 0.40610820492579236,
+      "shadow_max_price": 15.95,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "603131.SH"
+    },
+    {
+      "industry": "游戏Ⅱ",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "文投控股",
+      "predicted_promotion_probability": 0.6372159987832716,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.41499421962652,
+      "research_fill_proxy_score": 0.9696255509451062,
+      "research_joint_proxy_score": 0.4023889988443988,
+      "shadow_max_price": 2.27,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "3→4",
+      "ts_code": "600715.SH"
+    },
+    {
+      "industry": "汽车零部件",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "联明股份",
+      "predicted_promotion_probability": 0.4492838347228896,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.4082090909537175,
+      "research_fill_proxy_score": 0.9033712343234691,
+      "research_joint_proxy_score": 0.368764350356921,
+      "shadow_max_price": 11.81,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "2→3",
+      "ts_code": "603006.SH"
+    },
+    {
+      "industry": "医疗服务",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "澳洋健康",
+      "predicted_promotion_probability": 0.30435760969808406,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.37470277515827505,
+      "research_fill_proxy_score": 0.9430631715628873,
+      "research_joint_proxy_score": 0.3533683875341783,
+      "shadow_max_price": 5.37,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "2→3",
+      "ts_code": "002172.SZ"
+    },
+    {
+      "industry": "通用设备",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "宇晶股份",
+      "predicted_promotion_probability": 0.22104439969885184,
+      "promotion_rank": 8,
+      "research_conditional_profit_score": 0.321286572714549,
+      "research_fill_proxy_score": 0.9765673344554436,
+      "research_joint_proxy_score": 0.3137579719121722,
+      "shadow_max_price": 27.62,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "2→3",
+      "ts_code": "002943.SZ"
+    },
+    {
+      "industry": "专用设备",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "山东矿机",
+      "predicted_promotion_probability": 0.6286687075529189,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.331577427085748,
+      "research_fill_proxy_score": 0.8241190087306485,
+      "research_joint_proxy_score": 0.2732592605273655,
+      "shadow_max_price": 3.28,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "2→3",
+      "ts_code": "002526.SZ"
+    },
+    {
+      "industry": "家电零部",
+      "internal_shadow_order": 7,
+      "internal_shadow_selected": 0,
+      "name": "东贝集团",
+      "predicted_promotion_probability": 0.6200240354833206,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.3085322144888484,
+      "research_fill_proxy_score": 0.8454964712256595,
+      "research_joint_proxy_score": 0.2608628986097596,
+      "shadow_max_price": 6.7,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 7,
+      "stage_transition": "3→4",
+      "ts_code": "601956.SH"
+    },
+    {
+      "industry": "文娱用品",
+      "internal_shadow_order": 8,
+      "internal_shadow_selected": 0,
+      "name": "实丰文化",
+      "predicted_promotion_probability": 0.6936436303261492,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.3658441474152695,
+      "research_fill_proxy_score": 0.6130648306186629,
+      "research_joint_proxy_score": 0.22428618026797134,
+      "shadow_max_price": 16.92,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 8,
+      "stage_transition": "2→3",
+      "ts_code": "002862.SZ"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-10-29T11:25:14.188784Z",
+  "selection_identity_sha256": "5f469d553d77d1df23a31b9114afd58166bd82cce030bc8db2693ee37fc16d23",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "上海沪工",
+        "promotion_rank": 7,
+        "research_conditional_profit_score": 0.42964430315359403,
+        "research_fill_proxy_score": 0.9452195733655807,
+        "research_joint_proxy_score": 0.40610820492579236,
+        "shadow_max_price": 15.95,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+        "shadow_slot": 1,
+        "ts_code": "603131.SH"
+      },
+      {
+        "name": "文投控股",
+        "promotion_rank": 2,
+        "research_conditional_profit_score": 0.41499421962652,
+        "research_fill_proxy_score": 0.9696255509451062,
+        "research_joint_proxy_score": 0.4023889988443988,
+        "shadow_max_price": 2.27,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b",
+        "shadow_slot": 2,
+        "ts_code": "600715.SH"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20261029",
+  "snapshot_sha256": "04881cf311eff994b07cd52c681a743c8cb06e337943f0043586bea1b212dbe0",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "d0b3bd89dcd51637b4da59badabb8a26804beb7dd7e3dc8d33d874cdac15ceec"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20261029.csv",
+      "csv_sha256": "785053850f51f6532e6a70e23e2dc82faec5a47bfc55d15330d15f4bea82ea56",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20261029.json",
+      "sha256": "1d22646b8e219d7353e70ee45c45c472fdca1ea9b6be2f5562ae3975f9bf5b82",
+      "snapshot_sha256": "2d694ba386a712518666265e60cbdd9df39d97a685350e48457f8bfece81776c"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20261029.json",
+      "sha256": "d19650cd24e0047d3892a4c8625b0ffa59252a3001cef4d11bbd2cecf3c335d6"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "8edc87a6d688061a078927e5baee6a7f4ab35234e7a72ae1db2c8b9a5e790aa9",
+      "identity_sha256": "fe4e767cedf7a18548c37d8918fc06c338cc449997ea8d21a3887a335ce873aa",
+      "path": "outputs/decision/primary_d_runtime_features_20261029.csv",
+      "row_count": 8,
+      "selected_count": 8,
+      "sha256": "56cff061c43894390eef4eb053d68727b12a03f48c84866123903c67f3fd199b"
+    },
+    "three_rank": {
+      "bundle_sha256": "8f9ead375fa4888d721588067509c4fa5a1eaced638a7fd9ed4d54736c1689c7",
+      "csv_path": "outputs/decision/three_rank_top10_20261029.csv",
+      "csv_sha256": "6d511abb4857e2dbc24150102e9b039c4065b889f48521d404c735a51e6292e5",
+      "feature_snapshot_sha256": "8edc87a6d688061a078927e5baee6a7f4ab35234e7a72ae1db2c8b9a5e790aa9",
+      "json_path": "outputs/decision/three_rank_top10_20261029.json",
+      "json_sha256": "55eb31f2f15fb9111af0ba684f7a74ab30311579a4c2c405580b7ba5b42c3f10",
+      "top10_members_sha256": "b7dd71c8594502c9e1e96ba4d0f8280b09f9ad5522da293f47dc60484d22440e"
+    }
+  },
+  "source_generated_at_utc": "2026-10-29T11:17:13Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 8,
+  "top10_members_sha256": "b7dd71c8594502c9e1e96ba4d0f8280b09f9ad5522da293f47dc60484d22440e"
+}
