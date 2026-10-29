@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261030",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.194174757281552,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": -0.017341040462427793,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.5714285714285714,
+      "five_year_streak_runup": 0.33529411764705896,
+      "focus_pool_size": 8.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 2,
+      "ret_10d": 0.28248587570621475,
+      "ret_2d": 0.213903743315508,
+      "ret_5d": 0.2897727272727273,
+      "stage2_pool_size": 6.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.25,
+      "volatility_20d": 0.05632617770331468,
+      "volatility_5d": 0.05799558231356539,
+      "volume_ratio": 2.6093265481611985
+    },
+    "frozen_at": "2026-10-29T11:23:26.089042+00:00",
+    "industry": "游戏Ⅱ",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "文投控股",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 2,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261102",
+    "score": -0.0023697765265809417,
+    "signal_date": "20261029",
+    "ts_code": "600715.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261029.json",
+      "sha256": "55eb31f2f15fb9111af0ba684f7a74ab30311579a4c2c405580b7ba5b42c3f10"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261029.json",
+      "sha256": "988c3466ac2e8ae4f76dcd2576e48d79f6a4969172e092d9564a7466c9f1a614"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261029.json",
+      "sha256": "14e514233c1d8e0f57784585d72b30867b3ab1f6efdf13f7d6ff2a673c5677cc"
+    }
+  ]
+}
