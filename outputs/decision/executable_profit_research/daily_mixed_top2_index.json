@@ -1610,12 +1610,53 @@
       "source_bundle_sha256": "8f9ead375fa4888d721588067509c4fa5a1eaced638a7fd9ed4d54736c1689c7",
       "source_feature_snapshot_sha256": "8edc87a6d688061a078927e5baee6a7f4ab35234e7a72ae1db2c8b9a5e790aa9",
       "top10_members_sha256": "b7dd71c8594502c9e1e96ba4d0f8280b09f9ad5522da293f47dc60484d22440e"
+    },
+    {
+      "candidate_count": 8,
+      "entry_sha256": "2c5479ff098412af3b82462870c36b6a34ea642ad6d448ec923c49c277f2645d",
+      "exec_date": "20261102",
+      "exit_date": "20261103",
+      "forward_statistics_policy": "REQUIRES_EXACT_NATURAL_FORWARD_FREEZE",
+      "generation_mode": "NATURAL",
+      "projection_csv_sha256": "9dd4b3065e5386efd5cb2346b28ce5a6b04176827fa7ea07e308c4bd543d058c",
+      "projection_csv_url": "outputs/decision/executable_profit_research/projection_20261030.csv",
+      "projection_json_sha256": "2aca2afab430d1359f1581cf416c9ba3ecf3b9f556fae5df9e651d72e06015c7",
+      "projection_json_url": "outputs/decision/executable_profit_research/projection_20261030.json",
+      "projection_snapshot_sha256": "1fb9822d243198a8facf65b49f1c96d87c7e5e33ee0775cec053b9323af10aa1",
+      "prospective": true,
+      "record_class": "NATURAL_RANK_SNAPSHOT",
+      "recorded_slots": 2,
+      "retrospective_non_forward": false,
+      "rows": [
+        {
+          "industry": "教育",
+          "mixed_profit_rank": 1,
+          "name": "传智教育",
+          "promotion_rank": 4,
+          "slot": 1,
+          "stage_transition": "2→3",
+          "ts_code": "003032.SZ"
+        },
+        {
+          "industry": "医疗服务",
+          "mixed_profit_rank": 2,
+          "name": "澳洋健康",
+          "promotion_rank": 5,
+          "slot": 2,
+          "stage_transition": "3→4",
+          "ts_code": "002172.SZ"
+        }
+      ],
+      "signal_date": "20261030",
+      "source_bundle_sha256": "3bbf78e97318a10ddbfc5be63779d51b98ed8149815c45cb7163641f09ffb349",
+      "source_feature_snapshot_sha256": "36ecac7b2b78d86f0b14a07945f130e633a999bec543b1d5b91ea52ca5e213d6",
+      "top10_members_sha256": "f70c98dadd98aec030286dd2193449ec8de29d4fe13b19d8777ceb0d3c4ceccd"
     }
   ],
   "index_kind": "primary_mixed_top2_daily_audit_index",
-  "latest_signal_date": "20261029",
+  "latest_signal_date": "20261030",
   "public_start_signal_date": "20260828",
-  "recorded_days": 39,
+  "recorded_days": 40,
   "recorded_signal_dates": [
     "20260828",
     "20260831",
@@ -1655,9 +1696,10 @@
     "20261026",
     "20261027",
     "20261028",
-    "20261029"
+    "20261029",
+    "20261030"
   ],
-  "recorded_slots": 78,
+  "recorded_slots": 80,
   "schema_version": "dc20_primary_mixed_daily_top2_index_v1",
-  "snapshot_sha256": "cf8b701e41229c99e9fbb132393990ff8d3d7d129eeff13c367ea8b24bbaec25"
+  "snapshot_sha256": "43693d546e10b93fc8786f00c6bfea6a693c3d934e617071c760054d9910bac4"
 }
