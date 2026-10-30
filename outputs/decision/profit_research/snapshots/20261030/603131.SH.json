@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261102",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.031347962382455,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": -0.01788375558867361,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.45454545454545453,
+      "five_year_streak_runup": 0.3315629742033386,
+      "focus_pool_size": 8.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.3315629742033386,
+      "ret_2d": 0.21034482758620698,
+      "ret_5d": 0.3019287833827893,
+      "stage2_pool_size": 6.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.25,
+      "volatility_20d": 0.04135458085060345,
+      "volatility_5d": 0.054701918459424036,
+      "volume_ratio": 0.5738794371649584
+    },
+    "frozen_at": "2026-10-30T11:31:17.349093+00:00",
+    "industry": "通用设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "上海沪工",
+    "profit_eligible": true,
+    "profit_rank": 7,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261103",
+    "score": -0.017695149253640435,
+    "signal_date": "20261030",
+    "ts_code": "603131.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261030.json",
+      "sha256": "f4c998d4184c46fae8ddd87239d04a5a08a8b831b283d1d5d95c2681ebd55649"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261030.json",
+      "sha256": "8a65bcabb025a891d6da8e6d13d486bbd57af8c48ee5f72610607360302b6afc"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261030.json",
+      "sha256": "b1aa3356a345838eedce84c5df3b3b59e6d7f29ecd41af5ac13d59fc904c3067"
+    }
+  ]
+}
