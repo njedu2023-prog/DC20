@@ -519,7 +519,7 @@
           "formal_projection_sha256": "a7ad8bf5c4716e6cdf80228930663dea93affc9ab91560cfb683dd2f15782d21",
           "held_limit_up_sessions": null,
           "label_available_date": "20261014",
-          "ledger_as_of_date": "20261030",
+          "ledger_as_of_date": "20261102",
           "promotion_rank": 3,
           "proxy_fill": 0,
           "signal_date": "20261013",
@@ -1392,7 +1392,7 @@
           "formal_projection_sha256": "a7ad8bf5c4716e6cdf80228930663dea93affc9ab91560cfb683dd2f15782d21",
           "held_limit_up_sessions": null,
           "label_available_date": null,
-          "ledger_as_of_date": "20261030",
+          "ledger_as_of_date": "20261102",
           "promotion_rank": 2,
           "proxy_fill": 1,
           "signal_date": "20261013",
@@ -1943,14 +1943,14 @@
     {
       "evidence_commit": "6f5768689531d2294dd5c0e1655b1ef8c2137cac",
       "evidence_manifest_sha256": "3678defe7775cd53437c0789b87ccb4d62baac546041ce699a41e60d7a4eb2e0",
-      "ledger_as_of_date": "20261030",
-      "ledger_file_sha256": "96d797579f6a2cdbd0c548eb1a502bcf4a406d6d65283fadb89c8ccda242f554",
-      "ledger_version_count": 14,
+      "ledger_as_of_date": "20261102",
+      "ledger_file_sha256": "401d6d733fddf0ecc33d9c45e40d68dd60c25ca5603b81b3fe4ca91ac56a3b7d",
+      "ledger_version_count": 15,
       "observer_run_id": 38391030674,
       "publication_observation_sha256": "cb7801cf8a5bb879572a272fb4c38e173cd73ed89b05e423344d94357043863e",
       "signal_date": "20261013",
       "snapshot_file_sha256": "6bdcf8e971b1b6cc6714b2d3b9d2cea0e30ccab0b9f61d04ff4f304a8ab1f03c",
-      "source_collection_receipt_sha256": "db4aca61abb15d80693e4c051cb083046e5df9610cb47d16f2dd45af99ffe5ca"
+      "source_collection_receipt_sha256": "10516ce6ce1804474a852cd9eb29d1a264ed8ceff3304f31197f3e10745d4c64"
     },
     {
       "evidence_commit": "cf14d7afe3578344d5c53c9bec5c9a013ff84a34",
@@ -2176,9 +2176,9 @@
     "20261102"
   ],
   "status": "FULL_ENUMERATED_WITH_MISSING_D",
-  "summary_sha256": "c9f51e884750184e616a21c8496f499b18b811962edb9f57fa6da367568d4ec9",
+  "summary_sha256": "98a6a47423cdae93659cefa4947c71a853d26a973f62a15a9e25c83e7b64dae1",
   "test_only": false,
   "universe_scope": "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF",
-  "verified_native_inputs_sha256": "70c70f055b45ae0e63dc3dee516599759ae4de105ccdb94d40a421e7a172c912",
+  "verified_native_inputs_sha256": "67e49a20115ef2e8102e0d85d0a4dd8f1eb88355e4b650e09efc412a85f8fc24",
   "win_rate_denominator": "FILLED_SETTLED_SLOTS_ONLY_ZERO_NOT_WIN"
 }
