@@ -1,0 +1,346 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.0026961189402144817,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "605577.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -3.969777711753178e-05,
+      "net_return": null,
+      "promotion_rank": 10,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002058.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 16,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002827.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600892.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "605577.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000995.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "601599.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000599.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002292.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002029.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002578.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002058.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261104",
+  "exit_date": "20261105",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-04T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "高争民爆",
+      "promotion_rank": 1,
+      "ts_code": "002827.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "游戏Ⅱ",
+      "name": "大晟文化",
+      "promotion_rank": 2,
+      "ts_code": "600892.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "出版",
+      "name": "龙版传媒",
+      "promotion_rank": 3,
+      "ts_code": "605577.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "白酒Ⅱ",
+      "name": "皇台酒业",
+      "promotion_rank": 4,
+      "ts_code": "000995.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "纺织制造",
+      "name": "浙文影业",
+      "promotion_rank": 5,
+      "ts_code": "601599.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "青岛双星",
+      "promotion_rank": 6,
+      "ts_code": "000599.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "文娱用品",
+      "name": "奥飞娱乐",
+      "promotion_rank": 7,
+      "ts_code": "002292.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "服装家纺",
+      "name": "七 匹 狼",
+      "promotion_rank": 8,
+      "ts_code": "002029.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "工业金属",
+      "name": "闽发铝业",
+      "promotion_rank": 9,
+      "ts_code": "002578.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电池",
+      "name": "紫竹高科",
+      "promotion_rank": 10,
+      "ts_code": "002058.SZ"
+    }
+  ],
+  "p0_file_sha256": "f551ea58d0ad4d7b9c5b2c470a590065be5ec5db4b5ca52d1e71a21fb0a403d7",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261103.json",
+    "sha256": "f551ea58d0ad4d7b9c5b2c470a590065be5ec5db4b5ca52d1e71a21fb0a403d7"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-03T11:30:43.280558+00:00",
+  "prediction_generated_at_utc": "2026-11-03T11:30:43.247876+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-03T11:38:25.001940+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002827.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600892.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "d077b1ab9be0620f5cd62a6990094ef604db3e00",
+    "evidence_manifest_sha256": "af58366cd03865028de66eb9f14c1c53b5df7fb77df437f449c5887cdbcdd138",
+    "observer_run_id": 41628140053,
+    "publication_observation_sha256": "0fd40d84b456bc5bc945e8138d35e40f32d6e551180bbbf5b90bf804c2b32e17"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.0026961189402144817,
+      "industry": "出版",
+      "name": "龙版传媒",
+      "promotion_rank": 3,
+      "ts_code": "605577.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -3.969777711753178e-05,
+      "industry": "电池",
+      "name": "紫竹高科",
+      "promotion_rank": 10,
+      "ts_code": "002058.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.0016741956619089546,
+      "industry": "服装家纺",
+      "name": "七 匹 狼",
+      "promotion_rank": 8,
+      "ts_code": "002029.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.004692376808177009,
+      "industry": "游戏Ⅱ",
+      "name": "大晟文化",
+      "promotion_rank": 2,
+      "ts_code": "600892.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.006037053396600274,
+      "industry": "纺织制造",
+      "name": "浙文影业",
+      "promotion_rank": 5,
+      "ts_code": "601599.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.010512473979850478,
+      "industry": "工业金属",
+      "name": "闽发铝业",
+      "promotion_rank": 9,
+      "ts_code": "002578.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.01294134885085276,
+      "industry": "白酒Ⅱ",
+      "name": "皇台酒业",
+      "promotion_rank": 4,
+      "ts_code": "000995.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.014719944146011521,
+      "industry": "文娱用品",
+      "name": "奥飞娱乐",
+      "promotion_rank": 7,
+      "ts_code": "002292.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.016884861744322736,
+      "industry": "汽车零部件",
+      "name": "青岛双星",
+      "promotion_rank": 6,
+      "ts_code": "000599.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261103",
+  "snapshot_file_sha256": "7dcf72b909737baa4faa2cc6240fe22992e5bd813c02bf68354ae7147794eaaf",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261103.json",
+    "sha256": "7dcf72b909737baa4faa2cc6240fe22992e5bd813c02bf68354ae7147794eaaf"
+  },
+  "source_main_sha": "d077b1ab9be0620f5cd62a6990094ef604db3e00",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
