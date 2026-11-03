@@ -1538,7 +1538,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v18-path-description";
+    const DASHBOARD_VERSION = "compact-two-ranks-v19-nov2-research-display";
     const CANDIDATE_PROFIT_ROOT = "outputs/decision/candidate_profit_v1";
     const CANDIDATE_PROFIT_MODEL_SHA256 = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
@@ -2862,6 +2862,41 @@
       // User-approved D21 supplemental eligibility rule. Display only: never
       // substitutes for original prebuy publication, validation or ledger rows.
       const active = state.candidateProfitActivation;
+      // D20261102 display-only recovery, explicitly requested by the user.
+      // Source: late_candidate_research/day_20261102.json, SHA256
+      // 2e64196eaa154064c935cc7255544eb004ae6472311cae7a549c9f6ae773baf9.
+      // Never expose this supplement through the formal loader or account ledger.
+      if (contract.signal_date === "20261102" && contract.exec_date === "20261103"
+          && contract.exit_date === "20261104" && active?.status === "ready"
+          && active.config?.model_canonical_sha256 === "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
+          && Array.isArray(active.index?.days) && !active.index.days.some(day => day.signal_date === "20261102")
+          && contract.bundle_sha256 === "7ff9b5ef7c86144b227193c63db7ed1e4df35af214d892e3dc4e4e0f0e7a51f8"
+          && contract.feature_snapshot_sha256 === "2de4d819a930d837349a002426592bbb75f6c2179f95438cc029754a2dcb886a"
+          && contract.top10_members_sha256 === "87298efabe76b9694e43d08806dec0de61c3f61cff8998f7007e7fd382a35f14") {
+        const supplement = [
+          ["002086.SZ", "东方海洋", 3, -0.007454507926981343],
+          ["600261.SH", "阳光照明", 1, -0.012602623007007846],
+          ["000410.SZ", "沈阳机床", 7, -0.013061998610646898],
+          ["000995.SZ", "皇台酒业", 5, -0.013351115153021044],
+          ["603587.SH", "地素时尚", 8, -0.01388919321072411],
+          ["600189.SH", "泉阳泉", 9, -0.014108406019115803],
+          ["000417.SZ", "合百集团", 6, -0.014717582737264553],
+          ["000525.SZ", "红太阳", 2, -0.01691946149134202],
+          ["002275.SZ", "桂林三金", 4, -0.018207971405192612]
+        ];
+        const expected = new Map(supplement.map(([code, name, promotionRank]) => [code, {name, promotionRank}]));
+        if (!Array.isArray(contract.rows) || contract.rows.length !== expected.size
+            || new Set(contract.rows.map(row => row.ts_code)).size !== expected.size
+            || contract.rows.some(row => expected.get(row.ts_code)?.promotionRank !== row.promotion_rank
+              || expected.get(row.ts_code)?.name !== row.name)) return unavailable("11月2日补算名单绑定不一致");
+        return {ready: true, candidate: true, supplement: true, researchOnly: true, unscorable: new Set(),
+          message: "11月2日研究补算 · 非正式冻结，不计入正式收益或模拟账户",
+          supplementUrl: "outputs/decision/late_candidate_research/day_20261102.html",
+          supplementCsv: "outputs/decision/late_candidate_research/day_20261102.csv",
+          rows: new Map(supplement.map(([code, name, promotionRank, score], index) => [code, {
+            executable_profit_research_rank: index + 1, research_joint_proxy_score: score, rank_tied: false
+          }]))};
+      }
       // D22 local recomputation: display only; formal publication always wins.
       if (contract.signal_date === "20260922" && contract.exec_date === "20260923"
           && contract.exit_date === "20260924" && active?.status === "ready"
@@ -4041,10 +4076,13 @@
         return;
       }
       if (primaryContract && primaryContract !== false) {
-        const profitReady = unifiedProfitView(primaryContract).ready;
-        els.statusBand.className = `status-band ${profitReady ? "good" : "warn"}`;
+        const profitView = unifiedProfitView(primaryContract);
+        const profitReady = profitView.ready;
+        els.statusBand.className = `status-band ${profitReady && !profitView.researchOnly ? "good" : "warn"}`;
         els.statusKicker.textContent = state.dailyRequestedDate ? "历史D日名单 · 只读查看" : "D日核心排名（不依赖历史Action）";
-        els.statusTitle.textContent = profitReady
+        els.statusTitle.textContent = profitView.researchOnly
+          ? "晋级榜已生成 · 盈利排序为研究补算"
+          : profitReady
           ? "晋级榜与盈利排序已生成"
           : "晋级榜已生成 · 盈利研究排序独立校验中";
         els.brandDates.textContent = `D:${dateText(primaryContract.signal_date)} · T:${dateText(primaryContract.exec_date)} · T+1:${dateText(primaryContract.exit_date)}`;
@@ -6335,10 +6373,11 @@
     function renderThreeRankWatchlist(plan, contract) {
       const models = contract.models || {};
       const downloads = contract.downloads || {};
+      const profitView = unifiedProfitView(contract);
       const expectedPrefix = `outputs/decision/three_rank_top10_${contract.signal_date}`;
       const safeCsv = String(downloads.csv_url || "") === `${expectedPrefix}.csv` ? downloads.csv_url : "";
       const downloadButtons = safeCsv
-        ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeCsv))}" download>下载 CSV</a>`
+        ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(safeCsv))}" download>${profitView.researchOnly ? "晋级名单 CSV" : "下载 CSV"}</a>`
         : "";
       const sourceRows = Array.isArray(plan?.stage_watchlist) ? plan.stage_watchlist : [];
       const truthByCode = new Map(sourceRows.map(row => [String(row?.ts_code || ""), row]));
@@ -6369,7 +6408,6 @@
         state.currentThreeRankObservationTruth?.top10_members_sha256 === contract.top10_members_sha256
         ? state.currentThreeRankObservationTruth : null;
       const independentTruth = contract.signal_date >= INDEPENDENCE_CUTOVER_SIGNAL_DATE;
-      const profitView = unifiedProfitView(contract);
       const fixedRows = contract.rows.map(row => {
         const truth = truthByCode.get(String(row.ts_code)) || {};
         const runtimePath = runtimePathByCode.get(String(row.ts_code));
@@ -6443,15 +6481,15 @@
             <button class="three-rank-btn active" type="button" data-three-rank-sort="promotion_rank" aria-pressed="true">按晋级排序</button>
             <button class="three-rank-btn" type="button" data-three-rank-sort="mixed_profit_rank" aria-pressed="false" ${profitView.ready ? "" : "disabled"}>按盈利排序</button>
           </div>
-          <div class="three-rank-downloads">${profitView.candidate ? '<span class="count" title="新盈利模型已启用，自然样本仍在积累，不代表实盘表现">新模型 · 验证中</span>' : ""}${downloadButtons || '<span class="count">下载工件待发布</span>'}</div>
+          <div class="three-rank-downloads">${profitView.researchOnly ? '<span class="truth-badge pending">研究补算 · 非正式冻结</span>' : profitView.candidate ? '<span class="count" title="新盈利模型已启用，自然样本仍在积累，不代表实盘表现">新模型 · 验证中</span>' : ""}${downloadButtons || '<span class="count">下载工件待发布</span>'}${profitView.supplementCsv ? `<a class="three-rank-btn" href="${escapeHtml(localUrl(profitView.supplementCsv))}" download>补算排名 CSV</a>` : ""}</div>
         </div>
-        ${!profitView.ready || profitView.supplement || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}</p>` : ""}
+        ${!profitView.ready || profitView.supplement || profitView.message === "历史恢复研究 · 不计前向收益" ? `<p class="stats-note warn" role="status">${escapeHtml(profitView.message)}${profitView.supplementUrl ? ` · <a href="${escapeHtml(localUrl(profitView.supplementUrl))}" target="_blank" rel="noopener">查看补算证据 ↗</a>` : ""}</p>` : ""}
         ${fixedRows.length ? `<div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="2进3进4晋级榜，可横向滚动" data-scroll-hint="左右滑动查看更多 →"><table class="three-rank-table">
-          <caption class="sr-only">D ${dateText(contract.signal_date)} 晋级与盈利同表；排序切换不改变冻结名次</caption><thead><tr>
+          <caption class="sr-only">D ${dateText(contract.signal_date)} 晋级与盈利同表；${profitView.researchOnly ? "盈利为研究补算，非正式冻结" : "排序切换不改变冻结名次"}</caption><thead><tr>
           <th scope="col" class="left">代码</th><th scope="col" class="left">股票</th><th scope="col" class="left">行业</th><th scope="col">晋级</th>
           <th scope="col" class="left">连板路径</th><th scope="col">路径变化</th>
           <th scope="col" data-rank-field="promotion_rank" aria-sort="ascending">晋级排序</th><th scope="col">晋级概率</th>
-          <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
+          <th scope="col" data-rank-field="mixed_profit_rank" aria-sort="none">盈利排序${profitView.researchOnly ? '<small class="row-meta">研究补算</small>' : ""}</th><th scope="col">盈利分<small class="row-meta">非概率</small></th>
           <th scope="col">T晋级结果</th><th scope="col">T收盘</th><th scope="col" title="晋级名单逐股观察（日开盘入场代理）；新盈利模型影子业绩见下方独立累计（竞价入场代理），两者不是实际成交收益">T+1净收益<small class="row-meta">T+1验证状态</small></th>
         </tr></thead><tbody data-three-rank-body></tbody></table></div>` : '<div class="empty"><strong>D日没有符合硬范围的候选</strong>晋级池为空时系统不补票。</div>'}
         ${independentTruth ? `<div class="compact-disclosure compact-verification-dates">验证日期：T ${dateText(contract.exec_date)} · T+1 ${dateText(contract.exit_date)}</div>` : ""}`;
@@ -8085,4 +8123,5 @@
   </script>
 </body>
 </html>
+
 
