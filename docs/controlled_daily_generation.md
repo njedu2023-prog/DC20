@@ -14,9 +14,41 @@ DC20 运行时仍不得读取或写入 `top10-decision`。
    `outputs/decisio/pred_decisio_D.csv` 真正生成并通过日期/非空必需表检查。
    固定两个上游仓库的 40 位 commit，读取该 commit 下的 dated 文件。
    不使用旧日、latest 替代；不使用后来才出现的提交。
-3. 检查 DC20 P0、P1、Shadow、Pages，以及共享
-   `decision-auction-main-writer` 的 queued/in_progress 状态。
-   已有同 D 完整发布就验收复用；有运行中任务就等待，不重复派发。
+3. 检查 DC20 P0、当前激活固定 Ridge 的自然冻结/观察/发布分支、
+   P1、Shadow、Pages 与 delivery watchdog 的启用状态。
+   已有同 D 完整发布就验收复用；同 D 任务排队/运行时持续跟踪，不重复派发。
+   **全仓库有 queued 记录不等于共享 writer 被占用。** 使用下面的实时队列检查。
+
+## 实时队列与等待闭环
+
+从同一个已读取的远端 main SHA 获取 `scripts/dc20_writer_queue.py` 和
+`scripts/candidate_delivery_watchdog.py`，保持在同一目录并核验两者文件 SHA，
+使用已有授权 API 凭据只读运行：
+
+```sh
+python scripts/dc20_writer_queue.py --signal-date YYYYMMDD --workflow run_primary_d_daily.yml
+```
+
+脚本仅 GET，不取消作业、不派发、不写仓库。`CLEAR` 表示可继续既有调用前检查，
+不是生成成功；`WAIT` 必须跟踪返回的 run。API 不可用、权限不足、限流或分页不完整
+不能解释成无锁。凭据不得写入文件、日志或聊天。
+
+队列判断使用 GitHub API `2026-03-10` 的真实 concurrency `group_members`，
+结合分页活跃 runs、具体 run 和 jobs。不是仅凭 run 的 `queued` 字样或配置中有组名。
+只有异日旧 queued、无 jobs、经并发 API 成功读取确认不持有或等待实际锁，
+且不属于当天目标任务的记录才可作为孤立异常隔离，记录 run id 后继续。
+真正运行中的 writer、当前目标任务和不确定状态仍然等待；原共享锁与 CAS 不变。
+例如 2026-11-03 的旧 run `37655511595` 显示 queued，但 jobs 和关联并发组均为空，
+repo 活跃并发组为零；普通与强制取消均返回 409。它不是新 D 的有效互斥证据。
+不删除该记录、不反复取消，不把平台的孤立记录误报为正在生成。
+
+本地 19:10 主任务必须持续跟踪到公开验收完成或受控窗口截止。上游未齐、排队、
+孤立旧记录均不是结束条件；正常等待每 60 秒复核一次，连续 15 分钟没有推进时
+报告一次具体阻塞并继续跟踪。上游 Data/Top10 一旦 exact-D 验收通过，立即进入
+受控 P0，不把后续 GitHub cron 当作准点保证。派发前再次核对队列、远端 SHA 和同 D
+产物；响应未知时先查 API 真实 run，禁止盲目重发。每个固定源版本最多三次受控尝试。
+到 D 日 23:30 仍缺项时报告实际缺失并停止新的日常受控 P0，保留自然 schedule；
+不自动转成历史恢复。正常等待不重复通知，失败和关键状态变化必须留存证据。
 
 ## 唯一日常入口
 
@@ -56,6 +88,12 @@ created_at；源数据生成于 D 收盘后、不晚于 dispatch。排队不会�
 - Shadow：自然 P1 成功后由独立 workflow 自动冻结同 D 同 SHA 的 Top1/Top2。
   “每日 Top2 留档”与“已冻结前向 Shadow”分开验收，缺一项不能称闭环。
   未到期 T/T+1 保持待验证，缺失行情不记作零收益；既有 T/T+1 验证流程不变。
+- 当前正式固定 Ridge 盈利分支：还必须核对
+  `work/profit_1000_upgrade/candidate_natural_forward/day_D.json` 与 `workflow_D.json`、
+  `candidate_natural_evidence/D/context.json`、
+  `outputs/decision/candidate_profit_v1/day_D.json`、索引同 D 项和 summary 逐笔账本，
+  以及模型 SHA、P0 源 SHA 和实际 Pages revision。旧 P1/Shadow 成功不能替代此分支。
+  `late_candidate_research` 事后补算展示不等于正式前向冻结，不能写入正式模拟账户。
 - Pages：核对最终 main、部署 revision、公开首页和 dated 下载产物一致。
   记录启动、名单生成、完整链公开的北京时间，不把启动时间当完成时间。
 - 盈利模型研究台：正式候选盈利发布任务内直接调用 `profit_research.yml`，

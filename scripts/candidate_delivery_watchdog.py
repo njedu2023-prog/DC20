@@ -17,6 +17,11 @@ import re
 import urllib.error
 import urllib.request
 
+if __package__:
+    from .dc20_writer_queue import inspect_queue, GROUP
+else:
+    from dc20_writer_queue import inspect_queue, GROUP
+
 REPO = 'njedu2023-prog/DC20'
 WORKFLOW = '.github/workflows/candidate_delivery_watchdog.yml'
 TZ = timezone(timedelta(hours=8))
@@ -59,7 +64,7 @@ class GitHub:
 
     def request(self, path, body=None, *, repository=REPO):
         self.calls += 1
-        require(self.calls <= 60 and path.startswith('/'), 'REQUEST_BUDGET_EXCEEDED')
+        require(self.calls <= 200 and path.startswith('/'), 'REQUEST_BUDGET_EXCEEDED')
         require(repository in (REPO, *UPSTREAMS), 'REPOSITORY_REJECTED')
         if body is not None:
             require(repository == REPO and path in {f'/actions/workflows/{w}/dispatches' for w in (P0, NATURAL, OBSERVER, PUBLISHER)}, 'DISPATCH_TARGET_REJECTED')
@@ -67,13 +72,15 @@ class GitHub:
         req = urllib.request.Request('https://api.github.com/repos/'+repository+path,
             data=None if body is None else json.dumps(body).encode(), headers={
                 'Authorization': 'Bearer '+self.token, 'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28'})
+                'X-GitHub-Api-Version': ('2026-03-10' if '/concurrency_groups' in path else '2022-11-28')})
         try:
             with urllib.request.urlopen(req, timeout=30) as response:
                 raw = response.read(8*1024*1024+1)
             require(len(raw) <= 8*1024*1024, 'RESPONSE_TOO_LARGE')
             return json.loads(raw) if raw else None
         except urllib.error.HTTPError as exc:
+            if body is None and exc.code == 404 and path == '/actions/concurrency_groups/' + GROUP:
+                return None  # Caller first verifies the supported list endpoint.
             if body is None and exc.code == 404 and path.startswith('/contents/'):
                 return None
             raise ValueError('GITHUB_HTTP_'+str(exc.code)) from None
@@ -302,10 +309,12 @@ def act(client, plan, now, *, execute=False):
     if 'workflow' not in plan:
         return plan
     workflow = plan['workflow']
+    queue = inspect_queue(client, workflow, plan['signal_date'], now)
+    plan = {**plan, 'queue': queue}
+    if queue['status'] != 'CLEAR':
+        return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
     runs = client.request('/actions/workflows/'+workflow+'/runs?per_page=50')['workflow_runs']
     relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']
-    if any(r.get('status') != 'completed' for r in relevant):
-        return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
     failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
         datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
     if workflow == P0:
@@ -321,6 +330,11 @@ def act(client, plan, now, *, execute=False):
     require(plan.get('existing_formal') is True or now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
     if not execute:
         return {**plan, 'status': 'DRY_RUN_WOULD_DISPATCH'}
+    require(client.request('/git/ref/heads/main')['object']['sha'] == plan['head'], 'MAIN_MOVED_RECHECK_NEXT_TICK')
+    queue = inspect_queue(client, workflow, plan['signal_date'], now)
+    plan = {**plan, 'queue': queue}
+    if queue['status'] != 'CLEAR':
+        return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
     require(client.request('/git/ref/heads/main')['object']['sha'] == plan['head'], 'MAIN_MOVED_RECHECK_NEXT_TICK')
     client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})
     return {**plan, 'status': 'DISPATCHED_NOT_COMPLETED'}
@@ -350,3 +364,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+

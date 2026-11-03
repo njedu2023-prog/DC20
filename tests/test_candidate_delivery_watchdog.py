@@ -3,6 +3,7 @@ import json
 from copy import deepcopy
 from datetime import datetime
 import pytest
+from urllib.parse import parse_qs, urlsplit
 from scripts import candidate_delivery_watchdog as m
 
 NOW = datetime.fromisoformat('2026-09-22T22:00:00+08:00')
@@ -27,6 +28,21 @@ class Fake:
     def request(self,path,body=None):
         if body is not None: self.posts.append((path,deepcopy(body))); return None
         if path=='/git/ref/heads/main': return {'object':{'sha':self.head}}
+        if path=='/actions/concurrency_groups?per_page=100': return {'total_count':0,'concurrency_groups':[]}
+        if path=='/actions/concurrency_groups/'+m.GROUP: return None
+        if path.startswith('/actions/runs?branch=main&status='):
+            query=parse_qs(urlsplit(path).query)
+            rows=[r for r in self.busy if r.get('status')==query['status'][0]]
+            page=int(query['page'][0])
+            return {'total_count':len(rows),'workflow_runs':deepcopy(rows[(page-1)*100:page*100])}
+        if path.startswith('/actions/workflows/') and 'created=' in path:
+            query=parse_qs(urlsplit(path).query)
+            workflow=path.split('/')[3]
+            start=datetime.fromisoformat(query['created'][0][2:].replace('Z','+00:00'))
+            rows=[r for r in self.busy if r.get('path')=='.github/workflows/'+workflow and
+                  datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))>=start]
+            page=int(query['page'][0])
+            return {'total_count':len(rows),'workflow_runs':deepcopy(rows[(page-1)*100:page*100])}
         if path.startswith('/actions/workflows/'+m.P0+'/runs'): return {'workflow_runs':[run(m.P0)]}
         if path.endswith('/jobs?per_page=100'): return {'jobs':[{'steps':[{'name':'Upload immutable P0 candidate','conclusion':'success'}]}]}
         if path=='/actions/runs/8': return run(m.NATURAL,8)
@@ -70,12 +86,12 @@ def test_complete_is_noop_and_stale_deploy_is_only_publisher():
     assert m.inspect(f,NOW)['status']=='NEEDS_DEPLOYMENT'
 
 def test_no_duplicate_while_stage_running():
-    f=Fake(); f.busy=[{'head_branch':'main','event':'workflow_dispatch','status':'in_progress'}]
+    f=Fake(); f.busy=[{**run(m.NATURAL),'status':'in_progress','conclusion':None}]
     assert m.act(f,m.inspect(f,NOW),NOW,execute=True)['status']=='UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'
     assert not f.posts
 
 def test_three_failures_require_repair_not_infinite_dispatch():
-    f=Fake(); f.busy=[{**run(m.NATURAL), 'conclusion':'failure'} for _ in range(3)]
+    f=Fake(); f.busy=[{**run(m.NATURAL,id=70+i), 'conclusion':'failure'} for i in range(3)]
     with pytest.raises(ValueError,match='RETRY_BUDGET'): m.act(f,m.inspect(f,NOW),NOW,execute=True)
     assert not f.posts
 
@@ -146,3 +162,68 @@ def test_workflow_is_valid_and_has_no_repository_writer():
     assert doc['jobs']['recover']['permissions']=={'contents':'read','actions':'write'}
     assert all(job.get('permissions',{}).get('contents')!='write' for job in doc['jobs'].values())
     assert 'schedule' in doc[True] and 'push' in doc[True]
+
+def test_confirmed_old_zero_job_orphan_does_not_block_new_day_dispatch():
+    f=Fake(); old={**run('verify_decision_observations.yml',id=7001),
+        'status':'queued','conclusion':None,'created_at':'2026-08-01T12:00:00Z'}
+    f.busy=[old]; original=f.request
+    def request(path,body=None):
+        if path=='/actions/runs/7001':return deepcopy(old)
+        if path=='/actions/runs/7001/jobs?per_page=100':return {'total_count':0,'jobs':[]}
+        if path=='/actions/runs/7001/concurrency_groups?per_page=100':return {'total_count':0,'concurrency_groups':[]}
+        return original(path,body)
+    f.request=request
+    result=m.act(f,m.inspect(f,NOW),NOW,execute=True)
+    assert result['status']=='DISPATCHED_NOT_COMPLETED'
+    assert result['queue']['orphan_run_ids']==[7001]
+    assert len(f.posts)==1 and f.posts[0][0].endswith('/dispatches')
+
+def test_writer_appearing_immediately_before_dispatch_blocks_without_post():
+    f=Fake(); original=f.request; checks=[]
+    def request(path,body=None):
+        if path=='/actions/concurrency_groups?per_page=100':
+            checks.append(1)
+            return {'total_count':0,'concurrency_groups':[]}
+        if path=='/actions/concurrency_groups/'+m.GROUP and len(checks)>1:
+            return {'group_name':m.GROUP,'total_count':1,
+                    'group_members':[{'run_id':456,'status':'in_progress'}]}
+        return original(path,body)
+    f.request=request
+    result=m.act(f,m.inspect(f,NOW),NOW,execute=True)
+    assert result['status']=='UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'
+    assert result['queue']['blocking_run_ids']==[456] and not f.posts
+
+def test_queue_read_client_does_not_gain_cancel_or_write_permissions():
+    client=m.GitHub('fake-never-sent')
+    with pytest.raises(ValueError,match='DISPATCH_TARGET_REJECTED'):
+        client.request('/actions/runs/7001/cancel',{})
+
+def test_main_change_during_final_queue_check_stops_dispatch():
+    f=Fake(); original=f.request; checks=[]
+    def request(path,body=None):
+        if path=='/actions/concurrency_groups?per_page=100':
+            checks.append(1)
+            if len(checks)==4:f.head='b'*40
+        return original(path,body)
+    f.request=request
+    plan=m.inspect(f,NOW)
+    with pytest.raises(ValueError,match='MAIN_MOVED'):
+        m.act(f,plan,NOW,execute=True)
+    assert not f.posts
+
+@pytest.mark.parametrize('path,code,allowed',[
+    ('/actions/concurrency_groups/'+m.GROUP,404,True),
+    ('/actions/concurrency_groups/'+m.GROUP,403,False),
+    ('/actions/concurrency_groups?per_page=100',404,False),
+    ('/actions/runs/7001/concurrency_groups?per_page=100',404,False),
+])
+def test_only_specific_inactive_group_404_is_not_an_api_failure(monkeypatch,path,code,allowed):
+    import urllib.error
+    def unavailable(*args,**kwargs):
+        raise urllib.error.HTTPError('https://api.github.com',code,'fixture',{},None)
+    monkeypatch.setattr(m.urllib.request,'urlopen',unavailable)
+    client=m.GitHub('fake-never-sent')
+    if allowed:assert client.request(path) is None
+    else:
+        with pytest.raises(ValueError,match='GITHUB_HTTP_'+str(code)):client.request(path)
+

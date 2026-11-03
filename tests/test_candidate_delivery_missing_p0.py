@@ -70,14 +70,14 @@ def test_clock_rechecked_before_dispatch():
 
 def test_old_failed_p0_does_not_exhaust_new_ready_sources():
     f = Missing()
-    f.busy = [{**run(m.P0), 'event': 'schedule', 'conclusion': 'failure'} for _ in range(3)]
+    f.busy = [{**run(m.P0,id=70+i), 'event': 'schedule', 'conclusion': 'failure'} for i in range(3)]
     assert m.act(f, m.inspect(f, NOW), NOW, execute=True)['status'] == 'DISPATCHED_NOT_COMPLETED'
 
 
 def test_new_controlled_failures_are_bounded():
     f = Missing()
-    f.busy = [{**run(m.P0), 'conclusion': 'failure', 'created_at': '2026-09-22T13:50:00Z',
-               'display_title': 'DC20 controlled daily NATURAL | D=20260922'} for _ in range(3)]
+    f.busy = [{**run(m.P0,id=70+i), 'conclusion': 'failure', 'created_at': '2026-09-22T13:50:00Z',
+               'display_title': 'DC20 controlled daily NATURAL | D=20260922'} for i in range(3)]
     with pytest.raises(ValueError, match='RETRY_BUDGET'): m.act(f, m.inspect(f, NOW), NOW, execute=True)
     assert not f.posts
 

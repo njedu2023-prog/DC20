@@ -16,8 +16,10 @@ on:
     branches: [main]
     paths:
       - scripts/candidate_delivery_watchdog.py
+      - scripts/dc20_writer_queue.py
       - tests/test_candidate_delivery_watchdog.py
       - tests/test_candidate_delivery_missing_p0.py
+      - tests/test_dc20_writer_queue.py
       - .github/workflows/candidate_delivery_watchdog.yml
 permissions:
   contents: read
@@ -41,12 +43,15 @@ jobs:
           python-version: '3.12.13'
       - run: >-
           python -m pip install --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_delivery_missing_p0.py
-      - name: Check actual delivery without dispatch on push
+      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_delivery_missing_p0.py tests/test_dc20_writer_queue.py
+      - name: Check live queue without dispatch on push
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/candidate_delivery_watchdog.py
+        run: >-
+          python scripts/dc20_writer_queue.py
+          --signal-date "$(TZ=Asia/Shanghai date +%Y%m%d)"
+          --workflow run_primary_d_daily.yml
   recover:
     needs: verify
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
