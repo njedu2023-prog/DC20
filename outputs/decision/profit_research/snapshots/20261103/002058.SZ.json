@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261104",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.994794377928153,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.009248554913294793,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.375,
+      "five_year_streak_runup": 0.21019473081328743,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 10,
+      "ret_10d": -0.010767790262172339,
+      "ret_2d": 0.21019473081328743,
+      "ret_5d": 0.1584429824561404,
+      "stage2_pool_size": 12.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9230769230769231,
+      "volatility_20d": 0.06897371663904547,
+      "volatility_5d": 0.05853634209615048,
+      "volume_ratio": 1.1496707215991213
+    },
+    "frozen_at": "2026-11-03T11:30:43.280558+00:00",
+    "industry": "电池",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "紫竹高科",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 10,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261105",
+    "score": -3.969777711753178e-05,
+    "signal_date": "20261103",
+    "ts_code": "002058.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261103.json",
+      "sha256": "f551ea58d0ad4d7b9c5b2c470a590065be5ec5db4b5ca52d1e71a21fb0a403d7"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261103.json",
+      "sha256": "8a393689ed557a90bea665833dbc5b088ad2aca30b402c76b045a4efafecbf0c"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261103.json",
+      "sha256": "7dcf72b909737baa4faa2cc6240fe22992e5bd813c02bf68354ae7147794eaaf"
+    }
+  ]
+}

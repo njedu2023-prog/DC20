@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261104",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.024449877750616,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.09927360774818395,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.42857142857142855,
+      "five_year_streak_runup": 0.20967741935483875,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 6,
+      "ret_10d": 0.04895104895104896,
+      "ret_2d": 0.20967741935483875,
+      "ret_5d": 0.10565110565110558,
+      "stage2_pool_size": 12.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9230769230769231,
+      "volatility_20d": 0.041918641536162336,
+      "volatility_5d": 0.07570735551245218,
+      "volume_ratio": 1.8752727345017361
+    },
+    "frozen_at": "2026-11-03T11:30:43.280558+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "青岛双星",
+    "profit_eligible": true,
+    "profit_rank": 9,
+    "promotion_rank": 6,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261105",
+    "score": -0.016884861744322736,
+    "signal_date": "20261103",
+    "ts_code": "000599.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261103.json",
+      "sha256": "f551ea58d0ad4d7b9c5b2c470a590065be5ec5db4b5ca52d1e71a21fb0a403d7"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261103.json",
+      "sha256": "8a393689ed557a90bea665833dbc5b088ad2aca30b402c76b045a4efafecbf0c"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261103.json",
+      "sha256": "7dcf72b909737baa4faa2cc6240fe22992e5bd813c02bf68354ae7147794eaaf"
+    }
+  ]
+}
