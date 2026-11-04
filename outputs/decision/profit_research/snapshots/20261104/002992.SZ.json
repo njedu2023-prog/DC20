@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261105",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.013175230566532,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.00036245016310254563,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.4166666666666667,
+      "five_year_streak_runup": 0.2101449275362317,
+      "focus_pool_size": 12.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 10,
+      "ret_10d": 0.14816088002750072,
+      "ret_2d": 0.2101449275362317,
+      "ret_5d": 0.17192982456140338,
+      "stage2_pool_size": 6.0,
+      "stage3_pool_size": 6.0,
+      "stage_pool_share": 0.5,
+      "volatility_20d": 0.036915987354004254,
+      "volatility_5d": 0.05555234575941795,
+      "volume_ratio": 2.943891355769815
+    },
+    "frozen_at": "2026-11-04T14:28:40.813026+00:00",
+    "industry": "光学光电",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "宝明科技",
+    "profit_eligible": true,
+    "profit_rank": 9,
+    "promotion_rank": 10,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261106",
+    "score": -0.02290234738400269,
+    "signal_date": "20261104",
+    "ts_code": "002992.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261104.json",
+      "sha256": "7f87745ecea0aa8d3f322fb88922f7acd6432b29b56e397fc1f4c09f0b66e6ad"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261104.json",
+      "sha256": "53c19b518613dbc408e5e5b28a3749d2b56eea522ed502d370b14dd8f06e90ea"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261104.json",
+      "sha256": "7953bf6e1c3023ab36319879d37634f40845fc18b03f0c5c3e7c15edcb59901c"
+    }
+  ]
+}
