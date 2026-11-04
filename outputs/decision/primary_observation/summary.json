@@ -3,13 +3,13 @@
   "scope": "frozen_primary_topn",
   "public_start_signal_date": "20260828",
   "status": "PARTIAL_TRUTH",
-  "as_of_date": "20261103",
-  "latest_signal_date": "20261103",
-  "latest_exec_date": "20261104",
-  "latest_exit_date": "20261105",
+  "as_of_date": "20261104",
+  "latest_signal_date": "20261104",
+  "latest_exec_date": "20261105",
+  "latest_exit_date": "20261106",
   "statistics": {
-    "observation_dates": 39,
-    "observation_rows": 326,
+    "observation_dates": 40,
+    "observation_rows": 336,
     "path_performance": {
       "分歧回封": {
         "label": "分歧回封",
@@ -21,32 +21,32 @@
       },
       "加速一致": {
         "label": "加速一致",
-        "t_validated_rows": 94,
-        "continuation_hit_rate": 0.46808510638297873,
+        "t_validated_rows": 99,
+        "continuation_hit_rate": 0.47474747474747475,
         "final_verified_trades": 63,
         "mean_final_net_return": null,
         "win_rate": null
       },
       "弱转强": {
         "label": "弱转强",
-        "t_validated_rows": 46,
-        "continuation_hit_rate": 0.43478260869565216,
+        "t_validated_rows": 48,
+        "continuation_hit_rate": 0.4375,
         "final_verified_trades": 34,
         "mean_final_net_return": null,
         "win_rate": null
       },
       "强转弱": {
         "label": "强转弱",
-        "t_validated_rows": 25,
-        "continuation_hit_rate": 0.4,
+        "t_validated_rows": 26,
+        "continuation_hit_rate": 0.4230769230769231,
         "final_verified_trades": 23,
         "mean_final_net_return": null,
         "win_rate": null
       },
       "持续强势": {
         "label": "持续强势",
-        "t_validated_rows": 58,
-        "continuation_hit_rate": 0.4827586206896552,
+        "t_validated_rows": 60,
+        "continuation_hit_rate": 0.48333333333333334,
         "final_verified_trades": 33,
         "mean_final_net_return": null,
         "win_rate": null
@@ -60,44 +60,44 @@
         "win_rate": null
       }
     },
-    "premarket_valid_rows": 326,
-    "t_validated_rows": 316,
+    "premarket_valid_rows": 336,
+    "t_validated_rows": 326,
     "t_pending_rows": 10,
     "pending_t_rows": 10,
-    "pending_t1_rows": 0,
+    "pending_t1_rows": 10,
     "missing_t_truth_rows": 0,
     "missing_t1_truth_rows": 1,
     "unresolved_exit_rows": 0,
     "pending_exit_rows": 0,
     "excluded_retrospective_rows": 29,
     "final_verified_trades": 236,
-    "daily_open_proxy_truth_rows": 316,
+    "daily_open_proxy_truth_rows": 326,
     "matured_portfolio_dates": 37,
-    "continuation_hit_rate": 0.3924050632911392,
+    "continuation_hit_rate": 0.3987730061349693,
     "stage_2_to_3": {
-      "samples": 229,
-      "hits": 83,
-      "hit_rate": 0.3624454148471616
+      "samples": 238,
+      "hits": 89,
+      "hit_rate": 0.3739495798319328
     },
     "stage_3_to_4": {
-      "samples": 87,
+      "samples": 88,
       "hits": 41,
-      "hit_rate": 0.47126436781609193
+      "hit_rate": 0.4659090909090909
     },
     "top1_continuation": {
-      "samples": 38,
-      "hits": 22,
-      "hit_rate": 0.5789473684210527
+      "samples": 39,
+      "hits": 23,
+      "hit_rate": 0.5897435897435898
     },
     "top3_continuation": {
-      "samples": 114,
-      "hits": 63,
-      "hit_rate": 0.5526315789473685
+      "samples": 117,
+      "hits": 66,
+      "hit_rate": 0.5641025641025641
     },
-    "market_positive_rate": 0.5506329113924051,
-    "mean_market_daily_return": 0.0172655658966247,
-    "mean_t_observation_return": -0.009968523214388188,
-    "observation_fill_rate": 0.75,
+    "market_positive_rate": 0.5521472392638037,
+    "mean_market_daily_return": 0.017819643388340096,
+    "mean_t_observation_return": -0.009875162189601173,
+    "observation_fill_rate": 0.7484662576687117,
     "final_win_rate": null,
     "mean_final_net_return": null,
     "median_final_net_return": null,
@@ -116,8 +116,8 @@
     "return_statistics_scope": "SEPARATE_EXIT_POLICIES",
     "return_statistics_by_exit_policy": {
       "dc20_exit_1000_limit_hold_20260912_v1": {
-        "observation_dates": 32,
-        "observation_rows": 264,
+        "observation_dates": 33,
+        "observation_rows": 274,
         "path_performance": {
           "分歧回封": {
             "label": "分歧回封",
@@ -129,31 +129,31 @@
           },
           "加速一致": {
             "label": "加速一致",
-            "t_validated_rows": 70,
-            "continuation_hit_rate": 0.5142857142857142,
+            "t_validated_rows": 75,
+            "continuation_hit_rate": 0.52,
             "final_verified_trades": 44,
             "mean_final_net_return": -0.04419393096622551,
             "win_rate": 0.3181818181818182
           },
           "弱转强": {
             "label": "弱转强",
-            "t_validated_rows": 41,
-            "continuation_hit_rate": 0.4146341463414634,
+            "t_validated_rows": 43,
+            "continuation_hit_rate": 0.4186046511627907,
             "final_verified_trades": 30,
             "mean_final_net_return": -0.02228405355546218,
             "win_rate": 0.3333333333333333
           },
           "强转弱": {
             "label": "强转弱",
-            "t_validated_rows": 18,
-            "continuation_hit_rate": 0.4444444444444444,
+            "t_validated_rows": 19,
+            "continuation_hit_rate": 0.47368421052631576,
             "final_verified_trades": 17,
             "mean_final_net_return": 0.04467962045008417,
             "win_rate": 0.5294117647058824
           },
           "持续强势": {
             "label": "持续强势",
-            "t_validated_rows": 44,
+            "t_validated_rows": 46,
             "continuation_hit_rate": 0.5,
             "final_verified_trades": 23,
             "mean_final_net_return": -0.0318831468419878,
@@ -168,44 +168,44 @@
             "win_rate": 0.40625
           }
         },
-        "premarket_valid_rows": 264,
-        "t_validated_rows": 254,
+        "premarket_valid_rows": 274,
+        "t_validated_rows": 264,
         "t_pending_rows": 10,
         "pending_t_rows": 10,
-        "pending_t1_rows": 0,
+        "pending_t1_rows": 10,
         "missing_t_truth_rows": 0,
         "missing_t1_truth_rows": 1,
         "unresolved_exit_rows": 0,
         "pending_exit_rows": 0,
         "excluded_retrospective_rows": 0,
         "final_verified_trades": 187,
-        "daily_open_proxy_truth_rows": 254,
+        "daily_open_proxy_truth_rows": 264,
         "matured_portfolio_dates": 30,
-        "continuation_hit_rate": 0.4094488188976378,
+        "continuation_hit_rate": 0.4166666666666667,
         "stage_2_to_3": {
-          "samples": 184,
-          "hits": 70,
-          "hit_rate": 0.3804347826086957
+          "samples": 193,
+          "hits": 76,
+          "hit_rate": 0.39378238341968913
         },
         "stage_3_to_4": {
-          "samples": 70,
+          "samples": 71,
           "hits": 34,
-          "hit_rate": 0.4857142857142857
+          "hit_rate": 0.4788732394366197
         },
         "top1_continuation": {
-          "samples": 31,
-          "hits": 19,
-          "hit_rate": 0.6129032258064516
+          "samples": 32,
+          "hits": 20,
+          "hit_rate": 0.625
         },
         "top3_continuation": {
-          "samples": 93,
-          "hits": 53,
-          "hit_rate": 0.5698924731182796
+          "samples": 96,
+          "hits": 56,
+          "hit_rate": 0.5833333333333334
         },
-        "market_positive_rate": 0.5393700787401575,
-        "mean_market_daily_return": 0.01625785595919625,
-        "mean_t_observation_return": -0.009576281341650195,
-        "observation_fill_rate": 0.7401574803149606,
+        "market_positive_rate": 0.5416666666666666,
+        "mean_market_daily_return": 0.016980228541292854,
+        "mean_t_observation_return": -0.00947585226834267,
+        "observation_fill_rate": 0.7386363636363636,
         "final_win_rate": 0.36363636363636365,
         "mean_final_net_return": -0.02203974765569661,
         "median_final_net_return": -0.044735525024533866,
@@ -1077,6 +1077,21 @@
       "signal_date": "20261103",
       "exec_date": "20261104",
       "exit_date": "20261105",
+      "rows": 10,
+      "t_validated_rows": 10,
+      "final_verified_trades": 0,
+      "pending_t_rows": 0,
+      "pending_t1_rows": 10,
+      "missing_t_truth_rows": 0,
+      "missing_t1_truth_rows": 0,
+      "unresolved_exit_rows": 0,
+      "settled_rows": 0,
+      "pending_exit_rows": 0
+    },
+    {
+      "signal_date": "20261104",
+      "exec_date": "20261105",
+      "exit_date": "20261106",
       "rows": 10,
       "t_validated_rows": 0,
       "final_verified_trades": 0,
@@ -2180,6 +2195,32 @@
         "latest_three_rank_csv_url": "outputs/decision/three_rank_top10_20261103.csv",
         "latest_three_rank_csv_sha256": "2a06d17beaf675372f07b40c6b02fb29687fe54d088e9499c5aa54f7c68c4c6f",
         "latest_bundle_sha256": "d880f1a74d05a77c991f648eee827c7190d7ac328bef64a4a1644ed348f0df0c"
+      }
+    },
+    {
+      "signal_date": "20261104",
+      "status": "PROSPECTIVE",
+      "p0": {
+        "schema_version": "dc20_primary_d_runtime_index_v1",
+        "index_kind": "dated_primary_d_runtime_pointer_only",
+        "data_alias": false,
+        "latest_signal_date": "20261104",
+        "latest_exec_date": "20261105",
+        "latest_exit_date": "20261106",
+        "latest_receipt_url": "outputs/decision/primary_d_receipt_20261104.json",
+        "latest_receipt_sha256": "fb3f190675a5f841db38673424641033bd20a08126c73258353fe2fa2bbf66bc",
+        "latest_runtime_features_url": "outputs/decision/primary_d_runtime_features_20261104.csv",
+        "latest_runtime_features_sha256": "42340b7b85bd7c6907f7bd20181246b8ad2a94fa76750220eeb4338ae608287c",
+        "runtime_feature_row_count": 12,
+        "runtime_selected_count": 10,
+        "runtime_identity_sha256": "f5daa35f2d5f480d9dd40341a46368cd0c224f915c8652f2546bf3f60d9d1a02",
+        "latest_feature_snapshot_sha256": "cfb0f06c33812f1e4bbf6ed0e737f2cc3d29f098ccf79a9a5ccd7ef3ac60642e",
+        "latest_top10_members_sha256": "c8bb39c531164b18351ff853bd5820507c19d5db66dcd72785e89f103f16db12",
+        "latest_three_rank_json_url": "outputs/decision/three_rank_top10_20261104.json",
+        "latest_three_rank_json_sha256": "7f87745ecea0aa8d3f322fb88922f7acd6432b29b56e397fc1f4c09f0b66e6ad",
+        "latest_three_rank_csv_url": "outputs/decision/three_rank_top10_20261104.csv",
+        "latest_three_rank_csv_sha256": "e794acd93aae1bf7b1d79b9f6293eb253b93dade8a2e034b9a4e7d8c8d4846d0",
+        "latest_bundle_sha256": "e0164b2ea6ccbde2b7b1cd1569dc58a0c18a73b446c1223d69a11a54e2d5a791"
       }
     }
   ],
@@ -4149,6 +4190,14 @@
       "sha256": "84b013150ba49c770217aa20fed54a65808e6e250310d6eda78f75aa62e2d724"
     },
     {
+      "path": "data/market/raw/2026/20261104/daily.csv",
+      "sha256": "f0472d3a2d770967d906510cb985d63a7c7bcdda39c3b3563344e66d29ff79e0"
+    },
+    {
+      "path": "data/market/raw/2026/20261104/stk_limit.csv",
+      "sha256": "3ca508453248274413d0329d45435d64258efb24bbbf4d90f4934f30a33bb0e0"
+    },
+    {
       "path": "models/decision_shadow_exit_policy_1000_v1.json",
       "sha256": "2a4feb3937aa9ad221d7b9f7a089c6968fe8a3ce13e949023ae7207f5cbccc31"
     }
@@ -4161,7 +4210,7 @@
     "return_policy_was_frozen_on_signal_D": false,
     "return_strategy_forward_evidence": false,
     "policy_definition_date": "20260912",
-    "reconstruction_as_of_date": "20261103",
+    "reconstruction_as_of_date": "20261104",
     "entry": "positive volume and daily open strictly below up limit; not an auction fill claim",
     "exit": "scheduled exit before 20260914 retains legacy open; otherwise 10:00 unless sealed limit-up, observed break exits at next executable minute proxy",
     "corporate_action_adjustment": "chain close/pre_close across held or blocked sessions; policy-bound exit price/pre_close",
@@ -4179,6 +4228,6 @@
     "mixed_exit_returns_combined": false
   },
   "rows_path": "outputs/decision/primary_observation/rows.csv",
-  "rows_sha256": "0e8567793482217e2cc802805fafca461172e2889c48ad7964554e9f21aec3dc",
-  "generated_at_utc": "2026-11-03T17:23:40.463294+00:00"
+  "rows_sha256": "5f4e33b7fbe1c95fdd8b830ea399e51c7e0812c675542dd1502879ca95ad09f7",
+  "generated_at_utc": "2026-11-04T16:15:24.868409+00:00"
 }
