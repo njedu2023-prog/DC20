@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261106",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.000000000000002,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.04966392830470512,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.6666666666666666,
+      "five_year_streak_runup": 0.21021611001964646,
+      "focus_pool_size": 18.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.06500691562932226,
+      "ret_2d": 0.21021611001964646,
+      "ret_5d": 0.04513064133016642,
+      "stage2_pool_size": 16.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.8888888888888888,
+      "volatility_20d": 0.06841594241669884,
+      "volatility_5d": 0.07432537111612696,
+      "volume_ratio": 0.4927672750673842
+    },
+    "frozen_at": "2026-11-05T11:30:12.849321+00:00",
+    "industry": "家电零部",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "春光科技",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261109",
+    "score": -0.004489318772150092,
+    "signal_date": "20261105",
+    "ts_code": "603657.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261105.json",
+      "sha256": "20f50a955b0ba47436beaf5f8dc636cb1e77ac14d2a5f9abab94658b0b0aee9d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261105.json",
+      "sha256": "f89e0f5c7966c6f5a3152a0a67afc135b117db41ca2d0f9fd8d4822d81aac440"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261105.json",
+      "sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953"
+    }
+  ]
+}

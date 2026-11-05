@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261106",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.18867924528302,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.004166666666666874,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.5333333333333333,
+      "five_year_streak_runup": 0.2116182572614107,
+      "focus_pool_size": 18.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.140625,
+      "ret_2d": 0.2116182572614107,
+      "ret_5d": 0.21666666666666679,
+      "stage2_pool_size": 16.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.8888888888888888,
+      "volatility_20d": 0.03567111414722784,
+      "volatility_5d": 0.050414770043480474,
+      "volume_ratio": 2.148861506851993
+    },
+    "frozen_at": "2026-11-05T11:30:12.849321+00:00",
+    "industry": "电网设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "中利集团",
+    "profit_eligible": true,
+    "profit_rank": 7,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261109",
+    "score": -0.01453223525380401,
+    "signal_date": "20261105",
+    "ts_code": "002309.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261105.json",
+      "sha256": "20f50a955b0ba47436beaf5f8dc636cb1e77ac14d2a5f9abab94658b0b0aee9d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261105.json",
+      "sha256": "f89e0f5c7966c6f5a3152a0a67afc135b117db41ca2d0f9fd8d4822d81aac440"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261105.json",
+      "sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953"
+    }
+  ]
+}
