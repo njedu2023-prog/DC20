@@ -1,0 +1,346 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 9,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.004489318772150092,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603657.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0062920367508651365,
+      "net_return": null,
+      "promotion_rank": 8,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "001360.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603381.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002081.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000017.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002088.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002309.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002529.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603657.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001360.SZ"
+    },
+    {
+      "eligible": false,
+      "observed_bar_count": 11,
+      "promotion_rank": 9,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002388.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603598.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261106",
+  "exit_date": "20261109",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-06T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "光伏设备",
+      "name": "永臻股份",
+      "promotion_rank": 1,
+      "ts_code": "603381.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "装修装饰",
+      "name": "金 螳 螂",
+      "promotion_rank": 2,
+      "ts_code": "002081.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饰品",
+      "name": "深中华A",
+      "promotion_rank": 3,
+      "ts_code": "000017.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "装修建材",
+      "name": "鲁阳节能",
+      "promotion_rank": 4,
+      "ts_code": "002088.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电网设备",
+      "name": "中利集团",
+      "promotion_rank": 5,
+      "ts_code": "002309.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "专用设备",
+      "name": "海源复材",
+      "promotion_rank": 6,
+      "ts_code": "002529.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "家电零部",
+      "name": "春光科技",
+      "promotion_rank": 7,
+      "ts_code": "603657.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "专用设备",
+      "name": "南矿集团",
+      "promotion_rank": 8,
+      "ts_code": "001360.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "其他电子",
+      "name": "新亚制程",
+      "promotion_rank": 9,
+      "ts_code": "002388.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "广告营销",
+      "name": "引力传媒",
+      "promotion_rank": 10,
+      "ts_code": "603598.SH"
+    }
+  ],
+  "p0_file_sha256": "20f50a955b0ba47436beaf5f8dc636cb1e77ac14d2a5f9abab94658b0b0aee9d",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261105.json",
+    "sha256": "20f50a955b0ba47436beaf5f8dc636cb1e77ac14d2a5f9abab94658b0b0aee9d"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-05T11:30:12.849321+00:00",
+  "prediction_generated_at_utc": "2026-11-05T11:30:12.822538+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-05T11:38:34.702033+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603381.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002081.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "5e9f86078d15a15aaf72d2612b380f45f48bfcf8",
+    "evidence_manifest_sha256": "23508edd7f5f90cf49370a2e43db791231bd31f0b0d1be14701ebb0f3aad5838",
+    "observer_run_id": 42019505909,
+    "publication_observation_sha256": "1b807ff35cd4296b2ccd5c0e722c7ebed865ebfa47aae3a3b70580ae26d32c56"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.004489318772150092,
+      "industry": "家电零部",
+      "name": "春光科技",
+      "promotion_rank": 7,
+      "ts_code": "603657.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0062920367508651365,
+      "industry": "专用设备",
+      "name": "南矿集团",
+      "promotion_rank": 8,
+      "ts_code": "001360.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.009074384907492067,
+      "industry": "广告营销",
+      "name": "引力传媒",
+      "promotion_rank": 10,
+      "ts_code": "603598.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.011986547813861558,
+      "industry": "专用设备",
+      "name": "海源复材",
+      "promotion_rank": 6,
+      "ts_code": "002529.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.012235532810903402,
+      "industry": "饰品",
+      "name": "深中华A",
+      "promotion_rank": 3,
+      "ts_code": "000017.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.012415941980587184,
+      "industry": "装修建材",
+      "name": "鲁阳节能",
+      "promotion_rank": 4,
+      "ts_code": "002088.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.01453223525380401,
+      "industry": "电网设备",
+      "name": "中利集团",
+      "promotion_rank": 5,
+      "ts_code": "002309.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01813205685278757,
+      "industry": "光伏设备",
+      "name": "永臻股份",
+      "promotion_rank": 1,
+      "ts_code": "603381.SH"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.019845288463118844,
+      "industry": "装修装饰",
+      "name": "金 螳 螂",
+      "promotion_rank": 2,
+      "ts_code": "002081.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261105",
+  "snapshot_file_sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261105.json",
+    "sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953"
+  },
+  "source_main_sha": "5e9f86078d15a15aaf72d2612b380f45f48bfcf8",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
