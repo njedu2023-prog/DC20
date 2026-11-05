@@ -2,7 +2,9 @@
 
 Only the fixed official Tushare endpoint is callable. Credentials come only
 from TUSHARE_TOKEN. Tests inject a transport and never claim real network use.
-One earliest missing session per stock is considered; no historical sweep,
+One earliest missing session per stock is considered. A failed attempt may be
+retried once in a later as-of session, retaining all original HTTP evidence.
+Valid source files are never replaced. There is no historical sweep,
 orders, purchased quota, training, source admission or economic rule changes.
 """
 from __future__ import annotations
@@ -28,6 +30,10 @@ OUTCOMES_PATH = Path(__file__).with_name("candidate_natural_outcomes.py")
 OUTCOMES_SHA = 'a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06'
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 LEGACY_COLLECTOR_SHA = "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced"
+# The original single-attempt writer remains readable for every frozen profile.
+# New evidence is appended; its historical failed HTTP bytes are never replaced.
+SINGLE_ATTEMPT_COLLECTION_PROFILE = (
+    "c65bc1f58dae7660960676875a788e780d72758f655d14cbeb4e65df9e2ce432", OUTCOMES_SHA)
 
 
 HISTORICAL_COLLECTION_PROFILE = ('210cdd60bb230b50394579c9fd3615a892ca5d0abd0c118fee5acf4e8d8f4fca',
@@ -257,12 +263,20 @@ def accepted_outcome_writers(frozen):
     return writers
 
 
+def http_stem(row):
+    api, day, code = request_identity(row["request"])
+    attempt = row.get("attempt_number", 1)
+    require(type(attempt) is int and 1 <= attempt <= 4096, "EXACT_ATTEMPT_NUMBER_REQUIRED")
+    stem = "http/" + code.replace(".", "_") + "/" + day + "/" + api
+    return stem if attempt == 1 else stem + ".attempt-" + str(attempt)
+
+
 def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, codes, dates, asof, states, injected):
     require((path is None) == (expected is None) and (outcome_path is None) == (outcome_expected is None), "PAIRED_PRIOR_PATH_AND_SHA_REQUIRED")
     require(outcome_path is None or path is not None, "PRIOR_OUTCOME_REQUIRES_BOUND_COLLECTION")
     if path is None: return {}, [], {}, None
     receipt = natural._json(read_bound(path, expected, states)); outcomes._seal(receipt, "receipt_sha256")
-    pairs = {(SELF_SHA, OUTCOMES_SHA)}
+    pairs = {(SELF_SHA, OUTCOMES_SHA), SINGLE_ATTEMPT_COLLECTION_PROFILE}
     if outcomes.is_pre_boundary_snapshot_profile(frozen):
         pairs.add(PRE_BOUNDARY_COLLECTION_PROFILE)
     if outcomes.is_historical_snapshot_profile(frozen):
@@ -287,18 +301,35 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
     require(bundle["calendar"]["sha256"] == labels.settlement.CALENDAR_SHA256, "PRIOR_CALENDAR_CHANGED")
     history = receipt["request_history"]
     require(type(history) is list and len(history) <= 4096, "BOUNDED_REQUEST_HISTORY_REQUIRED")
-    identities = set(); allowed = {"source_bundle.json"}
+    identities = {}; allowed = {"source_bundle.json"}
     for row in history:
         api, request_day, code = request_identity(row["request"])
+        identity = (api, request_day, code)
+        earlier = identities.get(identity)
+        attempt = row.get("attempt_number", 1)
+        require(type(attempt) is int and attempt == (1 if earlier is None else earlier.get("attempt_number", 1) + 1),
+            "PRIOR_ATTEMPT_SEQUENCE_CHANGED")
+        if "attempt_number" in row:
+            attempt_day = natural.scorer._date(row.get("attempt_as_of_date"), "attempt_as_of_date")
+            require(attempt_day in dates and request_day <= attempt_day <= receipt["as_of_date"]
+                and labels._timestamp(labels._at(attempt_day, "15:00:00")) <= labels._timestamp(row["attempted_at_utc"])
+                <= labels._timestamp(receipt["source_processing_completed_at_utc"]), "PRIOR_ATTEMPT_CLOCK_CHANGED")
+        else:
+            require("attempt_as_of_date" not in row and "attempted_at_utc" not in row,
+                "PRIOR_ATTEMPT_METADATA_INCOMPLETE")
+        if earlier is not None:
+            require(not earlier["source_files"] and "attempt_number" in row
+                and row["attempt_as_of_date"] > earlier.get("attempt_as_of_date", request_day),
+                "PRIOR_RETRY_REPLACED_SOURCE_OR_REPEATED_SESSION")
         require(code in codes and frozen["exec_date"] <= request_day <= receipt["as_of_date"]
             and request_day in dates and (api != "stk_auction" or request_day == frozen["exec_date"])
             and (api != "stk_mins" or request_day >= frozen["exit_date"])
-            and (api, request_day, code) not in identities and type(row["api_calls"]) is int and row["api_calls"] == 1
+            and type(row["api_calls"]) is int and row["api_calls"] == 1
             and row["callable_injected_for_test"] is injected and row["network_request_performed"] is (not injected),
             "PRIOR_REQUEST_HISTORY_CHANGED")
-        identities.add((api, request_day, code))
+        identities[identity] = row
         allowed.update("sources/" + code.replace(".","_") + "/" + p for p in source_paths(api,request_day,code))
-        stem = "http/" + code.replace(".","_") + "/" + request_day + "/" + api
+        stem = http_stem(row)
         allowed.update((stem+".response.json",stem+".receipt.json"))
     blobs = {}; prior_root = natural._path(receipt["collection_root"])
     files = receipt["output_file_bindings"]
@@ -329,7 +360,7 @@ def previous_state(path, expected, outcome_path, outcome_expected, *, frozen, co
         raw = row["raw_http_sidecar"]
         require(not source_items or raw is not None, "PRIOR_SOURCE_REQUIRES_ORIGINAL_HTTP")
         if raw is not None:
-            stem = "http/" + code.replace(".","_") + "/" + request_day + "/" + api
+            stem = http_stem(row)
             require(type(raw) is dict and raw == by_path.get(stem+".response.json")
                 and raw["sha256"] == row["http_response_sha256"] and raw["bytes"] == row["http_response_bytes"]
                 and stem+".receipt.json" in by_path, "PRIOR_HTTP_RESPONSE_BINDING_CHANGED")
@@ -462,6 +493,11 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
     blobs, old_history, previous_sources, observed = previous_state(previous_collection_path, expected_previous_collection_sha256,
         previous_outcomes_path, expected_previous_outcomes_sha256, frozen=frozen, codes=codes, dates=dates, asof=asof,
         states=states, injected=injected)
+    # Legacy attempts have no individual as-of field. The bound prior receipt
+    # supplies a conservative cutoff, including transport failures without a
+    # fetched timestamp. Do not retry them again in that same session.
+    prior_asof = (None if previous_collection_path is None else natural._json(
+        read_bound(previous_collection_path, expected_previous_collection_sha256, states))["as_of_date"])
     planned, stock_plan = earliest_plan(frozen, codes, dates, asof, previous_sources, observed)
     require(len(planned) <= 3 * len(codes) <= 12, "ONLY_ONE_EARLIEST_SESSION_PER_FROZEN_SLOT_STOCK")
     root = natural._path(output_root)
@@ -476,7 +512,7 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
         source_root = root / "sources" / code.replace(".", "_"); source_root.mkdir(parents=True, exist_ok=True)
         bundle["by_code"][code] = {"source_root": str(source_root),
             "bindings": [dict(b) for b in previous_sources.get(code, {}).get("bindings", [])]}
-    history = list(old_history); attempted = {request_identity(r["request"]) for r in history}
+    history = list(old_history); attempted = {request_identity(r["request"]): r for r in history}
     calls = response_bytes = 0; next_start = began; rows = []; last_fetched = now
     for ordinal, contract in enumerate(planned, 1):
         api, trade_date, code = request_identity(contract); wanted = source_paths(api, trade_date, code)
@@ -485,10 +521,14 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
             "status": "NOT_REQUESTED_BUDGET", "http_response_sha256": None, "http_response_bytes": None,
             "fetched_at_utc": None, "raw_http_sidecar": None, "source_files": [], "callable_injected_for_test": injected}
         rows.append(row)
-        if (api, trade_date, code) in attempted:
-            row["status"] = "EXISTING_BOUND_SOURCE_REUSED" if set(wanted) <= existing else "PRIOR_INVALID_OR_EMPTY_ATTEMPT_PRESERVED_PENDING"
+        prior = attempted.get((api, trade_date, code))
+        if prior is not None and set(wanted) <= existing:
+            row["status"] = "EXISTING_BOUND_SOURCE_REUSED"
             continue
         require(not set(wanted) & existing, "EXISTING_SOURCE_WITHOUT_BOUND_REQUEST_HISTORY")
+        if prior is not None and asof <= prior.get("attempt_as_of_date", prior_asof):
+            row["status"] = "PRIOR_INVALID_OR_EMPTY_ATTEMPT_PRESERVED_PENDING"
+            continue
         if not token.strip(): row["status"] = "PENDING_CREDENTIAL_ABSENT"; continue
         current = tick(); ready = max(current, next_start)
         if calls >= MAX_CALLS or response_bytes + MAX_BYTES + 1 > MAX_TOTAL_BYTES or ready - began + HEADROOM >= MAX_SECONDS: continue
@@ -498,7 +538,9 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
         require(os.environ.get("TUSHARE_TOKEN", "") == token, "CREDENTIAL_ENVIRONMENT_CHANGED")
         calls += 1; next_start = current + INTERVAL
         row.update(api_calls=1, request_sequence=calls, request_start_elapsed_seconds=current-began,
-            network_request_performed=not injected, status="PENDING_TRANSPORT_OR_UNQUALIFIED_RESPONSE")
+            network_request_performed=not injected, status="PENDING_TRANSPORT_OR_UNQUALIFIED_RESPONSE",
+            attempt_number=1 if prior is None else prior.get("attempt_number", 1)+1,
+            attempt_as_of_date=asof, attempted_at_utc=natural._stamp(natural._now(clock)))
         original_request = natural.storage.encoded(contract)
         safe = False; bodies = []
         try:
@@ -528,7 +570,7 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
             bodies = []; row["status"] = "PENDING_TRANSPORT_OR_UNQUALIFIED_RESPONSE"
         require(natural.storage.encoded(contract) == original_request, "REQUEST_CHANGED_DURING_TRANSPORT")
         if safe:
-            stem = "http/" + code.replace(".","_") + "/" + trade_date + "/" + api
+            stem = http_stem(row)
             row["raw_http_sidecar"] = write_new(root, stem + ".response.json", body, token)
             written.append(row["raw_http_sidecar"])
         for relative, data in zip(wanted, bodies):
@@ -536,7 +578,7 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
             written.append(item); row["source_files"].append(item)
             bundle["by_code"][code]["bindings"].append({"path": relative, "sha256": item["sha256"]})
         row["request_finished_elapsed_seconds"] = tick()-began
-        history.append(row); attempted.add((api,trade_date,code))
+        history.append(row); attempted[(api,trade_date,code)] = row
         if safe:
             meta = {"schema_version": "dc20_natural_http_projection_receipt_v1", **row,
                 "original_http_bytes_preserved": True,
@@ -569,7 +611,8 @@ def collect_natural_outcome_sources(snapshot_path, output_root, *, expected_snap
         "source_processing_completed_at_utc":natural._stamp(completed),"elapsed_source_processing_seconds":elapsed,
         "budget":{"max_calls":MAX_CALLS,"max_seconds":MAX_SECONDS,"max_response_bytes":MAX_BYTES,
             "max_total_response_bytes":MAX_TOTAL_BYTES,"transport_seconds":TIMEOUT,"workers":1,"retries":0,
-            "minimum_start_interval_seconds":INTERVAL,"redirects_allowed":False},**FLAGS}
+            "minimum_start_interval_seconds":INTERVAL,"redirects_allowed":False,
+            "maximum_attempts_per_request_per_asof":1},**FLAGS}
     result["receipt_sha256"] = natural.scorer.canonical_sha(result)
     receipt_file = write_new(root,"receipt.json",natural.storage.encoded(result),token)
     end_guard()

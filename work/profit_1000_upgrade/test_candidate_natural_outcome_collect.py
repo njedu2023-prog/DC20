@@ -121,7 +121,7 @@ def test_bound_valid_sources_require_outcome_validation_before_next_date(tmp_pat
 
 
 @pytest.mark.parametrize("kind",["empty","invalid","transport_error"])
-def test_old_invalid_empty_and_failed_attempts_are_not_retried_or_overwritten(tmp_path,monkeypatch,kind):
+def test_failed_attempt_retries_next_asof_without_replacing_original_bytes(tmp_path,monkeypatch,kind):
     case=setup(tmp_path,monkeypatch)
     def call(contract):
         if contract["api_name"]=="daily":
@@ -130,13 +130,102 @@ def test_old_invalid_empty_and_failed_attempts_are_not_retried_or_overwritten(tm
         return response(contract)
     first,_=collect(case,transport=call)
     before={p:p.read_bytes() for p in Path(first["collection_root"]).rglob("*") if p.is_file()}
-    second,calls=collect(case,previous=first,asof=case["t1"])
-    assert not calls and second["api_calls"]==0
-    assert any(r["status"]=="PRIOR_INVALID_OR_EMPTY_ATTEMPT_PRESERVED_PENDING" for r in second["requests"])
+    same,calls=collect(case,previous=first,asof=case["t"])
+    assert not calls and same["api_calls"]==0
+    assert any(r["status"]=="PRIOR_INVALID_OR_EMPTY_ATTEMPT_PRESERVED_PENDING" for r in same["requests"])
+    second,calls=collect(case,previous=same,asof=case["t1"])
+    assert len(calls)==len(case["codes"])
+    assert all(r["api_name"]=="daily" for r in calls)
+    assert [r for r in second["request_history"] if r.get("attempt_number")==2]
     assert before=={p:p.read_bytes() for p in before}
     out=observe(case,second)
     rows=json.loads(Path(out["ledger_path"]).read_bytes())["versions"][-1]["native_singleton_reports"]
     assert all(v["rows"][0]["slot_net_return"] is None for v in rows.values())
+
+
+def test_empty_exit_minutes_recover_then_settle_preserving_first_http_and_freeze(tmp_path,monkeypatch):
+    case=setup(tmp_path,monkeypatch)
+    frozen=case["snapshot"].read_bytes()
+    entry,_=collect(case); entry_outcome=observe(case,entry)
+    empty,_=collect(case,previous=entry,prior_outcome=entry_outcome,asof=case["t1"],
+        transport=lambda r:response(r,empty=r["api_name"]=="stk_mins"))
+    pending=observe(case,empty,previous=entry_outcome)
+    old={p.relative_to(Path(empty["collection_root"])):p.read_bytes()
+        for p in Path(empty["collection_root"]).rglob("*") if p.is_file() and p.name not in ("receipt.json","source_bundle.json")}
+    same,calls=collect(case,previous=empty,prior_outcome=pending,asof=case["t1"])
+    assert calls==[]
+    recovered,calls=collect(case,previous=same,prior_outcome=pending,asof="20260917")
+    assert len(calls)==len(case["codes"]) and all(r["api_name"]=="stk_mins" for r in calls)
+    for relative,body in old.items():
+        assert (Path(recovered["collection_root"])/relative).read_bytes()==body
+    retry_rows=[r for r in recovered["request_history"] if r.get("attempt_number")==2]
+    assert len(retry_rows)==len(case["codes"])
+    assert all(".attempt-2.response.json" in r["raw_http_sidecar"]["path"] for r in retry_rows)
+    final=observe(case,recovered,previous=pending)
+    report=json.loads(Path(final["ledger_path"]).read_bytes())["versions"][-1]
+    assert all(r["rows"][0]["slot_net_return"]==pytest.approx(-.0245) for r in report["native_singleton_reports"].values())
+    reused,calls=collect(case,previous=recovered,prior_outcome=final,asof="20260917")
+    assert calls==[] and reused["api_calls"]==0 and case["snapshot"].read_bytes()==frozen
+
+
+def test_empty_retry_is_bounded_to_once_per_asof_and_stays_pending(tmp_path,monkeypatch):
+    case=setup(tmp_path,monkeypatch)
+    empty=lambda r:response(r,empty=True)
+    first,_=collect(case,transport=empty)
+    second,calls=collect(case,previous=first,asof=case["t1"],transport=empty)
+    # The auction adapter retains its qualified empty response as native source;
+    # only unprojected daily/limit evidence is retried.
+    assert len(calls)==2*len(case["codes"])
+    assert {r["api_name"] for r in calls}=={"daily","stk_limit"}
+    third,calls=collect(case,previous=second,asof=case["t1"],transport=empty)
+    assert calls==[] and third["request_history"]==second["request_history"]
+    outcome=observe(case,third)
+    report=json.loads(Path(outcome["ledger_path"]).read_bytes())["versions"][-1]
+    assert all(s["slot_net_return"] is None for k in ("candidate_slots","promotion_slots") for s in report[k])
+
+
+@pytest.mark.parametrize("kind",["sequence","same_asof","future_clock"])
+def test_retry_metadata_cannot_bypass_history_guards(tmp_path,monkeypatch,kind):
+    case=setup(tmp_path,monkeypatch)
+    first,_=collect(case,transport=lambda r:response(r,empty=True))
+    second,_=collect(case,previous=first,asof=case["t1"],transport=lambda r:response(r,empty=True))
+    path=Path(second["collection_root"])/"receipt.json";value=json.loads(path.read_bytes())
+    row=next(r for r in value["request_history"] if r.get("attempt_number")==2)
+    if kind=="sequence":row["attempt_number"]=4
+    elif kind=="same_asof":row["attempt_as_of_date"]=case["t"]
+    else:row["attempted_at_utc"]="2026-09-18T08:00:00Z"
+    value.pop("receipt_sha256");value["receipt_sha256"]=c.natural.scorer.canonical_sha(value)
+    path.write_bytes(c.natural.storage.encoded(value))
+    with pytest.raises(ValueError,match="PRIOR_(ATTEMPT|RETRY)"):
+        collect(case,previous=second,asof="20260917")
+
+
+def test_previous_single_attempt_writer_profile_still_accepted(tmp_path,monkeypatch):
+    case=setup(tmp_path,monkeypatch)
+    first,_=collect(case,asof=case["t1"],transport=lambda r:response(r,empty=True))
+    path=Path(first["collection_root"])/"receipt.json";value=json.loads(path.read_bytes())
+    # Restore the exact legacy record shape, including HTTP receipt cross-hashes.
+    for row in value["request_history"]:
+        for key in ("attempt_number","attempt_as_of_date","attempted_at_utc"): row.pop(key)
+        relative=row["raw_http_sidecar"]["path"].removesuffix(".response.json")+".receipt.json"
+        sidecar=path.parent/relative;meta=json.loads(sidecar.read_bytes())
+        for key in ("attempt_number","attempt_as_of_date","attempted_at_utc"):meta.pop(key)
+        body=c.natural.storage.encoded(meta);sidecar.write_bytes(body)
+        binding=next(b for b in value["output_file_bindings"] if b["path"]==relative)
+        binding.update(sha256=c.sha(body),bytes=len(body))
+    value["requests"]=deepcopy(value["request_history"])
+    value["budget"].pop("maximum_attempts_per_request_per_asof")
+    value["writer_sha256"],value["outcomes_wrapper_sha256"]=c.SINGLE_ATTEMPT_COLLECTION_PROFILE
+    value.pop("receipt_sha256");value["receipt_sha256"]=c.natural.scorer.canonical_sha(value)
+    path.write_bytes(c.natural.storage.encoded(value))
+    before={p:p.read_bytes() for p in path.parent.rglob("*") if p.is_file()}
+    same,calls=collect(case,previous=first,asof=case["t1"])
+    assert calls==[]
+    second,calls=collect(case,previous=same,asof="20260917")
+    assert calls and all(r.get("attempt_number")==2 for r in second["requests"] if r["api_calls"])
+    assert before=={p:p.read_bytes() for p in before}
+    third,calls=collect(case,previous=second,asof="20260917")
+    assert calls==[]
 
 
 def test_missing_T1_evidence_targets_that_session_not_all_later_dates(tmp_path,monkeypatch):

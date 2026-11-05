@@ -122,8 +122,16 @@ def test_failed_or_empty_sources_stop_and_preserve_pending_no_zero(case, kind):
     assert len(calls) == 3 * len(case["case"]["codes"])
     assert all(row["rows"][0]["slot_net_return"] is None for row in latest(result)["native_singleton_reports"].values())
     count = len(calls)
+    original = {b["origin_path"]: Path(b["origin_path"]).read_bytes()
+        for b in result["publishable_file_bindings"]}
     later = run(case, asof="20260917", prior=result)
-    assert later["api_calls"] == 0 and len(calls) == count
+    assert 0 < later["api_calls"] <= 3 * len(case["case"]["codes"])
+    assert len(calls) == count + later["api_calls"]
+    assert all(row["rows"][0]["slot_net_return"] is None
+        for row in latest(later)["native_singleton_reports"].values())
+    repeated = run(case, asof="20260917", prior=later)
+    assert repeated["api_calls"] == 0
+    assert all(Path(path).read_bytes() == raw for path,raw in original.items())
 
 
 def test_T_no_fill_stops_without_minutes_and_uses_native_zero_only(case):

@@ -32,8 +32,8 @@ EVIDENCE_PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 JOURNAL_PREFIX = "work/profit_1000_upgrade/candidate_natural_journal/"
 PINS = {
     "candidate_natural_evidence_publication": '8a2f85d60d1a18939be6105d76ff9ecc351a7ccc2df586801bf40c9f88069953',
-    "candidate_natural_outcome_collect": 'c65bc1f58dae7660960676875a788e780d72758f655d14cbeb4e65df9e2ce432',
-    "candidate_natural_daily": '322199853c1e75d1db0122dd76d8a51e733a02eaffd1ef3ea1cff094be6d3a13',
+    "candidate_natural_outcome_collect": 'a27ad648b3e597996ac8a25f346b690934fe85833aee70b9ddae906735e30a8d',
+    "candidate_natural_daily": 'dfb496d1a1440d2d7da5d3df04b8f1af0466e7d59e6198a39b1ff0f877161922',
     "candidate_natural_journal": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e",
     "candidate_natural_journal_git": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74",
     "candidate_natural_statistics": '1ad5a35c048aee13a6f8e92f51cef69a30fe4335e21fec2b19672b495d4b8e82',
@@ -274,10 +274,19 @@ PRE_BOUNDARY_DAILY_PROFILE = (
         "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"})
 
 
+# Original receipts remain admissible after bounded empty-result retries.
+PRE_RETRY_DAILY_PROFILE = (
+    "322199853c1e75d1db0122dd76d8a51e733a02eaffd1ef3ea1cff094be6d3a13",
+    {"work/profit_1000_upgrade/candidate_natural_outcome_collect.py":
+        "c65bc1f58dae7660960676875a788e780d72758f655d14cbeb4e65df9e2ce432",
+     "scripts/diagnose_core_supervisor.py":
+        "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"})
+
+
 def daily_metadata_profile(daily, frozen, modules):
     """Exact reviewed writer/dependency pairs, never cross-version pin mixing."""
     current = (PINS["candidate_natural_daily"], modules["daily"].PINS)
-    profiles = [current]
+    profiles = [current, PRE_RETRY_DAILY_PROFILE]
     if modules["outcome_collect"].outcomes.is_pre_boundary_snapshot_profile(frozen):
         profiles.append(PRE_BOUNDARY_DAILY_PROFILE)
     if modules["outcome_collect"].outcomes.is_historical_snapshot_profile(frozen):
