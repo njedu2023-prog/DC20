@@ -33,11 +33,11 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12.13'
       - name: Prepare bounded original history before a fresh P0 run
@@ -53,7 +53,7 @@ jobs:
           python scripts/prepare_primary_history.py --signal-date "$SIGNAL_DATE" --expected-head "$EXPECTED_HEAD" --market-commit "$MARKET_COMMIT" --output "$RUNNER_TEMP/history-preparation.json" "${args[@]}"
       - name: Preserve preparation audit
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dc20-history-preparation-${{ github.run_id }}
           path: ${{ runner.temp }}/history-preparation.json
