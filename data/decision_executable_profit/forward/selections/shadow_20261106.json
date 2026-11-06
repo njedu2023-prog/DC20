@@ -1,0 +1,257 @@
+{
+  "artifact_kind": "d_frozen_primary_mixed_profit_forward_shadow",
+  "boundaries": {
+    "actual_execution_claimed": false,
+    "broker_or_order_integration_allowed": false,
+    "formal_probability_allowed": false,
+    "formal_rank_allowed": false,
+    "may_change_promotion_membership_or_rank": false,
+    "may_create_trade_action": false,
+    "official_trade_action_allowed": false,
+    "proxy_scores_uncalibrated": true,
+    "research_only": true
+  },
+  "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+  "downloads": {
+    "csv_sha256": "c56ad161271db8f4ef421b5def1b49273ea044988eb9ce37f0d345e01840cef3",
+    "csv_url": "data/decision_executable_profit/forward/selections/shadow_20261106.csv",
+    "json_url": "data/decision_executable_profit/forward/selections/shadow_20261106.json",
+    "row_count": 6
+  },
+  "exec_date": "20261109",
+  "exit_date": "20261110",
+  "feature_as_of_date": "20261106",
+  "proxy_scores_uncalibrated": true,
+  "ranking_contract": {
+    "actual_order_fill_claimed": false,
+    "candidate_count_rule": "show exactly N for 0<=N<=10; never pad",
+    "candidate_scope": "exact P0 frozen promotion TopN only",
+    "entry_policy_id": "dc20_public_market_buyable_proxy_v1",
+    "entry_price_rule": "T proxy open must not exceed D-frozen shadow_max_price",
+    "membership_or_promotion_rank_may_change": false,
+    "primary_sort": "research_joint_proxy_score descending",
+    "ranking_authority": "already-published P1 mixed projection order; never rescore",
+    "shadow_slot_rule": "min(2, N); no padding",
+    "shadow_slots": 2,
+    "tie_breakers": [
+      "research_conditional_profit_score descending",
+      "research_fill_proxy_score descending",
+      "ts_code ascending"
+    ],
+    "top2_top3_exact_joint_tie_policy": "FAIL_CLOSED_FOR_N_AT_LEAST_3"
+  },
+  "research_only": true,
+  "rows": [
+    {
+      "industry": "通信服务",
+      "internal_shadow_order": 1,
+      "internal_shadow_selected": 1,
+      "name": "润建股份",
+      "predicted_promotion_probability": 0.19026967045788853,
+      "promotion_rank": 6,
+      "research_conditional_profit_score": 0.40400652080861166,
+      "research_fill_proxy_score": 0.9850229879656777,
+      "research_joint_proxy_score": 0.3979557102845164,
+      "shadow_max_price": 63.11,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": 1,
+      "source_executable_profit_research_rank": 1,
+      "stage_transition": "2→3",
+      "ts_code": "002929.SZ"
+    },
+    {
+      "industry": "照明设备",
+      "internal_shadow_order": 2,
+      "internal_shadow_selected": 1,
+      "name": "阳光照明",
+      "predicted_promotion_probability": 0.2160375817010287,
+      "promotion_rank": 5,
+      "research_conditional_profit_score": 0.40649209175576084,
+      "research_fill_proxy_score": 0.9737128326902389,
+      "research_joint_proxy_score": 0.3958065661296824,
+      "shadow_max_price": 5.4,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": 2,
+      "source_executable_profit_research_rank": 2,
+      "stage_transition": "2→3",
+      "ts_code": "600261.SH"
+    },
+    {
+      "industry": "农产品加",
+      "internal_shadow_order": 3,
+      "internal_shadow_selected": 0,
+      "name": "东方海洋",
+      "predicted_promotion_probability": 0.2980565695402947,
+      "promotion_rank": 4,
+      "research_conditional_profit_score": 0.40127003251308524,
+      "research_fill_proxy_score": 0.9785258943335327,
+      "research_joint_proxy_score": 0.39265311743411246,
+      "shadow_max_price": 3.97,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 3,
+      "stage_transition": "2→3",
+      "ts_code": "002086.SZ"
+    },
+    {
+      "industry": "其他电子",
+      "internal_shadow_order": 4,
+      "internal_shadow_selected": 0,
+      "name": "新亚制程",
+      "predicted_promotion_probability": 0.4081371027825775,
+      "promotion_rank": 3,
+      "research_conditional_profit_score": 0.3751276972539405,
+      "research_fill_proxy_score": 0.9765492155338584,
+      "research_joint_proxy_score": 0.36633065847835833,
+      "shadow_max_price": 6.67,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 4,
+      "stage_transition": "3→4",
+      "ts_code": "002388.SZ"
+    },
+    {
+      "industry": "家电零部",
+      "internal_shadow_order": 5,
+      "internal_shadow_selected": 0,
+      "name": "春光科技",
+      "predicted_promotion_probability": 0.5293683403699181,
+      "promotion_rank": 2,
+      "research_conditional_profit_score": 0.31782731379876894,
+      "research_fill_proxy_score": 0.9731103608551309,
+      "research_joint_proxy_score": 0.30928105202033696,
+      "shadow_max_price": 33.88,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 5,
+      "stage_transition": "3→4",
+      "ts_code": "603657.SH"
+    },
+    {
+      "industry": "休闲食品",
+      "internal_shadow_order": 6,
+      "internal_shadow_selected": 0,
+      "name": "南侨食品",
+      "predicted_promotion_probability": 0.6263037907876867,
+      "promotion_rank": 1,
+      "research_conditional_profit_score": 0.3568754475296179,
+      "research_fill_proxy_score": 0.40924778796467504,
+      "research_joint_proxy_score": 0.1460504874803996,
+      "shadow_max_price": 15.8,
+      "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+      "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+      "shadow_slot": null,
+      "source_executable_profit_research_rank": 6,
+      "stage_transition": "2→3",
+      "ts_code": "605339.SH"
+    }
+  ],
+  "schema_version": "dc20_primary_profit_forward_shadow_selection_v2",
+  "score_semantics": {
+    "research_conditional_profit_score": "uncalibrated conditional profit research score",
+    "research_fill_proxy_score": "historical daily-bar buyability proxy; not actual fill probability",
+    "research_joint_proxy_score": "exact product of the two uncalibrated proxy scores"
+  },
+  "selected_at_utc": "2026-11-06T11:43:45.461646Z",
+  "selection_identity_sha256": "90e697a7240c3edcd42291f8d4ff295ab9822ef03d939501172b102cf93c5172",
+  "shadow_top2": {
+    "actual_slots": 2,
+    "requested_slots": 2,
+    "rows": [
+      {
+        "name": "润建股份",
+        "promotion_rank": 6,
+        "research_conditional_profit_score": 0.40400652080861166,
+        "research_fill_proxy_score": 0.9850229879656777,
+        "research_joint_proxy_score": 0.3979557102845164,
+        "shadow_max_price": 63.11,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+        "shadow_slot": 1,
+        "ts_code": "002929.SZ"
+      },
+      {
+        "name": "阳光照明",
+        "promotion_rank": 5,
+        "research_conditional_profit_score": 0.40649209175576084,
+        "research_fill_proxy_score": 0.9737128326902389,
+        "research_joint_proxy_score": 0.3958065661296824,
+        "shadow_max_price": 5.4,
+        "shadow_price_basis": "D_CLOSE_CONSERVATIVE_CAP",
+        "shadow_price_source_sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23",
+        "shadow_slot": 2,
+        "ts_code": "600261.SH"
+      }
+    ],
+    "status": "FROZEN_INTERNAL_RESEARCH_ONLY"
+  },
+  "signal_date": "20261106",
+  "snapshot_sha256": "fac080c12b8842e26158133392c3acb0f927881ac85411851209c898198853d6",
+  "source_bindings": {
+    "bridge_contract": {
+      "contract_id": "dc20_primary_profit_forward_shadow_bridge_20260829_v1",
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623"
+    },
+    "calendar": {
+      "exchange": "SSE",
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    "mixed_index": {
+      "historical_revalidation_required": false,
+      "path": "outputs/decision/executable_profit_research/index.json",
+      "role": "MUTABLE_POINTER_OBSERVED_AT_FREEZE_AUDIT_ONLY",
+      "sha256": "c436bd2c8ee9bbd125c9e2fdb5821e51cb88fd29b936d666e6424c18eda0d06d"
+    },
+    "mixed_projection": {
+      "csv_path": "outputs/decision/executable_profit_research/projection_20261106.csv",
+      "csv_sha256": "89665c3ec64635b30c3add0a2268ca5b83c2499100dc819f2248a9b294f15f7e",
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/executable_profit_research/projection_20261106.json",
+      "sha256": "8c9826b4b504f402b766cc15fc1c0301736b8055681b09b764cf31946c449fc8",
+      "snapshot_sha256": "9838a758f5f87dd08349293fd675998f9cdeb98f84e8404c03e1944e521bcea6"
+    },
+    "model": {
+      "artifact_sha256": "42dfb497d4457db9fbdff4180c510fee1ea18ab56696253b06220d981f88d209",
+      "calibrated_probability_output": false,
+      "feature_columns_sha256": "a07c3c2d688e1e0eb5aaaa891ffd3039d5ca3f6bb26f20e80f88611833893048",
+      "feature_count": 156,
+      "inference_performed_by_bridge": false,
+      "lagged_prior_max_history_exit_date": "20260818",
+      "maximum_used_scheduled_exit_date": "20260818",
+      "path": "work/executable-profit-lagged-features-20260824/outputs/internal_forward_challenger.pkl"
+    },
+    "primary_receipt": {
+      "generation_mode": "NATURAL",
+      "path": "outputs/decision/primary_d_receipt_20261106.json",
+      "sha256": "36a45200b3dcb63bf885106d486874da0ea625b034731149b8c2c3c879d1d0ca"
+    },
+    "runtime_features": {
+      "feature_snapshot_sha256": "8a4b83941e43ec7ae54ba2f9072660dc1db52bf4c9699a9bf24cb7ca9879db11",
+      "identity_sha256": "411d7fdfbb1470b2467f5cd37d03ebf7d9b61c4aaefad2fbee8ca12bed36ad13",
+      "path": "outputs/decision/primary_d_runtime_features_20261106.csv",
+      "row_count": 6,
+      "selected_count": 6,
+      "sha256": "d18fb848cd2d0f6db53f6f49f0d0abf5a87e0e8354c857151f02084a1dc60b23"
+    },
+    "three_rank": {
+      "bundle_sha256": "d23c7c84550b95d7f088fc3902450c3d4904cf3e8adb5b359abe319b3b537e49",
+      "csv_path": "outputs/decision/three_rank_top10_20261106.csv",
+      "csv_sha256": "56a4567fca394c47cbf60586f36d7d49ed6f2f701a138f980276dbd966d05ff4",
+      "feature_snapshot_sha256": "8a4b83941e43ec7ae54ba2f9072660dc1db52bf4c9699a9bf24cb7ca9879db11",
+      "json_path": "outputs/decision/three_rank_top10_20261106.json",
+      "json_sha256": "43b65ce24c80ab18bbdc2d6f41861a28fbd04ab47ec771f57d27f191b64735f2",
+      "top10_members_sha256": "e3df6131e4bc06cb06b44aafd29106cc2699d0dd0dfb10383a9ad9f123958fb9"
+    }
+  },
+  "source_generated_at_utc": "2026-11-06T11:18:04Z",
+  "status": "INTERNAL_RESEARCH_SHADOW_ONLY",
+  "top10_count": 6,
+  "top10_members_sha256": "e3df6131e4bc06cb06b44aafd29106cc2699d0dd0dfb10383a9ad9f123958fb9"
+}
