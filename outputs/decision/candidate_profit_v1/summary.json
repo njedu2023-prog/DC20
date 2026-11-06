@@ -5,7 +5,7 @@
   "actual_account_drawdown_claimed": false,
   "actual_capacity_verified": false,
   "actual_execution_claimed": false,
-  "as_of_date": "20261105",
+  "as_of_date": "20261106",
   "calendar_sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
   "capital_nav_claimed": false,
   "coverage_complete": false,
@@ -15,8 +15,8 @@
   "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
   "evidence_kind": "VERIFIED_PREBUY_SELECTION_WITH_POSTHOC_PRICE_PROXY_OUTCOMES_NOT_BROKER_FILLS",
   "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
-  "expected_day_count": 33,
-  "expected_slot_count": 66,
+  "expected_day_count": 34,
+  "expected_slot_count": 68,
   "fees_subtracted_again": false,
   "groups": {
     "candidate_top1": {
@@ -161,9 +161,19 @@
           "signal_date": "20261103",
           "slot_net_return": 0.07748924731182799,
           "synthetic_cumulative_net_return": 1.7616244379962471
+        },
+        {
+          "signal_date": "20261104",
+          "slot_net_return": -0.006843017806935243,
+          "synthetic_cumulative_net_return": 1.7427265927909712
+        },
+        {
+          "signal_date": "20261105",
+          "slot_net_return": 0.0,
+          "synthetic_cumulative_net_return": 1.7427265927909712
         }
       ],
-      "complete_day_count": 28,
+      "complete_day_count": 30,
       "cumulative_available": false,
       "daily_sequence": [
         {
@@ -539,7 +549,7 @@
           "formal_projection_sha256": "a7ad8bf5c4716e6cdf80228930663dea93affc9ab91560cfb683dd2f15782d21",
           "held_limit_up_sessions": null,
           "label_available_date": "20261014",
-          "ledger_as_of_date": "20261105",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 3,
           "proxy_fill": 0,
           "signal_date": "20261013",
@@ -911,27 +921,27 @@
           "ts_code": "605577.SH"
         },
         {
-          "actual_exit_date": null,
-          "actual_exit_time": null,
+          "actual_exit_date": "20261106",
+          "actual_exit_time": "2026-11-06T10:00:00+08:00",
           "candidate_rank": 1,
           "candidate_score": -0.0013631207959898858,
           "entry_price": 21.34,
           "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261105",
           "exit_date": "20261106",
-          "exit_price": null,
+          "exit_price": 21.29,
           "formal_projection_sha256": "45ad9f9a34ff7d9cfb2eaad37728526f538f03fbd8b4457cf5290392797e71b8",
-          "held_limit_up_sessions": null,
-          "label_available_date": null,
-          "ledger_as_of_date": "20261105",
+          "held_limit_up_sessions": 0,
+          "label_available_date": "20261106",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 8,
           "proxy_fill": 1,
           "signal_date": "20261104",
           "slot": 1,
-          "slot_net_return": null,
+          "slot_net_return": -0.006843017806935243,
           "snapshot_file_sha256": "7953bf6e1c3023ab36319879d37634f40845fc18b03f0c5c3e7c15edcb59901c",
-          "status": "PENDING_T1",
-          "terminal_economic_source_sha256": null,
+          "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+          "terminal_economic_source_sha256": "2a3d8daeffcc40a0b73ab87ced6876e7c456c8ab7accfd405211b9cd13ce4979",
           "ts_code": "002058.SZ"
         },
         {
@@ -939,53 +949,77 @@
           "actual_exit_time": null,
           "candidate_rank": 1,
           "candidate_score": -0.004489318772150092,
-          "entry_price": null,
-          "entry_price_source": null,
+          "entry_price": 32.0,
+          "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261106",
           "exit_date": "20261109",
           "exit_price": null,
           "formal_projection_sha256": "7bfe362385d970ff90f4deba2ca3e963d86eb0730886e8f91c2cb82657b467aa",
           "held_limit_up_sessions": null,
-          "label_available_date": null,
-          "ledger_as_of_date": "20261105",
+          "label_available_date": "20261106",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 7,
-          "proxy_fill": null,
+          "proxy_fill": 0,
           "signal_date": "20261105",
           "slot": 1,
-          "slot_net_return": null,
+          "slot_net_return": 0.0,
           "snapshot_file_sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953",
+          "status": "NO_FILL_CAPACITY",
+          "terminal_economic_source_sha256": "9300560fe07f20b821e90792da00ed4db4eb42b06a9e0f1725a3a847bb3e9ad3",
+          "ts_code": "603657.SH"
+        },
+        {
+          "actual_exit_date": null,
+          "actual_exit_time": null,
+          "candidate_rank": 1,
+          "candidate_score": -0.005639819373340079,
+          "entry_price": null,
+          "entry_price_source": null,
+          "exec_date": "20261109",
+          "exit_date": "20261110",
+          "exit_price": null,
+          "formal_projection_sha256": "200210a7759774b8f5abfe8c891b7c2f05daa1883ed72f49578b124da9333115",
+          "held_limit_up_sessions": null,
+          "label_available_date": null,
+          "ledger_as_of_date": "20261106",
+          "promotion_rank": 4,
+          "proxy_fill": null,
+          "signal_date": "20261106",
+          "slot": 1,
+          "slot_net_return": null,
+          "snapshot_file_sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b",
           "status": "PENDING_T",
           "terminal_economic_source_sha256": null,
-          "ts_code": "603657.SH"
+          "ts_code": "002086.SZ"
         }
       ],
       "entire_window_settled": false,
-      "expected_selection_days": 33,
-      "filled_proxy_win_rate": 0.6153846153846154,
-      "filled_settled_slots": 26,
-      "known_no_fill_slots": 2,
-      "mean_net_filled_proxy_return": 0.046304208868085756,
-      "mean_net_slot_return": 0.0429967653775082,
+      "expected_selection_days": 34,
+      "filled_proxy_win_rate": 0.5925925925925926,
+      "filled_settled_slots": 27,
+      "known_no_fill_slots": 3,
+      "mean_net_filled_proxy_return": 0.04433579306530719,
+      "mean_net_slot_return": 0.03990221375877647,
       "minimum_net_slot_return": -0.14753797468354451,
       "missing_candidate_slots": 0,
       "missing_ledger_slots": 0,
       "missing_publication_slots": 3,
-      "negative_filled_slots": 10,
-      "not_due_slots": 2,
-      "pending_slots": 2,
+      "negative_filled_slots": 11,
+      "not_due_slots": 1,
+      "pending_slots": 1,
       "positive_filled_slots": 16,
       "status_counts": {
         "MISSING_D_PUBLICATION": 3,
+        "NO_FILL_CAPACITY": 1,
         "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED": 2,
         "PENDING_T": 1,
-        "PENDING_T1": 1,
-        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 26
+        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 27
       },
       "synthetic_cumulative_net_return": null,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
       "synthetic_max_drawdown": null,
-      "terminal_slots": 28,
-      "verified_selection_days": 30,
+      "terminal_slots": 30,
+      "verified_selection_days": 31,
       "zero_filled_slots": 0
     },
     "candidate_top2": {
@@ -1062,72 +1096,82 @@
           "synthetic_cumulative_net_return": 0.8695582882489175
         },
         {
+          "signal_date": "20261013",
+          "slot_net_return": 0.17393866171003708,
+          "synthetic_cumulative_net_return": 1.1947467548958421
+        },
+        {
           "signal_date": "20261014",
           "slot_net_return": -0.15228325123152703,
-          "synthetic_cumulative_net_return": 0.5848558737475238
+          "synthetic_cumulative_net_return": 0.8605235834304599
         },
         {
           "signal_date": "20261015",
           "slot_net_return": -0.002584291187739669,
-          "synthetic_cumulative_net_return": 0.5807601446791606
+          "synthetic_cumulative_net_return": 0.8557154487292189
         },
         {
           "signal_date": "20261016",
           "slot_net_return": -0.08233018867924541,
-          "synthetic_cumulative_net_return": 0.4506158637110942
+          "synthetic_cumulative_net_return": 0.7029340457003519
         },
         {
           "signal_date": "20261019",
           "slot_net_return": -0.06769218241042346,
-          "synthetic_cumulative_net_return": 0.3524205100573088
+          "synthetic_cumulative_net_return": 0.5876587236458832
         },
         {
           "signal_date": "20261020",
           "slot_net_return": 0.0,
-          "synthetic_cumulative_net_return": 0.3524205100573088
+          "synthetic_cumulative_net_return": 0.5876587236458832
         },
         {
           "signal_date": "20261021",
           "slot_net_return": -0.035381017257039064,
-          "synthetic_cumulative_net_return": 0.3045704966521976
+          "synthetic_cumulative_net_return": 0.5314857429462796
         },
         {
           "signal_date": "20261023",
           "slot_net_return": 0.0,
-          "synthetic_cumulative_net_return": 0.3045704966521976
+          "synthetic_cumulative_net_return": 0.5314857429462796
         },
         {
           "signal_date": "20261026",
           "slot_net_return": -0.1986176470588234,
-          "synthetic_cumulative_net_return": 0.04545977418477731
+          "synthetic_cumulative_net_return": 0.22730564817815546
         },
         {
           "signal_date": "20261027",
           "slot_net_return": -0.06483376123234924,
-          "synthetic_cumulative_net_return": -0.022321315192744384
+          "synthetic_cumulative_net_return": 0.14773480682505924
         },
         {
           "signal_date": "20261028",
           "slot_net_return": -0.14820370370370367,
-          "synthetic_cumulative_net_return": -0.16721691731334554
+          "synthetic_cumulative_net_return": -0.02236374241606931
         },
         {
           "signal_date": "20261029",
           "slot_net_return": -0.07716566265060248,
-          "synthetic_cumulative_net_return": -0.23147917573307275
+          "synthetic_cumulative_net_return": -0.09780369206378847
         },
         {
           "signal_date": "20261030",
           "slot_net_return": -0.07243048973143756,
-          "synthetic_cumulative_net_return": -0.28714351540353444
+          "synthetic_cumulative_net_return": -0.1631502124815032
         },
         {
           "signal_date": "20261103",
           "slot_net_return": 0.1322924528301887,
-          "synthetic_cumulative_net_return": -0.19283798254036233
+          "synthetic_cumulative_net_return": -0.052441301440258936
+        },
+        {
+          "signal_date": "20261104",
+          "slot_net_return": -0.0026273408239699215,
+          "synthetic_cumulative_net_return": -0.054930861092092664
         }
       ],
-      "complete_day_count": 27,
+      "complete_day_count": 29,
       "cumulative_available": false,
       "daily_sequence": [
         {
@@ -1491,27 +1535,27 @@
           "ts_code": "601929.SH"
         },
         {
-          "actual_exit_date": null,
-          "actual_exit_time": null,
+          "actual_exit_date": "20261016",
+          "actual_exit_time": "2026-10-16T10:00:00+08:00",
           "candidate_rank": 2,
           "candidate_score": -0.009554442640277116,
           "entry_price": 8.07,
           "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261014",
           "exit_date": "20261015",
-          "exit_price": null,
+          "exit_price": 9.51,
           "formal_projection_sha256": "a7ad8bf5c4716e6cdf80228930663dea93affc9ab91560cfb683dd2f15782d21",
-          "held_limit_up_sessions": null,
-          "label_available_date": null,
-          "ledger_as_of_date": "20261105",
+          "held_limit_up_sessions": 1,
+          "label_available_date": "20261016",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 2,
           "proxy_fill": 1,
           "signal_date": "20261013",
           "slot": 2,
-          "slot_net_return": null,
+          "slot_net_return": 0.17393866171003708,
           "snapshot_file_sha256": "6bdcf8e971b1b6cc6714b2d3b9d2cea0e30ccab0b9f61d04ff4f304a8ab1f03c",
-          "status": "PENDING_EXIT_MISSING_DAILY",
-          "terminal_economic_source_sha256": null,
+          "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+          "terminal_economic_source_sha256": "a3dab5111ec8fdd948ac20e3c5eeac3cfadae6b79617feb8026da59fa438c539",
           "ts_code": "002343.SZ"
         },
         {
@@ -1875,27 +1919,27 @@
           "ts_code": "002058.SZ"
         },
         {
-          "actual_exit_date": null,
-          "actual_exit_time": null,
+          "actual_exit_date": "20261106",
+          "actual_exit_time": "2026-11-06T10:00:00+08:00",
           "candidate_rank": 2,
           "candidate_score": -0.0027303872753860524,
           "entry_price": 16.02,
           "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261105",
           "exit_date": "20261106",
-          "exit_price": null,
+          "exit_price": 16.05,
           "formal_projection_sha256": "45ad9f9a34ff7d9cfb2eaad37728526f538f03fbd8b4457cf5290392797e71b8",
-          "held_limit_up_sessions": null,
-          "label_available_date": null,
-          "ledger_as_of_date": "20261105",
+          "held_limit_up_sessions": 0,
+          "label_available_date": "20261106",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 9,
           "proxy_fill": 1,
           "signal_date": "20261104",
           "slot": 2,
-          "slot_net_return": null,
+          "slot_net_return": -0.0026273408239699215,
           "snapshot_file_sha256": "7953bf6e1c3023ab36319879d37634f40845fc18b03f0c5c3e7c15edcb59901c",
-          "status": "PENDING_T1",
-          "terminal_economic_source_sha256": null,
+          "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+          "terminal_economic_source_sha256": "3077e1892ec017e90857a40c7064be9f024601f23680e0cfdd54595f4738883b",
           "ts_code": "605577.SH"
         },
         {
@@ -1903,54 +1947,77 @@
           "actual_exit_time": null,
           "candidate_rank": 2,
           "candidate_score": -0.0062920367508651365,
-          "entry_price": null,
-          "entry_price_source": null,
+          "entry_price": 18.75,
+          "entry_price_source": "TUSHARE_STK_AUCTION",
           "exec_date": "20261106",
           "exit_date": "20261109",
           "exit_price": null,
           "formal_projection_sha256": "7bfe362385d970ff90f4deba2ca3e963d86eb0730886e8f91c2cb82657b467aa",
           "held_limit_up_sessions": null,
           "label_available_date": null,
-          "ledger_as_of_date": "20261105",
+          "ledger_as_of_date": "20261106",
           "promotion_rank": 8,
-          "proxy_fill": null,
+          "proxy_fill": 1,
           "signal_date": "20261105",
           "slot": 2,
           "slot_net_return": null,
           "snapshot_file_sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953",
-          "status": "PENDING_T",
+          "status": "PENDING_T1",
           "terminal_economic_source_sha256": null,
           "ts_code": "001360.SZ"
+        },
+        {
+          "actual_exit_date": null,
+          "actual_exit_time": null,
+          "candidate_rank": 2,
+          "candidate_score": -0.005968615914941048,
+          "entry_price": null,
+          "entry_price_source": null,
+          "exec_date": "20261109",
+          "exit_date": "20261110",
+          "exit_price": null,
+          "formal_projection_sha256": "200210a7759774b8f5abfe8c891b7c2f05daa1883ed72f49578b124da9333115",
+          "held_limit_up_sessions": null,
+          "label_available_date": null,
+          "ledger_as_of_date": "20261106",
+          "promotion_rank": 5,
+          "proxy_fill": null,
+          "signal_date": "20261106",
+          "slot": 2,
+          "slot_net_return": null,
+          "snapshot_file_sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b",
+          "status": "PENDING_T",
+          "terminal_economic_source_sha256": null,
+          "ts_code": "600261.SH"
         }
       ],
       "entire_window_settled": false,
-      "expected_selection_days": 33,
-      "filled_proxy_win_rate": 0.34782608695652173,
-      "filled_settled_slots": 23,
+      "expected_selection_days": 34,
+      "filled_proxy_win_rate": 0.36,
+      "filled_settled_slots": 25,
       "known_no_fill_slots": 4,
-      "mean_net_filled_proxy_return": -0.0030812600784737927,
-      "mean_net_slot_return": -0.0026247771038850824,
+      "mean_net_filled_proxy_return": 0.0040176935632467966,
+      "mean_net_slot_return": 0.0034635289338334455,
       "minimum_net_slot_return": -0.1986176470588234,
       "missing_candidate_slots": 0,
       "missing_ledger_slots": 0,
       "missing_publication_slots": 3,
-      "negative_filled_slots": 15,
+      "negative_filled_slots": 16,
       "not_due_slots": 2,
-      "pending_slots": 3,
-      "positive_filled_slots": 8,
+      "pending_slots": 2,
+      "positive_filled_slots": 9,
       "status_counts": {
         "MISSING_D_PUBLICATION": 3,
         "NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED": 4,
-        "PENDING_EXIT_MISSING_DAILY": 1,
         "PENDING_T": 1,
         "PENDING_T1": 1,
-        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 23
+        "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY": 25
       },
       "synthetic_cumulative_net_return": null,
       "synthetic_drawdown_interpretation": "SETTLED_SLOT_PRODUCT_ONLY_NOT_CAPITAL_ACCOUNT_DRAWDOWN",
       "synthetic_max_drawdown": null,
-      "terminal_slots": 27,
-      "verified_selection_days": 30,
+      "terminal_slots": 29,
+      "verified_selection_days": 31,
       "zero_filled_slots": 0
     }
   },
@@ -2126,14 +2193,14 @@
     {
       "evidence_commit": "6f5768689531d2294dd5c0e1655b1ef8c2137cac",
       "evidence_manifest_sha256": "3678defe7775cd53437c0789b87ccb4d62baac546041ce699a41e60d7a4eb2e0",
-      "ledger_as_of_date": "20261105",
-      "ledger_file_sha256": "5799a0d58633ff8807e60f3efb3fbb8132f13404507fc93841d5098551cfa29f",
-      "ledger_version_count": 18,
+      "ledger_as_of_date": "20261106",
+      "ledger_file_sha256": "399599c46f55513d2d55f1e9359560a0159caf87a7e3c24505e8e5fa9274b878",
+      "ledger_version_count": 19,
       "observer_run_id": 38391030674,
       "publication_observation_sha256": "cb7801cf8a5bb879572a272fb4c38e173cd73ed89b05e423344d94357043863e",
       "signal_date": "20261013",
       "snapshot_file_sha256": "6bdcf8e971b1b6cc6714b2d3b9d2cea0e30ccab0b9f61d04ff4f304a8ab1f03c",
-      "source_collection_receipt_sha256": "5b3e3d3ec5dd3f54dbbb10ed299d11b47b0b724517de9fac8a6bcf0c2c9a67b1"
+      "source_collection_receipt_sha256": "4df71bee9678601a2d7a671abef09897b8cb7b0245486026a4d119a865b73673"
     },
     {
       "evidence_commit": "cf14d7afe3578344d5c53c9bec5c9a013ff84a34",
@@ -2294,26 +2361,38 @@
     {
       "evidence_commit": "f4d8838d95178e266d1aed18074389ef295bcbba",
       "evidence_manifest_sha256": "18a8e8ef23c89807daed24e41b11c187ddccbc38c919b41df34e0b0b9d0196c1",
-      "ledger_as_of_date": "20261105",
-      "ledger_file_sha256": "bda63ca80151dc56345510e9bb8516d7f83e699a4d49d59f40a6ce10037491c9",
-      "ledger_version_count": 2,
+      "ledger_as_of_date": "20261106",
+      "ledger_file_sha256": "05555bd63db85119b07bb610e177656ef0c0c92cfb720295ca1488f7f10c8845",
+      "ledger_version_count": 3,
       "observer_run_id": 41847981455,
       "publication_observation_sha256": "9e9609bf6ef4a037fb6571e81680c29ab0ca958a8c41c5c99c5ae3b978ed6f3b",
       "signal_date": "20261104",
       "snapshot_file_sha256": "7953bf6e1c3023ab36319879d37634f40845fc18b03f0c5c3e7c15edcb59901c",
-      "source_collection_receipt_sha256": "8645fe38132fff5140fbbcfec5cce297d47c1bbe487bb3b4951a2c04ae66b266"
+      "source_collection_receipt_sha256": "b90d68541fe30faa2d8c5c053de6b8e8ab8df083c65d4b05293b497949eb9b81"
     },
     {
       "evidence_commit": "5e9f86078d15a15aaf72d2612b380f45f48bfcf8",
       "evidence_manifest_sha256": "23508edd7f5f90cf49370a2e43db791231bd31f0b0d1be14701ebb0f3aad5838",
-      "ledger_as_of_date": "20261105",
-      "ledger_file_sha256": "1f5b4ba063c8900ffc90f54b06e69f8246f5934711964695e12112b23fc6aaa6",
-      "ledger_version_count": 1,
+      "ledger_as_of_date": "20261106",
+      "ledger_file_sha256": "791e1df8ddcaafa184201b947a711605eff4741899ca3a5c961bb040bdb73ee7",
+      "ledger_version_count": 2,
       "observer_run_id": 42019505909,
       "publication_observation_sha256": "1b807ff35cd4296b2ccd5c0e722c7ebed865ebfa47aae3a3b70580ae26d32c56",
       "signal_date": "20261105",
       "snapshot_file_sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953",
-      "source_collection_receipt_sha256": "ae1e52c5d81f47a16cf830b5fd84f601b60c7bbd8340a2338a4b3172a4e2cd09"
+      "source_collection_receipt_sha256": "b9aac1478c39fd99a0f3df409375cbc67faefc2adcac6e82c0ae3c4cafb30360"
+    },
+    {
+      "evidence_commit": "6816445bcb7b337ebdeec2124c81484eca1539c2",
+      "evidence_manifest_sha256": "299370ffd62a4e0bbbeb67e6b2a7e9da60defb6fe0c7c0c88f8f9dc41fdb29e0",
+      "ledger_as_of_date": "20261106",
+      "ledger_file_sha256": "b8f40384eb4a43f28a1a68cde498f6db63fb714caf7a18d2985501bfaa2affa0",
+      "ledger_version_count": 1,
+      "observer_run_id": 42240349879,
+      "publication_observation_sha256": "7abd3a192121e6044c7a5bd55942a4da693fc3dae40fbd76e1a79adaa85b9c31",
+      "signal_date": "20261106",
+      "snapshot_file_sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b",
+      "source_collection_receipt_sha256": "c0487c0761e11221a521a93a66be8e3316e0f4446a6dce0af7405fa295fb9d69"
     }
   ],
   "missing_or_pending_is_zero": false,
@@ -2327,7 +2406,7 @@
   "old_model_results_consumed": false,
   "profitability_improvement_proven": false,
   "publication_paused": false,
-  "published_day_count": 30,
+  "published_day_count": 31,
   "published_signal_dates": [
     "20260914",
     "20260915",
@@ -2358,7 +2437,8 @@
     "20261030",
     "20261103",
     "20261104",
-    "20261105"
+    "20261105",
+    "20261106"
   ],
   "research_registration_changed": false,
   "round_trip_cost_rate": 0.0045,
@@ -2398,12 +2478,13 @@
     "20261102",
     "20261103",
     "20261104",
-    "20261105"
+    "20261105",
+    "20261106"
   ],
   "status": "FULL_ENUMERATED_WITH_MISSING_D",
-  "summary_sha256": "92bd3c803b762cdaf7e143c226d95bf090575712a9e2725fa19036c27ba18616",
+  "summary_sha256": "2be38c57e552faf825d99349b1b8f2f6e2e5a4e25cfcf0d03f3d7b4a8dd7b31d",
   "test_only": false,
   "universe_scope": "EVERY_PINNED_CALENDAR_D_FROM_ACTIVATION_THROUGH_ASOF",
-  "verified_native_inputs_sha256": "e00394181e103727973a1eae8ef321ffeaebc9374d59f4a73012eabd86657ea9",
+  "verified_native_inputs_sha256": "2ff31fd47b9f229a0341d1fe9f488bfea70a6e656445b69c0a19ab6d74d9dc97",
   "win_rate_denominator": "FILLED_SETTLED_SLOTS_ONLY_ZERO_NOT_WIN"
 }
