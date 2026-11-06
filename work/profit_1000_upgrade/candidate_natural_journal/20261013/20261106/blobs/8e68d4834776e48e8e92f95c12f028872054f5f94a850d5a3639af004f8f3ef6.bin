@@ -1,0 +1,42 @@
+{
+  "actual_execution_claimed": false,
+  "adapter": "dc20_research_stk_mins_query_0931_v1",
+  "complete_continuous_grid": true,
+  "continuous_rows": 240,
+  "credential_persisted": false,
+  "data_sha256": "f248681cb3fa6bac144d12aedf334a2f65d16df9e7683b47081fefc0d4d4a87a",
+  "encoding": "ORIGINAL_DATA_TABLE_CANONICAL_JSON_NO_ENVELOPE_MESSAGES",
+  "endpoint": "stk_mins",
+  "fetched_at_utc": "2026-11-06T15:29:24.710454+00:00",
+  "fields": [
+    "ts_code",
+    "trade_time",
+    "open",
+    "close",
+    "high",
+    "low",
+    "vol",
+    "amount"
+  ],
+  "immutable": true,
+  "interval_seconds": 60,
+  "normalizer_sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+  "production_activation_allowed": false,
+  "provider_timestamp_semantics_confirmed": false,
+  "request": {
+    "end_date": "2026-10-16 15:00:00",
+    "freq": "1min",
+    "start_date": "2026-10-16 09:31:00",
+    "ts_code": "002343.SZ"
+  },
+  "research_only": true,
+  "response_body_sha256": "56c95f767eb499e1d785a34b9b95f5146ed09b088e60aa32593b91bec869337e",
+  "schema_version": "dc20_research_minute_0931_source_v1",
+  "source": "tushare:stk_mins",
+  "source_rows": 240,
+  "source_values_modified": false,
+  "time_semantics": "RESEARCH_BAR_END_ASSUMPTION_NOT_PROVIDER_CONFIRMED",
+  "timezone": "Asia/Shanghai",
+  "trade_date": "20261016",
+  "ts_code": "002343.SZ"
+}
