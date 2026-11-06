@@ -47,7 +47,7 @@ jobs:
       signal_date: ${{ steps.bind.outputs.signal_date }}
       source_revision: ${{ steps.bind.outputs.source_revision }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           persist-credentials: false
@@ -63,7 +63,7 @@ jobs:
           echo "RESEARCH_RUN_STARTED_AT_UTC=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" >> "$GITHUB_ENV"
           echo "source_revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           python scripts/profit_research_delivery.py bind >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.12.13"
       - name: Targeted research checks only
@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.accumulate.outputs.head }}
           persist-credentials: false

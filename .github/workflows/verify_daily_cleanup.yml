@@ -43,25 +43,25 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout immutable cleaned version
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: cleaned
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout original baseline
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: baseline
           ref: 943e62b27102c671cd440c45a160054a3bb092f9
           persist-credentials: false
       - name: Set up exact production Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.12.13"
           cache: pip
           cache-dependency-path: cleaned/requirements-dev.lock
       - name: Set up exact account Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "24.19.0"
       - name: Install hash-locked runtime
@@ -157,7 +157,7 @@ jobs:
           PY
       - name: Preserve acceptance results and logs
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dc20-cleanup-acceptance-${{ github.run_id }}
           path: acceptance/
