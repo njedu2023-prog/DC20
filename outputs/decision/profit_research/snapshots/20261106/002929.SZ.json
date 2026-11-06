@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261109",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.005229213874852,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.013014763014763009,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.36363636363636365,
+      "five_year_streak_runup": 0.210162991371045,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 6,
+      "ret_10d": 0.14682900236234775,
+      "ret_2d": 0.210162991371045,
+      "ret_5d": 0.27289229528035497,
+      "stage2_pool_size": 4.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": 0.06311629998208382,
+      "volatility_5d": 0.06345880139148237,
+      "volume_ratio": 1.5019488115919708
+    },
+    "frozen_at": "2026-11-06T15:07:56.328496+00:00",
+    "industry": "通信服务",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "润建股份",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 6,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261110",
+    "score": -0.010154981671796723,
+    "signal_date": "20261106",
+    "ts_code": "002929.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261106.json",
+      "sha256": "43b65ce24c80ab18bbdc2d6f41861a28fbd04ab47ec771f57d27f191b64735f2"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261106.json",
+      "sha256": "baa91fe756329d7d53ea6599c32b5a3302a6353666d9ef68308644d70f633cbd"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261106.json",
+      "sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261109",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.027855153203351,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.026119402985074647,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.4,
+      "five_year_streak_runup": 0.210727969348659,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.23630672926447582,
+      "ret_2d": 0.210727969348659,
+      "ret_5d": 0.16519174041297946,
+      "stage2_pool_size": 4.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": 0.03459939250154834,
+      "volatility_5d": 0.05610682230565774,
+      "volume_ratio": 0.5787099880997318
+    },
+    "frozen_at": "2026-11-06T15:07:56.328496+00:00",
+    "industry": "休闲食品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "南侨食品",
+    "profit_eligible": true,
+    "profit_rank": 5,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261110",
+    "score": -0.01571154408527462,
+    "signal_date": "20261106",
+    "ts_code": "605339.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261106.json",
+      "sha256": "43b65ce24c80ab18bbdc2d6f41861a28fbd04ab47ec771f57d27f191b64735f2"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261106.json",
+      "sha256": "baa91fe756329d7d53ea6599c32b5a3302a6353666d9ef68308644d70f633cbd"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261106.json",
+      "sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b"
+    }
+  ]
+}
