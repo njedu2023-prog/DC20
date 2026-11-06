@@ -18,28 +18,13 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = '27cd28bc855c73a07be765e787fb20b97b9a626efd94432b07f8ab4e2ac01fd6'
+IMPORTER_SHA = 'f416e399522f092402338b536bf58b583f9d420f44d194601e41da942353e154'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
-FIXED_FILES = {
-    IMPORTER_PATH: IMPORTER_SHA,
-    'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '8460fd4cab5ffcae2ab87afe232a3c832b5293ccfcb284e8b80672a0a630ed1c',
-    'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e',
-    COORDINATOR_PATH: '6991e18df56e84b0324306f67b974500c38030d7c49fb54d7d28aebf204ec380',
-    WORKFLOW_PATH: "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd",
-    "requirements-dev.lock": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
-    "work/profit_1000_upgrade/candidate_natural_forward.py": '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
-    "work/profit_1000_upgrade/candidate_natural_forward_registration.json": 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399',
-    "work/profit_1000_upgrade/candidate_natural_model/evaluation.json": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
-    "work/profit_1000_upgrade/candidate_eligible_forward.py": '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f',
-    "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": '6e23e6f3ce4dc0f67dd31cf3ebe24c238bf62b276cefe203eee756501076755c',
-    "work/profit_1000_upgrade/candidate_eligible_pool.py": "86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23",
-    "work/profit_1000_upgrade/candidate_snapshot_versions.py": '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83',
-    "work/profit_1000_upgrade/candidate_legacy_workflow.py": '38b66fb464af3fc4516b7cf76d2ab6d078c13b0b827f3663366def06baeebd83',
-}
+FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'f416e399522f092402338b536bf58b583f9d420f44d194601e41da942353e154', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'fdfd921f5b2fd8de09a4c76810c0d4042533c122a55c8b3830999176d6524b96', 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0', 'work/profit_1000_upgrade/candidate_natural_workflow.py': '6c1f0a7127db8978bed6c5c885044e9a04c42c29c98478a7926a3f33be59f1e1', '.github/workflows/research_candidate_natural_forward.yml': '384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd', 'requirements-dev.lock': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2', 'work/profit_1000_upgrade/candidate_natural_forward.py': '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3', 'work/profit_1000_upgrade/candidate_natural_forward_registration.json': 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399', 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json': '779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872', 'work/profit_1000_upgrade/candidate_eligible_forward.py': '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f', 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': '6e23e6f3ce4dc0f67dd31cf3ebe24c238bf62b276cefe203eee756501076755c', 'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23', 'work/profit_1000_upgrade/candidate_snapshot_versions.py': '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83', 'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'b463393dd73d637d10d6da60aa9973b0634e0b932a0627bea0d13bd9cf1eb7ce'}
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
   'sha256': '337f35739b50874124836f1d4496cc498fe696ddc803f43a3b9a3c51a4b8ce6c',
@@ -176,8 +161,92 @@ PRE_BOUNDARY_IMPORT_PROFILE = {'importer_sha256': 'fc068fdf16c9dfd27a9ddaa4230c1
 PRE_CONTROLLED_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml', 'sha256': '384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd', 'git_blob_sha1': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8'}, {'path': 'forward/storage.py', 'sha256': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098', 'git_blob_sha1': '7e622895c32455123d71244ae491a7302b9b2abe'}, {'path': 'requirements-dev.lock', 'sha256': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2', 'git_blob_sha1': '892183b9e5c4ed2e1c1899589b8793f556b32136'}, {'path': 'scripts/publish_primary_three_rank.py', 'sha256': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8', 'git_blob_sha1': '54cc956de2996663b170ed6e09ce9fef812e2221'}, {'path': 'src/top10decision/decision/d_close_features.py', 'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e', 'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7'}, {'path': 'src/top10decision/decision/three_rank.py', 'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a', 'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f'}, {'path': 'work/profit_1000_upgrade/candidate_d_feature_projection.py', 'sha256': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f', 'git_blob_sha1': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe'}, {'path': 'work/profit_1000_upgrade/candidate_d_source_adapter.py', 'sha256': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b', 'git_blob_sha1': 'dcae72da6b8ac93060a487470f6b648780e6ef1d'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_forward.py', 'sha256': '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f', 'git_blob_sha1': '7f0172e742a63185f1d2643746c0bd9469c3da69'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json', 'sha256': '6e23e6f3ce4dc0f67dd31cf3ebe24c238bf62b276cefe203eee756501076755c', 'git_blob_sha1': '0982d8c7af52359165e259fd0e4748896d3fd6df'}, {'path': 'work/profit_1000_upgrade/candidate_eligible_pool.py', 'sha256': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23', 'git_blob_sha1': '3855dbedf6e4b6c85454c50d95a22cc128d52273'}, {'path': 'work/profit_1000_upgrade/candidate_forward_predict.py', 'sha256': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719', 'git_blob_sha1': 'e69a1792ca8c35cd73deffac53f772d47bcb432c'}, {'path': 'work/profit_1000_upgrade/candidate_legacy_workflow.py', 'sha256': 'be1b6f9d65e5d5737c5d77c1db1e02539345ef53ed20f78313275f00a7841913', 'git_blob_sha1': 'ae71bcdde038132939160f9c0720186f14f90f08'}, {'path': 'work/profit_1000_upgrade/candidate_live_feature_math.py', 'sha256': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68', 'git_blob_sha1': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04'}, {'path': 'work/profit_1000_upgrade/candidate_natural_forward.py', 'sha256': '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3', 'git_blob_sha1': '1952b8d3478f5d9f1d2a08e0125af337edcbacfe'}, {'path': 'work/profit_1000_upgrade/candidate_natural_forward_registration.json', 'sha256': 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399', 'git_blob_sha1': 'aa7153d610791583e412bf38c30609b92fe0d682'}, {'path': 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json', 'sha256': '779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872', 'git_blob_sha1': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0'}, {'path': 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py', 'sha256': '680047e2913581dd1cdffa2da4ce684606f7cae6d77e3607e05bc84dbc7b74b9', 'git_blob_sha1': '4fef6088fbe25cdfad6e6d19243eed375c27d1da'}, {'path': 'work/profit_1000_upgrade/candidate_natural_p0_github.py', 'sha256': '833f6607c078ae25144d333110d018fa142687e49588cbaf099a731ca42e3cbf', 'git_blob_sha1': '2f433fa22251a3712c83bbfc6770746a7d89b550'}, {'path': 'work/profit_1000_upgrade/candidate_natural_workflow.py', 'sha256': 'ab0dea692440f151658ceac6da442b61b742b94a81bb96c61047fddb0c73088b', 'git_blob_sha1': '1c3b7a44fdea71e6dfa362e70b91ce63166cd125'}, {'path': 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'sha256': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e', 'git_blob_sha1': 'aec9f7eda757e6ab784e9d591da41f7abc43819d'}, {'path': 'work/profit_1000_upgrade/candidate_snapshot_versions.py', 'sha256': '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83', 'git_blob_sha1': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534'}]
 PRE_CONTROLLED_IMPORT_PROFILE = {'importer_sha256': '833f6607c078ae25144d333110d018fa142687e49588cbaf099a731ca42e3cbf', 'source_adapter_sha256': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b', 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8', 'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f', 'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68', 'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e', 'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a'}}
 
+PRE_HARDENING_CODE_BINDINGS = [{'git_blob_sha1': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8',
+  'path': '.github/workflows/research_candidate_natural_forward.yml',
+  'sha256': '384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd'},
+ {'git_blob_sha1': '7e622895c32455123d71244ae491a7302b9b2abe',
+  'path': 'forward/storage.py',
+  'sha256': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098'},
+ {'git_blob_sha1': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+  'path': 'requirements-dev.lock',
+  'sha256': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2'},
+ {'git_blob_sha1': '54cc956de2996663b170ed6e09ce9fef812e2221',
+  'path': 'scripts/publish_primary_three_rank.py',
+  'sha256': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8'},
+ {'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+  'path': 'src/top10decision/decision/d_close_features.py',
+  'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e'},
+ {'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+  'path': 'src/top10decision/decision/three_rank.py',
+  'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a'},
+ {'git_blob_sha1': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe',
+  'path': 'work/profit_1000_upgrade/candidate_d_feature_projection.py',
+  'sha256': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f'},
+ {'git_blob_sha1': 'dcae72da6b8ac93060a487470f6b648780e6ef1d',
+  'path': 'work/profit_1000_upgrade/candidate_d_source_adapter.py',
+  'sha256': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b'},
+ {'git_blob_sha1': '7f0172e742a63185f1d2643746c0bd9469c3da69',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_forward.py',
+  'sha256': '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f'},
+ {'git_blob_sha1': '0982d8c7af52359165e259fd0e4748896d3fd6df',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json',
+  'sha256': '6e23e6f3ce4dc0f67dd31cf3ebe24c238bf62b276cefe203eee756501076755c'},
+ {'git_blob_sha1': '3855dbedf6e4b6c85454c50d95a22cc128d52273',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_pool.py',
+  'sha256': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23'},
+ {'git_blob_sha1': 'e69a1792ca8c35cd73deffac53f772d47bcb432c',
+  'path': 'work/profit_1000_upgrade/candidate_forward_predict.py',
+  'sha256': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719'},
+ {'git_blob_sha1': '4483198de5204d757973b24c87c90534b059477f',
+  'path': 'work/profit_1000_upgrade/candidate_legacy_workflow.py',
+  'sha256': '38b66fb464af3fc4516b7cf76d2ab6d078c13b0b827f3663366def06baeebd83'},
+ {'git_blob_sha1': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04',
+  'path': 'work/profit_1000_upgrade/candidate_live_feature_math.py',
+  'sha256': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ {'git_blob_sha1': '1952b8d3478f5d9f1d2a08e0125af337edcbacfe',
+  'path': 'work/profit_1000_upgrade/candidate_natural_forward.py',
+  'sha256': '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3'},
+ {'git_blob_sha1': 'aa7153d610791583e412bf38c30609b92fe0d682',
+  'path': 'work/profit_1000_upgrade/candidate_natural_forward_registration.json',
+  'sha256': 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399'},
+ {'git_blob_sha1': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0',
+  'path': 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json',
+  'sha256': '779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872'},
+ {'git_blob_sha1': '53c53006c6f11e0d39a934704b5e5d43bb54927f',
+  'path': 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py',
+  'sha256': '8460fd4cab5ffcae2ab87afe232a3c832b5293ccfcb284e8b80672a0a630ed1c'},
+ {'git_blob_sha1': '8aa3e64b65707681f49a1dbf01316307ea7de5e5',
+  'path': 'work/profit_1000_upgrade/candidate_natural_p0_github.py',
+  'sha256': '27cd28bc855c73a07be765e787fb20b97b9a626efd94432b07f8ab4e2ac01fd6'},
+ {'git_blob_sha1': '893c8861a6f552581f2b349aee79a848566d031a',
+  'path': 'work/profit_1000_upgrade/candidate_natural_workflow.py',
+  'sha256': '6991e18df56e84b0324306f67b974500c38030d7c49fb54d7d28aebf204ec380'},
+ {'git_blob_sha1': 'aec9f7eda757e6ab784e9d591da41f7abc43819d',
+  'path': 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py',
+  'sha256': '26efcd53238e3abbbae4891f8fcf773e1d98987227eb2c633d94d75c9d23f94e'},
+ {'git_blob_sha1': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534',
+  'path': 'work/profit_1000_upgrade/candidate_snapshot_versions.py',
+  'sha256': '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83'}]
+PRE_HARDENING_IMPORT_PROFILE = {'importer_sha256': '27cd28bc855c73a07be765e787fb20b97b9a626efd94432b07f8ab4e2ac01fd6',
+ 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8',
+                                      'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+                                      'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+                                      'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+                                      'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ 'source_adapter_sha256': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b'}
+
 def match_publication_code(code_tree, published_tree, local_files, *, day=None):
     """Bind one complete reviewed code version in both immutable Git trees."""
+    previous_hardening = {b["path"]: b for b in PRE_HARDENING_CODE_BINDINGS}
+    if code_tree.get(IMPORTER_PATH, {}).get("sha") == previous_hardening[IMPORTER_PATH]["git_blob_sha1"]:
+        require(type(day) is str and gh.date(day) <= "20261106"
+            and set(local_files) == set(previous_hardening), "PRE_HARDENING_PUBLICATION_DATE_OR_SET_CHANGED")
+        for path, binding in previous_hardening.items():
+            for tree in (code_tree, published_tree):
+                entry = tree.get(path, {})
+                require(entry.get("type") == "blob" and entry.get("mode") == "100644"
+                    and entry.get("sha") == binding["git_blob_sha1"], "PRE_HARDENING_PUBLICATION_BYTES_CHANGED")
+        return [dict(previous_hardening[p]) for p in sorted(previous_hardening)]
     previous_controlled = {b["path"]: b for b in PRE_CONTROLLED_CODE_BINDINGS}
     if code_tree.get(IMPORTER_PATH, {}).get("sha") == previous_controlled[IMPORTER_PATH]["git_blob_sha1"]:
         require(type(day) is str and gh.date(day) < "20261106"
@@ -642,6 +711,9 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ORIGINAL_CALENDAR_GIT_BLOB_CHANGED")
     import_profile = {"importer_sha256": IMPORTER_SHA, "source_adapter_sha256": gh.ADAPTER_SHA,
         "source_adapter_dependency_sha256": gh.adapter.CODE_PINS}
+    if code_profile[IMPORTER_PATH] == PRE_HARDENING_IMPORT_PROFILE["importer_sha256"]:
+        require(day <= "20261106", "PRE_HARDENING_IMPORT_DATE_CHANGED")
+        import_profile = PRE_HARDENING_IMPORT_PROFILE
     if code_profile[IMPORTER_PATH] == PRE_CONTROLLED_IMPORT_PROFILE["importer_sha256"]:
         require(day < "20261106", "PRE_CONTROLLED_IMPORT_DATE_CHANGED")
         import_profile = PRE_CONTROLLED_IMPORT_PROFILE

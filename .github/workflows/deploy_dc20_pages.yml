@@ -1956,10 +1956,18 @@ jobs:
           PYCODE
 
       - name: Bind active candidate ranking and independent versioned summary
+        id: candidate_delivery
         env:
           PYTHONPATH: .:src
         run: |
-          python -c 'import json; from scripts.candidate_profit_pages import materialize; print(json.dumps(materialize(".", "_site"), ensure_ascii=False))'
+          python - <<'PY'
+          import json, os
+          from scripts.candidate_profit_pages import materialize_delivery
+          result = materialize_delivery(".", "_site")
+          print(json.dumps(result, ensure_ascii=False))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('summary_ready=' + str(result['summary_ready']).lower() + '\n')
+          PY
 
       # All enabled daily/settlement publishers reuse this workflow. Build from
       # the same exact-head source bundle, before uploading the Pages artifact.
@@ -1972,7 +1980,7 @@ jobs:
 
       - name: Generate and bind simulated account with the main publication
         id: account_build
-        if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' }}
+        if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' && steps.candidate_delivery.outputs.summary_ready == 'true' }}
         continue-on-error: true
         run: |
           set -euo pipefail

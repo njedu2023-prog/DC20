@@ -2729,6 +2729,11 @@
       try {
         const revision = await publishedRevisionMetadata();
         if (!current()) return;
+        if (revision.candidate_profit_delivery?.status === "UNAVAILABLE") {
+          state.candidateProfitActivation = {status: "invalid", config: null, invalidActivation: true,
+            message: "当日盈利冻结来源暂不可核验；晋级名单已独立更新。"};
+          return;
+        }
         if (!Object.hasOwn(revision, "candidate_profit_activation")) {
           state.candidateProfitActivation = {status: "legacy_deployment", config: null};
           return;
@@ -2809,7 +2814,8 @@
       const contract = validatedThreeRankContract(currentThreeRank);
       executableProfitExpect(contract && candidateProfitApplies(contract.signal_date), "新模型不覆盖该历史D");
       const entry = active.index.days.find(row => row.signal_date === contract.signal_date);
-      executableProfitExpect(entry, "新模型等待同D冻结；晋级名单保留");
+      executableProfitExpect(entry, active.revision?.candidate_profit_delivery?.excluded_days?.some(day => day.signal_date === contract.signal_date)
+        ? "该日盈利冻结暂不可核验；晋级名单保留" : "新模型等待同D冻结；晋级名单保留");
       const source = currentThreeRank.three_rank_source_index;
       executableProfitExpect(source?.json_path === `outputs/decision/three_rank_top10_${contract.signal_date}.json`
         && source.json_sha256 === entry.p0_file_sha256, "新盈利未绑定当前P0原文件SHA");
@@ -3048,6 +3054,8 @@
       try {
         executableProfitExpect(active.status === "ready", active.message || "新模型索引待验证");
         const revision = active.revision || await publishedRevisionMetadata();
+        executableProfitExpect(revision.candidate_profit_delivery?.summary_status !== "UNAVAILABLE",
+          "历史盈利账本暂不可核验，累计收益与模拟账户暂停；已验证的当日名单可独立查看。");
         executableProfitExpect(revision.candidate_profit_summary_url === `${CANDIDATE_PROFIT_ROOT}/summary.json`
           && isSha256(revision.candidate_profit_summary_sha256), "新模型累计尚未发布，不使用旧版本收益");
         const loaded = await fetchPagesOnlyShaBoundJson(revision.candidate_profit_summary_url, revision.candidate_profit_summary_sha256, "新模型累计");

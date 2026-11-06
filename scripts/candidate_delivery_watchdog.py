@@ -29,6 +29,8 @@ NATURAL = 'research_candidate_natural_forward.yml'
 OBSERVER = 'research_candidate_natural_observer.yml'
 PUBLISHER = 'publish_candidate_profit.yml'
 P0 = 'run_primary_d_daily.yml'
+HISTORY = 'prepare_primary_history.yml'
+P0_NAME = 'DC2.0 · Publish Primary D List (P0)'
 IDS = {P0: 343703608, NATURAL: 357010624, OBSERVER: 357027830}
 ROOT = 'work/profit_1000_upgrade/'
 PUBLIC = 'outputs/decision/candidate_profit_v1/'
@@ -72,7 +74,7 @@ class GitHub:
         require(self.calls <= 200 and path.startswith('/'), 'REQUEST_BUDGET_EXCEEDED')
         require(repository in (REPO, *UPSTREAMS), 'REPOSITORY_REJECTED')
         if body is not None:
-            require(repository == REPO and path in {f'/actions/workflows/{w}/dispatches' for w in (P0, NATURAL, OBSERVER, PUBLISHER)}, 'DISPATCH_TARGET_REJECTED')
+            require(repository == REPO and path in {f'/actions/workflows/{w}/dispatches' for w in (P0, NATURAL, OBSERVER, PUBLISHER, HISTORY)}, 'DISPATCH_TARGET_REJECTED')
             require(body.get('ref') == 'main', 'MAIN_ONLY')
         req = urllib.request.Request('https://api.github.com/repos/'+repository+path,
             data=None if body is None else json.dumps(body).encode(), headers={
@@ -136,8 +138,51 @@ class GitHub:
         return {'pred_commit': commits[pred_repo], 'market_commit': commits[market_repo],
                 'source_ready_at': max(produced).isoformat()}
 
-    def public_ready(self, day, day_sha, summary_sha):
+    def public_core_status(self, day, p0_raw, source_index_raw, public_raw):
+        """Verify the published primary/day bytes despite a disclosed auxiliary gap."""
         try:
+            def fetch(path):
+                with urllib.request.urlopen('https://njedu2023-prog.github.io/DC20/'+path, timeout=20) as response:
+                    body = response.read(8*1024*1024+1)
+                require(len(body) <= 8*1024*1024, 'PUBLIC_RESPONSE_TOO_LARGE')
+                return body
+            revision = document(fetch('revision.json'))
+            marker = revision.get('candidate_profit_delivery', {})
+            if marker.get('schema_version') != 'dc20_candidate_delivery_isolation_v1':
+                return None
+            require(revision.get('signal_date') == day and revision.get('primary_d_status') == 'READY'
+                and marker.get('signal_date') == day and marker.get('status') == 'PARTIAL'
+                and marker.get('current_ranking_status') == 'READY' and marker.get('summary_status') == 'UNAVAILABLE'
+                and marker.get('new_freeze_created') is False and marker.get('historical_results_rewritten') is False
+                and marker.get('source_index_sha256') == digest(source_index_raw), 'PUBLIC_ISOLATION_IDENTITY_CHANGED')
+            require(revision.get('candidate_profit_index_url') == PUBLIC+'index.json', 'PUBLIC_INDEX_PATH_CHANGED')
+            index_raw = fetch(PUBLIC+'index.json')
+            require(digest(index_raw) == revision.get('candidate_profit_index_sha256'), 'PUBLIC_INDEX_BINDING_CHANGED')
+            index = document(index_raw)
+            entries = [r for r in index['days'] if r.get('signal_date') == day]
+            current = document(public_raw)
+            require(len(entries) == 1 and entries[0].get('path') == PUBLIC+f'day_{day}.json'
+                and entries[0].get('sha256') == digest(public_raw)
+                and entries[0].get('p0_file_sha256') == digest(p0_raw)
+                and entries[0].get('snapshot_file_sha256') == current.get('snapshot_file_sha256')
+                and fetch(PUBLIC+f'day_{day}.json') == public_raw
+                and fetch(f'outputs/decision/three_rank_top10_{day}.json') == p0_raw,
+                'PUBLIC_CORE_DAY_BINDING_CHANGED')
+            return {'status': 'CORE_DELIVERED_AUX_PENDING', 'summary_status': 'UNAVAILABLE',
+                    'current_ranking_status': 'READY', 'reason': marker.get('reason'),
+                    'excluded_days': marker.get('excluded_days', [])}
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def public_ready(self, day, day_sha, summary_sha, p0_raw):
+        try:
+            with urllib.request.urlopen('https://njedu2023-prog.github.io/DC20/revision.json', timeout=20) as response:
+                revision = document(response.read(8*1024*1024))
+            if revision.get('signal_date') != day or revision.get('primary_d_status') != 'READY':
+                return False
+            with urllib.request.urlopen('https://njedu2023-prog.github.io/DC20/outputs/decision/three_rank_top10_'+day+'.json', timeout=20) as response:
+                if response.read(8*1024*1024) != p0_raw:
+                    return False
             bodies = []
             for path in ('index.json', f'day_{day}.json', 'summary.json'):
                 with urllib.request.urlopen('https://njedu2023-prog.github.io/DC20/'+PUBLIC+path, timeout=20) as response:
@@ -207,6 +252,16 @@ def missing_p0(client, base, now, cutoff):
                  PUBLIC+f'day_{day}.json'):
         require(client.file(path, head) is None, 'INCOMPLETE_P0_REQUIRES_REPAIR_NO_OVERWRITE')
     sources = client.p0_sources(day, now)
+    if __package__:
+        from .prepare_primary_history import inspect_history
+    else:
+        from prepare_primary_history import inspect_history
+    history = inspect_history(client, head, day)
+    if history['needs_repair']:
+        return {**base, 'status': 'NEEDS_HISTORY_PREPARATION', 'workflow': HISTORY,
+                'missing_paths': history['missing_paths'], 'source_ready_at': sources['source_ready_at'],
+                'inputs': {'signal_date': day, 'market_commit': sources['market_commit'],
+                           'expected_head': head, 'dry_run': False}}
     return {**base, 'status': 'NEEDS_P0', 'workflow': P0,
             'recovery_kind': 'CONTROLLED_DAILY_NOT_SCHEDULE_PROOF',
             'source_ready_at': sources['source_ready_at'],
@@ -270,6 +325,17 @@ def controlled_run(run, day):
     local = stamp(run['created_at']).astimezone(TZ)
     require(local.strftime('%Y%m%d') == day and time(15) <= local.time() < time(23, 30),
             'P0_HANDOFF_ORIGINAL_CONTROLLED_WINDOW_REQUIRED')
+
+
+def generating_run(run, day):
+    if run.get('event') == 'schedule':
+        require(run.get('name') == run.get('display_title') == P0_NAME,
+                'P0_HANDOFF_REGISTERED_SCHEDULE_REQUIRED')
+        local = stamp(run['created_at']).astimezone(TZ)
+        require(local.strftime('%Y%m%d') == day and time(15) <= local.time() < time(23, 30),
+                'P0_HANDOFF_ORIGINAL_SCHEDULE_WINDOW_REQUIRED')
+    else:
+        controlled_run(run, day)
 
 
 def original_artifact(client, run, cas_job):
@@ -371,7 +437,7 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
 
     # Reuse the existing, hash-pinned continuation; this discovery grants no
     # authority and does not loosen its artifact, ancestry, source or time gates.
-    controlled_run(original, day)
+    generating_run(original, day)
     require(stamp(cas_job['completed_at']) < datetime.strptime(day+'2330', '%Y%m%d%H%M').replace(tzinfo=TZ),
             'P0_HANDOFF_ORIGINAL_CAS_AFTER_WINDOW')
     deadline = datetime.strptime(base['exec_date']+'0915', '%Y%m%d%H%M').replace(tzinfo=TZ)
@@ -433,7 +499,11 @@ def inspect(client, now):
     p0_raw = client.file(f'outputs/decision/three_rank_top10_{day}.json', head)
     require(digest(p0_raw) == receipt['outputs']['json_sha256'], 'P0_BYTES_CHANGED')
     p0 = document(p0_raw)
-    require(len(p0['rows']) >= 3 and [r['promotion_rank'] for r in p0['rows'][:3]] == [1, 2, 3], 'PROMOTION_TOP3_MISSING')
+    rows = p0.get('rows')
+    require(type(rows) is list and len(rows) <= 10
+            and all(type(r) is dict and type(r.get('promotion_rank')) is int for r in rows)
+            and [r['promotion_rank'] for r in rows] == list(range(1, len(rows) + 1)),
+            'PROMOTION_RANK_SEQUENCE_INVALID')
     public_raw = client.file(PUBLIC+f'day_{day}.json', head)
     index_raw = client.file(PUBLIC+'index.json', head)
     if public_raw is not None and index_raw is not None:
@@ -444,18 +514,37 @@ def inspect(client, now):
                     and public.get('signal_date') == day and public.get('exec_date') == trade
                     and public.get('exit_date') == exit_day, 'FORMAL_DAY_BINDING_CHANGED')
             top2 = public['rows'][:2]
-            require(len(top2) == 2 and [r['candidate_rank'] for r in top2] == [1, 2]
-                    and len({r['ts_code'] for r in top2}) == 2, 'PROFIT_TOP2_MISSING')
+            require([r['candidate_rank'] for r in top2] == list(range(1, len(top2) + 1))
+                    and len({r['ts_code'] for r in top2}) == len(top2), 'PROFIT_RANK_SEQUENCE_INVALID')
+            if len(top2) < 2:
+                slots = public.get('candidate_slots')
+                require(type(slots) is list and len(slots) == 2, 'PROFIT_ABSENT_SLOT_PROOF_REQUIRED')
+                for number in range(len(top2), 2):
+                    slot = slots[number]
+                    require(slot.get('slot') == number + 1 and slot.get('status') == 'MISSING_CANDIDATE'
+                            and all(slot.get(k) is None for k in ('ts_code', 'candidate_rank', 'candidate_score',
+                                'promotion_rank', 'board_stage', 'proxy_fill', 'net_return', 'slot_net_return')),
+                            'PROFIT_ABSENT_SLOT_MUST_NOT_CLAIM_CANDIDATE')
+            core = client.public_core_status(day, p0_raw, index_raw, public_raw)
+            if core is not None:
+                return {**base, **core, 'top2': [r['ts_code'] for r in top2]}
             summary_raw = client.file(PUBLIC+'summary.json', head)
             summary = document(summary_raw)
             for number, group in enumerate(('candidate_top1', 'candidate_top2')):
                 row = next((r for r in summary['groups'][group]['daily_sequence'] if r['signal_date'] == day), None)
-                require(row is not None and row.get('ts_code') == top2[number]['ts_code']
+                expected_code = top2[number]['ts_code'] if number < len(top2) else None
+                require(row is not None and row.get('ts_code') == expected_code
                         and row.get('formal_projection_sha256') == canonical(public), 'FORMAL_LEDGER_NOT_BOUND')
-            if not client.public_ready(day, digest(public_raw), digest(summary_raw)):
+                if expected_code is None:
+                    require(row.get('status') == 'MISSING_CANDIDATE'
+                            and all(row.get(k) is None for k in ('candidate_rank', 'candidate_score', 'promotion_rank',
+                                'proxy_fill', 'slot_net_return')), 'FORMAL_MISSING_SLOT_CANNOT_CLAIM_ECONOMICS')
+            if not client.public_ready(day, digest(public_raw), digest(summary_raw), p0_raw):
                 return {**base, 'status': 'NEEDS_DEPLOYMENT', 'existing_formal': True,
                         'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
-            return {**base, 'status': 'FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT', 'top2': [r['ts_code'] for r in top2]}
+            return {**base, 'status': 'FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT' if len(top2) == 2 else 'FORMAL_AVAILABLE_SLOTS_LEDGER_AND_PAGE_PRESENT',
+                    'top2': [r['ts_code'] for r in top2], 'missing_profit_slots': 2 - len(top2),
+                    'available_promotion_slots': min(3, len(rows))}
     require(now < cutoff, 'MISSED_PREAUCTION_PUBLICATION_DEADLINE_NO_BACKFILL')
     snapshot_raw = client.file(ROOT+f'candidate_natural_forward/day_{day}.json', head)
     workflow_raw = client.file(ROOT+f'candidate_natural_forward/workflow_{day}.json', head)
@@ -465,6 +554,9 @@ def inspect(client, now):
             require(client.file(ROOT+f'candidate_natural_forward/{kind}_{day}.json', head) is None,
                     'INCOMPLETE_FREEZE_REQUIRES_REPAIR')
         return missing_freeze(client, base, receipt, receipt_raw, now, cutoff)
+    require(workflow_raw is not None and all(client.file(ROOT+f'candidate_natural_forward/{kind}_{day}.json', head) is not None
+            for kind in ('p0_sources', 'local_freeze')),
+            'INCOMPLETE_FREEZE_REQUIRES_REPAIR_ORIGINAL_ARTIFACT_AND_UNIQUE_CAS_NO_OVERWRITE')
     snapshot, frozen = document(snapshot_raw), document(workflow_raw)
     require(frozen.get('signal_date') == day and frozen.get('snapshot_file_sha256') == digest(snapshot_raw)
             and snapshot.get('signal_date') == day and snapshot.get('exec_date') == trade
@@ -485,7 +577,15 @@ def inspect(client, now):
     valid_run(observer_run, OBSERVER, success=False)
     if observer_run.get('status') in {'queued', 'in_progress', 'pending', 'waiting', 'requested'}:
         return {**base, 'status': 'OBSERVER_STILL_RUNNING'}
-    valid_run(observer_run, OBSERVER)
+    if observer_run.get('conclusion') == 'failure':
+        # Read-only preflight. Publisher independently verifies the complete
+        # original ACK archive, capsule, CAS and real publication timestamps.
+        from work.profit_1000_upgrade import candidate_natural_evidence_publication as evidence
+        evidence._run(observer_run, client.request('/actions/workflows/'+OBSERVER), observer_run['id'])
+        evidence._jobs(client.request(f'/actions/runs/{observer_run["id"]}/attempts/1/jobs?per_page=100'), observer_run)
+        evidence._artifact(client.request(f'/actions/runs/{observer_run["id"]}/artifacts?per_page=100'), observer_run)
+    else:
+        valid_run(observer_run, OBSERVER)
     return {**base, 'status': 'NEEDS_PUBLICATION', 'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
 
 
@@ -501,14 +601,14 @@ def act(client, plan, now, *, execute=False, clock=None):
     relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']
     failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
         datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
-    if workflow == P0:
+    if workflow in (P0, HISTORY):
         p0_dispatch_window(plan['signal_date'], now)
         # Failed scheduled attempts before data arrived must not consume the
         # retry budget for a newly ready, pinned source generation.
         ready = datetime.fromisoformat(plan['source_ready_at'])
-        failures = [r for r in failures if r.get('event') == 'workflow_dispatch'
+        failures = [r for r in failures if workflow == HISTORY or (r.get('event') == 'workflow_dispatch'
                     and r.get('display_title') == 'DC20 controlled daily NATURAL | D='+plan['signal_date']
-                    and datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= ready]
+                    and datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= ready)]
     require(len(failures) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
     cutoff = datetime.strptime(plan['exec_date']+'0920', '%Y%m%d%H%M').replace(tzinfo=TZ)
     if plan.get('freeze_deadline'):
@@ -526,7 +626,7 @@ def act(client, plan, now, *, execute=False, clock=None):
     # live clock; deterministic callers may provide their own advancing clock.
     dispatch_now = clock() if clock is not None else now
     require(dispatch_now.tzinfo is not None and dispatch_now >= now, 'DISPATCH_CLOCK_INVALID')
-    if workflow == P0:
+    if workflow in (P0, HISTORY):
         p0_dispatch_window(plan['signal_date'], dispatch_now)
     require(plan.get('existing_formal') is True or dispatch_now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
     client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})

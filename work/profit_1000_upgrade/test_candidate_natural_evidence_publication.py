@@ -288,3 +288,32 @@ def test_exact_context_fields_and_aware_clock(tmp_path, monkeypatch, field, valu
     case = make_case(tmp_path, monkeypatch); case["context"][field] = value
     case["archive_files"]["context.json"] = m.gh.json_bytes(case["context"]); rearchive(case)
     with pytest.raises(ValueError): run(case)
+
+
+def tail_failure(case,failed='Retain capsule and non-authoritative Git acknowledgement'):
+    case['run']['conclusion']='failure';case['jobs'][1]['conclusion']='failure'
+    names=('Checkout exact validated code without persisted credentials','Python pinned runtime',
+        'Install hash-locked runtime','Verify original publication and append isolated evidence capsule',
+        'Check formal files remain untouched','Retain capsule and non-authoritative Git acknowledgement',
+        'Post Checkout exact validated code without persisted credentials')
+    case['jobs'][1]['steps']=[dict(name=n,number=i+1,status='completed',conclusion='failure' if n==failed else 'success') for i,n in enumerate(names)]
+
+@pytest.mark.parametrize('failed',['Retain capsule and non-authoritative Git acknowledgement','Post Checkout exact validated code without persisted credentials'])
+def test_original_complete_observer_capsule_survives_only_tail_failure(tmp_path,monkeypatch,failed):
+    case=make_case(tmp_path,monkeypatch);tail_failure(case,failed)
+    result=run(case)
+    assert result['status']=='SYNTHETIC_OBSERVER_CHECK_ONLY'
+    assert result['injected_client_for_test'] is True
+    assert case['run']['conclusion']=='failure'
+
+@pytest.mark.parametrize('bad',['append','dirty','expired','missing_ack','duplicate_step','unknown_tail'])
+def test_tail_reuse_never_bypasses_core_cas_artifact_or_untouched_guard(tmp_path,monkeypatch,bad):
+    case=make_case(tmp_path,monkeypatch);tail_failure(case)
+    steps=case['jobs'][1]['steps']
+    if bad=='append':steps[3]['conclusion']='failure'
+    elif bad=='dirty':steps[4]['conclusion']='failure'
+    elif bad=='expired':case['artifact']['expired']=True
+    elif bad=='missing_ack':case['archive_files'].pop('publication.json');rearchive(case)
+    elif bad=='duplicate_step':steps.append(deepcopy(steps[-1]))
+    else:steps[-1].update(name='Unknown cleanup',conclusion='failure')
+    with pytest.raises(ValueError):run(case)

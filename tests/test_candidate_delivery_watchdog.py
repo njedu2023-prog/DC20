@@ -43,6 +43,7 @@ class Fake:
         if head==self.head:return self.files.get(path)
         return self.revisions.get(head,{}).get(path)
     def public_ready(self,*args): return self.live
+    def public_core_status(self,*args): return None
     def request(self,path,body=None):
         if body is not None: self.posts.append((path,deepcopy(body))); return None
         if path=='/git/ref/heads/main': return {'object':{'sha':self.head}}
@@ -73,6 +74,8 @@ class Fake:
     def freeze(self):
         snap=raw(dict(signal_date='20260922',exec_date='20260923',exit_date='20260924'))
         self.files[m.ROOT+'candidate_natural_forward/day_20260922.json']=snap
+        for kind in ('p0_sources','local_freeze'):
+            self.files[m.ROOT+f'candidate_natural_forward/{kind}_20260922.json']=raw({'fixture':True})
         self.files[m.ROOT+'candidate_natural_forward/workflow_20260922.json']=raw(dict(signal_date='20260922',run_id=8,snapshot_file_sha256=m.digest(snap)))
     def observe(self):
         self.freeze()
@@ -513,3 +516,91 @@ def test_executable_watchdog_always_injects_real_dispatch_clock():
     from pathlib import Path
     source=(Path(__file__).resolve().parents[1]/'scripts/candidate_delivery_watchdog.py').read_text()
     assert 'clock=lambda: datetime.now(timezone.utc)' in source.split('def main():',1)[1]
+
+@pytest.mark.parametrize('n',[0,1,2])
+def test_legal_small_promotion_pool_continues_without_inventing_top3(n):
+    f=Fake(); path='outputs/decision/three_rank_top10_20260922.json'
+    f.files[path]=raw({'rows':[{'promotion_rank':i+1} for i in range(n)]})
+    receipt=json.loads(f.files['outputs/decision/primary_d_receipt_20260922.json'])
+    receipt['outputs']['json_sha256']=m.digest(f.files[path])
+    f.files['outputs/decision/primary_d_receipt_20260922.json']=raw(receipt)
+    assert m.inspect(f,NOW)['status']=='NEEDS_FREEZE'
+
+@pytest.mark.parametrize('n',[0,1])
+def test_legitimate_missing_profit_slots_are_verified_terminal_delivery(n):
+    f=Fake();f.formal();path=m.PUBLIC+'day_20260922.json';day=json.loads(f.files[path])
+    day['rows']=day['rows'][:n]
+    day['candidate_slots']=[{'slot':i+1,'status':'PENDING_T' if i<n else 'MISSING_CANDIDATE',
+        'ts_code':day['rows'][i]['ts_code'] if i<n else None} for i in range(2)]
+    f.files[path]=raw(day);f.files[m.PUBLIC+'index.json']=raw({'days':[{'signal_date':'20260922','sha256':m.digest(f.files[path])}]})
+    summary=json.loads(f.files[m.PUBLIC+'summary.json'])
+    for i,g in enumerate(('candidate_top1','candidate_top2')):
+        row=summary['groups'][g]['daily_sequence'][0];row['formal_projection_sha256']=m.canonical(day)
+        if i>=n:row.update(ts_code=None,status='MISSING_CANDIDATE')
+    f.files[m.PUBLIC+'summary.json']=raw(summary)
+    result=m.inspect(f,NOW)
+    assert result['status']=='FORMAL_AVAILABLE_SLOTS_LEDGER_AND_PAGE_PRESENT'
+    assert result['missing_profit_slots']==2-n and not f.posts
+    day['candidate_slots'][-1]['slot_net_return']=0;f.files[path]=raw(day)
+    f.files[m.PUBLIC+'index.json']=raw({'days':[{'signal_date':'20260922','sha256':m.digest(f.files[path])}]})
+    with pytest.raises(ValueError,match='ABSENT_SLOT'):m.inspect(f,NOW)
+
+def test_original_schedule_can_continue_without_claiming_controlled_identity():
+    f=Continuation();r=next(x for x in f.p0_runs if x['id']==7)
+    r.update(event='schedule',name=m.P0_NAME,display_title=m.P0_NAME)
+    assert m.inspect(f,NOW)['status']=='NEEDS_FREEZE_CONTINUATION'
+    r['name']='other'
+    with pytest.raises(ValueError,match='REGISTERED_SCHEDULE'):m.inspect(f,NOW)
+
+@pytest.mark.parametrize('mutation',[None,'old_day','wrong_source_index','wrong_day','wrong_p0','wrong_snapshot','wrong_index_hash'])
+def test_degraded_public_core_requires_exact_current_day_and_all_hashes(monkeypatch,mutation):
+    f=Fake();f.formal();f.public_core_status=lambda *args:m.GitHub.public_core_status(f,*args)
+    d='20260922';indexpath=m.PUBLIC+'index.json';daypath=m.PUBLIC+f'day_{d}.json'
+    source_index=f.files[indexpath];day=json.loads(f.files[daypath]);day['snapshot_file_sha256']='a'*64
+    f.files[daypath]=raw(day)
+    entry=dict(signal_date=d,path=daypath,sha256=m.digest(f.files[daypath]),
+        p0_file_sha256=day['p0_file_sha256'],snapshot_file_sha256=day['snapshot_file_sha256'])
+    f.files[indexpath]=raw({'days':[entry]});source_index=f.files[indexpath]
+    marker=dict(schema_version='dc20_candidate_delivery_isolation_v1',signal_date=d,status='PARTIAL',
+        current_ranking_status='READY',summary_status='UNAVAILABLE',new_freeze_created=False,
+        historical_results_rewritten=False,source_index_sha256=m.digest(source_index),excluded_days=[])
+    public={indexpath:source_index,daypath:f.files[daypath],
+        f'outputs/decision/three_rank_top10_{d}.json':f.files[f'outputs/decision/three_rank_top10_{d}.json']}
+    rev=dict(signal_date=d,primary_d_status='READY',candidate_profit_delivery=marker,
+        candidate_profit_index_url=indexpath,candidate_profit_index_sha256=m.digest(source_index))
+    if mutation=='old_day':rev['signal_date']='20260921'
+    elif mutation=='wrong_source_index':marker['source_index_sha256']='0'*64
+    elif mutation=='wrong_day':public[daypath]+=b' '
+    elif mutation=='wrong_p0':public[f'outputs/decision/three_rank_top10_{d}.json']+=b' '
+    elif mutation=='wrong_snapshot':entry['snapshot_file_sha256']='b'*64;public[indexpath]=raw({'days':[entry]});rev['candidate_profit_index_sha256']=m.digest(public[indexpath])
+    elif mutation=='wrong_index_hash':rev['candidate_profit_index_sha256']='0'*64
+    public['revision.json']=raw(rev)
+    import io
+    monkeypatch.setattr(m.urllib.request,'urlopen',lambda url,timeout:io.BytesIO(public[url.removeprefix('https://njedu2023-prog.github.io/DC20/')]))
+    result=f.public_core_status(d,public[f'outputs/decision/three_rank_top10_{d}.json'] if mutation!='wrong_p0' else f.files[f'outputs/decision/three_rank_top10_{d}.json'],source_index,f.files[daypath])
+    assert (result is not None)==(mutation is None)
+    if mutation is None:
+        f.files.pop(m.PUBLIC+'summary.json')
+        plan=m.inspect(f,NOW)
+        assert plan['status']=='CORE_DELIVERED_AUX_PENDING' and 'workflow' not in plan
+
+@pytest.mark.parametrize('bad',[None,'stale_revision','missing_p0','changed_p0'])
+def test_healthy_public_delivery_also_requires_current_primary_list(monkeypatch,bad):
+    f=Fake();f.formal();d='20260922';p0=f.files[f'outputs/decision/three_rank_top10_{d}.json']
+    paths={m.PUBLIC+name:f.files[m.PUBLIC+name] for name in ('index.json','summary.json',f'day_{d}.json')}
+    paths['revision.json']=raw(dict(signal_date='20260921' if bad=='stale_revision' else d,primary_d_status='READY'))
+    paths[f'outputs/decision/three_rank_top10_{d}.json']=p0+(b' ' if bad=='changed_p0' else b'')
+    import io
+    def fetch(url,timeout):
+        path=url.removeprefix('https://njedu2023-prog.github.io/DC20/')
+        if bad=='missing_p0' and path.startswith('outputs/decision/three_rank_top10_'):raise OSError('404')
+        return io.BytesIO(paths[path])
+    monkeypatch.setattr(m.urllib.request,'urlopen',fetch)
+    assert m.GitHub.public_ready(f,d,m.digest(paths[m.PUBLIC+f'day_{d}.json']),m.digest(paths[m.PUBLIC+'summary.json']),p0)==(bad is None)
+
+@pytest.mark.parametrize('kind',['day','workflow','p0_sources','local_freeze'])
+def test_partial_original_capsule_has_no_blind_dispatch_or_overwrite(kind):
+    f=Fake();f.freeze();f.files.pop(m.ROOT+f'candidate_natural_forward/{kind}_20260922.json')
+    before=deepcopy(f.files)
+    with pytest.raises(ValueError,match='INCOMPLETE_FREEZE'):m.inspect(f,NOW)
+    assert f.files==before and not f.posts

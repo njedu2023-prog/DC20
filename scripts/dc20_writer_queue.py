@@ -26,6 +26,7 @@ WRITERS = frozenset({
     'run_decision_daily.yml', 'run_auction_v3.yml',
     'backfill_decision_v11_history.yml', 'train_decision_three_engines.yml',
     'migrate_decision_runtime.yml',
+    'prepare_primary_history.yml',
 })
 TARGETS = WRITERS | frozenset({
     'research_candidate_natural_forward.yml',

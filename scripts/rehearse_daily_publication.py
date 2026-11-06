@@ -48,6 +48,15 @@ def run(root, out):
     protected += list((root / 'models').rglob('*'))
     protected += list((root / 'work/profit_1000_upgrade/candidate_natural_forward').rglob('*'))
     protected = {str(p.relative_to(root)): digest(p) for p in protected if p.is_file()}
+    business_inputs = {path: value for path, value in protected.items()
+        if path != 'models/decision_model_freeze.json'
+        and not path.startswith('models/decision_source_surface_review_')}
+    for directory in ('data/market/raw', 'outputs/decision/candidate_profit_v1',
+                      'work/profit_1000_upgrade/candidate_natural_evidence'):
+        for path in (root/directory).rglob('*'):
+            if path.is_file():
+                business_inputs[str(path.relative_to(root))] = digest(path)
+    input_signature = hashlib.sha256(json.dumps(business_inputs,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     env = os.environ.copy()
     env.pop('LEGACY_PROFIT_ARCHIVED', None)
     # No publishing credentials are passed into the isolated build.
@@ -64,6 +73,7 @@ def run(root, out):
                PUBLISH_LEGACY_PROFIT_RELATIVE='false')
     result = {'schema_version':'dc20_isolated_publication_rehearsal_v1',
               'signal_date':day, 'historical_replay_only':True,
+              'business_input_inventory_sha256':input_signature,
               'natural_freeze_created':False, 'public_deploy_performed':False,
               'workflow_sha256':digest(root/'.github/workflows/deploy_dc20_pages.yml'),
               'steps':[], 'status':'RUNNING'}

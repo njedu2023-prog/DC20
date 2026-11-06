@@ -1,0 +1,60 @@
+name: DC20 · Prepare committed P0 history
+on:
+  workflow_dispatch:
+    inputs:
+      signal_date:
+        description: 'Same-day D, YYYYMMDD'
+        required: true
+        type: string
+      expected_head:
+        description: 'Exact DC20 main commit before preparation'
+        required: true
+        type: string
+      market_commit:
+        description: 'Verified immutable a-share-top3-data commit'
+        required: true
+        type: string
+      dry_run:
+        description: 'Validate only; never write history'
+        required: true
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: decision-auction-main-writer
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.13'
+      - name: Prepare bounded original history before a fresh P0 run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNAL_DATE: ${{ inputs.signal_date }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          MARKET_COMMIT: ${{ inputs.market_commit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "false" ]; then args+=(--execute); fi
+          python scripts/prepare_primary_history.py --signal-date "$SIGNAL_DATE" --expected-head "$EXPECTED_HEAD" --market-commit "$MARKET_COMMIT" --output "$RUNNER_TEMP/history-preparation.json" "${args[@]}"
+      - name: Preserve preparation audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-history-preparation-${{ github.run_id }}
+          path: ${{ runner.temp }}/history-preparation.json
+          retention-days: 14

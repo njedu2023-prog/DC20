@@ -1,4 +1,4 @@
-"""Pure validation of an original controlled P0 generation candidate archive.
+"""Pure validation of an original registered P0 generation candidate archive.
 
 This module has no network or filesystem operations. Callers must validate the
 complete API run/job evidence and Git tree objects independently. This checks
@@ -363,9 +363,10 @@ def validate_generation_archive(archive, artifact, run, receipt, cas_commit,
     _require(type(run) is dict and type(run.get("id")) is int and run["id"] > 0
              and run.get("workflow_id") == 343703608 and run.get("path") == WORKFLOW_PATH
              and run.get("head_branch") == "main" and type(run.get("run_attempt")) is int
-             and run["run_attempt"] == 1 and run.get("event") == "workflow_dispatch"
+             and run["run_attempt"] == 1 and run.get("event") in ("workflow_dispatch", "schedule")
              and run.get("status") == "completed" and run.get("conclusion") == "failure"
-             and run.get("name") == run.get("display_title") == f"DC20 controlled daily NATURAL | D={day}"
+             and run.get("name") == run.get("display_title") == ("DC2.0 · Publish Primary D List (P0)"
+                 if run.get("event") == "schedule" else f"DC20 controlled daily NATURAL | D={day}")
              and run.get("repository", {}).get("full_name") == REPOSITORY
              and run.get("head_repository", {}).get("full_name") == REPOSITORY,
              "GENERATION_EXACT_ORIGINAL_CONTROLLED_RUN")
@@ -388,9 +389,20 @@ def validate_generation_archive(archive, artifact, run, receipt, cas_commit,
     target = _json(members["primary-d-target-envelope.json"])
     _require(type(target) is dict and set(target) == {"signal_date", "generation_mode", "pred_commit",
         "market_commit", "dispatch_created_at"} and target["signal_date"] == day
-        and target["generation_mode"] == "NATURAL" and _utc(target["dispatch_created_at"]) == created,
+        and target["generation_mode"] == "NATURAL",
         "GENERATION_EXACT_TARGET_ENVELOPE")
     candidate, market = receipt["inputs"]["candidate"], receipt["inputs"]["market"]
+    original_target = dict(target)
+    if run["event"] == "schedule":
+        _require(all(target[k] == "" for k in ("dispatch_created_at", "pred_commit", "market_commit")),
+                 "GENERATION_EXACT_SCHEDULE_TARGET_ENVELOPE")
+        # The schedule originally resolves main inside its job. Preserve the
+        # original empty target verbatim; bind resolved commits through the
+        # original CAS receipt, source metadata, and independent commit APIs.
+        target = {**target, "pred_commit": _exact_sha(candidate.get("resolved_commit")),
+                  "market_commit": _exact_sha(market.get("resolved_commit"))}
+    else:
+        _require(_utc(target["dispatch_created_at"]) == created, "GENERATION_EXACT_TARGET_ENVELOPE")
     _require(candidate.get("source_repository") == "njedu2023-prog/a-top10"
              and market.get("source_repository") == "njedu2023-prog/a-share-top3-data"
              and _exact_sha(target["pred_commit"]) == candidate.get("resolved_commit")
@@ -457,7 +469,9 @@ def validate_generation_archive(archive, artifact, run, receipt, cas_commit,
         "original_generation_run_id": run["id"], "original_generation_head_sha": base,
         "original_cas_commit_sha": cas_commit["sha"], "original_cas_tree_sha": cas_commit["tree"]["sha"],
         "artifact": {k: artifact[k] for k in ("id", "name", "size_in_bytes", "digest", "expired", "created_at", "updated_at")},
-        "target_envelope": target, "patch_sha256": _sha(patch),
+        "target_envelope": original_target,
+        **({"resolved_schedule_upstreams": {k: target[k] for k in ("pred_commit", "market_commit")}}
+           if run["event"] == "schedule" else {}), "patch_sha256": _sha(patch),
         "original_source_production_times": source_times,
         "member_bindings": [{"path": p, "sha256": _sha(raw), "bytes": len(raw)} for p, raw in sorted(members.items())],
         "patch_file_bindings": [bindings[p] for p in sorted(bindings)],

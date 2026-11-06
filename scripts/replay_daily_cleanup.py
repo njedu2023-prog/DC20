@@ -127,7 +127,8 @@ def offline():
 
 
 class Replay:
-    def __init__(self, source_root, code_root, day, label):
+    def __init__(self, source_root, code_root, day, label, original_source_cache=None):
+        self.original_source_cache = original_source_cache
         self.source_root, self.code_root, self.day = source_root, code_root, day
         self.protected = {}
         self.report = {
@@ -225,7 +226,7 @@ class Replay:
             require(verified['snapshot_file_sha256'] == workflow['snapshot_file_sha256']
                     and verified['signal_date'] == day, 'CAPSULE_FROZEN_SNAPSHOT_CHANGED')
             stage.update(body_count=len(bodies), original_source_count=len(verified['original_source_bindings']),
-                         provenance_kind=verified['p0_provenance_kind'], manifest_sha256=sha(manifest_raw))
+                         provenance_kind=verified.get('p0_provenance_kind', 'SINGLE_ORIGINAL_RUN'), manifest_sha256=sha(manifest_raw))
 
         with self.stage('original_registered_sources_from_verified_capsule') as stage:
             # Mutable sync metadata may have been refreshed since D. Recover
@@ -242,6 +243,17 @@ class Replay:
                     continue
                 api_path = '/repos/njedu2023-prog/DC20/git/blobs/'+binding['git_blob_sha1']
                 observations = [row for row in verified['http_observations'] if row['api_path'] == api_path]
+                if not observations and self.original_source_cache is not None:
+                    cached = safe_path(self.original_source_cache, expected_sha).read_bytes()
+                    require(sha(cached) == expected_sha and len(cached) == binding['bytes']
+                            and hashlib.sha1(b'blob '+str(len(cached)).encode()+b'\0'+cached).hexdigest() == binding['git_blob_sha1'],
+                            'ORIGINAL_CACHE_BINDING_CHANGED:'+path)
+                    destination = temporary_root/path
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(cached)
+                    source_map[path] = str(destination)
+                    rebound.append({'path':path, 'sha256':expected_sha, 'bytes':len(cached), 'source':'EXACT_ORIGINAL_GIT_BLOB_CACHE'})
+                    continue
                 require(observations, 'ORIGINAL_CAPSULE_BLOB_MISSING:'+path)
                 values = [json.loads(bodies[row['retained_body']['path']]) for row in observations]
                 require(all(value == values[0] for value in values), 'ORIGINAL_CAPSULE_BLOB_CONFLICT:'+path)
@@ -297,28 +309,35 @@ class Replay:
             from work.profit_1000_upgrade import candidate_eligible_pool as eligible
             prediction = eligible.predict_eligible(evaluation['candidate_model'], projection,
                 expected_model_sha256=frozen['model_canonical_sha256'])
-            eligible.validate_prediction(frozen['prediction'], frozen['D_source_evidence']['projection'],
-                expected_model_sha256=frozen['model_canonical_sha256'])
-            # A one-ULP feature difference changes a cryptographic digest. Check
-            # each digest against its own fully compared values; never apply a
-            # numeric tolerance to dates, ranks, model hashes or arbitrary text.
-            actual_values, frozen_values = dict(prediction), dict(frozen['prediction'])
-            actual_feature_sha, frozen_feature_sha = (values.pop('full_D_rows_sha256')
+            original_prediction = frozen['prediction']
+            if 'eligibility_policy_id' not in original_prediction:
+                from work.profit_1000_upgrade import candidate_forward_predict as legacy
+                prediction = legacy.predict_forward(evaluation['candidate_model'], projection['rows'],
+                    expected_model_sha256=frozen['model_canonical_sha256'], signal_date=day)
+                fingerprint_key, rows_key, slots_key = 'whitelisted_D_rows_sha256', None, 'slots'
+                actual_rows = legacy._project(projection['rows'], day)
+                frozen_rows = legacy._project(frozen['D_source_evidence']['projection']['rows'], day)
+            else:
+                eligible.validate_prediction(original_prediction, frozen['D_source_evidence']['projection'],
+                    expected_model_sha256=frozen['model_canonical_sha256'])
+                fingerprint_key, rows_key, slots_key = 'full_D_rows_sha256', 'promotion_rows', 'candidate_slots'
+                actual_rows, frozen_rows = prediction[rows_key], original_prediction[rows_key]
+            actual_values, frozen_values = dict(prediction), dict(original_prediction)
+            actual_feature_sha, frozen_feature_sha = (values.pop(fingerprint_key)
                                                       for values in (actual_values, frozen_values))
-            require(actual_feature_sha == canonical(prediction['promotion_rows'])
-                    and frozen_feature_sha == canonical(frozen['prediction']['promotion_rows']),
+            require(actual_feature_sha == canonical(actual_rows) and frozen_feature_sha == canonical(frozen_rows),
                     'DERIVED_FEATURE_FINGERPRINT_CHANGED')
             comparison = compare_frozen(actual_values, frozen_values)
-            stage.update(eligible_candidate_count=prediction['eligible_candidate_count'],
-                         profit_top2=prediction['candidate_slots'],
+            stage.update(eligible_candidate_count=prediction.get('eligible_candidate_count',prediction.get('candidate_count')),
+                         profit_top2=prediction[slots_key],
                          model_canonical_sha256=frozen['model_canonical_sha256'],
-                         prediction_sha256=canonical(prediction), exact_prediction_match=prediction == frozen['prediction'],
+                         prediction_sha256=canonical(prediction), exact_prediction_match=prediction == original_prediction,
                          comparison=comparison, derived_feature_fingerprint={
                              'replayed':actual_feature_sha, 'frozen':frozen_feature_sha,
                              'each_verified_against_own_values':True,
                              'exact_match':actual_feature_sha == frozen_feature_sha})
-            self.report['promotion_top3'] = frozen['promotion_top3']
-            self.report['profit_top2'] = prediction['candidate_slots']
+            self.report['promotion_top3'] = frozen.get('promotion_top3') or frozen['promotion_slots']
+            self.report['profit_top2'] = prediction[slots_key]
             self.report['business_signature_sha256'] = canonical({'signal_date':day,
                 'promotion':actual[['ts_code','promotion_rank','predicted_promotion_probability']].to_dict('records'),
                 'candidate_prediction':prediction})
@@ -340,6 +359,7 @@ def main(argv=None):
     parser.add_argument('--source-root', type=Path)
     parser.add_argument('--signal-date', default='20261106')
     parser.add_argument('--label', default='historical-replay')
+    parser.add_argument('--original-source-cache', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
     require(re.fullmatch(r'[0-9]{8}', args.signal_date), 'EXACT_SIGNAL_DATE_REQUIRED')
@@ -350,7 +370,7 @@ def main(argv=None):
     require(not output.resolve().is_relative_to(code.resolve()) and not output.resolve().is_relative_to(source.resolve()),
             'REPORT_OUTPUT_MUST_BE_OUTSIDE_BOTH_CHECKOUTS')
     sys.path[:0] = [str(code), str(code/'src')]
-    runner = Replay(source, code, args.signal_date, args.label)
+    runner = Replay(source, code, args.signal_date, args.label, root_path(args.original_source_cache) if args.original_source_cache else None)
     start = time.perf_counter()
     try:
         with offline(), tempfile.TemporaryDirectory(prefix='dc20-historical-replay-') as temporary:

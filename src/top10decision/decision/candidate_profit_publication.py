@@ -137,7 +137,7 @@ def _dependencies():
     # check the complete unchanged source/model/label chain.
     pins = {
         "candidate_natural_outcomes": 'a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06',
-        "candidate_natural_evidence_publication": 'c4a15f3c081476337799845ba60c00c8996366c06ec4f9a4d64956c5b2cc62ac',
+        "candidate_natural_evidence_publication": '4c73447bd460001724a7b22df60f012016c3b5f8e05f97e0a40967e65a0253de',
     }
     for name, expected in pins.items():
         path = ROOT / "work/profit_1000_upgrade" / (name + ".py")

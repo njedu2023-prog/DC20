@@ -20,12 +20,12 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = '730fe5366337a31a1761d457d4988a3be67b1cdd7b7ac8a8878dfd8b37153f80'
+CAPTURE_SHA = '6b3112793e376cb93f6ffb912c8f79cf95fa29908980fcaf8ebc58b20f201a40'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = 'e12088cf9eec97d91af4c6e731ffabb4845342fe3d44f7ec6abe2e7130876db5'
+OBSERVER_SHA = '6507ea37a62e6b17c3292708e6832038ad9f282323baec379c3976d3146bf27d'
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
 WRITER_SHA = "407ec6b9c7fbf36127b9453b15e0c7f25a6c7ea04f7547de5ac8f5310595fc2c"
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
@@ -91,7 +91,7 @@ def _run(run, registration, run_id):
         and type(run.get("workflow_id")) is int and run["workflow_id"] == registration["id"]
         and run.get("path") == WORKFLOW_PATH and run.get("name") == WORKFLOW_NAME
         and run.get("head_branch") == "main" and type(run.get("run_attempt")) is int and run["run_attempt"] == 1
-        and run.get("status") == "completed" and run.get("conclusion") == "success"
+        and run.get("status") == "completed" and run.get("conclusion") in ("success", "failure")
         and run.get("event") in ("workflow_run", "workflow_dispatch")
         and run.get("repository", {}).get("full_name") == gh.REPOSITORY
         and run.get("head_repository", {}).get("full_name") == gh.REPOSITORY,
@@ -99,6 +99,34 @@ def _run(run, registration, run_id):
     gh.exact_sha(run.get("head_sha"), 40)
     require(gh.utc(run.get("created_at")) <= gh.utc(run.get("run_started_at")) <= gh.utc(run.get("updated_at")),
         "OBSERVER_RUN_TIME_INVALID")
+
+
+def observer_tail_failure_only(job):
+    """A complete same-run ACK is still mandatory; this grants no authority.
+
+    Failure of computation, immutable append, or untouched-files validation
+    remains fatal. Only the redundant artifact/post-checkout tail can fail.
+    """
+    steps = job.get("steps")
+    require(type(steps) is list and all(type(x) is dict and type(x.get("number")) is int
+        and x["number"] > 0 and type(x.get("name")) is str and x.get("status") == "completed" for x in steps)
+        and len({x["name"] for x in steps}) == len(steps)
+        and len({x["number"] for x in steps}) == len(steps), "OBSERVER_COMPLETE_STEPS_REQUIRED")
+    by_name = {x["name"]: x for x in steps}
+    core = ("Checkout exact validated code without persisted credentials", "Python pinned runtime",
+        "Install hash-locked runtime", "Verify original publication and append isolated evidence capsule",
+        "Check formal files remain untouched")
+    tail = {"Retain capsule and non-authoritative Git acknowledgement",
+        "Post Checkout exact validated code without persisted credentials", "Post Python pinned runtime"}
+    require(all(by_name.get(name, {}).get("conclusion") == "success" for name in core),
+        "OBSERVER_CORE_STEPS_NOT_SUCCESSFUL")
+    failed = [x for x in steps if x.get("conclusion") == "failure"]
+    require(failed and all(x["name"] in tail for x in failed)
+        and all(x.get("conclusion") in ("success", "skipped", "failure") for x in steps)
+        and all(x["number"] > max(by_name[n]["number"] for n in core) for x in failed),
+        "OBSERVER_ONLY_VERIFIED_TAIL_MAY_FAIL")
+    require("Retain capsule and non-authoritative Git acknowledgement" in by_name,
+        "OBSERVER_ARTIFACT_STEP_REQUIRED")
 
 
 def _jobs(document, run):
@@ -110,12 +138,19 @@ def _jobs(document, run):
         require(type(job) is dict and type(job.get("id")) is int and job["id"] > 0 and job["id"] not in ids
             and type(job.get("run_id")) is int and job["run_id"] == run["id"]
             and job.get("name") in JOBS and job["name"] not in found
-            and job.get("status") == "completed" and job.get("conclusion") == "success", "OBSERVER_JOB_NOT_SUCCESSFUL")
+            and job.get("status") == "completed" and (job.get("conclusion") == "success"
+                or (run.get("conclusion") == "failure" and job.get("name") == JOBS[1]
+                    and job.get("conclusion") == "failure")), "OBSERVER_JOB_NOT_SUCCESSFUL")
+        if job.get("conclusion") == "failure":
+            observer_tail_failure_only(job)
         require(gh.utc(run["run_started_at"]) <= gh.utc(job.get("started_at")) <= gh.utc(job.get("completed_at"))
             <= gh.utc(run["updated_at"]), "OBSERVER_JOB_TIME_INVALID")
         found[job["name"]] = {k: job[k] for k in ("id", "run_id", "name", "status", "conclusion", "started_at", "completed_at")}
         ids.add(job["id"])
     ordered = [found[name] for name in JOBS]
+    require((run.get("conclusion") == "success" and all(j["conclusion"] == "success" for j in ordered))
+        or (run.get("conclusion") == "failure" and ordered[0]["conclusion"] == "success"
+            and ordered[1]["conclusion"] == "failure"), "OBSERVER_RUN_AND_JOB_OUTCOMES_DISAGREE")
     require(gh.utc(ordered[0]["completed_at"]) <= gh.utc(ordered[1]["started_at"]), "OBSERVER_VALIDATION_MUST_PRECEDE_CAPTURE")
     return ordered
 
@@ -205,9 +240,40 @@ PRE_CONTINUATION_OBSERVER_PROFILE = ('df6dc5c44116c037e46f48a3e0dc3a2ca2e2b12e95
 
 PRE_CONTROLLED_OBSERVER_PROFILE = ('0dfb050f23222eadfbd1eee19a39ca52f46a74a0178d3e12f21ca5365f00196b', {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '2f433fa22251a3712c83bbfc6770746a7d89b550', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '4fef6088fbe25cdfad6e6d19243eed375c27d1da', 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': 'aec9f7eda757e6ab784e9d591da41f7abc43819d', 'work/profit_1000_upgrade/candidate_natural_workflow.py': '1c3b7a44fdea71e6dfa362e70b91ce63166cd125', '.github/workflows/research_candidate_natural_forward.yml': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8', 'requirements-dev.lock': '892183b9e5c4ed2e1c1899589b8793f556b32136', 'work/profit_1000_upgrade/candidate_natural_forward.py': '1952b8d3478f5d9f1d2a08e0125af337edcbacfe', 'work/profit_1000_upgrade/candidate_natural_forward_registration.json': 'aa7153d610791583e412bf38c30609b92fe0d682', 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0', 'work/profit_1000_upgrade/candidate_eligible_forward.py': '7f0172e742a63185f1d2643746c0bd9469c3da69', 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': '0982d8c7af52359165e259fd0e4748896d3fd6df', 'work/profit_1000_upgrade/candidate_eligible_pool.py': '3855dbedf6e4b6c85454c50d95a22cc128d52273', 'work/profit_1000_upgrade/candidate_snapshot_versions.py': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534', 'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'ae71bcdde038132939160f9c0720186f14f90f08', 'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'dcae72da6b8ac93060a487470f6b648780e6ef1d', 'work/profit_1000_upgrade/candidate_forward_predict.py': 'e69a1792ca8c35cd73deffac53f772d47bcb432c', 'forward/storage.py': '7e622895c32455123d71244ae491a7302b9b2abe', 'scripts/publish_primary_three_rank.py': '54cc956de2996663b170ed6e09ce9fef812e2221', 'work/profit_1000_upgrade/candidate_d_feature_projection.py': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe', 'work/profit_1000_upgrade/candidate_live_feature_math.py': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04', 'src/top10decision/decision/d_close_features.py': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7', 'src/top10decision/decision/three_rank.py': 'cf18b86656e71eff5a38e0e57d35494db172528f', 'work/profit_1000_upgrade/candidate_natural_evidence.py': '1f58a415b43f97b60344c745ffcc6e712efa3c6a', 'work/profit_1000_upgrade/candidate_natural_observer.py': 'f586e37a4844168ae48a92459b897abb2e85cd0a', '.github/workflows/research_candidate_natural_observer.yml': 'bed0f4ffccc979e2f8a18bb8f9f96e2234971130', 'work/profit_1000_upgrade/candidate_natural_evidence_git.py': 'a6eb77d005f282afc768d6299f5bb61d01570a89'})
 
+PRE_HARDENING_OBSERVER_PROFILE = ('e12088cf9eec97d91af4c6e731ffabb4845342fe3d44f7ec6abe2e7130876db5',
+ {'.github/workflows/research_candidate_natural_forward.yml': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8',
+  '.github/workflows/research_candidate_natural_observer.yml': 'bed0f4ffccc979e2f8a18bb8f9f96e2234971130',
+  'forward/storage.py': '7e622895c32455123d71244ae491a7302b9b2abe',
+  'requirements-dev.lock': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+  'scripts/publish_primary_three_rank.py': '54cc956de2996663b170ed6e09ce9fef812e2221',
+  'src/top10decision/decision/d_close_features.py': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+  'src/top10decision/decision/three_rank.py': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+  'work/profit_1000_upgrade/candidate_d_feature_projection.py': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe',
+  'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'dcae72da6b8ac93060a487470f6b648780e6ef1d',
+  'work/profit_1000_upgrade/candidate_eligible_forward.py': '7f0172e742a63185f1d2643746c0bd9469c3da69',
+  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': '0982d8c7af52359165e259fd0e4748896d3fd6df',
+  'work/profit_1000_upgrade/candidate_eligible_pool.py': '3855dbedf6e4b6c85454c50d95a22cc128d52273',
+  'work/profit_1000_upgrade/candidate_forward_predict.py': 'e69a1792ca8c35cd73deffac53f772d47bcb432c',
+  'work/profit_1000_upgrade/candidate_legacy_workflow.py': '4483198de5204d757973b24c87c90534b059477f',
+  'work/profit_1000_upgrade/candidate_live_feature_math.py': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04',
+  'work/profit_1000_upgrade/candidate_natural_evidence.py': '5addcaae208374074ea4a12e59d062c418d4235e',
+  'work/profit_1000_upgrade/candidate_natural_evidence_git.py': 'a6eb77d005f282afc768d6299f5bb61d01570a89',
+  'work/profit_1000_upgrade/candidate_natural_forward.py': '1952b8d3478f5d9f1d2a08e0125af337edcbacfe',
+  'work/profit_1000_upgrade/candidate_natural_forward_registration.json': 'aa7153d610791583e412bf38c30609b92fe0d682',
+  'work/profit_1000_upgrade/candidate_natural_model/evaluation.json': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0',
+  'work/profit_1000_upgrade/candidate_natural_observer.py': '345c8b040a0c31002041ec23b9d056a04c6d1c1a',
+  'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '53c53006c6f11e0d39a934704b5e5d43bb54927f',
+  'work/profit_1000_upgrade/candidate_natural_p0_github.py': '8aa3e64b65707681f49a1dbf01316307ea7de5e5',
+  'work/profit_1000_upgrade/candidate_natural_workflow.py': '893c8861a6f552581f2b349aee79a848566d031a',
+  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': 'aec9f7eda757e6ab784e9d591da41f7abc43819d',
+  'work/profit_1000_upgrade/candidate_snapshot_versions.py': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534'})
+
 def _observer_profile(manifest):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     require(contract in capture.capture_contracts(), "EXACT_CAPTURE_PROFILE_REQUIRED")
+    if contract == capture.PRE_HARDENING_CAPTURE_CONTRACT:
+        require(gh.date(manifest.get("signal_date")) <= "20261106", "PRE_HARDENING_OBSERVER_DATE_CHANGED")
+        return PRE_HARDENING_OBSERVER_PROFILE
     if contract == capture.PRE_CONTROLLED_CAPTURE_CONTRACT:
         require(gh.date(manifest.get("signal_date")) < "20261106", "PRE_CONTROLLED_OBSERVER_DATE_CHANGED")
         return PRE_CONTROLLED_OBSERVER_PROFILE
@@ -249,7 +315,7 @@ def _context(context, run, manifest, observation):
 def match_observer_code(code_tree, published_tree, local, manifest):
     """An old capsule keeps its exact old observer contract, without rewriting it."""
     _, overrides = _observer_profile(manifest)
-    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
+    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
         require(code_tree.get(publication.COORDINATOR_PATH, {}).get("sha")
             == publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"],
             "HISTORICAL_CAPTURE_REQUIRES_ORIGINAL_COORDINATOR")
@@ -257,7 +323,8 @@ def match_observer_code(code_tree, published_tree, local, manifest):
     current = contract in ((capture.SELF_SHA, capture.PUBLICATION_SHA), capture.PRE_CONTINUATION_CAPTURE_CONTRACT)
     old_importer = next(b["git_blob_sha1"] for b in publication.HISTORICAL_CODE_BINDINGS
         if b["path"] == publication.IMPORTER_PATH)
-    expected_importer = (PRE_CONTROLLED_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
+    expected_importer = (PRE_HARDENING_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
+        if contract == capture.PRE_HARDENING_CAPTURE_CONTRACT else PRE_CONTROLLED_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract in (capture.PRE_CONTROLLED_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT) else
         gh.git_blob(local[publication.IMPORTER_PATH]) if current else
         PRE_BOUNDARY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]

@@ -1,7 +1,9 @@
 """Isolated fault injection. No real credentials, HTTP or dispatches."""
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
+import base64
+import hashlib
 import pytest
 from scripts import candidate_delivery_watchdog as m
 import importlib.util
@@ -20,12 +22,32 @@ class Missing(Fake):
         super().__init__()
         del self.files['outputs/decision/primary_d_receipt_20260922.json']
         del self.files['outputs/decision/three_rank_top10_20260922.json']
+        from scripts.prepare_primary_history import TABLES, dates
+        calendar = 'exchange,cal_date,is_open,pretrade_date\n';previous='20260731'
+        for offset in range(56):
+            date=datetime(2026,8,1)+timedelta(days=offset);day=date.strftime('%Y%m%d');opened=date.weekday()<5
+            calendar+=f'SSE,{day},{int(opened)},{previous}\n'
+            if opened:previous=day
+        calraw=calendar.encode();self.files['data/market/trade_cal_sse.csv']=calraw
+        blob=hashlib.sha1(b'blob '+str(len(calraw)).encode()+b'\0'+calraw).hexdigest()
+        self.history_blobs={blob:dict(sha=blob,size=len(calraw),encoding='base64',content=base64.b64encode(calraw).decode())}
+        self.history_tree=[dict(path='data/market/trade_cal_sse.csv',sha=blob,size=len(calraw),mode='100644',type='blob')]
+        for day in dates(calraw,'20260922'):
+            for table in TABLES:
+                value=(f'ts_code,trade_date,name\n000001.SZ,{day},'+('x'*5000)+'\n').encode()
+                value_sha=hashlib.sha1(b'blob '+str(len(value)).encode()+b'\0'+value).hexdigest()
+                self.history_blobs[value_sha]=dict(sha=value_sha,size=len(value),encoding='base64',content=base64.b64encode(value).decode())
+                self.history_tree.append(dict(path=f'data/market/raw/{day[:4]}/{day}/{table}.csv',
+                    sha=value_sha,size=len(value),mode='100644',type='blob'))
         self.sources = {'pred_commit': 'b'*40, 'market_commit': 'c'*40,
                         'source_ready_at': '2026-09-22T13:45:00+00:00'}
     def p0_sources(self, day, now):
         assert day == '20260922'
         return self.sources
-    def request(self, path, body=None):
+    def request(self, path, body=None, *, repository=m.REPO):
+        assert repository == m.REPO
+        if path == '/git/trees/'+self.head+'?recursive=1':return {'truncated':False,'tree':deepcopy(self.history_tree)}
+        if path.startswith('/git/blobs/'):return deepcopy(self.history_blobs[path.rsplit('/',1)[1]])
         if path == '/actions/workflows/'+m.P0+'/runs?per_page=50':
             return {'workflow_runs': self.busy}
         return super().request(path, body)
@@ -177,3 +199,27 @@ def test_existing_entry_contract_and_schedule_remain_unchanged():
     assert 'not time(15, 0) < bj.time() < time(23, 30)' in text
     assert 'controlled daily P0 requires two immutable upstream commits' in text
     assert 'partial immutable P0 D bundle exists' in text
+
+
+def test_missing_history_dispatches_preparation_before_P0_then_rechecks_head():
+    f=Missing();missing=f.history_tree.pop();plan=m.inspect(f,NOW)
+    assert plan['status']=='NEEDS_HISTORY_PREPARATION'
+    assert plan['inputs']=={'signal_date':'20260922','market_commit':'c'*40,'expected_head':f.head,'dry_run':False}
+    assert plan['missing_paths']==[missing['path']]
+    assert m.act(f,plan,NOW,execute=True)['status']=='DISPATCHED_NOT_COMPLETED'
+    assert f.posts[0][0]=='/actions/workflows/'+m.HISTORY+'/dispatches'
+    # A successful separate CAS is followed by a fresh inspection, never by a
+    # same-tick P0 dispatch still pinned to the old tree.
+    f.history_tree.append(missing);f.head='e'*40
+    next_plan=m.inspect(f,NOW)
+    assert next_plan['status']=='NEEDS_P0' and next_plan['head']=='e'*40
+
+
+def test_history_api_failure_is_not_a_clean_preflight():
+    f=Missing();original=f.request
+    def fail(path,body=None,**kwargs):
+        if path.startswith('/git/trees/'):raise ValueError('GITHUB_READ_UNAVAILABLE')
+        return original(path,body,**kwargs)
+    f.request=fail
+    with pytest.raises(ValueError,match='GITHUB_READ_UNAVAILABLE'):m.inspect(f,NOW)
+    assert not f.posts

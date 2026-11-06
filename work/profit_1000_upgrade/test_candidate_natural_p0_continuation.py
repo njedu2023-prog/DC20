@@ -242,3 +242,30 @@ def test_controlled_reuse_rejects_unqualified_identity(mutation):
     if mutation == 'before_close': run['created_at'] = '2026-11-06T06:59:59Z'
     if mutation == 'attempt': run['run_attempt'] = 2
     with pytest.raises(ValueError): m.validate_reuse_event(run, '20261106')
+
+
+def test_schedule_origin_retains_full_original_identity_and_exact_evidence(tmp_path,monkeypatch):
+    c=fixture(tmp_path,monkeypatch)
+    c['r0'].update(event='schedule',name=gh.WORKFLOW_NAME,display_title=gh.WORKFLOW_NAME)
+    with zipfile.ZipFile(io.BytesIO(c['client'].archives[67890])) as z:
+        members={name:z.read(name) for name in z.namelist()}
+    target=json.loads(members['primary-d-target-envelope.json'])
+    target.update(pred_commit='',market_commit='',dispatch_created_at='')
+    members['primary-d-target-envelope.json']=gh.json_bytes(target)
+    buf=io.BytesIO()
+    with zipfile.ZipFile(buf,'w',zipfile.ZIP_DEFLATED) as z:
+        for path,body in members.items():z.writestr(path,body)
+    archive=buf.getvalue();c['client'].archives[67890]=archive
+    c['art0'].update(size_in_bytes=len(archive),digest='sha256:'+gh.sha256(archive))
+    proof,sources,_=call(c)
+    assert proof['original_generation_run']['event']=='schedule'
+    assert proof['original_generation_run']['name']==gh.WORKFLOW_NAME
+    assert sources==c['sources']
+
+@pytest.mark.parametrize('field,value',[('name','wrong'),('display_title','wrong'),('event','push'),
+    ('created_at','2026-09-13T12:00:00Z'),('created_at','2026-09-14T15:30:00Z')])
+def test_schedule_origin_must_keep_registered_name_real_D_and_window(tmp_path,monkeypatch,field,value):
+    c=fixture(tmp_path,monkeypatch)
+    c['r0'].update(event='schedule',name=gh.WORKFLOW_NAME,display_title=gh.WORKFLOW_NAME)
+    c['r0'][field]=value
+    with pytest.raises(ValueError):call(c)

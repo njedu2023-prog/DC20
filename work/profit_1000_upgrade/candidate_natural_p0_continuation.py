@@ -19,6 +19,33 @@ CONTROLLED_P0_CODE_PROFILE = {**ORIGINAL_P0_CODE_PROFILE,
     'models/decision_model_freeze.json': '03572f2897d22961e96d88440f6aecbe5134bfa6',
     'scripts/publish_primary_three_rank.py': '54cc956de2996663b170ed6e09ce9fef812e2221'}
 CONTROLLED_RUNTIME_CODE_BINDINGS = [{'path': 'scripts/publish_primary_three_rank.py', 'sha256': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8', 'git_blob_sha1': '54cc956de2996663b170ed6e09ce9fef812e2221', 'git_mode': '100644'}, {'path': 'src/top10decision/auction_v3/__init__.py', 'sha256': '1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8', 'git_blob_sha1': '8608ad5871ac45206bfa471ebea90e799113fe82', 'git_mode': '100644'}, {'path': 'src/top10decision/auction_v3/calibration.py', 'sha256': '06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9', 'git_blob_sha1': 'abb71530b1b62889d924a06bfd490d82c0c4a2db', 'git_mode': '100644'}, {'path': 'src/top10decision/auction_v3/config.py', 'sha256': '4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2', 'git_blob_sha1': '714a8c922b458db06f0ff4b93cebf19b3c2bcbb8', 'git_mode': '100644'}, {'path': 'src/top10decision/auction_v3/engine.py', 'sha256': '68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8', 'git_blob_sha1': '191c42d51485c06406eebc4046994184b542b152', 'git_mode': '100644'}, {'path': 'src/top10decision/auction_v3/promotion_model.py', 'sha256': 'af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170', 'git_blob_sha1': 'c4ea817f173e6058004b19522a1862d486eb755f', 'git_mode': '100644'}, {'path': 'src/top10decision/data/tushare_minute.py', 'sha256': '30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785', 'git_blob_sha1': 'dc27bff77ac11b9ea871220b8189aaf6725a9f81', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/canonical_fingerprint.py', 'sha256': '61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b', 'git_blob_sha1': 'c313f51c1c0630565bcaacca3783680f6e03d785', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/contracts.py', 'sha256': '50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917', 'git_blob_sha1': '34862a4dcdb3160754189e8301b49ab24c9dbf2e', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/d_close_features.py', 'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e', 'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/eligibility.py', 'sha256': '31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7', 'git_blob_sha1': '34ae803f7ea73cee861865ba49507dd81c0655c1', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/exit_policy.py', 'sha256': '4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f', 'git_blob_sha1': 'a495782254ddf3f58aa52ee668fe441f2aef315e', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/observation.py', 'sha256': '577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713', 'git_blob_sha1': 'd3f848e30519938b8530e6da7890a761f6722260', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/three_engine_models.py', 'sha256': '9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c', 'git_blob_sha1': '7a74a2fde21465a632db3a11c81954031ad550db', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/three_rank.py', 'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a', 'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f', 'git_mode': '100644'}, {'path': 'src/top10decision/decision/trade_selector.py', 'sha256': '7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858', 'git_blob_sha1': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63', 'git_mode': '100644'}, {'path': 'src/top10decision/probability_calibration.py', 'sha256': '058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c', 'git_blob_sha1': 'a005f68b26465bee49de70c57824c7a56c32d61f', 'git_mode': '100644'}, {'path': 'src/top10decision/writers/io_contract.py', 'sha256': '80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97', 'git_blob_sha1': '28ded13148bcdd334da10767b1aed83e44c32e7c', 'git_mode': '100644'}]
+DELIVERY_HARDENED_P0_CODE_PROFILE = {'.github/workflows/run_primary_d_daily.yml': '47537ce63b6abfbdd5d2db189b282a00a9eba59b',
+ 'models/decision_model_freeze.json': '861df3b61d0f6d0a87dc1798f19b1f4434fe9d27',
+ 'models/decision_three_engines/promotion.joblib': '41ab1b8771cc3f601da4afc5521eea31d15b6385',
+ 'models/decision_three_engines/validation_latest.json': '805eb6df569787b7f4fdc757cc464e57535cc0bf',
+ 'requirements-dev.lock': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+ 'requirements.lock': '93ed4f921c4b9abe94c02e74a97b932a304d27d5',
+ 'scripts/publish_primary_three_rank.py': '54cc956de2996663b170ed6e09ce9fef812e2221',
+ 'scripts/sync_market_raw.py': 'ede7b0e29dc67c5f7552f5b8c71a2788f144de83',
+ 'scripts/sync_pred_source.py': 'a5517d8271f0dc67c8034e16a1534a838f22fb06',
+ 'src/top10decision/auction_v3/__init__.py': '8608ad5871ac45206bfa471ebea90e799113fe82',
+ 'src/top10decision/auction_v3/calibration.py': 'abb71530b1b62889d924a06bfd490d82c0c4a2db',
+ 'src/top10decision/auction_v3/config.py': '714a8c922b458db06f0ff4b93cebf19b3c2bcbb8',
+ 'src/top10decision/auction_v3/engine.py': '191c42d51485c06406eebc4046994184b542b152',
+ 'src/top10decision/auction_v3/promotion_model.py': 'c4ea817f173e6058004b19522a1862d486eb755f',
+ 'src/top10decision/data/tushare_minute.py': 'dc27bff77ac11b9ea871220b8189aaf6725a9f81',
+ 'src/top10decision/decision/canonical_fingerprint.py': 'c313f51c1c0630565bcaacca3783680f6e03d785',
+ 'src/top10decision/decision/contracts.py': '34862a4dcdb3160754189e8301b49ab24c9dbf2e',
+ 'src/top10decision/decision/d_close_features.py': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+ 'src/top10decision/decision/eligibility.py': '34ae803f7ea73cee861865ba49507dd81c0655c1',
+ 'src/top10decision/decision/exit_policy.py': 'a495782254ddf3f58aa52ee668fe441f2aef315e',
+ 'src/top10decision/decision/model_freeze.py': '38b190572b9afae3eaca2662e936e1e750e1d034',
+ 'src/top10decision/decision/observation.py': 'd3f848e30519938b8530e6da7890a761f6722260',
+ 'src/top10decision/decision/three_engine_models.py': '7a74a2fde21465a632db3a11c81954031ad550db',
+ 'src/top10decision/decision/three_rank.py': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+ 'src/top10decision/decision/trade_selector.py': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63',
+ 'src/top10decision/probability_calibration.py': 'a005f68b26465bee49de70c57824c7a56c32d61f',
+ 'src/top10decision/writers/io_contract.py': '28ded13148bcdd334da10767b1aed83e44c32e7c'}
 MAX_ANCESTRY = 24
 SKIPPED_STEPS = (
     "Resolve immutable upstream commits", "Snapshot protected secondary state",
@@ -46,10 +73,11 @@ def validate_original_run(gh, run, run_id, day):
         and run.get("path") == gh.WORKFLOW_PATH and run.get("head_branch") == "main"
         and type(run.get("run_attempt")) is int and run["run_attempt"] == 1
         and run.get("status") == "completed" and run.get("conclusion") == "failure"
-        and run.get("event") == "workflow_dispatch"
+        and run.get("event") in ("workflow_dispatch", "schedule")
         and run.get("repository", {}).get("full_name") == gh.REPOSITORY
         and run.get("head_repository", {}).get("full_name") == gh.REPOSITORY
-        and run.get("name") == run.get("display_title") == f"DC20 controlled daily NATURAL | D={day}",
+        and run.get("name") == run.get("display_title") == (
+            gh.WORKFLOW_NAME if run.get("event") == "schedule" else f"DC20 controlled daily NATURAL | D={day}"),
         "EXACT_FAILED_CONTROLLED_GENERATING_P0_REQUIRED")
     gh.exact_sha(run.get("head_sha"), 40)
     created, started, updated = [gh.utc(run.get(k)) for k in ("created_at", "run_started_at", "updated_at")]
@@ -264,7 +292,8 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     generation = artifact_guard.validate_generation_archive(candidate_zip, artifact, r0, receipt, cas, base_tree, cas_tree, reads.blob)
     upstream_commits = []
     for repository, field in (("a-top10", "pred_commit"), ("a-share-top3-data", "market_commit")):
-        upstream_sha = generation["target_envelope"][field]
+        upstream_sha = (generation["resolved_schedule_upstreams"] if r0["event"] == "schedule"
+            else generation["target_envelope"])[field]
         route = "/repos/njedu2023-prog/" + repository + "/git/commits/" + upstream_sha
         commit_doc = client.get_json(route)
         require(type(commit_doc) is dict and commit_doc.get("sha") == upstream_sha
@@ -274,11 +303,13 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
         upstream_commits.append({"repository": "njedu2023-prog/" + repository, "sha": upstream_sha,
             "committed_at": commit_doc["committer"]["date"]})
     _, deployed_tree = reads.tree(deployed_sha)
-    code_profile = (CONTROLLED_P0_CODE_PROFILE
+    code_profile = (DELIVERY_HARDENED_P0_CODE_PROFILE
+        if base_tree.get('models/decision_model_freeze.json', {}).get('sha')
+        == DELIVERY_HARDENED_P0_CODE_PROFILE['models/decision_model_freeze.json'] else CONTROLLED_P0_CODE_PROFILE
         if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
         == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)
     runtime_bindings = (CONTROLLED_RUNTIME_CODE_BINDINGS
-        if code_profile is CONTROLLED_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
+        if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
     for logical, expected_blob in code_profile.items():
         require(all(tree.get(logical, {}).get("type") == "blob" and tree[logical].get("mode") == "100644"
             and tree[logical].get("sha") == expected_blob for tree in (base_tree, cas_tree, deployed_tree)),
