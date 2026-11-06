@@ -6,7 +6,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = 'models/decision_source_surface_review_20261107_system_cleanup.json'
-REVIEW_SHA = "f05a1bb0f2794ca8bd347d9522446c1718fe857f574ef91034e54b8489ca1a63"
+REVIEW_SHA = "585067bc203c33a597fb824fd59d2c27ad99bb061fd13f37f9f0144fe526f2aa"
 MANIFEST = 'models/decision_model_freeze.json'
 INVENTORY = 'forward/model_inventory.json'
 PIN_PATHS = {
@@ -98,3 +98,10 @@ def test_all_prior_models_contracts_frozen_inputs_and_review_evidence_preserved(
         raw = target.read_bytes()
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
     assert sha((ROOT / value['archive_manifest']['path']).read_bytes()) == value['archive_manifest']['sha256']
+
+
+def test_source_html_excludes_pages_generated_truthfulness_banner():
+    source = (ROOT / 'decision.html').read_text(encoding='utf-8')
+    assert 'dc20-truthfulness-banner' not in source
+    deployment = (ROOT / '.github/workflows/deploy_dc20_pages.yml').read_text(encoding='utf-8')
+    assert 'banner_id = "dc20-truthfulness-banner"' in deployment

@@ -8,6 +8,12 @@ on:
       - .github/workflows/verify_daily_cleanup.yml
       - scripts/replay_daily_cleanup.py
       - scripts/rehearse_daily_publication.py
+      - .github/workflows/deploy_dc20_pages.yml
+      - decision.html
+      - scripts/candidate_delivery_watchdog.py
+      - scripts/daily_delivery_policy.py
+      - models/decision_daily_delivery_policy_v1.json
+      - models/decision_source_surface_review_20261107_system_cleanup.json
 
 permissions:
   contents: read
