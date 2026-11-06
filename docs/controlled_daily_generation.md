@@ -116,3 +116,20 @@ P0 已完成但 P1/Shadow 不完整时，先诊断并等待已排队的自动链
 本地测试和 GitHub CI 通过只代表接入代码验收；当晚 exact-D 完整链成功后
 才能报告实际联动成功。
 
+
+## 已提交 P0 后公开部署失败的受控续接
+
+首次 P0 的 compute/CAS 成功但 Pages 公开验收失败时，先保留原 run、原 CAS 和
+原生成 artifact；先验证公开字节确实已收敛，再按相同 D、相同两个上游提交执行
+一次受控 NATURAL 复用。不得重跑旧 run 或重新生成已有榜单。
+后继必须成功且 generation/CAS 均跳过；支持自然 schedule/workflow_run，或在
+D 日 15:00–23:30 创建、名称精确匹配的受控 workflow_dispatch。普通手动运行、
+dry_run、历史恢复、跨日调用、attempt>1 均不具备该身份。
+
+已有 P0 而正式候选冻结缺失时，检查候选分支没有 active run，然后调用现有
+`research_candidate_natural_forward.yml`：`p0_run_id`=成功复用 run，
+`original_generation_run_id`=原始部署失败 run，`original_cas_commit`=原 CAS 的
+40 位 SHA，`dry_run=false`。原始生成与后继部署身份始终分别记录。
+续接仍须验证原 ZIP digest、CAS 单父提交、全量源文件、两个上游时间、完整代码
+版本、同 D 日历、冻结缺失状态及 T 日09:15截止；不能因允许受控事件而省略任何
+证据。完成后仍需 observer、正式发布、研究台和模拟账户的逐字节公开验收。

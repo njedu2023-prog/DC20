@@ -347,3 +347,18 @@ def test_original_p0_membership_and_provenance_not_claimed_by_flags(tmp_path, mo
 def test_no_time_or_ack_override_cli(monkeypatch):
     for option in ("--now", "--ack", "--artifact", "--signal-date", "--activate", "--output"):
         with pytest.raises(SystemExit): m.main([option, "untrusted"])
+
+
+def test_pre_controlled_complete_profile_is_preserved_but_not_reused_for_new_days():
+    from copy import deepcopy
+    files, _ = m.code_guard()
+    tree = {b['path']:dict(type='blob',mode='100644',sha=b['git_blob_sha1'])
+        for b in m.PRE_CONTROLLED_CODE_BINDINGS}
+    bindings = m.match_publication_code(tree, tree, files, day='20261105')
+    assert bindings == sorted(m.PRE_CONTROLLED_CODE_BINDINGS, key=lambda b:b['path'])
+    with pytest.raises(ValueError, match='PRE_CONTROLLED'):
+        m.match_publication_code(tree, tree, files, day='20261106')
+    changed = deepcopy(tree)
+    changed[m.COORDINATOR_PATH]['sha'] = 'f'*40
+    with pytest.raises(ValueError, match='PRE_CONTROLLED_PUBLICATION_BYTES_CHANGED'):
+        m.match_publication_code(tree, changed, files, day='20261105')

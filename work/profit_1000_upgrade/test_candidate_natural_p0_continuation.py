@@ -32,7 +32,7 @@ class Client:
     def get_artifact_zip(self,aid): self.requests.append(('archive',aid)); return self.archives[aid]
 
 
-def fixture(tmp_path,monkeypatch,*,suspension=False):
+def fixture(tmp_path,monkeypatch,*,suspension=False,current_profile=False):
     c=source_fixture(tmp_path,monkeypatch,suspension=suspension)
     day=c['day']; dated=f'{day[:4]}-{day[4:6]}-{day[6:]}'
     receipt=c['receipt']; meta=c['meta']; sources=dict(c['sources'])
@@ -48,7 +48,7 @@ def fixture(tmp_path,monkeypatch,*,suspension=False):
         'source_ref':f'https://raw.githubusercontent.com/njedu2023-prog/a-top10/{PRED}/outputs/decisio/pred_decisio_{day}.csv',
         'sha256':gh.sha256(pred),'body_sha256':gh.sha256(pred)}
     receipt['inputs']['promotion_model']=dict(m.ORIGINAL_PROMOTION_MODEL)
-    receipt['inputs']['committed_static_inputs']={'git_head':BASE,'runtime_code':deepcopy(m.ORIGINAL_RUNTIME_CODE_BINDINGS)}
+    receipt['inputs']['committed_static_inputs']={'git_head':BASE,'runtime_code':deepcopy(m.CONTROLLED_RUNTIME_CODE_BINDINGS if current_profile else m.ORIGINAL_RUNTIME_CODE_BINDINGS)}
     receipt['inputs']['candidate']={'path':pred_path,'meta_path':'data/pred/_pred_source_meta.json',
         'source_repository':'njedu2023-prog/a-top10','resolved_commit':PRED,'row_count':1,
         'sha256':gh.sha256(pred),'meta_sha256':gh.sha256(gh.json_bytes(pred_meta))}
@@ -65,6 +65,8 @@ def fixture(tmp_path,monkeypatch,*,suspension=False):
     historical_producer = (gh.CODE_ROOT / 'tests/fixtures/candidate_continuation/publish_primary_three_rank.py.txt').read_bytes()
     assert gh.git_blob(historical_producer) == m.ORIGINAL_P0_CODE_PROFILE[producer_path]
     profile_files[producer_path] = historical_producer
+    if current_profile:
+        profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in m.CONTROLLED_P0_CODE_PROFILE}
     all_new={**sources,pred_path:pred,'data/pred/_pred_source_meta.json':gh.json_bytes(pred_meta),
         **profile_files}
     changed=set(gh.adapter._p0_paths(day).values())|{receipt['inputs']['market']['meta_path'],
@@ -209,3 +211,34 @@ def test_original_cas_cannot_cross_d2330_even_with_ordered_later_jobs(tmp_path,m
     c['jobs0'][2].update(started_at='2026-09-14T15:31:00Z',completed_at='2026-09-14T15:32:00Z')
     c['r0']['updated_at']='2026-09-14T15:33:00Z'
     with pytest.raises(ValueError,match='D2330'):call(c)
+
+
+@pytest.mark.parametrize("current_profile", [False, True])
+def test_controlled_redeployment_keeps_both_real_run_identities(tmp_path, monkeypatch, current_profile):
+    c = fixture(tmp_path, monkeypatch, current_profile=current_profile)
+    day = c['revision']['primary_d_signal_date']
+    c['r1'].update(event='workflow_dispatch', name=f'DC20 controlled daily NATURAL | D={day}',
+        display_title=f'DC20 controlled daily NATURAL | D={day}')
+    c['revision']['event_name'] = 'workflow_dispatch'
+    archive = pages_zip(c['revision'])
+    c['client'].archives[c['art1']['id']] = archive
+    c['art1'].update(size_in_bytes=len(archive), digest='sha256:'+gh.sha256(archive))
+    proof, _, _ = call(c)
+    assert proof['original_generation_run']['conclusion'] == 'failure'
+    assert proof['successful_reuse_run']['event'] == 'workflow_dispatch'
+    assert proof['successful_reuse_run']['id'] != proof['original_generation_run']['id']
+    assert proof['source_authority_issued'] is False
+
+
+@pytest.mark.parametrize('mutation', ['ordinary', 'wrong_day', 'recovery', 'late', 'before_close', 'attempt'])
+def test_controlled_reuse_rejects_unqualified_identity(mutation):
+    run = dict(event='workflow_dispatch', name='DC20 controlled daily NATURAL | D=20261106',
+        display_title='DC20 controlled daily NATURAL | D=20261106', run_attempt=1,
+        created_at='2026-11-06T11:35:00Z')
+    if mutation == 'ordinary': run['name'] = run['display_title'] = 'DC2.0 · Publish Primary D List (P0)'
+    if mutation == 'wrong_day': run['name'] = run['display_title'] = 'DC20 controlled daily NATURAL | D=20261105'
+    if mutation == 'recovery': run['name'] = run['display_title'] = 'DC20 controlled daily RETROSPECTIVE_RECOVERY | D=20261106'
+    if mutation == 'late': run['created_at'] = '2026-11-06T15:30:00Z'
+    if mutation == 'before_close': run['created_at'] = '2026-11-06T06:59:59Z'
+    if mutation == 'attempt': run['run_attempt'] = 2
+    with pytest.raises(ValueError): m.validate_reuse_event(run, '20261106')
