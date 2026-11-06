@@ -1523,7 +1523,7 @@
       </details>
 
       <details id="reportDetails" class="panel">
-        <summary>Decision 报告正文</summary>
+        <summary>Decision 报告正文</summary><aside id="dc20-truthfulness-banner" role="alert" data-freeze-active="true" data-report-age-days="73" data-stale-reason="report_expired" style="padding:16px 20px;border:4px solid #7f1d1d;background:#fee2e2;color:#450a0a;font:800 18px/1.5 system-ui,sans-serif;text-align:center">以下报告正文是只读历史快照｜禁止据此交易｜报告已过期（报告日 20260826，距今 73 天）</aside>
         <div id="reportContent" class="report-body"><div class="empty">正在读取报告正文。</div></div>
       </details>
     </section>
@@ -1741,8 +1741,14 @@
       // producer validates the semantic snapshot without rounding returns here.
       const asOf = value => canonicalYmd(value) === value && value >= COMPACT_STATISTICS_WINDOW_START && value <= closedThrough;
       let profitSource = null, allPromotion = null, marketInputs = null;
+      // Authenticate the envelope first, then isolate each auxiliary section.
+      // The supplied bytes/source bindings remain unchanged and independently verified.
+      const isolatedPayload = {...payload};
+      const sectionErrors = {};
+
       for (const name of ["profit", "promotion"]) {
         const section = payload[name];
+        try {
         executableProfitExpect(section && ["READY", "UNAVAILABLE"].includes(section.status), `统计窗口${name}状态无效`);
         if (section.status === "UNAVAILABLE") {
           executableProfitExpect(exactObjectKeys(section, ["status", "reason"]) && typeof section.reason === "string" && section.reason.trim(), `统计窗口${name}缺失原因无效`);
@@ -1797,8 +1803,14 @@
           allPromotion = fullListPromotionStatistics(sourceRows, summary, payload.start_signal_date, reportSignalDate);
           marketInputs = { sourceRows, summary, payload };
         }
+        } catch (error) {
+          sectionErrors[name] = String(error?.message || error || "统计区校验失败");
+          isolatedPayload[name] = {status: "UNAVAILABLE", reason: sectionErrors[name]};
+          if (name === "profit") profitSource = null;
+          else { allPromotion = null; marketInputs = null; }
+        }
       }
-      return { payload, profitSource, allPromotion, marketInputs };
+      return { payload: isolatedPayload, profitSource, allPromotion, marketInputs, sectionErrors };
     }
 
     // Optional descriptive market statistics, never an input to rankings or settlement.
@@ -4641,7 +4653,16 @@
       try {
         const revision = await publishedRevisionMetadata();
         const bytes = await fetchPublishedBytes(PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH);
-        if (location.protocol !== "file:") {
+        const archived = revision.legacy_profit_mode === "ARCHIVED";
+        if (archived && location.protocol !== "file:") {
+          const manifestPath = "outputs/decision/legacy_profit_archive_manifest.json";
+          executableProfitExpect(revision.legacy_archive_manifest_url === manifestPath && isSha256(revision.legacy_archive_manifest_sha256), "旧研究归档未绑定Pages revision");
+          const manifest = (await fetchPagesOnlyShaBoundJson(manifestPath, revision.legacy_archive_manifest_sha256, "旧研究归档清单")).payload;
+          executableProfitExpect(manifest.schema_version === "dc20_legacy_archive_manifest_v1" && manifest.used_for_current_rankings === false && Array.isArray(manifest.files), "旧研究归档清单无效");
+          const bindings = manifest.files.filter(item => item.path === PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH);
+          executableProfitExpect(bindings.length === 1 && isSha256(bindings[0].sha256) && await sha256Hex(bytes) === bindings[0].sha256, "旧研究每日账本归档SHA不一致");
+        }
+        if (!archived && location.protocol !== "file:") {
           executableProfitExpect(
             revision.primary_mixed_daily_top2_index_url === PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH
             && isSha256(revision.primary_mixed_daily_top2_index_sha256)
@@ -4650,7 +4671,7 @@
           );
         }
         const index = strictJsonFromBytes(bytes, "每日混合盈利Top1/Top2账本");
-        if (location.protocol !== "file:") {
+        if (!archived && location.protocol !== "file:") {
           executableProfitExpect(
             revision.primary_mixed_daily_top2_latest_signal_date === index.latest_signal_date
             && revision.primary_mixed_daily_top2_recorded_days === index.recorded_days
@@ -4659,7 +4680,7 @@
           );
         }
         state.currentPrimaryMixedDailyTop2 = {
-          status: "ready",
+          status: "ready", archived,
           index: await validatePrimaryMixedDailyTop2Index(index)
         };
       } catch (error) {
@@ -5656,6 +5677,16 @@
       }
       if (loaded.status !== "ready") {
         resetExecutableProfitResearchView("invalid", loaded.message || "未知错误");
+        return;
+      }
+      if (loaded.kind === "candidate_fixed_ridge") {
+        // The active model has a different payload from the archived Shadow.
+        // Never access statistics.latest_selected_rows on a Ridge day.
+        els.executableProfitResearchState.textContent = "旧 P1 / Shadow · 历史归档";
+        els.executableProfitResearchContent.innerHTML = '<p class="stats-note">当前盈1、盈2使用固定 Ridge。旧 P1 / Shadow 已退出日常自动生产；历史研究记录保留，未验证收益仍不计入。</p><p class="stats-note"><a href="outputs/decision/executable_profit_research/daily_mixed_top2_index.json">旧排名每日记录</a> · <a href="outputs/decision/executable_profit_research/shadow_index.json">旧 Shadow 冻结索引</a></p>';
+        els.executableProfitShadowPanel.hidden = true;
+        els.executableProfitShadowMetrics.innerHTML = "";
+        els.executableProfitShadowContent.innerHTML = "";
         return;
       }
       if (loaded.kind === "primary_core") {

@@ -1,0 +1,67 @@
+{
+  "schema_version": "dc20_archived_workflows_v1",
+  "baseline_commit": "6a0f9e0a6ea5e57957fbac5c30849dd508d1daf2",
+  "production_data_removed": false,
+  "entries": [
+    {
+      "original_path": ".github/workflows/cancel_superseded_tests_20260923.yml",
+      "archive_path": ".github/archived-workflows/cancel_superseded_tests_20260923.yml",
+      "sha256": "a4e6feae14215b2e5ff5e5f6b84e5a2df9c239a00a405ffbdfd4f594f9b41547",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/collect_posthoc_20260921.yml",
+      "archive_path": ".github/archived-workflows/collect_posthoc_20260921.yml",
+      "sha256": "f0c0e4364cd58d37964676f63c2223dd91f7257c77c3aec9c072706aeb9c6649",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/publish_entry_prices_20260923.yml",
+      "archive_path": ".github/archived-workflows/publish_entry_prices_20260923.yml",
+      "sha256": "a052b30fff21c8ef91f0c7c1373a2ac84aa567eefc7ccf4ce5870827d53081af",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/recover_candidate_20260922.yml",
+      "archive_path": ".github/archived-workflows/recover_candidate_20260922.yml",
+      "sha256": "89d3728550c8e313a4b38d2e67a7817dfbf858d027ed3073ddd62ba23ded6f07",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/recover_entry_prices_20260923.yml",
+      "archive_path": ".github/archived-workflows/recover_entry_prices_20260923.yml",
+      "sha256": "b3b346a658f7717ae83cfc95652d88f1372c378c7ff46ecb644b41e9a8428a4f",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/recover_observer_20260922.yml",
+      "archive_path": ".github/archived-workflows/recover_observer_20260922.yml",
+      "sha256": "8b0bdc603491a1857e0f92dc3671a0c51cd7fad96171ae892baf012c044bcafd",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/recover_publication_20260922.yml",
+      "archive_path": ".github/archived-workflows/recover_publication_20260922.yml",
+      "sha256": "67f9367a282e0ebdef7224e7e2e14e29735beebaa5a8c18773f535b907887ae5",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/recover_settlement_20260923.yml",
+      "archive_path": ".github/archived-workflows/recover_settlement_20260923.yml",
+      "sha256": "4799f52ad4c73982414cb52c4e4a9e47988ff5f08cd9c823ebdcc35a5e33977e",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/research_profit_1000_capital.yml",
+      "archive_path": ".github/archived-workflows/research_profit_1000_capital.yml",
+      "sha256": "57285e119eaa7e69ef15f5da59b1eb27b8a0fe079630fda0e32d453c40b8f709",
+      "reason": "fixed_historical_recovery_or_replay"
+    },
+    {
+      "original_path": ".github/workflows/accept_forward_inputs.yml",
+      "archive_path": ".github/archived-workflows/accept_forward_inputs.yml",
+      "sha256": "300ff9bb9979311f626e09f5e42aa6c5b651bdb7692ccdf2dd8a878a55e0d3ce",
+      "reason": "superseded_read_only_schedule"
+    }
+  ]
+}

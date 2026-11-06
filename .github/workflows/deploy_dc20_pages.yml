@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - decision.html
+      - models/decision_daily_delivery_policy_v1.json
+      - scripts/daily_delivery_policy.py
       - outputs/decision/**
       - outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz
       - outputs/auction_v3/metrics/observation_cumulative_latest.json
@@ -212,7 +214,20 @@ jobs:
                       out.write('\n### Nightly next-day statistics\n'+json.dumps(result,ensure_ascii=False)+'\n')
           PY
 
+      - name: Load explicit daily delivery isolation policy
+        id: delivery_policy
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          from scripts.daily_delivery_policy import load_policy
+          policy = load_policy('.')
+          with open(os.environ['GITHUB_ENV'], 'a') as handle:
+              handle.write('LEGACY_PROFIT_ARCHIVED=' + str(policy is not None).lower() + '\n')
+          print({'delivery_policy': policy})
+          PYCODE
+
       - name: Validate optional legacy-profit relative research chain
+        if: ${{ env.LEGACY_PROFIT_ARCHIVED != 'true' }}
         id: legacy_profit_relative
         env:
           PYTHONPATH: src
@@ -311,10 +326,21 @@ jobs:
           for child in source.iterdir():
               if child.name == optional_name:
                   continue
+              if child.name == 'executable_profit_research' and os.environ.get('LEGACY_PROFIT_ARCHIVED') == 'true':
+                  continue
               target = destination / child.name
               if child.name == 'profit_research':
                   from scripts.stage_current_profit_research import stage
-                  stage(child, target)
+                  try:
+                      stage(child, target)
+                  except (ValueError, OSError) as exc:
+                      if os.environ.get('LEGACY_PROFIT_ARCHIVED') != 'true':
+                          raise
+                      shutil.rmtree(target, ignore_errors=True)
+                      target.mkdir(parents=True, exist_ok=True)
+                      (target / 'latest.json').write_text(json.dumps({
+                          'status': 'UNAVAILABLE', 'reason': str(exc)}))
+                      print(f'::warning::Research surface unavailable: {exc}')
               elif child.is_dir():
                   shutil.copytree(child, target)
               else:
@@ -371,6 +397,14 @@ jobs:
           from top10decision.decision.executable_profit_research_projection import (
               _validate_existing_index_chain,
           )
+
+          # Current ranking publication never consumes retired research data.
+          # The original historical URLs and bytes remain available for audit.
+          from scripts.daily_delivery_policy import legacy_archived, stage_legacy_archive
+          if legacy_archived('.'):
+              archive = stage_legacy_archive('.', '_site')
+              print(json.dumps({'legacy_archive': archive['status']}))
+              raise SystemExit(0)
 
           def resolve_primary_shadow_publication_policy(
               *,
@@ -1502,7 +1536,7 @@ jobs:
           executable_profit_index_path = (
               Path('_site/outputs/decision/executable_profit_research/index.json')
           )
-          executable_profit_available = executable_profit_index_path.is_file()
+          executable_profit_available = executable_profit_index_path.is_file() and os.environ.get("LEGACY_PROFIT_ARCHIVED") != "true"
           executable_profit_signal_date = ''
           executable_profit_as_of_date = ''
           executable_profit_projection_url = ''
@@ -1660,6 +1694,9 @@ jobs:
               "primary_d_exec_date": primary_exec_date,
               "primary_d_exit_date": primary_exit_date,
               "primary_d_status": "READY",
+              "legacy_profit_mode": "ARCHIVED" if os.environ.get("LEGACY_PROFIT_ARCHIVED") == "true" else "ACTIVE",
+              "legacy_archive_manifest_url": "outputs/decision/legacy_profit_archive_manifest.json" if os.environ.get("LEGACY_PROFIT_ARCHIVED") == "true" else None,
+              "legacy_archive_manifest_sha256": hashlib.sha256(Path("_site/outputs/decision/legacy_profit_archive_manifest.json").read_bytes()).hexdigest() if os.environ.get("LEGACY_PROFIT_ARCHIVED") == "true" else None,
               "primary_d_generation_mode": primary_generation_mode,
               "primary_d_bundle_sha256": primary_contract["bundle_sha256"],
               "primary_d_top10_count": primary_contract["top10_count"],
@@ -1796,6 +1833,8 @@ jobs:
           PY
 
       - name: Build independent compact statistics window
+        id: compact_window
+        continue-on-error: true
         env:
           PYTHONPATH: .:src
         run: |
@@ -1859,6 +1898,7 @@ jobs:
                   r'data/market/raw/20[0-9]{2}/20[0-9]{6}/(?:(?:daily|stk_limit|stk_auction|stk_auction_o)\.csv|stk_auction_o\.meta\.json|_sync_meta\.json)',
                   r'data/market/exit_1000_1m/20[0-9]{2}/20[0-9]{6}/[0-9]{6}_(?:SH|SZ)\.(?:csv|meta\.json)',
                   r'models/decision_shadow_exit_policy_1000_v1\.json',
+                  r'models/decision_daily_delivery_policy_v1\.json',
               )
               exact_sources={}
               for binding in payload['source_files']:
@@ -1907,6 +1947,14 @@ jobs:
           }},ensure_ascii=False,sort_keys=True))
           PY
 
+      - name: Clear failed auxiliary statistics bindings
+        if: ${{ always() && steps.compact_window.outcome == 'failure' }}
+        run: |
+          python3 - <<'PYCODE'
+          from scripts.daily_delivery_policy import mark_auxiliary_unavailable
+          mark_auxiliary_unavailable('_site', 'compact_statistics_window', 'BUILD_OR_VALIDATION_FAILED')
+          PYCODE
+
       - name: Bind active candidate ranking and independent versioned summary
         env:
           PYTHONPATH: .:src
@@ -1916,15 +1964,28 @@ jobs:
       # All enabled daily/settlement publishers reuse this workflow. Build from
       # the same exact-head source bundle, before uploading the Pages artifact.
       - name: Set up pinned simulated-account runtime
+        id: account_runtime
+        continue-on-error: true
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.19.0"
 
       - name: Generate and bind simulated account with the main publication
+        id: account_build
+        if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' }}
+        continue-on-error: true
         run: |
           set -euo pipefail
           node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs
           node scripts/build_profit_paper_account.cjs --site-root _site --source-html decision.html
+
+      - name: Clear failed auxiliary account bindings
+        if: ${{ always() && steps.site.outcome == 'success' && steps.account_build.outcome != 'success' }}
+        run: |
+          python3 - <<'PYCODE'
+          from scripts.daily_delivery_policy import mark_auxiliary_unavailable
+          mark_auxiliary_unavailable('_site', 'profit_paper_account', 'BUILD_OR_RUNTIME_UNAVAILABLE')
+          PYCODE
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
@@ -1936,687 +1997,6 @@ jobs:
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
         with:
           artifact_name: ${{ inputs.artifact_name || 'github-pages' }}
-
-      - name: Verify public simulated account and publication binding
-        env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 8); do
-            if node scripts/build_profit_paper_account.cjs --site-root _site --verify-public "$PAGE_URL"; then
-              break
-            fi
-            if [ "$attempt" -eq 8 ]; then exit 1; fi
-            sleep 15
-          done
-
-      - name: Verify public active candidate activation and versioned ledger
-        env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-          PYTHONPATH: .:src
-        run: |
-          python - <<'PY'
-          import json, os, time
-          from urllib.request import Request, urlopen
-          from scripts.candidate_profit_pages import verify_public
-          base = os.environ['PAGE_URL'].rstrip('/')
-          for attempt in range(1, 9):
-              def fetch(relative):
-                  url = f"{base}/{relative}?candidate_verify={os.environ['GITHUB_RUN_ID']}-{attempt}"
-                  with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=30) as response:
-                      return response.read(32 * 1024**2 + 1)
-              try:
-                  print(json.dumps(verify_public('_site', fetch)))
-                  break
-              except Exception:
-                  if attempt == 8:
-                      raise
-                  time.sleep(15)
-          PY
-
-      - name: Verify public compact statistics window
-        env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-          EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
-          EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib, json, os, re, time
-          from pathlib import Path
-          from urllib.request import Request, urlopen
-          from scripts.build_compact_statistics_window import validate_window
-
-          def verify_public_compact_statistics_window(site_root, fetch_bytes, expected_head, expected_signal_date):
-              from concurrent.futures import ThreadPoolExecutor
-              site_root=Path(site_root).resolve(strict=True)
-
-              def local_bytes(relative):
-                  parts=Path(relative).parts
-                  path=site_root/relative
-                  if (
-                      not relative or Path(relative).is_absolute() or '..' in parts
-                      or Path(relative).as_posix() != relative
-                      or any((site_root/Path(*parts[:i])).is_symlink() for i in range(1,len(parts)+1))
-                      or not path.is_file() or not path.resolve(strict=True).is_relative_to(site_root)
-                  ):
-                      raise ValueError(f'public compact window source path is unsafe: {relative}')
-                  return path.read_bytes()
-
-              revision_bytes=fetch_bytes('revision.json')
-              if revision_bytes != local_bytes('revision.json'):
-                  raise ValueError('public compact window revision bytes differ from exact build')
-              revision=json.loads(revision_bytes)
-              relative='outputs/decision/compact_statistics_window.json'
-              config_relative='models/decision_compact_statistics_window_v1.json'
-              if (
-                  revision.get('head_sha') != expected_head
-                  or revision.get('signal_date') != expected_signal_date
-                  or revision.get('compact_statistics_window_url') != relative
-                  or revision.get('compact_statistics_window_start_signal_date') != '20260910'
-              ):
-                  raise ValueError('public compact window revision/date/start binding drifted')
-              raw=fetch_bytes(relative)
-              if raw != local_bytes(relative) or hashlib.sha256(raw).hexdigest() != revision.get('compact_statistics_window_sha256'):
-                  raise ValueError('public compact window bytes/SHA differ from exact revision')
-              payload=json.loads(raw)
-              validate_window(payload)
-              if (
-                  payload.get('schema_version') != 'dc20_compact_statistics_window_v1'
-                  or payload.get('report_signal_date') != expected_signal_date
-                  or payload.get('start_signal_date') != '20260910'
-              ):
-                  raise ValueError('public compact window payload date/start drifted')
-              sources=payload['source_files']
-              bindings={item['path']:item['sha256'] for item in sources}
-              if len(bindings) != len(sources) or bindings.get(config_relative) != payload.get('config_sha256'):
-                  raise ValueError('public compact window config/source inventory drifted')
-
-              def verify_source(binding):
-                  relative,digest=binding
-                  raw=local_bytes(relative)
-                  if re.fullmatch(r'[0-9a-f]{64}',digest) is None or hashlib.sha256(raw).hexdigest() != digest:
-                      raise ValueError(f'compact window build source SHA drifted: {relative}')
-                  public=fetch_bytes(relative)
-                  if public != raw or hashlib.sha256(public).hexdigest() != digest:
-                      raise ValueError(f'public compact window source bytes/SHA drifted: {relative}')
-
-              with ThreadPoolExecutor(max_workers=6) as pool:
-                  list(pool.map(verify_source,bindings.items()))
-              return payload
-
-          page_url=os.environ['PAGE_URL'].rstrip('/')
-          for attempt in range(1,13):
-              def fetch_bytes(relative):
-                  url=f"{page_url}/{relative}?run_id={os.environ['GITHUB_RUN_ID']}&compact_verify_attempt={attempt}"
-                  with urlopen(Request(url,headers={'Cache-Control':'no-cache'}),timeout=30) as response:
-                      return response.read()
-              try:
-                  payload=verify_public_compact_statistics_window(
-                      Path('_site'),fetch_bytes,os.environ['EXPECTED_HEAD'],os.environ['EXPECTED_SIGNAL_DATE'],
-                  )
-                  print(json.dumps({'public_compact_statistics_window':'EXACT_BYTES_VERIFIED',
-                      'report_signal_date':payload['report_signal_date'],'start_signal_date':payload['start_signal_date']},sort_keys=True))
-                  break
-              except (OSError,ValueError,KeyError) as exc:
-                  if attempt == 12:
-                      raise
-                  time.sleep(10)
-          PY
-
-      - name: Verify public primary-profit bundle when present
-        if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}
-        env:
-          GENERATION_MODE: ${{ steps.site.outputs.primary_profit_generation_mode }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-          EXPECTED_REMOVED_SHADOW_SURFACES_JSON: ${{ steps.site.outputs.primary_shadow_removed_surfaces_json }}
-          SHADOW_PUBLICATION_MODE: ${{ steps.site.outputs.primary_shadow_publication_mode }}
-          SIGNAL_DATE: ${{ steps.site.outputs.executable_profit_signal_date }}
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: |
-          set -euo pipefail
-          public_root="${RUNNER_TEMP}/generic-public-primary-profit"
-          removed_shadow_surfaces_file="${RUNNER_TEMP}/primary-shadow-removed-surfaces.txt"
-          fetch_public_exact() {
-            local relative="$1"
-            local expected="_site/${relative}"
-            local destination="${public_root}/${relative}"
-            local candidate=""
-            local expected_sha=""
-            local actual_sha="unavailable"
-            mkdir -p "$(dirname "${destination}")"
-            for attempt in {1..12}; do
-              candidate="${destination}.fetch.${attempt}"
-              if curl -fsSL --retry 2 --retry-delay 2 --retry-all-errors \
-                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
-                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_attempt=${attempt}" \
-                   -o "${candidate}" && \
-                 cmp -s "${expected}" "${candidate}"; then
-                mv -f "${candidate}" "${destination}"
-                return 0
-              fi
-              if [ "${attempt}" != 12 ]; then
-                sleep 10
-              fi
-            done
-            expected_sha="$(sha256sum "${expected}" | awk '{print $1}')"
-            if [ -f "${candidate}" ]; then
-              actual_sha="$(sha256sum "${candidate}" | awk '{print $1}')"
-            fi
-            echo "public Pages bytes did not converge to exact deployment: ${relative}; expected_sha256=${expected_sha}; actual_sha256=${actual_sha}" >&2
-            return 1
-          }
-          expect_public_404() {
-            local relative="$1"
-            local http_code="unavailable"
-            for attempt in {1..12}; do
-              if http_code="$(curl -sS -L --retry 2 --retry-delay 2 --retry-all-errors \
-                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
-                   -o /dev/null -w '%{http_code}' \
-                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_absence_attempt=${attempt}")" && \
-                 [ "${http_code}" = 404 ]; then
-                return 0
-              fi
-              if [ "${attempt}" != 12 ]; then
-                sleep 10
-              fi
-            done
-            echo "public Pages path did not converge to HTTP 404: ${relative}; last_http=${http_code}" >&2
-            return 1
-          }
-          REMOVED_SHADOW_SURFACES_FILE="${removed_shadow_surfaces_file}" python3 - <<'PY'
-          import json
-          import os
-          import re
-          from pathlib import PurePosixPath
-
-          def validate_removed_shadow_surface_inventory(values, publication_mode):
-              allowed_modes = {
-                  'REQUIRE_SAME_D_SHADOW',
-                  'OMIT_RETROSPECTIVE_SHADOW',
-                  'OMIT_NATURAL_PENDING_SHADOW',
-              }
-              if publication_mode not in allowed_modes:
-                  raise ValueError(
-                      'Pages removed Shadow inventory publication mode is unsupported'
-                  )
-              if not isinstance(values, list) or any(
-                  type(value) is not str or not value for value in values
-              ):
-                  raise ValueError('Pages removed Shadow inventory is invalid')
-              if values != sorted(set(values)):
-                  raise ValueError(
-                      'Pages removed Shadow inventory is not sorted and unique'
-                  )
-              prefix = 'outputs/decision/executable_profit_research/'
-              dated_name = re.compile(
-                  r'(?:shadow_state_20[0-9]{6}_asof_20[0-9]{6}'
-                  r'(?:_sha256_[0-9a-f]{64})?'
-                  r'|shadow_statistics_20[0-9]{6}_asof_20[0-9]{6})\.json'
-              )
-              for relative in values:
-                  path = PurePosixPath(relative)
-                  if (
-                      path.is_absolute()
-                      or '..' in path.parts
-                      or path.as_posix() != relative
-                      or len(path.parts) != 4
-                      or not relative.startswith(prefix)
-                      or (
-                          path.name
-                          not in {'shadow_index.json', 'shadow_cutover_index.json'}
-                          and dated_name.fullmatch(path.name) is None
-                      )
-                  ):
-                      raise ValueError(
-                          f'Pages removed Shadow inventory path is unsafe: {relative}'
-                      )
-              if publication_mode == 'REQUIRE_SAME_D_SHADOW' and values:
-                  raise ValueError(
-                      'Pages exact same-D Shadow publication removed active surfaces'
-                  )
-              return tuple(values)
-
-          try:
-              removed = validate_removed_shadow_surface_inventory(
-                  json.loads(
-                      os.environ['EXPECTED_REMOVED_SHADOW_SURFACES_JSON']
-                  ),
-                  os.environ['SHADOW_PUBLICATION_MODE'],
-              )
-          except (json.JSONDecodeError, ValueError) as exc:
-              raise SystemExit(str(exc)) from exc
-          output_path = PurePosixPath(os.environ['REMOVED_SHADOW_SURFACES_FILE'])
-          with open(output_path, 'w', encoding='utf-8') as output:
-              for relative in removed:
-                  output.write(relative + '\n')
-          PY
-          files=(
-            revision.json
-            models/decision_primary_profit_research_contract.json
-            "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json"
-            "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv"
-            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.json"
-            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv"
-            outputs/decision/legacy_profit_relative_research/index.json
-            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.json"
-            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.csv"
-            outputs/decision/executable_profit_research/index.json
-            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json"
-            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
-            outputs/decision/executable_profit_research/daily_mixed_top2_index.json
-          )
-          shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
-          shadow_cutover_index="_site/outputs/decision/executable_profit_research/shadow_cutover_index.json"
-          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ]; then
-            if [ "${GENERATION_MODE}" != "RETROSPECTIVE_RECOVERY" ]; then
-              echo "retrospective Shadow omission mode/generation mismatch" >&2
-              exit 1
-            fi
-            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
-               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
-              echo "retrospective P1 build unexpectedly contains an active Shadow pointer" >&2
-              exit 1
-            fi
-          elif [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
-            if [ "${GENERATION_MODE}" != "NATURAL" ]; then
-              echo "natural pending Shadow mode/generation mismatch" >&2
-              exit 1
-            fi
-            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
-               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
-              echo "natural pending P1 build unexpectedly contains an active Shadow pointer" >&2
-              exit 1
-            fi
-          elif [ "${SHADOW_PUBLICATION_MODE}" != "REQUIRE_SAME_D_SHADOW" ] || \
-               [ "${GENERATION_MODE}" != "NATURAL" ]; then
-            echo "public P1 Shadow publication mode is unsupported" >&2
-            exit 1
-          elif [ -f "${shadow_index}" ]; then
-            shadow_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["latest_state_url"])' "${shadow_index}")"
-            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["selection"]["path"])' "_site/${shadow_state}")"
-            shadow_statistics="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["statistics"]["path"])' "_site/${shadow_state}")"
-            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["downloads"]["csv_url"])' "_site/${shadow_selection}")"
-            shadow_t="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t_verification"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
-            shadow_t1="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t1_settlement"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
-            files+=(
-              models/decision_primary_profit_forward_shadow_bridge_contract.json
-              data/decision_executable_profit/forward/selections/primary_mixed_index.json
-              "${shadow_selection}"
-              "${shadow_csv}"
-              "${shadow_statistics}"
-              outputs/decision/executable_profit_research/shadow_index.json
-              "${shadow_state}"
-            )
-            for snapshot in _site/data/decision_executable_profit/forward/statistics/snapshots/summary_asof_*.json; do
-              if [ -f "${snapshot}" ] && [ "${snapshot#_site/}" != "${shadow_statistics}" ]; then
-                files+=("${snapshot#_site/}")
-              fi
-            done
-            if [ -n "${shadow_t}" ]; then files+=("${shadow_t}"); fi
-            if [ -n "${shadow_t1}" ]; then files+=("${shadow_t1}"); fi
-          elif [ -f "${shadow_cutover_index}" ]; then
-            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["path"])' "${shadow_cutover_index}")"
-            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["csv_path"])' "${shadow_cutover_index}")"
-            files+=(
-              models/decision_primary_profit_forward_shadow_bridge_contract.json
-              data/decision_executable_profit/forward/selections/primary_mixed_index.json
-              outputs/decision/executable_profit_research/shadow_cutover_index.json
-              "${shadow_selection}"
-              "${shadow_csv}"
-            )
-          fi
-          for relative in "${files[@]}"; do
-            if ! fetch_public_exact "${relative}"; then
-              exit 1
-            fi
-          done
-          while IFS= read -r relative; do
-            if [ -e "_site/${relative}" ] || [ -L "_site/${relative}" ]; then
-              echo "removed Shadow surface still exists in Pages build: ${relative}" >&2
-              exit 1
-            fi
-            if ! expect_public_404 "${relative}"; then
-              echo "removed Shadow surface remained public: ${relative}" >&2
-              exit 1
-            fi
-          done < "${removed_shadow_surfaces_file}"
-          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ] || \
-             [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
-            for relative in \
-              outputs/decision/executable_profit_research/shadow_index.json \
-              outputs/decision/executable_profit_research/shadow_cutover_index.json \
-              data/decision_executable_profit/forward/selections/primary_mixed_index.json \
-              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.json" \
-              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.csv"; do
-              if ! expect_public_404 "${relative}"; then
-                echo "P1 pending-Shadow publication exposed a Shadow surface: ${relative}" >&2
-                exit 1
-              fi
-            done
-          elif [ -f "${shadow_cutover_index}" ]; then
-            for relative in \
-              outputs/decision/executable_profit_research/shadow_index.json \
-              data/decision_executable_profit/forward/statistics/summary.json; do
-              if ! expect_public_404 "${relative}"; then
-                echo "grandfathered Shadow artifact remained public: ${relative}" >&2
-                exit 1
-              fi
-            done
-          elif [ -f "${shadow_index}" ]; then
-            if ! expect_public_404 outputs/decision/executable_profit_research/shadow_cutover_index.json; then
-              echo "selection-only cutover pointer remained beside standard Shadow chain" >&2
-              exit 1
-            fi
-          else
-            echo "public primary Shadow has neither a standard nor cutover pointer" >&2
-            exit 1
-          fi
-          grandfather_state="outputs/decision/executable_profit_research/shadow_state_20260828_asof_20260828.json"
-          if ! expect_public_404 "${grandfather_state}"; then
-            echo "grandfathered Shadow state remained public: ${grandfather_state}" >&2
-            exit 1
-          fi
-          PUBLIC_ROOT="${public_root}" python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          from scripts.publish_primary_profit_rankings import (
-              validate_primary_profit_bundle,
-              validate_primary_profit_daily_mixed_top2_index,
-          )
-          from top10decision.decision.primary_profit_forward_shadow_bridge import (
-              validate_primary_profit_forward_shadow,
-              validate_primary_profit_forward_shadow_index,
-          )
-
-          bundle = validate_primary_profit_bundle(
-              Path(os.environ['PUBLIC_ROOT']),
-              expected_signal_date=os.environ['SIGNAL_DATE'],
-          )
-          daily_ledger = validate_primary_profit_daily_mixed_top2_index(
-              Path(os.environ['PUBLIC_ROOT']),
-              expected_signal_date=os.environ['SIGNAL_DATE'],
-              require_all_projection_sources=False,
-          )
-          daily_entry = next(
-              (
-                  item
-                  for item in daily_ledger['entries']
-                  if item['signal_date'] == os.environ['SIGNAL_DATE']
-              ),
-              None,
-          )
-          if (
-              daily_entry is None
-              or daily_entry['projection_json_sha256']
-              != bundle['mixed']['projection_json_sha256']
-          ):
-              raise SystemExit(
-                  'public daily mixed Top1/Top2 ledger is missing or not SHA-bound'
-              )
-          revision = json.loads(
-              (Path(os.environ['PUBLIC_ROOT']) / 'revision.json').read_text(
-                  encoding='utf-8'
-              )
-          )
-          daily_ledger_path = (
-              Path(os.environ['PUBLIC_ROOT'])
-              / 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
-          )
-          if (
-              revision.get('primary_mixed_daily_top2_index_url')
-              != 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
-              or revision.get('primary_mixed_daily_top2_index_sha256')
-              != hashlib.sha256(daily_ledger_path.read_bytes()).hexdigest()
-              or revision.get('primary_mixed_daily_top2_latest_signal_date')
-              != daily_ledger['latest_signal_date']
-              or revision.get('primary_mixed_daily_top2_recorded_days')
-              != daily_ledger['recorded_days']
-              or revision.get('primary_mixed_daily_top2_recorded_slots')
-              != daily_ledger['recorded_slots']
-          ):
-              raise SystemExit(
-                  'public daily mixed Top1/Top2 ledger is not bound to revision.json'
-              )
-          mixed = bundle['mixed']['projection']
-          shadow_publication_mode = os.environ['SHADOW_PUBLICATION_MODE']
-          shadow_index_path = (
-              Path(os.environ['PUBLIC_ROOT'])
-              / 'outputs/decision/executable_profit_research/shadow_index.json'
-          )
-          root = Path(os.environ['PUBLIC_ROOT'])
-          cutover_path = (
-              root
-              / 'outputs/decision/executable_profit_research/shadow_cutover_index.json'
-          )
-          if shadow_publication_mode in {
-              'OMIT_RETROSPECTIVE_SHADOW',
-              'OMIT_NATURAL_PENDING_SHADOW',
-          }:
-              retrospective_omission_ok = (
-                  shadow_publication_mode == 'OMIT_RETROSPECTIVE_SHADOW'
-                  and bundle['inputs'].generation_mode
-                  == 'RETROSPECTIVE_RECOVERY'
-                  and mixed.get('prospective') is False
-                  and mixed.get('retrospective_non_forward') is True
-              )
-              natural_pending_ok = (
-                  shadow_publication_mode == 'OMIT_NATURAL_PENDING_SHADOW'
-                  and bundle['inputs'].generation_mode == 'NATURAL'
-                  and mixed.get('prospective') is True
-                  and mixed.get('retrospective_non_forward') is False
-              )
-              if (
-                  shadow_index_path.exists()
-                  or shadow_index_path.is_symlink()
-                  or cutover_path.exists()
-                  or cutover_path.is_symlink()
-                  or not (retrospective_omission_ok or natural_pending_ok)
-                  or (mixed.get('ranking_contract') or {}).get(
-                      'forward_selection_or_statistics_may_change'
-                  ) is not False
-              ):
-                  raise SystemExit(
-                      'public P1 pending-Shadow state exposed or authorized Shadow'
-                  )
-          elif not (
-              shadow_publication_mode == 'REQUIRE_SAME_D_SHADOW'
-              and bundle['inputs'].generation_mode == 'NATURAL'
-          ):
-              raise SystemExit('public P1 Shadow publication mode is unsupported')
-          elif shadow_index_path.exists():
-              import hashlib
-
-              shadow_index = json.loads(shadow_index_path.read_text(encoding='utf-8'))
-              state_path = root / str(shadow_index['latest_state_url'])
-              state = json.loads(state_path.read_text(encoding='utf-8'))
-              selection = state['source_bindings']['selection']
-              statistics = state['source_bindings']['statistics']
-              mixed_binding = state['source_bindings']['mixed_projection']
-              selection_path = root / str(selection['path'])
-              statistics_path = root / str(statistics['path'])
-              truth_ok = True
-              for key in ('t_verification', 't1_settlement'):
-                  binding = state['source_bindings'].get(key)
-                  if binding is None:
-                      continue
-                  truth_path = root / str(binding['path'])
-                  truth_ok = truth_ok and (
-                      truth_path.is_file()
-                      and not truth_path.is_symlink()
-                      and hashlib.sha256(truth_path.read_bytes()).hexdigest()
-                      == binding.get('sha256')
-                  )
-              if not (
-                  shadow_index.get('latest_signal_date') == os.environ['SIGNAL_DATE']
-                  and state.get('signal_date') == os.environ['SIGNAL_DATE']
-                  and shadow_index.get('latest_mixed_projection_sha256')
-                  == bundle['mixed']['projection_json_sha256']
-                  and mixed_binding.get('sha256')
-                  == bundle['mixed']['projection_json_sha256']
-                  and hashlib.sha256(state_path.read_bytes()).hexdigest()
-                  == shadow_index.get('latest_state_sha256')
-                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
-                  == selection.get('sha256')
-                  and hashlib.sha256(statistics_path.read_bytes()).hexdigest()
-                  == statistics.get('sha256')
-                  and truth_ok
-              ):
-                  raise SystemExit(
-                      'public primary Shadow sidecar is not exact-D/SHA bound'
-                  )
-              summary = json.loads(statistics_path.read_text(encoding='utf-8'))
-              if (
-                  summary.get('public_start_signal_date') != '20260828'
-                  or (summary.get('scope') or {}).get('minimum_signal_date')
-                  != '20260828'
-              ):
-                  raise SystemExit('public standard Shadow summary lacks D28 cutover')
-          else:
-              import hashlib
-
-              root = Path(os.environ['PUBLIC_ROOT'])
-              if not cutover_path.is_file() or cutover_path.is_symlink():
-                  raise SystemExit(
-                      'public primary Shadow has neither a standard nor safe cutover pointer'
-                  )
-              cutover = json.loads(cutover_path.read_text(encoding='utf-8'))
-              selection = cutover.get('selection') or {}
-              signal_date = os.environ['SIGNAL_DATE']
-              expected_selection = (
-                  'data/decision_executable_profit/forward/selections/'
-                  f'shadow_{signal_date}.json'
-              )
-              expected_csv = (
-                  'data/decision_executable_profit/forward/selections/'
-                  f'shadow_{signal_date}.csv'
-              )
-              if (
-                  set(cutover)
-                  != {
-                      'schema_version', 'index_kind', 'data_alias',
-                      'public_start_signal_date', 'signal_date', 'exec_date',
-                      'exit_date', 'candidate_count', 'selected_slots',
-                      'top10_members_sha256', 'mixed_projection_sha256',
-                      'selection', 'boundaries',
-                  }
-                  or set(selection)
-                  != {
-                      'path', 'sha256', 'snapshot_sha256',
-                      'selection_identity_sha256', 'csv_path', 'csv_sha256',
-                  }
-                  or selection.get('path') != expected_selection
-                  or selection.get('csv_path') != expected_csv
-              ):
-                  raise SystemExit('public primary Shadow cutover surface/path drifted')
-              selection_path = root / expected_selection
-              csv_path = root / expected_csv
-              primary_index_path = (
-                  root
-                  / 'data/decision_executable_profit/forward/selections/primary_mixed_index.json'
-              )
-              primary_index = json.loads(
-                  primary_index_path.read_text(encoding='utf-8')
-              )
-              validate_primary_profit_forward_shadow_index(primary_index)
-              selection_payload = json.loads(
-                  selection_path.read_text(encoding='utf-8')
-              )
-              validate_primary_profit_forward_shadow(
-                  selection_payload,
-                  require_downloads=True,
-              )
-              selected_rows = [
-                  row
-                  for row in selection_payload['rows']
-                  if row.get('internal_shadow_selected') == 1
-              ]
-              if not (
-                  cutover.get('schema_version')
-                  == 'dc20_primary_profit_forward_shadow_cutover_index_v1'
-                  and cutover.get('index_kind')
-                  == 'primary_profit_forward_shadow_selection_only_cutover'
-                  and cutover.get('data_alias') is False
-                  and cutover.get('public_start_signal_date') == '20260828'
-                  and cutover.get('signal_date') == signal_date == '20260828'
-                  and cutover.get('exec_date') == mixed.get('exec_date')
-                  and cutover.get('exit_date') == mixed.get('exit_date')
-                  and cutover.get('candidate_count') == mixed.get('candidate_count')
-                  == len(bundle['inputs'].selected_runtime)
-                  and cutover.get('selected_slots') == len(selected_rows) == 2
-                  and [row.get('shadow_slot') for row in selected_rows] == [1, 2]
-                  and cutover.get('top10_members_sha256')
-                  == mixed.get('top10_members_sha256')
-                  == selection_payload.get('top10_members_sha256')
-                  and cutover.get('mixed_projection_sha256')
-                  == bundle['mixed']['projection_json_sha256']
-                  == (
-                      selection_payload.get('source_bindings') or {}
-                  ).get('mixed_projection', {}).get('sha256')
-                  and cutover.get('boundaries') == selection_payload.get('boundaries')
-                  and primary_index.get('latest_signal_date') == signal_date
-                  and primary_index.get('latest_exec_date') == mixed.get('exec_date')
-                  and primary_index.get('latest_exit_date') == mixed.get('exit_date')
-                  and primary_index.get('latest_json_sha256')
-                  == selection.get('sha256')
-                  and primary_index.get('latest_csv_sha256')
-                  == selection.get('csv_sha256')
-                  and primary_index.get('latest_snapshot_sha256')
-                  == selection.get('snapshot_sha256')
-                  == selection_payload.get('snapshot_sha256')
-                  and primary_index.get('latest_selection_identity_sha256')
-                  == selection.get('selection_identity_sha256')
-                  == selection_payload.get('selection_identity_sha256')
-                  and primary_index.get('latest_top10_members_sha256')
-                  == cutover.get('top10_members_sha256')
-                  and selection_payload.get('downloads', {}).get('csv_url')
-                  == expected_csv
-                  and selection_payload.get('downloads', {}).get('csv_sha256')
-                  == selection.get('csv_sha256')
-                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
-                  == selection.get('sha256')
-                  and hashlib.sha256(csv_path.read_bytes()).hexdigest()
-                  == selection.get('csv_sha256')
-              ):
-                  raise SystemExit(
-                      'public primary Shadow selection-only cutover is not exact-D/SHA bound'
-                  )
-          if not (
-              revision.get('executable_profit_contract') == 'primary'
-              and revision.get('executable_profit_statistics_as_of_date') == ''
-              and revision.get('executable_profit_statistics_url') == ''
-              and revision.get('primary_profit_status') == mixed['status']
-              and revision.get('primary_profit_generation_mode')
-              == bundle['inputs'].generation_mode
-              and revision.get('primary_profit_candidate_count')
-              == len(bundle['inputs'].selected_runtime)
-              and revision.get('primary_profit_top10_members_sha256')
-              == mixed['top10_members_sha256']
-              and revision.get('primary_single_profit_projection_sha256')
-              == bundle['single']['projection_json_sha256']
-              and revision.get('primary_mixed_profit_projection_sha256')
-              == bundle['mixed']['projection_json_sha256']
-              and revision.get('primary_profit_source_bundle_sha256')
-              == mixed['source_bundle_sha256']
-              and revision.get(
-                  'primary_profit_source_feature_snapshot_sha256'
-              )
-              == mixed['source_feature_snapshot_sha256']
-          ):
-              raise SystemExit(
-                  'public generic revision is not bound to the complete P1 bundle'
-              )
-          print(
-              'public primary-profit bundle verified: '
-              f"D={bundle['inputs'].signal_date}, "
-              f"mode={bundle['inputs'].generation_mode}, "
-              f"N={len(bundle['inputs'].selected_runtime)}"
-          )
-          PY
 
       - name: Verify public DC2.0 Pages revision
         env:
@@ -3743,3 +3123,710 @@ jobs:
           else:
               raise SystemExit(f"Pages verification failed: {last_error}")
           PY
+
+
+      - name: Verify public active candidate activation and versioned ledger
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          PYTHONPATH: .:src
+        run: |
+          python - <<'PY'
+          import json, os, time
+          from urllib.request import Request, urlopen
+          from scripts.candidate_profit_pages import verify_public
+          base = os.environ['PAGE_URL'].rstrip('/')
+          for attempt in range(1, 9):
+              def fetch(relative):
+                  url = f"{base}/{relative}?candidate_verify={os.environ['GITHUB_RUN_ID']}-{attempt}"
+                  with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=30) as response:
+                      return response.read(32 * 1024**2 + 1)
+              try:
+                  print(json.dumps(verify_public('_site', fetch)))
+                  break
+              except Exception:
+                  if attempt == 8:
+                      raise
+                  time.sleep(15)
+          PY
+
+      - name: Verify public simulated account and publication binding
+        id: account_public
+        if: ${{ steps.account_build.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 8); do
+            if node scripts/build_profit_paper_account.cjs --site-root _site --verify-public "$PAGE_URL"; then
+              break
+            fi
+            if [ "$attempt" -eq 8 ]; then exit 1; fi
+            sleep 15
+          done
+
+      - name: Verify public compact statistics window
+        id: compact_public
+        if: ${{ steps.compact_window.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_HEAD: ${{ steps.site.outputs.head_sha }}
+          EXPECTED_SIGNAL_DATE: ${{ steps.site.outputs.signal_date }}
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re, time
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from scripts.build_compact_statistics_window import validate_window
+
+          def verify_public_compact_statistics_window(site_root, fetch_bytes, expected_head, expected_signal_date):
+              from concurrent.futures import ThreadPoolExecutor
+              site_root=Path(site_root).resolve(strict=True)
+
+              def local_bytes(relative):
+                  parts=Path(relative).parts
+                  path=site_root/relative
+                  if (
+                      not relative or Path(relative).is_absolute() or '..' in parts
+                      or Path(relative).as_posix() != relative
+                      or any((site_root/Path(*parts[:i])).is_symlink() for i in range(1,len(parts)+1))
+                      or not path.is_file() or not path.resolve(strict=True).is_relative_to(site_root)
+                  ):
+                      raise ValueError(f'public compact window source path is unsafe: {relative}')
+                  return path.read_bytes()
+
+              revision_bytes=fetch_bytes('revision.json')
+              if revision_bytes != local_bytes('revision.json'):
+                  raise ValueError('public compact window revision bytes differ from exact build')
+              revision=json.loads(revision_bytes)
+              relative='outputs/decision/compact_statistics_window.json'
+              config_relative='models/decision_compact_statistics_window_v1.json'
+              if (
+                  revision.get('head_sha') != expected_head
+                  or revision.get('signal_date') != expected_signal_date
+                  or revision.get('compact_statistics_window_url') != relative
+                  or revision.get('compact_statistics_window_start_signal_date') != '20260910'
+              ):
+                  raise ValueError('public compact window revision/date/start binding drifted')
+              raw=fetch_bytes(relative)
+              if raw != local_bytes(relative) or hashlib.sha256(raw).hexdigest() != revision.get('compact_statistics_window_sha256'):
+                  raise ValueError('public compact window bytes/SHA differ from exact revision')
+              payload=json.loads(raw)
+              validate_window(payload)
+              if (
+                  payload.get('schema_version') != 'dc20_compact_statistics_window_v1'
+                  or payload.get('report_signal_date') != expected_signal_date
+                  or payload.get('start_signal_date') != '20260910'
+              ):
+                  raise ValueError('public compact window payload date/start drifted')
+              sources=payload['source_files']
+              bindings={item['path']:item['sha256'] for item in sources}
+              if len(bindings) != len(sources) or bindings.get(config_relative) != payload.get('config_sha256'):
+                  raise ValueError('public compact window config/source inventory drifted')
+
+              def verify_source(binding):
+                  relative,digest=binding
+                  raw=local_bytes(relative)
+                  if re.fullmatch(r'[0-9a-f]{64}',digest) is None or hashlib.sha256(raw).hexdigest() != digest:
+                      raise ValueError(f'compact window build source SHA drifted: {relative}')
+                  public=fetch_bytes(relative)
+                  if public != raw or hashlib.sha256(public).hexdigest() != digest:
+                      raise ValueError(f'public compact window source bytes/SHA drifted: {relative}')
+
+              with ThreadPoolExecutor(max_workers=6) as pool:
+                  list(pool.map(verify_source,bindings.items()))
+              return payload
+
+          page_url=os.environ['PAGE_URL'].rstrip('/')
+          for attempt in range(1,13):
+              def fetch_bytes(relative):
+                  url=f"{page_url}/{relative}?run_id={os.environ['GITHUB_RUN_ID']}&compact_verify_attempt={attempt}"
+                  with urlopen(Request(url,headers={'Cache-Control':'no-cache'}),timeout=30) as response:
+                      return response.read()
+              try:
+                  payload=verify_public_compact_statistics_window(
+                      Path('_site'),fetch_bytes,os.environ['EXPECTED_HEAD'],os.environ['EXPECTED_SIGNAL_DATE'],
+                  )
+                  print(json.dumps({'public_compact_statistics_window':'EXACT_BYTES_VERIFIED',
+                      'report_signal_date':payload['report_signal_date'],'start_signal_date':payload['start_signal_date']},sort_keys=True))
+                  break
+              except (OSError,ValueError,KeyError) as exc:
+                  if attempt == 12:
+                      raise
+                  time.sleep(10)
+          PY
+
+      - name: Verify public primary-profit bundle when present
+        if: ${{ steps.site.outputs.executable_profit_contract == 'primary' }}
+        env:
+          GENERATION_MODE: ${{ steps.site.outputs.primary_profit_generation_mode }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_REMOVED_SHADOW_SURFACES_JSON: ${{ steps.site.outputs.primary_shadow_removed_surfaces_json }}
+          SHADOW_PUBLICATION_MODE: ${{ steps.site.outputs.primary_shadow_publication_mode }}
+          SIGNAL_DATE: ${{ steps.site.outputs.executable_profit_signal_date }}
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          set -euo pipefail
+          public_root="${RUNNER_TEMP}/generic-public-primary-profit"
+          removed_shadow_surfaces_file="${RUNNER_TEMP}/primary-shadow-removed-surfaces.txt"
+          fetch_public_exact() {
+            local relative="$1"
+            local expected="_site/${relative}"
+            local destination="${public_root}/${relative}"
+            local candidate=""
+            local expected_sha=""
+            local actual_sha="unavailable"
+            mkdir -p "$(dirname "${destination}")"
+            for attempt in {1..12}; do
+              candidate="${destination}.fetch.${attempt}"
+              if curl -fsSL --retry 2 --retry-delay 2 --retry-all-errors \
+                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
+                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_attempt=${attempt}" \
+                   -o "${candidate}" && \
+                 cmp -s "${expected}" "${candidate}"; then
+                mv -f "${candidate}" "${destination}"
+                return 0
+              fi
+              if [ "${attempt}" != 12 ]; then
+                sleep 10
+              fi
+            done
+            expected_sha="$(sha256sum "${expected}" | awk '{print $1}')"
+            if [ -f "${candidate}" ]; then
+              actual_sha="$(sha256sum "${candidate}" | awk '{print $1}')"
+            fi
+            echo "public Pages bytes did not converge to exact deployment: ${relative}; expected_sha256=${expected_sha}; actual_sha256=${actual_sha}" >&2
+            return 1
+          }
+          expect_public_404() {
+            local relative="$1"
+            local http_code="unavailable"
+            for attempt in {1..12}; do
+              if http_code="$(curl -sS -L --retry 2 --retry-delay 2 --retry-all-errors \
+                   -H 'Cache-Control: no-cache' --connect-timeout 10 --max-time 30 \
+                   -o /dev/null -w '%{http_code}' \
+                   "${PAGE_URL%/}/${relative}?run_id=${GITHUB_RUN_ID}&verify_absence_attempt=${attempt}")" && \
+                 [ "${http_code}" = 404 ]; then
+                return 0
+              fi
+              if [ "${attempt}" != 12 ]; then
+                sleep 10
+              fi
+            done
+            echo "public Pages path did not converge to HTTP 404: ${relative}; last_http=${http_code}" >&2
+            return 1
+          }
+          REMOVED_SHADOW_SURFACES_FILE="${removed_shadow_surfaces_file}" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import PurePosixPath
+
+          def validate_removed_shadow_surface_inventory(values, publication_mode):
+              allowed_modes = {
+                  'REQUIRE_SAME_D_SHADOW',
+                  'OMIT_RETROSPECTIVE_SHADOW',
+                  'OMIT_NATURAL_PENDING_SHADOW',
+              }
+              if publication_mode not in allowed_modes:
+                  raise ValueError(
+                      'Pages removed Shadow inventory publication mode is unsupported'
+                  )
+              if not isinstance(values, list) or any(
+                  type(value) is not str or not value for value in values
+              ):
+                  raise ValueError('Pages removed Shadow inventory is invalid')
+              if values != sorted(set(values)):
+                  raise ValueError(
+                      'Pages removed Shadow inventory is not sorted and unique'
+                  )
+              prefix = 'outputs/decision/executable_profit_research/'
+              dated_name = re.compile(
+                  r'(?:shadow_state_20[0-9]{6}_asof_20[0-9]{6}'
+                  r'(?:_sha256_[0-9a-f]{64})?'
+                  r'|shadow_statistics_20[0-9]{6}_asof_20[0-9]{6})\.json'
+              )
+              for relative in values:
+                  path = PurePosixPath(relative)
+                  if (
+                      path.is_absolute()
+                      or '..' in path.parts
+                      or path.as_posix() != relative
+                      or len(path.parts) != 4
+                      or not relative.startswith(prefix)
+                      or (
+                          path.name
+                          not in {'shadow_index.json', 'shadow_cutover_index.json'}
+                          and dated_name.fullmatch(path.name) is None
+                      )
+                  ):
+                      raise ValueError(
+                          f'Pages removed Shadow inventory path is unsafe: {relative}'
+                      )
+              if publication_mode == 'REQUIRE_SAME_D_SHADOW' and values:
+                  raise ValueError(
+                      'Pages exact same-D Shadow publication removed active surfaces'
+                  )
+              return tuple(values)
+
+          try:
+              removed = validate_removed_shadow_surface_inventory(
+                  json.loads(
+                      os.environ['EXPECTED_REMOVED_SHADOW_SURFACES_JSON']
+                  ),
+                  os.environ['SHADOW_PUBLICATION_MODE'],
+              )
+          except (json.JSONDecodeError, ValueError) as exc:
+              raise SystemExit(str(exc)) from exc
+          output_path = PurePosixPath(os.environ['REMOVED_SHADOW_SURFACES_FILE'])
+          with open(output_path, 'w', encoding='utf-8') as output:
+              for relative in removed:
+                  output.write(relative + '\n')
+          PY
+          files=(
+            revision.json
+            models/decision_primary_profit_research_contract.json
+            "outputs/decision/primary_d_receipt_${SIGNAL_DATE}.json"
+            "outputs/decision/primary_d_runtime_features_${SIGNAL_DATE}.csv"
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.json"
+            "outputs/decision/three_rank_top10_${SIGNAL_DATE}.csv"
+            outputs/decision/legacy_profit_relative_research/index.json
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.json"
+            "outputs/decision/legacy_profit_relative_research/projection_${SIGNAL_DATE}.csv"
+            outputs/decision/executable_profit_research/index.json
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.json"
+            "outputs/decision/executable_profit_research/projection_${SIGNAL_DATE}.csv"
+            outputs/decision/executable_profit_research/daily_mixed_top2_index.json
+          )
+          shadow_index="_site/outputs/decision/executable_profit_research/shadow_index.json"
+          shadow_cutover_index="_site/outputs/decision/executable_profit_research/shadow_cutover_index.json"
+          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ]; then
+            if [ "${GENERATION_MODE}" != "RETROSPECTIVE_RECOVERY" ]; then
+              echo "retrospective Shadow omission mode/generation mismatch" >&2
+              exit 1
+            fi
+            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
+               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
+              echo "retrospective P1 build unexpectedly contains an active Shadow pointer" >&2
+              exit 1
+            fi
+          elif [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
+            if [ "${GENERATION_MODE}" != "NATURAL" ]; then
+              echo "natural pending Shadow mode/generation mismatch" >&2
+              exit 1
+            fi
+            if [ -e "${shadow_index}" ] || [ -L "${shadow_index}" ] || \
+               [ -e "${shadow_cutover_index}" ] || [ -L "${shadow_cutover_index}" ]; then
+              echo "natural pending P1 build unexpectedly contains an active Shadow pointer" >&2
+              exit 1
+            fi
+          elif [ "${SHADOW_PUBLICATION_MODE}" != "REQUIRE_SAME_D_SHADOW" ] || \
+               [ "${GENERATION_MODE}" != "NATURAL" ]; then
+            echo "public P1 Shadow publication mode is unsupported" >&2
+            exit 1
+          elif [ -f "${shadow_index}" ]; then
+            shadow_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["latest_state_url"])' "${shadow_index}")"
+            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["selection"]["path"])' "_site/${shadow_state}")"
+            shadow_statistics="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["statistics"]["path"])' "_site/${shadow_state}")"
+            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["downloads"]["csv_url"])' "_site/${shadow_selection}")"
+            shadow_t="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t_verification"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
+            shadow_t1="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1],encoding="utf-8"))["source_bindings"]["t1_settlement"]; print("" if v is None else v["path"])' "_site/${shadow_state}")"
+            files+=(
+              models/decision_primary_profit_forward_shadow_bridge_contract.json
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json
+              "${shadow_selection}"
+              "${shadow_csv}"
+              "${shadow_statistics}"
+              outputs/decision/executable_profit_research/shadow_index.json
+              "${shadow_state}"
+            )
+            for snapshot in _site/data/decision_executable_profit/forward/statistics/snapshots/summary_asof_*.json; do
+              if [ -f "${snapshot}" ] && [ "${snapshot#_site/}" != "${shadow_statistics}" ]; then
+                files+=("${snapshot#_site/}")
+              fi
+            done
+            if [ -n "${shadow_t}" ]; then files+=("${shadow_t}"); fi
+            if [ -n "${shadow_t1}" ]; then files+=("${shadow_t1}"); fi
+          elif [ -f "${shadow_cutover_index}" ]; then
+            shadow_selection="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["path"])' "${shadow_cutover_index}")"
+            shadow_csv="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8"))["selection"]["csv_path"])' "${shadow_cutover_index}")"
+            files+=(
+              models/decision_primary_profit_forward_shadow_bridge_contract.json
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json
+              outputs/decision/executable_profit_research/shadow_cutover_index.json
+              "${shadow_selection}"
+              "${shadow_csv}"
+            )
+          fi
+          for relative in "${files[@]}"; do
+            if ! fetch_public_exact "${relative}"; then
+              exit 1
+            fi
+          done
+          while IFS= read -r relative; do
+            if [ -e "_site/${relative}" ] || [ -L "_site/${relative}" ]; then
+              echo "removed Shadow surface still exists in Pages build: ${relative}" >&2
+              exit 1
+            fi
+            if ! expect_public_404 "${relative}"; then
+              echo "removed Shadow surface remained public: ${relative}" >&2
+              exit 1
+            fi
+          done < "${removed_shadow_surfaces_file}"
+          if [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_RETROSPECTIVE_SHADOW" ] || \
+             [ "${SHADOW_PUBLICATION_MODE}" = "OMIT_NATURAL_PENDING_SHADOW" ]; then
+            for relative in \
+              outputs/decision/executable_profit_research/shadow_index.json \
+              outputs/decision/executable_profit_research/shadow_cutover_index.json \
+              data/decision_executable_profit/forward/selections/primary_mixed_index.json \
+              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.json" \
+              "data/decision_executable_profit/forward/selections/shadow_${SIGNAL_DATE}.csv"; do
+              if ! expect_public_404 "${relative}"; then
+                echo "P1 pending-Shadow publication exposed a Shadow surface: ${relative}" >&2
+                exit 1
+              fi
+            done
+          elif [ -f "${shadow_cutover_index}" ]; then
+            for relative in \
+              outputs/decision/executable_profit_research/shadow_index.json \
+              data/decision_executable_profit/forward/statistics/summary.json; do
+              if ! expect_public_404 "${relative}"; then
+                echo "grandfathered Shadow artifact remained public: ${relative}" >&2
+                exit 1
+              fi
+            done
+          elif [ -f "${shadow_index}" ]; then
+            if ! expect_public_404 outputs/decision/executable_profit_research/shadow_cutover_index.json; then
+              echo "selection-only cutover pointer remained beside standard Shadow chain" >&2
+              exit 1
+            fi
+          else
+            echo "public primary Shadow has neither a standard nor cutover pointer" >&2
+            exit 1
+          fi
+          grandfather_state="outputs/decision/executable_profit_research/shadow_state_20260828_asof_20260828.json"
+          if ! expect_public_404 "${grandfather_state}"; then
+            echo "grandfathered Shadow state remained public: ${grandfather_state}" >&2
+            exit 1
+          fi
+          PUBLIC_ROOT="${public_root}" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.publish_primary_profit_rankings import (
+              validate_primary_profit_bundle,
+              validate_primary_profit_daily_mixed_top2_index,
+          )
+          from top10decision.decision.primary_profit_forward_shadow_bridge import (
+              validate_primary_profit_forward_shadow,
+              validate_primary_profit_forward_shadow_index,
+          )
+
+          bundle = validate_primary_profit_bundle(
+              Path(os.environ['PUBLIC_ROOT']),
+              expected_signal_date=os.environ['SIGNAL_DATE'],
+          )
+          daily_ledger = validate_primary_profit_daily_mixed_top2_index(
+              Path(os.environ['PUBLIC_ROOT']),
+              expected_signal_date=os.environ['SIGNAL_DATE'],
+              require_all_projection_sources=False,
+          )
+          daily_entry = next(
+              (
+                  item
+                  for item in daily_ledger['entries']
+                  if item['signal_date'] == os.environ['SIGNAL_DATE']
+              ),
+              None,
+          )
+          if (
+              daily_entry is None
+              or daily_entry['projection_json_sha256']
+              != bundle['mixed']['projection_json_sha256']
+          ):
+              raise SystemExit(
+                  'public daily mixed Top1/Top2 ledger is missing or not SHA-bound'
+              )
+          revision = json.loads(
+              (Path(os.environ['PUBLIC_ROOT']) / 'revision.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          daily_ledger_path = (
+              Path(os.environ['PUBLIC_ROOT'])
+              / 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
+          )
+          if (
+              revision.get('primary_mixed_daily_top2_index_url')
+              != 'outputs/decision/executable_profit_research/daily_mixed_top2_index.json'
+              or revision.get('primary_mixed_daily_top2_index_sha256')
+              != hashlib.sha256(daily_ledger_path.read_bytes()).hexdigest()
+              or revision.get('primary_mixed_daily_top2_latest_signal_date')
+              != daily_ledger['latest_signal_date']
+              or revision.get('primary_mixed_daily_top2_recorded_days')
+              != daily_ledger['recorded_days']
+              or revision.get('primary_mixed_daily_top2_recorded_slots')
+              != daily_ledger['recorded_slots']
+          ):
+              raise SystemExit(
+                  'public daily mixed Top1/Top2 ledger is not bound to revision.json'
+              )
+          mixed = bundle['mixed']['projection']
+          shadow_publication_mode = os.environ['SHADOW_PUBLICATION_MODE']
+          shadow_index_path = (
+              Path(os.environ['PUBLIC_ROOT'])
+              / 'outputs/decision/executable_profit_research/shadow_index.json'
+          )
+          root = Path(os.environ['PUBLIC_ROOT'])
+          cutover_path = (
+              root
+              / 'outputs/decision/executable_profit_research/shadow_cutover_index.json'
+          )
+          if shadow_publication_mode in {
+              'OMIT_RETROSPECTIVE_SHADOW',
+              'OMIT_NATURAL_PENDING_SHADOW',
+          }:
+              retrospective_omission_ok = (
+                  shadow_publication_mode == 'OMIT_RETROSPECTIVE_SHADOW'
+                  and bundle['inputs'].generation_mode
+                  == 'RETROSPECTIVE_RECOVERY'
+                  and mixed.get('prospective') is False
+                  and mixed.get('retrospective_non_forward') is True
+              )
+              natural_pending_ok = (
+                  shadow_publication_mode == 'OMIT_NATURAL_PENDING_SHADOW'
+                  and bundle['inputs'].generation_mode == 'NATURAL'
+                  and mixed.get('prospective') is True
+                  and mixed.get('retrospective_non_forward') is False
+              )
+              if (
+                  shadow_index_path.exists()
+                  or shadow_index_path.is_symlink()
+                  or cutover_path.exists()
+                  or cutover_path.is_symlink()
+                  or not (retrospective_omission_ok or natural_pending_ok)
+                  or (mixed.get('ranking_contract') or {}).get(
+                      'forward_selection_or_statistics_may_change'
+                  ) is not False
+              ):
+                  raise SystemExit(
+                      'public P1 pending-Shadow state exposed or authorized Shadow'
+                  )
+          elif not (
+              shadow_publication_mode == 'REQUIRE_SAME_D_SHADOW'
+              and bundle['inputs'].generation_mode == 'NATURAL'
+          ):
+              raise SystemExit('public P1 Shadow publication mode is unsupported')
+          elif shadow_index_path.exists():
+              import hashlib
+
+              shadow_index = json.loads(shadow_index_path.read_text(encoding='utf-8'))
+              state_path = root / str(shadow_index['latest_state_url'])
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+              selection = state['source_bindings']['selection']
+              statistics = state['source_bindings']['statistics']
+              mixed_binding = state['source_bindings']['mixed_projection']
+              selection_path = root / str(selection['path'])
+              statistics_path = root / str(statistics['path'])
+              truth_ok = True
+              for key in ('t_verification', 't1_settlement'):
+                  binding = state['source_bindings'].get(key)
+                  if binding is None:
+                      continue
+                  truth_path = root / str(binding['path'])
+                  truth_ok = truth_ok and (
+                      truth_path.is_file()
+                      and not truth_path.is_symlink()
+                      and hashlib.sha256(truth_path.read_bytes()).hexdigest()
+                      == binding.get('sha256')
+                  )
+              if not (
+                  shadow_index.get('latest_signal_date') == os.environ['SIGNAL_DATE']
+                  and state.get('signal_date') == os.environ['SIGNAL_DATE']
+                  and shadow_index.get('latest_mixed_projection_sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  and mixed_binding.get('sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  and hashlib.sha256(state_path.read_bytes()).hexdigest()
+                  == shadow_index.get('latest_state_sha256')
+                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
+                  == selection.get('sha256')
+                  and hashlib.sha256(statistics_path.read_bytes()).hexdigest()
+                  == statistics.get('sha256')
+                  and truth_ok
+              ):
+                  raise SystemExit(
+                      'public primary Shadow sidecar is not exact-D/SHA bound'
+                  )
+              summary = json.loads(statistics_path.read_text(encoding='utf-8'))
+              if (
+                  summary.get('public_start_signal_date') != '20260828'
+                  or (summary.get('scope') or {}).get('minimum_signal_date')
+                  != '20260828'
+              ):
+                  raise SystemExit('public standard Shadow summary lacks D28 cutover')
+          else:
+              import hashlib
+
+              root = Path(os.environ['PUBLIC_ROOT'])
+              if not cutover_path.is_file() or cutover_path.is_symlink():
+                  raise SystemExit(
+                      'public primary Shadow has neither a standard nor safe cutover pointer'
+                  )
+              cutover = json.loads(cutover_path.read_text(encoding='utf-8'))
+              selection = cutover.get('selection') or {}
+              signal_date = os.environ['SIGNAL_DATE']
+              expected_selection = (
+                  'data/decision_executable_profit/forward/selections/'
+                  f'shadow_{signal_date}.json'
+              )
+              expected_csv = (
+                  'data/decision_executable_profit/forward/selections/'
+                  f'shadow_{signal_date}.csv'
+              )
+              if (
+                  set(cutover)
+                  != {
+                      'schema_version', 'index_kind', 'data_alias',
+                      'public_start_signal_date', 'signal_date', 'exec_date',
+                      'exit_date', 'candidate_count', 'selected_slots',
+                      'top10_members_sha256', 'mixed_projection_sha256',
+                      'selection', 'boundaries',
+                  }
+                  or set(selection)
+                  != {
+                      'path', 'sha256', 'snapshot_sha256',
+                      'selection_identity_sha256', 'csv_path', 'csv_sha256',
+                  }
+                  or selection.get('path') != expected_selection
+                  or selection.get('csv_path') != expected_csv
+              ):
+                  raise SystemExit('public primary Shadow cutover surface/path drifted')
+              selection_path = root / expected_selection
+              csv_path = root / expected_csv
+              primary_index_path = (
+                  root
+                  / 'data/decision_executable_profit/forward/selections/primary_mixed_index.json'
+              )
+              primary_index = json.loads(
+                  primary_index_path.read_text(encoding='utf-8')
+              )
+              validate_primary_profit_forward_shadow_index(primary_index)
+              selection_payload = json.loads(
+                  selection_path.read_text(encoding='utf-8')
+              )
+              validate_primary_profit_forward_shadow(
+                  selection_payload,
+                  require_downloads=True,
+              )
+              selected_rows = [
+                  row
+                  for row in selection_payload['rows']
+                  if row.get('internal_shadow_selected') == 1
+              ]
+              if not (
+                  cutover.get('schema_version')
+                  == 'dc20_primary_profit_forward_shadow_cutover_index_v1'
+                  and cutover.get('index_kind')
+                  == 'primary_profit_forward_shadow_selection_only_cutover'
+                  and cutover.get('data_alias') is False
+                  and cutover.get('public_start_signal_date') == '20260828'
+                  and cutover.get('signal_date') == signal_date == '20260828'
+                  and cutover.get('exec_date') == mixed.get('exec_date')
+                  and cutover.get('exit_date') == mixed.get('exit_date')
+                  and cutover.get('candidate_count') == mixed.get('candidate_count')
+                  == len(bundle['inputs'].selected_runtime)
+                  and cutover.get('selected_slots') == len(selected_rows) == 2
+                  and [row.get('shadow_slot') for row in selected_rows] == [1, 2]
+                  and cutover.get('top10_members_sha256')
+                  == mixed.get('top10_members_sha256')
+                  == selection_payload.get('top10_members_sha256')
+                  and cutover.get('mixed_projection_sha256')
+                  == bundle['mixed']['projection_json_sha256']
+                  == (
+                      selection_payload.get('source_bindings') or {}
+                  ).get('mixed_projection', {}).get('sha256')
+                  and cutover.get('boundaries') == selection_payload.get('boundaries')
+                  and primary_index.get('latest_signal_date') == signal_date
+                  and primary_index.get('latest_exec_date') == mixed.get('exec_date')
+                  and primary_index.get('latest_exit_date') == mixed.get('exit_date')
+                  and primary_index.get('latest_json_sha256')
+                  == selection.get('sha256')
+                  and primary_index.get('latest_csv_sha256')
+                  == selection.get('csv_sha256')
+                  and primary_index.get('latest_snapshot_sha256')
+                  == selection.get('snapshot_sha256')
+                  == selection_payload.get('snapshot_sha256')
+                  and primary_index.get('latest_selection_identity_sha256')
+                  == selection.get('selection_identity_sha256')
+                  == selection_payload.get('selection_identity_sha256')
+                  and primary_index.get('latest_top10_members_sha256')
+                  == cutover.get('top10_members_sha256')
+                  and selection_payload.get('downloads', {}).get('csv_url')
+                  == expected_csv
+                  and selection_payload.get('downloads', {}).get('csv_sha256')
+                  == selection.get('csv_sha256')
+                  and hashlib.sha256(selection_path.read_bytes()).hexdigest()
+                  == selection.get('sha256')
+                  and hashlib.sha256(csv_path.read_bytes()).hexdigest()
+                  == selection.get('csv_sha256')
+              ):
+                  raise SystemExit(
+                      'public primary Shadow selection-only cutover is not exact-D/SHA bound'
+                  )
+          if not (
+              revision.get('executable_profit_contract') == 'primary'
+              and revision.get('executable_profit_statistics_as_of_date') == ''
+              and revision.get('executable_profit_statistics_url') == ''
+              and revision.get('primary_profit_status') == mixed['status']
+              and revision.get('primary_profit_generation_mode')
+              == bundle['inputs'].generation_mode
+              and revision.get('primary_profit_candidate_count')
+              == len(bundle['inputs'].selected_runtime)
+              and revision.get('primary_profit_top10_members_sha256')
+              == mixed['top10_members_sha256']
+              and revision.get('primary_single_profit_projection_sha256')
+              == bundle['single']['projection_json_sha256']
+              and revision.get('primary_mixed_profit_projection_sha256')
+              == bundle['mixed']['projection_json_sha256']
+              and revision.get('primary_profit_source_bundle_sha256')
+              == mixed['source_bundle_sha256']
+              and revision.get(
+                  'primary_profit_source_feature_snapshot_sha256'
+              )
+              == mixed['source_feature_snapshot_sha256']
+          ):
+              raise SystemExit(
+                  'public generic revision is not bound to the complete P1 bundle'
+              )
+          print(
+              'public primary-profit bundle verified: '
+              f"D={bundle['inputs'].signal_date}, "
+              f"mode={bundle['inputs'].generation_mode}, "
+              f"N={len(bundle['inputs'].selected_runtime)}"
+          )
+          PY
+
+
+      - name: Report isolated auxiliary delivery outcomes
+        if: ${{ always() }}
+        env:
+          COMPACT_BUILD: ${{ steps.compact_window.outcome }}
+          ACCOUNT_BUILD: ${{ steps.account_build.outcome }}
+          COMPACT_PUBLIC: ${{ steps.compact_public.outcome }}
+          ACCOUNT_PUBLIC: ${{ steps.account_public.outcome }}
+        run: |
+          python3 - <<'PYCODE'
+          import os, json
+          status = {key: os.environ.get(key) for key in ('COMPACT_BUILD','ACCOUNT_BUILD','COMPACT_PUBLIC','ACCOUNT_PUBLIC')}
+          print(json.dumps({'auxiliary_delivery': status}))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write('\nAuxiliary delivery (independent from main rankings): ' + json.dumps(status) + '\n')
+          PYCODE

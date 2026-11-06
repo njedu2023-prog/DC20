@@ -266,7 +266,9 @@ def test_real_bound_sources_read_only_and_exact_daily_cutover():
              ROOT/"data/decision_executable_profit/forward/statistics/summary.json"]
     before = {path: path.read_bytes() for path in paths}
     clock = datetime.strptime(signal, "%Y%m%d").replace(tzinfo=timezone.utc) + timedelta(days=2)
-    payload = window.build_window(ROOT, signal_date=signal, now=clock)
+    from unittest.mock import patch
+    with patch("scripts.build_compact_statistics_window.legacy_archived", return_value=False):
+        payload = window.build_window(ROOT, signal_date=signal, now=clock)
     assert payload["profit"]["status"] == "READY", payload["profit"]
     assert payload["promotion"]["status"] == "READY", payload["promotion"]
     assert all(path.read_bytes() == raw for path, raw in before.items())

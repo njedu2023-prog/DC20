@@ -104,7 +104,9 @@ def test_window_steps_are_after_daily_build_before_upload_and_after_deployment()
         assert f"      - {path}\n" in text.split("  workflow_dispatch:", 1)[0]
     for name in ("Build independent compact statistics window", "Verify public compact statistics window"):
         step = next(step for step in steps if step.get("name") == name)
-        assert "continue-on-error" not in step and "if" not in step
+        assert step["continue-on-error"] is True
+        if name.startswith("Verify"):
+            assert "compact_window.outcome == 'success'" in step["if"]
         assert "set -euo pipefail" in step["run"]
         result = subprocess.run(["bash", "-n"], input=step["run"], text=True, capture_output=True)
         assert result.returncode == 0, result.stderr

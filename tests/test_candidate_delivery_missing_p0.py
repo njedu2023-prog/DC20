@@ -68,6 +68,14 @@ def test_clock_rechecked_before_dispatch():
     assert not f.posts
 
 
+def test_actual_time_crossing_2330_during_queue_reads_prevents_dispatch():
+    f=Missing();plan=m.inspect(f,NOW)
+    with pytest.raises(ValueError,match='OUTSIDE_CONTROLLED_WINDOW'):
+        m.act(f,plan,NOW,execute=True,
+              clock=lambda:datetime.fromisoformat('2026-09-22T23:30:00+08:00'))
+    assert not f.posts
+
+
 def test_old_failed_p0_does_not_exhaust_new_ready_sources():
     f = Missing()
     f.busy = [{**run(m.P0,id=70+i), 'event': 'schedule', 'conclusion': 'failure'} for i in range(3)]
@@ -89,13 +97,14 @@ def test_p0_in_progress_never_duplicated():
 
 
 def test_after_midnight_generating_run_can_recover_downstream():
-    f = Fake(); original = f.request
-    def request(path, body=None):
-        result = original(path, body)
-        if path.startswith('/actions/workflows/'+m.P0+'/runs?status=success'):
-            result['workflow_runs'][0]['created_at'] = '2026-09-22T17:51:00Z'
-        return result
-    f.request = request
+    f = Fake()
+    r = f.p0_runs[0]
+    for key in ('created_at', 'run_started_at', 'updated_at'):
+        r[key] = r[key].replace('T12:', 'T17:')
+    for job in f.p0_jobs[r['id']]['jobs']:
+        for key in ('started_at', 'completed_at'):
+            job[key] = job[key].replace('T12:', 'T17:')
+    r['event'] = 'schedule'
     plan = m.inspect(f, datetime.fromisoformat('2026-09-23T02:00:00+08:00'))
     assert plan['workflow'] == m.NATURAL and plan['inputs']['p0_run_id'] == '7'
 

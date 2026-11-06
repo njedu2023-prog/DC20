@@ -33,6 +33,11 @@ IDS = {P0: 343703608, NATURAL: 357010624, OBSERVER: 357027830}
 ROOT = 'work/profit_1000_upgrade/'
 PUBLIC = 'outputs/decision/candidate_profit_v1/'
 UPSTREAMS = ('njedu2023-prog/a-top10', 'njedu2023-prog/a-share-top3-data')
+P0_JOBS = ('Build immutable promotion-only D candidate', 'CAS publish one primary D commit',
+           'Deploy exact primary D revision / deploy')
+P0_GENERATION_STEPS = ('Resolve immutable upstream commits', 'Snapshot protected secondary state',
+    'Sync exact-D independent inputs', 'Publish primary promotion list in the isolated scope',
+    'Build exact P0 candidate patch', 'Upload immutable P0 candidate')
 
 
 def require(value, reason):
@@ -210,6 +215,205 @@ def missing_p0(client, base, now, cutoff):
                        'pred_commit': sources['pred_commit'], 'market_commit': sources['market_commit']}}
 
 
+def stamp(value):
+    require(isinstance(value, str), 'P0_HANDOFF_TIMESTAMP_REQUIRED')
+    result = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    require(result.tzinfo is not None, 'P0_HANDOFF_AWARE_TIMESTAMP_REQUIRED')
+    return result
+
+
+def handoff_jobs(client, run, *, reuse=False):
+    """Discovery preflight only; the unchanged importer revalidates all evidence.
+
+    A green duplicate run did not generate anything. A failed generation is
+    usable by the existing continuation only when compute and CAS succeeded and
+    the canonical Pages job alone failed. Inspect the original attempt's jobs,
+    not the aggregate run badge or a later retry's steps.
+    """
+    value = client.request(f'/actions/runs/{run["id"]}/attempts/1/jobs?per_page=100')
+    jobs = value.get('jobs')
+    require(isinstance(jobs, list) and type(value.get('total_count')) is int
+            and value['total_count'] == len(jobs) <= 100, 'P0_HANDOFF_COMPLETE_JOBS_REQUIRED')
+    require(all(isinstance(j, dict) and type(j.get('id')) is int and j['id'] > 0
+                and j.get('run_id') == run['id'] and isinstance(j.get('name'), str) for j in jobs)
+            and len({j['id'] for j in jobs}) == len(jobs)
+            and len({j['name'] for j in jobs}) == len(jobs), 'P0_HANDOFF_JOB_IDENTITY_CHANGED')
+    by_name = {j['name']: j for j in jobs}
+    require(set(P0_JOBS) <= set(by_name), 'P0_HANDOFF_CRITICAL_JOB_MISSING')
+    compute, cas, deploy = [by_name[name] for name in P0_JOBS]
+    wanted = ('success', 'skipped', 'success') if reuse else ('success', 'success', run['conclusion'])
+    require(all(j.get('status') == 'completed' and j.get('conclusion') == conclusion
+                for j, conclusion in zip((compute, cas, deploy), wanted))
+            and all(j.get('status') == 'completed' and j.get('conclusion') in {'success', 'skipped'}
+                    for j in jobs if j['name'] != P0_JOBS[2]), 'P0_HANDOFF_JOB_OUTCOMES_INVALID')
+    ordered = [compute, deploy] if reuse else [compute, cas, deploy]
+    require(all(stamp(run['run_started_at']) <= stamp(j.get('started_at')) <= stamp(j.get('completed_at'))
+                <= stamp(run['updated_at']) for j in ordered)
+            and all(stamp(a['completed_at']) <= stamp(b['started_at']) for a, b in zip(ordered, ordered[1:])),
+            'P0_HANDOFF_JOB_TIME_INVALID')
+    steps = compute.get('steps')
+    require(isinstance(steps, list) and all(isinstance(s, dict) and type(s.get('number')) is int
+                and s['number'] > 0 and isinstance(s.get('name'), str) and s.get('status') == 'completed' for s in steps)
+            and len({s['number'] for s in steps}) == len(steps)
+            and len({s['name'] for s in steps}) == len(steps), 'P0_HANDOFF_STEP_IDENTITY_CHANGED')
+    states = {s['name']: s.get('conclusion') for s in steps}
+    require(states.get('Resolve exact D and reject a completed duplicate') == 'success'
+            and all(states.get(name) == ('skipped' if reuse else 'success') for name in P0_GENERATION_STEPS),
+            'P0_HANDOFF_GENERATION_OR_REUSE_STEPS_INVALID')
+    return cas
+
+
+def controlled_run(run, day):
+    title = 'DC20 controlled daily NATURAL | D='+day
+    require(run.get('event') == 'workflow_dispatch' and run.get('name') == run.get('display_title') == title,
+            'P0_HANDOFF_CONTROLLED_NATURAL_REQUIRED')
+    local = stamp(run['created_at']).astimezone(TZ)
+    require(local.strftime('%Y%m%d') == day and time(15) <= local.time() < time(23, 30),
+            'P0_HANDOFF_ORIGINAL_CONTROLLED_WINDOW_REQUIRED')
+
+
+def original_artifact(client, run, cas_job):
+    value = client.request(f'/actions/runs/{run["id"]}/artifacts?per_page=100')
+    items = value.get('artifacts')
+    require(isinstance(items, list) and type(value.get('total_count')) is int
+            and value['total_count'] == len(items) <= 100 and all(isinstance(a, dict) for a in items),
+            'P0_HANDOFF_COMPLETE_ARTIFACT_LIST_REQUIRED')
+    selected = [a for a in items if a.get('name') == f'primary-d-candidate-{run["id"]}-1']
+    require(len(selected) == 1, 'P0_HANDOFF_ORIGINAL_ARTIFACT_REQUIRED')
+    artifact = selected[0]
+    origin = artifact.get('workflow_run', {})
+    require(type(artifact.get('id')) is int and artifact['id'] > 0 and artifact.get('expired') is False
+            and type(artifact.get('size_in_bytes')) is int and 0 < artifact['size_in_bytes'] <= 128*1024*1024
+            and origin.get('id') == run['id'] and origin.get('head_branch') == 'main'
+            and origin.get('head_sha') == run['head_sha']
+            and re.fullmatch('sha256:[0-9a-f]{64}', artifact.get('digest', ''))
+            and stamp(run['run_started_at']) <= stamp(artifact.get('created_at'))
+                <= stamp(artifact.get('updated_at')) <= stamp(cas_job['started_at']),
+            'P0_HANDOFF_ARTIFACT_ORIGIN_DIGEST_OR_TIME_INVALID')
+
+
+def original_cas(client, base, receipt, receipt_raw, run, cas_job):
+    """Locate, never create, the original CAS in main's dated-file history."""
+    day, head = base['signal_date'], base['head']
+    receipt_path = f'outputs/decision/primary_d_receipt_{day}.json'
+    commits = client.request(f'/commits?sha={head}&path={receipt_path}&per_page=30')
+    require(isinstance(commits, list) and len(commits) < 30, 'P0_HANDOFF_COMMIT_HISTORY_LIMIT')
+    matches = [c for c in commits if len(c.get('parents', [])) == 1
+               and c['parents'][0].get('sha') == run['head_sha']]
+    require(len(matches) == 1, 'P0_HANDOFF_UNIQUE_ORIGINAL_CAS_REQUIRED')
+    sha = matches[0].get('sha', '')
+    require(re.fullmatch('[0-9a-f]{40}', sha), 'P0_HANDOFF_CAS_SHA_INVALID')
+    commit = client.request('/git/commits/'+sha)
+    require(commit.get('sha') == sha and len(commit.get('parents', [])) == 1
+            and commit['parents'][0].get('sha') == run['head_sha']
+            and stamp(cas_job['started_at']) <= stamp(commit.get('committer', {}).get('date'))
+                <= stamp(cas_job['completed_at']), 'P0_HANDOFF_CAS_TIME_OR_PARENT_INVALID')
+    bound = receipt['outputs']
+    expected = {receipt_path: digest(receipt_raw),
+                f'outputs/decision/three_rank_top10_{day}.json': bound['json_sha256'],
+                f'outputs/decision/three_rank_top10_{day}.csv': bound['csv_sha256'],
+                f'outputs/decision/primary_d_runtime_features_{day}.csv': bound['runtime_features_sha256']}
+    for path, sha256 in expected.items():
+        before, current = client.file(path, sha), client.file(path, head)
+        require(isinstance(before, bytes) and before == current and digest(before) == sha256,
+                'P0_HANDOFF_ORIGINAL_BYTES_CHANGED')
+    return sha, expected
+
+
+def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
+    day, head = base['signal_date'], base['head']
+    original_head = receipt.get('inputs', {}).get('git_head', '')
+    require(re.fullmatch('[0-9a-f]{40}', original_head), 'P0_HANDOFF_ORIGINAL_HEAD_REQUIRED')
+    start = datetime.strptime(day+'1500', '%Y%m%d%H%M').replace(tzinfo=TZ)
+    created_filter = start.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    value = client.request('/actions/workflows/'+P0+'/runs?branch=main&status=completed'
+                           +'&created=%3E'+created_filter+'&per_page=100')
+    runs = value.get('workflow_runs')
+    require(isinstance(runs, list) and type(value.get('total_count')) is int
+            and value['total_count'] == len(runs) <= 100, 'P0_HANDOFF_COMPLETE_RUN_LIST_REQUIRED')
+    trusted = []
+    for run in runs:
+        try:
+            valid_run(run, P0, success=False)
+            require(run.get('status') == 'completed' and run.get('conclusion') in {'success', 'failure'}
+                    and re.fullmatch('[0-9a-f]{40}', run.get('head_sha', ''))
+                    and start < stamp(run['created_at']) <= stamp(run['run_started_at'])
+                        <= stamp(run['updated_at']) <= now and stamp(run['created_at']) < cutoff,
+                    'P0_HANDOFF_RUN_TIME_OR_STATE_INVALID')
+        except (ValueError, KeyError, TypeError):
+            continue
+        trusted.append(run)
+    originals = [r for r in trusted if r['head_sha'] == original_head]
+    # Multiple attempts from the same parent are not guessed. A failed pre-CAS
+    # attempt can be ignored only when its generation/CAS jobs prove it is not
+    # the receipt writer. Malformed/API-incomplete evidence fails closed.
+    generated = []
+    for run in originals:
+        jobs = client.request(f'/actions/runs/{run["id"]}/attempts/1/jobs?per_page=100')
+        require(isinstance(jobs.get('jobs'), list) and type(jobs.get('total_count')) is int
+                and jobs['total_count'] == len(jobs['jobs']) <= 100, 'P0_HANDOFF_COMPLETE_JOBS_REQUIRED')
+        if any(j.get('name') == P0_JOBS[1] and j.get('conclusion') == 'success' for j in jobs['jobs']):
+            generated.append(run)
+    if not generated:
+        # The receipt becomes visible after CAS, before the original Pages job
+        # completes. A completed-only search must not mislabel that live handoff
+        # as missing provenance. API errors remain failures, never an empty lock.
+        queue = inspect_queue(client, P0, day, now)
+        if queue['same_day_target_run_ids']:
+            return {**base, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING',
+                    'pending_stage': 'ORIGINAL_P0_COMPLETION', 'queue': queue}
+    require(len(generated) == 1, 'ORIGINAL_GENERATING_P0_RUN_MISSING_OR_AMBIGUOUS')
+    original = generated[0]
+    cas_job = handoff_jobs(client, original)
+    if original['conclusion'] == 'success':
+        return {**base, 'status': 'NEEDS_FREEZE', 'workflow': NATURAL,
+                'inputs': {'p0_run_id': str(original['id']), 'dry_run': False}}
+
+    # Reuse the existing, hash-pinned continuation; this discovery grants no
+    # authority and does not loosen its artifact, ancestry, source or time gates.
+    controlled_run(original, day)
+    require(stamp(cas_job['completed_at']) < datetime.strptime(day+'2330', '%Y%m%d%H%M').replace(tzinfo=TZ),
+            'P0_HANDOFF_ORIGINAL_CAS_AFTER_WINDOW')
+    deadline = datetime.strptime(base['exec_date']+'0915', '%Y%m%d%H%M').replace(tzinfo=TZ)
+    require(now < deadline, 'CONTINUATION_NEW_FREEZE_T0915_DEADLINE')
+    original_artifact(client, original, cas_job)
+    cas, expected = original_cas(client, base, receipt, receipt_raw, original, cas_job)
+    evidence = {'original_generation_run_id': str(original['id']), 'original_cas_commit': cas,
+                'handoff_authority': 'EXISTING_PINNED_CONTINUATION_IMPORTER',
+                'freeze_deadline': deadline.isoformat()}
+    for reuse in sorted(trusted, key=lambda r: r['created_at'], reverse=True):
+        if reuse['conclusion'] != 'success' or reuse['id'] == original['id'] or \
+                stamp(reuse['created_at']) <= stamp(cas_job['completed_at']):
+            continue
+        if reuse['event'] == 'workflow_dispatch':
+            try:
+                controlled_run(reuse, day)
+            except ValueError:
+                continue
+        # Do not match a successful run for another D or for changed P0 bytes.
+        if any((body := client.file(path, reuse['head_sha'])) is None or digest(body) != sha
+               for path, sha in expected.items()):
+            continue
+        handoff_jobs(client, reuse, reuse=True)
+        return {**base, **evidence, 'status': 'NEEDS_FREEZE_CONTINUATION', 'workflow': NATURAL,
+                'inputs': {'p0_run_id': str(reuse['id']), 'original_generation_run_id': str(original['id']),
+                           'original_cas_commit': cas, 'dry_run': False}}
+    local = now.astimezone(TZ)
+    if local.strftime('%Y%m%d') != day or not time(15) < local.time() < time(23, 30):
+        return {**base, **evidence, 'status': 'P0_REDEPLOY_REQUIRES_EXISTING_NATURAL_SCHEDULE',
+                'reason': 'NO_SUCCESSFUL_REUSE_AND_CONTROLLED_WINDOW_CLOSED'}
+    sources = receipt['inputs']
+    pred, market = sources.get('candidate', {}), sources.get('market', {})
+    require(pred.get('source_repository') == UPSTREAMS[0] and market.get('source_repository') == UPSTREAMS[1]
+            and all(re.fullmatch('[0-9a-f]{40}', s.get('resolved_commit', '')) for s in (pred, market)),
+            'P0_HANDOFF_ORIGINAL_UPSTREAM_COMMITS_REQUIRED')
+    return {**base, **evidence, 'status': 'NEEDS_P0_REDEPLOY', 'workflow': P0,
+            'source_ready_at': cas_job['completed_at'], 'recovery_kind': 'EXISTING_P0_REUSE_ONLY',
+            'inputs': {'trade_date': day, 'generation_mode': 'NATURAL', 'dry_run': False,
+                       'confirm_daily_generation': True, 'confirm_recovery': False,
+                       'pred_commit': pred['resolved_commit'], 'market_commit': market['resolved_commit']}}
+
+
 def inspect(client, now):
     head = client.request('/git/ref/heads/main')['object']['sha']
     activation = document(client.file('models/decision_candidate_profit_activation_v1.json', head))
@@ -257,30 +461,10 @@ def inspect(client, now):
     workflow_raw = client.file(ROOT+f'candidate_natural_forward/workflow_{day}.json', head)
     if snapshot_raw is None:
         require(workflow_raw is None, 'INCOMPLETE_FREEZE_REQUIRES_REPAIR')
-        runs = client.request('/actions/workflows/'+P0+'/runs?status=success&per_page=30')['workflow_runs']
-        candidates = []
-        start = datetime.strptime(day+'1500', '%Y%m%d%H%M').replace(tzinfo=TZ)
-        for run in runs:
-            created = datetime.fromisoformat(run['created_at'].replace('Z', '+00:00'))
-            # After-midnight scheduled recovery still belongs to D, until T
-            # auction. The importer validates the artifact's exact D binding.
-            if created.tzinfo is None or not start < created < cutoff or created > now:
-                continue
-            try:
-                valid_run(run, P0)
-            except ValueError:
-                continue
-            # A successful redeploy is not a generating P0. Require the immutable
-            # artifact-upload step before passing the run to the original importer.
-            jobs = client.request(f'/actions/runs/{run["id"]}/jobs?per_page=100')['jobs']
-            if any(s.get('name') == 'Upload immutable P0 candidate' and s.get('conclusion') == 'success'
-                   for j in jobs for s in j.get('steps', [])):
-                candidates.append(run['id'])
-            if len(candidates) >= 1:
-                break
-        require(candidates, 'ORIGINAL_GENERATING_P0_RUN_MISSING')
-        return {**base, 'status': 'NEEDS_FREEZE', 'workflow': NATURAL,
-                'inputs': {'p0_run_id': str(candidates[0]), 'dry_run': False}}
+        for kind in ('p0_sources', 'local_freeze'):
+            require(client.file(ROOT+f'candidate_natural_forward/{kind}_{day}.json', head) is None,
+                    'INCOMPLETE_FREEZE_REQUIRES_REPAIR')
+        return missing_freeze(client, base, receipt, receipt_raw, now, cutoff)
     snapshot, frozen = document(snapshot_raw), document(workflow_raw)
     require(frozen.get('signal_date') == day and frozen.get('snapshot_file_sha256') == digest(snapshot_raw)
             and snapshot.get('signal_date') == day and snapshot.get('exec_date') == trade
@@ -305,7 +489,7 @@ def inspect(client, now):
     return {**base, 'status': 'NEEDS_PUBLICATION', 'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
 
 
-def act(client, plan, now, *, execute=False):
+def act(client, plan, now, *, execute=False, clock=None):
     if 'workflow' not in plan:
         return plan
     workflow = plan['workflow']
@@ -327,6 +511,8 @@ def act(client, plan, now, *, execute=False):
                     and datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= ready]
     require(len(failures) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
     cutoff = datetime.strptime(plan['exec_date']+'0920', '%Y%m%d%H%M').replace(tzinfo=TZ)
+    if plan.get('freeze_deadline'):
+        cutoff = min(cutoff, stamp(plan['freeze_deadline']))
     require(plan.get('existing_formal') is True or now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
     if not execute:
         return {**plan, 'status': 'DRY_RUN_WOULD_DISPATCH'}
@@ -336,6 +522,13 @@ def act(client, plan, now, *, execute=False):
     if queue['status'] != 'CLEAR':
         return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
     require(client.request('/git/ref/heads/main')['object']['sha'] == plan['head'], 'MAIN_MOVED_RECHECK_NEXT_TICK')
+    # Real queue/API reads may cross a cutoff. The executable entry injects a
+    # live clock; deterministic callers may provide their own advancing clock.
+    dispatch_now = clock() if clock is not None else now
+    require(dispatch_now.tzinfo is not None and dispatch_now >= now, 'DISPATCH_CLOCK_INVALID')
+    if workflow == P0:
+        p0_dispatch_window(plan['signal_date'], dispatch_now)
+    require(plan.get('existing_formal') is True or dispatch_now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
     client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})
     return {**plan, 'status': 'DISPATCHED_NOT_COMPLETED'}
 
@@ -352,7 +545,8 @@ def main():
     client = GitHub(os.environ.get('GH_TOKEN'))
     try:
         plan = inspect(client, datetime.now(timezone.utc))
-        result = act(client, plan, datetime.now(timezone.utc), execute=args.execute)
+        result = act(client, plan, datetime.now(timezone.utc), execute=args.execute,
+                     clock=lambda: datetime.now(timezone.utc))
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     except (ValueError, KeyError, TypeError) as exc:
         # Only explicit machine reason codes, never a token, raw payload or URL.
@@ -364,4 +558,5 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
 

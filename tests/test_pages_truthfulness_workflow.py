@@ -455,7 +455,7 @@ def test_pages_quarantines_invalid_legacy_profit_research_before_copy() -> None:
         "${{ steps.legacy_profit_relative.outputs.publish }}"
     ) in site_step
     build_step = site_step.split(
-        "      - uses: actions/upload-pages-artifact@", 1
+        "      - name: Build independent compact statistics window", 1
     )[0]
     site_run = build_step.split("        run: |\n", 1)[1]
     assert "${{" not in site_run

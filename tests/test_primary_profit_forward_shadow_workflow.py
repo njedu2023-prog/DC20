@@ -99,14 +99,17 @@ def test_freezer_exposes_repository_root_before_importing_p1_validator() -> None
     assert text.index(root_bootstrap) < text.index(bridge_import)
 
 
-def test_bridge_listens_only_to_successful_exact_p1_and_shares_writer() -> None:
+def test_retired_bridge_only_allows_manual_dry_run_without_production_lock() -> None:
     text = _text()
-    assert "DC2.0 · Publish Primary Profit Rankings (P1)" in text
-    assert "workflow_id == 343703610" in text
-    assert "run_primary_profit_rankings.yml" in text
-    assert "github.event.workflow_run.conclusion == 'success'" in text
-    assert "github.event.workflow_run.run_attempt == 1" in text
-    assert "group: decision-auction-main-writer" in text
+    assert "only an exact prospective NATURAL P1 bundle may freeze Shadow" in text
+    assert "requested D differs from current prospective P1 mixed index" in text
+    events = text.split("\non:", 1)[1].split("\npermissions:", 1)[0]
+    assert "  workflow_dispatch:" in events
+    assert "  workflow_run:" not in events
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == true" in text
+    assert '"${INPUT_DRY_RUN:-true}" != true' in text
+    assert "group: dc20-retired-shadow-audit-${{ github.run_id }}" in text
+    assert "group: decision-auction-main-writer" not in text
     assert "cancel-in-progress: false" in text
     assert "confirm_prospective" in text
     assert "real prospective dispatch requires explicit confirmation" in text

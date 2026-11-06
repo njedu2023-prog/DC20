@@ -1,16 +1,10 @@
 name: DC2.0 · Publish Primary Profit Rankings (P1)
 
 on:
-  workflow_run:
-    workflows:
-      - DC2.0 · Publish Primary D List (P0)
-      - DC2.0 · Legacy Full Research Replay (Manual)
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "只读演练；生成并校验但不提交"
+        description: "已退役：仅允许 dry_run=true 的只读审计，不提交或发布"
         required: true
         default: true
         type: boolean
@@ -44,95 +38,19 @@ env:
   MKL_NUM_THREADS: "1"
   LOKY_MAX_CPU_COUNT: "1"
 
+# Retired from daily production. Manual audits cannot publish and never take
+# the production writer lock; historical source/freeze guards remain intact.
 concurrency:
-  # Invalid/dry-run/recovery P0 completions must not replace a pending writer.
-  # The pinned P0 run-name marks only its confirmed natural daily dispatches;
-  # the API, critical jobs and same-D receipt are independently checked below.
-  group: >-
-    ${{
-      github.event_name == 'workflow_run' &&
-      (
-        github.event.workflow_run.status != 'completed' ||
-        github.event.workflow_run.conclusion != 'success' ||
-        github.event.workflow_run.run_attempt != 1 ||
-        !(
-          (
-            github.event.workflow_run.workflow_id == 343703608 &&
-            github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
-            (
-              (
-                github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
-                (
-                  github.event.workflow_run.event == 'schedule' ||
-                  github.event.workflow_run.event == 'workflow_run'
-                )
-              ) ||
-              (
-                github.event.workflow_run.event == 'workflow_dispatch' &&
-                github.event.workflow_run.name == github.event.workflow_run.display_title &&
-                startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
-              )
-            )
-          ) ||
-          (
-            github.event.workflow_run.workflow_id == 335484130 &&
-            github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
-            github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml' &&
-            github.event.workflow_run.event == 'schedule'
-          )
-        ) ||
-        github.event.workflow_run.head_branch != 'main' ||
-        github.event.workflow_run.repository.full_name != github.repository ||
-        github.event.workflow_run.head_repository.full_name != github.repository
-      ) && format('dc20-p1-ignored-{0}', github.run_id) ||
-      'decision-auction-main-writer'
-    }}
+  group: dc20-retired-p1-audit-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
   compute:
     name: Build atomic P1 single/mixed research candidate
     if: >-
-      ${{
-        github.ref == 'refs/heads/main' &&
-        (
-          github.event_name != 'workflow_run' ||
-          (
-            github.event.workflow_run.conclusion == 'success' &&
-            github.event.workflow_run.status == 'completed' &&
-            github.event.workflow_run.run_attempt == 1 &&
-            (
-              (
-                github.event.workflow_run.workflow_id == 343703608 &&
-                github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
-                (
-                  (
-                    github.event.workflow_run.name == 'DC2.0 · Publish Primary D List (P0)' &&
-                    (
-                      github.event.workflow_run.event == 'schedule' ||
-                      github.event.workflow_run.event == 'workflow_run'
-                    )
-                  ) ||
-                  (
-                    github.event.workflow_run.event == 'workflow_dispatch' &&
-                    github.event.workflow_run.name == github.event.workflow_run.display_title &&
-                    startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')
-                  )
-                )
-              ) ||
-              (
-                github.event.workflow_run.workflow_id == 335484130 &&
-                github.event.workflow_run.name == 'DC2.0 · Legacy Full Research Replay (Manual)' &&
-                github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml' &&
-                github.event.workflow_run.event == 'schedule'
-              )
-            ) &&
-            github.event.workflow_run.head_branch == 'main' &&
-            github.event.workflow_run.repository.full_name == github.repository &&
-            github.event.workflow_run.head_repository.full_name == github.repository
-          )
-        )
-      }}
+      ${{ github.repository == 'njedu2023-prog/DC20' &&
+          github.ref == 'refs/heads/main' &&
+          github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
     permissions:
       actions: read
       contents: read
@@ -192,6 +110,10 @@ jobs:
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != workflow_dispatch ] || [ "${INPUT_DRY_RUN:-true}" != true ]; then
+            echo 'retired legacy workflow permits manual dry-run audit only' >&2
+            exit 1
+          fi
           publish=true
           if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ] && [ "${INPUT_DRY_RUN:-true}" != false ]; then publish=false; fi
           base_head="$(git rev-parse HEAD)"
@@ -1089,3 +1011,4 @@ jobs:
     uses: ./.github/workflows/deploy_dc20_pages.yml
     with:
       expected_head: ${{ needs.publish.outputs.published_head || needs.compute.outputs.base_head }}
+

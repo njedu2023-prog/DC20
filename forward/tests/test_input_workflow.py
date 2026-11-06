@@ -7,7 +7,7 @@ from forward.trigger import SCHEDULES
 
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = ROOT / ".github/workflows/accept_forward_inputs.yml"
+WORKFLOW = ROOT / ".github/archived-workflows/accept_forward_inputs.yml"
 ACCEPTANCE = ROOT / ".github/workflows/test_forward_rebuild.yml"
 
 
@@ -118,14 +118,12 @@ class InputWorkflowTests(unittest.TestCase):
         self.assertIn("timeout-minutes: 20", self.reader)
         self.assertIn("runs-on: ubuntu-24.04", self.reader)
 
-    def test_both_push_and_pr_acceptance_watch_new_workflow(self):
+    def test_historical_replay_remains_manual_and_natural_reader_is_archived(self):
         acceptance = ACCEPTANCE.read_text(encoding="utf-8")
         events = top_block(acceptance, "on")
-        needle = "      - '.github/workflows/accept_forward_inputs.yml'"
-        self.assertEqual(events.count(needle), 2)
-        push, pull = events.split("  pull_request:")
-        self.assertIn(needle, push)
-        self.assertIn(needle, pull)
+        self.assertEqual(re.findall(r"^  ([a-z_]+):", events, re.M), ["workflow_dispatch"])
+        self.assertFalse((ROOT / ".github/workflows/accept_forward_inputs.yml").exists())
+        self.assertNotIn("FORWARD_SCHEDULE:", acceptance)
 
 
 if __name__ == "__main__":

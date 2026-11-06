@@ -5,7 +5,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-NATURAL = ROOT / ".github/workflows/accept_forward_inputs.yml"
+NATURAL = ROOT / ".github/archived-workflows/accept_forward_inputs.yml"
 HISTORICAL = ROOT / ".github/workflows/test_forward_rebuild.yml"
 PRED_SHA = "1615abe7600d518dd04fcbbf5b159aad8ce95bf7"
 MARKET_SHA = "ff7a16b1d37b7f6befca5e4180ade7051fcd1df1"
@@ -145,9 +145,12 @@ class BundleWorkflowTests(unittest.TestCase):
                 self.assertIn(name, ACTION_PINS)
                 self.assertEqual(sha, ACTION_PINS[name])
 
-    def test_no_production_publication_trading_or_manual_dispatch(self):
+    def test_archived_natural_and_manual_replay_cannot_publish_or_trade(self):
+        self.assertNotRegex(self.natural, r"(?m)^\s*workflow_dispatch:")
+        self.assertRegex(self.historical, r"(?m)^  workflow_dispatch:")
+        self.assertNotRegex(self.historical, r"(?m)^  (schedule|push|pull_request):")
         for text in (self.natural, self.historical):
-            self.assertNotRegex(text, r"(?m)^\s*(workflow_dispatch|repository_dispatch|workflow_call|workflow_run):")
+            self.assertNotRegex(text, r"(?m)^\s*(repository_dispatch|workflow_call|workflow_run):")
             self.assertNotRegex(text, r"(?m)^\s*[a-z-]+:\s*(write|write-all)\s*$")
             self.assertNotIn("git push", text)
             self.assertNotIn("gh workflow", text)

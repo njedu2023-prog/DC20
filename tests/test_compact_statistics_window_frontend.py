@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,7 +38,9 @@ def window_data(history_archive):
     base = ROOT / "outputs/decision/executable_profit_research"
     index = json.loads((base / "shadow_index.json").read_text())
     now = datetime.now(timezone.utc)
-    window = build_window(ROOT, signal_date=index["latest_signal_date"], now=now)
+    # Archive compatibility remains validated with the original source contract.
+    with patch("scripts.build_compact_statistics_window.legacy_archived", return_value=False):
+        window = build_window(ROOT, signal_date=index["latest_signal_date"], now=now)
     assert window["profit"]["status"] == "READY", window["profit"]
     assert window["promotion"]["status"] == "READY", window["promotion"]
     raw = json.dumps(window, ensure_ascii=False, indent=2).encode()
@@ -107,7 +110,7 @@ const result=()=>{
   renderCompactDashboard();
   return {load:state.compactStatisticsWindowLoad,ready:!!compactStatisticsWindowView(),
     profit:els.compactLedgerContent.innerHTML,header:els.compactLedgerState.textContent,
-    promotion:els.compactStatisticsContent.innerHTML,calls};
+    promotion:els.compactStatisticsContent.innerHTML,calls,sectionErrors:state.currentCompactStatisticsWindow?.sectionErrors};
 };
 """
     tail += "\n(async()=>{await loadSources();" + body + "})().catch(e=>{console.error(e);process.exit(1)});"
@@ -143,6 +146,30 @@ def test_real_window_excludes_0909_and_includes_0910_in_actual_counts(window_dat
     assert window_data == original
 
 
+def test_retired_history_reads_only_manifest_bound_original_daily_index(window_data):
+    rendered = run(window_data, r"""
+const originalFetch=fetchPagesOnlyPath;
+const manifestPath='outputs/decision/legacy_profit_archive_manifest.json';
+const dailyBytes=await fetchPublishedBytes(PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH);
+const manifest={schema_version:'dc20_legacy_archive_manifest_v1',used_for_current_rankings:false,
+ files:[{path:PRIMARY_MIXED_DAILY_TOP2_INDEX_PATH,sha256:await sha256Hex(dailyBytes)}]};
+const manifestBytes=new TextEncoder().encode(JSON.stringify(manifest));
+fetchPagesOnlyPath=async(path,kind='json')=>path===manifestPath
+ ? kind==='bytes'?manifestBytes:manifest:originalFetch(path,kind);
+revision.legacy_profit_mode='ARCHIVED';revision.legacy_archive_manifest_url=manifestPath;
+revision.legacy_archive_manifest_sha256=await sha256Hex(manifestBytes);
+for(const key of Object.keys(revision))if(key.startsWith('primary_mixed_daily_top2_'))delete revision[key];
+await refreshCurrentPrimaryMixedDailyTop2();const good=state.currentPrimaryMixedDailyTop2;
+revision.legacy_archive_manifest_sha256='0'.repeat(64);
+await refreshCurrentPrimaryMixedDailyTop2();
+console.log(JSON.stringify({good:good.status,archived:good.archived,dates:good.index.recorded_signal_dates,
+ bad:state.currentPrimaryMixedDailyTop2.status,error:state.currentPrimaryMixedDailyTop2.message}));
+""")
+    assert rendered['good'] == 'ready' and rendered['archived'] is True
+    assert '20260908' in rendered['dates']
+    assert rendered['bad'] == 'invalid' and 'SHA256' in rendered['error']
+
+
 @pytest.mark.parametrize("mutation,error", [
     ("revision.compact_statistics_window_sha256='0'.repeat(64)", "字节SHA256不一致"),
     ("revision.compact_statistics_window_url='outputs/decision/other.json'", "Pages精确revision"),
@@ -164,12 +191,23 @@ def test_real_window_excludes_0909_and_includes_0910_in_actual_counts(window_dat
     ("windowPayload.source_files[0].path='../escape.json';await rehashWindow()", "路径或SHA"),
     ("readHook=async path=>{if(path===COMPACT_STATISTICS_WINDOW_PATH)throw Error('HTTP 404 window')}", "HTTP 404"),
 ])
-def test_window_binding_scope_and_counts_fail_closed_without_old_totals(window_data, mutation, error):
+def test_window_binding_scope_and_counts_isolate_sections_or_fail_envelope(window_data, mutation, error):
     rendered = run(window_data, mutation + ";await refreshCompactStatisticsWindow();console.log(JSON.stringify(result()));")
-    assert rendered["ready"] is False and rendered["load"]["status"] == "invalid"
-    assert error in rendered["load"]["message"]
-    assert rendered["profit"] == ""
-    assert rendered["promotion"].count('class="success-rate">—') == 4
+    section = "profit" if mutation.startswith("windowPayload.profit.") else "promotion" if mutation.startswith("windowPayload.promotion.") else None
+    if section:
+        assert error in rendered["sectionErrors"][section]
+        assert rendered["ready"] and rendered["load"]["status"] == "ready"
+        if section == "profit":
+            assert rendered["profit"] == ""
+            assert rendered["promotion"].count('class="success-rate">—') == 0
+        else:
+            assert "profit-summary-table" in rendered["profit"]
+            assert rendered["promotion"].count('class="success-rate">—') == 4
+    else:
+        assert rendered["ready"] is False and rendered["load"]["status"] == "invalid"
+        assert error in rendered["load"]["message"]
+        assert rendered["profit"] == ""
+        assert rendered["promotion"].count('class="success-rate">—') == 4
     assert 'class="success-rate">0.00%' not in rendered["promotion"]
 
 

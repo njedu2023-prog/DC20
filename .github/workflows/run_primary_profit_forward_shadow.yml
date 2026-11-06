@@ -1,15 +1,10 @@
 name: DC2.0 · Freeze Primary Profit Forward Shadow
 
 on:
-  workflow_run:
-    workflows:
-      - DC2.0 · Publish Primary Profit Rankings (P1)
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "只读演练；生成并校验但不提交"
+        description: "已退役：仅允许 dry_run=true 的只读审计，不提交或发布"
         required: true
         default: true
         type: boolean
@@ -34,33 +29,19 @@ env:
   OPENBLAS_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
 
+# Retired from daily production. Manual audits cannot publish and never take
+# the production writer lock; historical source/freeze guards remain intact.
 concurrency:
-  # This sidecar writes immutable D selections and cumulative truth state.  It
-  # therefore shares the one production writer lock with P0/P1/Daily/Verify.
-  group: decision-auction-main-writer
+  group: dc20-retired-shadow-audit-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
   compute:
     name: Freeze P1 Top1/Top2 without rescoring
     if: >-
-      ${{
-        github.ref == 'refs/heads/main' &&
-        (
-          github.event_name == 'workflow_dispatch' ||
-          (
-            github.event.workflow_run.status == 'completed' &&
-            github.event.workflow_run.conclusion == 'success' &&
-            github.event.workflow_run.run_attempt == 1 &&
-            github.event.workflow_run.workflow_id == 343703610 &&
-            github.event.workflow_run.name == 'DC2.0 · Publish Primary Profit Rankings (P1)' &&
-            github.event.workflow_run.path == '.github/workflows/run_primary_profit_rankings.yml' &&
-            github.event.workflow_run.head_branch == 'main' &&
-            github.event.workflow_run.repository.full_name == github.repository &&
-            github.event.workflow_run.head_repository.full_name == github.repository
-          )
-        )
-      }}
+      ${{ github.repository == 'njedu2023-prog/DC20' &&
+          github.ref == 'refs/heads/main' &&
+          github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
     permissions:
       actions: read
       contents: read
@@ -86,6 +67,10 @@ jobs:
           INPUT_CONFIRM_PROSPECTIVE: ${{ inputs.confirm_prospective }}
         run: |
           set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != workflow_dispatch ] || [ "${INPUT_DRY_RUN:-true}" != true ]; then
+            echo 'retired legacy workflow permits manual dry-run audit only' >&2
+            exit 1
+          fi
           publish=true
           if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ]; then
             if [ "${INPUT_DRY_RUN:-true}" != false ]; then publish=false; fi
@@ -482,3 +467,4 @@ jobs:
     uses: ./.github/workflows/deploy_dc20_pages.yml
     with:
       expected_head: ${{ needs.publish.outputs.published_head }}
+

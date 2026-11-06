@@ -15,8 +15,6 @@ REPO = 'njedu2023-prog/DC20'
 PREFIX = 'outputs/decision/profit_research/'
 WRITERS = {
     '.github/workflows/run_primary_d_daily.yml',
-    '.github/workflows/run_primary_profit_rankings.yml',
-    '.github/workflows/run_primary_profit_forward_shadow.yml',
     '.github/workflows/research_candidate_natural_forward.yml',
     '.github/workflows/research_candidate_natural_observer.yml',
     '.github/workflows/research_candidate_natural_settlement.yml',

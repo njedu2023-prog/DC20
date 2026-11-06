@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
+from scripts.daily_delivery_policy import POLICY_PATH, legacy_archived
 from scripts.publish_primary_three_rank import build_primary_d_runtime_index
 from scripts.settle_primary_observations import observation_row
 from top10decision.decision import executable_profit_shadow_settlement as settlement
@@ -520,8 +521,14 @@ def build_window(root, *, signal_date, now=None):
     closed = (clock if clock.hour >= 15 else clock-timedelta(days=1)).strftime("%Y%m%d")
     payload = dict(schema_version=SCHEMA, start_signal_date=START, report_signal_date=signal_date,
                    config_sha256=config_sources.checked[CONFIG_PATH])
+    retired = legacy_archived(root)
+    if retired:
+        config_sources.read(POLICY_PATH)
     collected = dict(config_sources.published)
     for name, function in (("profit", profit_section), ("promotion", promotion_section)):
+        if name == "profit" and retired:
+            payload[name] = dict(status="UNAVAILABLE", reason="LEGACY_P1_SHADOW_ARCHIVED")
+            continue
         sources = Sources(root)
         try:
             section = function(sources, signal_date, dates, closed)

@@ -297,11 +297,10 @@ def test_p1_controlled_daily_rechecks_safety_cutoff_immediately_before_cas(
             exec(code, {})
 
 
-def test_p1_controlled_daily_title_filters_exist_before_shared_writer_and_compute() -> None:
+def test_retired_p1_manual_gate_and_p0_controlled_daily_title_guards() -> None:
     workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(encoding="utf-8")
-    controlled_title = "startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')"
-    assert controlled_title in workflow.split("jobs:", 1)[0]
-    assert controlled_title in workflow.split("  compute:", 1)[1].split("    permissions:", 1)[0]
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == true" in workflow
+    assert "decision-auction-main-writer" not in workflow.split("jobs:", 1)[0]
     p0 = (ROOT / ".github/workflows/run_primary_d_daily.yml").read_text(encoding="utf-8")
     run_name = p0.split("run-name:", 1)[1].split("\non:", 1)[0]
     for gate in (
@@ -312,36 +311,34 @@ def test_p1_controlled_daily_title_filters_exist_before_shared_writer_and_comput
         assert gate in run_name
 
 
-def _p1_front_gate_values(run):
-    """Evaluate both actual YAML front gates using recorded GitHub run fields."""
+def _p1_front_gate_values(run, *, event_name="workflow_run", dry_run=True,
+                          ref="refs/heads/main", repository="njedu2023-prog/DC20"):
+    """Evaluate the actual retired workflow compute gate with GitHub event fields."""
     workflow = (ROOT / ".github/workflows/run_primary_profit_rankings.yml").read_text(encoding="utf-8")
-    group = workflow.split("  group: >-\n", 1)[1].split("  cancel-in-progress:", 1)[0].strip()
+    group = workflow.split("  group: ", 1)[1].split("\n", 1)[0].strip()
     compute = workflow.split("  compute:", 1)[1].split("    if: >-\n", 1)[1].split("    permissions:", 1)[0].strip()
     github = SimpleNamespace(
-        event_name="workflow_run", ref="refs/heads/main", repository="njedu2023-prog/DC20", run_id=999,
+        event_name=event_name, ref=ref, repository=repository, run_id=999,
         event=SimpleNamespace(workflow_run=json.loads(json.dumps(run), object_hook=lambda value: SimpleNamespace(**value))),
     )
-
-    def evaluate(expression):
-        expression = expression.removeprefix("${{").removesuffix("}}")
-        expression = expression.replace("&&", " and ").replace("||", " or ")
-        expression = re.sub(r"!(?!=)", " not ", expression)
-        return eval(" ".join(expression.split()), {"__builtins__": {}}, {
-            "github": github, "startsWith": lambda value, prefix: value.startswith(prefix),
-            "format": lambda pattern, *args: pattern.format(*args),
-        })
-
-    return evaluate(group), evaluate(compute)
+    expression = compute.removeprefix("${{").removesuffix("}}")
+    expression = expression.replace("&&", " and ").replace("||", " or ")
+    expression = re.sub(r"\btrue\b", "True", expression)
+    expression = re.sub(r"\bfalse\b", "False", expression)
+    allowed = eval(" ".join(expression.split()), {"__builtins__": {}}, {
+        "github": github, "inputs": SimpleNamespace(dry_run=dry_run),
+    })
+    return group.replace("${{ github.run_id }}", "999"), allowed
 
 
 @pytest.mark.parametrize("source_event", ["workflow_dispatch", "schedule", "workflow_run"])
-def test_p1_front_gates_accept_live_dynamic_daily_name_and_existing_static_events(
+def test_retired_p1_does_not_wake_for_valid_upstream_events(
     tmp_path: Path, monkeypatch, source_event: str,
 ) -> None:
     run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
     if source_event != "workflow_dispatch":
         run.update(event=source_event, name="DC2.0 · Publish Primary D List (P0)", display_title="DC2.0 · Publish Primary D List (P0)")
-    assert _p1_front_gate_values(run) == ("decision-auction-main-writer", True)
+    assert _p1_front_gate_values(run) == ("dc20-retired-p1-audit-999", False)
 
 
 @pytest.mark.parametrize("changes", [
@@ -353,12 +350,24 @@ def test_p1_front_gates_accept_live_dynamic_daily_name_and_existing_static_event
     {"head_branch": "other"}, {"head_repository": {"full_name": "other/DC20"}},
     {"run_attempt": 2}, {"conclusion": "failure"},
 ])
-def test_p1_front_gates_reject_name_drift_unmarked_dispatch_and_wrong_identity(
+def test_upstream_identity_variations_cannot_reenable_retired_p1(
     tmp_path: Path, monkeypatch, changes,
 ) -> None:
     run, *_ = _controlled_p1_target_fixture(tmp_path, monkeypatch)
     run.update(changes)
-    assert _p1_front_gate_values(run) == ("dc20-p1-ignored-999", False)
+    assert _p1_front_gate_values(run) == ("dc20-retired-p1-audit-999", False)
+
+
+@pytest.mark.parametrize("event_name,dry_run,ref,repository,allowed", [
+    ("workflow_dispatch", True, "refs/heads/main", "njedu2023-prog/DC20", True),
+    ("workflow_dispatch", False, "refs/heads/main", "njedu2023-prog/DC20", False),
+    ("workflow_dispatch", True, "refs/heads/other", "njedu2023-prog/DC20", False),
+    ("workflow_dispatch", True, "refs/heads/main", "other/DC20", False),
+    ("schedule", True, "refs/heads/main", "njedu2023-prog/DC20", False),
+])
+def test_retired_p1_accepts_only_main_manual_readonly_audit(event_name, dry_run, ref, repository, allowed):
+    assert _p1_front_gate_values({}, event_name=event_name, dry_run=dry_run, ref=ref,
+                                repository=repository) == ("dc20-retired-p1-audit-999", allowed)
 
 
 def test_p1_controlled_daily_event_name_must_match_exact_dynamic_title(tmp_path: Path, monkeypatch) -> None:
@@ -1180,22 +1189,17 @@ def test_p1_source_and_workflow_never_use_action_or_forward_writer_inputs() -> N
     assert "data/decision_executable_profit/forward/statistics" not in script
     header = workflow.split("\npermissions:", 1)[0]
     assert "schedule:" not in header and "cron:" not in header
-    assert "'decision-auction-main-writer'" in workflow
-    assert "dc20-p1-ignored-{0}" in workflow
-    assert "workflow_run:" in workflow
+    assert "group: dc20-retired-p1-audit-${{ github.run_id }}" in workflow
+    assert "workflow_run:" not in header
+    assert "workflow_dispatch:" in header
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run == true" in workflow
+    # Historical event/source identity checks remain auditable inside the
+    # original resolver even though no upstream event can start this workflow.
     assert "DC2.0 · Publish Primary D List (P0)" in workflow
     assert "DC2.0 · Legacy Full Research Replay (Manual)" in workflow
-    assert "github.event.workflow_run.status == 'completed'" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "github.event.workflow_run.event == 'schedule'" in workflow
-    assert "github.event.workflow_run.run_attempt == 1" in workflow
-    assert "github.event.workflow_run.workflow_id == 343703608" in workflow
-    assert "github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml'" in workflow
-    assert "github.event.workflow_run.workflow_id == 335484130" in workflow
-    assert "github.event.workflow_run.path == '.github/workflows/run_decision_daily.yml'" in workflow
-    assert "github.event.workflow_run.head_branch == 'main'" in workflow
-    assert "github.event.workflow_run.repository.full_name == github.repository" in workflow
-    assert "github.event.workflow_run.head_repository.full_name == github.repository" in workflow
+    assert "'343703608':" in workflow and "'335484130':" in workflow
+    assert "'.github/workflows/run_primary_d_daily.yml'" in workflow
+    assert "'.github/workflows/run_decision_daily.yml'" in workflow
     assert "Verify checked-out main is current GitHub API main" in workflow
     assert "f'https://api.github.com/repos/{repository}/commits/main'" in workflow
     assert "P1 checkout main differs from GitHub API commits/main" in workflow

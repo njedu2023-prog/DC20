@@ -26,7 +26,8 @@ def job(text, name):
 class ReleaseWorkflowTests(unittest.TestCase):
     def texts(self):
         for filename, suffix in WORKFLOWS:
-            yield filename, (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8"), suffix
+            directory = ".github/archived-workflows" if filename == "accept_forward_inputs.yml" else ".github/workflows"
+            yield filename, (ROOT / directory / filename).read_text(encoding="utf-8"), suffix
 
     def test_candidates_do_not_enter_the_inference_critical_path(self):
         for filename, text, _ in self.texts():
@@ -116,7 +117,12 @@ class ReleaseWorkflowTests(unittest.TestCase):
         for filename, text, _ in self.texts():
             with self.subTest(workflow=filename):
                 self.assertNotRegex(text, r"(?m)^\s*[a-z-]+:\s*(write|write-all)\s*$")
-                self.assertNotRegex(text, r"(?m)^\s*(workflow_dispatch|repository_dispatch|workflow_call|workflow_run):")
+                self.assertNotRegex(text, r"(?m)^\s*(repository_dispatch|workflow_call|workflow_run):")
+                if filename == "accept_forward_inputs.yml":
+                    self.assertNotRegex(text, r"(?m)^\s*workflow_dispatch:")
+                else:
+                    self.assertRegex(text, r"(?m)^  workflow_dispatch:")
+                    self.assertNotRegex(text, r"(?m)^  (schedule|push|pull_request):")
                 self.assertNotIn("continue-on-error", text)
                 for name in ("promotion-release-candidate", "profit-release-candidate"):
                     section = job(text, name)

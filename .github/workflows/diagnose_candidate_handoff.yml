@@ -1,11 +1,7 @@
 name: DC20 candidate handoff diagnostics (read only)
+# Manual event-envelope diagnostics only; it is not a delivery prerequisite.
 on:
-  workflow_run:
-    workflows:
-      - DC20 · Fixed candidate natural forward (research)
-      - DC20 · Preserve natural candidate publication (research)
-    branches: [main]
-    types: [completed]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -28,3 +24,4 @@ jobs:
           safe['receiver_ref']=os.environ.get('GITHUB_REF')
           safe['receiver_attempt']=os.environ.get('GITHUB_RUN_ATTEMPT')
           print(json.dumps(safe,sort_keys=True))
+
