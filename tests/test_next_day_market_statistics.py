@@ -59,28 +59,21 @@ const tables=new Map([['20260911',[quote('20260911',110)]],['20260914',[quote('2
     assert r[1]['median']==pytest.approx(.05)
 
 
-@pytest.mark.parametrize('mode',['ok','unbound','sha','network'])
-def test_loader_uses_only_sha_bound_daily_quotes(mode):
-    r=run(r'''const bytes=new TextEncoder().encode('ts_code,trade_date,close,pre_close,vol\n000001.SZ,20260911,110,100,1\n');
-const mode='''+json.dumps(mode)+''';const calls=[];
-fetchPagesOnlyPath=async p=>{calls.push(p);if(mode==='network')throw Error('offline');return bytes};
-const input={sourceRows:[row('20260910','20260911'),row('20260924','20260928')],summary:{as_of_date:'20260924'},payload:{start_signal_date:'20260910',report_signal_date:'20260924',source_files:mode==='unbound'?[]:[{path:'data/market/raw/2026/20260911/daily.csv',sha256:mode==='sha'?'0'.repeat(64):await sha256Hex(bytes)}]}};
-try{console.log(JSON.stringify({cohorts:await loadNextDayMarketStatistics(input),calls}))}catch(e){console.log(JSON.stringify({error:e.message,calls}))}''')
-    if mode=='unbound': assert not r['calls'] and r['cohorts'][0]['missing']==1
-    elif mode in ('sha','network'): assert 'error' in r
-    else: assert r['cohorts'][0]['valid']==1 and r['cohorts'][0]['pending']==1
-    assert all('20260928' not in p for p in r['calls'])
+def test_browser_loader_uses_precomputed_artifact_not_historical_quotes():
+    html=(ROOT/'decision.html').read_text()
+    loader=html.split('async function loadNextDayMarketStatistics(',1)[1].split('async function refreshNextDayMarketStatistics(',1)[0]
+    assert 'loadPublishedNextDayStatistics' in loader
+    assert 'daily.csv' not in loader and 'fetchPagesOnlyPath' not in loader
 
 
-@pytest.mark.parametrize('mode',['ready','failure','stale','timeout'])
+@pytest.mark.parametrize('mode',['ready','failure','stale'])
 def test_optional_completion_cannot_invalidate_core_or_stale_page(mode):
     r=run('''const mode='''+json.dumps(mode)+''';let renders=0;renderCompactDashboard=()=>{renders++};
 state.compactStatisticsWindowLoad={status:'ready'};const loaded={marketInputs:{}};
-loadNextDayMarketStatistics=async()=>{if(mode==='failure')throw Error('bad source');if(mode==='timeout')return new Promise(()=>{});return []};
-if(mode==='timeout'){globalThis.setTimeout=(fn)=>{queueMicrotask(fn);return 0};globalThis.clearTimeout=()=>{}};
+loadNextDayMarketStatistics=async()=>{if(mode==='failure')throw Error('bad source');return {status:'ready',cohorts:[]}};
 await refreshNextDayMarketStatistics(loaded,()=>mode!=='stale');console.log(JSON.stringify({status:loaded.marketPerformance.status,core:state.compactStatisticsWindowLoad.status,renders}));''')
     assert r['core']=='ready'
-    assert r['status']=={'ready':'ready','failure':'unavailable','stale':'loading','timeout':'unavailable'}[mode]
+    assert r['status']=={'ready':'ready','failure':'unavailable','stale':'loading'}[mode]
     assert r['renders']==(0 if mode=='stale' else 1)
 
 

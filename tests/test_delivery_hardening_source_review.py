@@ -4,6 +4,8 @@ import copy
 import hashlib
 import json
 
+from tests.test_next_day_statistics_source_review import source_before_next_day
+
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = 'models/decision_source_surface_review_20261107_delivery_hardening.json'
 REVIEW_SHA = "f4720d3bec6521aa3f2b747cd1453e993e3f17dd183fc2895454271134c562dc"
@@ -31,7 +33,7 @@ def review():
 def inverse(item):
     target = ROOT / item['path']
     assert not target.is_symlink()
-    raw = target.read_bytes()
+    raw = source_before_next_day(item['path'])
     assert len(raw) == item['current_bytes'] and sha(raw) == item['current_sha256']
     assert item['baseline_exists'] is True and item['inverse_changes']
     lines = raw.decode().splitlines(keepends=True)
@@ -59,14 +61,14 @@ def test_review_restores_all_exact_baseline_source_bytes():
 def test_only_reviewed_surface_pins_change_no_model_or_trading_policy():
     value = review()
     baseline = json.loads(inverse(next(v for v in value['source_changes'] if v['path'] == MANIFEST)))
-    current = json.loads((ROOT / MANIFEST).read_bytes())
+    current = json.loads(source_before_next_day(MANIFEST))
     assert baseline.keys() == current.keys()
     assert {k:v for k,v in current.items() if k != 'pinned_files'} == {k:v for k,v in baseline.items() if k != 'pinned_files'}
     assert baseline['pinned_files'].keys() == current['pinned_files'].keys()
     assert {p for p in baseline['pinned_files'] if baseline['pinned_files'][p] != current['pinned_files'][p]} == PIN_PATHS
     for path, digest in current['pinned_files'].items():
         assert not (ROOT / path).is_symlink()
-        assert sha((ROOT / path).read_bytes()) == digest, path
+        assert sha(source_before_next_day(path)) == digest, path
 
 
 def test_inventory_changes_only_manifest_asset_digest_and_size():
@@ -75,10 +77,10 @@ def test_inventory_changes_only_manifest_asset_digest_and_size():
     expected = copy.deepcopy(before)
     matches = [a for a in expected['assets'] if a['path'] == MANIFEST]
     assert len(matches) == 1
-    raw = (ROOT / MANIFEST).read_bytes()
+    raw = source_before_next_day(MANIFEST)
     matches[0]['sha256'] = sha(raw)
     matches[0]['bytes'] = len(raw)
-    assert json.loads((ROOT / INVENTORY).read_bytes()) == expected
+    assert json.loads(source_before_next_day(INVENTORY)) == expected
 
 
 def test_all_prior_models_contracts_frozen_inputs_and_review_evidence_preserved():
@@ -87,7 +89,7 @@ def test_all_prior_models_contracts_frozen_inputs_and_review_evidence_preserved(
     for item in value['preserved_files']:
         target = ROOT / item['path']
         assert not target.is_symlink()
-        raw = target.read_bytes()
+        raw = source_before_next_day(item['path'])
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
     assert sha((ROOT / value['archive_manifest']['path']).read_bytes()) == value['archive_manifest']['sha256']
 
@@ -110,4 +112,4 @@ def source_before_hardening(path):
         return inverse(changes[path])
     target = ROOT / path
     assert not target.is_symlink()
-    return target.read_bytes()
+    return source_before_next_day(path)

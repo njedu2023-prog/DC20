@@ -1538,7 +1538,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v19-nov2-research-display";
+    const DASHBOARD_VERSION = "compact-two-ranks-v20-nextday-precomputed";
     const CANDIDATE_PROFIT_ROOT = "outputs/decision/candidate_profit_v1";
     const CANDIDATE_PROFIT_MODEL_SHA256 = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
@@ -1837,34 +1837,139 @@
       });
     }
 
-    async function loadNextDayMarketStatistics({sourceRows, summary, payload}) {
-      const days = [...new Set(sourceRows.filter(r => r.signal_date >= payload.start_signal_date && r.signal_date <= payload.report_signal_date && r.signal_date <= summary.as_of_date && r.exec_date <= summary.as_of_date).map(r => r.exec_date))];
-      const tables = new Map();
-      await Promise.all(days.map(async day => {
-        const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;
-        const binding = payload.source_files.find(item => item.path === path);
-        if (!binding) return; // Never read an unbound newer market file.
-        const bytes = await fetchPagesOnlyPath(path, "bytes");
-        executableProfitExpect(await sha256Hex(bytes) === binding.sha256, "次日行情来源SHA不一致");
-        tables.set(day, parseStrictCsvBytes(bytes, ["ts_code","trade_date","close","pre_close","vol"], "次日涨跌幅行情"));
-      }));
-      return nextDayMarketStatistics(sourceRows, payload.start_signal_date, payload.report_signal_date, summary.as_of_date, tables);
+    const NEXT_DAY_STATISTICS_PATH = "outputs/decision/next_day_statistics.json";
+
+    function validateNextDayStatistics(payload, revision, loaded) {
+      const original = loaded.sourcePayload || loaded.payload;
+      const clock = new Date(Date.now() + 8 * 3600000);
+      if (clock.getUTCHours() < 15) clock.setUTCDate(clock.getUTCDate() - 1);
+      const closed = clock.toISOString().slice(0,10).replaceAll("-", "");
+      const validDate = d => canonicalYmd(d) === d && d >= COMPACT_STATISTICS_WINDOW_START && d <= closed;
+      executableProfitExpect(payload?.schema_version === "dc20_next_day_statistics_v1"
+        && payload.promotion_start_signal_date === "20260910" && payload.profit_start_signal_date === "20260914"
+        && isSha256(payload.engine_sha256)
+        && payload.report_signal_date === revision.primary_d_signal_date
+        && payload.report_signal_date === loaded.reportSignalDate
+        && payload.report_signal_date === original.report_signal_date
+        && validDate(payload.report_signal_date) && validDate(payload.as_of_date)
+        && payload.as_of_date <= payload.report_signal_date
+        && payload.as_of_date === (original.promotion?.status === "READY" ? original.promotion.as_of_date : original.report_signal_date),
+        "次日统计日期与当前发布版本不一致");
+      const bindings = payload.bindings;
+      const rowsBinding = original.source_files?.find(item => item.path === "outputs/decision/primary_observation/rows.csv");
+      const bound = (value, expected, unavailable) => expected == null
+        ? value === null && unavailable : isSha256(value) && value === expected;
+      executableProfitExpect(exactObjectKeys(bindings, ["window_sha256", "candidate_index_sha256", "candidate_activation_sha256", "primary_rows_sha256"])
+        && isSha256(bindings.window_sha256) && bindings.window_sha256 === revision.compact_statistics_window_sha256
+        && bound(bindings.candidate_index_sha256, revision.candidate_profit_index_sha256, payload.profit?.status === "UNAVAILABLE")
+        && bound(bindings.candidate_activation_sha256, revision.candidate_profit_activation_sha256, payload.profit?.status === "UNAVAILABLE")
+        && bound(bindings.primary_rows_sha256, rowsBinding?.sha256, payload.promotion?.status === "UNAVAILABLE"),
+        "次日统计来源版本或指纹不一致");
+      const result = {};
+      for (const [name, ranks] of [["promotion", [1,2,3,"all"]], ["profit", [1,2]]]) {
+        try {
+          const section = payload[name];
+          executableProfitExpect(section && ["READY", "UNAVAILABLE"].includes(section.status), "次日统计分区状态无效");
+          if (section.status === "UNAVAILABLE") {
+            executableProfitExpect(exactObjectKeys(section,["status","reason"]) && typeof section.reason === "string" && section.reason.trim(), "次日统计缺失说明无效");
+            result[name] = {status:"unavailable", reason:section.reason};
+            continue;
+          }
+          executableProfitExpect(exactObjectKeys(section,["status","as_of_date","cohorts"])
+            && section.as_of_date === payload.as_of_date && Array.isArray(section.cohorts)
+            && section.cohorts.length === ranks.length, "次日统计分区日期或名次数量无效");
+          const keys = ["rank","count","valid","up","pending","missing","upRate","mean","median"];
+          for (const [i,c] of section.cohorts.entries()) {
+            executableProfitExpect(exactObjectKeys(c,name === "profit" ? [...keys,"limitVerified","limitHits","limitRate"] : keys)
+              && c.rank === ranks[i] && ["count","valid","up","pending","missing"].every(k => Number.isSafeInteger(c[k]) && c[k] >= 0)
+              && c.count === c.valid + c.pending + c.missing && c.up <= c.valid, "次日统计样本数或名次无效");
+            executableProfitExpect(c.valid ? typeof c.upRate === "number" && Number.isFinite(c.upRate)
+              && Math.abs(c.upRate-c.up/c.valid) < 1e-12
+              && [c.mean,c.median].every(v => typeof v === "number" && Number.isFinite(v) && v > -1)
+              : c.upRate === null && c.mean === null && c.median === null, "次日统计收益或分母无效");
+            if (name === "profit") executableProfitExpect(["limitVerified","limitHits"].every(k => Number.isSafeInteger(c[k]) && c[k] >= 0)
+              && c.limitHits <= c.limitVerified && c.limitVerified <= c.valid
+              && (c.limitVerified ? typeof c.limitRate === "number" && Number.isFinite(c.limitRate)
+                && Math.abs(c.limitRate-c.limitHits/c.limitVerified) < 1e-12 : c.limitRate === null), "次日统计涨停样本或分母无效");
+          }
+          result[name] = {status:"ready",asOf:section.as_of_date,cohorts:section.cohorts};
+        } catch (error) { result[name] = {status:"unavailable",reason:String(error?.message || error)}; }
+      }
+      return result;
+    }
+
+    async function readNextDayStatisticsArtifact(revision) {
+      executableProfitExpect(revision.next_day_statistics_url === NEXT_DAY_STATISTICS_PATH
+        && isSha256(revision.next_day_statistics_sha256), "次日统计尚未绑定当前发布版本");
+      const url = new URL(NEXT_DAY_STATISTICS_PATH, location.href);
+      executableProfitExpect(location.protocol !== "file:" && url.origin === location.origin, "次日统计必须读取同源发布产物");
+      // A tiny version-bound artifact replaces all historical market requests.
+      // Retry transport failures only; never retry or relax a failed SHA check.
+      for (let attempt=0; attempt<2; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        let bytes;
+        try {
+          url.searchParams.set("sha", revision.next_day_statistics_sha256);
+          const response = await fetch(url.href, {cache:"no-cache", signal:controller.signal});
+          if (!response.ok) {
+            const error = new Error(`HTTP ${response.status}`); error.httpStatus=response.status; throw error;
+          }
+          bytes = new Uint8Array(await response.arrayBuffer());
+        } catch (error) {
+          if (attempt === 0 && (!error.httpStatus || [408,429,500,502,503,504].includes(error.httpStatus))) {
+            clearTimeout(timer); await new Promise(resolve => setTimeout(resolve,800)); continue;
+          }
+          throw new Error(error?.name === "AbortError" ? "次日统计加载超时，请重试" : `次日统计读取失败：${String(error?.message || error)}`);
+        } finally { clearTimeout(timer); }
+        executableProfitExpect(await sha256Hex(bytes) === revision.next_day_statistics_sha256, "次日统计字节SHA256不一致");
+        return strictJsonFromBytes(bytes,"次日统计");
+      }
+    }
+
+    async function loadPublishedNextDayStatistics(loaded) {
+      const revision = await publishedRevisionMetadata();
+      const key = `${revision.head_sha}:${revision.next_day_statistics_sha256}`;
+      const reads = state.nextDayStatisticsReads || (state.nextDayStatisticsReads = new Map());
+      let pending = reads.get(key);
+      if (!pending) { pending=readNextDayStatisticsArtifact(revision); reads.set(key,pending); }
+      let payload;
+      try { payload=await pending; }
+      catch (error) { if(reads.get(key)===pending) reads.delete(key); throw error; }
+      return validateNextDayStatistics(payload,revision,loaded);
+    }
+
+    async function loadNextDayMarketStatistics(loaded) {
+      return (await loadPublishedNextDayStatistics(loaded)).promotion;
     }
 
     async function refreshNextDayMarketStatistics(loaded, current) {
-      if (!loaded.marketInputs) return;
-      loaded.marketPerformance = {status:"loading"};
-      let timer;
+      const performance = {status:"loading"};
+      loaded.marketPerformance=performance;
       try {
-        const cohorts = await Promise.race([loadNextDayMarketStatistics(loaded.marketInputs),
-          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("次日行情加载超时，可刷新重试")), 20000); })]);
-        if (!current()) return;
-        loaded.marketPerformance = {status:"ready",cohorts};
+        const result=await loadNextDayMarketStatistics(loaded);
+        if (!current() || loaded.marketPerformance!==performance) return;
+        Object.assign(performance,result);
       } catch (error) {
-        if (!current()) return;
-        loaded.marketPerformance = {status:"unavailable",reason:String(error?.message || error)};
-      } finally { clearTimeout(timer); }
+        if (!current() || loaded.marketPerformance!==performance) return;
+        Object.assign(performance,{status:"unavailable",reason:String(error?.message || error)});
+      }
       if (current()) renderCompactDashboard();
+    }
+
+    function nextDayRetryMarkup(performance, id) {
+      return performance?.status === "unavailable"
+        ? `<p class="stats-note warn">次日统计加载或校验未完成，未显示未经核验的数值。 <button id="${id}" type="button" class="paper-page-link">重试</button></p>` : "";
+    }
+
+    function retryNextDayStatistics() {
+      const loaded=state.currentCompactStatisticsWindow, active=state.candidateProfitActivation;
+      if (!loaded || state.compactFatalError) return;
+      state.nextDayStatisticsReads=new Map();
+      const current=()=>state.currentCompactStatisticsWindow===loaded && !state.compactFatalError;
+      void refreshNextDayMarketStatistics(loaded,current);
+      if(active?.status === "ready") void refreshProfitNextDayStatistics(loaded,active);
+      renderCompactDashboard();
     }
 
     function renderNextDayMarketMetrics(performance, rank) {
@@ -1896,33 +2001,12 @@
       return cohorts;
     }
 
-    async function loadProfitNextDayStatistics(active, inputs) {
-      const {payload, summary} = inputs;
-      const rows = [];
-      await Promise.all(active.index.days.filter(d => d.signal_date >= "20260914" && d.signal_date <= payload.report_signal_date
-        && d.signal_date <= summary.as_of_date).map(async entry => {
-        const path = `outputs/decision/three_rank_top10_${entry.signal_date}.json`;
-        const p0 = (await fetchPagesOnlyShaBoundJson(path, entry.p0_file_sha256, "盈利次日原名单")).payload;
-        executableProfitExpect(p0.signal_date === entry.signal_date, "盈利次日D身份不一致");
-        const loaded = await loadCandidateProfitDay({signal_date:p0.signal_date,exec_date:p0.exec_date,exit_date:p0.exit_date,
-          three_rank:p0,three_rank_source_index:{json_path:path,json_sha256:entry.p0_file_sha256}});
-        executableProfitExpect(loaded.activation === active.config, "盈利次日加载版本已改变");
-        for (const slot of loaded.projection.candidate_slots) {
-          rows.push({signal_date:p0.signal_date,exec_date:p0.exec_date,ts_code:slot.ts_code,promotion_rank:slot.slot});
-        }
-      }));
-      const daily = new Map(), limits = new Map();
-      const dates = [...new Set(rows.filter(r => r.exec_date <= summary.as_of_date).map(r => r.exec_date))];
-      await Promise.all(dates.flatMap(day => [["daily",daily,["close","pre_close","vol"]],["stk_limit",limits,["up_limit"]]].map(async ([name, table, fields]) => {
-        const path = `data/market/raw/${day.slice(0,4)}/${day}/${name}.csv`;
-        const bindings = payload.source_files.filter(b => b.path === path);
-        if (!bindings.length) return;
-        executableProfitExpect(bindings.length === 1, "盈利次日行情绑定重复");
-        const bytes = await fetchPagesOnlyPath(path, "bytes");
-        executableProfitExpect(await sha256Hex(bytes) === bindings[0].sha256, "盈利次日行情SHA不一致");
-        table.set(day, parseStrictCsvBytes(bytes,["ts_code","trade_date",...fields],"盈利次日行情"));
-      })));
-      return profitNextDayStatistics(rows, payload.report_signal_date, summary.as_of_date, daily, limits);
+    async function loadProfitNextDayStatistics(active, loaded) {
+      const revision=await publishedRevisionMetadata();
+      executableProfitExpect(active?.status === "ready" && active.indexSha256 === revision.candidate_profit_index_sha256
+        && active.revision?.candidate_profit_activation_sha256 === revision.candidate_profit_activation_sha256,
+        "盈利次日统计未绑定当前正式模型索引");
+      return (await loadPublishedNextDayStatistics(loaded)).profit;
     }
 
     async function refreshProfitNextDayStatistics(loaded, active) {
@@ -1930,14 +2014,12 @@
       loaded.profitNextDay = performance;
       const current = () => state.currentCompactStatisticsWindow === loaded && state.candidateProfitActivation === active
         && !state.compactFatalError && loaded.profitNextDay === performance;
-      let timer;
       try {
-        const cohorts = await Promise.race([loadProfitNextDayStatistics(active, loaded.marketInputs),
-          new Promise((_,reject) => { timer=setTimeout(() => reject(new Error("盈利次日行情加载超时")),20000); })]);
-        if (current()) Object.assign(performance,{status:"ready",cohorts});
+        const result = await loadProfitNextDayStatistics(active, loaded);
+        if (current()) Object.assign(performance,result);
       } catch (error) {
         if (current()) Object.assign(performance,{status:"unavailable",reason:String(error?.message || error)});
-      } finally { clearTimeout(timer); }
+      }
       if (current()) renderProfitNextDayStatistics();
     }
 
@@ -1945,7 +2027,7 @@
       const node = document.getElementById("profitNextDayContent");
       if (!node) return;
       const loaded = state.currentCompactStatisticsWindow, active = state.candidateProfitActivation;
-      if (loaded?.marketInputs && active?.status === "ready" && loaded.profitNextDay?.active !== active)
+      if (loaded && active?.status === "ready" && loaded.profitNextDay?.active !== active)
         void refreshProfitNextDayStatistics(loaded,active);
       const performance = loaded?.profitNextDay?.active === active ? loaded?.profitNextDay : null;
       const cards = [1,2].map(rank => {
@@ -1957,8 +2039,10 @@
           <dd class="market-metric"><span>中位涨跌幅</span><strong class="${valueTone(c.median)}">${signedPct(c.median)}</strong></dd>` :
           `<dd class="success-sample">${performance?.status === "loading" ? "次日行情加载中" : "次日行情暂不可用"}</dd>`}</div>`;
       });
-      const stale = loaded?.marketInputs && loaded.marketInputs.summary.as_of_date < loaded.marketInputs.payload?.report_signal_date;
-      node.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl><p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
+      const stale = performance?.status === "ready" && performance.asOf < loaded.reportSignalDate;
+      node.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary profit-next-day-summary">${cards.join("")}</dl>${nextDayRetryMarkup(performance,"profitNextDayRetry")}<p class="stats-note">D 2026-09-14起${performance?.status === "ready" ? ` · 截至 ${dateText(performance.asOf)}` : ""} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;
+      const retry=document.getElementById("profitNextDayRetry");
+      if(retry) retry.onclick=retryNextDayStatistics;
     }
 
     // BEGIN DC20 PAPER ACCOUNT ENGINE
@@ -2548,7 +2632,7 @@
         if (!current()) return;
         const validated = await validateCompactStatisticsWindow(window.payload, revision.primary_d_signal_date);
         if (!current()) return;
-        state.currentCompactStatisticsWindow = { ...validated, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };
+        state.currentCompactStatisticsWindow = { ...validated, sourcePayload:window.payload, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };
         state.compactStatisticsWindowLoad = { status: "ready", message: "" };
         // Do not await optional quote loading: existing statistics and D delivery stay independent.
         void refreshNextDayMarketStatistics(state.currentCompactStatisticsWindow, current);
@@ -3145,7 +3229,9 @@
       });
       const asOf = promotion ? ` · 最新累计截至 ${dateText(promotion.as_of_date)}` : " · 最新累计待验证";
       const stale = promotion && promotion.as_of_date < window.report_signal_date;
-      els.compactStatisticsContent.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl><p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
+      els.compactStatisticsContent.innerHTML = `${stale ? '<p class="stats-note warn">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class="promotion-success-summary" aria-label="晋级Top1、Top2、Top3及全名单成功率">${pRows.join("")}</dl>${nextDayRetryMarkup(state.currentCompactStatisticsWindow?.marketPerformance,"nextDayStatisticsRetry")}<p class="stats-note">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;
+      const retry=document.getElementById("nextDayStatisticsRetry");
+      if(retry) retry.onclick=retryNextDayStatistics;
     }
 
     function publicStatisticsPlan(plan) {
@@ -8162,5 +8248,6 @@
   </script>
 </body>
 </html>
+
 
 

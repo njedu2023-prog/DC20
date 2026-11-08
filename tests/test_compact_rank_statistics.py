@@ -50,7 +50,7 @@ def fixed_promotion_fixture():
 def run(body, data=None, extra=""):
     names = ["promotionSlotStatistics", "refreshPromotionSlotStatistics", "compactShadowSource", "compactStatisticsWindowView", "renderCompactDashboard", "renderCompactProfitStatistics", "validatePrimaryProfitShadowCohorts", "executableProfitExpect", "validNullableFinite",
              "canonicalYmd", "finiteNumber", "escapeHtml", "dateText", "signedPct", "pct", "integerText", "primaryShadowStatus", "valueTone",
-             "sha256Hex", "isSha256", "parseStrictCsvBytes", "renderNextDayMarketMetrics", "renderProfitNextDayStatistics"]
+             "sha256Hex", "isSha256", "parseStrictCsvBytes", "renderNextDayMarketMetrics", "renderProfitNextDayStatistics", "nextDayRetryMarkup", "retryNextDayStatistics"]
     prelude = """
 const fs=require('fs'),vm=require('vm');
 const PUBLIC_STATISTICS_START_SIGNAL_DATE='20260828';
@@ -60,6 +60,8 @@ const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{hidden:false,
 const els=Object.fromEntries(['compactLedgerContent','compactLedgerState','compactStatisticsContent'].map(id=>[id,document.getElementById(id)]));
 const state={index:0,currentThreeRank:{signal_date:'20260908'}};
 const location={search:''};
+// Account rendering has a separate suite; this fixture isolates ranking statistics.
+function renderProfitPaperAccount() {}
 const validatedThreeRankContract=value=>value.three_rank || value;
 const crypto=require('crypto').webcrypto;
 // Renderer-only fixtures. The separate window-loader suite verifies the real

@@ -99,12 +99,16 @@ def mark_auxiliary_unavailable(site, component, reason):
     path = site / 'revision.json'
     revision = json.loads(path.read_bytes())
     if component == 'compact_statistics_window':
-        prefixes = ('compact_statistics_window_', 'profit_paper_account_')
+        prefixes = ('compact_statistics_window_', 'profit_paper_account_', 'next_day_statistics_')
         artifacts = ('outputs/decision/compact_statistics_window.json',
-                     'outputs/decision/profit_paper_account/account.json')
+                     'outputs/decision/profit_paper_account/account.json',
+                     'outputs/decision/next_day_statistics.json')
     elif component == 'profit_paper_account':
         prefixes = ('profit_paper_account_',)
         artifacts = ('outputs/decision/profit_paper_account/account.json',)
+    elif component == 'next_day_statistics':
+        prefixes = ('next_day_statistics_',)
+        artifacts = ('outputs/decision/next_day_statistics.json',)
     else:
         raise ValueError('UNKNOWN_AUXILIARY_COMPONENT')
     for key in list(revision):

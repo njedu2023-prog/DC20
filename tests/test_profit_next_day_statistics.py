@@ -27,12 +27,11 @@ def test_profit_next_day_missing_limit_not_zero_or_guessed(bands):
     assert r['upRate']==1 and r['limitRate'] is None
 
 
-@pytest.mark.parametrize('mode',['ready','failure','stale','timeout'])
+@pytest.mark.parametrize('mode',['ready','failure','stale'])
 def test_profit_next_day_optional_nonblocking(mode):
     r=run('''const mode="'''+mode+'''";let renders=0;renderProfitNextDayStatistics=()=>{renders++};
 const active={};const loaded={marketInputs:{}};state.currentCompactStatisticsWindow=loaded;state.candidateProfitActivation=active;
-loadProfitNextDayStatistics=async()=>{if(mode==='failure')throw Error('source mismatch');if(mode==='stale')state.currentCompactStatisticsWindow={};if(mode==='timeout')return new Promise(()=>{});return []};
-if(mode==='timeout'){globalThis.setTimeout=fn=>{queueMicrotask(fn);return 0};globalThis.clearTimeout=()=>{}};
+loadProfitNextDayStatistics=async()=>{if(mode==='failure')throw Error('source mismatch');if(mode==='stale')state.currentCompactStatisticsWindow={};return {status:'ready',cohorts:[]}};
 await refreshProfitNextDayStatistics(loaded,active);console.log(JSON.stringify({status:loaded.profitNextDay.status,renders,fatal:!!state.compactFatalError}));''')
     assert not r['fatal']
     assert r['status']==('ready' if mode=='ready' else 'loading' if mode=='stale' else 'unavailable')
@@ -49,20 +48,9 @@ renderProfitNextDayStatistics();console.log(JSON.stringify(document.getElementBy
     assert r.count('<strong class="success-rate">70.00%</strong>') == 2
 
 
-@pytest.mark.parametrize('mode',['ok','sha','unbound'])
-def test_profit_next_day_loader_bound_sources_and_frozen_slots(mode):
-    r=run('''const mode="'''+mode+'''";const calls=[];const active={config:{},index:{days:[{signal_date:'20260913'},{signal_date:'20260914',p0_file_sha256:'p0'}]}};
-fetchPagesOnlyShaBoundJson=async(path,sha)=>{calls.push([path,sha]);return {payload:{signal_date:'20260914',exec_date:'20260915',exit_date:'20260916'}}};
-loadCandidateProfitDay=async p=>({activation:active.config,projection:{candidate_slots:[{slot:1,ts_code:'000001.SZ'},{slot:2,ts_code:null}]}});
-const daily=new TextEncoder().encode('ts_code,trade_date,close,pre_close,vol\\n000001.SZ,20260915,110,100,1\\n');
-const limit=new TextEncoder().encode('ts_code,trade_date,up_limit\\n000001.SZ,20260915,110\\n');
-fetchPagesOnlyPath=async p=>{calls.push([p]);return p.endsWith('/daily.csv')?daily:limit};
-const files=await Promise.all([['daily',daily],['stk_limit',limit]].map(async([name,bytes])=>({path:'data/market/raw/2026/20260915/'+name+'.csv',sha256:mode==='sha'?'0'.repeat(64):await sha256Hex(bytes)})));
-try{const cohorts=await loadProfitNextDayStatistics(active,{summary:{as_of_date:'20260915'},payload:{report_signal_date:'20260914',source_files:mode==='unbound'?[]:files}});console.log(JSON.stringify({cohorts,calls}))}catch(e){console.log(JSON.stringify({error:e.message,calls}))}''')
-    assert all('20260913' not in call[0] for call in r['calls'])
-    if mode=='sha':
-        assert 'SHA' in r['error']
-    else:
-        assert r['cohorts'][1]['upRate'] is None
-        assert r['cohorts'][0]['valid']==(1 if mode=='ok' else 0)
-        if mode=='unbound': assert len(r['calls'])==1
+def test_profit_next_day_browser_no_longer_loads_all_frozen_days():
+    html=(helpers.ROOT/'decision.html').read_text()
+    loader=html.split('async function loadProfitNextDayStatistics(',1)[1].split('async function refreshProfitNextDayStatistics(',1)[0]
+    assert 'loadPublishedNextDayStatistics' in loader
+    assert 'loadCandidateProfitDay' not in loader and 'daily.csv' not in loader
+    assert 'candidate_profit_index_sha256' in loader

@@ -1,0 +1,2352 @@
+{
+  "schema_version": "dc20_next_day_statistics_source_review_v1",
+  "approved_base_commit": "7034de1b95c384f4307db018737a0a2635453488",
+  "scope": "PUBLISHED_SHA_BOUND_NEXT_DAY_DESCRIPTIVE_STATISTICS_NO_MODEL_OR_TRADING_CHANGE",
+  "boundaries": {
+    "model_weights_changed": false,
+    "model_parameters_changed": false,
+    "feature_order_changed": false,
+    "ranking_algorithm_changed": false,
+    "stock_selection_rules_changed": false,
+    "trading_rules_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "forward_epoch_activated": false
+  },
+  "updated_surface_pins": [
+    ".github/workflows/deploy_dc20_pages.yml",
+    "decision.html"
+  ],
+  "source_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 205140,
+      "current_bytes": 208159,
+      "baseline_sha256": "87c629ad102c004581f1eefc11828aedf26f7b0b85901161d94b534aaf5e2494",
+      "current_sha256": "36a983c3ebebceb20943ae0074e10f60b46cdd7d0c27126ee3fd86d1e06da64a",
+      "reason": "Publish bound descriptive next-day summaries and load them without changing models, frozen rankings, or trading policy.",
+      "inverse_changes": [
+        {
+          "baseline_start": 34,
+          "current_start": 34,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - scripts/build_next_day_statistics.cjs\n",
+            "      - tests/test_next_day_statistics*.cjs\n"
+          ]
+        },
+        {
+          "baseline_start": 1981,
+          "current_start": 1983,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - name: Generate lightweight next-day market statistics\n",
+            "        id: next_day_build\n",
+            "        if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' }}\n",
+            "        continue-on-error: true\n",
+            "        run: |\n",
+            "          set -euo pipefail\n",
+            "          node --test tests/test_next_day_statistics_build.cjs tests/test_next_day_statistics_frontend.cjs\n",
+            "          node scripts/build_next_day_statistics.cjs --root _site\n",
+            "\n",
+            "      - name: Clear failed auxiliary next-day statistics bindings\n",
+            "        if: ${{ always() && steps.site.outcome == 'success' && steps.next_day_build.outcome != 'success' }}\n",
+            "        run: |\n",
+            "          python3 - <<'PYCODE'\n",
+            "          from scripts.daily_delivery_policy import mark_auxiliary_unavailable\n",
+            "          mark_auxiliary_unavailable('_site', 'next_day_statistics', 'BUILD_OR_RUNTIME_UNAVAILABLE')\n",
+            "          PYCODE\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 3160,
+          "current_start": 3179,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - name: Verify public lightweight next-day statistics\n",
+            "        id: next_day_public\n",
+            "        if: ${{ steps.next_day_build.outcome == 'success' }}\n",
+            "        continue-on-error: true\n",
+            "        timeout-minutes: 3\n",
+            "        env:\n",
+            "          PAGE_URL: ${{ steps.deployment.outputs.page_url }}\n",
+            "        run: |\n",
+            "          python3 - <<'PY'\n",
+            "          import hashlib, json, os, time\n",
+            "          from pathlib import Path\n",
+            "          from urllib.request import Request, urlopen\n",
+            "          root = Path('_site')\n",
+            "          expected = json.loads((root/'revision.json').read_bytes())\n",
+            "          relative = 'outputs/decision/next_day_statistics.json'\n",
+            "          raw = (root/relative).read_bytes()\n",
+            "          digest = hashlib.sha256(raw).hexdigest()\n",
+            "          assert expected['next_day_statistics_url'] == relative\n",
+            "          assert expected['next_day_statistics_sha256'] == digest\n",
+            "          base = os.environ['PAGE_URL'].rstrip('/')\n",
+            "          for attempt in range(1, 5):\n",
+            "              try:\n",
+            "                  def fetch(path):\n",
+            "                      url = base + '/' + path + '?next_day_verify=' + os.environ['GITHUB_RUN_ID'] + '-' + str(attempt)\n",
+            "                      with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=15) as response:\n",
+            "                          return response.read(1024*1024 + 1)\n",
+            "                  revision = json.loads(fetch('revision.json'))\n",
+            "                  assert revision['head_sha'] == expected['head_sha']\n",
+            "                  assert revision['primary_d_signal_date'] == expected['primary_d_signal_date']\n",
+            "                  assert revision['next_day_statistics_sha256'] == digest\n",
+            "                  assert fetch(relative) == raw\n",
+            "                  print(json.dumps({'next_day_statistics': 'EXACT_BYTES_VERIFIED', 'sha256': digest}))\n",
+            "                  break\n",
+            "              except Exception:\n",
+            "                  if attempt == 4:\n",
+            "                      raise\n",
+            "                  time.sleep(5)\n",
+            "          PY\n",
+            "\n"
+          ]
+        },
+        {
+          "baseline_start": 3833,
+          "current_start": 3891,
+          "baseline_lines": [],
+          "current_lines": [
+            "          NEXT_DAY_BUILD: ${{ steps.next_day_build.outcome }}\n",
+            "          NEXT_DAY_PUBLIC: ${{ steps.next_day_public.outcome }}\n"
+          ]
+        },
+        {
+          "baseline_start": 3836,
+          "current_start": 3896,
+          "baseline_lines": [
+            "          status = {key: os.environ.get(key) for key in ('COMPACT_BUILD','ACCOUNT_BUILD','COMPACT_PUBLIC','ACCOUNT_PUBLIC')}\n"
+          ],
+          "current_lines": [
+            "          status = {key: os.environ.get(key) for key in ('COMPACT_BUILD','ACCOUNT_BUILD','COMPACT_PUBLIC','ACCOUNT_PUBLIC','NEXT_DAY_BUILD','NEXT_DAY_PUBLIC')}\n"
+          ]
+        },
+        {
+          "baseline_start": 3841,
+          "current_start": 3901,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "baseline_bytes": 575905,
+      "current_bytes": 581487,
+      "baseline_sha256": "40d2e5fc8636fb8c66c507154fddc4f210a6e93432cf5cc28636db0364afb752",
+      "current_sha256": "bba16f036bd63f07693a5a47400a3bba50eea2237b3b37e1545591eb68edc213",
+      "reason": "Publish bound descriptive next-day summaries and load them without changing models, frozen rankings, or trading policy.",
+      "inverse_changes": [
+        {
+          "baseline_start": 1541,
+          "current_start": 1541,
+          "baseline_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v19-nov2-research-display\";\n"
+          ],
+          "current_lines": [
+            "    const DASHBOARD_VERSION = \"compact-two-ranks-v20-nextday-precomputed\";\n"
+          ]
+        },
+        {
+          "baseline_start": 1840,
+          "current_start": 1840,
+          "baseline_lines": [
+            "    async function loadNextDayMarketStatistics({sourceRows, summary, payload}) {\n",
+            "      const days = [...new Set(sourceRows.filter(r => r.signal_date >= payload.start_signal_date && r.signal_date <= payload.report_signal_date && r.signal_date <= summary.as_of_date && r.exec_date <= summary.as_of_date).map(r => r.exec_date))];\n",
+            "      const tables = new Map();\n",
+            "      await Promise.all(days.map(async day => {\n",
+            "        const path = `data/market/raw/${day.slice(0,4)}/${day}/daily.csv`;\n",
+            "        const binding = payload.source_files.find(item => item.path === path);\n",
+            "        if (!binding) return; // Never read an unbound newer market file.\n",
+            "        const bytes = await fetchPagesOnlyPath(path, \"bytes\");\n",
+            "        executableProfitExpect(await sha256Hex(bytes) === binding.sha256, \"次日行情来源SHA不一致\");\n",
+            "        tables.set(day, parseStrictCsvBytes(bytes, [\"ts_code\",\"trade_date\",\"close\",\"pre_close\",\"vol\"], \"次日涨跌幅行情\"));\n",
+            "      }));\n",
+            "      return nextDayMarketStatistics(sourceRows, payload.start_signal_date, payload.report_signal_date, summary.as_of_date, tables);\n"
+          ],
+          "current_lines": [
+            "    const NEXT_DAY_STATISTICS_PATH = \"outputs/decision/next_day_statistics.json\";\n",
+            "\n",
+            "    function validateNextDayStatistics(payload, revision, loaded) {\n",
+            "      const original = loaded.sourcePayload || loaded.payload;\n",
+            "      const clock = new Date(Date.now() + 8 * 3600000);\n",
+            "      if (clock.getUTCHours() < 15) clock.setUTCDate(clock.getUTCDate() - 1);\n",
+            "      const closed = clock.toISOString().slice(0,10).replaceAll(\"-\", \"\");\n",
+            "      const validDate = d => canonicalYmd(d) === d && d >= COMPACT_STATISTICS_WINDOW_START && d <= closed;\n",
+            "      executableProfitExpect(payload?.schema_version === \"dc20_next_day_statistics_v1\"\n",
+            "        && payload.promotion_start_signal_date === \"20260910\" && payload.profit_start_signal_date === \"20260914\"\n",
+            "        && isSha256(payload.engine_sha256)\n",
+            "        && payload.report_signal_date === revision.primary_d_signal_date\n",
+            "        && payload.report_signal_date === loaded.reportSignalDate\n",
+            "        && payload.report_signal_date === original.report_signal_date\n",
+            "        && validDate(payload.report_signal_date) && validDate(payload.as_of_date)\n",
+            "        && payload.as_of_date <= payload.report_signal_date\n",
+            "        && payload.as_of_date === (original.promotion?.status === \"READY\" ? original.promotion.as_of_date : original.report_signal_date),\n",
+            "        \"次日统计日期与当前发布版本不一致\");\n",
+            "      const bindings = payload.bindings;\n",
+            "      const rowsBinding = original.source_files?.find(item => item.path === \"outputs/decision/primary_observation/rows.csv\");\n",
+            "      const bound = (value, expected, unavailable) => expected == null\n",
+            "        ? value === null && unavailable : isSha256(value) && value === expected;\n",
+            "      executableProfitExpect(exactObjectKeys(bindings, [\"window_sha256\", \"candidate_index_sha256\", \"candidate_activation_sha256\", \"primary_rows_sha256\"])\n",
+            "        && isSha256(bindings.window_sha256) && bindings.window_sha256 === revision.compact_statistics_window_sha256\n",
+            "        && bound(bindings.candidate_index_sha256, revision.candidate_profit_index_sha256, payload.profit?.status === \"UNAVAILABLE\")\n",
+            "        && bound(bindings.candidate_activation_sha256, revision.candidate_profit_activation_sha256, payload.profit?.status === \"UNAVAILABLE\")\n",
+            "        && bound(bindings.primary_rows_sha256, rowsBinding?.sha256, payload.promotion?.status === \"UNAVAILABLE\"),\n",
+            "        \"次日统计来源版本或指纹不一致\");\n",
+            "      const result = {};\n",
+            "      for (const [name, ranks] of [[\"promotion\", [1,2,3,\"all\"]], [\"profit\", [1,2]]]) {\n",
+            "        try {\n",
+            "          const section = payload[name];\n",
+            "          executableProfitExpect(section && [\"READY\", \"UNAVAILABLE\"].includes(section.status), \"次日统计分区状态无效\");\n",
+            "          if (section.status === \"UNAVAILABLE\") {\n",
+            "            executableProfitExpect(exactObjectKeys(section,[\"status\",\"reason\"]) && typeof section.reason === \"string\" && section.reason.trim(), \"次日统计缺失说明无效\");\n",
+            "            result[name] = {status:\"unavailable\", reason:section.reason};\n",
+            "            continue;\n",
+            "          }\n",
+            "          executableProfitExpect(exactObjectKeys(section,[\"status\",\"as_of_date\",\"cohorts\"])\n",
+            "            && section.as_of_date === payload.as_of_date && Array.isArray(section.cohorts)\n",
+            "            && section.cohorts.length === ranks.length, \"次日统计分区日期或名次数量无效\");\n",
+            "          const keys = [\"rank\",\"count\",\"valid\",\"up\",\"pending\",\"missing\",\"upRate\",\"mean\",\"median\"];\n",
+            "          for (const [i,c] of section.cohorts.entries()) {\n",
+            "            executableProfitExpect(exactObjectKeys(c,name === \"profit\" ? [...keys,\"limitVerified\",\"limitHits\",\"limitRate\"] : keys)\n",
+            "              && c.rank === ranks[i] && [\"count\",\"valid\",\"up\",\"pending\",\"missing\"].every(k => Number.isSafeInteger(c[k]) && c[k] >= 0)\n",
+            "              && c.count === c.valid + c.pending + c.missing && c.up <= c.valid, \"次日统计样本数或名次无效\");\n",
+            "            executableProfitExpect(c.valid ? typeof c.upRate === \"number\" && Number.isFinite(c.upRate)\n",
+            "              && Math.abs(c.upRate-c.up/c.valid) < 1e-12\n",
+            "              && [c.mean,c.median].every(v => typeof v === \"number\" && Number.isFinite(v) && v > -1)\n",
+            "              : c.upRate === null && c.mean === null && c.median === null, \"次日统计收益或分母无效\");\n",
+            "            if (name === \"profit\") executableProfitExpect([\"limitVerified\",\"limitHits\"].every(k => Number.isSafeInteger(c[k]) && c[k] >= 0)\n",
+            "              && c.limitHits <= c.limitVerified && c.limitVerified <= c.valid\n",
+            "              && (c.limitVerified ? typeof c.limitRate === \"number\" && Number.isFinite(c.limitRate)\n",
+            "                && Math.abs(c.limitRate-c.limitHits/c.limitVerified) < 1e-12 : c.limitRate === null), \"次日统计涨停样本或分母无效\");\n",
+            "          }\n",
+            "          result[name] = {status:\"ready\",asOf:section.as_of_date,cohorts:section.cohorts};\n",
+            "        } catch (error) { result[name] = {status:\"unavailable\",reason:String(error?.message || error)}; }\n",
+            "      }\n",
+            "      return result;\n",
+            "    }\n",
+            "\n",
+            "    async function readNextDayStatisticsArtifact(revision) {\n",
+            "      executableProfitExpect(revision.next_day_statistics_url === NEXT_DAY_STATISTICS_PATH\n",
+            "        && isSha256(revision.next_day_statistics_sha256), \"次日统计尚未绑定当前发布版本\");\n",
+            "      const url = new URL(NEXT_DAY_STATISTICS_PATH, location.href);\n",
+            "      executableProfitExpect(location.protocol !== \"file:\" && url.origin === location.origin, \"次日统计必须读取同源发布产物\");\n",
+            "      // A tiny version-bound artifact replaces all historical market requests.\n",
+            "      // Retry transport failures only; never retry or relax a failed SHA check.\n",
+            "      for (let attempt=0; attempt<2; attempt++) {\n",
+            "        const controller = new AbortController();\n",
+            "        const timer = setTimeout(() => controller.abort(), 30000);\n",
+            "        let bytes;\n",
+            "        try {\n",
+            "          url.searchParams.set(\"sha\", revision.next_day_statistics_sha256);\n",
+            "          const response = await fetch(url.href, {cache:\"no-cache\", signal:controller.signal});\n",
+            "          if (!response.ok) {\n",
+            "            const error = new Error(`HTTP ${response.status}`); error.httpStatus=response.status; throw error;\n",
+            "          }\n",
+            "          bytes = new Uint8Array(await response.arrayBuffer());\n",
+            "        } catch (error) {\n",
+            "          if (attempt === 0 && (!error.httpStatus || [408,429,500,502,503,504].includes(error.httpStatus))) {\n",
+            "            clearTimeout(timer); await new Promise(resolve => setTimeout(resolve,800)); continue;\n",
+            "          }\n",
+            "          throw new Error(error?.name === \"AbortError\" ? \"次日统计加载超时，请重试\" : `次日统计读取失败：${String(error?.message || error)}`);\n",
+            "        } finally { clearTimeout(timer); }\n",
+            "        executableProfitExpect(await sha256Hex(bytes) === revision.next_day_statistics_sha256, \"次日统计字节SHA256不一致\");\n",
+            "        return strictJsonFromBytes(bytes,\"次日统计\");\n",
+            "      }\n",
+            "    }\n",
+            "\n",
+            "    async function loadPublishedNextDayStatistics(loaded) {\n",
+            "      const revision = await publishedRevisionMetadata();\n",
+            "      const key = `${revision.head_sha}:${revision.next_day_statistics_sha256}`;\n",
+            "      const reads = state.nextDayStatisticsReads || (state.nextDayStatisticsReads = new Map());\n",
+            "      let pending = reads.get(key);\n",
+            "      if (!pending) { pending=readNextDayStatisticsArtifact(revision); reads.set(key,pending); }\n",
+            "      let payload;\n",
+            "      try { payload=await pending; }\n",
+            "      catch (error) { if(reads.get(key)===pending) reads.delete(key); throw error; }\n",
+            "      return validateNextDayStatistics(payload,revision,loaded);\n",
+            "    }\n",
+            "\n",
+            "    async function loadNextDayMarketStatistics(loaded) {\n",
+            "      return (await loadPublishedNextDayStatistics(loaded)).promotion;\n"
+          ]
+        },
+        {
+          "baseline_start": 1855,
+          "current_start": 1947,
+          "baseline_lines": [
+            "      if (!loaded.marketInputs) return;\n",
+            "      loaded.marketPerformance = {status:\"loading\"};\n",
+            "      let timer;\n"
+          ],
+          "current_lines": [
+            "      const performance = {status:\"loading\"};\n",
+            "      loaded.marketPerformance=performance;\n"
+          ]
+        },
+        {
+          "baseline_start": 1859,
+          "current_start": 1950,
+          "baseline_lines": [
+            "        const cohorts = await Promise.race([loadNextDayMarketStatistics(loaded.marketInputs),\n",
+            "          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(\"次日行情加载超时，可刷新重试\")), 20000); })]);\n",
+            "        if (!current()) return;\n",
+            "        loaded.marketPerformance = {status:\"ready\",cohorts};\n"
+          ],
+          "current_lines": [
+            "        const result=await loadNextDayMarketStatistics(loaded);\n",
+            "        if (!current() || loaded.marketPerformance!==performance) return;\n",
+            "        Object.assign(performance,result);\n"
+          ]
+        },
+        {
+          "baseline_start": 1864,
+          "current_start": 1954,
+          "baseline_lines": [
+            "        if (!current()) return;\n",
+            "        loaded.marketPerformance = {status:\"unavailable\",reason:String(error?.message || error)};\n",
+            "      } finally { clearTimeout(timer); }\n"
+          ],
+          "current_lines": [
+            "        if (!current() || loaded.marketPerformance!==performance) return;\n",
+            "        Object.assign(performance,{status:\"unavailable\",reason:String(error?.message || error)});\n",
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 1868,
+          "current_start": 1958,
+          "baseline_lines": [],
+          "current_lines": [
+            "    }\n",
+            "\n",
+            "    function nextDayRetryMarkup(performance, id) {\n",
+            "      return performance?.status === \"unavailable\"\n",
+            "        ? `<p class=\"stats-note warn\">次日统计加载或校验未完成，未显示未经核验的数值。 <button id=\"${id}\" type=\"button\" class=\"paper-page-link\">重试</button></p>` : \"\";\n",
+            "    }\n",
+            "\n",
+            "    function retryNextDayStatistics() {\n",
+            "      const loaded=state.currentCompactStatisticsWindow, active=state.candidateProfitActivation;\n",
+            "      if (!loaded || state.compactFatalError) return;\n",
+            "      state.nextDayStatisticsReads=new Map();\n",
+            "      const current=()=>state.currentCompactStatisticsWindow===loaded && !state.compactFatalError;\n",
+            "      void refreshNextDayMarketStatistics(loaded,current);\n",
+            "      if(active?.status === \"ready\") void refreshProfitNextDayStatistics(loaded,active);\n",
+            "      renderCompactDashboard();\n"
+          ]
+        },
+        {
+          "baseline_start": 1899,
+          "current_start": 2004,
+          "baseline_lines": [
+            "    async function loadProfitNextDayStatistics(active, inputs) {\n",
+            "      const {payload, summary} = inputs;\n",
+            "      const rows = [];\n",
+            "      await Promise.all(active.index.days.filter(d => d.signal_date >= \"20260914\" && d.signal_date <= payload.report_signal_date\n",
+            "        && d.signal_date <= summary.as_of_date).map(async entry => {\n",
+            "        const path = `outputs/decision/three_rank_top10_${entry.signal_date}.json`;\n",
+            "        const p0 = (await fetchPagesOnlyShaBoundJson(path, entry.p0_file_sha256, \"盈利次日原名单\")).payload;\n",
+            "        executableProfitExpect(p0.signal_date === entry.signal_date, \"盈利次日D身份不一致\");\n",
+            "        const loaded = await loadCandidateProfitDay({signal_date:p0.signal_date,exec_date:p0.exec_date,exit_date:p0.exit_date,\n",
+            "          three_rank:p0,three_rank_source_index:{json_path:path,json_sha256:entry.p0_file_sha256}});\n",
+            "        executableProfitExpect(loaded.activation === active.config, \"盈利次日加载版本已改变\");\n",
+            "        for (const slot of loaded.projection.candidate_slots) {\n",
+            "          rows.push({signal_date:p0.signal_date,exec_date:p0.exec_date,ts_code:slot.ts_code,promotion_rank:slot.slot});\n",
+            "        }\n",
+            "      }));\n",
+            "      const daily = new Map(), limits = new Map();\n",
+            "      const dates = [...new Set(rows.filter(r => r.exec_date <= summary.as_of_date).map(r => r.exec_date))];\n",
+            "      await Promise.all(dates.flatMap(day => [[\"daily\",daily,[\"close\",\"pre_close\",\"vol\"]],[\"stk_limit\",limits,[\"up_limit\"]]].map(async ([name, table, fields]) => {\n",
+            "        const path = `data/market/raw/${day.slice(0,4)}/${day}/${name}.csv`;\n",
+            "        const bindings = payload.source_files.filter(b => b.path === path);\n",
+            "        if (!bindings.length) return;\n",
+            "        executableProfitExpect(bindings.length === 1, \"盈利次日行情绑定重复\");\n",
+            "        const bytes = await fetchPagesOnlyPath(path, \"bytes\");\n",
+            "        executableProfitExpect(await sha256Hex(bytes) === bindings[0].sha256, \"盈利次日行情SHA不一致\");\n",
+            "        table.set(day, parseStrictCsvBytes(bytes,[\"ts_code\",\"trade_date\",...fields],\"盈利次日行情\"));\n",
+            "      })));\n",
+            "      return profitNextDayStatistics(rows, payload.report_signal_date, summary.as_of_date, daily, limits);\n"
+          ],
+          "current_lines": [
+            "    async function loadProfitNextDayStatistics(active, loaded) {\n",
+            "      const revision=await publishedRevisionMetadata();\n",
+            "      executableProfitExpect(active?.status === \"ready\" && active.indexSha256 === revision.candidate_profit_index_sha256\n",
+            "        && active.revision?.candidate_profit_activation_sha256 === revision.candidate_profit_activation_sha256,\n",
+            "        \"盈利次日统计未绑定当前正式模型索引\");\n",
+            "      return (await loadPublishedNextDayStatistics(loaded)).profit;\n"
+          ]
+        },
+        {
+          "baseline_start": 1933,
+          "current_start": 2017,
+          "baseline_lines": [
+            "      let timer;\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 1935,
+          "current_start": 2018,
+          "baseline_lines": [
+            "        const cohorts = await Promise.race([loadProfitNextDayStatistics(active, loaded.marketInputs),\n",
+            "          new Promise((_,reject) => { timer=setTimeout(() => reject(new Error(\"盈利次日行情加载超时\")),20000); })]);\n",
+            "        if (current()) Object.assign(performance,{status:\"ready\",cohorts});\n"
+          ],
+          "current_lines": [
+            "        const result = await loadProfitNextDayStatistics(active, loaded);\n",
+            "        if (current()) Object.assign(performance,result);\n"
+          ]
+        },
+        {
+          "baseline_start": 1940,
+          "current_start": 2022,
+          "baseline_lines": [
+            "      } finally { clearTimeout(timer); }\n"
+          ],
+          "current_lines": [
+            "      }\n"
+          ]
+        },
+        {
+          "baseline_start": 1948,
+          "current_start": 2030,
+          "baseline_lines": [
+            "      if (loaded?.marketInputs && active?.status === \"ready\" && loaded.profitNextDay?.active !== active)\n"
+          ],
+          "current_lines": [
+            "      if (loaded && active?.status === \"ready\" && loaded.profitNextDay?.active !== active)\n"
+          ]
+        },
+        {
+          "baseline_start": 1960,
+          "current_start": 2042,
+          "baseline_lines": [
+            "      const stale = loaded?.marketInputs && loaded.marketInputs.summary.as_of_date < loaded.marketInputs.payload?.report_signal_date;\n",
+            "      node.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary profit-next-day-summary\">${cards.join(\"\")}</dl><p class=\"stats-note\">D 2026-09-14起${performance?.status === \"ready\" ? ` · 截至 ${dateText(loaded.marketInputs.summary.as_of_date)}` : \"\"} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;\n"
+          ],
+          "current_lines": [
+            "      const stale = performance?.status === \"ready\" && performance.asOf < loaded.reportSignalDate;\n",
+            "      node.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary profit-next-day-summary\">${cards.join(\"\")}</dl>${nextDayRetryMarkup(performance,\"profitNextDayRetry\")}<p class=\"stats-note\">D 2026-09-14起${performance?.status === \"ready\" ? ` · 截至 ${dateText(performance.asOf)}` : \"\"} · 正式冻结盈1／盈2；按T日收盘涨跌统计，未验证不计入，非竞价买入收益。</p>`;\n",
+            "      const retry=document.getElementById(\"profitNextDayRetry\");\n",
+            "      if(retry) retry.onclick=retryNextDayStatistics;\n"
+          ]
+        },
+        {
+          "baseline_start": 2551,
+          "current_start": 2635,
+          "baseline_lines": [
+            "        state.currentCompactStatisticsWindow = { ...validated, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };\n"
+          ],
+          "current_lines": [
+            "        state.currentCompactStatisticsWindow = { ...validated, sourcePayload:window.payload, reportSignalDate: revision.primary_d_signal_date, compactLoadSequence };\n"
+          ]
+        },
+        {
+          "baseline_start": 3148,
+          "current_start": 3232,
+          "baseline_lines": [
+            "      els.compactStatisticsContent.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl><p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n"
+          ],
+          "current_lines": [
+            "      els.compactStatisticsContent.innerHTML = `${stale ? '<p class=\"stats-note warn\">统计更新滞后：尚未覆盖最新D日收盘，以下保留已验证结果。</p>' : ''}<dl class=\"promotion-success-summary\" aria-label=\"晋级Top1、Top2、Top3及全名单成功率\">${pRows.join(\"\")}</dl>${nextDayRetryMarkup(state.currentCompactStatisticsWindow?.marketPerformance,\"nextDayStatisticsRetry\")}<p class=\"stats-note\">D ${dateText(COMPACT_STATISTICS_WINDOW_START)}起${asOf}；按T日已验证结果统计，未验证不计入；全名单按每日D名单逐股累计。晋级不代表盈利。</p>`;\n",
+            "      const retry=document.getElementById(\"nextDayStatisticsRetry\");\n",
+            "      if(retry) retry.onclick=retryNextDayStatistics;\n"
+          ]
+        },
+        {
+          "baseline_start": 8167,
+          "current_start": 8253,
+          "baseline_lines": [],
+          "current_lines": [
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "current_bytes": 16204,
+      "baseline_sha256": "c8acc6dd710e2e9f420f4049c6ba21d6bdaf67de353fe34fe9d6a7a273c9ab98",
+      "current_sha256": "3279d3abc840520ee828716744a090a54f3e0ee713accff69ffeb42bead048ed",
+      "reason": "Publish bound descriptive next-day summaries and load them without changing models, frozen rankings, or trading policy.",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"439a1e8883927c20dcdd340613fa80f78e33172a3af652a5bf063902d2e2ace7\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "baseline_bytes": 53143,
+      "current_bytes": 53143,
+      "baseline_sha256": "439a1e8883927c20dcdd340613fa80f78e33172a3af652a5bf063902d2e2ace7",
+      "current_sha256": "94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435",
+      "reason": "Publish bound descriptive next-day summaries and load them without changing models, frozen rankings, or trading policy.",
+      "inverse_changes": [
+        {
+          "baseline_start": 632,
+          "current_start": 632,
+          "baseline_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"87c629ad102c004581f1eefc11828aedf26f7b0b85901161d94b534aaf5e2494\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"36a983c3ebebceb20943ae0074e10f60b46cdd7d0c27126ee3fd86d1e06da64a\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"40d2e5fc8636fb8c66c507154fddc4f210a6e93432cf5cc28636db0364afb752\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"bba16f036bd63f07693a5a47400a3bba50eea2237b3b37e1545591eb68edc213\",\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "preserved_files": [
+    {
+      "path": ".github/workflows/backfill_decision_v11_history.yml",
+      "sha256": "e94fba828ee07c4d3c9b10280da20a8749ec76c3166cbaaebbd66ea75400875b",
+      "bytes": 26784
+    },
+    {
+      "path": ".github/workflows/check_tushare_health.yml",
+      "sha256": "a3363192883166893b42fcb43785186a36b33e067e6aeb5d99c9bec614bcfa2e",
+      "bytes": 2237
+    },
+    {
+      "path": ".github/workflows/diagnose_decision_fingerprint.yml",
+      "sha256": "8eb2a976317aa5af1d5a6d9edb0881c34698d9f4695ecb5574c8af17345be782",
+      "bytes": 29833
+    },
+    {
+      "path": ".github/workflows/migrate_decision_runtime.yml",
+      "sha256": "18e9e489ea78205528ddbdd9a9068ed85ab64d3a79960ca51192e9469532e545",
+      "bytes": 29594
+    },
+    {
+      "path": ".github/workflows/run_auction_v3.yml",
+      "sha256": "bdb71c0793d3550e50eb61b6237eb8a677dc45c89bd06e01445efd9ab4d43f3f",
+      "bytes": 68335
+    },
+    {
+      "path": ".github/workflows/run_decision_daily.yml",
+      "sha256": "2a5f230bf6fc725598d7edc600c11df86815b660f22d90a425ac8ac211e5500c",
+      "bytes": 131615
+    },
+    {
+      "path": ".github/workflows/run_primary_d_daily.yml",
+      "sha256": "2f670dd9afb5b4156bd8e3e04c61fbc63251cff8da200ca5bfe18fb63bda2868",
+      "bytes": 87615
+    },
+    {
+      "path": ".github/workflows/run_primary_profit_forward_shadow.yml",
+      "sha256": "863c5f755a3746d8cd7adf8641f5eb44e20cc676f98cb53b22854d8d13bafaa8",
+      "bytes": 23465
+    },
+    {
+      "path": ".github/workflows/run_primary_profit_rankings.yml",
+      "sha256": "9415f8e78b753f471a3ea648b2d4a7535e5911d49bfb99839c892eabb5207027",
+      "bytes": 54610
+    },
+    {
+      "path": ".github/workflows/test_decision_core.yml",
+      "sha256": "f419f49daf23614063b5ec86a25e8ed981eb6c7bc1fad191772da62dfb4a2e7f",
+      "bytes": 10028
+    },
+    {
+      "path": ".github/workflows/train_decision_three_engines.yml",
+      "sha256": "a62c14527c2f85d80f0d23b480f464c4f185c3bfe1c4ebeeca4f2d16059fcf3a",
+      "bytes": 63013
+    },
+    {
+      "path": ".github/workflows/verify_decision_observations.yml",
+      "sha256": "73f745b6fc7f520d28cc0fd094784fe158aaacb2a54998ed2d2826875c3c9199",
+      "bytes": 79985
+    },
+    {
+      "path": "data/auction_v3/promotion_prior/five_year_daily_stage_board.csv",
+      "sha256": "d7b69e474502eb10882e65cb19becaa77c5a8e0ced90d002ae221a47b0160909",
+      "bytes": 104013
+    },
+    {
+      "path": "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
+      "sha256": "57683c2ee65de2b9debd6c7ca253c5ef18e393c121b943884bc577054cd7fe3e",
+      "bytes": 627667
+    },
+    {
+      "path": "data/decision_three_engines/five_year_ledger_manifest.json",
+      "sha256": "35254897940c2589a4a80ed00c8228febf4fbe49c76dbab88dcaf22a7f300034",
+      "bytes": 7564
+    },
+    {
+      "path": "data/decision_three_engines/five_year_supervised_ledger.csv.gz",
+      "sha256": "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46",
+      "bytes": 4764361
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/candidate_pool.csv",
+      "sha256": "9293d0a88b1027e48685ee5141023b1e295cb1d12228159f6bacf60eb883e637",
+      "bytes": 871
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/000017_SZ.csv.gz",
+      "sha256": "c926e93c80b1354f784e959d231e4710af11bdc8d6fcf46479a23c2eac113583",
+      "bytes": 18548
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/000710_SZ.csv.gz",
+      "sha256": "a8dd2b6d9d429d07e56ce200f6a37e54603c74f8946c3af37cae33e10a9bcb89",
+      "bytes": 20172
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/000931_SZ.csv.gz",
+      "sha256": "e3b20618201719e7692d76178ec7c8dccd7c331cce9af5cc27ea7ed8fa746857",
+      "bytes": 17931
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/002038_SZ.csv.gz",
+      "sha256": "c91dbb12286436b5ae47989e2730e271829604a35c07709d8f9589146e5eea6d",
+      "bytes": 18996
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/002412_SZ.csv.gz",
+      "sha256": "62347fbee027fea21b8af426d12b37aba5ea4d50877a065fec1dec85ded16770",
+      "bytes": 18054
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/002491_SZ.csv.gz",
+      "sha256": "57cef8677056bcc28c4d69ef89b0a62349fd3ed329cc43c0c07053db59bf7cf2",
+      "bytes": 19260
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/002903_SZ.csv.gz",
+      "sha256": "a41e4bdcaeebf3cf981c56502fc6a4e721003d0ce29241f0c4ef296452ff7f2c",
+      "bytes": 20872
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/603626_SH.csv.gz",
+      "sha256": "692781674739515ff1b1ab0f5c763b34e7abb27e0d5a2710d1cea021ed02e42a",
+      "bytes": 20056
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/daily_bars/603958_SH.csv.gz",
+      "sha256": "39887f859cca809c4b276005133d50dd71ede0134b7a181ce1941a4790f3878d",
+      "bytes": 19045
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/manifest.json",
+      "sha256": "14ecaad8e8b393e98a80c0f08d10b9e6e17e51213586cb88973d102dff66d1c8",
+      "bytes": 12178
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/big_loss.joblib",
+      "sha256": "9a3ba655f2026fba80cdf73b904278d0bc730c559f8d38eb14d8d547fd8409c6",
+      "bytes": 7703
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/data_validation.json",
+      "sha256": "34ab2950fa2e6226173392fa4a17cab5f9f102fe2d10a01c3b2175346b2323da",
+      "bytes": 10103
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_ledger_manifest.json",
+      "sha256": "18042d3d6f81d2b86fe6e50b97cb5849512db98de959e493049e3c7c9226524d",
+      "bytes": 3694
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/five_year_supervised_ledger.csv.gz",
+      "sha256": "76f7403ec909d387b222e643be26ba5c918fe8da779788876baf6f8f8dea5026",
+      "bytes": 4701641
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/p_fill_shadow.joblib",
+      "sha256": "1b7c52b6e7270e98c25c19d2ccd8131cb97e902aaff62abb059232c086b54f06",
+      "bytes": 3413205
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/profit.joblib",
+      "sha256": "0e5e251dc0632ed120baf7e758a4cbfcebd940857fab62e71c57f3c1979891f3",
+      "bytes": 3423122
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/promotion.joblib",
+      "sha256": "72dcbc139c3260a99b9dd6846403a2acd9ebeef8a518cb7b3ddfc75e52b81e5b",
+      "bytes": 178906
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/three_engine_oof_top10.csv.gz",
+      "sha256": "df5b57877fd29c6a4c64a45061a42357144151994cc83bb5ee8a2b2d71f5244b",
+      "bytes": 592145
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/model_snapshot/validation.json",
+      "sha256": "99f89e8bbc40d0f6cc39c3312039156a79c4f45e24114fc4affb900f23a46fe4",
+      "bytes": 99022
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/source_candidates.csv",
+      "sha256": "7934e1fd038801b3c95d646c38c3dfe1d3ade28e44bf735749f10557d220fada",
+      "bytes": 35016
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/source_meta.json",
+      "sha256": "59cc25c876178d98b2c74638706b549c2ceb8b9a28de62a91dcf6a09cf370695",
+      "bytes": 2522
+    },
+    {
+      "path": "data/decision_three_engines/recovery/20260821/stock_priors.csv",
+      "sha256": "6d219ed52c23f369d4958ae814972a2bb761317bd429ebc4c7ee6118085e5462",
+      "bytes": 591
+    },
+    {
+      "path": "data/market/confirmed_suspensions.json",
+      "sha256": "ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68",
+      "bytes": 2449
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748",
+      "bytes": 61411
+    },
+    {
+      "path": "forward/storage.py",
+      "sha256": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098",
+      "bytes": 2176
+    },
+    {
+      "path": "models/decision_candidate_profit_activation_v1.json",
+      "sha256": "bdd06edf427eb261ec27cdbf946545d19b052b004b5792c6860e5400703da131",
+      "bytes": 1006
+    },
+    {
+      "path": "models/decision_compact_statistics_window_v1.json",
+      "sha256": "d79e59bbb6fd1e0352adfa62a7539eaaa563cdb0468c035b0212647a3b806c8b",
+      "bytes": 378
+    },
+    {
+      "path": "models/decision_daily_delivery_policy_v1.json",
+      "sha256": "b8aa1978143775d1c0a618b21b9d0e01541bc1750f06abb2798d93796561f352",
+      "bytes": 221
+    },
+    {
+      "path": "models/decision_executable_profit_forward_settlement_contract.json",
+      "sha256": "d5f9e1029a6d9d59e464a32a1e877ce87e0c4c3849c0d95c96d18e3e5e031578",
+      "bytes": 6621
+    },
+    {
+      "path": "models/decision_executable_profit_internal_forward_challenger.json",
+      "sha256": "487e24e7cd6cae495c06cc49b7ad0c6272dcf80ee1e6e980823c0584e16686af",
+      "bytes": 6878
+    },
+    {
+      "path": "models/decision_executable_profit_research_projection_contract.json",
+      "sha256": "ec4de53bea6baab94b699d5ebf9ed99e918c140f96bdb8afd3e03178e96cae36",
+      "bytes": 3027
+    },
+    {
+      "path": "models/decision_executable_profit_shadow_contract.json",
+      "sha256": "95f1953ca32afba9e92a40b717d8d02494bb71f3537e2d95a99e3b67cdd9cac2",
+      "bytes": 14533
+    },
+    {
+      "path": "models/decision_primary_profit_forward_shadow_bridge_contract.json",
+      "sha256": "2af08fe1f4481355e2c70ba1a350b56c9cc1cda3afbc1d73d71969ef170f2623",
+      "bytes": 4023
+    },
+    {
+      "path": "models/decision_primary_profit_research_contract.json",
+      "sha256": "3372a1591fd5f927644f49af19ef21beac50a645a7d229f909dd6c96bc8fb780",
+      "bytes": 3470
+    },
+    {
+      "path": "models/decision_primary_profit_shadow_entry_price_policy_v2.json",
+      "sha256": "6230367f769122563e81ad4d105bc5f2d764a9123c727eae7cefcf732bb9430a",
+      "bytes": 890
+    },
+    {
+      "path": "models/decision_promotion_v13_validation.json",
+      "sha256": "bf7994f63ee3ab2d12eeb98db6c9e5e1c8a18c2a6de8c24fc15d861ae6057477",
+      "bytes": 3851
+    },
+    {
+      "path": "models/decision_replay_input_snapshots/1bf6eea649d69688f8263fee60c0df0606cb7b4ed86e0d9fd07f2937f999385f.json",
+      "sha256": "886a87823a444efa7a7eee91f7bfad894e444e615dcbc2eae1cf1f468c1a8c6a",
+      "bytes": 6599
+    },
+    {
+      "path": "models/decision_shadow_exit_policy_1000_v1.json",
+      "sha256": "2a4feb3937aa9ad221d7b9f7a089c6968fe8a3ce13e949023ae7207f5cbccc31",
+      "bytes": 1095
+    },
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885",
+      "bytes": 6322
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28",
+      "bytes": 4590
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee",
+      "bytes": 2278
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436",
+      "bytes": 1166
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f",
+      "bytes": 18304
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97",
+      "bytes": 3416
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b",
+      "bytes": 6076
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293",
+      "bytes": 64975
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d",
+      "bytes": 22497
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+      "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d",
+      "bytes": 39690
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a",
+      "bytes": 114026
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c",
+      "bytes": 7668
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_exit_label.json",
+      "sha256": "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1",
+      "bytes": 8631
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7",
+      "bytes": 24496
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95",
+      "bytes": 8843
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5",
+      "bytes": 211786
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3",
+      "bytes": 22327
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db",
+      "bytes": 181796
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_ci_partition.json",
+      "sha256": "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395",
+      "bytes": 77471
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_dev_yaml.json",
+      "sha256": "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1",
+      "bytes": 7353
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9",
+      "bytes": 276950
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+      "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14",
+      "bytes": 16004
+    },
+    {
+      "path": "models/decision_source_surface_review_20260914_candidate_activation.json",
+      "sha256": "d6547c35704ed13e96891ece4a21b3de8fd977b5234f2a4cf0d8282493041a6e",
+      "bytes": 57219
+    },
+    {
+      "path": "models/decision_source_surface_review_20260914_historical_statistics.json",
+      "sha256": "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75",
+      "bytes": 27427
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_empty_roots.json",
+      "sha256": "44c71406774c06a86e857bf8a7e48a35bd6e3ea8ed545db35c04de95ea274ef9",
+      "bytes": 5365
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_navigation.json",
+      "sha256": "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d",
+      "bytes": 18562
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_observation.json",
+      "sha256": "5e89300ba8a178271188d4dbb7e2f44c53b5e04efa127a555ccc16177b09f895",
+      "bytes": 18465
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_observation_v2.json",
+      "sha256": "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e",
+      "bytes": 23880
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_reliability.json",
+      "sha256": "9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9",
+      "bytes": 77197
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_full_list_promotion.json",
+      "sha256": "3eef32501c0ed7bb10768a80e3f40b8350a92260f4bb1783219e9b0353b7468f",
+      "bytes": 35795
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_monthly_ledger.json",
+      "sha256": "ff5bcf4c14c472060a0829a0b94c638fffd07606962ca2f586d9b1b2f8caa305",
+      "bytes": 90994
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_settlement_repair.json",
+      "sha256": "a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f",
+      "bytes": 77912
+    },
+    {
+      "path": "models/decision_source_surface_review_20260922_eligible_publication.json",
+      "sha256": "3bebcad923c2506cf63cbfd61d3c1d5444b3dd54d13aea8662ed0fffe31cf323",
+      "bytes": 128737
+    },
+    {
+      "path": "models/decision_source_surface_review_20260924_posthoc.json",
+      "sha256": "36024f4efefad12ab98c02bbf2564afc53ca39b529eaf1b2a1b32580f1fe06f8",
+      "bytes": 13063
+    },
+    {
+      "path": "models/decision_source_surface_review_20260925_statistics.json",
+      "sha256": "8e400f05a38ca10ee156d77821e97a1769e94158b29aec93181d3652e0579ae1",
+      "bytes": 4287
+    },
+    {
+      "path": "models/decision_source_surface_review_20260927_delivery.json",
+      "sha256": "52dc3eba8c4cf2574f2c48be505821c0d16bc1d7b5488f81027ee0b5f916dc1f",
+      "bytes": 10088
+    },
+    {
+      "path": "models/decision_source_surface_review_20260927_market.json",
+      "sha256": "54c60392c21f0573f98bdb409de127a4f9ee35771be1c262a8ad7beedc8c3cca",
+      "bytes": 11008
+    },
+    {
+      "path": "models/decision_source_surface_review_20260928_nightly_stats.json",
+      "sha256": "5f141bf6fd029c481ff0d7657c94b710e797f2f73bca96d6d90a952715d145a3",
+      "bytes": 13643
+    },
+    {
+      "path": "models/decision_source_surface_review_20260928_profitday.json",
+      "sha256": "4294a635560df3b6d8dcdb412109a00698f6c7da3f915eccd927520cee65d61e",
+      "bytes": 12592
+    },
+    {
+      "path": "models/decision_source_surface_review_20260930_research_link.json",
+      "sha256": "0f499f61ca1e01b21ec63c1ecf6b294a5b7382ac14d413cedf13b6ddc43be898",
+      "bytes": 2726
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account.json",
+      "sha256": "6b5cbcedb2febb54753a68dd92e056c1103ce99e433ebd8ee3905511a9217f2a",
+      "bytes": 2801
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account_200k_page.json",
+      "sha256": "7ae1e40f5cb99fc279d5d4977faefdd6267b45f88f3a2f824a42d20ba5b9ad1e",
+      "bytes": 2247
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account_pipeline.json",
+      "sha256": "b22f68eadcbf37c7bafa55adca618526b15a840d1dacf2bc1ea2949b7262ee5d",
+      "bytes": 4285
+    },
+    {
+      "path": "models/decision_source_surface_review_20261107_delivery_hardening.json",
+      "sha256": "f4720d3bec6521aa3f2b747cd1453e993e3f17dd183fc2895454271134c562dc",
+      "bytes": 61651
+    },
+    {
+      "path": "models/decision_source_surface_review_20261107_system_cleanup.json",
+      "sha256": "585067bc203c33a597fb824fd59d2c27ad99bb061fd13f37f9f0144fe526f2aa",
+      "bytes": 195076
+    },
+    {
+      "path": "models/decision_source_surface_rotation_20260824.json",
+      "sha256": "52a7cea61c8110c9ca84d998a77555db8cbd9fe1bcca07f02548d22823378e5b",
+      "bytes": 25310
+    },
+    {
+      "path": "models/decision_three_engine_data_validation.json",
+      "sha256": "6748d2b96ff14c569af57df661df5f34f951c511d3a4b40da764db4a06233f02",
+      "bytes": 18294
+    },
+    {
+      "path": "models/decision_three_engines/big_loss.joblib",
+      "sha256": "ba112be7f1b6fa6fe398ade8fd1912bc51eadbeda8625a2bddc4421ae1b7b12b",
+      "bytes": 8998
+    },
+    {
+      "path": "models/decision_three_engines/p_fill_shadow.joblib",
+      "sha256": "69098bf836409867fd7f27002645870007f98cc9b52a455b50d49c885b083f24",
+      "bytes": 9435
+    },
+    {
+      "path": "models/decision_three_engines/profit.joblib",
+      "sha256": "d3bc06b379146804082a627dcf063cb9994f89bf04a981f89d6a88ee182fd291",
+      "bytes": 5127
+    },
+    {
+      "path": "models/decision_three_engines/promotion.joblib",
+      "sha256": "b7837d7001917a9c7bcc8814a09b45c6460f36a1adf6a7b5dcc024b4adc5f79c",
+      "bytes": 179221
+    },
+    {
+      "path": "models/decision_three_engines/validation_latest.json",
+      "sha256": "de4cae2427593b05f2e8ab208f7ff80c4e8483dc46cba0be55a4b0543bc93d73",
+      "bytes": 192258
+    },
+    {
+      "path": "models/decision_three_rank_history_sources.json",
+      "sha256": "1e6fedbdde412e0694f018a5102944621af3dd1a28c75fdfac0c9393c86b627d",
+      "bytes": 61238
+    },
+    {
+      "path": "models/decision_v12_frozen_history_20260805.csv.gz",
+      "sha256": "77e48be6732a08698a6abf4a0da74cb02b3129c57d14be66fb94679816a5337e",
+      "bytes": 10124991
+    },
+    {
+      "path": "models/eret_lgbm.joblib",
+      "sha256": "81c26cb342059026719dba000fe8176f61a1ef7470f7fc156ff4a695d2c1ac1d",
+      "bytes": 1372857
+    },
+    {
+      "path": "models/eret_lgbm_20260805.joblib",
+      "sha256": "81c26cb342059026719dba000fe8176f61a1ef7470f7fc156ff4a695d2c1ac1d",
+      "bytes": 1372857
+    },
+    {
+      "path": "models/eret_lr.joblib",
+      "sha256": "6809668f57b32943e3ebfd2a0140b8419a1a1d9710018c928dd723f02cf8f05d",
+      "bytes": 10305
+    },
+    {
+      "path": "models/eret_lr_20260805.joblib",
+      "sha256": "6809668f57b32943e3ebfd2a0140b8419a1a1d9710018c928dd723f02cf8f05d",
+      "bytes": 10305
+    },
+    {
+      "path": "models/eret_meta.json",
+      "sha256": "6e3857ed473f72b7a581a411ea895bd8d1d89d7f79d157e9cc5aa617ee376d6f",
+      "bytes": 30665
+    },
+    {
+      "path": "models/eret_meta_20260805.json",
+      "sha256": "6e3857ed473f72b7a581a411ea895bd8d1d89d7f79d157e9cc5aa617ee376d6f",
+      "bytes": 30665
+    },
+    {
+      "path": "models/pfill_lgbm.joblib",
+      "sha256": "c810c6f39e4104a0363f5a58f1733b9a0ea1a64eec435dc18f531cd161280654",
+      "bytes": 1027396
+    },
+    {
+      "path": "models/pfill_lgbm_20260806.joblib",
+      "sha256": "c810c6f39e4104a0363f5a58f1733b9a0ea1a64eec435dc18f531cd161280654",
+      "bytes": 1027396
+    },
+    {
+      "path": "models/pfill_lr.joblib",
+      "sha256": "377ebd6db531f8a86a0eb1f32bc9a4d9db64d78636102c7b6413d984ed196f69",
+      "bytes": 11546
+    },
+    {
+      "path": "models/pfill_lr_20260806.joblib",
+      "sha256": "377ebd6db531f8a86a0eb1f32bc9a4d9db64d78636102c7b6413d984ed196f69",
+      "bytes": 11546
+    },
+    {
+      "path": "models/pfill_meta.json",
+      "sha256": "f0e2faf02f31d8011d13e0a30cc593c2f587f63bdf3202bd75b41f0daa022300",
+      "bytes": 15480
+    },
+    {
+      "path": "models/pfill_meta_20260806.json",
+      "sha256": "f0e2faf02f31d8011d13e0a30cc593c2f587f63bdf3202bd75b41f0daa022300",
+      "bytes": 15480
+    },
+    {
+      "path": "outputs/auction_v3/metrics/three_engine_oof_top10_latest.csv.gz",
+      "sha256": "c768cb0eb019fba6be7ca41284841006195dd54bf4d641f426d2fbbf513a4ebd",
+      "bytes": 575399
+    },
+    {
+      "path": "outputs/decision/three_rank_top10_20260821.csv",
+      "sha256": "dbe41e6f269f186a7bf46d00350844e62720b8d896966dc9a02990c52608896c",
+      "bytes": 11580
+    },
+    {
+      "path": "outputs/decision/three_rank_top10_20260821.evidence.json",
+      "sha256": "108df999852f6920f97023264b5df8dd8b42349307e0f110a0bccc8f682d0333",
+      "bytes": 4860
+    },
+    {
+      "path": "outputs/decision/three_rank_top10_20260821.json",
+      "sha256": "a43285654a32206d3a9deeaac1b8c373cafe71bf39610af779b66df4bb458e34",
+      "bytes": 9706
+    },
+    {
+      "path": "requirements-dev.lock",
+      "sha256": "773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2",
+      "bytes": 3172
+    },
+    {
+      "path": "requirements.lock",
+      "sha256": "612ef31ce0996b739b319683b06878200604e04e8f915f32a946285044ff132c",
+      "bytes": 2408
+    },
+    {
+      "path": "scripts/backfill_decision_v11_history.py",
+      "sha256": "7fc3c0cd9d985c74b85ef625c96632321ce4dfaa3cca7d0c4b63461c0c60af8f",
+      "bytes": 24094
+    },
+    {
+      "path": "scripts/backfill_prediction_window.py",
+      "sha256": "ad1959d32845dbd31552fc65c32ca7def39d23535c709c86256377d896028027",
+      "bytes": 17805
+    },
+    {
+      "path": "scripts/backfill_topn_targets_validation.py",
+      "sha256": "d3c4e53010645008cdd1c192c8834c297970bd20dafbc5935ea1f4b98f899dc0",
+      "bytes": 49078
+    },
+    {
+      "path": "scripts/build_compact_statistics_window.py",
+      "sha256": "4bdb5eac72b78a38be1418bf92c677112dc9f693c0d86d420a291aa0eb552684",
+      "bytes": 38693
+    },
+    {
+      "path": "scripts/build_decision_three_rank_history.py",
+      "sha256": "c5e796f74661acca10511b239af4957cfe269c8e38a30f996e07d3fb26227306",
+      "bytes": 119581
+    },
+    {
+      "path": "scripts/build_decision_three_rank_snapshot.py",
+      "sha256": "6fced22dd22fcd01bf2792c6593353c043eebb382c3115520a23fa144c382604",
+      "bytes": 56433
+    },
+    {
+      "path": "scripts/build_eret_trainset.py",
+      "sha256": "aca926a72503f8ad840ec7c62db8c79788e93e989c4953f34a7d5cfad61cdea8",
+      "bytes": 30960
+    },
+    {
+      "path": "scripts/build_eret_truth.py",
+      "sha256": "f5bb246c2c6b138982468e61ff2591977ff0940d182aa61bdc368984d134bef6",
+      "bytes": 26627
+    },
+    {
+      "path": "scripts/build_fill_truth.py",
+      "sha256": "ed55ba50bf7bac882658a753ccad605ca3d6dce4c93235f5b75308c9dd19d5a8",
+      "bytes": 26329
+    },
+    {
+      "path": "scripts/build_market_fs.py",
+      "sha256": "ee6dc8d9e15ee39d4933ffbe56cd03f148d96871e90bfce13e8b1b3744a5d2fe",
+      "bytes": 49855
+    },
+    {
+      "path": "scripts/build_pfill_trainset.py",
+      "sha256": "b26cb4c4c303b520461ad6a2890da4ef0ca8b4d850904eac49cee5adf7d9e8fe",
+      "bytes": 22491
+    },
+    {
+      "path": "scripts/build_three_engine_five_year_ledger.py",
+      "sha256": "5fda0491815ea5d75a76969a4d539ef414be67ce53779656401ed66e5a0a61ed",
+      "bytes": 53944
+    },
+    {
+      "path": "scripts/check_tushare_health.py",
+      "sha256": "c7348a7abf1f1d97eb8f2aeaf0ca41aee25c01dddb1a10b242be309f08192a78",
+      "bytes": 18477
+    },
+    {
+      "path": "scripts/decision_pages_truth.py",
+      "sha256": "00286ead9db97b7b69919ec96bc4bf307a3051440171276a8571071bb2d100a3",
+      "bytes": 111212
+    },
+    {
+      "path": "scripts/diagnose_decision_fingerprint.py",
+      "sha256": "06c8586ad2af06e191497274a54058c82c603ba4703dac7590acabcdf311d87d",
+      "bytes": 126019
+    },
+    {
+      "path": "scripts/freeze_primary_profit_forward_shadow.py",
+      "sha256": "441a5eda73c89b062ea784d6f2d5e12791df8d07ce892f121e2fbc36c3d92490",
+      "bytes": 4714
+    },
+    {
+      "path": "scripts/import_legacy_research_context.py",
+      "sha256": "2bfe16245c0ea0992d4f2e1518506d6be3e64ad847e2211df296ce1394d75221",
+      "bytes": 2829
+    },
+    {
+      "path": "scripts/merge_feedback_to_learning_table.py",
+      "sha256": "16030d08d58a63de2836085eb83c8db03d3a165e0271324abcec6a1659e6e4e1",
+      "bytes": 7494
+    },
+    {
+      "path": "scripts/migrate_decision_runtime.py",
+      "sha256": "8575fa79d953702fca1590d463df921ad01b6a0375bd77f188b4309538cda221",
+      "bytes": 92263
+    },
+    {
+      "path": "scripts/mock_jq_feedback.py",
+      "sha256": "7a7026663ffa8806d04e183e5f7ae76925f5aba0bcfe3b6350af31c2f22557f0",
+      "bytes": 5698
+    },
+    {
+      "path": "scripts/project_decision_executable_profit_research.py",
+      "sha256": "d13746053a0807dbc55626400cbb2f7f327ea439dd0bec1356e99c6bb838d57f",
+      "bytes": 3609
+    },
+    {
+      "path": "scripts/project_decision_legacy_profit_relative_research.py",
+      "sha256": "0c29627b32693dac2f6e9e5fa474e2831147b5e507b634a8063beb5a478423b0",
+      "bytes": 6040
+    },
+    {
+      "path": "scripts/publish_decision_action.py",
+      "sha256": "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275",
+      "bytes": 2122
+    },
+    {
+      "path": "scripts/publish_decision_research_context.py",
+      "sha256": "095109bedc4536d0691d456f14ca198485e77c1d1c41d0835b1c63fdcaa10096",
+      "bytes": 1813
+    },
+    {
+      "path": "scripts/publish_primary_profit_rankings.py",
+      "sha256": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
+      "bytes": 81784
+    },
+    {
+      "path": "scripts/publish_primary_three_rank.py",
+      "sha256": "bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8",
+      "bytes": 87021
+    },
+    {
+      "path": "scripts/recover_decision_action_gaps.py",
+      "sha256": "1a202d22c9b5b72c5334067ba6d362384888ed22c0631a5d0c5f56e1a67813c8",
+      "bytes": 32224
+    },
+    {
+      "path": "scripts/refreeze_decision_three_rank.py",
+      "sha256": "152e6f83b8a2ad53a591187b06a6367aa3c7c7eece27facc710425e2144297ad",
+      "bytes": 36208
+    },
+    {
+      "path": "scripts/replay_frozen_canonical_v2.py",
+      "sha256": "ce30629fcf88de0046fe306c8394c5ae7674518188afa181791f001680e2a39a",
+      "bytes": 122002
+    },
+    {
+      "path": "scripts/resolve_sample_maturity.py",
+      "sha256": "d10cc4c4cb4b840c6b5c544ab801c165e6a58e7a2626f5aa1f074f5d488cf7b4",
+      "bytes": 26487
+    },
+    {
+      "path": "scripts/run_auction_v3.py",
+      "sha256": "75040355136ba140bc21b1478bca6b9d18fcdd34f02d1d3d900bb04905b632bf",
+      "bytes": 10145
+    },
+    {
+      "path": "scripts/run_decision_executable_profit_forward_shadow.py",
+      "sha256": "3e513f44c02b0b02eea494796c50ec1743f9a339b3671e6c0a38c7a4c4f231ba",
+      "bytes": 3290
+    },
+    {
+      "path": "scripts/run_deterministic_numeric.py",
+      "sha256": "5f23fc2a0bbaf1cf7ca3e70d6cae2ef53050e302aa2b860bf7fa5cf389f867a4",
+      "bytes": 14290
+    },
+    {
+      "path": "scripts/run_v2.py",
+      "sha256": "8b9067c48bf026780423b5899bb8bb34aa41206de474ddf650d64c6c73c465e3",
+      "bytes": 56950
+    },
+    {
+      "path": "scripts/settle_decision_executable_profit_forward_shadow.py",
+      "sha256": "0f2b8e053ad50d6389c6925c0fd318ff93c09d7285f5054517a13d54913e0799",
+      "bytes": 3382
+    },
+    {
+      "path": "scripts/settle_primary_observations.py",
+      "sha256": "babc38875bbf7a7365dd770ad9299a6b82392553175d9b048bdc1378bb8aae59",
+      "bytes": 28062
+    },
+    {
+      "path": "scripts/stage_current_profit_research.py",
+      "sha256": "1dd14ceb4794038375f52496cbe7cfc7852045c25eb4fb62c40ea6986441b017",
+      "bytes": 1868
+    },
+    {
+      "path": "scripts/sync_exit_1000_minute_truth.py",
+      "sha256": "62a262793c873a0148daea1dc784501ff0b000d60f5147d2c290dcf9148f6a35",
+      "bytes": 9833
+    },
+    {
+      "path": "scripts/sync_from_a_top10.py",
+      "sha256": "982d42a8f9db500719172637fc545f6765585077ab22518abd44f41bb6f1db8f",
+      "bytes": 2154
+    },
+    {
+      "path": "scripts/sync_frozen_shadow_truth.py",
+      "sha256": "d79f3366ee5020c6a3072377a585d0d78d08ee1313cfb7065010e6e666b4c3d2",
+      "bytes": 10371
+    },
+    {
+      "path": "scripts/sync_market_raw.py",
+      "sha256": "a18c2099133ad3962309891379983945c0e4b00ad069e736243ed5737b30be55",
+      "bytes": 34527
+    },
+    {
+      "path": "scripts/sync_pred_source.py",
+      "sha256": "c374c503d0ee54ded5c276aed458d2eaecb46fc14dd88a15bd0f2037bd54c281",
+      "bytes": 20753
+    },
+    {
+      "path": "scripts/sync_tushare_daily_close.py",
+      "sha256": "ce463a115e4010a10f2d49ddad983be4cbd1589a2ac4c81533f32757dc7b98ce",
+      "bytes": 3884
+    },
+    {
+      "path": "scripts/sync_tushare_minute.py",
+      "sha256": "d1d39ba3d5a26c7a35aae159bad13702ee9c62aef8d28c67a24d8ddc2fa099e3",
+      "bytes": 23703
+    },
+    {
+      "path": "scripts/train_eret.py",
+      "sha256": "84ab48a0c6867dd7956c02719d098d041f6221c1f9087697ca3c5c188dbff63c",
+      "bytes": 47647
+    },
+    {
+      "path": "scripts/train_pfill.py",
+      "sha256": "a429eec102479856e07d5b60cd1eec219ccb8479bad163c2fc9ec1a6061d7c4e",
+      "bytes": 40717
+    },
+    {
+      "path": "scripts/train_three_engine_models.py",
+      "sha256": "b97a02ff4e0dae7cba814358cb9128937419d7058d2eba1c2927d4c0f079f6d8",
+      "bytes": 18447
+    },
+    {
+      "path": "scripts/validate_backfill_artifacts.py",
+      "sha256": "3e836f8876ea041fcb5c6c74ba57207fa4e03330b0ef216878a2ee67abb0548b",
+      "bytes": 51125
+    },
+    {
+      "path": "scripts/validate_decision_executable_profit_shadow_contract.py",
+      "sha256": "70855e3dc922a9b2275f9b1684254ff454efb3659e13d0a78fe93c782fe0ca16",
+      "bytes": 24404
+    },
+    {
+      "path": "scripts/validate_decision_model_freeze.py",
+      "sha256": "4e8bab4855c0c1a94d1e79361ffa6a65d89b3e45eacc334b6021003e87d0fee4",
+      "bytes": 3052
+    },
+    {
+      "path": "scripts/validate_io_contract.py",
+      "sha256": "4f3b0996df75415b90b239deb051d77880280deaf5e0990c20d9b8225540b010",
+      "bytes": 22631
+    },
+    {
+      "path": "scripts/validate_three_engine_five_year_ledger.py",
+      "sha256": "ced4949f5f07af68b00276eb55c612cbf325996a05354fbe456ff72d3f330449",
+      "bytes": 51146
+    },
+    {
+      "path": "scripts/validate_topn_targets.py",
+      "sha256": "cab4f135c16b6d4ff767521423e8a2bb6265234390f0605c58e3814ca5506f51",
+      "bytes": 41395
+    },
+    {
+      "path": "scripts/validate_verify_forecast_inputs.py",
+      "sha256": "c7e90d66feb844ba14412c9bd683a3a657106d63763d55c4198e87aa34a99f88",
+      "bytes": 8424
+    },
+    {
+      "path": "scripts/verify_decision_observations.py",
+      "sha256": "8a589b355ec7333cabb6487d36379dd60c6a933ca292dd16a4b1ef9fba86efb4",
+      "bytes": 6079
+    },
+    {
+      "path": "src/top10decision/__init__.py",
+      "sha256": "c9c6884747acdcefa1a17d3b0b91ba6225502e38205ad3bf3b16ef913c07fc28",
+      "bytes": 61
+    },
+    {
+      "path": "src/top10decision/adapters/__init__.py",
+      "sha256": "8b084a9f378124b2b1a51563bf3c22444eb7ff33692017da28b2136ae56987ed",
+      "bytes": 24
+    },
+    {
+      "path": "src/top10decision/adapters/decisio_adapter.py",
+      "sha256": "be3c638f96116e99cae85cad54ec09701ed6e2859a8276219bf3f4d695ce587a",
+      "bytes": 1346
+    },
+    {
+      "path": "src/top10decision/adapters/joinquant/write_latest_signal.py",
+      "sha256": "753bb5367eb779486cceb07d2e7e04c2e89f61d144ec043bf4a385ae79e2533a",
+      "bytes": 307
+    },
+    {
+      "path": "src/top10decision/auction_v3/__init__.py",
+      "sha256": "1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8",
+      "bytes": 224
+    },
+    {
+      "path": "src/top10decision/auction_v3/calibration.py",
+      "sha256": "06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9",
+      "bytes": 6128
+    },
+    {
+      "path": "src/top10decision/auction_v3/config.py",
+      "sha256": "4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2",
+      "bytes": 5987
+    },
+    {
+      "path": "src/top10decision/auction_v3/engine.py",
+      "sha256": "68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8",
+      "bytes": 360360
+    },
+    {
+      "path": "src/top10decision/auction_v3/promotion_model.py",
+      "sha256": "af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170",
+      "bytes": 28552
+    },
+    {
+      "path": "src/top10decision/auction_v3/reporting.py",
+      "sha256": "9ede3ad90328bcb08b72da999510d317df0965d50b40c278494e45ef492c0036",
+      "bytes": 23016
+    },
+    {
+      "path": "src/top10decision/configs.py",
+      "sha256": "d5decacccce4b237eec9fb25d3e7f0255c85ef2c36890e4537ab9b3306d596cb",
+      "bytes": 1451
+    },
+    {
+      "path": "src/top10decision/data/__init__.py",
+      "sha256": "0540706f7712331424a1716c03c11ae096c93e1a36612980eda2027ecaa2289c",
+      "bytes": 151
+    },
+    {
+      "path": "src/top10decision/data/tushare_minute.py",
+      "sha256": "30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785",
+      "bytes": 23208
+    },
+    {
+      "path": "src/top10decision/decision/__init__.py",
+      "sha256": "cad519dbf28f2e2f53f745486771d57c14d7da60ea3ac5d9be47d1e81e949e34",
+      "bytes": 238
+    },
+    {
+      "path": "src/top10decision/decision/action_plan.py",
+      "sha256": "c8310f412d237aa0fa58650c8bbb163eedc97ce0c4097ca475e0e82146b473e3",
+      "bytes": 151267
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "sha256": "f50c9222fc060b8c057dd666825a7b62072ca121440e375d374804ad4109b462",
+      "bytes": 30346
+    },
+    {
+      "path": "src/top10decision/decision/canonical_fingerprint.py",
+      "sha256": "61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b",
+      "bytes": 14617
+    },
+    {
+      "path": "src/top10decision/decision/contracts.py",
+      "sha256": "50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917",
+      "bytes": 2634
+    },
+    {
+      "path": "src/top10decision/decision/d_close_features.py",
+      "sha256": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e",
+      "bytes": 4983
+    },
+    {
+      "path": "src/top10decision/decision/eligibility.py",
+      "sha256": "31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7",
+      "bytes": 7767
+    },
+    {
+      "path": "src/top10decision/decision/executable_profit_research_projection.py",
+      "sha256": "506ff7aa9ca799fe33b409790f080c95ede05caa27ebe6c59a7c8b1d06ad097d",
+      "bytes": 76772
+    },
+    {
+      "path": "src/top10decision/decision/executable_profit_shadow.py",
+      "sha256": "872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c",
+      "bytes": 110633
+    },
+    {
+      "path": "src/top10decision/decision/executable_profit_shadow_settlement.py",
+      "sha256": "acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12",
+      "bytes": 135471
+    },
+    {
+      "path": "src/top10decision/decision/exit_policy.py",
+      "sha256": "4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f",
+      "bytes": 5040
+    },
+    {
+      "path": "src/top10decision/decision/legacy_profit_relative_research.py",
+      "sha256": "eaff22ce6dc31a831c16d90ee5d69e9851d80b7dcc1a9eac57dbc90bd195cea2",
+      "bytes": 45098
+    },
+    {
+      "path": "src/top10decision/decision/model_freeze.py",
+      "sha256": "bde5bda8813f4c76f8cfc1807566aa59dd2d4ead474d463feb412776ca9fc01b",
+      "bytes": 230312
+    },
+    {
+      "path": "src/top10decision/decision/observation.py",
+      "sha256": "577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713",
+      "bytes": 7270
+    },
+    {
+      "path": "src/top10decision/decision/primary_profit_forward_shadow_bridge.py",
+      "sha256": "bd40f40a4a660d8326254bf2a437de67281a7b8d08d7850a458186fea7686ff5",
+      "bytes": 101040
+    },
+    {
+      "path": "src/top10decision/decision/primary_profit_shadow_statistics.py",
+      "sha256": "9ddacf0573fd704cea59c210800c744ec171b682376b273c19146f35c38f090f",
+      "bytes": 5246
+    },
+    {
+      "path": "src/top10decision/decision/research_context.py",
+      "sha256": "72da2fee9863ff807e01c067d43b0715a18de94515e4ccbc8d130e366cb9335d",
+      "bytes": 33144
+    },
+    {
+      "path": "src/top10decision/decision/run_receipt.py",
+      "sha256": "198211cc88ad1ed932c801c9634b6479ea9ceb9c7de531ead6a5803fb3827777",
+      "bytes": 8068
+    },
+    {
+      "path": "src/top10decision/decision/shadow_exit_1000.py",
+      "sha256": "23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af",
+      "bytes": 16106
+    },
+    {
+      "path": "src/top10decision/decision/shadow_exit_continuous_truth.py",
+      "sha256": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a",
+      "bytes": 10510
+    },
+    {
+      "path": "src/top10decision/decision/shadow_exit_minute_truth.py",
+      "sha256": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
+      "bytes": 9531
+    },
+    {
+      "path": "src/top10decision/decision/three_engine_models.py",
+      "sha256": "9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c",
+      "bytes": 148112
+    },
+    {
+      "path": "src/top10decision/decision/three_rank.py",
+      "sha256": "f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a",
+      "bytes": 80531
+    },
+    {
+      "path": "src/top10decision/decision/trade_selector.py",
+      "sha256": "7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858",
+      "bytes": 77709
+    },
+    {
+      "path": "src/top10decision/decision_p0.py",
+      "sha256": "e4eb380dd06faebedd88100a4e221954c50ef08d8ba941e4a54e1fdbcb5f2db7",
+      "bytes": 3856
+    },
+    {
+      "path": "src/top10decision/engines/eret_engine.py",
+      "sha256": "346bd65fa0c416c2e8876f92552b66d29f0f4cfe411fb408e95bfb355536c071",
+      "bytes": 35089
+    },
+    {
+      "path": "src/top10decision/engines/pfill_engine.py",
+      "sha256": "ec38a49b51bed7ae3001393ee0b8c6b6fa04bf0a3db0e633cf2bf335c7d91e84",
+      "bytes": 29572
+    },
+    {
+      "path": "src/top10decision/ingest.py",
+      "sha256": "2cd98e8b44265d1d847d264372145e2b9b78b176c8828ebab722fe6e501092a6",
+      "bytes": 10037
+    },
+    {
+      "path": "src/top10decision/models/__init__.py",
+      "sha256": "8b084a9f378124b2b1a51563bf3c22444eb7ff33692017da28b2136ae56987ed",
+      "bytes": 24
+    },
+    {
+      "path": "src/top10decision/models/costs.py",
+      "sha256": "e73f654e524c1e641bdd484ab1deaca70ff22181f91533714bc64de576fb6b2d",
+      "bytes": 32618
+    },
+    {
+      "path": "src/top10decision/models/fill_model.py",
+      "sha256": "f46b79dd300cdc52c77822b31c4d6e114efc9477e0994e65b4244b6208df6e73",
+      "bytes": 4648
+    },
+    {
+      "path": "src/top10decision/models/overnight_model.py",
+      "sha256": "5884f1696a1ba85e337510ad5c2f9718c64fccd4de12e9e97fbb57cd5d85144d",
+      "bytes": 4737
+    },
+    {
+      "path": "src/top10decision/position/allocator.py",
+      "sha256": "35ab45aae6f6fa71891e6c9f79d2222f465b8dd763881ed35ef0730860564678",
+      "bytes": 288
+    },
+    {
+      "path": "src/top10decision/probability_calibration.py",
+      "sha256": "058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c",
+      "bytes": 10693
+    },
+    {
+      "path": "src/top10decision/regime/simple_regime.py",
+      "sha256": "1e5c9248b35701ea8e1943fcb04d43cc50c071c6169dfa42f48d80b0917b042d",
+      "bytes": 2846
+    },
+    {
+      "path": "src/top10decision/reporting/daily_report.py",
+      "sha256": "f1d86595a8d1b113534ae9455c2e735b7817b888125bdd6d3f94b29232ac3300",
+      "bytes": 5497
+    },
+    {
+      "path": "src/top10decision/risk/guardrails.py",
+      "sha256": "9cbd945e5f80579318a641c62ab78955b16d4c98a7009620653fbc17b87eb0b7",
+      "bytes": 3958
+    },
+    {
+      "path": "src/top10decision/rt_min_contract.py",
+      "sha256": "693fab2ce829f6a7b4772c6ef1e7bbd4e5ff11540f70c4828fe76abdddeea846",
+      "bytes": 5055
+    },
+    {
+      "path": "src/top10decision/strategies/base_strategy.py",
+      "sha256": "c677d71e11f3d0c19e59ffa9a754176f33fe51f18a627ba9539a4999dd016ac4",
+      "bytes": 174
+    },
+    {
+      "path": "src/top10decision/strategies/score_router.py",
+      "sha256": "5f237a9ed8064ae354508f89995193febbd0680679c2c7a27c7aafb0186cec02",
+      "bytes": 171
+    },
+    {
+      "path": "src/top10decision/utils.py",
+      "sha256": "2a813a5d78999e0c9aa10af78a5d9f28014f4ff2108976f2aa65d5f0563c61dd",
+      "bytes": 376
+    },
+    {
+      "path": "src/top10decision/weights/__init__.py",
+      "sha256": "8b084a9f378124b2b1a51563bf3c22444eb7ff33692017da28b2136ae56987ed",
+      "bytes": 24
+    },
+    {
+      "path": "src/top10decision/weights/engine.py",
+      "sha256": "858e38bae9733a3982e127ab4d89abc8472e03c314effe5f3c2b1af8c84b17ea",
+      "bytes": 3761
+    },
+    {
+      "path": "src/top10decision/writers.py",
+      "sha256": "1f7a9b485c115cfc7d588ae958a280ffdd5aaf2a2cf35f50ac4e646cddaf69ae",
+      "bytes": 5712
+    },
+    {
+      "path": "src/top10decision/writers/__init__.py",
+      "sha256": "8b084a9f378124b2b1a51563bf3c22444eb7ff33692017da28b2136ae56987ed",
+      "bytes": 24
+    },
+    {
+      "path": "src/top10decision/writers/artifacts.py",
+      "sha256": "b537e4e32dfde2a4772e3de192e8d4d48b0139190c47c86f8fc8ffd9ca6589a4",
+      "bytes": 14188
+    },
+    {
+      "path": "src/top10decision/writers/filesystem.py",
+      "sha256": "b45348082b463ba984dab5e5d375a9a82e9b7add16b6f773f9e438b7c66303cc",
+      "bytes": 4812
+    },
+    {
+      "path": "src/top10decision/writers/io_contract.py",
+      "sha256": "80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97",
+      "bytes": 9897
+    },
+    {
+      "path": "src/top10decision/writers/reports.py",
+      "sha256": "16fb600ef7536b873e96696f45ceef812d2ec541ed44f81dd44763f2f2c892ee",
+      "bytes": 7243
+    },
+    {
+      "path": "tests/fixtures/decision_model_freeze_v1_46d8.json",
+      "sha256": "87605814bce9f2180e151ed91d6c16e2c22b46c3dcd147e8bdab7895c3f0975a",
+      "bytes": 9504
+    },
+    {
+      "path": "tests/test_auction_v3.py",
+      "sha256": "c44e133d4a61b47bfc98dd410154fec8ed589b31dc6c2eb3e64cf173790f17d9",
+      "bytes": 62972
+    },
+    {
+      "path": "tests/test_auction_v3_three_engine_runtime.py",
+      "sha256": "154c41576713ebbf97f3ff625bd1ed18696948dab3e96d16c315a454a49c53fd",
+      "bytes": 48986
+    },
+    {
+      "path": "tests/test_build_decision_three_rank_snapshot.py",
+      "sha256": "019b761874284091dc96d8be90e1d79e3efdeffb85ca51e0e5bb9d5eba65aa27",
+      "bytes": 11973
+    },
+    {
+      "path": "tests/test_canonical_fingerprint.py",
+      "sha256": "57a13f2508dd2ca49e8c86d75617d9cd492250baafd9507abd06b6a8f3743304",
+      "bytes": 18586
+    },
+    {
+      "path": "tests/test_canonical_runtime_v2.py",
+      "sha256": "d12f75de5c6b4f7613634f3bb11374e57f2d898b1c9db5ca21bf99ad1ff34739",
+      "bytes": 16252
+    },
+    {
+      "path": "tests/test_d_close_features.py",
+      "sha256": "cb29024e2c4a6bbcbec5033215fff5ea1254eae40f3d422202b288272f10d59f",
+      "bytes": 8727
+    },
+    {
+      "path": "tests/test_dashboard_research_projection.py",
+      "sha256": "38cc0649487b6a1db776731e22767d6f7c287fdd26c9c87fe3b260c68faacecb",
+      "bytes": 10818
+    },
+    {
+      "path": "tests/test_decision_contract.py",
+      "sha256": "286319e39a730e357f421ff183b80974f1ab89bcc135b3094be7c87e0e99be8d",
+      "bytes": 147185
+    },
+    {
+      "path": "tests/test_decision_executable_profit_frontend.py",
+      "sha256": "283ec69a7818f62271b12fecf0787b984bf96237b0523865cc99a563ed0da0de",
+      "bytes": 23169
+    },
+    {
+      "path": "tests/test_decision_executable_profit_shadow_settlement.py",
+      "sha256": "7c17d021d4a8c27877bb77837015a85520b15e0b815feebeb99e5d8354c3251a",
+      "bytes": 61435
+    },
+    {
+      "path": "tests/test_decision_intraday_costs.py",
+      "sha256": "a2618470d32bec91fe13fcf4b70f8109c4a081ec25cc3047ec4730744a7d72d6",
+      "bytes": 2439
+    },
+    {
+      "path": "tests/test_decision_model_freeze.py",
+      "sha256": "242818d99175bf28384d5d1040f21b2c3c6082f6939939bd10c09808d898837c",
+      "bytes": 172333
+    },
+    {
+      "path": "tests/test_decision_pages_truth.py",
+      "sha256": "0ea2eb01c994a091be90d4baa179d1efa58554c07b17330dfcee044075bcb032",
+      "bytes": 27704
+    },
+    {
+      "path": "tests/test_decision_pfill_calibration.py",
+      "sha256": "eb1ef7b71049eb86cd7f47c9cca588b5ebc4aac9440b944a2ffca97b5167ee07",
+      "bytes": 2665
+    },
+    {
+      "path": "tests/test_decision_regime_guardrails.py",
+      "sha256": "5d5b19ca21afc01633e8f2083885a7d704d084f2ac3c17f3b123ede8b0d4578f",
+      "bytes": 1811
+    },
+    {
+      "path": "tests/test_decision_research_context.py",
+      "sha256": "5e1c5fb878fdbd3e8740f7d9c8312ee7eea6cb6f0b1261802f64a390ec93b8e7",
+      "bytes": 31567
+    },
+    {
+      "path": "tests/test_decision_run_receipt.py",
+      "sha256": "7dbab5c0705958c4f81242c4c2263df1d1d27bf1c61547685ed67b4fde158582",
+      "bytes": 4724
+    },
+    {
+      "path": "tests/test_decision_three_rank_contract.py",
+      "sha256": "d1a7b36a217be73a8912a2478b65bed46bbebef3de4324360957d4b14716a738",
+      "bytes": 28093
+    },
+    {
+      "path": "tests/test_decision_three_rank_frontend.py",
+      "sha256": "b222c8a9d33881e90010726f24971dfe52457e33e32798cae97ed85e0848a76c",
+      "bytes": 28777
+    },
+    {
+      "path": "tests/test_decision_three_rank_history_projection.py",
+      "sha256": "63e95d7dbc8e8e0b85d055b87a32bba84e3c7ceea7528fab9b8d4abac68e89af",
+      "bytes": 63774
+    },
+    {
+      "path": "tests/test_decision_trade_selector.py",
+      "sha256": "a92c8b19493ec4f000a216a02ec6c77e5ea57f4bd02bb9e9be8b4521b4509228",
+      "bytes": 19657
+    },
+    {
+      "path": "tests/test_decision_tushare_health.py",
+      "sha256": "51c997957469d72f807dd20e1b0d5b20c27cb98b1c6ddbbb3300246a9a32c7b3",
+      "bytes": 25158
+    },
+    {
+      "path": "tests/test_decision_v8_calibration.py",
+      "sha256": "12c36c9dc2a5600cb6524bfa4e09ee3694b816f2701a140003718e9694c686bd",
+      "bytes": 5621
+    },
+    {
+      "path": "tests/test_deterministic_numeric_runtime.py",
+      "sha256": "cea81e4e530b8727386a9db571945b1f77c1e042ded9a5f720195e1c44fb9efc",
+      "bytes": 9578
+    },
+    {
+      "path": "tests/test_eret_safety.py",
+      "sha256": "7387a797d1e94077de03fba59c8894414a9d2b6e2b7f4d584fd47b185af5d160",
+      "bytes": 8894
+    },
+    {
+      "path": "tests/test_executable_profit_workflow_wiring.py",
+      "sha256": "2204490e3eb0bb4ddacf4599f64a841db92d21ecb59f0e1d471554cd1467dc7b",
+      "bytes": 24225
+    },
+    {
+      "path": "tests/test_frozen_canonical_v2_replay.py",
+      "sha256": "2eae6e7d47bcffc4e66f4c00088473254c793e84f6c28f01bbeb67b744a9786c",
+      "bytes": 74881
+    },
+    {
+      "path": "tests/test_migrate_decision_runtime.py",
+      "sha256": "8c61e583da2d3011f5d2e2dd7a5b6335309383e581a27e0fff10e563a1ccbc3b",
+      "bytes": 63001
+    },
+    {
+      "path": "tests/test_pages_truthfulness_workflow.py",
+      "sha256": "fe412421a7648777316732f649bcab69c577da5625917a667bb1513b7c76818f",
+      "bytes": 43122
+    },
+    {
+      "path": "tests/test_pfill_shadow_pages_truth.py",
+      "sha256": "6573681b57ecc59400f8bd02a739924ae64661eddb35e34fcfd1d10040cd02fa",
+      "bytes": 11007
+    },
+    {
+      "path": "tests/test_primary_confirmed_suspension.py",
+      "sha256": "1ee7dc4fd12bc53e86ec49169df686c98d1419c8feb8da5cf2d1af26830ab0e2",
+      "bytes": 21260
+    },
+    {
+      "path": "tests/test_primary_observation_frontend.py",
+      "sha256": "026f5d07b165fd87b0b60f6e70e2e68c338ac367ccaec29dd721243b595fc1e9",
+      "bytes": 10611
+    },
+    {
+      "path": "tests/test_primary_observation_summary.py",
+      "sha256": "10a6088e38e180424eb572319a1e8ed588afd59e2f6e59f64d4963cccb6cbc36",
+      "bytes": 26315
+    },
+    {
+      "path": "tests/test_primary_profit_forward_shadow_bridge.py",
+      "sha256": "13d54f1eb8acc7bb54009079021ee122d6b75c05f2ead006ee7f920c2a1bf266",
+      "bytes": 41861
+    },
+    {
+      "path": "tests/test_primary_profit_forward_shadow_workflow.py",
+      "sha256": "ab5cb32a2e1f8dcf9e141d05905086bd84cc0ab9bd8a73e962ae43e850973be5",
+      "bytes": 12676
+    },
+    {
+      "path": "tests/test_primary_profit_rankings_p1.py",
+      "sha256": "2232701fc03f43cf36b14e8443f9f2e3aa0515200cce34e29b17c22f1aa39980",
+      "bytes": 58199
+    },
+    {
+      "path": "tests/test_primary_profit_shadow_statistics.py",
+      "sha256": "743a33575298cb328fc10e43b6668e5cf983b1a45a00cb140f8b1c7c45da15f1",
+      "bytes": 4838
+    },
+    {
+      "path": "tests/test_primary_three_rank_p0.py",
+      "sha256": "d330d582be0bd0055833f2c7de7030bc73ebc5955a5e573b3bc95385f3ca6056",
+      "bytes": 40472
+    },
+    {
+      "path": "tests/test_promotion_model.py",
+      "sha256": "b78b313e58c521d97462bdf7120a0d9a07f52ed864f343950f6bf4694a900189",
+      "bytes": 10194
+    },
+    {
+      "path": "tests/test_recover_decision_action_gaps.py",
+      "sha256": "ca318a0ff11a209ed4d138e19d1b6ee46da9c44d35bbd9517ea46e0666119fa4",
+      "bytes": 20327
+    },
+    {
+      "path": "tests/test_sync_frozen_shadow_truth.py",
+      "sha256": "9de2f4531e5ad6cfeef11a7fcb93934865af067627df5d14aa1e42f122d26a0c",
+      "bytes": 9777
+    },
+    {
+      "path": "tests/test_sync_market_raw.py",
+      "sha256": "a0bf085e4742ebe1772a2c7ab171e6ef4e45ae4cd72d05f68eb6e7e75d12f33a",
+      "bytes": 39225
+    },
+    {
+      "path": "tests/test_sync_pred_source.py",
+      "sha256": "a255553588829669fd7f850da5bf91e4d6a4f09264bdc26e4a0dba9c84cae4a5",
+      "bytes": 19051
+    },
+    {
+      "path": "tests/test_sync_tushare_minute_fail_closed.py",
+      "sha256": "1d8f2df31d82b4de150e20f585ec2788b24670e911dbc8d4c843f9f9fb0a0d97",
+      "bytes": 13926
+    },
+    {
+      "path": "tests/test_three_engine_five_year_ledger.py",
+      "sha256": "e2af17c6ee3bfeee30e9f39095cedefdbf36dc3405303369392770403d30da64",
+      "bytes": 19882
+    },
+    {
+      "path": "tests/test_three_engine_models.py",
+      "sha256": "b9c776c638b5a168421b35b14c0063da0d8888a6c12b56dd80604c8ed981b155",
+      "bytes": 38771
+    },
+    {
+      "path": "tests/test_three_engine_training_workflow.py",
+      "sha256": "ee1711fe236d5d78e67a2e3242b7703d856e0552f3ac0d44b253f84c6c8cfc1b",
+      "bytes": 20978
+    },
+    {
+      "path": "tests/test_three_rank_freeze.py",
+      "sha256": "0ca9387ee893f84cbee22c97292ff61788e76d65499928873905c0d99273c7b7",
+      "bytes": 31336
+    },
+    {
+      "path": "tests/test_tushare_close_truth.py",
+      "sha256": "bc6bb1d1153160df6b1e5f69d7f8ef0b6eb808b4712dab417709b4c854f00a6e",
+      "bytes": 3003
+    },
+    {
+      "path": "tests/test_validate_three_engine_five_year_ledger.py",
+      "sha256": "6d3c4d4cd96dfa4394991dc625c9bea38d43391f950263422589d2ad05e7d998",
+      "bytes": 18672
+    },
+    {
+      "path": "tests/test_verify_forecast_inputs.py",
+      "sha256": "3e132d832a9e233f7cbec527ac415dc18c3d8c68828206ab621095279ee094da",
+      "bytes": 21879
+    },
+    {
+      "path": "tests/test_writer_workflow_hardening.py",
+      "sha256": "a9639e490bf618f8358f3407e09afe7b678867069801a2793188fd932bdefc83",
+      "bytes": 151374
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_d_source_adapter.py",
+      "sha256": "eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b",
+      "bytes": 30374
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_forward_predict.py",
+      "sha256": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719",
+      "bytes": 14156
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260914.json",
+      "sha256": "3bcea6f46702fc9b3c3d7a05af72b59ce58ff84636be1bb3ed49059ea30e6e6b",
+      "bytes": 39162
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260915.json",
+      "sha256": "8b5fa736cecfee2a287f78c01d4917659741bceec4cb93b4621ecee4a09355d1",
+      "bytes": 26695
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260916.json",
+      "sha256": "c1f5a09baa08690a3a3db1f960d3f2df5a152ca7736db745f75043dd67ebf102",
+      "bytes": 37111
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260917.json",
+      "sha256": "827587002713d27eea9281b3608f947c43d5bb92c0fece0583dc350f0fe62f77",
+      "bytes": 35021
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260918.json",
+      "sha256": "0c8ae1d8f288f48817f08a3a23782a8761bcfaf154a22535a9c83acd05fa34af",
+      "bytes": 37280
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260922.json",
+      "sha256": "1e69e1657d4712849569e3a9b305b1bb31d39f0e09fcd9e9f89d82fc30a3f688",
+      "bytes": 48646
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260923.json",
+      "sha256": "caf80b82b1503a03641a3b4b86e72bc3c761200306d4b5c055c773defecf0ccc",
+      "bytes": 48438
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260924.json",
+      "sha256": "9f50bce5836ec18b34cdfab6c53edbb5df601d911b1c15528d3200a8d01e495a",
+      "bytes": 47014
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260928.json",
+      "sha256": "f2db6f1f6234584f0f6d9e49904e657bb397913641c46c09791ca9504fc2ec0c",
+      "bytes": 37461
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260929.json",
+      "sha256": "5e61a47d61722b453cb819daacf5c1aa764b190ca506aea0d7375d44631a39da",
+      "bytes": 40626
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20260930.json",
+      "sha256": "ade8355c7b11ff988143d490beb1f899ef2cc4d7ef0116fcdc810d11f203992b",
+      "bytes": 45789
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261008.json",
+      "sha256": "feb8cc8d27afc46e090cfea6db0078380ab141e07fe050a46812bd51038d601b",
+      "bytes": 39662
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261009.json",
+      "sha256": "a6e0df48040899b496d8301303ec46f65324fd9479ae6ff424516c0790c2ce91",
+      "bytes": 40486
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261012.json",
+      "sha256": "0b74442defff8d83ab429e6cdb76df2761504103429a1a5c8655ccf20e7db1d2",
+      "bytes": 49008
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261013.json",
+      "sha256": "6bdcf8e971b1b6cc6714b2d3b9d2cea0e30ccab0b9f61d04ff4f304a8ab1f03c",
+      "bytes": 48578
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261014.json",
+      "sha256": "0a5da6c6dce78938480ef99cb2a508cb2c6089be82f1ca381f4d0e8ef03bbdb7",
+      "bytes": 47296
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261015.json",
+      "sha256": "e1441684ace8a32262c3d9b367499fa0ef103df51a0ceca1636384fb30200550",
+      "bytes": 31629
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261016.json",
+      "sha256": "8dfe290e0557fba7b05c45b07d04d9be23711333e0033e9d71cffdbc4ec22425",
+      "bytes": 34570
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261019.json",
+      "sha256": "94916a19214b733b24ad633cd837bf17faa9923d42981d15477ce836cd96a4c5",
+      "bytes": 50421
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261020.json",
+      "sha256": "68555120a68556d53b902036d459018f137df1cb77cbc4b0ccb25256f2432b86",
+      "bytes": 50443
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261021.json",
+      "sha256": "c199e2728ae4c83862a2a956eb31396af35cb89883ae2ca8ef4c844731a37534",
+      "bytes": 49290
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261023.json",
+      "sha256": "90d25b6c50cd49e3c55053a58d3ed97e1252efa7eea34f36cbf618ec7f2c4b6e",
+      "bytes": 47347
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261026.json",
+      "sha256": "ee99bfab7c386c6da681da0c87fb480f5a94821a64c15d62b70e01aaf9febfd4",
+      "bytes": 50514
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261027.json",
+      "sha256": "50a627949b1edaacd91695b0ebdec912f2ee568480863ef2f0cdda25e6b65e11",
+      "bytes": 40765
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261028.json",
+      "sha256": "eb8d8101211006ac1ff5b1de6ca5919aaf1c39986dc0d3f489d128b2e26b203c",
+      "bytes": 41391
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261029.json",
+      "sha256": "14e514233c1d8e0f57784585d72b30867b3ab1f6efdf13f7d6ff2a673c5677cc",
+      "bytes": 44527
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261030.json",
+      "sha256": "b1aa3356a345838eedce84c5df3b3b59e6d7f29ecd41af5ac13d59fc904c3067",
+      "bytes": 44785
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261103.json",
+      "sha256": "7dcf72b909737baa4faa2cc6240fe22992e5bd813c02bf68354ae7147794eaaf",
+      "bytes": 50972
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261104.json",
+      "sha256": "7953bf6e1c3023ab36319879d37634f40845fc18b03f0c5c3e7c15edcb59901c",
+      "bytes": 50750
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261105.json",
+      "sha256": "d837da1d64efa66bf712c0e5ca3d6c7107d16f9139aa6175c0abbe03be2d1953",
+      "bytes": 51464
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261106.json",
+      "sha256": "68e59b035becdb3c7bdb23ba9150cd0949ce78a3cd4897ec32444a913c8d204b",
+      "bytes": 39373
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260914.json",
+      "sha256": "eae1d49f86def7d1c4c7f7e7d9707b859b27ef776e77647538778ff63a2d2f76",
+      "bytes": 1220
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260915.json",
+      "sha256": "165e5920b05cec3cf1b402aa49bffd04fb7cd288e8ffb6882beeb76436715d8a",
+      "bytes": 1220
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260916.json",
+      "sha256": "df08396db43260c78eb5b3b4b5b32e62d0b5d87eea44ce2c30689e29196efa38",
+      "bytes": 1220
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260917.json",
+      "sha256": "7dcc0d0d88cb0e55fcf0fa24524481e56133ea1afbb881c09f87188f7c2d9dfd",
+      "bytes": 1220
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260918.json",
+      "sha256": "5b83986960190ce5d910da59e216d2b4da82ee3f78fb70f5d4efa32544daf91b",
+      "bytes": 1220
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260922.json",
+      "sha256": "c6e43d3f0a73019f83df2979ab56b183aa4dcdd05c0ee940e6cf2bbda8f114a3",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260923.json",
+      "sha256": "a9c711a705296d4e243c6ce92295ac22f38dac6851a39478fe6eb3182cc740fb",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260924.json",
+      "sha256": "8435b28fd75c18ed6696af0486278a131c283cd2368c22b98654b08be80766ae",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260928.json",
+      "sha256": "a962bb1bc24adff3637bb6a876931de58ba3121a6f091b1a78047ac936a36602",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260929.json",
+      "sha256": "bba25616123c85e9a83036ebed225e6de66fbb8ab5349aefd2a2e627c70095c0",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20260930.json",
+      "sha256": "734e0f8b30eceeb7ab47a334e40ebcb94dd326ec42e3517ec1cd5aea11755e1a",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261008.json",
+      "sha256": "cfd615ea5dab1cf7afaa40a8ca7f2b6f8783677897814a4fda551e9a1cf09d26",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261009.json",
+      "sha256": "dfb405898ef3223b6f8ac3a83c0553e1ee7ae5a0dd47e9013644e09033417465",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261012.json",
+      "sha256": "51a3d28989c805c7d284f9c851873f60c4d12b58c1e45d3c3e97e4cb2b81743e",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261013.json",
+      "sha256": "03bbcb6c17193d57c342abb9b07d5e520eb847122d7da17aa2ad5ba1a0fcc3b2",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261014.json",
+      "sha256": "0fe0af24d6a20e234d56dfb9fe953d420cd37f6168f91ecaff95b289dfebf4db",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261015.json",
+      "sha256": "3aad548ae33e8a3387861e4ebc15c663cc6c9ab42fff3e6c20bdb0d0d2a40e87",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261016.json",
+      "sha256": "bbbdeaee9b3e3304b2247351cdfa7f7c477ba4b63fb2e7cb820ddce6093f4215",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261019.json",
+      "sha256": "6b703570e9d3df8601c2a5d6149bb5b8383e4aeea20173c3d57a07a10bf48897",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261020.json",
+      "sha256": "e9fabcc6da82e9d65565137373756732cc3c79973453fb546d949316988ead19",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261021.json",
+      "sha256": "99b0842a6f5419469c5d3c3852c422fbef5ba88859493ce4ac231d44c42da432",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261023.json",
+      "sha256": "e1f794f813cc5f90e6d1fae99f781e4cbf1e13ce94ac93afe880796a7446fdd6",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261026.json",
+      "sha256": "cfd2ef8a38f450be3544516b6e3daed5d2d8e05d75f81f8193880d49d1cfb48b",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261027.json",
+      "sha256": "a173a0583fb778d50d75dc80d4ae4294062b79adcb5d993ea8274011217e9bf7",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261028.json",
+      "sha256": "27d07fe3de6de7d850923b948d06d31bfb38d080af0a1eaa4f38685580f38ae9",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261029.json",
+      "sha256": "f7d8c33a9409feb81b80818e0ff9e1cef377b572da2186854359f0e0b78a442a",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261030.json",
+      "sha256": "504d3e273cde51d89c5d49485b6d69a249528e48d720bb014963fd1d9a770bfa",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261103.json",
+      "sha256": "f197a848a282549bafae3502bbf00fed8efd99cfcc92273467f2759461753154",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261104.json",
+      "sha256": "b76a7572dd4990a6acb6f089b0fde121b16a0bfd830904beb68f8c9c86752bb7",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261105.json",
+      "sha256": "da0d47ec6a6e15f9089733cc3e2ae105bee1ea57069aeaf41aa895cdc542482c",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/local_freeze_20261106.json",
+      "sha256": "29d2a266bdcdc51abd519ed082a45194b142337408e236cb15a3a8e512e1d3c3",
+      "bytes": 1221
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward_registration.json",
+      "sha256": "fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399",
+      "bytes": 3498
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_model/evaluation.json",
+      "sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872",
+      "bytes": 905295
+    }
+  ],
+  "archive_manifest": {
+    "path": ".github/archived-workflows/manifest.json",
+    "sha256": "4e842fb7c96955c8d6b07c3287d54c38d99f5c7e9ad7af5eeb7f83472587eb2e"
+  },
+  "verification_contract": "Every inverse patch restores exact 7034de1b95c384f4307db018737a0a2635453488 bytes; only two existing surface pins and the inventory freeze-manifest asset digest/size change. Prior source reviews and historical frozen snapshots remain immutable. The new summary builder is a publication helper and is not added to model pinned_files or model inventory.",
+  "pre_existing_test_limitations": [
+    "Historical tests/test_decision_source_surface_rotation.py includes pre-October current-byte expectations; representative failures are reproduced unchanged at approved_base_commit. This review does not overwrite old evidence or weaken production pin enforcement."
+  ]
+}

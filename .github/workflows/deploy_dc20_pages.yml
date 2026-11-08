@@ -31,6 +31,8 @@ on:
       - scripts/stage_current_profit_research.py
       - scripts/candidate_profit_pages.py
       - scripts/build_profit_paper_account.cjs
+      - scripts/build_next_day_statistics.cjs
+      - tests/test_next_day_statistics*.cjs
       - tests/test_profit_paper_account*.cjs
       - src/top10decision/decision/candidate_profit_publication.py
       - src/top10decision/decision/candidate_formal_shadow_summary.py
@@ -1978,6 +1980,23 @@ jobs:
         with:
           node-version: "24.19.0"
 
+      - name: Generate lightweight next-day market statistics
+        id: next_day_build
+        if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          node --test tests/test_next_day_statistics_build.cjs tests/test_next_day_statistics_frontend.cjs
+          node scripts/build_next_day_statistics.cjs --root _site
+
+      - name: Clear failed auxiliary next-day statistics bindings
+        if: ${{ always() && steps.site.outcome == 'success' && steps.next_day_build.outcome != 'success' }}
+        run: |
+          python3 - <<'PYCODE'
+          from scripts.daily_delivery_policy import mark_auxiliary_unavailable
+          mark_auxiliary_unavailable('_site', 'next_day_statistics', 'BUILD_OR_RUNTIME_UNAVAILABLE')
+          PYCODE
+
       - name: Generate and bind simulated account with the main publication
         id: account_build
         if: ${{ steps.compact_window.outcome == 'success' && steps.account_runtime.outcome == 'success' && steps.candidate_delivery.outputs.summary_ready == 'true' }}
@@ -3157,6 +3176,45 @@ jobs:
                   time.sleep(15)
           PY
 
+      - name: Verify public lightweight next-day statistics
+        id: next_day_public
+        if: ${{ steps.next_day_build.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, time
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          root = Path('_site')
+          expected = json.loads((root/'revision.json').read_bytes())
+          relative = 'outputs/decision/next_day_statistics.json'
+          raw = (root/relative).read_bytes()
+          digest = hashlib.sha256(raw).hexdigest()
+          assert expected['next_day_statistics_url'] == relative
+          assert expected['next_day_statistics_sha256'] == digest
+          base = os.environ['PAGE_URL'].rstrip('/')
+          for attempt in range(1, 5):
+              try:
+                  def fetch(path):
+                      url = base + '/' + path + '?next_day_verify=' + os.environ['GITHUB_RUN_ID'] + '-' + str(attempt)
+                      with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=15) as response:
+                          return response.read(1024*1024 + 1)
+                  revision = json.loads(fetch('revision.json'))
+                  assert revision['head_sha'] == expected['head_sha']
+                  assert revision['primary_d_signal_date'] == expected['primary_d_signal_date']
+                  assert revision['next_day_statistics_sha256'] == digest
+                  assert fetch(relative) == raw
+                  print(json.dumps({'next_day_statistics': 'EXACT_BYTES_VERIFIED', 'sha256': digest}))
+                  break
+              except Exception:
+                  if attempt == 4:
+                      raise
+                  time.sleep(5)
+          PY
+
       - name: Verify public simulated account and publication binding
         id: account_public
         if: ${{ steps.account_build.outcome == 'success' }}
@@ -3830,11 +3888,14 @@ jobs:
           ACCOUNT_BUILD: ${{ steps.account_build.outcome }}
           COMPACT_PUBLIC: ${{ steps.compact_public.outcome }}
           ACCOUNT_PUBLIC: ${{ steps.account_public.outcome }}
+          NEXT_DAY_BUILD: ${{ steps.next_day_build.outcome }}
+          NEXT_DAY_PUBLIC: ${{ steps.next_day_public.outcome }}
         run: |
           python3 - <<'PYCODE'
           import os, json
-          status = {key: os.environ.get(key) for key in ('COMPACT_BUILD','ACCOUNT_BUILD','COMPACT_PUBLIC','ACCOUNT_PUBLIC')}
+          status = {key: os.environ.get(key) for key in ('COMPACT_BUILD','ACCOUNT_BUILD','COMPACT_PUBLIC','ACCOUNT_PUBLIC','NEXT_DAY_BUILD','NEXT_DAY_PUBLIC')}
           print(json.dumps({'auxiliary_delivery': status}))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
               stream.write('\nAuxiliary delivery (independent from main rankings): ' + json.dumps(status) + '\n')
           PYCODE
+

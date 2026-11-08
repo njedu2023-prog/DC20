@@ -74,21 +74,32 @@ def test_archive_does_not_follow_root_symlink(archived, tmp_path):
     assert result['failures'][0]['reason'] == 'UNSAFE_SYMLINK'
 
 
-@pytest.mark.parametrize('component', ['compact_statistics_window', 'profit_paper_account'])
+@pytest.mark.parametrize('component', ['compact_statistics_window', 'profit_paper_account', 'next_day_statistics'])
 def test_auxiliary_failure_removes_stale_bindings_but_not_main_rankings(tmp_path, component):
     primary = {'primary_d_signal_date': '20261106', 'head_sha': 'a'*40,
                'candidate_profit_index_sha256': 'b'*64, 'primary_three_rank_sha256': 'c'*64}
     revision = dict(primary, compact_statistics_window_url='old-window',
                     compact_statistics_window_sha256='d'*64,
-                    profit_paper_account_url='old-account', profit_paper_account_sha256='e'*64)
+                    profit_paper_account_url='old-account', profit_paper_account_sha256='e'*64,
+                    next_day_statistics_url='old-next-day', next_day_statistics_sha256='f'*64)
     write_json(tmp_path, 'revision.json', revision)
     write_json(tmp_path, 'outputs/decision/compact_statistics_window.json', {'old': True})
     write_json(tmp_path, 'outputs/decision/profit_paper_account/account.json', {'old': True})
+    write_json(tmp_path, 'outputs/decision/next_day_statistics.json', {'old': True})
     policy.mark_auxiliary_unavailable(tmp_path, component, 'broken evidence')
     updated = json.loads((tmp_path/'revision.json').read_bytes())
     assert all(updated[k] == v for k,v in primary.items())
-    assert not any(k.startswith('profit_paper_account_') for k in updated)
-    assert not (tmp_path/'outputs/decision/profit_paper_account/account.json').exists()
+    if component != 'next_day_statistics':
+        assert not any(k.startswith('profit_paper_account_') for k in updated)
+        assert not (tmp_path/'outputs/decision/profit_paper_account/account.json').exists()
+    else:
+        assert updated['profit_paper_account_sha256'] == 'e'*64
+        assert (tmp_path/'outputs/decision/profit_paper_account/account.json').exists()
+    if component != 'profit_paper_account':
+        assert not any(k.startswith('next_day_statistics_') for k in updated)
+        assert not (tmp_path/'outputs/decision/next_day_statistics.json').exists()
+    else:
+        assert updated['next_day_statistics_sha256'] == 'f'*64
     assert updated['auxiliary_delivery'][component] == {'status': 'UNAVAILABLE', 'reason': 'broken evidence'}
     if component == 'compact_statistics_window':
         assert not any(k.startswith('compact_statistics_window_') for k in updated)
