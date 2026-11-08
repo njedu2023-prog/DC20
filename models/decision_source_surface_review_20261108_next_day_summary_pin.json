@@ -1,0 +1,75 @@
+{
+  "schema_version": "dc20_next_day_summary_pin_source_review_v1",
+  "approved_base_commit": "b0e005dd9682ef1e741aa0908a0e946b7cc05405",
+  "scope": "EXACT_CURRENT_STATISTICS_DEPENDENCY_PIN_ONLY",
+  "boundaries": {
+    "model_weights_changed": false,
+    "model_parameters_changed": false,
+    "feature_order_changed": false,
+    "ranking_algorithm_changed": false,
+    "stock_selection_rules_changed": false,
+    "trading_rules_changed": false,
+    "frozen_members_changed": false,
+    "truth_policy_changed": false,
+    "historical_ledger_rewritten": false,
+    "forward_epoch_activated": false
+  },
+  "source_changes": [
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "baseline_bytes": 27606,
+      "current_bytes": 27606,
+      "baseline_sha256": "c032300599a8ba67bf8c875258a7a8cd9a7ec505454df102f749aa07910c05ae",
+      "current_sha256": "69f1a39be03f162ee943d319a9fe88078f0e65c2906ed6910ccd89e05401335e",
+      "inverse_changes": [
+        {
+          "baseline_start": 26,
+          "current_start": 26,
+          "baseline_lines": [
+            "STATISTICS_SHA = '52f5b56da10393b44cc28fdfd3cd1628dda8f6b161a55205becd868e1a62f92c'\n"
+          ],
+          "current_lines": [
+            "STATISTICS_SHA = 'fa531f23aeae04228eb8fbf78b2e4b5a2d63a25aeaa63ce7c71e7fc540bdcb7e'\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "preserved_files": [
+    {
+      "path": "models/decision_model_freeze.json",
+      "bytes": 53143,
+      "sha256": "94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435"
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "bytes": 16204,
+      "sha256": "3279d3abc840520ee828716744a090a54f3e0ee713accff69ffeb42bead048ed"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_statistics.json",
+      "bytes": 101506,
+      "sha256": "12755015da81238931d7a55b3fee87b407b36353e9c362af85559b8258228336"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_p0_profile.json",
+      "bytes": 102488,
+      "sha256": "56000697e943e75d985e48296de5197286d9acf249091c22b4662944578028c2"
+    },
+    {
+      "path": "models/decision_candidate_profit_activation_v1.json",
+      "bytes": 1006,
+      "sha256": "bdd06edf427eb261ec27cdbf946545d19b052b004b5792c6860e5400703da131"
+    },
+    {
+      "path": "models/decision_shadow_exit_policy_1000_v1.json",
+      "bytes": 1095,
+      "sha256": "2a4feb3937aa9ad221d7b9f7a089c6968fe8a3ce13e949023ae7207f5cbccc31"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "bytes": 25637,
+      "sha256": "fa531f23aeae04228eb8fbf78b2e4b5a2d63a25aeaa63ce7c71e7fc540bdcb7e"
+    }
+  ]
+}
