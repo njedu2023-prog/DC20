@@ -46,6 +46,17 @@ DELIVERY_HARDENED_P0_CODE_PROFILE = {'.github/workflows/run_primary_d_daily.yml'
  'src/top10decision/decision/trade_selector.py': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63',
  'src/top10decision/probability_calibration.py': 'a005f68b26465bee49de70c57824c7a56c32d61f',
  'src/top10decision/writers/io_contract.py': '28ded13148bcdd334da10767b1aed83e44c32e7c'}
+# Exact successor after the independently reviewed, display-only pin rotation.
+# The source review itself is bound in all three trees; earlier profiles remain
+# valid only with their own unchanged complete file sets.
+NEXT_DAY_STATISTICS_P0_CODE_PROFILE = {**DELIVERY_HARDENED_P0_CODE_PROFILE,
+    'models/decision_model_freeze.json': 'f3354cd51c58e2ad737b24e0362aedc97e3e2adb',
+    'models/decision_source_surface_review_20261108_next_day_statistics.json': '8d0a7ef4ed9fd179419c7f49442a9499237e904f'}
+PRE_NEXT_DAY_IMPORTER_SHA = 'f416e399522f092402338b536bf58b583f9d420f44d194601e41da942353e154'
+PRE_NEXT_DAY_CONTINUATION_PINS = {
+    'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'fdfd921f5b2fd8de09a4c76810c0d4042533c122a55c8b3830999176d6524b96',
+    'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
+}
 MAX_ANCESTRY = 24
 SKIPPED_STEPS = (
     "Resolve immutable upstream commits", "Snapshot protected secondary state",
@@ -303,7 +314,9 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
         upstream_commits.append({"repository": "njedu2023-prog/" + repository, "sha": upstream_sha,
             "committed_at": commit_doc["committer"]["date"]})
     _, deployed_tree = reads.tree(deployed_sha)
-    code_profile = (DELIVERY_HARDENED_P0_CODE_PROFILE
+    code_profile = (NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+        if base_tree.get('models/decision_model_freeze.json', {}).get('sha')
+        == NEXT_DAY_STATISTICS_P0_CODE_PROFILE['models/decision_model_freeze.json'] else DELIVERY_HARDENED_P0_CODE_PROFILE
         if base_tree.get('models/decision_model_freeze.json', {}).get('sha')
         == DELIVERY_HARDENED_P0_CODE_PROFILE['models/decision_model_freeze.json'] else CONTROLLED_P0_CODE_PROFILE
         if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
@@ -381,9 +394,12 @@ def validate_import_receipt(gh, imported):
         "successful_publication_git_sha": "successful_publication_git_sha",
         "expected_p0_sha256": "expected_p0_sha256", "source_file_bindings": "source_file_bindings",
         "original_file_count": "original_file_count", "observed_p0_cas_job_completed_at": "observed_p0_cas_job_completed_at"}
+    previous = imported.get("importer_sha256") == PRE_NEXT_DAY_IMPORTER_SHA
+    if previous:
+        require(gh.date(imported.get("signal_date")) <= "20261106", "PRE_NEXT_DAY_CONTINUATION_IMPORT_DATE_CHANGED")
     require(all(imported.get(k) == proof.get(v) for k, v in pairs.items())
-        and imported.get("continuation_dependency_sha256") == gh.CONTINUATION_PINS
-        and imported.get("importer_sha256") == gh.SELF_SHA
+        and imported.get("continuation_dependency_sha256") == (PRE_NEXT_DAY_CONTINUATION_PINS if previous else gh.CONTINUATION_PINS)
+        and imported.get("importer_sha256") == (PRE_NEXT_DAY_IMPORTER_SHA if previous else gh.SELF_SHA)
         and imported.get("source_adapter_sha256") == gh.ADAPTER_SHA
         and imported.get("source_adapter_dependency_sha256") == gh.adapter.CODE_PINS,
         "CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH")

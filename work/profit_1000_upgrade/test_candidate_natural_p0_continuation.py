@@ -66,7 +66,13 @@ def fixture(tmp_path,monkeypatch,*,suspension=False,current_profile=False):
     assert gh.git_blob(historical_producer) == m.ORIGINAL_P0_CODE_PROFILE[producer_path]
     profile_files[producer_path] = historical_producer
     if current_profile:
-        profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in m.CONTROLLED_P0_CODE_PROFILE}
+        profile = (m.DELIVERY_HARDENED_P0_CODE_PROFILE if current_profile == 'delivery_hardened'
+            else m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE)
+        profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in profile}
+        if current_profile == 'delivery_hardened':
+            from tests.test_next_day_statistics_source_review import source_before_next_day
+            profile_files[freeze_path] = source_before_next_day(freeze_path)
+        assert all(gh.git_blob(profile_files[p]) == expected for p, expected in profile.items())
     all_new={**sources,pred_path:pred,'data/pred/_pred_source_meta.json':gh.json_bytes(pred_meta),
         **profile_files}
     changed=set(gh.adapter._p0_paths(day).values())|{receipt['inputs']['market']['meta_path'],
@@ -213,7 +219,7 @@ def test_original_cas_cannot_cross_d2330_even_with_ordered_later_jobs(tmp_path,m
     with pytest.raises(ValueError,match='D2330'):call(c)
 
 
-@pytest.mark.parametrize("current_profile", [False, True])
+@pytest.mark.parametrize("current_profile", [False, True, 'delivery_hardened'])
 def test_controlled_redeployment_keeps_both_real_run_identities(tmp_path, monkeypatch, current_profile):
     c = fixture(tmp_path, monkeypatch, current_profile=current_profile)
     day = c['revision']['primary_d_signal_date']
@@ -228,6 +234,63 @@ def test_controlled_redeployment_keeps_both_real_run_identities(tmp_path, monkey
     assert proof['successful_reuse_run']['event'] == 'workflow_dispatch'
     assert proof['successful_reuse_run']['id'] != proof['original_generation_run']['id']
     assert proof['source_authority_issued'] is False
+
+
+@pytest.mark.parametrize('logical', [
+    'models/decision_model_freeze.json',
+    'models/decision_source_surface_review_20261108_next_day_statistics.json',
+    'scripts/publish_primary_three_rank.py',
+])
+@pytest.mark.parametrize('tree_sha', [BASE, CAS, HEAD])
+def test_next_day_profile_rejects_unreviewed_bytes_in_each_bound_tree(tmp_path, monkeypatch, logical, tree_sha):
+    c = fixture(tmp_path, monkeypatch, current_profile=True)
+    files = c['old'] if tree_sha == BASE else c['all_new']
+    tree = git_tree({**files, logical: files[logical] + b'\nunreviewed\n'})
+    res = c['client'].responses
+    res[gh.API_PREFIX+'/git/commits/'+tree_sha]['tree']['sha'] = tree['sha']
+    res[gh.API_PREFIX+'/git/trees/'+tree['sha']+'?recursive=1'] = tree
+    # A changed base/CAS code file first violates the immutable generation patch;
+    # a changed deployed tree reaches the complete reviewed-profile check.
+    with pytest.raises(ValueError, match='GENERATION_EXACT_ALLOWED_PATCH_SCOPE|REVIEWED_CODE_PROFILE'):
+        call(c)
+
+
+def test_next_day_profile_is_explicit_display_only_successor():
+    before = m.DELIVERY_HARDENED_P0_CODE_PROFILE
+    after = m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+    review_path = 'models/decision_source_surface_review_20261108_next_day_statistics.json'
+    assert set(after) - set(before) == {review_path}
+    assert {p for p in before if before[p] != after[p]} == {'models/decision_model_freeze.json'}
+    assert after['models/decision_model_freeze.json'] == 'f3354cd51c58e2ad737b24e0362aedc97e3e2adb'
+    raw = (gh.CODE_ROOT / review_path).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == '12755015da81238931d7a55b3fee87b407b36353e9c362af85559b8258228336'
+    assert gh.git_blob(raw) == after[review_path]
+    review = json.loads(raw)
+    assert review['approved_base_commit'] == '7034de1b95c384f4307db018737a0a2635453488'
+    assert all(value is False for value in review['boundaries'].values())
+    manifest = next(item for item in review['source_changes'] if item['path'] == 'models/decision_model_freeze.json')
+    assert manifest['current_sha256'] == hashlib.sha256((gh.CODE_ROOT / manifest['path']).read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize('mutation', ['none', 'wrong_pin', 'new_day', 'unreviewed_importer'])
+def test_pre_next_day_import_receipt_is_exact_and_date_bounded(tmp_path, monkeypatch, mutation):
+    c = fixture(tmp_path, monkeypatch)
+    old = gh.import_redeployed_p0_sources(c['output'], expected_run_id=R1,
+        original_generation_run_id=R0, original_cas_commit=CAS,
+        github_client=c['client'], clock=lambda:NOW)
+    old['importer_sha256'] = m.PRE_NEXT_DAY_IMPORTER_SHA
+    old['continuation_dependency_sha256'] = deepcopy(m.PRE_NEXT_DAY_CONTINUATION_PINS)
+    if mutation == 'wrong_pin':
+        old['continuation_dependency_sha256']['work/profit_1000_upgrade/candidate_natural_p0_continuation.py'] = 'f'*64
+    if mutation == 'new_day':
+        old['signal_date'] = old['continuation']['signal_date'] = '20261109'
+    if mutation == 'unreviewed_importer':
+        old['importer_sha256'] = 'f'*64
+    if mutation == 'none':
+        assert m.validate_import_receipt(gh, old) == old['continuation']
+    else:
+        with pytest.raises(ValueError):
+            m.validate_import_receipt(gh, old)
 
 
 @pytest.mark.parametrize('mutation', ['ordinary', 'wrong_day', 'recovery', 'late', 'before_close', 'attempt'])

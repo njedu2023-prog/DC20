@@ -4,6 +4,8 @@ import copy
 import hashlib
 import json
 
+from tests.test_next_day_p0_profile_source_review import source_before_next_day_profile
+
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = 'models/decision_source_surface_review_20261108_next_day_statistics.json'
 REVIEW_SHA = '12755015da81238931d7a55b3fee87b407b36353e9c362af85559b8258228336'
@@ -31,7 +33,7 @@ def review():
 def inverse(item):
     target = ROOT / item['path']
     assert not target.is_symlink()
-    raw = target.read_bytes()
+    raw = source_before_next_day_profile(item['path'])
     assert len(raw) == item['current_bytes'] and sha(raw) == item['current_sha256']
     assert item['baseline_exists'] is True and item['inverse_changes']
     lines = raw.decode().splitlines(keepends=True)
@@ -58,7 +60,7 @@ def source_before_next_day(path):
         return inverse(changes[path])
     target = ROOT / path
     assert not target.is_symlink()
-    return target.read_bytes()
+    return source_before_next_day_profile(path)
 
 
 def test_review_restores_all_exact_baseline_source_bytes():
@@ -107,7 +109,7 @@ def test_models_contracts_frozen_inputs_and_prior_review_evidence_preserved():
     for item in value['preserved_files']:
         target = ROOT / item['path']
         assert not target.is_symlink()
-        raw = target.read_bytes()
+        raw = source_before_next_day_profile(item['path'])
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
     assert sha((ROOT / value['archive_manifest']['path']).read_bytes()) == value['archive_manifest']['sha256']
 

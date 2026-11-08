@@ -24,7 +24,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = 'bfe394b91e40489735889338721968d9a974575282efea47394bee0af0d473a9'
+PUBLICATION_SHA = '5fb4c22c74a906d6b246a75e9999ce7ff245e80f2b347ad031a8f1be38294ef0'
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -86,8 +86,11 @@ PRE_CONTROLLED_CAPTURE_CONTRACT = ('bbfea3912478299c85392baed74707225799354e4de5
 
 PRE_HARDENING_CAPTURE_CONTRACT = ('730fe5366337a31a1761d457d4988a3be67b1cdd7b7ac8a8878dfd8b37153f80', 'f2458ddeb45c6ee75e8d65843812cadc9a8cd1af942148bcc5131eb46eddbd5b')
 
+PRE_NEXT_DAY_CAPTURE_CONTRACT = ('6b3112793e376cb93f6ffb912c8f79cf95fa29908980fcaf8ebc58b20f201a40',
+ 'bfe394b91e40489735889338721968d9a974575282efea47394bee0af0d473a9')
+
 def capture_contracts():
-    return (PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
+    return (PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -366,13 +369,15 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         require(day <= "20261028", "PRE_CONTINUATION_CAPTURE_DATE_CHANGED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_CONTROLLED_CAPTURE_CONTRACT:
         require(day < "20261106", "PRE_CONTROLLED_CAPTURE_DATE_CHANGED")
+    if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_NEXT_DAY_CAPTURE_CONTRACT:
+        require(day <= "20261106", "PRE_NEXT_DAY_CAPTURE_DATE_CHANGED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_HARDENING_CAPTURE_CONTRACT:
         require(day <= "20261106", "PRE_HARDENING_CAPTURE_DATE_CHANGED")
     gh.exact_id(manifest.get("freeze_run_id")); gh.exact_sha(manifest.get("snapshot_file_sha256"))
     file_limit = _file_limit(manifest)
     continuation_kind = manifest.get("p0_provenance_kind") == CONTINUATION_KIND
     require(not continuation_kind or (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"])
-        in ((SELF_SHA, PUBLICATION_SHA), PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),
+        in ((SELF_SHA, PUBLICATION_SHA), PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),
         "CONTINUATION_REQUIRES_REVIEWED_CAPTURE_PROFILE")
     require(type(bodies) is dict and type(manifest.get("files")) is list and len(manifest["files"]) < file_limit,
         "BOUNDED_EVIDENCE_INVENTORY_REQUIRED")
