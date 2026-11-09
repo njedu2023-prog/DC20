@@ -1,0 +1,53 @@
+name: DC20 · Repair reviewed abandoned Pages backend
+run-name: Repair abandoned Pages | ${{ inputs.mode }} | id=408f72835f715c5470b3f9f3132e63ca7cd04136
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit is read-only; cancel consumes the single reviewed incident attempt
+        required: true
+        default: audit
+        type: choice
+        options: [audit, cancel]
+      expected_head:
+        description: Actual current main SHA; must equal the real workflow run head
+        required: true
+        type: string
+      confirm_abandoned_cancel:
+        description: Exact reviewed incident cancellation phrase; leave blank for audit
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+# Same literal lock as the unchanged, hash-pinned deploy_dc20_pages.yml.
+concurrency:
+  group: dc20-pages
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Test the incident recovery boundaries
+        run: python -m unittest discover -s tests -p 'test_abandoned_pages_repair*.py' -v
+      - name: Verify complete incident evidence and optionally cancel only its abandoned backend once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          REPAIR_MODE: ${{ inputs.mode }}
+          CONFIRM_ABANDONED_CANCEL: ${{ inputs.confirm_abandoned_cancel }}
+        run: python -m scripts.abandoned_pages_repair

@@ -1,0 +1,73 @@
+{
+  "review_ready": true,
+  "reason": "ABANDONED_DUPLICATE_ID_WITH_BUSY_PROOF",
+  "deployment_id": "408f72835f715c5470b3f9f3132e63ca7cd04136",
+  "producer_job_ids": [
+    129192709232,
+    129193425154,
+    129194373756,
+    129195600302,
+    129197369975,
+    129199393692
+  ],
+  "public_verify_job_id": 129197369975,
+  "source_cas_job_id": 129195600302,
+  "log_proofs": [
+    {
+      "job_id": 129194373756,
+      "name": "deploy / deploy",
+      "conclusion": "success",
+      "sha256": "a2b5e7782b530a9d66912bece6a22234c4d6ddea08974abf9dc8d15b5fa28d2a",
+      "required_literals": [
+        "\"artifact_id\": 13678414118",
+        "\"pages_build_version\": \"408f72835f715c5470b3f9f3132e63ca7cd04136\"",
+        "Created deployment for 408f72835f715c5470b3f9f3132e63ca7cd04136, ID: 408f72835f715c5470b3f9f3132e63ca7cd04136"
+      ]
+    },
+    {
+      "job_id": 129197369975,
+      "name": "Update and accept the profit research dashboard / deploy / deploy",
+      "conclusion": "failure",
+      "sha256": "a21f7aeb7d8f7263344578809da09a544b81159e6debb4366ef8abee9e723d20",
+      "required_literals": [
+        "\"artifact_id\": 13680206038",
+        "\"pages_build_version\": \"408f72835f715c5470b3f9f3132e63ca7cd04136\"",
+        "Created deployment for 408f72835f715c5470b3f9f3132e63ca7cd04136, ID: 408f72835f715c5470b3f9f3132e63ca7cd04136",
+        "Pages verification failed: stale head_sha: 75db1ba45df45d4d5dc8940ea84ae1a572374f45 != 5262085565389a4948642b41bd7c24618a723dfa"
+      ]
+    },
+    {
+      "job_id": 129200940731,
+      "name": "deploy",
+      "conclusion": "failure",
+      "sha256": "6d9b39efcebfc57345c5477b04e561e9aaaf6671af4138eae167d7643c5392e4",
+      "required_literals": [
+        "Failed to create deployment (status: 400) with build version 5262085565389a4948642b41bd7c24618a723dfa",
+        "Deployment request failed for 5262085565389a4948642b41bd7c24618a723dfa due to in progress deployment. Please cancel 408f72835f715c5470b3f9f3132e63ca7cd04136 first or wait for it to complete."
+      ]
+    },
+    {
+      "job_id": 129195600302,
+      "name": "Update and accept the profit research dashboard / accumulate",
+      "conclusion": "success",
+      "sha256": "231192b15f47707053b023a2062045a406e594d1212984ebe6844bbfff16e22d",
+      "required_literals": [
+        "5262085565389a4948642b41bd7c24618a723dfa"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 13678414118,
+      "name": "github-pages",
+      "head": "75db1ba45df45d4d5dc8940ea84ae1a572374f45",
+      "zip_sha256": "03378ab135ac1718b90be15e7db557c7c31c7fb1ce0f5650354be4ac14c15c9e"
+    },
+    {
+      "id": 13680206038,
+      "name": "github-pages-profit-research",
+      "head": "5262085565389a4948642b41bd7c24618a723dfa",
+      "zip_sha256": "35c5f845bb644ebcd62aafa8c31555c141ab9a1d82d967c84d7e2dd03cab2b87"
+    }
+  ]
+}
