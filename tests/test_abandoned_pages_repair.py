@@ -139,7 +139,7 @@ class MarkerTests(unittest.TestCase):
 class WorkflowTests(unittest.TestCase):
  def test_manual_only_same_lock_no_other_writes(self):
   text=(Path(__file__).resolve().parents[1]/'.github/workflows/repair_abandoned_pages.yml').read_text()
-  for expected in ['workflow_dispatch:','group: dc20-pages','cancel-in-progress: false','persist-credentials: false','python -m unittest discover']:self.assertIn(expected,text)
+  for expected in ['workflow_dispatch:','group: dc20-pages','queue: max','cancel-in-progress: false','persist-credentials: false','python -m unittest discover']:self.assertIn(expected,text)
   for forbidden in ['schedule:','workflow_run:','uses: ./.github/workflows/deploy_','id-token: write']:self.assertNotIn(forbidden,text)
 
 if __name__=='__main__':unittest.main()

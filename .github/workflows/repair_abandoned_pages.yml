@@ -26,6 +26,7 @@ permissions:
 # Same literal lock as the unchanged, hash-pinned deploy_dc20_pages.yml.
 concurrency:
   group: dc20-pages
+  queue: max
   cancel-in-progress: false
 
 jobs:
