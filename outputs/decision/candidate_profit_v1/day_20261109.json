@@ -1,0 +1,304 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 8,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.005567680422263698,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0008685706171881313,
+      "net_return": null,
+      "promotion_rank": 4,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "601188.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603366.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002310.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "601188.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "001316.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600278.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600327.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000525.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261110",
+  "exit_date": "20261111",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-10T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 8,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "厨卫电器",
+      "name": "日出东方",
+      "promotion_rank": 1,
+      "ts_code": "603366.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电力",
+      "name": "东方新能",
+      "promotion_rank": 2,
+      "ts_code": "002310.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 3,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "铁路公路",
+      "name": "龙江交通",
+      "promotion_rank": 4,
+      "ts_code": "601188.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "炼化及贸",
+      "name": "润贝航科",
+      "promotion_rank": 5,
+      "ts_code": "001316.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "贸易Ⅱ",
+      "name": "东方创业",
+      "promotion_rank": 6,
+      "ts_code": "600278.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "大东方",
+      "promotion_rank": 7,
+      "ts_code": "600327.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "农化制品",
+      "name": "红太阳",
+      "promotion_rank": 8,
+      "ts_code": "000525.SZ"
+    }
+  ],
+  "p0_file_sha256": "ec2295d8cd9addc081879c689f30fe4931b04f0ba8420ea3e8090f1f7e19e847",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261109.json",
+    "sha256": "ec2295d8cd9addc081879c689f30fe4931b04f0ba8420ea3e8090f1f7e19e847"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-09T12:49:55.624735+00:00",
+  "prediction_generated_at_utc": "2026-11-09T12:49:55.596735+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-09T13:12:54.614042+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603366.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002310.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "a655f6ef7080e235cb5da77e0ae46b116e88f65e",
+    "evidence_manifest_sha256": "14fd8849534626bcc64f85b4444b0dd3b854d695dc751acaf8547d2291a9b46d",
+    "observer_run_id": 42621188145,
+    "publication_observation_sha256": "1ca84a64492f0ab501348098b303107f8227365cac6efaac58338deb1b2ed05a"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.005567680422263698,
+      "industry": "物流",
+      "name": "东方嘉盛",
+      "promotion_rank": 3,
+      "ts_code": "002889.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0008685706171881313,
+      "industry": "铁路公路",
+      "name": "龙江交通",
+      "promotion_rank": 4,
+      "ts_code": "601188.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.006324349477718819,
+      "industry": "农化制品",
+      "name": "红太阳",
+      "promotion_rank": 8,
+      "ts_code": "000525.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.006633345676326355,
+      "industry": "厨卫电器",
+      "name": "日出东方",
+      "promotion_rank": 1,
+      "ts_code": "603366.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.007100325696079393,
+      "industry": "贸易Ⅱ",
+      "name": "东方创业",
+      "promotion_rank": 6,
+      "ts_code": "600278.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.009575766704215257,
+      "industry": "炼化及贸",
+      "name": "润贝航科",
+      "promotion_rank": 5,
+      "ts_code": "001316.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.009917675501296349,
+      "industry": "一般零售",
+      "name": "大东方",
+      "promotion_rank": 7,
+      "ts_code": "600327.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.015912174071177877,
+      "industry": "电力",
+      "name": "东方新能",
+      "promotion_rank": 2,
+      "ts_code": "002310.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261109",
+  "snapshot_file_sha256": "a90c79cbf55dc690ed67d7720244cb603984f74c8cedeefc0abbc637b79a851c",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261109.json",
+    "sha256": "a90c79cbf55dc690ed67d7720244cb603984f74c8cedeefc0abbc637b79a851c"
+  },
+  "source_main_sha": "a655f6ef7080e235cb5da77e0ae46b116e88f65e",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
