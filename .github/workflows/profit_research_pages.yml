@@ -1,0 +1,89 @@
+name: DC20 · Publish exact research Pages
+run-name: Research Pages | head=${{ inputs.expected_head }} | source=${{ inputs.source_run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_head:
+        description: Actual current main SHA to deploy; must equal this new run head
+        required: true
+        type: string
+      signal_date:
+        description: Exact research signal date YYYYMMDD
+        required: true
+        type: string
+      source_revision:
+        description: Existing research dataset source revision
+        required: true
+        type: string
+      source_run_id:
+        description: Actual producer run with successful research CAS, even if its later Pages failed
+        required: true
+        type: string
+      wait_for_deployment:
+        description: Optional real prior Pages deployment ID (40 hex); read only, never cancel
+        required: false
+        default: ""
+        type: string
+      wait_expected_head:
+        description: Exact public head expected from that prior deployment, never an older success
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dc20-research-pages-${{ inputs.expected_head }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      pages: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify real run identity and wait for the actual prior Pages backend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RESEARCH_HEAD: ${{ inputs.expected_head }}
+          EXPECTED_RESEARCH_D: ${{ inputs.signal_date }}
+          EXPECTED_RESEARCH_SOURCE: ${{ inputs.source_revision }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          WAIT_FOR_DEPLOYMENT: ${{ inputs.wait_for_deployment }}
+          WAIT_EXPECTED_HEAD: ${{ inputs.wait_expected_head }}
+        run: python -m scripts.research_pages_handoff guard
+  deploy:
+    needs: guard
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy_dc20_pages.yml
+    with:
+      expected_head: ${{ inputs.expected_head }}
+      artifact_name: github-pages-profit-research
+  verify_public:
+    name: Accept exact research date and public fingerprint
+    needs: [guard, deploy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.expected_head }}
+          persist-credentials: false
+      - env:
+          EXPECTED_RESEARCH_D: ${{ inputs.signal_date }}
+          EXPECTED_RESEARCH_SOURCE: ${{ inputs.source_revision }}
+          EXPECTED_RESEARCH_HEAD: ${{ inputs.expected_head }}
+        run: python scripts/profit_research_delivery.py verify

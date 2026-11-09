@@ -137,10 +137,13 @@ jobs:
       (github.event_name != 'workflow_dispatch' || inputs.dry_run == false)
     permissions:
       contents: write
-      actions: read
+      actions: write
       pages: write
       id-token: write
     uses: ./.github/workflows/profit_research.yml
+    with:
+      prior_deployment: ${{ needs.deploy.result == 'success' && github.sha || '' }}
+      prior_public_head: ${{ needs.deploy.result == 'success' && needs.publish.outputs.commit_sha || '' }}
     secrets:
       TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
 

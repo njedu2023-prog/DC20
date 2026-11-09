@@ -177,6 +177,9 @@ def test_workflow_has_no_market_token_or_git_push_and_deploys_exact_head():
     assert research["uses"] == "./.github/workflows/profit_research.yml"
     assert research["secrets"] == {"TUSHARE_TOKEN": "${{ secrets.TUSHARE_TOKEN }}"}
     assert research["needs"] == ["publish", "deploy"]
+    assert research["permissions"]["actions"] == "write"
+    assert research["with"]["prior_deployment"] == "${{ needs.deploy.result == 'success' && github.sha || '' }}"
+    assert research["with"]["prior_public_head"] == "${{ needs.deploy.result == 'success' && needs.publish.outputs.commit_sha || '' }}"
     assert "inputs.dry_run == false" in research["if"]
     assert flow["permissions"] == {"contents": "read"}
     assert flow["jobs"]["publish"]["if"] == "github.event_name != 'push'"

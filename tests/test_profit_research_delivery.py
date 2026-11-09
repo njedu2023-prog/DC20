@@ -60,6 +60,8 @@ class DeliveryTests(unittest.TestCase):
         self.assertIn("inputs.dry_run == false", publisher.split('  research:', 1)[1])
         self.assertIn('needs: [accumulate, deploy]', research)
         self.assertIn('profit_research_delivery.py verify', research)
+        self.assertIn('python -m scripts.research_pages_handoff dispatch', research)
+        self.assertNotIn('uses: ./.github/workflows/deploy_dc20_pages.yml', research)
 
 
 if __name__ == '__main__':

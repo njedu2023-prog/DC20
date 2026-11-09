@@ -3,6 +3,15 @@ on:
   workflow_dispatch:
   # Called inside the publisher: a fourth workflow_run hop is never delivered.
   workflow_call:
+    inputs:
+      prior_deployment:
+        type: string
+        required: false
+        default: ""
+      prior_public_head:
+        type: string
+        required: false
+        default: ""
     secrets:
       TUSHARE_TOKEN:
         required: true
@@ -19,7 +28,10 @@ on:
       - scripts/profit_research_comparison.py
       - scripts/profit_research_operations.py
       - scripts/profit_research_delivery.py
+      - scripts/research_pages_handoff.py
       - tests/test_profit_research_delivery.py
+      - tests/test_profit_research_pages_handoff.py
+      - tests/test_profit_research_source_cas.py
       - tests/test_profit_research.py
       - tests/test_profit_research_extensions.py
       - tests/test_profit_research_enrichment.py
@@ -28,6 +40,7 @@ on:
       - tests/test_profit_research_operations.py
       - tests/test_profit_research_ui.js
       - .github/workflows/profit_research.yml
+      - .github/workflows/profit_research_pages.yml
       - outputs/decision/profit_research/index.html
 permissions:
   contents: read
@@ -35,8 +48,23 @@ concurrency:
   group: dc20-independent-profit-research
   cancel-in-progress: false
 jobs:
+  validate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check research and independent Pages handoff without collection or publication
+        run: |
+          python -m unittest discover -s tests -p 'test_profit_research*.py' -v
+          node tests/test_profit_research_ui.js
   accumulate:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository)
+    if: github.event_name != 'push' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository))
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -111,12 +139,23 @@ jobs:
     if: needs.accumulate.outputs.head != ''
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/deploy_dc20_pages.yml
-    with:
-      expected_head: ${{ needs.accumulate.outputs.head }}
-      artifact_name: github-pages-profit-research
+      actions: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ needs.accumulate.outputs.head }}
+          persist-credentials: false
+      - name: Hand exact research CAS to one independent Pages run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RESEARCH_HEAD: ${{ needs.accumulate.outputs.head }}
+          EXPECTED_RESEARCH_D: ${{ needs.accumulate.outputs.signal_date }}
+          EXPECTED_RESEARCH_SOURCE: ${{ needs.accumulate.outputs.source_revision }}
+          WAIT_FOR_DEPLOYMENT: ${{ inputs.prior_deployment || '' }}
+          WAIT_EXPECTED_HEAD: ${{ inputs.prior_public_head || '' }}
+        run: python -m scripts.research_pages_handoff dispatch
   verify_public:
     name: Accept exact research date and public fingerprint
     needs: [accumulate, deploy]
