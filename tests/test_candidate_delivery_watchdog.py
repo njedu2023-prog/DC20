@@ -186,6 +186,19 @@ def test_workflow_is_valid_and_has_no_repository_writer():
     assert doc['jobs']['recover']['permissions']=={'contents':'read','actions':'write'}
     assert all(job.get('permissions',{}).get('contents')!='write' for job in doc['jobs'].values())
     assert 'schedule' in doc[True] and 'push' in doc[True]
+    trigger = doc[True]['workflow_run']
+    assert trigger == {'workflows': [m.P0_NAME], 'branches': ['main'], 'types': ['completed']}
+    assert doc['concurrency'] == {'group': 'dc20-delivery-watchdog', 'cancel-in-progress': False}
+    verify = doc['jobs']['verify']['if']
+    for gate in ('workflow_id == 343703608', 'run_attempt == 1', "head_branch == 'main'",
+                 "status == 'completed'", "conclusion == 'failure'", "conclusion == 'success'",
+                 'head_repository.full_name == github.repository',
+                 'repository.full_name == github.repository',
+                 "event == 'workflow_dispatch'", "path == '.github/workflows/run_primary_d_daily.yml'"):
+        assert gate in verify
+    assert "github.event_name == 'workflow_run'" in doc['jobs']['recover']['if']
+    assert "workflow_run.event == 'schedule'" not in verify
+    assert "github.event_name == 'workflow_run'" in doc['jobs']['recover']['steps'][-1]['env']['EXECUTE']
 
 def test_confirmed_old_zero_job_orphan_does_not_block_new_day_dispatch():
     f=Fake(); old={**run('verify_decision_observations.yml',id=7001),
@@ -604,3 +617,133 @@ def test_partial_original_capsule_has_no_blind_dispatch_or_overwrite(kind):
     before=deepcopy(f.files)
     with pytest.raises(ValueError,match='INCOMPLETE_FREEZE'):m.inspect(f,NOW)
     assert f.files==before and not f.posts
+
+
+def completion_event(client, upstream=None):
+    upstream = deepcopy(upstream or client.p0_runs[0])
+    original_request = client.request
+    def request(path, body=None):
+        if body is None and path == f'/actions/runs/{upstream["id"]}':
+            return deepcopy(upstream)
+        return original_request(path, body)
+    client.request = request
+    return {'action': 'completed', 'workflow_run': deepcopy(upstream)}, upstream
+
+
+def test_completion_failure_redeploys_then_success_only_resumes_original_capsule():
+    f = Continuation(reuse=False)
+    before = deepcopy(f.files)
+    event, _ = completion_event(f)
+    day = m.completion_wakeup(f, event, NOW)
+    plan = m.inspect(f, NOW, wakeup_day=day)
+    assert plan['status'] == 'NEEDS_P0_REDEPLOY'
+    assert m.act(f, plan, NOW, execute=True)['status'] == 'DISPATCHED_NOT_COMPLETED'
+    assert f.posts[0][1]['inputs']['pred_commit'] == 'd' * 40
+    assert f.posts[0][1]['inputs']['market_commit'] == 'e' * 40
+    title = 'DC20 controlled daily NATURAL | D=20260922'
+    reused = f.add_reuse(name=title, display_title=title, event='workflow_dispatch')
+    event, _ = completion_event(f, reused)
+    day = m.completion_wakeup(f, event, NOW)
+    plan = m.inspect(f, NOW, wakeup_day=day)
+    assert plan['status'] == 'NEEDS_FREEZE_CONTINUATION'
+    assert plan['inputs'] == {'p0_run_id': '70', 'original_generation_run_id': '7',
+                              'original_cas_commit': f.cas, 'dry_run': False}
+    assert f.files == before
+
+
+def test_success_completion_waits_for_already_queued_natural_forward():
+    f = Fake()
+    title = 'DC20 controlled daily NATURAL | D=20260922'
+    r = run(m.P0, name=title, display_title=title)
+    event, _ = completion_event(f, r)
+    f.busy = [run(m.NATURAL, status='queued', conclusion=None)]
+    day = m.completion_wakeup(f, event, NOW)
+    assert m.act(f, m.inspect(f, NOW, wakeup_day=day), NOW, execute=True)['status'] == 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'
+    assert not f.posts
+
+
+@pytest.mark.parametrize('field,value', [
+    ('workflow_id', 1), ('path', '.github/workflows/candidate_delivery_watchdog.yml'),
+    ('run_attempt', 2), ('head_branch', 'other'), ('head_sha', 'bad'),
+    ('repository', {'full_name': 'other/repo'}), ('head_repository', {'full_name': 'other/repo'}),
+    ('status', 'in_progress'), ('conclusion', 'cancelled'), ('event', 'workflow_run'),
+    ('event', 'push'), ('event', 'schedule'), ('name', 'unregistered'), ('display_title', 'ordinary manual'),
+    ('updated_at', '2026-09-23T12:10:00Z'), ('run_started_at', '2026-09-22T11:00:00Z'),
+])
+def test_completion_source_mutation_never_dispatches(field, value):
+    f = Continuation(reuse=False)
+    r = deepcopy(f.p0_runs[0]); r[field] = value
+    event, _ = completion_event(f, r)
+    with pytest.raises(ValueError):
+        m.completion_wakeup(f, event, NOW)
+    assert not f.posts
+
+
+@pytest.mark.parametrize('kind', ['api_drift', 'api_error', 'bad_action', 'missing_run'])
+def test_completion_api_failure_or_event_mismatch_is_not_a_successful_noop(kind):
+    f = Continuation(reuse=False)
+    event, api_run = completion_event(f)
+    if kind == 'api_drift': api_run['head_sha'] = 'f' * 40
+    if kind == 'bad_action': event['action'] = 'requested'
+    if kind == 'missing_run': del event['workflow_run']
+    if kind == 'api_error':
+        def unavailable(*args, **kwargs): raise ValueError('GITHUB_READ_UNAVAILABLE')
+        f.request = unavailable
+    with pytest.raises(ValueError):
+        m.completion_wakeup(f, event, NOW)
+    assert not f.posts
+
+
+def test_old_completion_is_explicit_noop_before_inspecting_current_business_files():
+    f = Continuation(reuse=False)
+    r = deepcopy(f.p0_runs[0])
+    for key in ('created_at', 'run_started_at', 'updated_at'):
+        r[key] = r[key].replace('2026-09-22', '2026-09-21')
+    r['name'] = r['display_title'] = 'DC20 controlled daily NATURAL | D=20260921'
+    event, _ = completion_event(f, r)
+    day = m.completion_wakeup(f, event, NOW)
+    f.files['outputs/decision/primary_d_receipt_20260922.json'] = b'corrupt-current-business-file'
+    plan = m.inspect(f, NOW, wakeup_day=day)
+    assert plan['status'] == 'STALE_P0_COMPLETION_IGNORED'
+    assert plan['signal_date'] == '20260922' and plan['wakeup_signal_date'] == '20260921'
+    assert plan['reason'] == 'COMPLETION_D_DIFFERS_FROM_CURRENT_STRICT_CALENDAR_D'
+    assert m.act(f, plan, NOW, execute=True) == plan and not f.posts
+
+
+def test_delayed_friday_schedule_created_monday_cannot_wake_monday_controlled_recovery():
+    f = Continuation(reuse=False)
+    monday = datetime.fromisoformat('2026-09-28T22:00:00+08:00')
+    r = run(m.P0, event='schedule', name=m.P0_NAME, display_title=m.P0_NAME,
+            created_at='2026-09-28T12:00:00Z', run_started_at='2026-09-28T12:00:01Z',
+            updated_at='2026-09-28T12:10:00Z')
+    event, _ = completion_event(f, r)
+    with pytest.raises(ValueError, match='P0_COMPLETION_SOURCE_INVALID'):
+        m.completion_wakeup(f, event, monday)
+    assert not f.posts
+
+
+@pytest.mark.parametrize('bad_event', [False, True])
+def test_registered_workflow_run_cli_authenticates_before_dispatch(monkeypatch, tmp_path, capsys, bad_event):
+    import sys
+    f = Continuation(reuse=False)
+    event, _ = completion_event(f)
+    if bad_event: event['workflow_run']['head_sha'] = 'f' * 40
+    event_path = tmp_path / 'event.json'; event_path.write_text(json.dumps(event))
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None): return NOW.astimezone(tz) if tz else NOW
+    monkeypatch.setattr(m, 'datetime', Clock)
+    monkeypatch.setattr(m, 'GitHub', lambda token: f)
+    monkeypatch.setattr(sys, 'argv', ['candidate_delivery_watchdog.py', '--execute'])
+    for key, value in {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': m.REPO,
+                       'GITHUB_REF': 'refs/heads/main', 'GITHUB_RUN_ATTEMPT': '1',
+                       'GITHUB_WORKFLOW_REF': m.REPO + '/' + m.WORKFLOW + '@refs/heads/main',
+                       'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_EVENT_PATH': str(event_path)}.items():
+        monkeypatch.setenv(key, value)
+    assert m.main() == int(bad_event)
+    output = capsys.readouterr().out
+    if bad_event:
+        assert 'P0_COMPLETION_API_IDENTITY_CHANGED' in output and not f.posts
+    else:
+        assert json.loads(output)['status'] == 'DISPATCHED_NOT_COMPLETED' and len(f.posts) == 1
+

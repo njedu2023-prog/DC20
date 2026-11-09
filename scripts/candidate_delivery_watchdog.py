@@ -480,7 +480,37 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
                        'pred_commit': pred['resolved_commit'], 'market_commit': market['resolved_commit']}}
 
 
-def inspect(client, now):
+def completion_wakeup(client, payload, now):
+    """Authenticate a P0 completion wake-up; all recovery proof stays in inspect/act."""
+    require(isinstance(payload, dict) and payload.get('action') == 'completed',
+            'P0_COMPLETION_EVENT_REQUIRED')
+    event_run = payload.get('workflow_run')
+    require(isinstance(event_run, dict), 'P0_COMPLETION_RUN_REQUIRED')
+    valid_run(event_run, P0, success=False)
+    require(type(event_run['id']) is int, 'P0_COMPLETION_RUN_ID_REQUIRED')
+    api_run = client.request(f'/actions/runs/{event_run["id"]}')
+    require(isinstance(api_run, dict), 'P0_COMPLETION_API_RUN_REQUIRED')
+    valid_run(api_run, P0, success=False)
+    identity = ('id', 'workflow_id', 'path', 'head_branch', 'head_sha', 'run_attempt',
+                'event', 'status', 'conclusion', 'name', 'display_title',
+                'created_at', 'run_started_at', 'updated_at')
+    require(all(event_run.get(key) == api_run.get(key) for key in identity),
+            'P0_COMPLETION_API_IDENTITY_CHANGED')
+    require(api_run.get('status') == 'completed' and api_run.get('conclusion') in {'success', 'failure'}
+            and api_run.get('event') == 'workflow_dispatch'
+            and re.fullmatch('[0-9a-f]{40}', api_run.get('head_sha', '')),
+            'P0_COMPLETION_SOURCE_INVALID')
+    created = stamp(api_run.get('created_at'))
+    require(created <= stamp(api_run.get('run_started_at')) <= stamp(api_run.get('updated_at')) <= now,
+            'P0_COMPLETION_TIME_INVALID')
+    day = created.astimezone(TZ).strftime('%Y%m%d')
+    # A schedule run's created_at is not its original cron D. Scheduled recovery
+    # remains with the unchanged watchdog ticks and existing continuation proof.
+    controlled_run(api_run, day)
+    return day
+
+
+def inspect(client, now, *, wakeup_day=None):
     head = client.request('/git/ref/heads/main')['object']['sha']
     activation = document(client.file('models/decision_candidate_profit_activation_v1.json', head))
     require(type(activation.get('enabled')) is bool, 'ACTIVATION_BOOLEAN_REQUIRED')
@@ -489,6 +519,9 @@ def inspect(client, now):
     calendar = client.file('data/market/trade_cal_sse.csv', head)
     day, trade, exit_day, cutoff = window(calendar, now)
     base = {'signal_date': day, 'exec_date': trade, 'exit_date': exit_day, 'head': head}
+    if wakeup_day is not None and wakeup_day != day:
+        return {**base, 'status': 'STALE_P0_COMPLETION_IGNORED', 'wakeup_signal_date': wakeup_day,
+                'reason': 'COMPLETION_D_DIFFERS_FROM_CURRENT_STRICT_CALENDAR_D'}
     receipt_raw = client.file(f'outputs/decision/primary_d_receipt_{day}.json', head)
     if receipt_raw is None:
         return missing_p0(client, base, now, cutoff)
@@ -641,10 +674,15 @@ def main():
         require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_REPOSITORY') == REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main' and os.environ.get('GITHUB_RUN_ATTEMPT') == '1'
             and os.environ.get('GITHUB_WORKFLOW_REF') == REPO+'/'+WORKFLOW+'@refs/heads/main'
-            and os.environ.get('GITHUB_EVENT_NAME') in {'schedule', 'workflow_dispatch'}, 'REGISTERED_WATCHDOG_ONLY')
+            and os.environ.get('GITHUB_EVENT_NAME') in {'schedule', 'workflow_dispatch', 'workflow_run'}, 'REGISTERED_WATCHDOG_ONLY')
     client = GitHub(os.environ.get('GH_TOKEN'))
     try:
-        plan = inspect(client, datetime.now(timezone.utc))
+        now = datetime.now(timezone.utc)
+        wakeup_day = None
+        if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run':
+            with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as event_file:
+                wakeup_day = completion_wakeup(client, json.load(event_file), now)
+        plan = inspect(client, now, wakeup_day=wakeup_day)
         result = act(client, plan, datetime.now(timezone.utc), execute=args.execute,
                      clock=lambda: datetime.now(timezone.utc))
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
@@ -658,5 +696,6 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
 
 

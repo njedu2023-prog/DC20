@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 import re
+import sys
 from urllib.parse import quote
 
 REPO = 'njedu2023-prog/DC20'
@@ -18,6 +19,7 @@ GROUP = 'decision-auction-main-writer'
 TZ = timezone(timedelta(hours=8))
 ACTIVE = ('queued', 'requested', 'waiting', 'pending', 'in_progress')
 MAX_PAGES = 10
+MAX_ACTIVE_SCAN_ATTEMPTS = 3
 MAX_ORPHAN_CHECKS = 10
 ORPHAN_AGE = timedelta(hours=24)
 WRITERS = frozenset({
@@ -78,11 +80,18 @@ def writer_group(client):
     return members
 
 
-def active_runs(client):
-    """Page each live status; never infer no active work from a recent-50 list."""
-    found = {}
+class ActiveRunPaginationChanged(ValueError):
+    """A valid response could not form a complete active-status snapshot."""
+
+    def __init__(self, **details):
+        super().__init__('QUEUE_RUN_LIST_INCOMPLETE')
+        self.details = details
+
+
+def _active_runs_once(client, found):
     for status in ACTIVE:
         seen = set()
+        expected_total = None
         for page in range(1, MAX_PAGES + 1):
             path = f'/actions/runs?branch=main&status={status}&per_page=100&page={page}'
             rows, total = collection(client.request(path), 'workflow_runs')
@@ -99,10 +108,36 @@ def active_runs(client):
                             'waiting': 3, 'pending': 4, 'in_progress': 5}
                 if prior is None or priority.get(run.get('status'), 6) > priority.get(prior.get('status'), 6):
                     found[run_id] = run
+            if expected_total is not None and total != expected_total:
+                raise ActiveRunPaginationChanged(
+                    status=status, page=page, expected_total=expected_total,
+                    total=total, seen=len(seen))
+            expected_total = total
             if len(seen) == total:
                 break
-            require(rows and len(seen) < total and page < MAX_PAGES,
-                    'RUN_LIST_INCOMPLETE')
+            if not (rows and len(seen) < total and page < MAX_PAGES):
+                raise ActiveRunPaginationChanged(
+                    status=status, page=page, total=total, rows=len(rows), seen=len(seen))
+
+
+def active_runs(client):
+    """Require a complete scan; retain observed running work across bounded retries.
+
+    GitHub may move a run between status pages while counts are being read.
+    Only pagination inconsistency permits a full rescan. API/permission errors,
+    malformed responses and oversized inventories still fail immediately.
+    A retry cannot erase previously observed active work and yield CLEAR.
+    """
+    found = {}
+    for attempt in range(MAX_ACTIVE_SCAN_ATTEMPTS):
+        try:
+            _active_runs_once(client, found)
+            break
+        except ActiveRunPaginationChanged as exc:
+            print(json.dumps({'reason': str(exc), 'attempt': attempt + 1,
+                              'pagination': exc.details}, sort_keys=True), file=sys.stderr)
+            if attempt + 1 == MAX_ACTIVE_SCAN_ATTEMPTS:
+                raise
     return list(found.values())
 
 
@@ -259,3 +294,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+

@@ -412,3 +412,76 @@ def test_final_writer_lookup_failure_does_not_reuse_initial_clear_snapshot():
     client.response_sequences["/actions/concurrency_groups/" + WRITER] = [None, ValueError("QUEUE_API_UNAVAILABLE")]
     with pytest.raises(ValueError, match="QUEUE_"):
         inspect(client)
+
+
+def test_transient_count_without_rows_requires_complete_rescan():
+    client = Queue()
+    path = '/actions/runs?branch=main&status=queued&per_page=100&page=1'
+    client.response_sequences[path] = [
+        {'total_count': 1, 'workflow_runs': []},
+        {'total_count': 0, 'workflow_runs': []},
+    ]
+    assert inspect(client)['status'] == 'CLEAR'
+    assert client.response_counts[path] == 2
+    for status in STATUSES:
+        assert any(f'status={status}&' in p for p in client.reads)
+
+
+def test_persistent_incomplete_pagination_exhausts_bounded_rescans(capsys):
+    client = Queue()
+    path = '/actions/runs?branch=main&status=queued&per_page=100&page=1'
+    client.response_sequences[path] = [{'total_count': 1, 'workflow_runs': []}]
+    with pytest.raises(ValueError, match='^QUEUE_RUN_LIST_INCOMPLETE$'):
+        inspect(client)
+    assert client.response_counts[path] == q.MAX_ACTIVE_SCAN_ATTEMPTS
+    import json
+    diagnostics = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert diagnostics[-1]['pagination'] == {'status': 'queued', 'page': 1, 'total': 1, 'rows': 0, 'seen': 0}
+
+
+def test_cli_preserves_machine_code_after_retry_exhaustion(monkeypatch, capsys):
+    from scripts import candidate_delivery_watchdog as watchdog
+    client = Queue()
+    path = '/actions/runs?branch=main&status=queued&per_page=100&page=1'
+    client.responses[path] = {'total_count': 1, 'workflow_runs': []}
+    monkeypatch.setattr(watchdog, 'GitHub', lambda token: client)
+    monkeypatch.setattr(q.sys, 'argv', ['queue', '--signal-date', DAY])
+    assert q.main() == 1
+    import json
+    assert json.loads(capsys.readouterr().out) == {'status': 'BLOCKED', 'reason': 'QUEUE_RUN_LIST_INCOMPLETE'}
+
+
+def test_running_evidence_before_retry_cannot_disappear_into_clear():
+    client = Queue()
+    current = run(status='in_progress', created_at='2026-11-03T11:00:00Z')
+    path = '/actions/runs?branch=main&status=in_progress&per_page=100&page=1'
+    client.response_sequences[path] = [
+        {'total_count': 2, 'workflow_runs': [current]},
+        {'total_count': 0, 'workflow_runs': []},
+    ]
+    assert_blocked(client, 101)
+    assert client.response_counts[path] == 2
+
+
+def test_changed_pagination_total_retries_even_if_final_count_matches():
+    client = Queue()
+    page1 = '/actions/runs?branch=main&status=queued&per_page=100&page=1'
+    page2 = '/actions/runs?branch=main&status=queued&per_page=100&page=2'
+    client.response_sequences[page1] = [
+        {'total_count': 2, 'workflow_runs': [run(workflow='lint.yml')]},
+        {'total_count': 0, 'workflow_runs': []},
+    ]
+    client.responses[page2] = {'total_count': 1, 'workflow_runs': []}
+    assert inspect(client)['status'] == 'CLEAR'
+    assert client.response_counts[page1] == 2
+
+
+@pytest.mark.parametrize('error', [PermissionError('403'), TimeoutError('network'), ValueError('QUEUE_API_UNAVAILABLE')])
+def test_active_api_failure_is_not_retried_or_treated_as_empty(error):
+    client = Queue()
+    path = '/actions/runs?branch=main&status=queued&per_page=100&page=1'
+    client.response_sequences[path] = [error, {'total_count': 0, 'workflow_runs': []}]
+    with pytest.raises(type(error)):
+        inspect(client)
+    assert client.response_counts[path] == 1
+

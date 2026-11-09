@@ -1,5 +1,10 @@
 name: DC20 daily Top2 delivery watchdog
 on:
+  workflow_run:
+    # Controlled P0 completion wakes the existing inspector; cron recovery is unchanged.
+    workflows: ['DC2.0 · Publish Primary D List (P0)']
+    branches: [main]
+    types: [completed]
   schedule:
     # Independent recovery ticks, Beijing 20:07 through next-day 09:07.
     # Existing P0, model, settlement and nightly research schedules are unchanged.
@@ -28,7 +33,18 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    if: >-
+      github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.action == 'completed' && github.event.workflow_run.status == 'completed' &&
+        (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') &&
+        github.event.workflow_run.workflow_id == 343703608 && github.event.workflow_run.run_attempt == 1 &&
+        github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.repository.full_name == github.repository &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.event == 'workflow_dispatch' &&
+        startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -54,7 +70,7 @@ jobs:
           --workflow run_primary_d_daily.yml
   recover:
     needs: verify
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -68,8 +84,9 @@ jobs:
       - name: Recover at most one missing stage, or explicitly fail on missing source/deadline/retry exhaustion
         env:
           GH_TOKEN: ${{ github.token }}
-          EXECUTE: ${{ github.event_name == 'schedule' || inputs.dry_run == false }}
+          EXECUTE: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_run' || inputs.dry_run == false }}
         run: |
           args=()
           if [ "$EXECUTE" = "true" ]; then args+=(--execute); fi
           python3 scripts/candidate_delivery_watchdog.py "${args[@]}"
+
