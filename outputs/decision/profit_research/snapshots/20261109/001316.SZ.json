@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261110",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.992810927390371,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.03817733990147776,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.5294117647058824,
+      "five_year_streak_runup": 0.209964412811388,
+      "focus_pool_size": 8.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.23636363636363633,
+      "ret_2d": 0.209964412811388,
+      "ret_5d": 0.2808706571787358,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 0.0,
+      "stage_pool_share": 1.0,
+      "volatility_20d": 0.043847680845542004,
+      "volatility_5d": 0.04141809382523063,
+      "volume_ratio": 1.986351897191368
+    },
+    "frozen_at": "2026-11-09T12:49:55.624735+00:00",
+    "industry": "炼化及贸",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "润贝航科",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261111",
+    "score": -0.009575766704215257,
+    "signal_date": "20261109",
+    "ts_code": "001316.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261109.json",
+      "sha256": "ec2295d8cd9addc081879c689f30fe4931b04f0ba8420ea3e8090f1f7e19e847"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261109.json",
+      "sha256": "299f0138305e08260b20afbaab9e107e5e2608c6c2ff1f902e2c20e3b25ed3b1"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261109.json",
+      "sha256": "a90c79cbf55dc690ed67d7720244cb603984f74c8cedeefc0abbc637b79a851c"
+    }
+  ]
+}
