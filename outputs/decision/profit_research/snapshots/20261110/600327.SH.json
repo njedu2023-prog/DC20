@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261111",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.0,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": 0.06190476190476191,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.5,
+      "five_year_streak_runup": 0.3318385650224216,
+      "focus_pool_size": 19.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 8,
+      "ret_10d": 0.5755968169761274,
+      "ret_2d": 0.20977596741344207,
+      "ret_5d": 0.36551724137931063,
+      "stage2_pool_size": 15.0,
+      "stage3_pool_size": 4.0,
+      "stage_pool_share": 0.21052631578947367,
+      "volatility_20d": 0.04443289568183373,
+      "volatility_5d": 0.05220886583513911,
+      "volume_ratio": 0.48151791753382667
+    },
+    "frozen_at": "2026-11-10T14:29:28.438438+00:00",
+    "industry": "一般零售",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "大东方",
+    "profit_eligible": true,
+    "profit_rank": 9,
+    "promotion_rank": 8,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261112",
+    "score": -0.02013992544283868,
+    "signal_date": "20261110",
+    "ts_code": "600327.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261110.json",
+      "sha256": "4145c65957720f13515336bc0c954c13778013bfe682fbb4c0ecc2a4695a0df9"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261110.json",
+      "sha256": "099c1bda5af2c71277151809823ff6bd2372c3a6f80e5bfe4d6d3c5aa86cd36a"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261110.json",
+      "sha256": "9771634a2b71b485af619c127c1b32d3c68b0750b97fd6df4fde81f041636d5a"
+    }
+  ]
+}
