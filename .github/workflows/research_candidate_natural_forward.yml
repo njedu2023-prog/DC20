@@ -28,14 +28,26 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/research_candidate_natural_forward.yml"
-      - "work/profit_1000_upgrade/candidate_natural_*.py"
-      - "work/profit_1000_upgrade/candidate_p0_generation_artifact.py"
-      - "tests/test_candidate_p0_generation_artifact.py"
-      - "tests/test_candidate_continuation_evidence.py"
-      - "work/profit_1000_upgrade/test_candidate_natural_*.py"
-      - "work/profit_1000_upgrade/candidate_natural_forward_registration.json"
-      - "work/profit_1000_upgrade/candidate_natural_model/evaluation.json"
+      # Must cover candidate_runtime_preflight.static_path. Daily input/output
+      # changes reuse identical successful code CI, never approve new code.
+      - ".github/**"
+      - "src/**"
+      - "scripts/**"
+      - "tests/**"
+      - "models/**"
+      - "work/profit_1000_upgrade/*.py"
+      - "work/profit_1000_upgrade/*.json"
+      - "work/profit_1000_upgrade/candidate_natural_model/**"
+      - "forward/**/*.py"
+      - "forward/model_inventory.json"
+      - "requirements.lock"
+      - "requirements-dev.lock"
+      - "pyproject.toml"
+      - "setup.cfg"
+      - "setup.py"
+      - "pytest.ini"
+      - "conftest.py"
+      - "tox.ini"
 
 permissions:
   contents: read
@@ -82,15 +94,37 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12.13"
+      - name: Verify approved runtime source surface
+        id: runtime_approval
+        if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/candidate_runtime_preflight.py verify --wait-seconds 480 --root . --receipt "$RUNNER_TEMP/candidate-runtime-approval.json"
       - name: Install hash-locked runtime
         run: >-
           python -m pip install --disable-pip-version-check --only-binary=:all:
           --require-hashes -r requirements-dev.lock
-      - name: Validate new components and unchanged formal freeze
+      - name: Run complete fixed candidate contract regression
+        if: github.event_name == 'push'
         run: |
-          python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py work/profit_1000_upgrade/test_candidate_natural_p0_continuation.py tests/test_candidate_p0_generation_artifact.py tests/test_candidate_continuation_evidence.py
+          TIMEFORMAT='fixed_contract_regression_seconds=%3R'
+          time python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/candidate_natural_forward_test.py work/profit_1000_upgrade/test_candidate_natural_p0_github.py work/profit_1000_upgrade/test_candidate_natural_workflow.py work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py work/profit_1000_upgrade/test_candidate_natural_p0_continuation.py tests/test_candidate_p0_generation_artifact.py tests/test_candidate_continuation_evidence.py tests/test_candidate_runtime_preflight.py tests/test_reliability_runtime_profiles.py tests/test_candidate_watchdog_code_approval.py tests/test_reliability_isolation_source_review.py tests/test_suspension_evidence_registry.py tests/test_primary_failure_diagnostics.py tests/test_suspension_continuation_source_review.py tests/test_suspension_pin_source_review.py
+      - name: Validate production freeze and unchanged source tree
+        run: |
           python scripts/validate_decision_model_freeze.py --root .
           test -z "$(git status --porcelain=v1)"
+      - name: Record approved static runtime surface
+        id: ci_surface
+        if: github.event_name == 'push'
+        run: python scripts/candidate_runtime_preflight.py record --root . --receipt "$RUNNER_TEMP/candidate-runtime-approval.json"
+      - name: Retain static runtime approval evidence
+        if: always() && (steps.runtime_approval.outcome == 'success' || steps.ci_surface.outcome == 'success')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dc20-candidate-runtime-approval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate-runtime-approval.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Check whether original P0 needs a new candidate freeze
         id: trigger
         if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
@@ -132,6 +166,10 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12.13"
+      - name: Recheck approved runtime source before writer preparation
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/candidate_runtime_preflight.py verify --wait-seconds 480 --root . --receipt "$RUNNER_TEMP/candidate-runtime-writer-approval.json"
       - name: Install hash-locked runtime
         run: >-
           python -m pip install --disable-pip-version-check --only-binary=:all:

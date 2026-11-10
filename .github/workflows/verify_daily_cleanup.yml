@@ -76,7 +76,7 @@ jobs:
           PYTHONPATH: .:src
         run: |
           python scripts/validate_decision_model_freeze.py --runtime
-          python -m pytest -q tests/test_suspension_pin_source_review.py tests/test_system_cleanup_source_review.py tests/test_delivery_hardening_source_review.py tests/test_next_day_statistics_source_review.py tests/test_next_day_p0_profile_source_review.py tests/test_existing_continuation_source_review.py tests/test_settlement_noop_source_review.py
+          python -m pytest -q tests/test_reliability_isolation_source_review.py tests/test_suspension_evidence_registry.py tests/test_primary_failure_diagnostics.py tests/test_candidate_runtime_preflight.py tests/test_suspension_pin_source_review.py tests/test_system_cleanup_source_review.py tests/test_delivery_hardening_source_review.py tests/test_next_day_statistics_source_review.py tests/test_next_day_p0_profile_source_review.py tests/test_existing_continuation_source_review.py tests/test_settlement_noop_source_review.py
           python -m pytest -q tests/test_daily_cleanup_replay.py tests/test_publication_rehearsal_fixture.py tests/test_system_cleanup_source_review.py tests/test_daily_workflow_retirement.py tests/test_daily_delivery_policy.py tests/test_candidate_delivery_watchdog.py tests/test_candidate_delivery_missing_p0.py tests/test_compact_statistics_window.py tests/test_compact_statistics_window_pages.py tests/test_compact_statistics_window_frontend.py tests/test_pages_truthfulness_workflow.py
       - name: Exercise guarded delivery fault recovery
         working-directory: cleaned
@@ -159,6 +159,41 @@ jobs:
           print(json.dumps(result,ensure_ascii=False))
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
               f.write('Historical D20261106 cleanup acceptance\n```json\n'+json.dumps(result,ensure_ascii=False,indent=2)+'\n```\n')
+          PY
+      - name: Checkout immediate reliability baseline for matched latest-D replay
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: reliability-baseline
+          ref: 65d4e0c1d80c177645eff1d1bbd53fee71cffda9
+          persist-credentials: false
+      - name: Recompute latest original freeze with immediate old and new code
+        run: |
+          for trial in 1 2 3; do
+            if [ "$trial" = "2" ]; then order="cleaned reliability-baseline"; else order="reliability-baseline cleaned"; fi
+            for version in $order; do
+              python cleaned/scripts/replay_daily_cleanup.py --code-root "$version" --source-root reliability-baseline --signal-date 20261110 --label "$version" --output "acceptance/reliability-$version-$trial.json"
+            done
+          done
+          python - <<'PY'
+          import json, statistics, os
+          from pathlib import Path
+          root=Path('acceptance')
+          reports={name:[json.loads((root/f'reliability-{name}-{trial}.json').read_text()) for trial in (1,2,3)] for name in ('reliability-baseline','cleaned')}
+          rows=[r for group in reports.values() for r in group]
+          assert all(r['status']=='PASS' and r['signal_date']=='20261110' for r in rows)
+          for key in ('input_inventory_sha256','business_signature_sha256','promotion_top3','profit_top2'):
+              assert all(row[key]==rows[0][key] for row in rows),key
+          durations={name:[r['seconds_total'] for r in group] for name,group in reports.items()}
+          medians={name:statistics.median(v) for name,v in durations.items()}
+          before,after=medians['reliability-baseline'],medians['cleaned']
+          result={'status':'PASS','baseline_commit':'65d4e0c1d80c177645eff1d1bbd53fee71cffda9','signal_date':'20261110',
+              'same_inputs':True,'rankings_and_scores_identical':True,'trials_seconds':durations,
+              'baseline_median_seconds':before,'repaired_median_seconds':after,'seconds_saved':before-after,
+              'change_pct':(after/before-1)*100,'scope':'READ_ONLY_REAL_FROZEN_RECOMPUTATION; excludes upstream collection, queue, CI, installation and public deployment; not a new natural freeze'}
+          raw=json.dumps(result,ensure_ascii=False,indent=2)
+          (root/'reliability-comparison.json').write_text(raw+'\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write('Immediate baseline reliability acceptance\n```json\n'+raw+'\n```\n')
+          print(raw)
           PY
       - name: Preserve acceptance results and logs
         if: always()

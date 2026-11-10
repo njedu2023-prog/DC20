@@ -202,6 +202,16 @@ def test_retry_metadata_cannot_bypass_history_guards(tmp_path,monkeypatch,kind):
 
 def test_previous_single_attempt_writer_profile_still_accepted(tmp_path,monkeypatch):
     case=setup(tmp_path,monkeypatch)
+    # A predecessor collector could only consume the predecessor snapshot tuple.
+    # Preserve the original complete profile, not today's runner with old writer SHA.
+    frozen = json.loads(case["snapshot"].read_bytes())
+    frozen.update(deepcopy(c.natural.PRE_RELIABILITY_SNAPSHOT_PROFILE))
+    frozen.pop("snapshot_sha256")
+    frozen["snapshot_sha256"] = c.natural.scorer.canonical_sha(frozen)
+    raw = c.natural.storage.encoded(frozen)
+    case["snapshot"].write_bytes(raw)
+    case["snapshot_sha"] = hashlib.sha256(raw).hexdigest()
+    case["frozen"] = frozen
     first,_=collect(case,asof=case["t1"],transport=lambda r:response(r,empty=True))
     path=Path(first["collection_root"])/"receipt.json";value=json.loads(path.read_bytes())
     # Restore the exact legacy record shape, including HTTP receipt cross-hashes.

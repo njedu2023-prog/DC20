@@ -224,6 +224,7 @@ jobs:
               '.github/workflows/test_decision_core.yml','.github/workflows/check_tushare_health.yml',
               'requirements.lock',
               'scripts/publish_primary_three_rank.py','scripts/sync_market_raw.py','scripts/sync_pred_source.py',
+              'scripts/primary_failure_diagnostics.py','src/top10decision/decision/suspension_evidence_registry.py',
               'src/top10decision/auction_v3/__init__.py','src/top10decision/auction_v3/calibration.py',
               'src/top10decision/auction_v3/config.py','src/top10decision/auction_v3/engine.py',
               'src/top10decision/auction_v3/promotion_model.py','src/top10decision/data/tushare_minute.py',
@@ -862,6 +863,7 @@ jobs:
           PY
 
       - name: Publish primary promotion list in the isolated scope
+        id: primary_generation
         if: ${{ steps.target.outputs.non_trading_day != 'true' && steps.target.outputs.already_complete != 'true' }}
         env:
           PYTHONPATH: src
@@ -880,6 +882,28 @@ jobs:
             ':(top)outputs/decision/legacy_profit_relative_research' \
             > "${RUNNER_TEMP}/protected-after.bin"
           cmp "${RUNNER_TEMP}/protected-before.bin" "${RUNNER_TEMP}/protected-after.bin"
+
+      - name: Explain blocked primary generation without granting publication
+        id: primary_diagnostics
+        if: ${{ failure() && steps.primary_generation.outcome == 'failure' }}
+        env:
+          SIGNAL_DATE: ${{ steps.target.outputs.signal_date }}
+        run: |
+          python scripts/primary_failure_diagnostics.py --root . \
+            --signal-date "${SIGNAL_DATE}" \
+            --expected-run-id "${GITHUB_RUN_ID}" \
+            --expected-run-attempt "${GITHUB_RUN_ATTEMPT}"
+
+      - name: Preserve blocked primary identity diagnostics
+        if: ${{ failure() && steps.primary_diagnostics.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: primary-d-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/decision/primary_diagnostics/day_${{ steps.target.outputs.signal_date }}.json
+            outputs/decision/primary_diagnostics/day_${{ steps.target.outputs.signal_date }}.html
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Qualify optional receipt-bound runtime display index
         id: runtime_index

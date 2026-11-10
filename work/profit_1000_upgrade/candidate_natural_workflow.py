@@ -24,9 +24,9 @@ REPO = 'njedu2023-prog/DC20'
 API = '/repos/' + REPO
 PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
-RUNNER_SHA = '77e7d2f21e39350c2e78cad435093c25072c7694e8cdc6757fed68e9a1d3036f'
+RUNNER_SHA = 'a7361939254c5173030e39b57fc72162a48cab835c84c258f1c33d161aa55014'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = '514b001ce944cf1529757dc06f972eb313c8515f0fea02a55818433b414d8e46'
+IMPORTER_SHA = 'fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 

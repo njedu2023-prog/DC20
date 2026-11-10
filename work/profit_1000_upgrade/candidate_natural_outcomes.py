@@ -17,21 +17,19 @@ import tempfile
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_outcomes_append_only_v1"
 REPORT_SCHEMA = "dc20_candidate_natural_posthoc_price_observation_v1"
-REGISTRATION_SHA = 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399'
-PROFILE_READER_SHA = '2612731ef3512abf72e590f3151d3edd2bf75d642a9beb1c41ad2a89d3ae2f83'
-PINS = {
-    "work/profit_1000_upgrade/candidate_natural_forward.py": '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
-    "work/profit_1000_upgrade/labels_v3.py": "cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b",
-    "work/profit_1000_upgrade/policy_v3.py": "a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b",
-    "work/profit_1000_upgrade/auction_truth_v3.py": "889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665",
-    "work/profit_1000_upgrade/auction_truth.py": "b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af",
-    "work/profit_1000_upgrade/auction_http_v3.py": "289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c",
-    "work/profit_1000_upgrade/minute_truth.py": "69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268",
-    "src/top10decision/decision/shadow_exit_1000.py": "23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af",
-    "src/top10decision/decision/shadow_exit_minute_truth.py": "0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65",
-    "src/top10decision/decision/executable_profit_shadow_settlement.py": "acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12",
-    "src/top10decision/decision/executable_profit_shadow.py": "872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c",
-}
+REGISTRATION_SHA = 'f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257'
+PROFILE_READER_SHA = '11fc359e5c48a5e1ea0d1c88e9bd2531ffab631446c5f2853fb502c225c6f89e'
+PINS = {'work/profit_1000_upgrade/candidate_natural_forward.py': 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd',
+ 'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b',
+ 'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b',
+ 'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665',
+ 'work/profit_1000_upgrade/auction_truth.py': 'b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af',
+ 'work/profit_1000_upgrade/auction_http_v3.py': '289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c',
+ 'work/profit_1000_upgrade/minute_truth.py': '69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268',
+ 'src/top10decision/decision/shadow_exit_1000.py': '23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af',
+ 'src/top10decision/decision/shadow_exit_minute_truth.py': '0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65',
+ 'src/top10decision/decision/executable_profit_shadow_settlement.py': 'acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12',
+ 'src/top10decision/decision/executable_profit_shadow.py': '872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c'}
 
 
 HISTORICAL_REPORT_PROFILE = ('bfd1efc6351bd5928c4cd5bb1afec161517d374942fa5173686ceb4fe0162b77',
@@ -124,9 +122,38 @@ def is_pre_boundary_snapshot_profile(frozen):
 
 PRE_BOUNDARY_REPORT_PROFILE = ('58354ac4bb6334eb25657a211bf15ded01dcc2ca9f173fa70afca086c280c737', {'work/profit_1000_upgrade/candidate_natural_forward.py': 'eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029', 'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b', 'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b', 'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665', 'work/profit_1000_upgrade/auction_truth.py': 'b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af', 'work/profit_1000_upgrade/auction_http_v3.py': '289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c', 'work/profit_1000_upgrade/minute_truth.py': '69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268', 'src/top10decision/decision/shadow_exit_1000.py': '23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af', 'src/top10decision/decision/shadow_exit_minute_truth.py': '0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65', 'src/top10decision/decision/executable_profit_shadow_settlement.py': 'acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12', 'src/top10decision/decision/executable_profit_shadow.py': '872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c'})
 
+PRE_RELIABILITY_REPORT_PROFILE = ('a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06',
+ {'src/top10decision/decision/executable_profit_shadow.py': '872a761235c52be0126f15e0e75b1d1ab855881a5657f7ebe82083fc0182d16c',
+  'src/top10decision/decision/executable_profit_shadow_settlement.py': 'acb2cf0a74d5fe7849a1b480b512834916954d3c43ce4f71534c1cccdf92ea12',
+  'src/top10decision/decision/shadow_exit_1000.py': '23d1e693bbf4e38771b107f434aab7cd40f82855e0f480e391d819778e05c5af',
+  'src/top10decision/decision/shadow_exit_minute_truth.py': '0cdd36ed69e734ab8c59bb3b44a5bf27cc702a9ce67879a225f4a94d1d14ee65',
+  'work/profit_1000_upgrade/auction_http_v3.py': '289fbcca8eb1642af7ea4a4c51bd6a136faf3ce96c5fc4c4e3a9091a369fa89c',
+  'work/profit_1000_upgrade/auction_truth.py': 'b71c2ae223bc07ef110b206a45b778c3ed4aad76273ff32be3984520b8b996af',
+  'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665',
+  'work/profit_1000_upgrade/candidate_natural_forward.py': '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3',
+  'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b',
+  'work/profit_1000_upgrade/minute_truth.py': '69f2eb9fe2ceb1579a59d5247a3f1ddc72b80d251abbed9fe69e06e0d83df268',
+  'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b'})
+
+def is_pre_reliability_snapshot_profile(frozen):
+    # The preceding writer accepted every then-known exact snapshot profile.
+    # Revalidate that profile and its D bound; a bare date is insufficient.
+    runner = natural
+    if frozen.get("schema_version") != natural.SCHEMA:
+        from work.profit_1000_upgrade import candidate_eligible_forward as runner
+        if frozen.get("schema_version") != runner.SCHEMA:
+            return False
+    if not isinstance(frozen.get("signal_date"), str) or frozen["signal_date"] > "20261110":
+        return False
+    expected_profiles = (runner.PRE_RELIABILITY_SNAPSHOT_PROFILE, runner.PRE_BOUNDARY_SNAPSHOT_PROFILE,
+        runner.HISTORICAL_SNAPSHOT_PROFILE)
+    return any({k: frozen.get(k) for k in expected} == expected for expected in expected_profiles)
+
 def validate_report_profile(report, frozen):
     """Read one possible writer/snapshot pair; current writers may continue old days."""
     profiles = [(SELF_SHA, PINS)]
+    if is_pre_reliability_snapshot_profile(frozen):
+        profiles.append(PRE_RELIABILITY_REPORT_PROFILE)
     if is_pre_boundary_snapshot_profile(frozen):
         profiles.append(PRE_BOUNDARY_REPORT_PROFILE)
     if is_historical_snapshot_profile(frozen):

@@ -24,7 +24,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = '701c4cd7b275e1269b81dc3fcbd7d3233a0a5385a13cc83cf4288fe598fb2871'
+PUBLICATION_SHA = 'a504929e23a3eb29b1b49007a29e37c3ee169614e50aecae97b1ee0901cb2231'
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -92,8 +92,11 @@ PRE_NEXT_DAY_CAPTURE_CONTRACT = ('6b3112793e376cb93f6ffb912c8f79cf95fa29908980fc
 PRE_SUSPENSION_CAPTURE_CONTRACT = ('9838d6003cb809ba484454a7cc4eeb3751255a9d36c43e7c493a77f2353ecddb',
  '5fb4c22c74a906d6b246a75e9999ce7ff245e80f2b347ad031a8f1be38294ef0')
 
+PRE_RELIABILITY_CAPTURE_CONTRACT = ('b54eb939a31df7987f58f02e6dbf68ca15628b92f814a78ff15cfa9ca6e8e630',
+ '701c4cd7b275e1269b81dc3fcbd7d3233a0a5385a13cc83cf4288fe598fb2871')
+
 def capture_contracts():
-    return (PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
+    return (PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))
 
 
 def code_guard():
@@ -140,7 +143,7 @@ def _safe_text(value, token):
             _safe_text(item, token)
 
 
-def _safe_body(raw, token=None, *, blob_response=False, continuation_blob=False):
+def _safe_body(raw, token=None, *, blob_response=False, continuation_blob=False, registry_pdf_blobs=frozenset()):
     require(type(raw) is bytes and 0 < len(raw) <= MAX_FILE_BYTES, "EVIDENCE_BODY_SIZE_LIMIT")
     require(not token or token.encode() not in raw, "RAW_CREDENTIAL_IN_EVIDENCE_REJECTED")
     value = gh.parse_json(raw)
@@ -163,6 +166,17 @@ def _safe_body(raw, token=None, *, blob_response=False, continuation_blob=False)
                 # deserialize an untrusted pickle or execute a model here.
                 _safe_text(decoded.decode("latin1"), token)
                 return value
+        if decoded.startswith(b"%PDF-"):
+            # PDFs are opaque source evidence. Do not parse or execute them.
+            # The exact HEAD-bound registry, official origin and declared
+            # object hash are independently replayed below.
+            require(value.get("sha") in registry_pdf_blobs
+                and value.get("sha") == gh.git_blob(decoded)
+                and type(value.get("size")) is int and value["size"] == len(decoded)
+                and len(decoded) <= gh.adapter.suspension_registry.MAX_OBJECT_BYTES
+                and b"%%EOF" in decoded[-2048:], "BOUND_REGISTERED_PDF_REQUIRED")
+            _safe_text(decoded.decode("latin1"), token)
+            return value
         if continuation_blob and decoded.startswith(b"\x1f\x8b"):
             # Registered original prediction history is gzip. Scan its one
             # bounded text member; the pair replay independently checks the
@@ -229,7 +243,7 @@ class _Recorder:
             self.redirect = None
         record["ordinal"] = len(self.records) + 1
         self.records.append(record)
-        require(len(self.records) <= MAX_CONTINUATION_HTTP, "OBSERVATION_HTTP_COUNT_LIMIT")
+        require(len(self.records) <= MAX_CONTINUATION_HTTP + gh.adapter.suspension_registry.MAX_FILES + 2, "OBSERVATION_HTTP_COUNT_LIMIT")
         try:
             response = self.opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
@@ -266,24 +280,48 @@ def _result(root, manifest, manifest_raw):
         "test_transport_injected": manifest["test_transport_injected"], **FLAGS}
 
 
+def _registry_bindings(manifest):
+    registry = gh.adapter.suspension_registry
+    bindings = manifest.get("original_source_bindings", [])
+    require(type(bindings) is list, "ORIGINAL_SOURCE_BINDINGS_REQUIRED")
+    selected = [b for b in bindings if type(b) is dict and registry.is_registry_path(b.get("path"))]
+    require(len(selected) <= registry.MAX_FILES and
+        (not selected or gh.date(manifest.get("signal_date")) >= registry.ACTIVE_FROM),
+        "REGISTRY_CAPTURE_DATE_OR_BOUNDARY_CHANGED")
+    require(len({b["path"] for b in selected}) == len(selected), "DUPLICATE_REGISTRY_CAPTURE_BINDING")
+    for binding in selected:
+        registry.validate_binding({k: binding.get(k) for k in ("path", "sha256", "git_blob_sha1", "git_mode")})
+    return selected
+
+
+def _registry_allowance(manifest):
+    count = len(_registry_bindings(manifest))
+    return count + (2 if count else 0)
+
+
+def _registry_pdf_blobs(manifest):
+    return {b["git_blob_sha1"] for b in _registry_bindings(manifest) if b["path"].endswith(".pdf")}
+
+
 def _file_limit(manifest):
     kind = manifest.get("p0_provenance_kind")
     require(kind in (None, CONTINUATION_KIND), "UNKNOWN_P0_CAPSULE_PROVENANCE")
-    return MAX_CONTINUATION_FILES if kind == CONTINUATION_KIND else MAX_FILES
+    return (MAX_CONTINUATION_FILES if kind == CONTINUATION_KIND else MAX_FILES) + _registry_allowance(manifest)
 
 
 class _ContinuationReplayClient:
     """Replay captured HTTP bytes only; this class cannot issue live authority."""
     continuation_replay = True
 
-    def __init__(self, api, artifact, archive):
+    def __init__(self, api, artifact, archive, registry_allowance=0):
         self.api, self.artifact, self.archive = api, artifact, archive
+        self.http_limit = MAX_CONTINUATION_HTTP + registry_allowance
         self.positions, self.calls = {}, 0
 
     def get_json(self, path):
         _route(path)
         self.calls += 1
-        require(self.calls <= MAX_CONTINUATION_HTTP and path in self.api, "CONTINUATION_REPLAY_ROUTE_MISSING")
+        require(self.calls <= self.http_limit and path in self.api, "CONTINUATION_REPLAY_ROUTE_MISSING")
         position = self.positions.get(path, 0)
         values = self.api[path]
         require(position < len(values), "CONTINUATION_REPLAY_RESPONSE_EXHAUSTED")
@@ -292,7 +330,7 @@ class _ContinuationReplayClient:
 
     def get_artifact_zip(self, artifact_id):
         self.calls += 2
-        require(self.calls <= MAX_CONTINUATION_HTTP and artifact_id == self.artifact["id"],
+        require(self.calls <= self.http_limit and artifact_id == self.artifact["id"],
             "CONTINUATION_REPLAY_ONLY_ORIGINAL_GENERATION_ARCHIVE")
         return self.archive
 
@@ -342,7 +380,7 @@ def _verify_continuation_materials(manifest, body, observation, api, archives):
     require(gh.validate_revision(revision, reused, reuse_id) == (manifest["signal_date"], observation["exec_date"],
         observation["exit_date"], proof["successful_publication_git_sha"])
         and sha(revision_raw) == proof["successful_reuse_revision_sha256"], "CONTINUATION_CAPTURED_REVISION_CHANGED")
-    replay = _ContinuationReplayClient(api, generation, archive)
+    replay = _ContinuationReplayClient(api, generation, archive, _registry_allowance(manifest))
     checked, _, checked_revision = continuation.verify_pair(gh, replay,
         original_run_id=original_id, original_cas_commit=observation["original_p0_commit_sha"], reuse_run_id=reuse_id,
         source_main_sha=proof["source_main_sha"], cached_reuse_revision=(revision, sha(revision_raw)))
@@ -372,6 +410,8 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         require(day <= "20261028", "PRE_CONTINUATION_CAPTURE_DATE_CHANGED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_CONTROLLED_CAPTURE_CONTRACT:
         require(day < "20261106", "PRE_CONTROLLED_CAPTURE_DATE_CHANGED")
+    if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_RELIABILITY_CAPTURE_CONTRACT:
+        require(day <= "20261110", "PRE_RELIABILITY_CAPTURE_DATE_CHANGED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_SUSPENSION_CAPTURE_CONTRACT:
         require(day <= "20261109", "PRE_SUSPENSION_CAPTURE_DATE_CHANGED")
     if (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"]) == PRE_NEXT_DAY_CAPTURE_CONTRACT:
@@ -382,7 +422,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
     file_limit = _file_limit(manifest)
     continuation_kind = manifest.get("p0_provenance_kind") == CONTINUATION_KIND
     require(not continuation_kind or (manifest["capture_code_sha256"], manifest["publication_verifier_sha256"])
-        in ((SELF_SHA, PUBLICATION_SHA), PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),
+        in ((SELF_SHA, PUBLICATION_SHA), PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),
         "CONTINUATION_REQUIRES_REVIEWED_CAPTURE_PROFILE")
     require(type(bodies) is dict and type(manifest.get("files")) is list and len(manifest["files"]) < file_limit,
         "BOUNDED_EVIDENCE_INVENTORY_REQUIRED")
@@ -407,7 +447,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         and observation.get("research_prospective_publication_observed") is True
         and observation.get("injected_client_for_test") is False, "ORIGINAL_PUBLICATION_OBSERVATION_CHANGED")
     records = manifest.get("http_observations")
-    http_limit = MAX_CONTINUATION_HTTP if continuation_kind else gh.MAX_API_CALLS
+    http_limit = (MAX_CONTINUATION_HTTP if continuation_kind else gh.MAX_API_CALLS) + _registry_allowance(manifest)
     require(type(records) is list and 0 < len(records) <= http_limit, "BOUNDED_ORIGINAL_HTTP_OBSERVATIONS_REQUIRED")
     redirects, archives, api = [], {}, {}
     for ordinal, record in enumerate(records, 1):
@@ -423,7 +463,7 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
                 "SUCCESSFUL_JSON_OBSERVATION_REQUIRED")
             raw = body(record["retained_body"])
             require(record["body_sha256"] == sha(raw) and record["body_bytes"] == len(raw), "ORIGINAL_HTTP_BODY_BINDING_CHANGED")
-            api.setdefault(record["api_path"], []).append(_safe_body(raw, blob_response="/git/blobs/" in record["api_path"], continuation_blob=continuation_kind))
+            api.setdefault(record["api_path"], []).append(_safe_body(raw, blob_response="/git/blobs/" in record["api_path"], continuation_blob=continuation_kind, registry_pdf_blobs=_registry_pdf_blobs(manifest)))
         elif kind in ("ARTIFACT_REDIRECT", "ARTIFACT_ZIP"):
             require(type(record["artifact_id"]) is int and record["artifact_id"] > 0 and record["retained_body"] is None,
                 "ARCHIVE_NOT_PERSISTED_ONLY_BOUND_DIGEST")
@@ -468,7 +508,8 @@ def verify_materials(manifest_raw, bodies, *, expected_manifest_sha256):
         receipt_raw, contract_raw = envelope["receipt_raw"].encode(), envelope["contract_raw"].encode()
         receipt, contract = gh.parse_json(receipt_raw), gh.parse_json(contract_raw)
         registered, _, _, _ = gh.adapter._registration(receipt, contract, day)
-        require(any(item.get("table") == gh.adapter.BOUNDARY_TABLE
+        require(any(item.get("table") == gh.adapter.BOUNDARY_TABLE or
+            (day >= gh.adapter.suspension_registry.ACTIVE_FROM and item.get("table") == "confirmed_suspensions" and "registry" in item)
             for item in receipt["inputs"]["runtime_consumed_market_files"]), "TYPED_BOUNDARY_REGISTRATION_REQUIRED")
         paths = gh.adapter._p0_paths(day)
         wanted = set(registered) | set(paths.values())
@@ -547,10 +588,10 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
     require(observed["research_prospective_publication_observed"] is True and observed["network_calls_performed"] == len(recorder.records),
         "COMPLETE_SAME_PROCESS_PUBLICATION_OBSERVATION_REQUIRED")
     continuation_kind = observed.get("p0_provenance_kind") == CONTINUATION_KIND
-    file_limit = MAX_CONTINUATION_FILES if continuation_kind else MAX_FILES
+    file_limit = _file_limit(observed)
     bodies = {}
     def retain(raw, *, blob_response=False):
-        _safe_body(raw, token, blob_response=blob_response, continuation_blob=continuation_kind)
+        _safe_body(raw, token, blob_response=blob_response, continuation_blob=continuation_kind, registry_pdf_blobs=_registry_pdf_blobs(observed))
         ref = _ref(raw); bodies[ref["path"]] = raw
         require(len(bodies) < file_limit and sum(map(len, bodies.values())) <= MAX_TOTAL_BYTES, "BOUNDED_PERSISTED_EVIDENCE_REQUIRED")
         return ref
@@ -586,7 +627,8 @@ def capture_evidence(output_root, *, freeze_run_id, token, transport=None):
     original = publication.read_archive(zip_bytes[observed["publication_artifact"]["id"]])["sources"]
     paths = gh.adapter._p0_paths(observed["signal_date"])
     original_receipt = gh.parse_json(original[paths["receipt"]])
-    if any(item.get("table") == gh.adapter.BOUNDARY_TABLE
+    if any(item.get("table") == gh.adapter.BOUNDARY_TABLE or
+           (observed["signal_date"] >= gh.adapter.suspension_registry.ACTIVE_FROM and item.get("table") == "confirmed_suspensions" and "registry" in item)
            for item in original_receipt["inputs"]["runtime_consumed_market_files"]):
         boundary_fields["boundary_registration"] = retain(gh.json_bytes({
             "receipt_raw": original[paths["receipt"]].decode(),

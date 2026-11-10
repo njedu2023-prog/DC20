@@ -20,14 +20,14 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = 'b54eb939a31df7987f58f02e6dbf68ca15628b92f814a78ff15cfa9ca6e8e630'
+CAPTURE_SHA = '3604516045a3f50392ddb9ce1195d50132e1b5322f900f96e607d6b72a526915'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = 'd879dffd4c29646c8b7f654321490d8dc87331e0a973bdad99e10c566b79f337'
+OBSERVER_SHA = '4a7eb127e656911db0164b5bad76a19c2f9dec6feb82c4398dcd08e56976d860'
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
-WRITER_SHA = "407ec6b9c7fbf36127b9453b15e0c7f25a6c7ea04f7547de5ac8f5310595fc2c"
+WRITER_SHA = '87c2412ba43bc74d9dd002a260b5ba575e78260c536a4aa36ebfc612167e3f8e'
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
 PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 SCHEMA = "dc20_independently_observed_durable_research_publication_v1"
@@ -180,7 +180,7 @@ def read_observer_archive(raw):
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             entries, directories, total = {}, set(), 0
             infos = archive.infolist()
-            require(0 < len(infos) <= MAX_MEMBERS, "OBSERVER_ARCHIVE_MEMBER_LIMIT")
+            require(0 < len(infos) <= MAX_MEMBERS + gh.adapter.suspension_registry.MAX_FILES + 2, "OBSERVER_ARCHIVE_MEMBER_LIMIT")
             for info in infos:
                 name = gh.relative(info.filename[:-1] if info.is_dir() else info.filename)
                 require(name not in entries and name not in directories and not info.flag_bits & 1, "DUPLICATE_OR_ENCRYPTED_OBSERVER_MEMBER")
@@ -212,6 +212,7 @@ def read_observer_archive(raw):
                 "COMPLETE_OBSERVER_OUTPUT_REQUIRED")
             manifest_raw = archive.read(normalized["capsule/manifest.json"])
             preview = capture._safe_body(manifest_raw)
+            require(len(infos) <= MAX_MEMBERS + capture._registry_allowance(preview), "OBSERVER_ARCHIVE_MEMBER_LIMIT")
             require(type(preview.get("files")) is list and len(preview["files"]) < capture._file_limit(preview),
                 "BOUNDED_ORIGINAL_CAPSULE_INDEX_REQUIRED")
             indexed = set()
@@ -324,9 +325,40 @@ PRE_SUSPENSION_OBSERVER_PROFILE = ('178b42437200e3b4351dbc08e0c9b5af454cd543d0ca
   'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '9b5a1b9f20f284a4881595bfcc791a4633ed677f',
   'work/profit_1000_upgrade/candidate_snapshot_versions.py': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534'})
 
+PRE_RELIABILITY_OBSERVER_PROFILE = ('d879dffd4c29646c8b7f654321490d8dc87331e0a973bdad99e10c566b79f337',
+ {'.github/workflows/research_candidate_natural_forward.yml': 'e35031a9c899cfe68260bddaccd4c7cfe7adb6e8',
+  '.github/workflows/research_candidate_natural_observer.yml': 'bed0f4ffccc979e2f8a18bb8f9f96e2234971130',
+  'forward/storage.py': '7e622895c32455123d71244ae491a7302b9b2abe',
+  'requirements-dev.lock': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+  'scripts/publish_primary_three_rank.py': '54cc956de2996663b170ed6e09ce9fef812e2221',
+  'src/top10decision/decision/d_close_features.py': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+  'src/top10decision/decision/three_rank.py': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+  'work/profit_1000_upgrade/candidate_d_feature_projection.py': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe',
+  'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'dcae72da6b8ac93060a487470f6b648780e6ef1d',
+  'work/profit_1000_upgrade/candidate_eligible_forward.py': '7f0172e742a63185f1d2643746c0bd9469c3da69',
+  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': '0982d8c7af52359165e259fd0e4748896d3fd6df',
+  'work/profit_1000_upgrade/candidate_eligible_pool.py': '3855dbedf6e4b6c85454c50d95a22cc128d52273',
+  'work/profit_1000_upgrade/candidate_forward_predict.py': 'e69a1792ca8c35cd73deffac53f772d47bcb432c',
+  'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'd524f58f358dd63f5e9296a47939902632dc4d90',
+  'work/profit_1000_upgrade/candidate_live_feature_math.py': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04',
+  'work/profit_1000_upgrade/candidate_natural_evidence.py': '23be68d9c1a64c6f0737fb95cdfc4142f1423697',
+  'work/profit_1000_upgrade/candidate_natural_evidence_git.py': 'a6eb77d005f282afc768d6299f5bb61d01570a89',
+  'work/profit_1000_upgrade/candidate_natural_forward.py': '1952b8d3478f5d9f1d2a08e0125af337edcbacfe',
+  'work/profit_1000_upgrade/candidate_natural_forward_registration.json': 'aa7153d610791583e412bf38c30609b92fe0d682',
+  'work/profit_1000_upgrade/candidate_natural_model/evaluation.json': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0',
+  'work/profit_1000_upgrade/candidate_natural_observer.py': 'ca979ed151316af4bddb0edab9d87fd7a3edb2b3',
+  'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '5ba4ec8a33cce189ee99e9dc436f429ed792a123',
+  'work/profit_1000_upgrade/candidate_natural_p0_github.py': '4b147b2ab8ec1d3c5ad5244c492cb5c8b1c0c92c',
+  'work/profit_1000_upgrade/candidate_natural_workflow.py': 'f6806b270bf1c4b9ac55555bd7c324054e5b1ae4',
+  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '9b5a1b9f20f284a4881595bfcc791a4633ed677f',
+  'work/profit_1000_upgrade/candidate_snapshot_versions.py': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534'})
+
 def _observer_profile(manifest):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     require(contract in capture.capture_contracts(), "EXACT_CAPTURE_PROFILE_REQUIRED")
+    if contract == capture.PRE_RELIABILITY_CAPTURE_CONTRACT:
+        require(gh.date(manifest.get("signal_date")) <= "20261110", "PRE_RELIABILITY_OBSERVER_DATE_CHANGED")
+        return PRE_RELIABILITY_OBSERVER_PROFILE
     if contract == capture.PRE_SUSPENSION_CAPTURE_CONTRACT:
         require(gh.date(manifest.get("signal_date")) <= "20261109", "PRE_SUSPENSION_OBSERVER_DATE_CHANGED")
         return PRE_SUSPENSION_OBSERVER_PROFILE
@@ -354,6 +386,9 @@ def _observer_profile(manifest):
     return OBSERVER_SHA, {}
 
 
+PRE_RELIABILITY_OBSERVER_WRITER_SHA = "407ec6b9c7fbf36127b9453b15e0c7f25a6c7ea04f7547de5ac8f5310595fc2c"
+
+
 def _context(context, run, manifest, observation):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     historical = contract in (capture.LEGACY_CAPTURE_CONTRACT, capture.PRE_ELIGIBLE_CAPTURE_CONTRACT,
@@ -364,7 +399,8 @@ def _context(context, run, manifest, observation):
         "freeze_run_id": int(manifest["freeze_run_id"]), "snapshot_file_sha256": manifest["snapshot_file_sha256"],
         "manifest_sha256": None, "publication_observation_sha256": manifest["native_observation"]["sha256"],
         "capture_module_sha256": manifest["capture_code_sha256"],
-        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": HISTORICAL_OBSERVER_WRITER_SHA if historical else WRITER_SHA,
+        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": (HISTORICAL_OBSERVER_WRITER_SHA if historical else WRITER_SHA
+            if contract == (capture.SELF_SHA, capture.PUBLICATION_SHA) else PRE_RELIABILITY_OBSERVER_WRITER_SHA),
         "created_at_host_utc": context.get("created_at_host_utc"), "original_prospective_publication_observed": True,
         "evidence_natural_admission_issued": False, "production_activation_allowed": False, "actual_execution_claimed": False}
     expected["manifest_sha256"] = context["manifest_sha256"]
@@ -377,7 +413,7 @@ def _context(context, run, manifest, observation):
 def match_observer_code(code_tree, published_tree, local, manifest):
     """An old capsule keeps its exact old observer contract, without rewriting it."""
     _, overrides = _observer_profile(manifest)
-    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
+    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
         require(code_tree.get(publication.COORDINATOR_PATH, {}).get("sha")
             == publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"],
             "HISTORICAL_CAPTURE_REQUIRES_ORIGINAL_COORDINATOR")
@@ -385,7 +421,8 @@ def match_observer_code(code_tree, published_tree, local, manifest):
     current = contract in ((capture.SELF_SHA, capture.PUBLICATION_SHA), capture.PRE_CONTINUATION_CAPTURE_CONTRACT)
     old_importer = next(b["git_blob_sha1"] for b in publication.HISTORICAL_CODE_BINDINGS
         if b["path"] == publication.IMPORTER_PATH)
-    expected_importer = (PRE_SUSPENSION_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
+    expected_importer = (PRE_RELIABILITY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
+        if contract == capture.PRE_RELIABILITY_CAPTURE_CONTRACT else PRE_SUSPENSION_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_SUSPENSION_CAPTURE_CONTRACT else PRE_NEXT_DAY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_NEXT_DAY_CAPTURE_CONTRACT else PRE_HARDENING_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_HARDENING_CAPTURE_CONTRACT else PRE_CONTROLLED_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]

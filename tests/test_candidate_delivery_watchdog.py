@@ -44,6 +44,10 @@ class Fake:
         return self.revisions.get(head,{}).get(path)
     def public_ready(self,*args): return self.live
     def public_core_status(self,*args): return None
+    def candidate_code_approval(self,head):
+        return {'status':'APPROVED_IDENTICAL_STATIC_SURFACE','repository':m.REPO,
+                'current_head_sha':head,'daily_source_evidence_admitted':False,
+                'production_freeze_issued':False}
     def request(self,path,body=None):
         if body is not None: self.posts.append((path,deepcopy(body))); return None
         if path=='/git/ref/heads/main': return {'object':{'sha':self.head}}
@@ -101,6 +105,51 @@ def test_missing_stage_dispatches_exact_existing_workflow(setup,target):
     assert m.act(f,p,NOW,execute=True)['status']=='DISPATCHED_NOT_COMPLETED'
     assert len(f.posts)==1 and f.posts[0][0]=='/actions/workflows/'+target+'/dispatches'
     assert f.files==before and f.posts[0][1]['ref']=='main'
+
+
+def test_pending_code_ci_waits_without_dispatch_or_retry_budget_reset():
+    f = Fake()
+    f.busy = [{**run(m.NATURAL, id=70+i), 'conclusion': 'failure'} for i in range(2)]
+    approve = f.candidate_code_approval
+    f.candidate_code_approval = lambda head: {**approve(head), 'status': 'WAITING_FOR_CODE_CI_APPROVAL'}
+    result = m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert result['status'] == 'WAITING_FOR_CODE_CI_APPROVAL'
+    assert result['prior_failed_attempts'] == 2 and not f.posts and len(f.busy) == 2
+    # Approval later permits one attempt; the two earlier failures remain counted.
+    f.candidate_code_approval = approve
+    result = m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert result['status'] == 'DISPATCHED_NOT_COMPLETED'
+    assert result['prior_failed_attempts'] == 2 and len(f.posts) == 1
+
+
+def test_exhausted_retry_budget_is_not_forgiven_even_if_ci_is_pending():
+    f = Fake()
+    f.busy = [{**run(m.NATURAL, id=70+i), 'conclusion': 'failure'} for i in range(3)]
+    f.candidate_code_approval = lambda head: pytest.fail('Budget must remain authoritative')
+    with pytest.raises(ValueError, match='RETRY_BUDGET_EXHAUSTED'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
+
+
+def test_approval_api_failure_never_dispatches_or_becomes_waiting():
+    f = Fake()
+    def unavailable(head):
+        raise ValueError('GITHUB_READ_UNAVAILABLE')
+    f.candidate_code_approval = unavailable
+    with pytest.raises(ValueError, match='GITHUB_READ_UNAVAILABLE'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
+
+
+@pytest.mark.parametrize('field,value', [('current_head_sha', 'f'*40), ('repository', 'other/repo'),
+    ('daily_source_evidence_admitted', True), ('production_freeze_issued', True), ('status', 'SUCCESS')])
+def test_dispatch_rejects_unbound_or_unapproved_code_receipt(field, value):
+    f = Fake()
+    approve = f.candidate_code_approval
+    f.candidate_code_approval = lambda head: {**approve(head), field: value}
+    with pytest.raises(ValueError, match='DISPATCH_CODE_APPROVAL'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
 
 def test_complete_is_noop_and_stale_deploy_is_only_publisher():
     f=Fake(); f.formal()

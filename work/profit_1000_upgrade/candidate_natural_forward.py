@@ -22,11 +22,9 @@ CODE_ROOT = Path(__file__).absolute().parents[2]
 REGISTRATION_PATH = Path(__file__).with_name("candidate_natural_forward_registration.json")
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EVALUATION_SHA = "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
-PINS = {
-    "work/profit_1000_upgrade/candidate_d_source_adapter.py": 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b',
-    "work/profit_1000_upgrade/candidate_forward_predict.py": "6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719",
-    "forward/storage.py": "cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098",
-}
+PINS = {'work/profit_1000_upgrade/candidate_d_source_adapter.py': '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6',
+ 'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719',
+ 'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098'}
 MAX_BYTES = 64 * 1024 * 1024
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 BOUNDARIES = {"research_only": True, "production_activation_allowed": False,
@@ -46,13 +44,21 @@ HISTORICAL_SNAPSHOT_PROFILE = {'registration_sha256': '2b24d549c16b5ad6bb3c682eb
 
 PRE_BOUNDARY_SNAPSHOT_PROFILE = {'registration_sha256': 'b0f27d967d32bf5df854e7c8662aaa56883c5959d39db9436afbd92a50d91c8b', 'runner_sha256': 'eb1f25bef6b7279102a4465ef6b756cb559dc6d04bd912c36573e07bfbd09029', 'dependency_sha256': {'work/profit_1000_upgrade/candidate_d_source_adapter.py': '067e6c1a6c9210cc42712106ad726a09829fb1a62e3157320613705d85ceb64b', 'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719', 'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098'}}
 
+PRE_RELIABILITY_SNAPSHOT_PROFILE = {'dependency_sha256': {'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098',
+                       'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b',
+                       'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719'},
+ 'registration_sha256': 'fb8ac959b727dcafebf217098b8544d4624aa75dfebbacd4eafef7429c0b4399',
+ 'runner_sha256': '99872ceec2203a586d03cd17f9efd2d91a7f5524d6349fc01f5d6894922dc1a3'}
+
 def snapshot_profile(value):
     """Select one complete reviewed provenance tuple, never mixed old pins."""
     _, plan_sha, _ = registration()
     current = {"registration_sha256": plan_sha, "runner_sha256": SELF_SHA,
         "dependency_sha256": dict(PINS)}
     actual = {key: value.get(key) for key in current}
-    require(actual == current or (actual == PRE_BOUNDARY_SNAPSHOT_PROFILE
+    require(actual == current or (actual == PRE_RELIABILITY_SNAPSHOT_PROFILE
+        and type(value.get("signal_date")) is str and value["signal_date"] <= "20261110")
+        or (actual == PRE_BOUNDARY_SNAPSHOT_PROFILE
         and type(value.get("signal_date")) is str and value["signal_date"] < "20261028")
         or (actual == HISTORICAL_SNAPSHOT_PROFILE
         and type(value.get("signal_date")) is str and value["signal_date"] < "20261014"),

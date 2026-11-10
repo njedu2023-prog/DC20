@@ -16,17 +16,17 @@ import math
 from pathlib import Path
 import re
 import stat
+from top10decision.decision import suspension_evidence_registry as suspension_registry
 
 
 SCHEMA = "dc20_bound_p0_candidate_d_source_projection_20260913_v1"
 CODE_ROOT = Path(__file__).absolute().parents[2]
-CODE_PINS = {
-    "scripts/publish_primary_three_rank.py": 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8',
-    "work/profit_1000_upgrade/candidate_d_feature_projection.py": "aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f",
-    "work/profit_1000_upgrade/candidate_live_feature_math.py": "922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68",
-    "src/top10decision/decision/d_close_features.py": "c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e",
-    "src/top10decision/decision/three_rank.py": "f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a",
-}
+CODE_PINS = {'scripts/publish_primary_three_rank.py': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0',
+ 'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+ 'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68',
+ 'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+ 'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+ 'src/top10decision/decision/suspension_evidence_registry.py': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9'}
 HISTORY_PATH = "data/decision_three_engines/five_year_supervised_ledger.csv.gz"
 HISTORY_SHA = "7cabe48da6375106b22b2c08c17a7b11780861fed319496ee26761d20fa20a46"
 HISTORY_ROWS = 12322
@@ -110,8 +110,16 @@ from top10decision.decision import three_rank
 
 
 def _code_guard():
-    modules = (publisher, projection, projection.feature_math, projection.feature_math.historical, three_rank)
-    for module, relative in zip(modules, CODE_PINS):
+    modules = {
+        "scripts/publish_primary_three_rank.py": publisher,
+        "work/profit_1000_upgrade/candidate_d_feature_projection.py": projection,
+        "work/profit_1000_upgrade/candidate_live_feature_math.py": projection.feature_math,
+        "src/top10decision/decision/d_close_features.py": projection.feature_math.historical,
+        "src/top10decision/decision/three_rank.py": three_rank,
+        "src/top10decision/decision/suspension_evidence_registry.py": publisher.suspension_registry,
+    }
+    require(set(modules) == set(CODE_PINS), "COMPLETE_DEPENDENCY_IMPORT_SET_REQUIRED")
+    for relative, module in modules.items():
         require(Path(module.__file__).absolute() == CODE_ROOT / relative, "DEPENDENCY_IMPORT_ORIGIN_CHANGED")
     validator = publisher.validate_three_rank_contract
     require(validator is three_rank.validate_three_rank_contract
@@ -201,8 +209,18 @@ def _registration(receipt, contract, day):
     require(type(declarations) is list and all(type(x) is dict for x in declarations), "REGISTERED_MARKET_LIST_REQUIRED")
     suspension = [item for item in declarations if item.get("table") == "confirmed_suspensions"]
     require(len(suspension) <= 1, "UNIQUE_SUSPENSION_EVIDENCE_REQUIRED")
+    require(day < suspension_registry.ACTIVE_FROM or len(suspension) == 1,
+            "POST_MIGRATION_SUSPENSION_REGISTRY_REQUIRED")
+    registry_bindings = {}
     for item in suspension:
-        require(set(item) == {"path", "sha256", "git_blob_sha1", "git_mode", "table", "used_intervals"}
+        required_keys = {"path", "sha256", "git_blob_sha1", "git_mode", "table", "used_intervals"}
+        if day >= suspension_registry.ACTIVE_FROM:
+            required_keys.add("registry")
+            try:
+                registry_bindings = suspension_registry.validate_declaration(item.get("registry"))
+            except suspension_registry.SuspensionRegistryError as exc:
+                raise DSourceBlocked(str(exc)) from exc
+        require(set(item) == required_keys
             and item["path"] == SUSPENSION_PATH and item["git_mode"] == "100644"
             and type(item["git_blob_sha1"]) is str and re.fullmatch(r"[0-9a-f]{40}", item["git_blob_sha1"])
             and type(item["used_intervals"]) is list, "STRICT_SUSPENSION_REGISTRATION_REQUIRED")
@@ -221,6 +239,7 @@ def _registration(receipt, contract, day):
     historical_by_date = {item["trade_date"]: item for item in historical}
     registered = {HISTORY_PATH: HISTORY_SHA, CALENDAR_PATH: _sha(calendar["sha256"])}
     registered.update({item["path"]: item["sha256"] for item in suspension})
+    registered.update({path: item["sha256"] for path, item in registry_bindings.items()})
     for item in daily:
         d = item["trade_date"]
         require(item["path"] == f"data/market/raw/{d[:4]}/{d}/daily.csv", "STRICT_DAILY_REGISTRATION_REQUIRED")
@@ -239,7 +258,7 @@ def _registration(receipt, contract, day):
     meta_path = f"data/market/raw/{day[:4]}/{day}/_sync_meta.json"
     require(market["meta_path"] == meta_path, "EXACT_D_META_PATH_REQUIRED")
     registered[meta_path] = _sha(market["meta_sha256"])
-    require(len(registered) == 24 + len(suspension), "EXACT_REGISTERED_SOURCE_SET_REQUIRED")
+    require(len(registered) == 24 + len(suspension) + len(registry_bindings), "EXACT_REGISTERED_SOURCE_SET_REQUIRED")
     _register_boundary_evidence(receipt, registered, dates, day)
     return registered, daily, dates, market
 
@@ -337,9 +356,19 @@ def _suspension_provenance(receipt, sources, dates, day):
         payload = _json(body)
         require(payload.get("schema_version") == "dc20_confirmed_suspensions_v1"
             and type(payload.get("suspensions")) is list, "SUSPENSION_SCHEMA_REQUIRED")
+        records = payload["suspensions"]
+        if "registry" in item:
+            try:
+                bindings = suspension_registry.validate_declaration(item["registry"])
+                additions, actual_declaration = suspension_registry.load_registry(
+                    lambda path: (sources[path], bindings[path]), signal_date=day, legacy_records=records)
+                require(actual_declaration == item["registry"], "SUSPENSION_REGISTRY_SOURCE_SET_MISMATCH")
+                records = records + additions
+            except (KeyError, suspension_registry.SuspensionRegistryError) as exc:
+                raise DSourceBlocked(f"SUSPENSION_REGISTRY_PROVENANCE: {exc}") from exc
         known = set()
         disclosed = {}
-        for record in payload["suspensions"]:
+        for record in records:
             require(type(record) is dict, "SUSPENSION_RECORD_REQUIRED")
             code = projection._code(record.get("ts_code"))
             start, resume = projection._date(record.get("start_date")), projection._date(record.get("resume_date"))

@@ -39,8 +39,9 @@ WORKFLOW_ID = 343703608
 WORKFLOW_NAME = "DC2.0 · Publish Primary D List (P0)"
 WORKFLOW_PATH = ".github/workflows/run_primary_d_daily.yml"
 ADAPTER_PATH = "work/profit_1000_upgrade/candidate_d_source_adapter.py"
-ADAPTER_SHA = 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b'
-CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '6718bb26b269444fd0313b3854ce51f02d81b5fdf21ffd1523b00e2f3e0e12b2', 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
+ADAPTER_SHA = '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6'
+CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '90680089ea3d7baa6f480a70883e9ff70ac03c5718391c6e230ca8115eafedd6',
+ 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
 TOKEN_ENV = "DC20_CANDIDATE_GITHUB_TOKEN"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 MAX_JSON_BYTES = 88 * 1024 * 1024
@@ -207,6 +208,13 @@ class GitHubReadClient:
         self._opener = urllib.request.build_opener(NoRedirect())
         self.calls = 0
         self._continuation_reads = False
+        self._registry_read_allowance = 0
+
+    def enable_registry_reads(self, receipt, contract, day):
+        registered, _, _, _ = adapter._registration(receipt, contract, day)
+        count = sum(adapter.suspension_registry.is_registry_path(path) for path in registered)
+        require(count <= adapter.suspension_registry.MAX_FILES, "REGISTRY_READ_BUDGET_EXCEEDED")
+        self._registry_read_allowance = count + (2 if count else 0)
 
     def enable_continuation_reads(self):
         continuation_dependencies()
@@ -214,7 +222,8 @@ class GitHubReadClient:
 
     def _open(self, url, *, authorization, limit, allow_302=False):
         self.calls += 1
-        require(self.calls <= (MAX_CONTINUATION_API_CALLS if self._continuation_reads else MAX_API_CALLS), "GET_BUDGET_EXCEEDED")
+        require(self.calls <= (MAX_CONTINUATION_API_CALLS if self._continuation_reads else MAX_API_CALLS)
+                + self._registry_read_allowance, "GET_BUDGET_EXCEEDED")
         parsed = urllib.parse.urlsplit(url)
         require(parsed.scheme == "https" and parsed.username is None and parsed.password is None
             and not parsed.fragment and parsed.port in (None, 443), "UNSAFE_GET_URL")
@@ -523,7 +532,11 @@ def validate_boundary_base_membership(receipt, published_entries, github_client)
     """Additional witnesses must already exist at the receipt's immutable base."""
     evidence = [item for item in receipt["inputs"]["runtime_consumed_market_files"]
                 if item.get("table") == adapter.BOUNDARY_TABLE]
-    if not evidence:
+    disclosures = [item for item in receipt["inputs"]["runtime_consumed_market_files"]
+                   if item.get("table") == "confirmed_suspensions"]
+    registry_files = [file for item in disclosures if "registry" in item
+                      for file in adapter.suspension_registry.validate_declaration(item["registry"]).values()]
+    if not evidence and not registry_files:
         return
     head = exact_sha(receipt["inputs"].get("git_head"), 40)
     require(all(item["git_head"] == head for item in evidence), "BOUNDARY_RECEIPT_BASE_MISMATCH")
@@ -532,9 +545,7 @@ def validate_boundary_base_membership(receipt, published_entries, github_client)
             "BOUNDARY_EXACT_BASE_COMMIT_REQUIRED")
     tree_sha = exact_sha(commit["tree"].get("sha"), 40)
     base = validate_tree(github_client.get_json(f"{API_PREFIX}/git/trees/{tree_sha}?recursive=1"), tree_sha)
-    disclosures = [item for item in receipt["inputs"]["runtime_consumed_market_files"]
-                   if item.get("table") == "confirmed_suspensions"]
-    bindings = disclosures + [binding for item in evidence for binding in [item["calendar"], *item["files"]]]
+    bindings = disclosures + registry_files + [binding for item in evidence for binding in [item["calendar"], *item["files"]]]
     for binding in bindings:
         require(all(tree.get(binding["path"], {}).get("type") == "blob"
                     and tree[binding["path"]].get("mode") == "100644"
@@ -589,6 +600,8 @@ def import_p0_sources(source_root, *, expected_run_id, github_client):
         "P0_REVISION_RECEIPT_CONTRACT_MISMATCH")
     require(commit["parents"][0].get("sha") == exact_sha(receipt["inputs"].get("git_head"), 40), "PUBLISHED_PARENT_NOT_RECEIPT_BASE")
     registered, daily, _, _ = adapter._registration(receipt, contract, day)
+    if type(github_client) is GitHubReadClient:
+        github_client.enable_registry_reads(receipt, contract, day)
     for logical, expected in registered.items():
         body = load_blob(github_client, entries, logical)
         require(sha256(body) == expected, "RECEIPT_ORIGINAL_SOURCE_SHA_MISMATCH")

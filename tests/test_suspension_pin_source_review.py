@@ -22,7 +22,8 @@ def read(path):
     assert all(p not in ('', '.', '..') for p in path.split('/'))
     target = ROOT / path
     assert not any(p.is_symlink() for p in (target, *target.parents))
-    return target.read_bytes()
+    from tests.test_reliability_isolation_source_review import source_before_reliability_isolation
+    return source_before_reliability_isolation(path, target.read_bytes())
 
 def review():
     raw = read(REVIEW_PATH)

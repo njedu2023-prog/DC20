@@ -9,6 +9,7 @@ import zipfile
 import zlib
 import pytest
 from tests.test_suspension_pin_source_review import source_before_suspension_pin
+from tests.test_reliability_isolation_source_review import source_before_reliability_isolation
 from work.profit_1000_upgrade import candidate_natural_p0_github as gh
 from work.profit_1000_upgrade import candidate_natural_p0_continuation as m
 from work.profit_1000_upgrade.test_candidate_natural_p0_github import fixture as source_fixture, git_tree, pages_zip
@@ -59,7 +60,7 @@ def fixture(tmp_path,monkeypatch,*,suspension=False,current_profile=False):
     freeze_path = 'models/decision_model_freeze.json'
     historical_freeze = (gh.CODE_ROOT / 'tests/fixtures/candidate_continuation/decision_model_freeze.json').read_bytes()
     assert gh.git_blob(historical_freeze) == m.ORIGINAL_P0_CODE_PROFILE[freeze_path]
-    profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in m.ORIGINAL_P0_CODE_PROFILE}
+    profile_files = {p:source_before_reliability_isolation(p, (gh.CODE_ROOT/p).read_bytes()) for p in m.ORIGINAL_P0_CODE_PROFILE}
     profile_files[freeze_path] = historical_freeze
     # This is the unchanged, hash-checked historical producer, not today's code.
     producer_path = 'scripts/publish_primary_three_rank.py'
@@ -281,6 +282,8 @@ def test_pre_next_day_import_receipt_is_exact_and_date_bounded(tmp_path, monkeyp
         github_client=c['client'], clock=lambda:NOW)
     old['importer_sha256'] = m.PRE_NEXT_DAY_IMPORTER_SHA
     old['continuation_dependency_sha256'] = deepcopy(m.PRE_NEXT_DAY_CONTINUATION_PINS)
+    old['source_adapter_sha256'] = m.PRE_RELIABILITY_IMPORT_PROFILE['source_adapter_sha256']
+    old['source_adapter_dependency_sha256'] = deepcopy(m.PRE_RELIABILITY_IMPORT_PROFILE['source_adapter_dependency_sha256'])
     if mutation == 'wrong_pin':
         old['continuation_dependency_sha256']['work/profit_1000_upgrade/candidate_natural_p0_continuation.py'] = 'f'*64
     if mutation == 'new_day':
@@ -336,7 +339,7 @@ def test_schedule_origin_must_keep_registered_name_real_D_and_window(tmp_path,mo
 
 
 def suspension_profile_fixture():
-    new_manifest = (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes()
+    new_manifest = source_before_reliability_isolation(m.MANIFEST_PATH, (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes())
     old_manifest = source_before_suspension_pin(m.MANIFEST_PATH, new_manifest)
     evidence = (gh.CODE_ROOT / m.SUSPENSION_EVIDENCE_PATH).read_bytes()
     raw = {gh.git_blob(b): b for b in (new_manifest, old_manifest, evidence)}
@@ -409,6 +412,8 @@ def test_original_pre_suspension_import_receipt_is_preserved_with_closed_date(tm
         github_client=c['client'], clock=lambda:NOW)
     old['importer_sha256'] = m.PRE_SUSPENSION_IMPORTER_SHA
     old['continuation_dependency_sha256'] = deepcopy(m.PRE_SUSPENSION_CONTINUATION_PINS)
+    old['source_adapter_sha256'] = m.PRE_RELIABILITY_IMPORT_PROFILE['source_adapter_sha256']
+    old['source_adapter_dependency_sha256'] = deepcopy(m.PRE_RELIABILITY_IMPORT_PROFILE['source_adapter_dependency_sha256'])
     if mutation == 'date': old['signal_date'] = '20261110'
     elif mutation == 'pins': old['continuation_dependency_sha256'] = {}
     elif mutation == 'transition': old['continuation']['reviewed_manifest_transition'] = {}
@@ -420,7 +425,7 @@ def test_original_pre_suspension_import_receipt_is_preserved_with_closed_date(tm
 
 def test_manifest_transition_is_wired_to_full_original_artifact_and_source_verification(tmp_path, monkeypatch):
     c = fixture(tmp_path, monkeypatch, current_profile=True)
-    new_manifest = (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes()
+    new_manifest = source_before_reliability_isolation(m.MANIFEST_PATH, (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes())
     evidence = (gh.CODE_ROOT / m.SUSPENSION_EVIDENCE_PATH).read_bytes()
     c['old'][m.SUSPENSION_EVIDENCE_PATH] = evidence
     c['all_new'][m.SUSPENSION_EVIDENCE_PATH] = evidence

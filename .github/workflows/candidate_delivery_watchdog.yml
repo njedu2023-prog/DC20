@@ -21,8 +21,10 @@ on:
     branches: [main]
     paths:
       - scripts/candidate_delivery_watchdog.py
+      - scripts/candidate_runtime_preflight.py
       - scripts/dc20_writer_queue.py
       - tests/test_candidate_delivery_watchdog.py
+      - tests/test_candidate_watchdog_code_approval.py
       - tests/test_candidate_delivery_missing_p0.py
       - tests/test_dc20_writer_queue.py
       - .github/workflows/candidate_delivery_watchdog.yml
@@ -59,7 +61,7 @@ jobs:
           python-version: '3.12.13'
       - run: >-
           python -m pip install --only-binary=:all: --require-hashes -r requirements-dev.lock
-      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_delivery_missing_p0.py tests/test_dc20_writer_queue.py
+      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_watchdog_code_approval.py tests/test_candidate_delivery_missing_p0.py tests/test_dc20_writer_queue.py
       - name: Check live queue without dispatch on push
         if: github.event_name == 'push'
         env:

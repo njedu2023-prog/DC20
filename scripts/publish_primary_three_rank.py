@@ -43,6 +43,7 @@ from top10decision.decision.three_rank import (
     validate_three_rank_contract,
 )
 from top10decision.decision.d_close_features import D_CLOSE_MAX_HISTORY_BARS
+from top10decision.decision import suspension_evidence_registry as suspension_registry
 from top10decision.writers.io_contract import next_a_share_trading_day
 
 
@@ -98,6 +99,7 @@ PROMOTION_PRIOR_SOURCE_PATHS = (
     "data/auction_v3/promotion_prior/five_year_event_features.csv.gz",
 )
 PRIMARY_RUNTIME_CODE_PATHS = (
+    "scripts/primary_failure_diagnostics.py",
     "scripts/publish_primary_three_rank.py",
     "src/top10decision/auction_v3/__init__.py",
     "src/top10decision/auction_v3/calibration.py",
@@ -111,6 +113,7 @@ PRIMARY_RUNTIME_CODE_PATHS = (
     "src/top10decision/decision/eligibility.py",
     "src/top10decision/decision/exit_policy.py",
     "src/top10decision/decision/observation.py",
+    "src/top10decision/decision/suspension_evidence_registry.py",
     "src/top10decision/decision/three_engine_models.py",
     "src/top10decision/decision/three_rank.py",
     "src/top10decision/decision/trade_selector.py",
@@ -121,6 +124,17 @@ PRIMARY_RUNTIME_CODE_PATHS = (
 
 class PrimaryDGenerationError(ValueError):
     """Raised when the P0 list cannot prove one of its primary inputs."""
+
+
+class PrimaryPoolIdentityError(PrimaryDGenerationError):
+    """An attributable pool failure; diagnostics never grant ranking admission."""
+
+    def __init__(self, message: str, *, audit_rows: list[dict[str, Any]],
+                 stock_names: dict[str, str]) -> None:
+        super().__init__(message)
+        self.audit_rows = audit_rows
+        self.stock_names = stock_names
+        self.source_bindings: dict[str, str] = {}
 
 
 def _canonical_json_bytes(value: Any, *, pretty: bool = False) -> bytes:
@@ -332,6 +346,8 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         relative = "data/market/confirmed_suspensions.json"
         path = self.config.root / relative
         if not path.exists():
+            if self._primary_signal_date >= suspension_registry.ACTIVE_FROM:
+                raise PrimaryDGenerationError("missing frozen suspension baseline")
             self._confirmed_suspensions = []
             return []
         binding = (
@@ -343,6 +359,19 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         records = payload.get("suspensions")
         if payload.get("schema_version") != "dc20_confirmed_suspensions_v1" or not isinstance(records, list):
             raise PrimaryDGenerationError("invalid confirmed suspension evidence schema")
+        registry_declaration = None
+        if self._primary_signal_date >= suspension_registry.ACTIVE_FROM:
+            if self._primary_verifier is None:
+                raise PrimaryDGenerationError("suspension registry requires fixed HEAD provenance")
+            def read_registry_file(logical_path):
+                item = self._primary_verifier.bind(logical_path, label="versioned suspension evidence")
+                return (self.config.root / logical_path).read_bytes(), item
+            try:
+                additions, registry_declaration = suspension_registry.load_registry(
+                    read_registry_file, signal_date=self._primary_signal_date, legacy_records=records)
+            except (OSError, suspension_registry.SuspensionRegistryError) as exc:
+                raise PrimaryDGenerationError(f"invalid versioned suspension evidence: {exc}") from exc
+            records = records + additions
         checked: list[dict[str, Any]] = []
         for record in records:
             if not isinstance(record, dict):
@@ -382,6 +411,8 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         self._primary_consumed["confirmed_suspensions"] = {
             **binding, "table": "confirmed_suspensions", "used_intervals": [],
         }
+        if registry_declaration is not None:
+            self._primary_consumed["confirmed_suspensions"]["registry"] = registry_declaration
         self._confirmed_suspensions = checked
         return checked
 
@@ -590,6 +621,10 @@ class PrimaryDReadOnlyEngine(AuctionV3Engine):
         return super().minute_table(trade_date, code)
 
     def consumed_bindings(self) -> list[dict[str, Any]]:
+        # Empty pools still carry the same source-version declaration; absence
+        # of candidate rows is not permission to omit the registry guard.
+        if self._primary_signal_date >= suspension_registry.ACTIVE_FROM:
+            self._suspension_evidence()
         return [dict(self._primary_consumed[key]) for key in sorted(self._primary_consumed)]
 
 
@@ -1146,8 +1181,11 @@ def audit_complete_hard_pool(
         )
     if losses:
         detail = _canonical_json_bytes(losses).decode("utf-8")
-        raise PrimaryDGenerationError(
-            f"hard-stage identities were not preserved into inference: {detail}"
+        raise PrimaryPoolIdentityError(
+            f"hard-stage identities were not preserved into inference: {detail}",
+            audit_rows=rows,
+            stock_names={str(row["ts_code"]): str(row.get("name") or "")
+                         for row in pool.to_dict(orient="records")},
         )
     if len(inference) != len(pool):
         raise PrimaryDGenerationError(
@@ -1836,13 +1874,21 @@ def publish_primary_three_rank(
         signal_date,
         primary_base,
     )
-    pool_audit["hard_to_inference"] = audit_complete_hard_pool(
-        pool,
-        primary_base,
-        inference,
-        engine=engine,
-        signal_date=signal_date,
-    )
+    try:
+        pool_audit["hard_to_inference"] = audit_complete_hard_pool(
+            pool,
+            primary_base,
+            inference,
+            engine=engine,
+            signal_date=signal_date,
+        )
+    except PrimaryPoolIdentityError as exc:
+        exc.source_bindings = {
+            "code_revision": verifier.head,
+            "candidate_sha256": candidate_binding["sha256"],
+            "market_metadata_sha256": market_binding["meta_sha256"],
+        }
+        raise
     inference = _ensure_empty_promotion_schema(inference, loaded)
     snapshot = score_three_engine_snapshot(
         inference,
@@ -2026,6 +2072,26 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (PrimaryDGenerationError, ThreeEngineArtifactError, ThreeRankContractError) as exc:
         print(f"[P0 BLOCK] {exc}", file=sys.stderr)
+        # Auxiliary diagnostics must never turn a blocked generation into READY.
+        # Keep these files outside every formal output index and ledger.
+        try:
+            if __package__:
+                from .primary_failure_diagnostics import build_diagnostic, write_diagnostic
+            else:
+                from primary_failure_diagnostics import build_diagnostic, write_diagnostic
+            typed = isinstance(exc, PrimaryPoolIdentityError)
+            diagnostic = build_diagnostic(
+                _normal_date(args.signal_date),
+                audit_rows=exc.audit_rows if typed else None,
+                stock_names=exc.stock_names if typed else None,
+                source_bindings=exc.source_bindings if typed else None,
+                run_id=os.environ.get("GITHUB_RUN_ID", ""),
+                run_attempt=os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+            )
+            paths = write_diagnostic(Path(args.root), diagnostic)
+            print(f"[P0 DIAGNOSTIC ONLY] {paths['html']}", file=sys.stderr)
+        except (OSError, ValueError, TypeError, KeyError) as diagnostic_error:
+            print(f"[P0 DIAGNOSTIC UNAVAILABLE] {type(diagnostic_error).__name__}", file=sys.stderr)
         return 2
     contract = result["contract"]
     print(

@@ -634,7 +634,7 @@
     ".github/workflows/migrate_decision_runtime.yml": "18e9e489ea78205528ddbdd9a9068ed85ab64d3a79960ca51192e9469532e545",
     ".github/workflows/run_auction_v3.yml": "bdb71c0793d3550e50eb61b6237eb8a677dc45c89bd06e01445efd9ab4d43f3f",
     ".github/workflows/run_decision_daily.yml": "2a5f230bf6fc725598d7edc600c11df86815b660f22d90a425ac8ac211e5500c",
-    ".github/workflows/run_primary_d_daily.yml": "2f670dd9afb5b4156bd8e3e04c61fbc63251cff8da200ca5bfe18fb63bda2868",
+    ".github/workflows/run_primary_d_daily.yml": "adac7138f01822c41fd9f0165ba6dfa59fcd74f1983f4a2753947354bb445551",
     ".github/workflows/run_primary_profit_forward_shadow.yml": "863c5f755a3746d8cd7adf8641f5eb44e20cc676f98cb53b22854d8d13bafaa8",
     ".github/workflows/run_primary_profit_rankings.yml": "9415f8e78b753f471a3ea648b2d4a7535e5911d49bfb99839c892eabb5207027",
     ".github/workflows/test_decision_core.yml": "f419f49daf23614063b5ec86a25e8ed981eb6c7bc1fad191772da62dfb4a2e7f",
@@ -715,7 +715,7 @@
     "scripts/publish_decision_action.py": "1b0118ce8fddc52dbb0d6fef92a92501dc658e958f6a9731c7f89d033b6ed275",
     "scripts/publish_decision_research_context.py": "095109bedc4536d0691d456f14ca198485e77c1d1c41d0835b1c63fdcaa10096",
     "scripts/publish_primary_profit_rankings.py": "1449849bda6d93859db08ab60fd88b5140f60802a505de8957bf5aab43b5e905",
-    "scripts/publish_primary_three_rank.py": "bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8",
+    "scripts/publish_primary_three_rank.py": "1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0",
     "scripts/recover_decision_action_gaps.py": "1a202d22c9b5b72c5334067ba6d362384888ed22c0631a5d0c5f56e1a67813c8",
     "scripts/refreeze_decision_three_rank.py": "152e6f83b8a2ad53a591187b06a6367aa3c7c7eece27facc710425e2144297ad",
     "scripts/replay_frozen_canonical_v2.py": "ce30629fcf88de0046fe306c8394c5ae7674518188afa181791f001680e2a39a",
@@ -863,6 +863,9 @@
     "src/top10decision/decision/shadow_exit_continuous_truth.py": "e9cc3e61dcdd410e1b262740efd911ee84ea56018e4ccc464cca334a4329dc1a",
     "data/market/confirmed_suspensions.json": "4f9a6341823d23283d25a02b62957671cabfa2e1aa77f6ea25b25d46cfa12158",
     "tests/test_primary_confirmed_suspension.py": "1ee7dc4fd12bc53e86ec49169df686c98d1419c8feb8da5cf2d1af26830ab0e2",
-    "scripts/stage_current_profit_research.py": "1dd14ceb4794038375f52496cbe7cfc7852045c25eb4fb62c40ea6986441b017"
+    "scripts/stage_current_profit_research.py": "1dd14ceb4794038375f52496cbe7cfc7852045c25eb4fb62c40ea6986441b017",
+    "src/top10decision/decision/suspension_evidence_registry.py": "efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9",
+    "scripts/primary_failure_diagnostics.py": "4d89fe7325bbf52ba3296f390e2987ecba5b3e160514d0b55000a0a3e27d2ac8",
+    "scripts/candidate_runtime_preflight.py": "8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69"
   }
 }

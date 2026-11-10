@@ -48,6 +48,7 @@ class EvidenceGitWriter:
         require(type(token) is str and token and not any(c.isspace() for c in token), 'TOKEN_REQUIRED')
         self.token, self.calls, self.started = token, 0, time.monotonic()
         self._continuation_budget = False
+        self._capsule_budget = 0
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, *args, **kwargs):
                 return None
@@ -57,6 +58,13 @@ class EvidenceGitWriter:
         require(self.calls == 0, 'CONTINUATION_WRITER_MUST_START_BEFORE_ANY_CALL')
         self._continuation_budget = True
 
+    def enable_capsule_budget(self, files):
+        require(self.calls == 0, 'CAPSULE_WRITER_MUST_START_BEFORE_ANY_CALL')
+        # Extra writes require a fully verified bounded capsule, not a caller
+        # supplied count. HEAD compare-and-swap remains mandatory below.
+        validate_files(files)
+        self._capsule_budget = len(files) + 16
+
     def call(self, method, suffix, payload=None):
         allowed = ((method == 'GET' and (suffix == '/git/ref/heads/main' or
             re.fullmatch(r'/git/(commits|trees)/[0-9a-f]{40}(\?recursive=1)?', suffix))) or
@@ -64,7 +72,7 @@ class EvidenceGitWriter:
             (method == 'PATCH' and suffix == '/git/refs/heads/main'))
         require(allowed, 'NON_GIT_ROUTE_REJECTED')
         self.calls += 1
-        require(self.calls <= (192 if self._continuation_budget else 128) and time.monotonic() - self.started < 300, 'GIT_BUDGET_EXCEEDED')
+        require(self.calls <= max(192 if self._continuation_budget else 128, self._capsule_budget) and time.monotonic() - self.started < 300, 'GIT_BUDGET_EXCEEDED')
         body = None if payload is None else encoded(payload)
         forbidden = (self.token.encode(), json.dumps(self.token)[1:-1].encode())
         require(body is None or not any(x in body for x in forbidden), 'CREDENTIAL_PAYLOAD_REJECTED')
@@ -93,7 +101,13 @@ def _capsule_file_limit(files):
         value = json.loads(raw)
     except (ValueError, TypeError):
         return MAX_FILES
-    if not isinstance(value, dict) or value.get('p0_provenance_kind') != 'ORIGINAL_GENERATION_REDEPLOYMENT':
+    if not isinstance(value, dict):
+        return MAX_FILES
+    from top10decision.decision import suspension_evidence_registry as registry
+    source_bindings = value.get('original_source_bindings', [])
+    registry_sources = isinstance(source_bindings, list) and any(
+        type(b) is dict and registry.is_registry_path(b.get('path')) for b in source_bindings)
+    if value.get('p0_provenance_kind') != 'ORIGINAL_GENERATION_REDEPLOYMENT' and not registry_sources:
         return MAX_FILES
     from work.profit_1000_upgrade import candidate_natural_evidence as capture
     prefix = name.removesuffix('manifest.json')
@@ -124,7 +138,7 @@ def validate_files(files):
 def publish_new_evidence(files, *, github_client, deadline, clock=lambda: datetime.now(timezone.utc), pre_cas_guard=None):
     day = validate_files(files)
     if type(github_client) is EvidenceGitWriter and _capsule_file_limit(files) > MAX_FILES:
-        github_client.enable_continuation_budget()
+        github_client.enable_capsule_budget(files)
     sealed = tuple(sorted(files.items()))
     require(deadline.tzinfo is not None and clock() < deadline, 'EVIDENCE_PUBLICATION_DEADLINE_PASSED')
     head = sha40(github_client.call('GET', '/git/ref/heads/main')['object']['sha'])

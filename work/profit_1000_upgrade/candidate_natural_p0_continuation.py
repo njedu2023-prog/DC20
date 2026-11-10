@@ -76,6 +76,125 @@ PRE_NEXT_DAY_CONTINUATION_PINS = {
     'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'fdfd921f5b2fd8de09a4c76810c0d4042533c122a55c8b3830999176d6524b96',
     'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
 }
+PRE_RELIABILITY_IMPORT_PROFILE = {'importer_sha256': '514b001ce944cf1529757dc06f972eb313c8515f0fea02a55818433b414d8e46',
+ 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': 'bb90b81c93787fd5e2ababdd76adaff33f3dec2bf1fb4553c57723b7a8003ba8',
+                                      'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+                                      'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+                                      'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+                                      'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ 'source_adapter_sha256': 'eb95ce0f8fd1c7ceb354108aa70bc2c3806ddabc33122b9569c8d8b3bffd041b'}
+PRE_RELIABILITY_CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '6718bb26b269444fd0313b3854ce51f02d81b5fdf21ffd1523b00e2f3e0e12b2',
+ 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
+RELIABILITY_P0_CODE_PROFILE = {'.github/workflows/run_primary_d_daily.yml': 'bbe106513b75e6ab9bb92dc273ad3efa2495a4a7',
+ 'models/decision_model_freeze.json': '7f952c9590147e6ee4b447a373e0b69849a2a668',
+ 'models/decision_three_engines/promotion.joblib': '41ab1b8771cc3f601da4afc5521eea31d15b6385',
+ 'models/decision_three_engines/validation_latest.json': '805eb6df569787b7f4fdc757cc464e57535cc0bf',
+ 'requirements-dev.lock': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+ 'requirements.lock': '93ed4f921c4b9abe94c02e74a97b932a304d27d5',
+ 'scripts/candidate_runtime_preflight.py': 'dfa65d534b65a3b9f00d7dfff2f6c5c0fee281d7',
+ 'scripts/primary_failure_diagnostics.py': '8d69e8c3ae0f3bb20cfcd9386ed0821ef33b028d',
+ 'scripts/publish_primary_three_rank.py': '2a730786322ffa4d697804c9d17f5c55d3c5a0a8',
+ 'scripts/sync_market_raw.py': 'ede7b0e29dc67c5f7552f5b8c71a2788f144de83',
+ 'scripts/sync_pred_source.py': 'a5517d8271f0dc67c8034e16a1534a838f22fb06',
+ 'src/top10decision/auction_v3/__init__.py': '8608ad5871ac45206bfa471ebea90e799113fe82',
+ 'src/top10decision/auction_v3/calibration.py': 'abb71530b1b62889d924a06bfd490d82c0c4a2db',
+ 'src/top10decision/auction_v3/config.py': '714a8c922b458db06f0ff4b93cebf19b3c2bcbb8',
+ 'src/top10decision/auction_v3/engine.py': '191c42d51485c06406eebc4046994184b542b152',
+ 'src/top10decision/auction_v3/promotion_model.py': 'c4ea817f173e6058004b19522a1862d486eb755f',
+ 'src/top10decision/data/tushare_minute.py': 'dc27bff77ac11b9ea871220b8189aaf6725a9f81',
+ 'src/top10decision/decision/canonical_fingerprint.py': 'c313f51c1c0630565bcaacca3783680f6e03d785',
+ 'src/top10decision/decision/contracts.py': '34862a4dcdb3160754189e8301b49ab24c9dbf2e',
+ 'src/top10decision/decision/d_close_features.py': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+ 'src/top10decision/decision/eligibility.py': '34ae803f7ea73cee861865ba49507dd81c0655c1',
+ 'src/top10decision/decision/exit_policy.py': 'a495782254ddf3f58aa52ee668fe441f2aef315e',
+ 'src/top10decision/decision/model_freeze.py': '38b190572b9afae3eaca2662e936e1e750e1d034',
+ 'src/top10decision/decision/observation.py': 'd3f848e30519938b8530e6da7890a761f6722260',
+ 'src/top10decision/decision/suspension_evidence_registry.py': 'ff88c1442dee7586adb14e6d00047408aeac53f8',
+ 'src/top10decision/decision/three_engine_models.py': '7a74a2fde21465a632db3a11c81954031ad550db',
+ 'src/top10decision/decision/three_rank.py': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+ 'src/top10decision/decision/trade_selector.py': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63',
+ 'src/top10decision/probability_calibration.py': 'a005f68b26465bee49de70c57824c7a56c32d61f',
+ 'src/top10decision/writers/io_contract.py': '28ded13148bcdd334da10767b1aed83e44c32e7c'}
+RELIABILITY_RUNTIME_CODE_BINDINGS = [{'path': 'scripts/primary_failure_diagnostics.py',
+  'sha256': '4d89fe7325bbf52ba3296f390e2987ecba5b3e160514d0b55000a0a3e27d2ac8',
+  'git_blob_sha1': '8d69e8c3ae0f3bb20cfcd9386ed0821ef33b028d',
+  'git_mode': '100644'},
+ {'path': 'scripts/publish_primary_three_rank.py',
+  'sha256': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0',
+  'git_blob_sha1': '2a730786322ffa4d697804c9d17f5c55d3c5a0a8',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/auction_v3/__init__.py',
+  'sha256': '1989253ea8106f0350ca08445ca41f623374c08c73d6621e23d34cf2860aded8',
+  'git_blob_sha1': '8608ad5871ac45206bfa471ebea90e799113fe82',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/auction_v3/calibration.py',
+  'sha256': '06890dee4d9c7a6cd007ebdda823b4907774ba372ebe37f3072432335fce79a9',
+  'git_blob_sha1': 'abb71530b1b62889d924a06bfd490d82c0c4a2db',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/auction_v3/config.py',
+  'sha256': '4c28a0ae2265435074a0689f4ad904ebfe465bd59fce3e8f558764d5014b94b2',
+  'git_blob_sha1': '714a8c922b458db06f0ff4b93cebf19b3c2bcbb8',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/auction_v3/engine.py',
+  'sha256': '68b39867e22761809c5636c1274013040e71555149193c0856ad44a51ec0d5d8',
+  'git_blob_sha1': '191c42d51485c06406eebc4046994184b542b152',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/auction_v3/promotion_model.py',
+  'sha256': 'af9941589e7eec766a3a855d9d8e384316852ea7f74c23122968961cc4cb2170',
+  'git_blob_sha1': 'c4ea817f173e6058004b19522a1862d486eb755f',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/data/tushare_minute.py',
+  'sha256': '30aa95e69040d3d61bd3f7ec9e9afe7bde909606e72c3fe5e687d0ef967af785',
+  'git_blob_sha1': 'dc27bff77ac11b9ea871220b8189aaf6725a9f81',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/canonical_fingerprint.py',
+  'sha256': '61024fb51f54eb1a90af59baf6330eee16dbe9678167e96fcf5940b51a4cc58b',
+  'git_blob_sha1': 'c313f51c1c0630565bcaacca3783680f6e03d785',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/contracts.py',
+  'sha256': '50e2cba257ee02804db8937a4a072572a56372afba941dfec9bfa719b812c917',
+  'git_blob_sha1': '34862a4dcdb3160754189e8301b49ab24c9dbf2e',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/d_close_features.py',
+  'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+  'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/eligibility.py',
+  'sha256': '31692b832fb0a6d4e83a2880600e78d36e38086f593ee4641174dd07f808acb7',
+  'git_blob_sha1': '34ae803f7ea73cee861865ba49507dd81c0655c1',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/exit_policy.py',
+  'sha256': '4c68819862b69541d55624b1f8be6dce69c902d20d4e9420212415596dd4597f',
+  'git_blob_sha1': 'a495782254ddf3f58aa52ee668fe441f2aef315e',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/observation.py',
+  'sha256': '577fbb21166fd39456ff17a06d0a6fde0a860e531dbe38b66ea117c0dd12d713',
+  'git_blob_sha1': 'd3f848e30519938b8530e6da7890a761f6722260',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/suspension_evidence_registry.py',
+  'sha256': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9',
+  'git_blob_sha1': 'ff88c1442dee7586adb14e6d00047408aeac53f8',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/three_engine_models.py',
+  'sha256': '9a4a2405e3b95af9f1c05100aa8b97dc8b3ee62d63b4dda12e13f7f0fcd1de4c',
+  'git_blob_sha1': '7a74a2fde21465a632db3a11c81954031ad550db',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/three_rank.py',
+  'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+  'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/decision/trade_selector.py',
+  'sha256': '7934daec17dd50b5e702878fbe7e9ac35f894eff20daef0bedbe29712b182858',
+  'git_blob_sha1': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/probability_calibration.py',
+  'sha256': '058437b22042db5eed8572ff2b6e67fc5d2b6415bc7f89f846a5c230f983717c',
+  'git_blob_sha1': 'a005f68b26465bee49de70c57824c7a56c32d61f',
+  'git_mode': '100644'},
+ {'path': 'src/top10decision/writers/io_contract.py',
+  'sha256': '80bff133b8cd1519f0ef701338b0000587e22a6202212de80f0de5e6d91e0b97',
+  'git_blob_sha1': '28ded13148bcdd334da10767b1aed83e44c32e7c',
+  'git_mode': '100644'}]
 MAX_ANCESTRY = 24
 SKIPPED_STEPS = (
     "Resolve immutable upstream commits", "Snapshot protected secondary state",
@@ -91,7 +210,9 @@ def require(ok, reason):
 
 def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identity):
     """Admit complete fixed profiles, plus one exact original/deployed pin repair."""
-    profile = (SUSPENSION_P0_CODE_PROFILE
+    profile = (RELIABILITY_P0_CODE_PROFILE
+        if base_tree.get(MANIFEST_PATH, {}).get("sha") == RELIABILITY_P0_CODE_PROFILE[MANIFEST_PATH]
+        else SUSPENSION_P0_CODE_PROFILE
         if base_tree.get(MANIFEST_PATH, {}).get('sha') == SUSPENSION_P0_CODE_PROFILE[MANIFEST_PATH]
         else NEXT_DAY_STATISTICS_P0_CODE_PROFILE
         if base_tree.get(MANIFEST_PATH, {}).get('sha') == NEXT_DAY_STATISTICS_P0_CODE_PROFILE[MANIFEST_PATH]
@@ -100,6 +221,8 @@ def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identi
         else CONTROLLED_P0_CODE_PROFILE
         if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
         == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)
+    if profile is RELIABILITY_P0_CODE_PROFILE:
+        require(gh.date(identity.get("signal_date")) >= "20261111", "RELIABILITY_PROFILE_ACTIVATION_DATE_REQUIRED")
     deployed_profile = profile
     transition = None
     if (profile is NEXT_DAY_STATISTICS_P0_CODE_PROFILE
@@ -219,13 +342,14 @@ def select_generation_artifact(gh, document, run, run_id):
 class Reads:
     def __init__(self, gh, client):
         self.gh, self.client, self.cost = gh, client, 0
+        self.registry_allowance = 0
         self.bound, self.trees, self.blobs = {}, {}, {}
         if type(client) is gh.GitHubReadClient:
             client.enable_continuation_reads()
 
     def json(self, suffix, *, refresh=False):
         gh = self.gh
-        self.cost += 1; require(self.cost <= MAX_READS, "CONTINUATION_READ_BUDGET_EXCEEDED")
+        self.cost += 1; require(self.cost <= MAX_READS + self.registry_allowance, "CONTINUATION_READ_BUDGET_EXCEEDED")
         value = self.client.get_json(gh.API_PREFIX + suffix)
         require(type(value) is dict, "CONTINUATION_JSON_REQUIRED")
         if not refresh:
@@ -256,7 +380,7 @@ class Reads:
         return self.blobs[key]
 
     def archive(self, artifact):
-        self.cost += 2; require(self.cost <= MAX_READS, "CONTINUATION_READ_BUDGET_EXCEEDED")
+        self.cost += 2; require(self.cost <= MAX_READS + self.registry_allowance, "CONTINUATION_READ_BUDGET_EXCEEDED")
         raw = self.client.get_artifact_zip(artifact["id"])
         require(type(raw) is bytes and len(raw) == artifact["size_in_bytes"]
             and self.gh.sha256(raw) == artifact["digest"][7:], "CONTINUATION_ARTIFACT_DIGEST_CHANGED")
@@ -349,6 +473,17 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     require(receipt["inputs"]["git_head"] == r0["head_sha"]
         and [p.get("sha") for p in cas.get("parents", [])] == [r0["head_sha"]], "ORIGINAL_CAS_SINGLE_PARENT_CHANGED")
     registered, daily, _, _ = gh.adapter._registration(receipt, contract, day)
+    registry_bindings = [binding for item in receipt["inputs"]["runtime_consumed_market_files"]
+        if item.get("table") == "confirmed_suspensions" and "registry" in item
+        for binding in gh.adapter.suspension_registry.validate_declaration(item["registry"]).values()]
+    reads.registry_allowance = len(registry_bindings)
+    if type(client) is gh.GitHubReadClient:
+        client.enable_registry_reads(receipt, contract, day)
+    for binding in registry_bindings:
+        require(all(tree.get(binding["path"], {}).get("type") == "blob"
+            and tree[binding["path"]].get("mode") == "100644"
+            and tree[binding["path"]].get("sha") == binding["git_blob_sha1"]
+            for tree in (base_tree, cas_tree)), "REGISTRY_NOT_IN_ORIGINAL_P0_BASE")
     if original_sources is None:
         for p in registered: sources[p] = reads.blob(cas_tree, p)
     count = gh.validate_original_source_inventory(receipt, contract, sources, day)
@@ -378,7 +513,7 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     code_profile, manifest_transition = validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree,
         {'signal_date': day, 'original_run_id': original_run_id, 'original_head': r0['head_sha'],
          'original_cas': original_cas_commit, 'reuse_run_id': reuse_run_id, 'deployed_head': deployed_sha})
-    runtime_bindings = (CONTROLLED_RUNTIME_CODE_BINDINGS
+    runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile is RELIABILITY_P0_CODE_PROFILE else CONTROLLED_RUNTIME_CODE_BINDINGS
         if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
     static_inputs = receipt["inputs"].get("committed_static_inputs", {})
     require(static_inputs.get("git_head") == r0["head_sha"]
@@ -449,6 +584,9 @@ def validate_import_receipt(gh, imported):
         "successful_publication_git_sha": "successful_publication_git_sha",
         "expected_p0_sha256": "expected_p0_sha256", "source_file_bindings": "source_file_bindings",
         "original_file_count": "original_file_count", "observed_p0_cas_job_completed_at": "observed_p0_cas_job_completed_at"}
+    prior_reliability = imported.get("importer_sha256") == PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"]
+    if prior_reliability:
+        require(gh.date(imported.get("signal_date")) <= "20261110", "PRE_RELIABILITY_CONTINUATION_IMPORT_DATE_CHANGED")
     prior_suspension = imported.get("importer_sha256") == PRE_SUSPENSION_IMPORTER_SHA
     if prior_suspension:
         require(gh.date(imported.get("signal_date")) <= "20261109"
@@ -457,10 +595,10 @@ def validate_import_receipt(gh, imported):
     if previous:
         require(gh.date(imported.get("signal_date")) <= "20261106", "PRE_NEXT_DAY_CONTINUATION_IMPORT_DATE_CHANGED")
     require(all(imported.get(k) == proof.get(v) for k, v in pairs.items())
-        and imported.get("continuation_dependency_sha256") == (PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
-        and imported.get("importer_sha256") == (PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
-        and imported.get("source_adapter_sha256") == gh.ADAPTER_SHA
-        and imported.get("source_adapter_dependency_sha256") == gh.adapter.CODE_PINS,
+        and imported.get("continuation_dependency_sha256") == (PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
+        and imported.get("importer_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
+        and imported.get("source_adapter_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_sha256"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)
+        and imported.get("source_adapter_dependency_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_dependency_sha256"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),
         "CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH")
     require(proof["original_generation_run"]["id"] != proof["successful_reuse_run"]["id"]
         and proof["original_generation_run"]["conclusion"] == "failure"

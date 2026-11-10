@@ -104,6 +104,70 @@ class GitHub:
         require(hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() == value['sha'], 'GIT_BLOB_MISMATCH')
         return raw
 
+    def candidate_code_approval(self, head):
+        """Read-only dispatch preflight; never forgive an earlier failed freeze.
+
+        A candidate run is not useful while the exact static code still awaits
+        its required push CI. Reuse the production approval validator, including
+        its run, jobs and actually executed regression-step checks. API errors or
+        malformed approval evidence remain errors, not an empty approval list.
+        """
+        if __package__:
+            from . import candidate_runtime_preflight as gate
+        else:
+            import candidate_runtime_preflight as gate
+        current = gate.remote_surface(self, head)
+        require(all(path in current for path in (gate.WORKFLOW,
+                'scripts/candidate_runtime_preflight.py',
+                'models/decision_model_freeze.json', 'requirements-dev.lock')),
+                'INCOMPLETE_STATIC_APPROVAL_SURFACE')
+        try:
+            return gate.approve(self, current, head)
+        except ValueError as exc:
+            if str(exc) not in {'NO_SUCCESSFUL_PUSH_REGRESSION_FOR_CURRENT_STATIC_SURFACE',
+                               'NO_MATCHING_APPROVAL_WITHIN_BOUNDED_HISTORY'}:
+                raise
+            value = self.request(f'/actions/workflows/{gate.WORKFLOW_ID}/runs?event=push&branch=main&per_page=100')
+            runs = value.get('workflow_runs')
+            require(isinstance(runs, list) and type(value.get('total_count')) is int
+                    and value['total_count'] >= len(runs) and len(runs) <= 100,
+                    'APPROVAL_RUN_LIST_INVALID')
+            matching, checked = [], set()
+            for candidate in runs:
+                if not gate.approval_origin(candidate):
+                    continue
+                candidate_head = gate.exact_sha(candidate.get('head_sha'))
+                checked.add(candidate_head)
+                require(len(checked) <= 30, 'APPROVAL_STATE_HISTORY_BOUND_EXCEEDED')
+                if gate.remote_surface(self, candidate_head) == current:
+                    matching.append(candidate)
+            run, pending = None, None
+            if matching:
+                latest = max(matching, key=lambda row: (stamp(row.get('created_at')), row['id']))
+                run = self.request(f'/actions/runs/{latest["id"]}')
+                require(gate.approval_origin(run) and all(run.get(key) == latest.get(key)
+                        for key in ('id', 'head_sha', 'created_at')),
+                        'APPROVAL_LATEST_RUN_IDENTITY_CHANGED')
+                require(gate.remote_surface(self, gate.exact_sha(run.get('head_sha'))) == current,
+                        'APPROVAL_LATEST_SURFACE_CHANGED')
+                if run.get('status') == 'completed':
+                    # A failed/cancelled CI needs repair, not another freeze and
+                    # not a green watchdog whose only explanation is "waiting".
+                    require(run.get('conclusion') == 'success', 'CODE_CI_FAILED_REQUIRES_REPAIR')
+                else:
+                    require(run.get('status') in {'queued', 'in_progress', 'waiting', 'pending', 'requested'},
+                            'APPROVAL_LATEST_STATE_INVALID')
+                    pending = run['id']
+                # It may complete between the list and this read. A successful
+                # badge alone cannot approve code; next tick verifies full jobs.
+            return {'status': 'WAITING_FOR_CODE_CI_APPROVAL', 'repository': REPO,
+                    'current_head_sha': head, 'surface_sha256': gate.digest(current),
+                    'pending_approval_run_id': pending,
+                    'latest_matching_approval_run_id': run['id'] if run else None,
+                    'reason': ('MATCHING_PUSH_CI_FOUND_RECHECK_REQUIRED' if pending is not None else
+                               'SUCCESSFUL_PUSH_CI_RECHECK_REQUIRED' if run else 'NO_MATCHING_SUCCESSFUL_PUSH_CI'),
+                    'daily_source_evidence_admitted': False, 'production_freeze_issued': False}
+
     def p0_sources(self, day, now):
         """Preflight only. The original P0 importer remains the source authority.
 
@@ -662,6 +726,19 @@ def act(client, plan, now, *, execute=False, clock=None):
     if plan.get('freeze_deadline'):
         cutoff = min(cutoff, stamp(plan['freeze_deadline']))
     require(plan.get('existing_formal') is True or now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
+    if workflow == NATURAL:
+        approval = client.candidate_code_approval(plan['head'])
+        require(approval.get('repository') == REPO and approval.get('current_head_sha') == plan['head']
+                and approval.get('daily_source_evidence_admitted') is False
+                and approval.get('production_freeze_issued') is False,
+                'DISPATCH_CODE_APPROVAL_BINDING_CHANGED')
+        plan = {**plan, 'code_approval': approval, 'prior_failed_attempts': len(failures)}
+        if approval.get('status') == 'WAITING_FOR_CODE_CI_APPROVAL':
+            # Preserve the original retry budget. Waiting here creates no run,
+            # does not reset past failures, and cannot extend either deadline.
+            return {**plan, 'status': 'WAITING_FOR_CODE_CI_APPROVAL'}
+        require(approval.get('status') == 'APPROVED_IDENTICAL_STATIC_SURFACE',
+                'DISPATCH_CODE_APPROVAL_NOT_VERIFIED')
     if not execute:
         return {**plan, 'status': 'DRY_RUN_WOULD_DISPATCH'}
     require(client.request('/git/ref/heads/main')['object']['sha'] == plan['head'], 'MAIN_MOVED_RECHECK_NEXT_TICK')
