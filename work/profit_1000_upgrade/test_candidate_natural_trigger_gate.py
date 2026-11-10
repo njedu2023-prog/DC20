@@ -276,8 +276,13 @@ def test_expanded_reuse_rejects_changed_original_evidence(tmp_path,monkeypatch,f
 
 
 def test_expanded_observer_noop_stays_within_original_get_budget(tmp_path,monkeypatch):
-    case=expanded_case(tmp_path,monkeypatch);client=case["client"]
-    receipt=gate.inspect_p0(run_id=NOOP_ID,github_client=client)
+    case=expanded_case(tmp_path,monkeypatch)
+    assert_observer_noop_budget(case, NOOP_ID)
+
+
+def assert_observer_noop_budget(case, trigger_id):
+    client=case["client"]
+    receipt=gate.inspect_p0(run_id=trigger_id,github_client=client)
     new_id="77812345678"
     run={**deepcopy(case["run"]),"id":int(new_id),"head_sha":"a"*40}
     jobs=deepcopy(case["jobs"])
@@ -305,19 +310,25 @@ def test_expanded_observer_noop_stays_within_original_get_budget(tmp_path,monkey
     print("EXPANDED_OBSERVER_NOOP_WEIGHTED_GETS",cost)
 
 
-def test_continuation_passes_actual_verified_sources_without_second_collection(tmp_path,monkeypatch):
+def test_new_continuation_preflight_retains_original_live_verification(tmp_path,monkeypatch):
     from work.profit_1000_upgrade import test_candidate_natural_p0_continuation as continuation_case
+    from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation
     case=continuation_case.fixture(tmp_path,monkeypatch)
     seen=[]
-    def existing(gh_arg,runner,client,tree,original_tree,day,trade,exit_day,revision,**kwargs):
-        sources=kwargs["verified_original_sources"]
-        proof=kwargs["verified_continuation"]
+    original_verify=continuation.verify_pair
+    def verify(*args,**kwargs):
+        proof,sources,revision=original_verify(*args,**kwargs)
         assert sources==case["sources"] and proof["source_file_bindings"]
+        day=proof["signal_date"]
         paths=gh.adapter._p0_paths(day)
         assert gh.validate_original_source_inventory(gh.parse_json(sources[paths["receipt"]]),
             gh.parse_json(sources[paths["three_rank_json"]]),sources,day)==28
         seen.append(proof)
+        return proof,sources,revision
+    def existing(gh_arg,runner,client,tree,original_tree,day,trade,exit_day,revision):
+        assert len(seen)==1
         return {"original_p0_run_id":int(continuation_case.R0)}
+    monkeypatch.setattr(continuation,"verify_pair",verify)
     monkeypatch.setattr(gate,"_existing_day",existing)
     out=gate.inspect_continuation(run_id=continuation_case.R1,
         original_generation_run_id=continuation_case.R0,original_cas_commit=continuation_case.CAS,
@@ -412,3 +423,107 @@ def test_expanded_noop_uses_verified_original_archive_after_temp_sources_are_gon
     print("EXPANDED_ORDINARY_NOOP_WEIGHTED_GETS",cost)
 
 
+def old_continuation_case(tmp_path, monkeypatch):
+    from tests import test_candidate_continuation_evidence as dual
+    from work.profit_1000_upgrade import test_candidate_natural_p0_continuation as pair
+    original = dual.make_case(tmp_path, monkeypatch)
+    with monkeypatch.context() as patch:
+        patch.setattr(fixtures, "make_case", lambda *args, **kwargs: original)
+        case = complete_case(tmp_path, monkeypatch)
+    # Historical capture was completed before these unrelated main commits.
+    current = "6" * 40
+    source = case["imported"]["continuation"]["source_main_sha"]
+    ancestry = [current] + [format(i, "040x") for i in range(1000, 1025)] + [source]
+    for descendant, parent in zip(ancestry, ancestry[1:]):
+        case["client"].responses[gh.API_PREFIX + "/git/commits/" + descendant] = {
+            "sha": descendant, "tree": {"sha": case["evidence_tree"]["sha"]}, "parents": [{"sha": parent}]}
+    case.update(trigger_id=pair.R1, live_chain=ancestry)
+    return case
+
+
+def test_existing_continuation_uses_original_captured_proof_after_26_main_commits(tmp_path, monkeypatch):
+    case = old_continuation_case(tmp_path, monkeypatch)
+    from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation
+    reads = continuation.Reads(gh, case["client"])
+    with pytest.raises(ValueError, match="CONTINUATION_ANCESTRY_BOUND_EXCEEDED"):
+        reads.ancestry(case["live_chain"][-1], case["live_chain"][0])
+    with pytest.raises(ValueError, match="CONTINUATION_ANCESTRY_BOUND_EXCEEDED"):
+        gate.inspect_continuation(run_id=case["trigger_id"],
+            original_generation_run_id=str(case["imported"]["run"]["id"]),
+            original_cas_commit=case["imported"]["published_git_sha"], github_client=case["client"])
+    start = len(case["client"].requests)
+    out = gate.inspect_p0(run_id=case["trigger_id"], github_client=case["client"])
+    cost = sum(2 if isinstance(item, tuple) else 1 for item in case["client"].requests[start:])
+    assert out["needs_work"] is False
+    assert out["status"] == "EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE"
+    assert cost <= gh.MAX_API_CALLS
+    assert not out["new_prediction_freeze_verified"] and not out["existing_files_modified"]
+    assert out["files_published"] == 0
+    live_paths = set(item for item in case["client"].requests[start:] if isinstance(item, str))
+    assert not any(gh.API_PREFIX + "/git/commits/" + commit in live_paths for commit in case["live_chain"][1:-1])
+    print("EXISTING_CONTINUATION_READONLY_WEIGHTED_GETS", cost)
+
+
+def test_existing_continuation_observer_noop_keeps_normal_50_get_budget(tmp_path, monkeypatch):
+    case = old_continuation_case(tmp_path, monkeypatch)
+    assert_observer_noop_budget(case, case["trigger_id"])
+
+
+@pytest.mark.parametrize("fault", ["current_blob", "current_mode", "current_size", "missing_source",
+    "missing_observer", "expired_observer", "changed_freeze_zip", "wrong_proof", "capture_replay_failed"])
+def test_existing_continuation_still_rejects_unverified_or_changed_evidence(tmp_path, monkeypatch, fault):
+    case = old_continuation_case(tmp_path, monkeypatch)
+    client = case["client"]
+    tree = client.responses[gh.API_PREFIX + "/git/trees/" + case["evidence_tree"]["sha"] + "?recursive=1"]
+    path = case["imported"]["source_file_bindings"][0]["path"]
+    entry = next(x for x in tree["tree"] if x["path"] == path)
+    if fault == "current_blob": entry["sha"] = "0" * 40
+    elif fault == "current_mode": entry["mode"] = "100755"
+    elif fault == "current_size": entry["size"] += 1
+    elif fault == "missing_source": tree["tree"].remove(entry)
+    elif fault == "missing_observer":
+        tree["tree"] = [x for x in tree["tree"] if x["path"] != issuer.PREFIX + case["imported"]["signal_date"] + "/context.json"]
+    elif fault == "expired_observer":
+        client.responses[gh.API_PREFIX + "/actions/runs/" + OBSERVER_ID + "/artifacts?per_page=100"]["artifacts"][0]["expired"] = True
+    elif fault == "changed_freeze_zip": client.archives[900] += b"changed"
+    elif fault == "wrong_proof":
+        from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation
+        original = continuation.validate_import_receipt
+        def wrong(*args, **kwargs):
+            proof = deepcopy(original(*args, **kwargs))
+            proof["source_main_sha"] = "e" * 40
+            return proof
+        monkeypatch.setattr(continuation, "validate_import_receipt", wrong)
+    elif fault == "capture_replay_failed":
+        def rejected(*args, **kwargs): raise ValueError("CAPTURE_REAL_REPLAY_REJECTED")
+        monkeypatch.setattr(issuer.capture, "verify_materials", rejected)
+    with pytest.raises(ValueError):
+        gate.inspect_p0(run_id=case["trigger_id"], github_client=client)
+
+
+def test_existing_continuation_rechecks_real_main_after_verification(tmp_path, monkeypatch):
+    case = old_continuation_case(tmp_path, monkeypatch)
+    client = case["client"]; original = client.get_json; calls = 0
+    def moved(path):
+        nonlocal calls
+        result = original(path)
+        if path == gh.API_PREFIX + "/git/ref/heads/main":
+            calls += 1
+            if calls == 2: result["object"]["sha"] = "e" * 40
+        return result
+    monkeypatch.setattr(client, "get_json", moved)
+    with pytest.raises(ValueError, match="P0_TRIGGER_MAIN_CHANGED_DURING_CHECK"):
+        gate.inspect_p0(run_id=case["trigger_id"], github_client=client)
+
+
+def test_existing_continuation_binds_all_four_current_raw_files_to_original_observation(tmp_path, monkeypatch):
+    case = old_continuation_case(tmp_path, monkeypatch)
+    day = case["imported"]["signal_date"]
+    payloads = [case["files"][gate.workflow.PREFIX + f"{kind}_{day}.json"]
+        for kind in ("day", "p0_sources", "local_freeze", "workflow")]
+    context = gh.parse_json(payloads[3])
+    payloads[3] += b" "  # Semantically identical JSON must still preserve exact bytes.
+    tree = gh.validate_tree(case["evidence_tree"], case["evidence_tree"]["sha"])
+    with pytest.raises(ValueError, match="EXISTING_CONTINUATION_FOUR_ORIGINAL_BYTES_CHANGED"):
+        gate._existing_evidence(gh, case["client"], tree, day, gh.parse_json(payloads[0]), context,
+            source_payloads=payloads, expected_continuation=case["imported"]["continuation"])

@@ -106,8 +106,9 @@ def test_original_model_gate_journal_profiles_and_reviews_are_unchanged():
         'work/profit_1000_upgrade/candidate_natural_trigger_gate.py',
         'work/profit_1000_upgrade/candidate_natural_journal_git.py',
         'work/profit_1000_upgrade/candidate_natural_outcomes.py'} <= paths
+    from tests.test_existing_continuation_source_review import source_before_existing_continuation
     for item in items:
-        raw = raw_source(item['path'])
+        raw = source_before_existing_continuation(item['path'], raw_source(item['path']))
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
     manifest = json.loads(raw_source('models/decision_model_freeze.json'))
     assert manifest['active'] is True and len(manifest['pinned_files']) == 237

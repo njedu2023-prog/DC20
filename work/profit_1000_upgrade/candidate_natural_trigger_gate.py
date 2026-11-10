@@ -108,7 +108,7 @@ def _tree(gh, client, commit_sha):
     return commit, tree
 
 
-def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision, *, verified_continuation=None, verified_original_sources=None):
+def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision):
     names = [workflow.PREFIX + f"{kind}_{day}.json" for kind in ("day", "p0_sources", "local_freeze", "workflow")]
     present = [name in tree for name in names]
     if not any(present):
@@ -142,32 +142,33 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
             and entry.get("sha") == binding["git_blob_sha1"] and entry.get("size") == binding["bytes"],
             "ORIGINAL_28_SOURCE_BLOB_IDENTITY_CHANGED")
     original_sources = None
+    existing_continuation = None
     original_id = gh.exact_id(str(imported["run"]["id"]))
     original_path = gh.API_PREFIX + "/actions/runs/" + original_id
     continuation, _ = gh.continuation_dependencies()
     if imported.get("schema_version") == continuation.IMPORT_SCHEMA:
-        proof = continuation.validate_import_receipt(gh, imported)
-        if verified_continuation is not None and verified_continuation.get("source_main_sha") != proof["source_main_sha"]:
-            verified_continuation = None
-        if verified_continuation is None or verified_original_sources is None:
-            verified_continuation, original_sources, _ = continuation.verify_pair(gh, client,
-                original_run_id=original_id, original_cas_commit=imported["published_git_sha"],
-                reuse_run_id=str(proof["successful_reuse_run"]["id"]), source_main_sha=proof["source_main_sha"])
-        else:
-            original_sources = verified_original_sources
-        require(verified_continuation == proof, "EXISTING_CONTINUATION_ORIGINAL_PROOF_CHANGED")
+        # This branch can only revalidate an already complete freeze. Its
+        # independently observed capsule replays the ORIGINAL bounded ancestry,
+        # rather than turning later unrelated main commits into new admission.
+        existing_continuation = continuation.validate_import_receipt(gh, imported)
+        for binding in imported["source_file_bindings"]:
+            entry = tree.get(binding["path"], {})
+            require(entry.get("type") == "blob" and entry.get("mode") == "100644"
+                and entry.get("sha") == binding["git_blob_sha1"] and entry.get("size") == binding["bytes"],
+                "EXISTING_CONTINUATION_SOURCE_TREE_CHANGED")
     else:
         original_run = client.get_json(original_path)
         require(gh.validate_run(original_run, original_id) == imported["run"]
             and gh.validate_jobs(client.get_json(original_path + "/attempts/1/jobs?per_page=100"), original_run, original_id)
                 == imported["critical_jobs"], "ORIGINAL_GENERATING_P0_RUN_CHANGED")
     # A later runner cannot read the original freezer's ephemeral source_root.
-    # Continuation verification already returned exact original source bytes.
-    # Ordinary expanded inventories use their independently observed freeze ZIP.
+    # The independently observed original freeze ZIP supplies continuation and
+    # expanded ordinary inventories; no old runner directory is authoritative.
     baseline_count = 28 + sum(b.get("path") == gh.adapter.SUSPENSION_PATH for b in imported["source_file_bindings"])
-    need_archive_sources = eligible and original_sources is None and len(imported["source_file_bindings"]) > baseline_count
+    need_archive_sources = existing_continuation is not None or (
+        eligible and len(imported["source_file_bindings"]) > baseline_count)
     observer_id, archived_sources = _existing_evidence(gh, client, tree, day, snapshot, context,
-        source_payloads=raw if need_archive_sources else None)
+        source_payloads=raw if need_archive_sources else None, expected_continuation=existing_continuation)
     if archived_sources is not None:
         original_sources = archived_sources
     if original_sources is not None:
@@ -201,7 +202,8 @@ def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day
             {"path": name, "sha256": gh.sha256(body), "git_blob_sha1": gh.git_blob(body)} for name, body in zip(names, raw)]}
 
 
-def _existing_evidence(gh, client, tree, day, snapshot, freeze_context, *, source_payloads=None):
+def _existing_evidence(gh, client, tree, day, snapshot, freeze_context, *, source_payloads=None,
+                       expected_continuation=None):
     """Do not hide a missing observer behind a valid prediction-only freeze."""
     from work.profit_1000_upgrade import candidate_natural_evidence_publication as issuer
     prefix = issuer.PREFIX + day + "/"
@@ -234,6 +236,16 @@ def _existing_evidence(gh, client, tree, day, snapshot, freeze_context, *, sourc
     observation_raw = gh.load_blob(client, tree, prefix + native["path"])
     require(gh.sha256(observation_raw) == native["sha256"], "EXISTING_OBSERVER_NATIVE_BYTES_CHANGED")
     observation = gh.parse_json(observation_raw)
+    if expected_continuation is not None:
+        require(observation.get("p0_continuation") == expected_continuation,
+            "EXISTING_CONTINUATION_ORIGINAL_PROOF_CHANGED")
+        require(type(source_payloads) is list and len(source_payloads) == 4,
+            "EXISTING_CONTINUATION_FOUR_PAYLOADS_REQUIRED")
+        original_bindings = [{"path": workflow.PREFIX + f"{kind}_{day}.json", "sha256": gh.sha256(body),
+            "git_blob_sha1": gh.git_blob(body), "bytes": len(body)}
+            for kind, body in zip(("day", "p0_sources", "local_freeze", "workflow"), source_payloads)]
+        require(observation.get("published_file_bindings") == sorted(original_bindings, key=lambda b: b["path"]),
+            "EXISTING_CONTINUATION_FOUR_ORIGINAL_BYTES_CHANGED")
     require(observation.get("research_prospective_publication_observed") is True
         and observation.get("injected_client_for_test") is False
         and observation.get("freeze_run_id") == freeze_context["run_id"]
@@ -330,6 +342,8 @@ def inspect_p0(*, run_id, github_client):
     require(generated or existing is not None, "P0_ALREADY_EXISTS_BUT_CANDIDATE_FREEZE_MISSING_REQUIRES_REPAIR")
     require(gh.validate_run(github_client.get_json(path), run_id) == bound_run
         and github_client.get_json(path + "/attempts/1/jobs?per_page=100") == jobs, "P0_TRIGGER_CHANGED_DURING_CHECK")
+    require(github_client.get_json(gh.API_PREFIX + "/git/ref/heads/main") == head,
+        "P0_TRIGGER_MAIN_CHANGED_DURING_CHECK")
     workflow.publication_guard()
     return {"schema_version": SCHEMA, "status": "NEW_P0_REQUIRES_ORIGINAL_IMPORT" if existing is None
         else "EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE", "needs_work": existing is None,
@@ -342,13 +356,12 @@ def inspect_continuation(*, run_id, original_generation_run_id, original_cas_com
                          clock=lambda: datetime.now(timezone.utc)):
     runner, gh = workflow.dependencies()
     continuation, _ = gh.continuation_dependencies()
-    proof, original_sources, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,
+    proof, _, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,
         original_cas_commit=original_cas_commit, reuse_run_id=run_id)
     day, trade, exit_day = (proof[k] for k in ("signal_date", "exec_date", "exit_date"))
     _, current_tree = _tree(gh, github_client, proof["source_main_sha"])
     _, original_tree = _tree(gh, github_client, original_cas_commit)
-    existing = _existing_day(gh, runner, github_client, current_tree, original_tree, day, trade, exit_day, revision,
-        verified_continuation=proof, verified_original_sources=original_sources)
+    existing = _existing_day(gh, runner, github_client, current_tree, original_tree, day, trade, exit_day, revision)
     if existing is None:
         close, auction = runner._window(day, trade)
         now = clock()

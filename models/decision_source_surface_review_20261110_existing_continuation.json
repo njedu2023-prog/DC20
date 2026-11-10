@@ -1,0 +1,524 @@
+{
+  "schema_version": "dc20_existing_continuation_source_review_v1",
+  "approved_base_commit": "451c5c1d25a0c90b4676717b92f068479115d3c8",
+  "scope": "READ_ONLY_EXISTING_CONTINUATION_PROOF_FROM_ORIGINAL_CAPTURE",
+  "rationale": "Revalidate an already-complete candidate freeze from the original observer capsule and native frozen archive after unrelated main commits exceed fresh continuation ancestry bounds. Replay the exact original proof without substituting a live current ref; bind original source bytes to current Git blobs and return only an existing-frozen no-op. The fresh continuation entry retains its original live verification, budgets, time and CAS guards.",
+  "boundaries": {
+    "existing_complete_freeze_revalidated_from_original_observer_archive": true,
+    "fresh_freeze_ancestry_or_time_guards_changed": false,
+    "live_current_ref_fabricated": false,
+    "live_api_budget_increased": false,
+    "model_weights_or_profile_pins_changed": false,
+    "production_237_pins_changed": false,
+    "original_continuation_module_changed": false,
+    "frozen_members_scores_or_source_bytes_changed": false,
+    "original_observer_ack_rewritten": false,
+    "same_asof_journal_protocol_changed": false,
+    "existing_delivery_or_settlement_semantics_changed": false,
+    "actual_trading_enabled": false
+  },
+  "predecessor_review": {
+    "path": "models/decision_source_surface_review_20261110_settlement_noop.json",
+    "sha256": "e4846e54b387bab3d98f0c13064e04d0c1bedd23d6991de95a2dff7e3431a2a6"
+  },
+  "source_changes": [
+    {
+      "path": "tests/test_settlement_noop_source_review.py",
+      "baseline_exists": true,
+      "baseline_bytes": 6742,
+      "baseline_sha256": "43ac9cfc787fde5d8e5bdd25d1f9e1dcde682852f007a8b110d681df976500c7",
+      "current_bytes": 6892,
+      "current_sha256": "49fda5f5dabe355243ab00657718ab74202a43b99dd8d91bbb3533eea8ce6935",
+      "inverse_changes": [
+        {
+          "current_start": 109,
+          "baseline_start": 109,
+          "current_lines": [
+            "    from tests.test_existing_continuation_source_review import source_before_existing_continuation\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 111,
+          "baseline_start": 110,
+          "current_lines": [
+            "        raw = source_before_existing_continuation(item['path'], raw_source(item['path']))\n"
+          ],
+          "baseline_lines": [
+            "        raw = raw_source(item['path'])\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_trigger_gate.py",
+      "baseline_exists": true,
+      "baseline_bytes": 29628,
+      "baseline_sha256": "019a797e69d3f4c1a6cd11d9495a52ca65a52756b480fe511bece23794ae6905",
+      "current_bytes": 30412,
+      "current_sha256": "fed78da292aeef09e06e0bf57e5acb3638e0de84b43d88d60a4aad4f60ac5706",
+      "inverse_changes": [
+        {
+          "current_start": 111,
+          "baseline_start": 111,
+          "current_lines": [
+            "def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision):\n"
+          ],
+          "baseline_lines": [
+            "def _existing_day(gh, runner, client, tree, published_tree, day, trade, exit_day, revision, *, verified_continuation=None, verified_original_sources=None):\n"
+          ]
+        },
+        {
+          "current_start": 145,
+          "baseline_start": 145,
+          "current_lines": [
+            "    existing_continuation = None\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 150,
+          "baseline_start": 149,
+          "current_lines": [
+            "        # This branch can only revalidate an already complete freeze. Its\n",
+            "        # independently observed capsule replays the ORIGINAL bounded ancestry,\n",
+            "        # rather than turning later unrelated main commits into new admission.\n",
+            "        existing_continuation = continuation.validate_import_receipt(gh, imported)\n",
+            "        for binding in imported[\"source_file_bindings\"]:\n",
+            "            entry = tree.get(binding[\"path\"], {})\n",
+            "            require(entry.get(\"type\") == \"blob\" and entry.get(\"mode\") == \"100644\"\n",
+            "                and entry.get(\"sha\") == binding[\"git_blob_sha1\"] and entry.get(\"size\") == binding[\"bytes\"],\n",
+            "                \"EXISTING_CONTINUATION_SOURCE_TREE_CHANGED\")\n"
+          ],
+          "baseline_lines": [
+            "        proof = continuation.validate_import_receipt(gh, imported)\n",
+            "        if verified_continuation is not None and verified_continuation.get(\"source_main_sha\") != proof[\"source_main_sha\"]:\n",
+            "            verified_continuation = None\n",
+            "        if verified_continuation is None or verified_original_sources is None:\n",
+            "            verified_continuation, original_sources, _ = continuation.verify_pair(gh, client,\n",
+            "                original_run_id=original_id, original_cas_commit=imported[\"published_git_sha\"],\n",
+            "                reuse_run_id=str(proof[\"successful_reuse_run\"][\"id\"]), source_main_sha=proof[\"source_main_sha\"])\n",
+            "        else:\n",
+            "            original_sources = verified_original_sources\n",
+            "        require(verified_continuation == proof, \"EXISTING_CONTINUATION_ORIGINAL_PROOF_CHANGED\")\n"
+          ]
+        },
+        {
+          "current_start": 165,
+          "baseline_start": 165,
+          "current_lines": [
+            "    # The independently observed original freeze ZIP supplies continuation and\n",
+            "    # expanded ordinary inventories; no old runner directory is authoritative.\n"
+          ],
+          "baseline_lines": [
+            "    # Continuation verification already returned exact original source bytes.\n",
+            "    # Ordinary expanded inventories use their independently observed freeze ZIP.\n"
+          ]
+        },
+        {
+          "current_start": 168,
+          "baseline_start": 168,
+          "current_lines": [
+            "    need_archive_sources = existing_continuation is not None or (\n",
+            "        eligible and len(imported[\"source_file_bindings\"]) > baseline_count)\n"
+          ],
+          "baseline_lines": [
+            "    need_archive_sources = eligible and original_sources is None and len(imported[\"source_file_bindings\"]) > baseline_count\n"
+          ]
+        },
+        {
+          "current_start": 171,
+          "baseline_start": 170,
+          "current_lines": [
+            "        source_payloads=raw if need_archive_sources else None, expected_continuation=existing_continuation)\n"
+          ],
+          "baseline_lines": [
+            "        source_payloads=raw if need_archive_sources else None)\n"
+          ]
+        },
+        {
+          "current_start": 205,
+          "baseline_start": 204,
+          "current_lines": [
+            "def _existing_evidence(gh, client, tree, day, snapshot, freeze_context, *, source_payloads=None,\n",
+            "                       expected_continuation=None):\n"
+          ],
+          "baseline_lines": [
+            "def _existing_evidence(gh, client, tree, day, snapshot, freeze_context, *, source_payloads=None):\n"
+          ]
+        },
+        {
+          "current_start": 239,
+          "baseline_start": 237,
+          "current_lines": [
+            "    if expected_continuation is not None:\n",
+            "        require(observation.get(\"p0_continuation\") == expected_continuation,\n",
+            "            \"EXISTING_CONTINUATION_ORIGINAL_PROOF_CHANGED\")\n",
+            "        require(type(source_payloads) is list and len(source_payloads) == 4,\n",
+            "            \"EXISTING_CONTINUATION_FOUR_PAYLOADS_REQUIRED\")\n",
+            "        original_bindings = [{\"path\": workflow.PREFIX + f\"{kind}_{day}.json\", \"sha256\": gh.sha256(body),\n",
+            "            \"git_blob_sha1\": gh.git_blob(body), \"bytes\": len(body)}\n",
+            "            for kind, body in zip((\"day\", \"p0_sources\", \"local_freeze\", \"workflow\"), source_payloads)]\n",
+            "        require(observation.get(\"published_file_bindings\") == sorted(original_bindings, key=lambda b: b[\"path\"]),\n",
+            "            \"EXISTING_CONTINUATION_FOUR_ORIGINAL_BYTES_CHANGED\")\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 345,
+          "baseline_start": 333,
+          "current_lines": [
+            "    require(github_client.get_json(gh.API_PREFIX + \"/git/ref/heads/main\") == head,\n",
+            "        \"P0_TRIGGER_MAIN_CHANGED_DURING_CHECK\")\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 359,
+          "baseline_start": 345,
+          "current_lines": [
+            "    proof, _, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,\n"
+          ],
+          "baseline_lines": [
+            "    proof, original_sources, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,\n"
+          ]
+        },
+        {
+          "current_start": 364,
+          "baseline_start": 350,
+          "current_lines": [
+            "    existing = _existing_day(gh, runner, github_client, current_tree, original_tree, day, trade, exit_day, revision)\n"
+          ],
+          "baseline_lines": [
+            "    existing = _existing_day(gh, runner, github_client, current_tree, original_tree, day, trade, exit_day, revision,\n",
+            "        verified_continuation=proof, verified_original_sources=original_sources)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py",
+      "baseline_exists": true,
+      "baseline_bytes": 25588,
+      "baseline_sha256": "b945f6359dcb825ac6db584d84cfd7ff71d897dcd3f933aa41118c6b790f948a",
+      "current_bytes": 32274,
+      "current_sha256": "d307b823a70c463b8d27e6d764c2e679fb3f15849237c34c73d213f20cf7d9bf",
+      "inverse_changes": [
+        {
+          "current_start": 279,
+          "baseline_start": 279,
+          "current_lines": [
+            "    case=expanded_case(tmp_path,monkeypatch)\n",
+            "    assert_observer_noop_budget(case, NOOP_ID)\n",
+            "\n",
+            "\n",
+            "def assert_observer_noop_budget(case, trigger_id):\n",
+            "    client=case[\"client\"]\n",
+            "    receipt=gate.inspect_p0(run_id=trigger_id,github_client=client)\n"
+          ],
+          "baseline_lines": [
+            "    case=expanded_case(tmp_path,monkeypatch);client=case[\"client\"]\n",
+            "    receipt=gate.inspect_p0(run_id=NOOP_ID,github_client=client)\n"
+          ]
+        },
+        {
+          "current_start": 313,
+          "baseline_start": 308,
+          "current_lines": [
+            "def test_new_continuation_preflight_retains_original_live_verification(tmp_path,monkeypatch):\n"
+          ],
+          "baseline_lines": [
+            "def test_continuation_passes_actual_verified_sources_without_second_collection(tmp_path,monkeypatch):\n"
+          ]
+        },
+        {
+          "current_start": 315,
+          "baseline_start": 310,
+          "current_lines": [
+            "    from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 318,
+          "baseline_start": 312,
+          "current_lines": [
+            "    original_verify=continuation.verify_pair\n",
+            "    def verify(*args,**kwargs):\n",
+            "        proof,sources,revision=original_verify(*args,**kwargs)\n"
+          ],
+          "baseline_lines": [
+            "    def existing(gh_arg,runner,client,tree,original_tree,day,trade,exit_day,revision,**kwargs):\n",
+            "        sources=kwargs[\"verified_original_sources\"]\n",
+            "        proof=kwargs[\"verified_continuation\"]\n"
+          ]
+        },
+        {
+          "current_start": 322,
+          "baseline_start": 316,
+          "current_lines": [
+            "        day=proof[\"signal_date\"]\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 327,
+          "baseline_start": 320,
+          "current_lines": [
+            "        return proof,sources,revision\n",
+            "    def existing(gh_arg,runner,client,tree,original_tree,day,trade,exit_day,revision):\n",
+            "        assert len(seen)==1\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 331,
+          "baseline_start": 321,
+          "current_lines": [
+            "    monkeypatch.setattr(continuation,\"verify_pair\",verify)\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 426,
+          "baseline_start": 415,
+          "current_lines": [
+            "def old_continuation_case(tmp_path, monkeypatch):\n",
+            "    from tests import test_candidate_continuation_evidence as dual\n",
+            "    from work.profit_1000_upgrade import test_candidate_natural_p0_continuation as pair\n",
+            "    original = dual.make_case(tmp_path, monkeypatch)\n",
+            "    with monkeypatch.context() as patch:\n",
+            "        patch.setattr(fixtures, \"make_case\", lambda *args, **kwargs: original)\n",
+            "        case = complete_case(tmp_path, monkeypatch)\n",
+            "    # Historical capture was completed before these unrelated main commits.\n",
+            "    current = \"6\" * 40\n",
+            "    source = case[\"imported\"][\"continuation\"][\"source_main_sha\"]\n",
+            "    ancestry = [current] + [format(i, \"040x\") for i in range(1000, 1025)] + [source]\n",
+            "    for descendant, parent in zip(ancestry, ancestry[1:]):\n",
+            "        case[\"client\"].responses[gh.API_PREFIX + \"/git/commits/\" + descendant] = {\n",
+            "            \"sha\": descendant, \"tree\": {\"sha\": case[\"evidence_tree\"][\"sha\"]}, \"parents\": [{\"sha\": parent}]}\n",
+            "    case.update(trigger_id=pair.R1, live_chain=ancestry)\n",
+            "    return case\n",
+            "\n",
+            "\n",
+            "def test_existing_continuation_uses_original_captured_proof_after_26_main_commits(tmp_path, monkeypatch):\n",
+            "    case = old_continuation_case(tmp_path, monkeypatch)\n",
+            "    from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation\n",
+            "    reads = continuation.Reads(gh, case[\"client\"])\n",
+            "    with pytest.raises(ValueError, match=\"CONTINUATION_ANCESTRY_BOUND_EXCEEDED\"):\n",
+            "        reads.ancestry(case[\"live_chain\"][-1], case[\"live_chain\"][0])\n",
+            "    with pytest.raises(ValueError, match=\"CONTINUATION_ANCESTRY_BOUND_EXCEEDED\"):\n",
+            "        gate.inspect_continuation(run_id=case[\"trigger_id\"],\n",
+            "            original_generation_run_id=str(case[\"imported\"][\"run\"][\"id\"]),\n",
+            "            original_cas_commit=case[\"imported\"][\"published_git_sha\"], github_client=case[\"client\"])\n",
+            "    start = len(case[\"client\"].requests)\n",
+            "    out = gate.inspect_p0(run_id=case[\"trigger_id\"], github_client=case[\"client\"])\n",
+            "    cost = sum(2 if isinstance(item, tuple) else 1 for item in case[\"client\"].requests[start:])\n",
+            "    assert out[\"needs_work\"] is False\n",
+            "    assert out[\"status\"] == \"EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE\"\n",
+            "    assert cost <= gh.MAX_API_CALLS\n",
+            "    assert not out[\"new_prediction_freeze_verified\"] and not out[\"existing_files_modified\"]\n",
+            "    assert out[\"files_published\"] == 0\n",
+            "    live_paths = set(item for item in case[\"client\"].requests[start:] if isinstance(item, str))\n",
+            "    assert not any(gh.API_PREFIX + \"/git/commits/\" + commit in live_paths for commit in case[\"live_chain\"][1:-1])\n",
+            "    print(\"EXISTING_CONTINUATION_READONLY_WEIGHTED_GETS\", cost)\n",
+            "\n",
+            "\n",
+            "def test_existing_continuation_observer_noop_keeps_normal_50_get_budget(tmp_path, monkeypatch):\n",
+            "    case = old_continuation_case(tmp_path, monkeypatch)\n",
+            "    assert_observer_noop_budget(case, case[\"trigger_id\"])\n",
+            "\n",
+            "\n",
+            "@pytest.mark.parametrize(\"fault\", [\"current_blob\", \"current_mode\", \"current_size\", \"missing_source\",\n",
+            "    \"missing_observer\", \"expired_observer\", \"changed_freeze_zip\", \"wrong_proof\", \"capture_replay_failed\"])\n",
+            "def test_existing_continuation_still_rejects_unverified_or_changed_evidence(tmp_path, monkeypatch, fault):\n",
+            "    case = old_continuation_case(tmp_path, monkeypatch)\n",
+            "    client = case[\"client\"]\n",
+            "    tree = client.responses[gh.API_PREFIX + \"/git/trees/\" + case[\"evidence_tree\"][\"sha\"] + \"?recursive=1\"]\n",
+            "    path = case[\"imported\"][\"source_file_bindings\"][0][\"path\"]\n",
+            "    entry = next(x for x in tree[\"tree\"] if x[\"path\"] == path)\n",
+            "    if fault == \"current_blob\": entry[\"sha\"] = \"0\" * 40\n",
+            "    elif fault == \"current_mode\": entry[\"mode\"] = \"100755\"\n",
+            "    elif fault == \"current_size\": entry[\"size\"] += 1\n",
+            "    elif fault == \"missing_source\": tree[\"tree\"].remove(entry)\n",
+            "    elif fault == \"missing_observer\":\n",
+            "        tree[\"tree\"] = [x for x in tree[\"tree\"] if x[\"path\"] != issuer.PREFIX + case[\"imported\"][\"signal_date\"] + \"/context.json\"]\n",
+            "    elif fault == \"expired_observer\":\n",
+            "        client.responses[gh.API_PREFIX + \"/actions/runs/\" + OBSERVER_ID + \"/artifacts?per_page=100\"][\"artifacts\"][0][\"expired\"] = True\n",
+            "    elif fault == \"changed_freeze_zip\": client.archives[900] += b\"changed\"\n",
+            "    elif fault == \"wrong_proof\":\n",
+            "        from work.profit_1000_upgrade import candidate_natural_p0_continuation as continuation\n",
+            "        original = continuation.validate_import_receipt\n",
+            "        def wrong(*args, **kwargs):\n",
+            "            proof = deepcopy(original(*args, **kwargs))\n",
+            "            proof[\"source_main_sha\"] = \"e\" * 40\n",
+            "            return proof\n",
+            "        monkeypatch.setattr(continuation, \"validate_import_receipt\", wrong)\n",
+            "    elif fault == \"capture_replay_failed\":\n",
+            "        def rejected(*args, **kwargs): raise ValueError(\"CAPTURE_REAL_REPLAY_REJECTED\")\n",
+            "        monkeypatch.setattr(issuer.capture, \"verify_materials\", rejected)\n",
+            "    with pytest.raises(ValueError):\n",
+            "        gate.inspect_p0(run_id=case[\"trigger_id\"], github_client=client)\n",
+            "\n",
+            "\n",
+            "def test_existing_continuation_rechecks_real_main_after_verification(tmp_path, monkeypatch):\n",
+            "    case = old_continuation_case(tmp_path, monkeypatch)\n",
+            "    client = case[\"client\"]; original = client.get_json; calls = 0\n",
+            "    def moved(path):\n",
+            "        nonlocal calls\n",
+            "        result = original(path)\n",
+            "        if path == gh.API_PREFIX + \"/git/ref/heads/main\":\n",
+            "            calls += 1\n",
+            "            if calls == 2: result[\"object\"][\"sha\"] = \"e\" * 40\n",
+            "        return result\n",
+            "    monkeypatch.setattr(client, \"get_json\", moved)\n",
+            "    with pytest.raises(ValueError, match=\"P0_TRIGGER_MAIN_CHANGED_DURING_CHECK\"):\n",
+            "        gate.inspect_p0(run_id=case[\"trigger_id\"], github_client=client)\n",
+            "\n",
+            "\n",
+            "def test_existing_continuation_binds_all_four_current_raw_files_to_original_observation(tmp_path, monkeypatch):\n",
+            "    case = old_continuation_case(tmp_path, monkeypatch)\n",
+            "    day = case[\"imported\"][\"signal_date\"]\n",
+            "    payloads = [case[\"files\"][gate.workflow.PREFIX + f\"{kind}_{day}.json\"]\n",
+            "        for kind in (\"day\", \"p0_sources\", \"local_freeze\", \"workflow\")]\n",
+            "    context = gh.parse_json(payloads[3])\n",
+            "    payloads[3] += b\" \"  # Semantically identical JSON must still preserve exact bytes.\n",
+            "    tree = gh.validate_tree(case[\"evidence_tree\"], case[\"evidence_tree\"][\"sha\"])\n",
+            "    with pytest.raises(ValueError, match=\"EXISTING_CONTINUATION_FOUR_ORIGINAL_BYTES_CHANGED\"):\n",
+            "        gate._existing_evidence(gh, case[\"client\"], tree, day, gh.parse_json(payloads[0]), context,\n",
+            "            source_payloads=payloads, expected_continuation=case[\"imported\"][\"continuation\"])\n"
+          ],
+          "baseline_lines": []
+        }
+      ]
+    }
+  ],
+  "preserved_files": [
+    {
+      "path": ".github/workflows/research_candidate_natural_forward.yml",
+      "bytes": 8175,
+      "sha256": "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd"
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_observer.yml",
+      "bytes": 6285,
+      "sha256": "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_settlement.yml",
+      "bytes": 7899,
+      "sha256": "83b2d1075031eb1d84cd3f8cd89f8f4aa8c260224d2c803772f2d12144345e79"
+    },
+    {
+      "path": "models/decision_candidate_profit_activation_v1.json",
+      "bytes": 1006,
+      "sha256": "bdd06edf427eb261ec27cdbf946545d19b052b004b5792c6860e5400703da131"
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "bytes": 53143,
+      "sha256": "94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_reliability.json",
+      "bytes": 77197,
+      "sha256": "9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260922_eligible_publication.json",
+      "bytes": 128737,
+      "sha256": "3bebcad923c2506cf63cbfd61d3c1d5444b3dd54d13aea8662ed0fffe31cf323"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_p0_profile.json",
+      "bytes": 102488,
+      "sha256": "56000697e943e75d985e48296de5197286d9acf249091c22b4662944578028c2"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261110_settlement_noop.json",
+      "bytes": 10946,
+      "sha256": "e4846e54b387bab3d98f0c13064e04d0c1bedd23d6991de95a2dff7e3431a2a6"
+    },
+    {
+      "path": "scripts/candidate_settlement_trigger.py",
+      "bytes": 9913,
+      "sha256": "3862a1282f2a01890d4ae6ab99137cf9842f0983a83a7ec54fe819676df1af35"
+    },
+    {
+      "path": "scripts/publish_candidate_profit.py",
+      "bytes": 18417,
+      "sha256": "f448aeded80667efb65768f6173d4a0dab9aaa60d200c294e3c7138c42874396"
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "bytes": 27606,
+      "sha256": "69f1a39be03f162ee943d319a9fe88078f0e65c2906ed6910ccd89e05401335e"
+    },
+    {
+      "path": "tests/test_candidate_settlement_trigger.py",
+      "bytes": 11389,
+      "sha256": "2480e71c6bc3f91fc04356c6ecc58e0883052af92cb680c9c09025055ff658fc"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_daily.py",
+      "bytes": 31259,
+      "sha256": "dfb496d1a1440d2d7da5d3df04b8f1af0466e7d59e6198a39b1ff0f877161922"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence.py",
+      "bytes": 38352,
+      "sha256": "9838d6003cb809ba484454a7cc4eeb3751255a9d36c43e7c493a77f2353ecddb"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "bytes": 41199,
+      "sha256": "4bb00b1cb6ebd5f05acdbc8d3d7f71a4830281c7f8d915253cca645d8859009d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_journal.py",
+      "bytes": 13144,
+      "sha256": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_journal_git.py",
+      "bytes": 13096,
+      "sha256": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_model/evaluation.json",
+      "bytes": 905295,
+      "sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcome_collect.py",
+      "bytes": 41467,
+      "sha256": "a27ad648b3e597996ac8a25f346b690934fe85833aee70b9ddae906735e30a8d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcomes.py",
+      "bytes": 32925,
+      "sha256": "a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_continuation.py",
+      "bytes": 38849,
+      "sha256": "1f63566c995e5d95a06dc9e07036c6ec7949cb228566e6faae1c013c50ab9a9b"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_github.py",
+      "bytes": 40420,
+      "sha256": "b780901b9a0de408d8e99a850c2aaa6372d0043ca7d32b221117e18281786710"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "bytes": 40863,
+      "sha256": "1cb89f172a0b1ef6d0826417e32e8dd0b3864b6aa52d23e3eaf8d1d23f5ed321"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "bytes": 25637,
+      "sha256": "fa531f23aeae04228eb8fbf78b2e4b5a2d63a25aeaa63ce7c71e7fc540bdcb7e"
+    }
+  ],
+  "review_adapter_note": "The predecessor review remains byte-identical. Its preserved gate/test expectations are served by the explicit, hash-checked inverse in the successor test helper. The gate/test are changed sources in this review rather than declared immutable forever. Any future successor must explicitly register and verify its own current bytes and exact inverse; unknown changes fail closed."
+}
