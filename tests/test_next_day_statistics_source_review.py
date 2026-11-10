@@ -71,14 +71,14 @@ def test_review_restores_all_exact_baseline_source_bytes():
 def test_only_reviewed_surface_pins_change_no_model_or_trading_policy():
     value = review()
     baseline = json.loads(inverse(next(v for v in value['source_changes'] if v['path'] == MANIFEST)))
-    current = json.loads((ROOT / MANIFEST).read_bytes())
+    current = json.loads(source_before_next_day_profile(MANIFEST))
     assert baseline.keys() == current.keys()
     assert {k:v for k,v in current.items() if k != 'pinned_files'} == {k:v for k,v in baseline.items() if k != 'pinned_files'}
     assert baseline['pinned_files'].keys() == current['pinned_files'].keys()
     assert {p for p in baseline['pinned_files'] if baseline['pinned_files'][p] != current['pinned_files'][p]} == PIN_PATHS
     for path, digest in current['pinned_files'].items():
         assert not (ROOT / path).is_symlink()
-        assert sha((ROOT / path).read_bytes()) == digest, path
+        assert sha(source_before_next_day_profile(path)) == digest, path
     assert 'scripts/build_next_day_statistics.cjs' not in current['pinned_files']
 
 
@@ -88,10 +88,10 @@ def test_inventory_changes_only_manifest_asset_digest_and_size():
     expected = copy.deepcopy(before)
     matches = [a for a in expected['assets'] if a['path'] == MANIFEST]
     assert len(matches) == 1
-    raw = (ROOT / MANIFEST).read_bytes()
+    raw = source_before_next_day_profile(MANIFEST)
     matches[0]['sha256'] = sha(raw)
     matches[0]['bytes'] = len(raw)
-    assert json.loads((ROOT / INVENTORY).read_bytes()) == expected
+    assert json.loads(source_before_next_day_profile(INVENTORY)) == expected
 
 
 def test_models_contracts_frozen_inputs_and_prior_review_evidence_preserved():

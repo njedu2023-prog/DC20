@@ -3,6 +3,7 @@ from pathlib import Path
 import ast
 import hashlib
 import json
+from tests.test_suspension_pin_source_review import source_before_suspension_pin
 
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = 'models/decision_source_surface_review_20261108_next_day_p0_profile.json'
@@ -28,7 +29,7 @@ def review():
 def inverse(item):
     target = ROOT / item['path']
     assert not target.is_symlink()
-    raw = target.read_bytes()
+    raw = source_before_suspension_pin(item['path'], target.read_bytes())
     assert len(raw) == item['current_bytes'] and sha(raw) == item['current_sha256']
     lines = raw.decode().splitlines(keepends=True)
     previous_end = offset = 0
@@ -53,7 +54,7 @@ def source_before_next_day_profile(path):
         return inverse(items[path])
     target = ROOT / path
     assert not target.is_symlink()
-    return target.read_bytes()
+    return source_before_suspension_pin(path, target.read_bytes())
 
 
 def test_review_restores_exact_pre_profile_bytes():
@@ -67,7 +68,7 @@ def test_models_inputs_prior_review_and_frozen_evidence_are_unchanged():
     for item in items:
         target = ROOT / item['path']
         assert not target.is_symlink()
-        raw = target.read_bytes()
+        raw = source_before_suspension_pin(item['path'], target.read_bytes())
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
 
 
@@ -98,6 +99,6 @@ def test_new_p0_profile_changes_only_surface_freeze_and_adds_review():
     assert set(new) == set(old) | {'models/decision_source_surface_review_20261108_next_day_statistics.json'}
     assert {path for path in old if old[path] != new[path]} == {'models/decision_model_freeze.json'}
     for path in {'models/decision_model_freeze.json','models/decision_source_surface_review_20261108_next_day_statistics.json'}:
-        raw = (ROOT / path).read_bytes()
+        raw = source_before_suspension_pin(path, (ROOT / path).read_bytes())
         actual = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
         assert new[path] == actual

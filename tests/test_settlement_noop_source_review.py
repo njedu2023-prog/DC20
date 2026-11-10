@@ -43,7 +43,8 @@ def raw_source(path):
     assert all(part not in ('', '.', '..') for part in path.split('/'))
     target = ROOT / path
     assert not any(p.is_symlink() for p in (target, *target.parents))
-    return target.read_bytes()
+    from tests.test_suspension_pin_source_review import source_before_suspension_pin
+    return source_before_suspension_pin(path, target.read_bytes())
 
 
 def review():

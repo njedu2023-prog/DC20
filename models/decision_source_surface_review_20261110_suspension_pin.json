@@ -1,0 +1,569 @@
+{
+  "schema_version": "dc20_suspension_pin_source_review_v1",
+  "approved_base_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+  "scope": "ADDITIVE_AUDIT_OF_VERIFIED_SUSPENSION_AND_MANIFEST_PIN_REPAIR",
+  "evidence_commits": {
+    "disclosure": "0702ff2caa6411cfe9a0477c70fffc1621061a8c",
+    "original_p0": "d96c73c14ed3f04e2238182a3acc3e369eea6899",
+    "pin_repair": "983bb8c2bb8572339ac0f659866f2a3ee6b0c208"
+  },
+  "boundaries": {
+    "model_weights_changed": false,
+    "original_lists_or_scores_changed": false,
+    "historical_reviews_rewritten": false,
+    "runtime_profile_admission_changed": false,
+    "retry_limit_changed": false,
+    "actual_trading_enabled": false
+  },
+  "source_changes": [
+    {
+      "path": "data/market/confirmed_suspensions.json",
+      "baseline_commit": "559fef2b34455270849727fa70a5ad4a73459d84",
+      "baseline_exists": true,
+      "baseline_bytes": 2449,
+      "baseline_sha256": "ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68",
+      "current_bytes": 3661,
+      "current_sha256": "4f9a6341823d23283d25a02b62957671cabfa2e1aa77f6ea25b25d46cfa12158",
+      "inverse_changes": [
+        {
+          "baseline_start": 3,
+          "current_start": 3,
+          "baseline_lines": [
+            "  \"verified_at_utc\": \"2026-10-14T15:03:15.153929Z\",\n"
+          ],
+          "current_lines": [
+            "  \"verified_at_utc\": \"2026-11-10T11:51:34Z\",\n"
+          ]
+        },
+        {
+          "baseline_start": 55,
+          "current_start": 55,
+          "baseline_lines": [],
+          "current_lines": [
+            "    },\n",
+            "    {\n",
+            "      \"ts_code\": \"002623.SZ\",\n",
+            "      \"start_date\": \"20261103\",\n",
+            "      \"resume_date\": \"20261110\",\n",
+            "      \"sources\": [\n",
+            "        {\n",
+            "          \"url\": \"https://static.cninfo.com.cn/finalpage/2026-11-03/1225654166.PDF\",\n",
+            "          \"published_date\": \"20261103\",\n",
+            "          \"pdf_sha256\": \"f7e85783a79da7ada20bcb51b377bd9f8b582f6decb84d401e8143bfa7d64698\"\n",
+            "        },\n",
+            "        {\n",
+            "          \"url\": \"https://static.cninfo.com.cn/finalpage/2026-11-05/1225657574.PDF\",\n",
+            "          \"published_date\": \"20261105\",\n",
+            "          \"pdf_sha256\": \"b6d0412d30d286f005bface9593f2514a8b461858b1b8a44baf4cfdc5334d771\"\n",
+            "        },\n",
+            "        {\n",
+            "          \"url\": \"https://static.cninfo.com.cn/finalpage/2026-11-10/1225664631.PDF\",\n",
+            "          \"published_date\": \"20261110\",\n",
+            "          \"pdf_sha256\": \"62821a6380208803d5f2e3a490409babca934e9409d6c6bdb385158c9ade20db\"\n",
+            "        }\n",
+            "      ],\n",
+            "      \"announcement_number\": \"2026-062\",\n",
+            "      \"interval_semantics\": \"start inclusive, resume exclusive; full-day suspension only\",\n",
+            "      \"evidence_checked\": \"Official issuer filings and original PDF hashes verified; committed 20261103/04/05/06/09 daily tables have no bar; 20261102 close and 20261110 pre_close both 19.28. No synthetic bars or historical freeze changes.\"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_commit": "d96c73c14ed3f04e2238182a3acc3e369eea6899",
+      "baseline_exists": true,
+      "baseline_bytes": 53143,
+      "baseline_sha256": "94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435",
+      "current_bytes": 53143,
+      "current_sha256": "31ad138b076f8ebb2bb1bf508813670ebe4c84c61619501272129f369f32bea0",
+      "inverse_changes": [
+        {
+          "baseline_start": 864,
+          "current_start": 864,
+          "baseline_lines": [
+            "    \"data/market/confirmed_suspensions.json\": \"ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68\",\n"
+          ],
+          "current_lines": [
+            "    \"data/market/confirmed_suspensions.json\": \"4f9a6341823d23283d25a02b62957671cabfa2e1aa77f6ea25b25d46cfa12158\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 16204,
+      "baseline_sha256": "3279d3abc840520ee828716744a090a54f3e0ee713accff69ffeb42bead048ed",
+      "current_bytes": 16204,
+      "current_sha256": "92f6c6dbc09023aa8bf13ef60e8bbbc1c467071ac917610e89207135f22bfe42",
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"31ad138b076f8ebb2bb1bf508813670ebe4c84c61619501272129f369f32bea0\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_next_day_p0_profile_source_review.py",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 4597,
+      "baseline_sha256": "e099369c84dab2225f940b58d524f76160c4dce536baab5ee38af7bdfe05c648",
+      "current_bytes": 4838,
+      "current_sha256": "bdc9f5d857cadc3b92108e586b130f232750a5e09bf1d2503857c5c7374b4313",
+      "inverse_changes": [
+        {
+          "baseline_start": 6,
+          "current_start": 6,
+          "baseline_lines": [],
+          "current_lines": [
+            "from tests.test_suspension_pin_source_review import source_before_suspension_pin\n"
+          ]
+        },
+        {
+          "baseline_start": 31,
+          "current_start": 32,
+          "baseline_lines": [
+            "    raw = target.read_bytes()\n"
+          ],
+          "current_lines": [
+            "    raw = source_before_suspension_pin(item['path'], target.read_bytes())\n"
+          ]
+        },
+        {
+          "baseline_start": 56,
+          "current_start": 57,
+          "baseline_lines": [
+            "    return target.read_bytes()\n"
+          ],
+          "current_lines": [
+            "    return source_before_suspension_pin(path, target.read_bytes())\n"
+          ]
+        },
+        {
+          "baseline_start": 70,
+          "current_start": 71,
+          "baseline_lines": [
+            "        raw = target.read_bytes()\n"
+          ],
+          "current_lines": [
+            "        raw = source_before_suspension_pin(item['path'], target.read_bytes())\n"
+          ]
+        },
+        {
+          "baseline_start": 101,
+          "current_start": 102,
+          "baseline_lines": [
+            "        raw = (ROOT / path).read_bytes()\n"
+          ],
+          "current_lines": [
+            "        raw = source_before_suspension_pin(path, (ROOT / path).read_bytes())\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_existing_continuation_source_review.py",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 6783,
+      "baseline_sha256": "858ef1216eb674ea3c5cc57129fd9a33adb3249553c5f7643f9f213117fad175",
+      "current_bytes": 6904,
+      "current_sha256": "b4275563e09181a83947108625a33f561322adf348503a4409611cfb7e24fb13",
+      "inverse_changes": [
+        {
+          "baseline_start": 42,
+          "current_start": 42,
+          "baseline_lines": [
+            "    return target.read_bytes()\n"
+          ],
+          "current_lines": [
+            "    from tests.test_suspension_pin_source_review import source_before_suspension_pin\n",
+            "    return source_before_suspension_pin(path, target.read_bytes())\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_settlement_noop_source_review.py",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 6892,
+      "baseline_sha256": "49fda5f5dabe355243ab00657718ab74202a43b99dd8d91bbb3533eea8ce6935",
+      "current_bytes": 7013,
+      "current_sha256": "e822bfb5544de752ab0645d0ae82d76022a4bfd68b6a4f3f2d50496783721125",
+      "inverse_changes": [
+        {
+          "baseline_start": 46,
+          "current_start": 46,
+          "baseline_lines": [
+            "    return target.read_bytes()\n"
+          ],
+          "current_lines": [
+            "    from tests.test_suspension_pin_source_review import source_before_suspension_pin\n",
+            "    return source_before_suspension_pin(path, target.read_bytes())\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_next_day_statistics_source_review.py",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 5774,
+      "baseline_sha256": "671580ae1be90f31545ad585588ef144d13e365a1a73ebf8e3dc47cf531c9c1d",
+      "current_bytes": 5814,
+      "current_sha256": "abc2ad98b295c3371ad26358840e3c08cae1012950569abf9a3560101d73e6a6",
+      "inverse_changes": [
+        {
+          "baseline_start": 74,
+          "current_start": 74,
+          "baseline_lines": [
+            "    current = json.loads((ROOT / MANIFEST).read_bytes())\n"
+          ],
+          "current_lines": [
+            "    current = json.loads(source_before_next_day_profile(MANIFEST))\n"
+          ]
+        },
+        {
+          "baseline_start": 81,
+          "current_start": 81,
+          "baseline_lines": [
+            "        assert sha((ROOT / path).read_bytes()) == digest, path\n"
+          ],
+          "current_lines": [
+            "        assert sha(source_before_next_day_profile(path)) == digest, path\n"
+          ]
+        },
+        {
+          "baseline_start": 91,
+          "current_start": 91,
+          "baseline_lines": [
+            "    raw = (ROOT / MANIFEST).read_bytes()\n"
+          ],
+          "current_lines": [
+            "    raw = source_before_next_day_profile(MANIFEST)\n"
+          ]
+        },
+        {
+          "baseline_start": 94,
+          "current_start": 94,
+          "baseline_lines": [
+            "    assert json.loads((ROOT / INVENTORY).read_bytes()) == expected\n"
+          ],
+          "current_lines": [
+            "    assert json.loads(source_before_next_day_profile(INVENTORY)) == expected\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/verify_daily_cleanup.yml",
+      "baseline_commit": "66bd8082306ec7c535fcea8b5574f0ac17504219",
+      "baseline_exists": true,
+      "baseline_bytes": 10222,
+      "baseline_sha256": "dedb1a833987d884670a1481619fd2835add592d2d8c8d0fd375c60304072fa1",
+      "current_bytes": 10687,
+      "current_sha256": "e9b1aa8f69e435bfa979b7f8c9b3a249ece9928ad21e663cbc008a9c6e895417",
+      "inverse_changes": [
+        {
+          "baseline_start": 24,
+          "current_start": 24,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - tests/test_*source_review.py\n",
+            "      - models/decision_source_surface_review_20261110_suspension_pin.json\n"
+          ]
+        },
+        {
+          "baseline_start": 77,
+          "current_start": 79,
+          "baseline_lines": [],
+          "current_lines": [
+            "          python -m pytest -q tests/test_suspension_pin_source_review.py tests/test_system_cleanup_source_review.py tests/test_delivery_hardening_source_review.py tests/test_next_day_statistics_source_review.py tests/test_next_day_p0_profile_source_review.py tests/test_existing_continuation_source_review.py tests/test_settlement_noop_source_review.py\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "preserved_files": [
+    {
+      "path": "models/decision_source_surface_review_20260906.json",
+      "bytes": 6322,
+      "sha256": "3380278d97c63cf47538ec5fe46ff8da7bc31389d4fcaff2ce540bc1d899a885"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909.json",
+      "bytes": 4590,
+      "sha256": "c9ef3cad7ebdb3d0583fe4cc473c8f7178cd39f25a13c96a1265b6d2f383fe28"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_density.json",
+      "bytes": 2278,
+      "sha256": "8dbed9ad83a8d8db78ccf598192e8589a6516b8af5771452f63da5d1b247cfee"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_hide_profit_details.json",
+      "bytes": 1166,
+      "sha256": "1857dc0401902bc53c379de0534de1009908d32bf7f3b3e4298d5b7c8a57f436"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_profit_summary.json",
+      "bytes": 18304,
+      "sha256": "d9cbc524f3eccee46b79635a8317089a64bcf9ffae31ae4992020ebe6109973f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_statistics.json",
+      "bytes": 3416,
+      "sha256": "20524bc2dcdfac594e73e9e552bb88af2136ccce83026ddb193f5140204fad97"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260909_success_rate.json",
+      "bytes": 6076,
+      "sha256": "313373fb0f20948c9a9e095c8ddd50d8ee2aeb6c6bf3acc4cff005ed8b30884b"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260910_navigation.json",
+      "bytes": 64975,
+      "sha256": "e559f856e5ec4cfe96ba9d8bb7d32d9f220fb2be2254eb421da6626ece116293"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_columns.json",
+      "bytes": 22497,
+      "sha256": "7f089ed18d51e8375cfb731607fdc946989c1363df19aa44c8efe65c22f3326d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_copy_delete.json",
+      "bytes": 39690,
+      "sha256": "226113a5c1a28bcff836a16bd3f2ec1e6b0ca1b3bb59027ec894d3b46130108d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_daily_dispatch.json",
+      "bytes": 114026,
+      "sha256": "e2993edc8afcae453e9e0742dcdbb58c9f68b9cdd50c83e08a8a71059262c28a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_density.json",
+      "bytes": 7668,
+      "sha256": "3f482dc61d184c6f0ff68ff656364d04aaa1f71b3a6abcac14cc89f9ecb27f2c"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_exit_label.json",
+      "bytes": 8631,
+      "sha256": "cca69f5452fc52237948cb6f9433c3882de014b24f94d21add4954ba8eb259e1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_loading.json",
+      "bytes": 24496,
+      "sha256": "b153c5acce99f8154b33eaf6c4c1710cb2e86a4c211839f7603fdc3b2242e6d7"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_settle_cli.json",
+      "bytes": 8843,
+      "sha256": "9c7b13f47008704358c7cdf8aeb5f9af11480fe8412886a85337d1d5580f3f95"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_shadow_price_v2.json",
+      "bytes": 211786,
+      "sha256": "b8753fa8f65b3d8533f15ac93f723dc8f5c1a7f52a51fc82f1a13eb9987920c5"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_verify_close.json",
+      "bytes": 22327,
+      "sha256": "a70bc4119535c92c540f2157ba71e1a7fbd8bebe89f579d48637232b88dd56e3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260911_window_0910.json",
+      "bytes": 181796,
+      "sha256": "b2f2bc9beb343c3d50a5384a6bf04ee3bdcf72b4e23583a0f3b8d6dedf9df5db"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_ci_partition.json",
+      "bytes": 77471,
+      "sha256": "a43e8c11e0e6e1efb1474034761197c7e53eb8fd87880ab2c06fb00b16787395"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_dev_yaml.json",
+      "bytes": 7353,
+      "sha256": "79df484cad5e7ca7fb23201b99da1376e00e5bf44d5c9830af66c2819f92cea1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_exit1000.json",
+      "bytes": 276950,
+      "sha256": "c0449de0047e5b83353650f7d24655dbb8635ad538e20364213b032b28c963a9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260912_replay_pin_inventory.json",
+      "bytes": 16004,
+      "sha256": "23d01351fa63600a5a29841cb23640ec7f0beed84914c3f6ad868c8a3c2b3d14"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260914_candidate_activation.json",
+      "bytes": 57219,
+      "sha256": "d6547c35704ed13e96891ece4a21b3de8fd977b5234f2a4cf0d8282493041a6e"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260914_historical_statistics.json",
+      "bytes": 27427,
+      "sha256": "bdcb95d5240b7d26d621586c1ced6946fdcb134c300f6d4202f244416ec11e75"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_empty_roots.json",
+      "bytes": 5365,
+      "sha256": "44c71406774c06a86e857bf8a7e48a35bd6e3ea8ed545db35c04de95ea274ef9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_navigation.json",
+      "bytes": 18562,
+      "sha256": "3b8463259125de582e94e011e3a86f0c0e7afb12618078b2a372baffe9f8191d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_observation.json",
+      "bytes": 18465,
+      "sha256": "5e89300ba8a178271188d4dbb7e2f44c53b5e04efa127a555ccc16177b09f895"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_observation_v2.json",
+      "bytes": 23880,
+      "sha256": "c401438b81d0b004f51be26889d773cd146c7163504eb448cbda6e37823f7d4e"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_reliability.json",
+      "bytes": 77197,
+      "sha256": "9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_full_list_promotion.json",
+      "bytes": 35795,
+      "sha256": "3eef32501c0ed7bb10768a80e3f40b8350a92260f4bb1783219e9b0353b7468f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_monthly_ledger.json",
+      "bytes": 90994,
+      "sha256": "ff5bcf4c14c472060a0829a0b94c638fffd07606962ca2f586d9b1b2f8caa305"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260920_settlement_repair.json",
+      "bytes": 77912,
+      "sha256": "a7b14baa534b3516083a3d6babcf9c7cd4111acb2620e8e31652f5866805df1f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260922_eligible_publication.json",
+      "bytes": 128737,
+      "sha256": "3bebcad923c2506cf63cbfd61d3c1d5444b3dd54d13aea8662ed0fffe31cf323"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260924_posthoc.json",
+      "bytes": 13063,
+      "sha256": "36024f4efefad12ab98c02bbf2564afc53ca39b529eaf1b2a1b32580f1fe06f8"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260925_statistics.json",
+      "bytes": 4287,
+      "sha256": "8e400f05a38ca10ee156d77821e97a1769e94158b29aec93181d3652e0579ae1"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260927_delivery.json",
+      "bytes": 10088,
+      "sha256": "52dc3eba8c4cf2574f2c48be505821c0d16bc1d7b5488f81027ee0b5f916dc1f"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260927_market.json",
+      "bytes": 11008,
+      "sha256": "54c60392c21f0573f98bdb409de127a4f9ee35771be1c262a8ad7beedc8c3cca"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260928_nightly_stats.json",
+      "bytes": 13643,
+      "sha256": "5f141bf6fd029c481ff0d7657c94b710e797f2f73bca96d6d90a952715d145a3"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260928_profitday.json",
+      "bytes": 12592,
+      "sha256": "4294a635560df3b6d8dcdb412109a00698f6c7da3f915eccd927520cee65d61e"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260930_research_link.json",
+      "bytes": 2726,
+      "sha256": "0f499f61ca1e01b21ec63c1ecf6b294a5b7382ac14d413cedf13b6ddc43be898"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account.json",
+      "bytes": 2801,
+      "sha256": "6b5cbcedb2febb54753a68dd92e056c1103ce99e433ebd8ee3905511a9217f2a"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account_200k_page.json",
+      "bytes": 2247,
+      "sha256": "7ae1e40f5cb99fc279d5d4977faefdd6267b45f88f3a2f824a42d20ba5b9ad1e"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261018_paper_account_pipeline.json",
+      "bytes": 4285,
+      "sha256": "b22f68eadcbf37c7bafa55adca618526b15a840d1dacf2bc1ea2949b7262ee5d"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261107_delivery_hardening.json",
+      "bytes": 61651,
+      "sha256": "f4720d3bec6521aa3f2b747cd1453e993e3f17dd183fc2895454271134c562dc"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261107_system_cleanup.json",
+      "bytes": 195076,
+      "sha256": "585067bc203c33a597fb824fd59d2c27ad99bb061fd13f37f9f0144fe526f2aa"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_p0_profile.json",
+      "bytes": 102488,
+      "sha256": "56000697e943e75d985e48296de5197286d9acf249091c22b4662944578028c2"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_statistics.json",
+      "bytes": 101506,
+      "sha256": "12755015da81238931d7a55b3fee87b407b36353e9c362af85559b8258228336"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_summary_pin.json",
+      "bytes": 2705,
+      "sha256": "4db67f1e1736348a8abc096389782d90f3c1129539c25476ee432958cf7196d0"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261110_existing_continuation.json",
+      "bytes": 26767,
+      "sha256": "8be4824932fae44fc49a6a7cd04f468b79fd3ec6f9a0a7b87fe50c44955cd8dd"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261110_settlement_noop.json",
+      "bytes": 10946,
+      "sha256": "e4846e54b387bab3d98f0c13064e04d0c1bedd23d6991de95a2dff7e3431a2a6"
+    },
+    {
+      "path": "outputs/decision/primary_d_receipt_20261110.json",
+      "bytes": 94543,
+      "sha256": "b2f28c88bc6c01f592181d5c254530eb165111c39ee856545d2d5ce5b68a4078"
+    },
+    {
+      "path": "outputs/decision/primary_d_runtime_features_20261110.csv",
+      "bytes": 55794,
+      "sha256": "c7e1ae87662c6952976227fca7357d0a36683c3bd30c971011307f3b27ecfffa"
+    },
+    {
+      "path": "outputs/decision/three_rank_top10_20261110.csv",
+      "bytes": 8285,
+      "sha256": "a61c1d078600659b70bec8e3635903365cb0afb2521af56a12b81a788971cf8f"
+    },
+    {
+      "path": "outputs/decision/three_rank_top10_20261110.json",
+      "bytes": 9395,
+      "sha256": "4145c65957720f13515336bc0c954c13778013bfe682fbb4c0ecc2a4695a0df9"
+    }
+  ]
+}
