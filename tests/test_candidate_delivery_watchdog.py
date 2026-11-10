@@ -747,3 +747,69 @@ def test_registered_workflow_run_cli_authenticates_before_dispatch(monkeypatch, 
     else:
         assert json.loads(output)['status'] == 'DISPATCHED_NOT_COMPLETED' and len(f.posts) == 1
 
+
+
+@pytest.mark.parametrize('continuation', [False, True])
+def test_previous_day_morning_failures_do_not_consume_new_p0_budget(continuation):
+    f = Continuation() if continuation else Fake()
+    f.busy = [run(m.NATURAL, 80+i, conclusion='failure',
+                  created_at='2026-09-22T00:19:23Z') for i in range(4)]
+    plan = m.inspect(f, NOW)
+    assert plan['retry_origin_run_id'] == '7'
+    assert plan['retry_not_before'] == '2026-09-22T12:00:00Z'
+    assert m.act(f, plan, NOW, execute=True)['status'] == 'DISPATCHED_NOT_COMPLETED'
+    assert len(f.posts) == 1
+
+
+@pytest.mark.parametrize('created', ['2026-09-22T12:00:00Z', '2026-09-22T12:30:00Z'])
+def test_continuation_keeps_failures_at_original_boundary_and_before_reuse(created):
+    f = Continuation()
+    f.busy = [run(m.NATURAL, 80+i, conclusion='failure', created_at=created) for i in range(3)]
+    with pytest.raises(ValueError, match='RETRY_BUDGET'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
+
+
+def test_old_failures_excluded_but_new_failures_still_exhaust_budget():
+    f = Continuation()
+    f.busy = [run(m.NATURAL, 80+i, conclusion='failure',
+                  created_at='2026-09-22T00:19:23Z') for i in range(4)]
+    f.busy += [run(m.NATURAL, 90+i, conclusion='timed_out',
+                   created_at='2026-09-22T12:30:00Z') for i in range(3)]
+    with pytest.raises(ValueError, match='RETRY_BUDGET'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
+
+
+@pytest.mark.parametrize('change', ['missing_origin', 'successor_origin', 'missing_time', 'future_time'])
+def test_retry_origin_evidence_is_required(change):
+    f = Continuation(); plan = m.inspect(f, NOW)
+    if change == 'missing_origin': plan.pop('retry_origin_run_id')
+    if change == 'successor_origin': plan['retry_origin_run_id'] = '70'
+    if change == 'missing_time': plan.pop('retry_not_before')
+    if change == 'future_time': plan['retry_not_before'] = '2026-09-22T23:00:00+08:00'
+    with pytest.raises(ValueError): m.act(f, plan, NOW, execute=True)
+    assert not f.posts
+
+
+@pytest.mark.parametrize('setup,workflow', [('freeze', m.OBSERVER), ('observe', m.PUBLISHER)])
+def test_other_stage_retry_budget_remains_unchanged(setup, workflow):
+    f = Fake(); getattr(f, setup)()
+    f.busy = [run(workflow, 80+i, conclusion='failure',
+                  created_at='2026-09-22T00:19:23Z') for i in range(3)]
+    with pytest.raises(ValueError, match='RETRY_BUDGET'):
+        m.act(f, m.inspect(f, NOW), NOW, execute=True)
+    assert not f.posts
+
+
+def test_retry_budget_survives_midnight_and_new_deployment_head():
+    f = Continuation()
+    f.busy = [run(m.NATURAL, 80+i, conclusion='failure',
+                  created_at='2026-09-22T12:30:00Z') for i in range(3)]
+    f.revisions[f.head] = deepcopy(f.files)
+    f.head = 'f' * 40
+    plan = m.inspect(f, datetime.fromisoformat('2026-09-23T02:00:00+08:00'))
+    assert plan['head'] == 'f' * 40 and plan['retry_origin_run_id'] == '7'
+    with pytest.raises(ValueError, match='RETRY_BUDGET'):
+        m.act(f, plan, datetime.fromisoformat('2026-09-23T02:00:00+08:00'), execute=True)
+    assert not f.posts

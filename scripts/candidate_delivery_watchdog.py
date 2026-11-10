@@ -431,8 +431,13 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
     require(len(generated) == 1, 'ORIGINAL_GENERATING_P0_RUN_MISSING_OR_AMBIGUOUS')
     original = generated[0]
     cas_job = handoff_jobs(client, original)
+    # Bind retry accounting to the receipt's original generator, never a later
+    # no-op deployment or current code HEAD. Earlier-day recovery can run on D
+    # morning, but cannot consume the budget of a P0 not yet created on D.
+    retry_origin = {'retry_origin_run_id': str(original['id']),
+                    'retry_not_before': original['created_at']}
     if original['conclusion'] == 'success':
-        return {**base, 'status': 'NEEDS_FREEZE', 'workflow': NATURAL,
+        return {**base, **retry_origin, 'status': 'NEEDS_FREEZE', 'workflow': NATURAL,
                 'inputs': {'p0_run_id': str(original['id']), 'dry_run': False}}
 
     # Reuse the existing, hash-pinned continuation; this discovery grants no
@@ -461,7 +466,7 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
                for path, sha in expected.items()):
             continue
         handoff_jobs(client, reuse, reuse=True)
-        return {**base, **evidence, 'status': 'NEEDS_FREEZE_CONTINUATION', 'workflow': NATURAL,
+        return {**base, **evidence, **retry_origin, 'status': 'NEEDS_FREEZE_CONTINUATION', 'workflow': NATURAL,
                 'inputs': {'p0_run_id': str(reuse['id']), 'original_generation_run_id': str(original['id']),
                            'original_cas_commit': cas, 'dry_run': False}}
     local = now.astimezone(TZ)
@@ -634,6 +639,16 @@ def act(client, plan, now, *, execute=False, clock=None):
     relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']
     failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
         datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
+    if workflow == NATURAL:
+        origin = plan['inputs'].get('original_generation_run_id') or plan['inputs']['p0_run_id']
+        require(plan.get('retry_origin_run_id') == origin, 'RETRY_ORIGINAL_P0_BINDING_REQUIRED')
+        earliest = stamp(plan.get('retry_not_before'))
+        start = datetime.strptime(plan['signal_date']+'1500', '%Y%m%d%H%M').replace(tzinfo=TZ)
+        require(start < earliest <= now, 'RETRY_ORIGINAL_P0_TIME_INVALID')
+        # Conservatively count EVERY failure since the original creation,
+        # including failed preflight and failures before a successful reuse.
+        # No reset on midnight, code changes, or successor deployment.
+        failures = [r for r in failures if stamp(r['created_at']) >= earliest]
     if workflow in (P0, HISTORY):
         p0_dispatch_window(plan['signal_date'], now)
         # Failed scheduled attempts before data arrived must not consume the
