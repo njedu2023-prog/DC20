@@ -75,8 +75,9 @@ def test_models_inputs_prior_review_and_frozen_evidence_are_unchanged():
 def test_formal_publisher_changes_only_evidence_issuer_digest():
     path = 'src/top10decision/decision/candidate_profit_publication.py'
     old = source_before_next_day_profile(path).decode()
-    new = (ROOT / path).read_text()
-    expected = sha((ROOT / 'work/profit_1000_upgrade/candidate_natural_evidence_publication.py').read_bytes())
+    new = source_before_suspension_pin(path, (ROOT / path).read_bytes()).decode()
+    evidence_path = 'work/profit_1000_upgrade/candidate_natural_evidence_publication.py'
+    expected = sha(source_before_suspension_pin(evidence_path, (ROOT / evidence_path).read_bytes()))
     assert old.replace('4c73447bd460001724a7b22df60f012016c3b5f8e05f97e0a40967e65a0253de', expected) == new
 
 

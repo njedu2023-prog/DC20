@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import json
+from tests.test_suspension_pin_source_review import source_before_suspension_pin
 
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = 'models/decision_source_surface_review_20261108_next_day_summary_pin.json'
@@ -28,9 +29,10 @@ def review():
 
 def test_only_exact_statistics_pin_changed_and_baseline_is_recoverable():
     item = review()['source_changes'][0]
-    raw = (ROOT / SOURCE).read_bytes()
+    raw = source_before_suspension_pin(SOURCE, (ROOT / SOURCE).read_bytes())
     assert len(raw) == item['current_bytes'] and sha(raw) == item['current_sha256']
-    new_pin = sha((ROOT / 'work/profit_1000_upgrade/candidate_natural_statistics.py').read_bytes())
+    statistics_path = 'work/profit_1000_upgrade/candidate_natural_statistics.py'
+    new_pin = sha(source_before_suspension_pin(statistics_path, (ROOT / statistics_path).read_bytes()))
     restored = raw.replace(new_pin.encode(), OLD_PIN.encode())
     assert raw.count(new_pin.encode()) == 1 and OLD_PIN.encode() not in raw
     assert len(restored) == item['baseline_bytes'] and sha(restored) == item['baseline_sha256']
@@ -45,7 +47,7 @@ def test_all_previous_source_reviews_models_and_trading_policy_remain_unchanged(
     for item in review()['preserved_files']:
         target = ROOT / item['path']
         assert not target.is_symlink()
-        raw = target.read_bytes()
+        raw = source_before_suspension_pin(item['path'], target.read_bytes())
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
 
 

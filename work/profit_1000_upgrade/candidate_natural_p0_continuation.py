@@ -52,6 +52,25 @@ DELIVERY_HARDENED_P0_CODE_PROFILE = {'.github/workflows/run_primary_d_daily.yml'
 NEXT_DAY_STATISTICS_P0_CODE_PROFILE = {**DELIVERY_HARDENED_P0_CODE_PROFILE,
     'models/decision_model_freeze.json': 'f3354cd51c58e2ad737b24e0362aedc97e3e2adb',
     'models/decision_source_surface_review_20261108_next_day_statistics.json': '8d0a7ef4ed9fd179419c7f49442a9499237e904f'}
+# Exact reviewed disclosure/pin successor. Model and inference code are unchanged.
+SUSPENSION_EVIDENCE_PATH = 'data/market/confirmed_suspensions.json'
+MANIFEST_PATH = 'models/decision_model_freeze.json'
+SUSPENSION_P0_CODE_PROFILE = {**NEXT_DAY_STATISTICS_P0_CODE_PROFILE,
+    MANIFEST_PATH: 'e4e73b5d0754483b7c493fd2e4135402f4a47d94',
+    SUSPENSION_EVIDENCE_PATH: '28b5b76b258ace91e6e44aacaf297ec13971adf1'}
+SUSPENSION_TRANSITION_IDENTITY = {
+    'signal_date': '20261110',
+    'original_run_id': '42811412247',
+    'original_head': '0702ff2caa6411cfe9a0477c70fffc1621061a8c',
+    'original_cas': 'd96c73c14ed3f04e2238182a3acc3e369eea6899',
+    'reuse_run_id': '42824431708',
+    'deployed_head': '983bb8c2bb8572339ac0f659866f2a3ee6b0c208',
+}
+PRE_SUSPENSION_IMPORTER_SHA = 'b780901b9a0de408d8e99a850c2aaa6372d0043ca7d32b221117e18281786710'
+PRE_SUSPENSION_CONTINUATION_PINS = {
+    'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '1f63566c995e5d95a06dc9e07036c6ec7949cb228566e6faae1c013c50ab9a9b',
+    'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
+}
 PRE_NEXT_DAY_IMPORTER_SHA = 'f416e399522f092402338b536bf58b583f9d420f44d194601e41da942353e154'
 PRE_NEXT_DAY_CONTINUATION_PINS = {
     'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'fdfd921f5b2fd8de09a4c76810c0d4042533c122a55c8b3830999176d6524b96',
@@ -68,6 +87,48 @@ SKIPPED_STEPS = (
 def require(ok, reason):
     if not ok:
         raise ValueError(reason)
+
+
+def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identity):
+    """Admit complete fixed profiles, plus one exact original/deployed pin repair."""
+    profile = (SUSPENSION_P0_CODE_PROFILE
+        if base_tree.get(MANIFEST_PATH, {}).get('sha') == SUSPENSION_P0_CODE_PROFILE[MANIFEST_PATH]
+        else NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+        if base_tree.get(MANIFEST_PATH, {}).get('sha') == NEXT_DAY_STATISTICS_P0_CODE_PROFILE[MANIFEST_PATH]
+        else DELIVERY_HARDENED_P0_CODE_PROFILE
+        if base_tree.get(MANIFEST_PATH, {}).get('sha') == DELIVERY_HARDENED_P0_CODE_PROFILE[MANIFEST_PATH]
+        else CONTROLLED_P0_CODE_PROFILE
+        if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
+        == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)
+    deployed_profile = profile
+    transition = None
+    if (profile is NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+            and deployed_tree.get(MANIFEST_PATH, {}).get('sha') == SUSPENSION_P0_CODE_PROFILE[MANIFEST_PATH]):
+        require(identity == SUSPENSION_TRANSITION_IDENTITY, 'SUSPENSION_PIN_TRANSITION_EXACT_IDENTITY_REQUIRED')
+        old_pin = b'ad5499eaf517ce7ad6f2939baca9c8b6ee03ee42d623debdf85ce9095d679b68'
+        new_pin = b'4f9a6341823d23283d25a02b62957671cabfa2e1aa77f6ea25b25d46cfa12158'
+        old_raw = reads.blob(base_tree, MANIFEST_PATH)
+        new_raw = reads.blob(deployed_tree, MANIFEST_PATH)
+        require(gh.sha256(old_raw) == '94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435'
+            and gh.sha256(new_raw) == '31ad138b076f8ebb2bb1bf508813670ebe4c84c61619501272129f369f32bea0'
+            and old_raw.count(old_pin) == 1 and old_raw.replace(old_pin, new_pin) == new_raw
+            and reads.blob(cas_tree, MANIFEST_PATH) == old_raw,
+            'SUSPENSION_PIN_TRANSITION_ONLY_EXACT_REPLACEMENT_REQUIRED')
+        for tree in (base_tree, cas_tree, deployed_tree):
+            item = tree.get(SUSPENSION_EVIDENCE_PATH, {})
+            require(item.get('type') == 'blob' and item.get('mode') == '100644'
+                and item.get('sha') == SUSPENSION_P0_CODE_PROFILE[SUSPENSION_EVIDENCE_PATH]
+                and gh.sha256(reads.blob(tree, SUSPENSION_EVIDENCE_PATH)) == new_pin.decode(),
+                'SUSPENSION_PIN_TRANSITION_ORIGINAL_EVIDENCE_REQUIRED')
+        deployed_profile = SUSPENSION_P0_CODE_PROFILE
+        transition = {**identity, 'original_manifest_sha256': gh.sha256(old_raw),
+            'deployed_manifest_sha256': gh.sha256(new_raw), 'evidence_sha256': new_pin.decode()}
+    for tree, expected in ((base_tree, profile), (cas_tree, profile), (deployed_tree, deployed_profile)):
+        for logical, expected_blob in expected.items():
+            require(tree.get(logical, {}).get('type') == 'blob' and tree[logical].get('mode') == '100644'
+                and tree[logical].get('sha') == expected_blob,
+                'ORIGINAL_AND_REUSED_P0_REVIEWED_CODE_PROFILE_REQUIRED')
+    return profile, transition
 
 
 def _stamp(value):
@@ -314,19 +375,11 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
         upstream_commits.append({"repository": "njedu2023-prog/" + repository, "sha": upstream_sha,
             "committed_at": commit_doc["committer"]["date"]})
     _, deployed_tree = reads.tree(deployed_sha)
-    code_profile = (NEXT_DAY_STATISTICS_P0_CODE_PROFILE
-        if base_tree.get('models/decision_model_freeze.json', {}).get('sha')
-        == NEXT_DAY_STATISTICS_P0_CODE_PROFILE['models/decision_model_freeze.json'] else DELIVERY_HARDENED_P0_CODE_PROFILE
-        if base_tree.get('models/decision_model_freeze.json', {}).get('sha')
-        == DELIVERY_HARDENED_P0_CODE_PROFILE['models/decision_model_freeze.json'] else CONTROLLED_P0_CODE_PROFILE
-        if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
-        == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)
+    code_profile, manifest_transition = validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree,
+        {'signal_date': day, 'original_run_id': original_run_id, 'original_head': r0['head_sha'],
+         'original_cas': original_cas_commit, 'reuse_run_id': reuse_run_id, 'deployed_head': deployed_sha})
     runtime_bindings = (CONTROLLED_RUNTIME_CODE_BINDINGS
         if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
-    for logical, expected_blob in code_profile.items():
-        require(all(tree.get(logical, {}).get("type") == "blob" and tree[logical].get("mode") == "100644"
-            and tree[logical].get("sha") == expected_blob for tree in (base_tree, cas_tree, deployed_tree)),
-            "ORIGINAL_AND_REUSED_P0_REVIEWED_CODE_PROFILE_REQUIRED")
     static_inputs = receipt["inputs"].get("committed_static_inputs", {})
     require(static_inputs.get("git_head") == r0["head_sha"]
         and static_inputs.get("runtime_code") == runtime_bindings,
@@ -379,6 +432,8 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
         "observed_p0_cas_job_completed_at": r0_jobs[1]["completed_at"],
         "source_generation_and_republication_are_distinct": True,
         "source_authority_issued": False, "new_prediction_freeze_verified": False, "production_activation_allowed": False}
+    if manifest_transition is not None:
+        proof["reviewed_manifest_transition"] = manifest_transition
     return proof, sources, revision
 
 
@@ -394,12 +449,16 @@ def validate_import_receipt(gh, imported):
         "successful_publication_git_sha": "successful_publication_git_sha",
         "expected_p0_sha256": "expected_p0_sha256", "source_file_bindings": "source_file_bindings",
         "original_file_count": "original_file_count", "observed_p0_cas_job_completed_at": "observed_p0_cas_job_completed_at"}
+    prior_suspension = imported.get("importer_sha256") == PRE_SUSPENSION_IMPORTER_SHA
+    if prior_suspension:
+        require(gh.date(imported.get("signal_date")) <= "20261109"
+            and "reviewed_manifest_transition" not in proof, "PRE_SUSPENSION_CONTINUATION_IMPORT_DATE_CHANGED")
     previous = imported.get("importer_sha256") == PRE_NEXT_DAY_IMPORTER_SHA
     if previous:
         require(gh.date(imported.get("signal_date")) <= "20261106", "PRE_NEXT_DAY_CONTINUATION_IMPORT_DATE_CHANGED")
     require(all(imported.get(k) == proof.get(v) for k, v in pairs.items())
-        and imported.get("continuation_dependency_sha256") == (PRE_NEXT_DAY_CONTINUATION_PINS if previous else gh.CONTINUATION_PINS)
-        and imported.get("importer_sha256") == (PRE_NEXT_DAY_IMPORTER_SHA if previous else gh.SELF_SHA)
+        and imported.get("continuation_dependency_sha256") == (PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
+        and imported.get("importer_sha256") == (PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
         and imported.get("source_adapter_sha256") == gh.ADAPTER_SHA
         and imported.get("source_adapter_dependency_sha256") == gh.adapter.CODE_PINS,
         "CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH")

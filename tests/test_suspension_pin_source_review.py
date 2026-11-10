@@ -36,9 +36,11 @@ def review():
     return doc
 
 def source_before_suspension_pin(path, raw):
+    from tests.test_suspension_continuation_source_review import source_before_suspension_continuation
+    raw = source_before_suspension_continuation(path, raw)
     if path not in CHANGED:
         return raw
-    assert read(path) == raw
+    assert source_before_suspension_continuation(path, read(path)) == raw
     item = next(v for v in review()['source_changes'] if v['path'] == path)
     assert len(raw) == item['current_bytes'] and sha(raw) == item['current_sha256']
     lines = raw.decode().splitlines(keepends=True)
@@ -60,7 +62,8 @@ def test_exact_predecessors_and_unchanged_prior_evidence():
     for item in review()['source_changes']:
         assert sha(source_before_suspension_pin(item['path'], read(item['path']))) == item['baseline_sha256']
     for item in review()['preserved_files']:
-        raw = read(item['path'])
+        from tests.test_suspension_continuation_source_review import source_before_suspension_continuation
+        raw = source_before_suspension_continuation(item['path'], read(item['path']))
         assert len(raw) == item['bytes'] and sha(raw) == item['sha256'], item['path']
 
 def test_only_disclosure_pin_changes_and_current_inventory_is_bound():

@@ -8,6 +8,7 @@ import json
 import zipfile
 import zlib
 import pytest
+from tests.test_suspension_pin_source_review import source_before_suspension_pin
 from work.profit_1000_upgrade import candidate_natural_p0_github as gh
 from work.profit_1000_upgrade import candidate_natural_p0_continuation as m
 from work.profit_1000_upgrade.test_candidate_natural_p0_github import fixture as source_fixture, git_tree, pages_zip
@@ -68,7 +69,7 @@ def fixture(tmp_path,monkeypatch,*,suspension=False,current_profile=False):
     if current_profile:
         profile = (m.DELIVERY_HARDENED_P0_CODE_PROFILE if current_profile == 'delivery_hardened'
             else m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE)
-        profile_files = {p:(gh.CODE_ROOT/p).read_bytes() for p in profile}
+        profile_files = {p:source_before_suspension_pin(p, (gh.CODE_ROOT/p).read_bytes()) for p in profile}
         if current_profile == 'delivery_hardened':
             from tests.test_next_day_statistics_source_review import source_before_next_day
             profile_files[freeze_path] = source_before_next_day(freeze_path)
@@ -269,7 +270,7 @@ def test_next_day_profile_is_explicit_display_only_successor():
     assert review['approved_base_commit'] == '7034de1b95c384f4307db018737a0a2635453488'
     assert all(value is False for value in review['boundaries'].values())
     manifest = next(item for item in review['source_changes'] if item['path'] == 'models/decision_model_freeze.json')
-    assert manifest['current_sha256'] == hashlib.sha256((gh.CODE_ROOT / manifest['path']).read_bytes()).hexdigest()
+    assert manifest['current_sha256'] == hashlib.sha256(source_before_suspension_pin(manifest['path'], (gh.CODE_ROOT / manifest['path']).read_bytes())).hexdigest()
 
 
 @pytest.mark.parametrize('mutation', ['none', 'wrong_pin', 'new_day', 'unreviewed_importer'])
@@ -332,3 +333,119 @@ def test_schedule_origin_must_keep_registered_name_real_D_and_window(tmp_path,mo
     c['r0'].update(event='schedule',name=gh.WORKFLOW_NAME,display_title=gh.WORKFLOW_NAME)
     c['r0'][field]=value
     with pytest.raises(ValueError):call(c)
+
+
+def suspension_profile_fixture():
+    new_manifest = (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes()
+    old_manifest = source_before_suspension_pin(m.MANIFEST_PATH, new_manifest)
+    evidence = (gh.CODE_ROOT / m.SUSPENSION_EVIDENCE_PATH).read_bytes()
+    raw = {gh.git_blob(b): b for b in (new_manifest, old_manifest, evidence)}
+    def tree(profile):
+        return {p: {'type': 'blob', 'mode': '100644', 'sha': digest} for p, digest in profile.items()}
+    original = tree(m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE)
+    original[m.SUSPENSION_EVIDENCE_PATH] = tree(m.SUSPENSION_P0_CODE_PROFILE)[m.SUSPENSION_EVIDENCE_PATH]
+    class BlobReads:
+        def blob(self, source_tree, path): return raw[source_tree[path]['sha']]
+    return [deepcopy(original), deepcopy(original), tree(m.SUSPENSION_P0_CODE_PROFILE)], BlobReads(), raw
+
+
+def test_exact_suspension_manifest_repair_preserves_original_profile_and_evidence():
+    trees, reads, raw = suspension_profile_fixture()
+    profile, transition = m.validate_code_profiles(gh, reads, *trees, dict(m.SUSPENSION_TRANSITION_IDENTITY))
+    assert profile == m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+    assert transition == {**m.SUSPENSION_TRANSITION_IDENTITY,
+        'original_manifest_sha256': '94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435',
+        'deployed_manifest_sha256': '31ad138b076f8ebb2bb1bf508813670ebe4c84c61619501272129f369f32bea0',
+        'evidence_sha256': '4f9a6341823d23283d25a02b62957671cabfa2e1aa77f6ea25b25d46cfa12158'}
+    assert trees[0][m.MANIFEST_PATH] == trees[1][m.MANIFEST_PATH] != trees[2][m.MANIFEST_PATH]
+
+
+@pytest.mark.parametrize('field', sorted(m.SUSPENSION_TRANSITION_IDENTITY))
+def test_suspension_transition_rejects_other_date_run_or_commit(field):
+    trees, reads, _ = suspension_profile_fixture()
+    identity = dict(m.SUSPENSION_TRANSITION_IDENTITY); identity[field] = '0' * len(identity[field])
+    with pytest.raises(ValueError, match='TRANSITION_EXACT_IDENTITY_REQUIRED'):
+        m.validate_code_profiles(gh, reads, *trees, identity)
+
+
+@pytest.mark.parametrize('tree_index', [0, 1, 2])
+@pytest.mark.parametrize('field', ['mode', 'type', 'sha', 'missing'])
+def test_suspension_transition_rejects_changed_original_evidence(tree_index, field):
+    trees, reads, _ = suspension_profile_fixture()
+    if field == 'missing': trees[tree_index].pop(m.SUSPENSION_EVIDENCE_PATH)
+    else: trees[tree_index][m.SUSPENSION_EVIDENCE_PATH][field] = 'bad'
+    with pytest.raises(ValueError, match='TRANSITION_ORIGINAL_EVIDENCE_REQUIRED'):
+        m.validate_code_profiles(gh, reads, *trees, dict(m.SUSPENSION_TRANSITION_IDENTITY))
+
+
+@pytest.mark.parametrize('tree_index', [0, 1, 2])
+@pytest.mark.parametrize('path', sorted(set(m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE) - {m.MANIFEST_PATH}))
+def test_suspension_transition_does_not_admit_any_unreviewed_code(tree_index, path):
+    trees, reads, _ = suspension_profile_fixture()
+    trees[tree_index][path]['sha'] = '0' * 40
+    with pytest.raises(ValueError, match='REVIEWED_CODE_PROFILE_REQUIRED'):
+        m.validate_code_profiles(gh, reads, *trees, dict(m.SUSPENSION_TRANSITION_IDENTITY))
+
+
+@pytest.mark.parametrize('path', [m.MANIFEST_PATH, m.SUSPENSION_EVIDENCE_PATH])
+def test_suspension_transition_checks_raw_bytes_not_only_reported_git_blob(path):
+    trees, reads, raw = suspension_profile_fixture()
+    raw[trees[2][path]['sha']] += b'\n'
+    with pytest.raises(ValueError, match='TRANSITION_ONLY_EXACT_REPLACEMENT_REQUIRED|TRANSITION_ORIGINAL_EVIDENCE_REQUIRED'):
+        m.validate_code_profiles(gh, reads, *trees, dict(m.SUSPENSION_TRANSITION_IDENTITY))
+
+
+def test_new_original_generation_uses_whole_suspension_profile_without_transition():
+    trees, reads, _ = suspension_profile_fixture()
+    profile, transition = m.validate_code_profiles(gh, reads, trees[2], trees[2], trees[2], {})
+    assert profile == m.SUSPENSION_P0_CODE_PROFILE and transition is None
+
+
+@pytest.mark.parametrize('mutation', ['none', 'date', 'pins', 'transition'])
+def test_original_pre_suspension_import_receipt_is_preserved_with_closed_date(tmp_path, monkeypatch, mutation):
+    c = fixture(tmp_path, monkeypatch)
+    old = gh.import_redeployed_p0_sources(c['output'], expected_run_id=R1,
+        original_generation_run_id=R0, original_cas_commit=CAS,
+        github_client=c['client'], clock=lambda:NOW)
+    old['importer_sha256'] = m.PRE_SUSPENSION_IMPORTER_SHA
+    old['continuation_dependency_sha256'] = deepcopy(m.PRE_SUSPENSION_CONTINUATION_PINS)
+    if mutation == 'date': old['signal_date'] = '20261110'
+    elif mutation == 'pins': old['continuation_dependency_sha256'] = {}
+    elif mutation == 'transition': old['continuation']['reviewed_manifest_transition'] = {}
+    if mutation == 'none': assert m.validate_import_receipt(gh, old) == old['continuation']
+    else:
+        with pytest.raises(ValueError, match='PRE_SUSPENSION_CONTINUATION_IMPORT_DATE_CHANGED|CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH'):
+            m.validate_import_receipt(gh, old)
+
+
+def test_manifest_transition_is_wired_to_full_original_artifact_and_source_verification(tmp_path, monkeypatch):
+    c = fixture(tmp_path, monkeypatch, current_profile=True)
+    new_manifest = (gh.CODE_ROOT / m.MANIFEST_PATH).read_bytes()
+    evidence = (gh.CODE_ROOT / m.SUSPENSION_EVIDENCE_PATH).read_bytes()
+    c['old'][m.SUSPENSION_EVIDENCE_PATH] = evidence
+    c['all_new'][m.SUSPENSION_EVIDENCE_PATH] = evidence
+    deployed = {**c['all_new'], m.MANIFEST_PATH: new_manifest}
+    res = c['client'].responses
+    for commit, files in ((BASE, c['old']), (CAS, c['all_new']), (HEAD, deployed)):
+        tree = git_tree(files)
+        res[gh.API_PREFIX + '/git/commits/' + commit]['tree']['sha'] = tree['sha']
+        res[gh.API_PREFIX + '/git/trees/' + tree['sha'] + '?recursive=1'] = tree
+    for raw in (new_manifest, evidence):
+        sha = gh.git_blob(raw)
+        res[gh.API_PREFIX + '/git/blobs/' + sha] = {'sha': sha, 'size': len(raw),
+            'encoding': 'base64', 'content': base64.b64encode(raw).decode()}
+    # The full dual-run fixture is synthetic. Exact production identities are
+    # separately rejected one field at a time above; do not change those constants.
+    identity = {'signal_date': c['day'], 'original_run_id': R0, 'original_head': BASE,
+        'original_cas': CAS, 'reuse_run_id': R1, 'deployed_head': HEAD}
+    monkeypatch.setattr(m, 'SUSPENSION_TRANSITION_IDENTITY', identity)
+    proof, sources, _ = call(c)
+    assert proof['reviewed_manifest_transition']['original_cas'] == CAS
+    assert proof['original_p0_code_profile'] == m.NEXT_DAY_STATISTICS_P0_CODE_PROFILE
+    assert sources == c['sources']
+
+
+def test_historical_same_profile_has_no_new_transition_field(tmp_path, monkeypatch):
+    c = fixture(tmp_path, monkeypatch, current_profile=True)
+    proof, _, _ = call(c)
+    assert 'reviewed_manifest_transition' not in proof
