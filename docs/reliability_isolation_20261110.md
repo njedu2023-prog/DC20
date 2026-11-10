@@ -65,6 +65,20 @@ D20261110 frozen inputs, alternating run order across three trials. Rankings,
 scores and input inventories must agree. Timings cover that measured computation;
 they do not claim upstream collection, GitHub queue or CDN delivery improvement.
 
+The older `943e62b27102c671cd440c45a160054a3bb092f9` baseline remains a separate
+historical ranking compatibility check for D20260914, D20261014, D20261028 and
+D20261106. It is not this repair's publication timing baseline. Both publication
+builds now use the immediate `65d4e0c1d80c177645eff1d1bbd53fee71cffda9` D20261110
+business inputs, with each code checkout retaining its own model manifest and
+all trust-root checks. Injecting the older D20261106 data into current code fails
+correctly because its historical suspension file differs from the current model
+pin; the rehearsal must not rewrite that pin or bypass validation to fit the data.
+
+Artifacts distinguish `historical-ranking-comparison.json` (older compatibility),
+`publication-comparison.json` (three matched D20261110 Pages preparation builds)
+and `reliability-comparison.json` (three matched D20261110 scoring replays).
+Publication timing includes no actual Pages deploy or CDN acceptance.
+
 A passing historical replay is not a new natural freeze. D20261111 end-to-end
 natural operation can only be accepted after its real market inputs, frozen
 records, release evidence and public versions exist. A workflow success badge

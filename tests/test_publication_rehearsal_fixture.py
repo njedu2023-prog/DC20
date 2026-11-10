@@ -226,11 +226,68 @@ def test_workflow_uses_one_immutable_source_for_both_code_versions():
     steps = workflow['jobs']['historical-linked-replay']['steps']
     baseline = next(s for s in steps if s['name'] == 'Checkout original baseline')
     assert baseline['with']['ref'] == BASELINE
+    immediate = next(s for s in steps if s['name'] == 'Checkout immediate reliability baseline for matched latest-D replay')
+    immediate_sha = '65d4e0c1d80c177645eff1d1bbd53fee71cffda9'
+    assert immediate['with']['ref'] == immediate_sha
     builds = next(s['run'] for s in steps if s['name'].startswith('Rehearse three'))
     assert 'cp -a "$version" "$rehearsal"' in builds
-    assert '--source-root baseline --expected-signal-date '+DAY in builds
-    assert '--expected-source-head '+BASELINE in builds
+    assert '--source-root reliability-baseline --expected-signal-date 20261110' in builds
+    assert '--expected-source-head '+immediate_sha in builds
+    assert BASELINE not in builds and '--source-root baseline ' not in builds
+    assert steps.index(immediate) < next(i for i,s in enumerate(steps) if s['name'].startswith('Rehearse three'))
+    historical = next(s['run'] for s in steps if s['name'].startswith('Compare historical rankings'))
+    assert BASELINE in historical and 'historical-ranking-comparison.json' in historical
+    assert 'business_signature_sha256' in historical and 'profit_top2' in historical
     comparison = next(s['run'] for s in steps if s['name'].startswith('Compare business'))
     for guard in ('source_fixture', 'business_input_inventory_sha256',
-                  'Simulated account business values changed', 'Recomputed rankings/inputs changed'):
+                  'Simulated account business values changed', 'protected_files_unchanged',
+                  'natural_freeze_created', 'public_deploy_performed'):
         assert guard in comparison
+    assert 'publication-comparison.json' in comparison and immediate_sha in comparison
+    assert BASELINE not in comparison and DAY not in comparison
+    latest = next(s['run'] for s in steps if s['name'] == 'Recompute latest original freeze with immediate old and new code')
+    assert '--source-root reliability-baseline --signal-date 20261110' in latest
+    assert 'for trial in 1 2 3' in latest and 'reliability-comparison.json' in latest
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong_day', 'wrong_fixture', 'different_inputs',
+    'different_account', 'no_protection', 'new_freeze', 'actual_deployment'])
+def test_publication_comparison_rejects_incompatible_fixture_or_changed_business_values(tmp_path, monkeypatch, fault):
+    workflow = yaml.safe_load((Path(__file__).resolve().parents[1]/
+                              '.github/workflows/verify_daily_cleanup.yml').read_text())
+    step = next(s for s in workflow['jobs']['historical-linked-replay']['steps']
+                if s['name'] == 'Compare business results and measured durations')
+    code = step['run'].split("python - <<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    for version in ('reliability-baseline', 'cleaned'):
+        for trial in (1, 2, 3):
+            item = {'status': 'PASS', 'signal_date': '20261110',
+                'source_fixture': {'signal_date': '20261110',
+                    'source_head': '65d4e0c1d80c177645eff1d1bbd53fee71cffda9'},
+                'business_input_inventory_sha256': 'a'*64,
+                'natural_freeze_created': False, 'public_deploy_performed': False,
+                'protected_files_unchanged': 20, 'account': {'assets': 735000},
+                'total_seconds': 10.0 + trial}
+            if version == 'cleaned' and trial == 3:
+                if fault == 'wrong_day': item['signal_date'] = DAY
+                if fault == 'wrong_fixture': item['source_fixture']['source_head'] = BASELINE
+                if fault == 'different_inputs': item['business_input_inventory_sha256'] = 'b'*64
+                if fault == 'different_account': item['account']['assets'] += 1
+                if fault == 'no_protection': item['protected_files_unchanged'] = 0
+                if fault == 'new_freeze': item['natural_freeze_created'] = True
+                if fault == 'actual_deployment': item['public_deploy_performed'] = True
+            target = tmp_path/'acceptance'/f'{version}-publication-{trial}'/'result.json'
+            target.parent.mkdir(parents=True)
+            target.write_text(json.dumps(item))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('GITHUB_STEP_SUMMARY', str(tmp_path/'summary.md'))
+    monkeypatch.setenv('GITHUB_SHA', 'c'*40)
+    if fault:
+        with pytest.raises(AssertionError):
+            exec(compile(code, 'publication-comparison-workflow', 'exec'), {})
+        assert not (tmp_path/'acceptance/publication-comparison.json').exists()
+    else:
+        exec(compile(code, 'publication-comparison-workflow', 'exec'), {})
+        result = json.loads((tmp_path/'acceptance/publication-comparison.json').read_text())
+        assert result['signal_date'] == '20261110' and result['repaired_commit'] == 'c'*40
+        assert result['baseline_build_seconds'] == result['cleaned_build_seconds'] == 12
+        assert result['build_seconds_saved'] == 0

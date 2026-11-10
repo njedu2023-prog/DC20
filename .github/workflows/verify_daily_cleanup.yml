@@ -57,6 +57,12 @@ jobs:
           path: baseline
           ref: 943e62b27102c671cd440c45a160054a3bb092f9
           persist-credentials: false
+      - name: Checkout immediate reliability baseline for matched latest-D replay
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: reliability-baseline
+          ref: 65d4e0c1d80c177645eff1d1bbd53fee71cffda9
+          persist-credentials: false
       - name: Set up exact production Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -113,14 +119,34 @@ jobs:
             python cleaned/scripts/replay_daily_cleanup.py --code-root baseline --source-root baseline --original-source-cache original-source-cache --signal-date "$day" --label baseline --output "acceptance/baseline-scoring-$day.json"
             python cleaned/scripts/replay_daily_cleanup.py --code-root cleaned --source-root baseline --original-source-cache original-source-cache --signal-date "$day" --label cleaned --output "acceptance/cleaned-scoring-$day.json"
           done
+      - name: Compare historical rankings against the original retirement baseline
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('acceptance')
+          days=('20260914','20261014','20261028','20261106')
+          for day in days:
+              pair=[json.loads((root/(name+'-scoring-'+day+'.json')).read_text()) for name in ('baseline','cleaned')]
+              assert all(item['status']=='PASS' and item['signal_date']==day for item in pair)
+              for key in ('input_inventory_sha256','business_signature_sha256','promotion_top3','profit_top2'):
+                  assert pair[0][key]==pair[1][key], (day,key)
+          result={'status':'PASS','baseline_commit':'943e62b27102c671cd440c45a160054a3bb092f9',
+              'replayed_days':list(days),'rankings_and_scores_identical':True,
+              'scope':'OLD_RETIREMENT_BASELINE_HISTORICAL_RANKING_COMPATIBILITY_ONLY; not the immediate reliability timing baseline and no publication comparison.'}
+          raw=json.dumps(result,ensure_ascii=False,indent=2)
+          (root/'historical-ranking-comparison.json').write_text(raw+'\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write('Original retirement baseline historical ranking compatibility\n```json\n'+raw+'\n```\n')
+          print(raw)
+          PY
       - name: Rehearse three matched publication builds without deploying
         run: |
           for trial in 1 2 3; do
-            if [ "$trial" = "2" ]; then order="cleaned baseline"; else order="baseline cleaned"; fi
+            if [ "$trial" = "2" ]; then order="cleaned reliability-baseline"; else order="reliability-baseline cleaned"; fi
             for version in $order; do
               rehearsal="$RUNNER_TEMP/dc20-$version-$trial"
               cp -a "$version" "$rehearsal"
-              python cleaned/scripts/rehearse_daily_publication.py --root "$rehearsal" --out "acceptance/$version-publication-$trial" --source-root baseline --expected-signal-date 20261106 --expected-source-head 943e62b27102c671cd440c45a160054a3bb092f9
+              python cleaned/scripts/rehearse_daily_publication.py --root "$rehearsal" --out "acceptance/$version-publication-$trial" --source-root reliability-baseline --expected-signal-date 20261110 --expected-source-head 65d4e0c1d80c177645eff1d1bbd53fee71cffda9
               rm -rf -- "$rehearsal"
             done
           done
@@ -130,42 +156,31 @@ jobs:
           import json, os, statistics
           from pathlib import Path
           root=Path('acceptance')
-          all_scoring={day:[json.loads((root/(name+'-scoring-'+day+'.json')).read_text()) for name in ('baseline','cleaned')] for day in ('20260914','20261014','20261028','20261106')}
-          for day, pair in all_scoring.items():
-              for key in ('status','input_inventory_sha256','business_signature_sha256','promotion_top3','profit_top2'):
-                  assert pair[0][key]==pair[1][key], (day,key)
-              assert all(x['status']=='PASS' for x in pair)
-          scoring=all_scoring['20261106']
-          builds={name:[json.loads((root/(name+'-publication-'+str(i)+'/result.json')).read_text()) for i in (1,2,3)] for name in ('baseline','cleaned')}
-          publication=[item for name in ('baseline','cleaned') for item in builds[name]]
-          for item in scoring+publication:
+          builds={name:[json.loads((root/(name+'-publication-'+str(i)+'/result.json')).read_text()) for i in (1,2,3)] for name in ('reliability-baseline','cleaned')}
+          publication=[item for name in ('reliability-baseline','cleaned') for item in builds[name]]
+          for item in publication:
               assert item['status']=='PASS',item
-          for key in ('input_inventory_sha256','business_signature_sha256','promotion_top3','profit_top2'):
-              assert scoring[0][key]==scoring[1][key], 'Recomputed rankings/inputs changed: '+key
-          assert all(item['signal_date']=='20261106' for item in publication), 'Baseline date must be deliberately advanced for a later business input set'
-          assert all(item['source_fixture']['signal_date']=='20261106' and item['source_fixture']['source_head']=='943e62b27102c671cd440c45a160054a3bb092f9' for item in publication), 'Publication builds must use the immutable historical fixture'
+              assert item['natural_freeze_created'] is False and item['public_deploy_performed'] is False
+              assert item['protected_files_unchanged'] > 0
+          assert all(item['signal_date']=='20261110' for item in publication), 'Publication comparison must use the immediate reliability D'
+          assert all(item['source_fixture']['signal_date']=='20261110' and item['source_fixture']['source_head']=='65d4e0c1d80c177645eff1d1bbd53fee71cffda9' for item in publication), 'Publication builds must use the immutable immediate-baseline fixture'
           assert len({item['business_input_inventory_sha256'] for item in publication})==1, 'Publication timing requires identical business inputs'
           accounts=[{k:v for k,v in item['account'].items() if k not in ('data_bindings','publication')} for item in publication]
           assert all(value==accounts[0] for value in accounts), 'Simulated account business values changed'
           samples={name:[item['total_seconds'] for item in builds[name]] for name in builds}
-          times=[statistics.median(samples[name]) for name in ('baseline','cleaned')]
-          result={'status':'PASS','signal_date':'20261106','rankings_identical':True,'replayed_days':list(all_scoring),'account_business_values_identical':True,
+          times=[statistics.median(samples[name]) for name in ('reliability-baseline','cleaned')]
+          result={'status':'PASS','signal_date':'20261110','baseline_commit':'65d4e0c1d80c177645eff1d1bbd53fee71cffda9',
+            'repaired_commit':os.environ['GITHUB_SHA'],'same_business_inputs':True,'account_business_values_identical':True,
             'build_trials':samples,'timing_statistic':'median_of_three_matched_builds',
             'baseline_build_seconds':times[0],'cleaned_build_seconds':times[1],
             'build_seconds_saved':times[0]-times[1],
             'build_change_pct':(times[1]/times[0]-1)*100,
-            'scope':'Real historical recomputation and actual Pages build on the same runner. Excludes fresh upstream collection, GitHub queue/install and public CDN propagation. No new natural freeze or public deployment.'}
-          (root/'comparison.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+            'scope':'IMMEDIATE_RELIABILITY_BASELINE_MATCHED_PAGES_BUILD; actual Pages preparation on the same runner. Excludes upstream collection, GitHub queue/install and public CDN propagation. No new natural freeze or public deployment; ranking recomputation is reported separately.'}
+          (root/'publication-comparison.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
           print(json.dumps(result,ensure_ascii=False))
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
-              f.write('Historical D20261106 cleanup acceptance\n```json\n'+json.dumps(result,ensure_ascii=False,indent=2)+'\n```\n')
+              f.write('Immediate baseline D20261110 publication preparation acceptance\n```json\n'+json.dumps(result,ensure_ascii=False,indent=2)+'\n```\n')
           PY
-      - name: Checkout immediate reliability baseline for matched latest-D replay
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          path: reliability-baseline
-          ref: 65d4e0c1d80c177645eff1d1bbd53fee71cffda9
-          persist-credentials: false
       - name: Recompute latest original freeze with immediate old and new code
         run: |
           for trial in 1 2 3; do

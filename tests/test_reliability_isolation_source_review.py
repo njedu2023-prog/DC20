@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW = 'models/decision_source_surface_review_20261110_reliability_isolation.json'
-REVIEW_SHA = '33dd0a03ae84ca2306f25397a4b71297f876e98bcf3529d32f2150e01177d746'
+REVIEW_SHA = '55532b6589658c2f1cc7f5da174335f41cb166d181777c8ff5c4607fdc73c790'
 BASE = '65d4e0c1d80c177645eff1d1bbd53fee71cffda9'
 
 
