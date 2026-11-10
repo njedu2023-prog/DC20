@@ -241,3 +241,174 @@ def test_workflows_keep_mutating_jobs_behind_read_only_gate():
         gate_step = next(step for step in steps if step.get("id") == "trigger")
         assert "candidate_natural_trigger_gate" in gate_step["run"]
         assert "DC20_CANDIDATE_GITHUB_TOKEN" in gate_step["env"]
+
+
+@pytest.mark.parametrize("fault", ["freeze_failed","freeze_head","artifact_binding","archive_bytes",
+    "source_bytes","source_missing","source_extra","archive_payload","tree_mode"])
+def test_expanded_reuse_rejects_changed_original_evidence(tmp_path,monkeypatch,fault):
+    case=expanded_case(tmp_path,monkeypatch)
+    if fault=="freeze_failed":
+        case["jobs"][1]["conclusion"]="failure"
+    elif fault=="freeze_head":
+        case["run"]["head_sha"]="0"*40
+    elif fault=="artifact_binding":
+        case["artifact"]["digest"]="sha256:"+"0"*64
+    elif fault=="archive_bytes":
+        raw=case["client"].archives[900]
+        case["client"].archives[900]=bytes([raw[0]^1])+raw[1:]
+    elif fault=="tree_mode":
+        document=case["client"].responses[gh.API_PREFIX+"/git/trees/"+case["source"]["tree"]["sha"]+"?recursive=1"]
+        next(x for x in document["tree"] if x["type"]=="blob")["mode"]="100755"
+    else:
+        original=issuer.publication.read_archive
+        def damaged(raw):
+            out=original(raw)
+            if fault=="archive_payload":out["local_raw"]+=b" "
+            elif fault=="source_missing":out["sources"].pop(next(iter(out["sources"])))
+            elif fault=="source_extra":out["sources"]["data/market/unknown.csv"]=b"unregistered"
+            else:
+                name=next(iter(out["sources"]));body=out["sources"][name]
+                out["sources"][name]=bytes([body[0]^1])+body[1:]
+            return out
+        monkeypatch.setattr(issuer.publication,"read_archive",damaged)
+    with pytest.raises(ValueError):
+        gate.inspect_p0(run_id=NOOP_ID,github_client=case["client"])
+
+
+def test_expanded_observer_noop_stays_within_original_get_budget(tmp_path,monkeypatch):
+    case=expanded_case(tmp_path,monkeypatch);client=case["client"]
+    receipt=gate.inspect_p0(run_id=NOOP_ID,github_client=client)
+    new_id="77812345678"
+    run={**deepcopy(case["run"]),"id":int(new_id),"head_sha":"a"*40}
+    jobs=deepcopy(case["jobs"])
+    for job in jobs:job["run_id"]=int(new_id)
+    jobs[1]["conclusion"]="skipped"
+    jobs[0]["steps"]=[{"number":1,"name":gate.PREFLIGHT_STEP,"status":"completed","conclusion":"success"}]
+    code={p:(gate.workflow.ROOT/p).read_bytes() for p in (gate.MODULE_PATH,gate.FORWARD_PATH)}
+    tree=fixtures.p0.git_tree(code)
+    client.responses[gh.API_PREFIX+"/git/commits/"+"a"*40]={"sha":"a"*40,"tree":{"sha":tree["sha"]}}
+    client.responses[gh.API_PREFIX+"/git/trees/"+tree["sha"]+"?recursive=1"]=tree
+    archive=fixtures.zip_bytes({"candidate-preflight.json":gh.json_bytes(receipt)})
+    artifact=deepcopy(case["artifact"])
+    artifact.update(id=991,name=f"dc20-candidate-preflight-{new_id}-1",size_in_bytes=len(archive),
+        digest="sha256:"+gh.sha256(archive))
+    artifact["workflow_run"].update(id=int(new_id),head_sha=run["head_sha"])
+    path=gh.API_PREFIX+"/actions/runs/"+new_id
+    client.responses.update({path:run,path+"/attempts/1/jobs?per_page=100":{"jobs":jobs,"total_count":2},
+        path+"/artifacts?per_page=100":{"artifacts":[artifact],"total_count":1}})
+    client.archives[991]=archive
+    start=len(client.requests)
+    out=gate.inspect_freeze(run_id=new_id,github_client=client)
+    cost=sum(2 if isinstance(item,tuple) else 1 for item in client.requests[start:])
+    assert out["status"]=="NO_NEW_FREEZE_EXISTING_EVIDENCE_PRESERVED" and not out["needs_work"]
+    assert cost<=gh.MAX_API_CALLS
+    print("EXPANDED_OBSERVER_NOOP_WEIGHTED_GETS",cost)
+
+
+def test_continuation_passes_actual_verified_sources_without_second_collection(tmp_path,monkeypatch):
+    from work.profit_1000_upgrade import test_candidate_natural_p0_continuation as continuation_case
+    case=continuation_case.fixture(tmp_path,monkeypatch)
+    seen=[]
+    def existing(gh_arg,runner,client,tree,original_tree,day,trade,exit_day,revision,**kwargs):
+        sources=kwargs["verified_original_sources"]
+        proof=kwargs["verified_continuation"]
+        assert sources==case["sources"] and proof["source_file_bindings"]
+        paths=gh.adapter._p0_paths(day)
+        assert gh.validate_original_source_inventory(gh.parse_json(sources[paths["receipt"]]),
+            gh.parse_json(sources[paths["three_rank_json"]]),sources,day)==28
+        seen.append(proof)
+        return {"original_p0_run_id":int(continuation_case.R0)}
+    monkeypatch.setattr(gate,"_existing_day",existing)
+    out=gate.inspect_continuation(run_id=continuation_case.R1,
+        original_generation_run_id=continuation_case.R0,original_cas_commit=continuation_case.CAS,
+        github_client=case["client"])
+    cost=sum(2 if isinstance(item,tuple) else 1 for item in case["client"].requests)
+    assert len(seen)==1 and not out["needs_work"]
+    assert cost<=gh.MAX_CONTINUATION_API_CALLS
+    print("CONTINUATION_SOURCE_HANDOFF_WEIGHTED_GETS",cost)
+
+
+
+def expanded_case(tmp_path, monkeypatch):
+    """A real synthetic suspension boundary adds an immutable pre-window bar."""
+    import csv
+    import io
+    from pathlib import Path
+    from work.profit_1000_upgrade import test_candidate_d_source_adapter as adapter_tests
+    original_make = fixtures.p0.make_case
+    original_fixture = fixtures.p0.fixture
+
+    def make_expanded(path, patch, **kwargs):
+        case = original_make(path, patch, **kwargs)
+        root, receipt = case["root"], case["receipt"]
+        dates = receipt["inputs"]["calendar"]["runtime_context_dates"]
+        before, start, resume = "20260814", dates[0], dates[1]
+        code = case["runtime"][0]["ts_code"]
+        def daily(day):
+            rel = f"data/market/raw/{day[:4]}/{day}/daily.csv"
+            return rel, list(csv.DictReader(io.StringIO((root / rel).read_text())))
+        rel, rows = daily(start)
+        adapter_tests.update_source(case, rel, adapter_tests.csv_bytes(
+            [r for r in rows if r["ts_code"] != code], tuple(rows[0])))
+        rel, rows = daily(resume)
+        for row in rows:
+            if row["ts_code"] == code: row["pre_close"] = "10"
+        adapter_tests.update_source(case, rel, adapter_tests.csv_bytes(rows, tuple(rows[0])))
+        before_path = f"data/market/raw/2026/{before}/daily.csv"
+        adapter_tests.write(root / before_path, adapter_tests.csv_bytes(
+            [{"trade_date":before,"ts_code":code,"close":10,"pre_close":10,"vol":100}],
+            ("trade_date","ts_code","close","pre_close","vol")))
+        interval = {"ts_code":code,"start_date":start,"resume_date":resume,
+            "previous_trading_date":before,"skipped_sessions":[start]}
+        disclosure = gh.json_bytes({"schema_version":"dc20_confirmed_suspensions_v1","suspensions":[{
+            "ts_code":code,"start_date":start,"resume_date":resume,"sources":[{
+                "url":"https://example.invalid/synthetic.pdf","published_date":start,"pdf_sha256":"a"*64}]}]})
+        adapter_tests.write(root / gh.adapter.SUSPENSION_PATH,disclosure)
+        receipt["inputs"]["runtime_consumed_market_files"].append({
+            "table":"confirmed_suspensions","path":gh.adapter.SUSPENSION_PATH,
+            "sha256":gh.sha256(disclosure),"git_blob_sha1":gh.git_blob(disclosure),
+            "git_mode":"100644","used_intervals":[interval]})
+        calendar = (root / gh.adapter.CALENDAR_PATH).read_bytes()
+        bindings=[]
+        for day in (before,start,resume):
+            logical=f"data/market/raw/{day[:4]}/{day}/daily.csv";raw=(root/logical).read_bytes()
+            bindings.append({"table":"daily","trade_date":day,"path":logical,
+                "sha256":gh.sha256(raw),"git_blob_sha1":gh.git_blob(raw),"git_mode":"100644"})
+        receipt["inputs"]["committed_history_context"]["git_head"]=fixtures.p0.BASE
+        receipt["inputs"]["runtime_consumed_market_files"].append({
+            "schema_version":gh.adapter.BOUNDARY_SCHEMA,"table":gh.adapter.BOUNDARY_TABLE,
+            "start_date":start,"resume_date":resume,"git_head":fixtures.p0.BASE,"as_of_date":case["day"],
+            "calendar":{"path":gh.adapter.CALENDAR_PATH,"sha256":gh.sha256(calendar),
+                "git_blob_sha1":gh.git_blob(calendar),"git_mode":"100644"},
+            "files":bindings,"feature_window_extended":False})
+        adapter_tests.update_receipt(case)
+        return case
+
+    def fixture_expanded(path, patch, **kwargs):
+        case=original_fixture(path,patch,**kwargs)
+        # The synthetic immutable parent contains all declared boundary witnesses.
+        case["client"].responses[gh.API_PREFIX+"/git/commits/"+fixtures.p0.BASE]={
+            "sha":fixtures.p0.BASE,"tree":{"sha":case["tree"]["sha"]}}
+        return case
+    monkeypatch.setattr(fixtures.p0,"make_case",make_expanded)
+    monkeypatch.setattr(fixtures.p0,"fixture",fixture_expanded)
+    return noop_case(tmp_path,monkeypatch)
+
+
+def test_expanded_noop_uses_verified_original_archive_after_temp_sources_are_gone(tmp_path,monkeypatch):
+    import shutil
+    case=expanded_case(tmp_path,monkeypatch)
+    source=case["source"]["output"]
+    shutil.rmtree(source)
+    assert not source.exists()
+    monkeypatch.setattr(gh,"import_p0_sources",lambda *a,**k:pytest.fail("REIMPORT"))
+    monkeypatch.setattr(fixtures.m.natural.scorer,"predict_forward",lambda *a,**k:pytest.fail("RESCORE"))
+    start=len(case["client"].requests)
+    out=gate.inspect_p0(run_id=NOOP_ID,github_client=case["client"])
+    cost=sum(2 if isinstance(item,tuple) else 1 for item in case["client"].requests[start:])
+    assert out["needs_work"] is False and out["status"]=="EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE"
+    assert cost <= gh.MAX_API_CALLS
+    assert not source.exists()
+    print("EXPANDED_ORDINARY_NOOP_WEIGHTED_GETS",cost)
+
+
