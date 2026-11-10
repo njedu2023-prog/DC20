@@ -1,6 +1,6 @@
 {
   "schema_version": "dc20_confirmed_suspensions_v1",
-  "verified_at_utc": "2026-10-14T15:03:15.153929Z",
+  "verified_at_utc": "2026-11-10T11:51:34Z",
   "scope": "P0 observed limit-up session continuity only; never synthetic quotes, settlement, or training admission",
   "suspensions": [
     {
@@ -52,6 +52,31 @@
       "announcement_number": "2026-047",
       "interval_semantics": "start inclusive, resume exclusive; full-day suspension only",
       "evidence_checked": "official issuer filings downloaded and excerpts verified; original source PDF hashes retained"
+    },
+    {
+      "ts_code": "002623.SZ",
+      "start_date": "20261103",
+      "resume_date": "20261110",
+      "sources": [
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-11-03/1225654166.PDF",
+          "published_date": "20261103",
+          "pdf_sha256": "f7e85783a79da7ada20bcb51b377bd9f8b582f6decb84d401e8143bfa7d64698"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-11-05/1225657574.PDF",
+          "published_date": "20261105",
+          "pdf_sha256": "b6d0412d30d286f005bface9593f2514a8b461858b1b8a44baf4cfdc5334d771"
+        },
+        {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-11-10/1225664631.PDF",
+          "published_date": "20261110",
+          "pdf_sha256": "62821a6380208803d5f2e3a490409babca934e9409d6c6bdb385158c9ade20db"
+        }
+      ],
+      "announcement_number": "2026-062",
+      "interval_semantics": "start inclusive, resume exclusive; full-day suspension only",
+      "evidence_checked": "Official issuer filings and original PDF hashes verified; committed 20261103/04/05/06/09 daily tables have no bar; 20261102 close and 20261110 pre_close both 19.28. No synthetic bars or historical freeze changes."
     }
   ]
 }
