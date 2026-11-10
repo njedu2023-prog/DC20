@@ -470,7 +470,8 @@ def _eligible_actual_source(path):
     assert all(p not in ("..", ".", "") for p in path.split("/"))
     assert ROOT in target.resolve().parents
     assert not any(p.is_symlink() for p in (target, *target.parents) if p != ROOT)
-    raw = _statistics_refresh_previous(path, target.read_bytes())
+    from tests.test_settlement_noop_source_review import source_before_settlement_noop
+    raw = _statistics_refresh_previous(path, source_before_settlement_noop(path, target.read_bytes()))
     review_raw = (ROOT / POSTHOC_REVIEW_PATH).read_bytes()
     assert hashlib.sha256(review_raw).hexdigest() == POSTHOC_REVIEW_SHA
     review = json.loads(review_raw)

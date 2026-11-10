@@ -119,5 +119,39 @@ class DiagnosticBoundaryTests(unittest.TestCase):
         self.assertEqual(result["status"],"READ_ONLY_PREFLIGHT_PASSED")
         self.assertIs(result["needs_work"],False)
 
+    def test_exception_only_trace_preserves_missing_path_and_ignores_stdlib_lines(self):
+        records=[];observed=[]
+        tracer=m.exception_trace(ROOT,{"MISSING_PATH"},records)
+        project_path=str(ROOT/"work/profit_1000_upgrade/synthetic_trace_case.py")
+        external_path="/synthetic-python-stdlib/example.py"
+        scope={}
+        exec(compile("def external():\n    raise ValueError('MISSING_PATH')\n",external_path,"exec"),scope)
+        exec(compile("def project():\n    total=0\n    for i in range(100): total+=i\n    external()\n",project_path,"exec"),scope)
+        def observing(frame,event,arg):
+            if frame.f_code.co_filename in {project_path,external_path}:
+                observed.append((frame.f_code.co_filename,event))
+            selected=tracer(frame,event,arg)
+            return observing if selected is not None else None
+        previous=sys.gettrace()
+        try:
+            sys.settrace(observing)
+            with self.assertRaisesRegex(ValueError,"MISSING_PATH"):scope["project"]()
+        finally:
+            sys.settrace(previous)
+        self.assertEqual(records,[{"source":"work/profit_1000_upgrade/synthetic_trace_case.py",
+                                  "line":4,"reason":"MISSING_PATH"}])
+        self.assertFalse(any(event in {"line","opcode"} for _,event in observed))
+        self.assertEqual([event for filename,event in observed if filename==external_path],["call"])
+
+    def test_exception_trace_does_not_disclose_private_body(self):
+        records=[];tracer=m.exception_trace(ROOT,{"MISSING_PATH"},records)
+        frame=types.SimpleNamespace(f_code=types.SimpleNamespace(
+            co_filename=str(ROOT/"scripts/synthetic.py")),f_lineno=9,
+            f_trace_lines=True,f_trace_opcodes=True)
+        self.assertIs(tracer(frame,"call",None),tracer)
+        self.assertFalse(frame.f_trace_lines);self.assertFalse(frame.f_trace_opcodes)
+        tracer(frame,"exception",(ValueError,ValueError("SECRET_PROVIDER_BODY"),None))
+        self.assertEqual(records,[])
+
 if __name__ == "__main__":
     unittest.main()

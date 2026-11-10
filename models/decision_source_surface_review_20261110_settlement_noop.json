@@ -1,0 +1,265 @@
+{
+  "schema_version": "dc20_settlement_noop_source_review_v1",
+  "approved_base_commit": "203e7b04cc46c26d41492090b0b1155915962034",
+  "scope": "READ_ONLY_NOOP_OBSERVER_SETTLEMENT_FILTER",
+  "rationale": "A successful observer run may prove that no new observation is required. Verify the original observer jobs through GET only and suppress only its downstream quote collection; preserve the original one-observation-per-asof protocol and all frozen data.",
+  "boundaries": {
+    "verified_noop_observer_suppresses_quote_collection": true,
+    "model_weights_changed": false,
+    "production_pin_manifest_changed": false,
+    "original_trigger_gate_changed": false,
+    "frozen_members_or_scores_changed": false,
+    "historical_journal_or_empty_http_changed": false,
+    "same_asof_rules_changed": false,
+    "source_validation_weakened": false,
+    "schedule_or_manual_semantics_changed": false,
+    "publisher_recovery_changed": false,
+    "actual_trading_enabled": false
+  },
+  "source_changes": [
+    {
+      "path": ".github/workflows/research_candidate_natural_settlement.yml",
+      "baseline_exists": true,
+      "baseline_bytes": 7236,
+      "baseline_sha256": "27b1b507946f5d16d6c330466dab8d98da7f69b551cf5de4a86b9640233742be",
+      "current_bytes": 7899,
+      "current_sha256": "83b2d1075031eb1d84cd3f8cd89f8f4aa8c260224d2c803772f2d12144345e79",
+      "inverse_changes": [
+        {
+          "current_start": 27,
+          "baseline_start": 27,
+          "current_lines": [
+            "      - \"scripts/candidate_settlement_trigger.py\"\n",
+            "      - \"tests/test_candidate_settlement_trigger.py\"\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 52,
+          "baseline_start": 50,
+          "current_lines": [
+            "    permissions:\n",
+            "      actions: read\n",
+            "      contents: read\n",
+            "    outputs:\n",
+            "      needs_settlement: ${{ steps.trigger.outputs.needs_settlement }}\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 88,
+          "baseline_start": 81,
+          "current_lines": [
+            "          python -m unittest discover -s tests -p 'test_candidate_settlement_trigger.py'\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 90,
+          "baseline_start": 82,
+          "current_lines": [
+            "      - name: Verify whether the observer performed work before settlement\n",
+            "        id: trigger\n",
+            "        if: github.event_name == 'workflow_run'\n",
+            "        env:\n",
+            "          GITHUB_TOKEN: ${{ github.token }}\n",
+            "        run: python scripts/candidate_settlement_trigger.py\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 99,
+          "baseline_start": 85,
+          "current_lines": [
+            "    if: >-\n",
+            "      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||\n",
+            "      (github.event_name == 'workflow_run' && needs.validate.outputs.needs_settlement == 'true')\n"
+          ],
+          "baseline_lines": [
+            "    if: github.event_name == 'schedule' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_decision_source_surface_rotation.py",
+      "baseline_exists": true,
+      "baseline_bytes": 268435,
+      "baseline_sha256": "5dde4dab790afab56913e24bab8babd1ae4b82c9da0f7b76f1e8d5f0d8e7f9d7",
+      "current_bytes": 268559,
+      "current_sha256": "9e082f635ba6f22f84770aff6990f55a323d16c73db970843f090bf17c7ab5f5",
+      "inverse_changes": [
+        {
+          "current_start": 473,
+          "baseline_start": 473,
+          "current_lines": [
+            "    from tests.test_settlement_noop_source_review import source_before_settlement_noop\n",
+            "    raw = _statistics_refresh_previous(path, source_before_settlement_noop(path, target.read_bytes()))\n"
+          ],
+          "baseline_lines": [
+            "    raw = _statistics_refresh_previous(path, target.read_bytes())\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_settlement_contract.py",
+      "baseline_exists": true,
+      "baseline_bytes": 6215,
+      "baseline_sha256": "54b7e280bd36a2bffc332cbbecb7a3a67c89fb2cbfff39b9d3359ea8792500fc",
+      "current_bytes": 6837,
+      "current_sha256": "46a040f7c44cfa2ecae5d62e329e986df97938429a410ac2fca2bcc5eb66e484",
+      "inverse_changes": [
+        {
+          "current_start": 31,
+          "baseline_start": 31,
+          "current_lines": [
+            "        or path in {'scripts/candidate_settlement_trigger.py', 'tests/test_candidate_settlement_trigger.py'}\n"
+          ],
+          "baseline_lines": []
+        },
+        {
+          "current_start": 40,
+          "baseline_start": 39,
+          "current_lines": [
+            "    assert validate['permissions'] == {'actions':'read','contents':'read'}\n"
+          ],
+          "baseline_lines": [
+            "    assert 'permissions' not in validate\n"
+          ]
+        },
+        {
+          "current_start": 43,
+          "baseline_start": 42,
+          "current_lines": [
+            "    assert settle['if'] == (\"github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || \"\n",
+            "        \"(github.event_name == 'workflow_run' && needs.validate.outputs.needs_settlement == 'true')\")\n",
+            "    assert validate['outputs'] == {'needs_settlement':'${{ steps.trigger.outputs.needs_settlement }}'}\n",
+            "    trigger = validate['steps'][-1]\n",
+            "    assert trigger == {'name':'Verify whether the observer performed work before settlement',\n",
+            "        'id':'trigger', 'if':\"github.event_name == 'workflow_run'\",\n",
+            "        'env':{'GITHUB_TOKEN':'${{ github.token }}'}, 'run':'python scripts/candidate_settlement_trigger.py'}\n"
+          ],
+          "baseline_lines": [
+            "    assert settle['if'] == \"github.event_name == 'schedule' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'\"\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "added_files": [
+    {
+      "path": "scripts/candidate_settlement_trigger.py",
+      "bytes": 9913,
+      "sha256": "3862a1282f2a01890d4ae6ab99137cf9842f0983a83a7ec54fe819676df1af35"
+    },
+    {
+      "path": "tests/test_candidate_settlement_trigger.py",
+      "bytes": 11389,
+      "sha256": "2480e71c6bc3f91fc04356c6ecc58e0883052af92cb680c9c09025055ff658fc"
+    }
+  ],
+  "preserved_files": [
+    {
+      "path": ".github/workflows/research_candidate_natural_forward.yml",
+      "bytes": 8175,
+      "sha256": "384d43d96a941c4537baafa898ca477db0b5cabe4fc199bc591c79c0c13232bd"
+    },
+    {
+      "path": ".github/workflows/research_candidate_natural_observer.yml",
+      "bytes": 6285,
+      "sha256": "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
+    },
+    {
+      "path": "models/decision_candidate_profit_activation_v1.json",
+      "bytes": 1006,
+      "sha256": "bdd06edf427eb261ec27cdbf946545d19b052b004b5792c6860e5400703da131"
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "bytes": 53143,
+      "sha256": "94e4a4b3c71e1e66b369c44e4b6126ff6b0fb51142733b506c7ff187115f3435"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260915_reliability.json",
+      "bytes": 77197,
+      "sha256": "9b8da2cb7ec6ecc3868766d9b6e5520be34875d31c133cea34bf3f46ee959de9"
+    },
+    {
+      "path": "models/decision_source_surface_review_20260922_eligible_publication.json",
+      "bytes": 128737,
+      "sha256": "3bebcad923c2506cf63cbfd61d3c1d5444b3dd54d13aea8662ed0fffe31cf323"
+    },
+    {
+      "path": "models/decision_source_surface_review_20261108_next_day_p0_profile.json",
+      "bytes": 102488,
+      "sha256": "56000697e943e75d985e48296de5197286d9acf249091c22b4662944578028c2"
+    },
+    {
+      "path": "scripts/publish_candidate_profit.py",
+      "bytes": 18417,
+      "sha256": "f448aeded80667efb65768f6173d4a0dab9aaa60d200c294e3c7138c42874396"
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "bytes": 27606,
+      "sha256": "69f1a39be03f162ee943d319a9fe88078f0e65c2906ed6910ccd89e05401335e"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_daily.py",
+      "bytes": 31259,
+      "sha256": "dfb496d1a1440d2d7da5d3df04b8f1af0466e7d59e6198a39b1ff0f877161922"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "bytes": 41199,
+      "sha256": "4bb00b1cb6ebd5f05acdbc8d3d7f71a4830281c7f8d915253cca645d8859009d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_journal.py",
+      "bytes": 13144,
+      "sha256": "2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_journal_git.py",
+      "bytes": 13096,
+      "sha256": "534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_model/evaluation.json",
+      "bytes": 905295,
+      "sha256": "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcome_collect.py",
+      "bytes": 41467,
+      "sha256": "a27ad648b3e597996ac8a25f346b690934fe85833aee70b9ddae906735e30a8d"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_outcomes.py",
+      "bytes": 32925,
+      "sha256": "a51429ec7cd178a8301522bfd3a84ef665a32a05edc3a839c8a3399791277a06"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "bytes": 40863,
+      "sha256": "1cb89f172a0b1ef6d0826417e32e8dd0b3864b6aa52d23e3eaf8d1d23f5ed321"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "bytes": 25637,
+      "sha256": "fa531f23aeae04228eb8fbf78b2e4b5a2d63a25aeaa63ce7c71e7fc540bdcb7e"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_trigger_gate.py",
+      "bytes": 29628,
+      "sha256": "019a797e69d3f4c1a6cd11d9495a52ca65a52756b480fe511bece23794ae6905"
+    },
+    {
+      "path": "work/profit_1000_upgrade/test_candidate_natural_trigger_gate.py",
+      "bytes": 25588,
+      "sha256": "b945f6359dcb825ac6db584d84cfd7ff71d897dcd3f933aa41118c6b790f948a"
+    }
+  ],
+  "review_adapter_note": "This additive review and its independently audited loader do not replace historical review evidence. The existing source-surface audit receives exact reconstructed predecessor bytes only for the three finite changed paths. All current and predecessor SHA256 values remain mandatory."
+}

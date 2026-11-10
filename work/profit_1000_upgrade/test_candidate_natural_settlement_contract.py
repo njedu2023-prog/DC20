@@ -28,6 +28,7 @@ def test_exact_trigger_scope_and_safe_manual_default():
         'required':'true','default':'true','type':'boolean'}}
     assert doc['on']['push']['branches'] == ['main']
     assert all(path.startswith(('work/profit_1000_upgrade/', '.github/workflows/research_candidate_natural_settlement.yml'))
+        or path in {'scripts/candidate_settlement_trigger.py', 'tests/test_candidate_settlement_trigger.py'}
         for path in doc['on']['push']['paths'])
 
 
@@ -36,10 +37,16 @@ def test_writer_is_never_reachable_on_push_and_validation_is_unprivileged():
     assert doc['permissions'] == {'contents':'read'}
     assert set(doc['jobs']) == {'validate','settle'}
     validate, settle = doc['jobs']['validate'], doc['jobs']['settle']
-    assert 'permissions' not in validate
+    assert validate['permissions'] == {'actions':'read','contents':'read'}
     assert settle['permissions'] == {'actions':'read','contents':'write'}
     assert settle['needs'] == 'validate'
-    assert settle['if'] == "github.event_name == 'schedule' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'"
+    assert settle['if'] == ("github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || "
+        "(github.event_name == 'workflow_run' && needs.validate.outputs.needs_settlement == 'true')")
+    assert validate['outputs'] == {'needs_settlement':'${{ steps.trigger.outputs.needs_settlement }}'}
+    trigger = validate['steps'][-1]
+    assert trigger == {'name':'Verify whether the observer performed work before settlement',
+        'id':'trigger', 'if':"github.event_name == 'workflow_run'",
+        'env':{'GITHUB_TOKEN':'${{ github.token }}'}, 'run':'python scripts/candidate_settlement_trigger.py'}
     assert 'github.run_attempt == 1' in validate['if']
     assert 'github.ref == \'refs/heads/main\'' in validate['if']
     for field in ['workflow_id == 357027830','run_attempt == 1',

@@ -58,6 +58,29 @@ def validate_actual_run(run, environ, expected_head):
         and run.get("head_repository", {}).get("full_name") == REPOSITORY,
         "DIAGNOSTIC_ACTUAL_RUN_IDENTITY_REQUIRED")
 
+def exception_trace(root, codes, trace_events):
+    """Trace project exceptions without tracing millions of parsing-loop lines."""
+    prefix = str(root) + os.sep
+    project_prefixes = tuple(str(root / p) + os.sep for p in
+                             ("scripts", "work/profit_1000_upgrade", "src/top10decision"))
+    def trace(frame, event, arg):
+        filename = frame.f_code.co_filename
+        if not filename.startswith(project_prefixes):
+            return None
+        if event == "call":
+            frame.f_trace_lines = False
+            frame.f_trace_opcodes = False
+        elif event == "exception":
+            reason = safe_reason(arg[1], codes)
+            if reason != "REDACTED_NON_STATIC_EXCEPTION":
+                record = {"source": filename[len(prefix):], "line": frame.f_lineno, "reason": reason}
+                if not trace_events or trace_events[-1] != record:
+                    trace_events.append(record)
+                    del trace_events[:-24]
+        return trace
+    return trace
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--p0-run-id", required=True, choices=sorted(ALLOWED_P0_RUNS))
@@ -66,21 +89,7 @@ def main(argv=None):
     codes = static_codes(ROOT)
     stage = "CONTEXT"
     trace_events = []
-    def trace(frame, event, arg):
-        if event == "exception":
-            path = Path(frame.f_code.co_filename)
-            try:
-                relative = path.resolve().relative_to(ROOT)
-            except (ValueError, OSError):
-                return trace
-            if relative.parts[:2] == ("work", "profit_1000_upgrade") or relative.parts[0] in {"scripts", "src"}:
-                reason = safe_reason(arg[1], codes)
-                if reason != "REDACTED_NON_STATIC_EXCEPTION":
-                    record = {"source": relative.as_posix(), "line": frame.f_lineno, "reason": reason}
-                    if not trace_events or trace_events[-1] != record:
-                        trace_events.append(record)
-                        del trace_events[:-24]
-        return trace
+    trace = exception_trace(ROOT, codes, trace_events)
     previous_trace = sys.gettrace()
     try:
         verify_context(os.environ, args.expected_head, args.p0_run_id)

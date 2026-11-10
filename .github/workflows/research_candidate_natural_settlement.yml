@@ -24,6 +24,8 @@ on:
       - ".github/workflows/research_candidate_natural_settlement.yml"
       - "work/profit_1000_upgrade/candidate_natural_*.py"
       - "work/profit_1000_upgrade/test_candidate_natural_*.py"
+      - "scripts/candidate_settlement_trigger.py"
+      - "tests/test_candidate_settlement_trigger.py"
 
 # Normal P0 schedule/dispatch -> freeze -> observer -> settlement is three
 # workflow_run levels. An extra upstream CI/health level cannot trigger a
@@ -47,6 +49,11 @@ env:
 jobs:
   validate:
     name: Validate bounded research settlement contracts
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      needs_settlement: ${{ steps.trigger.outputs.needs_settlement }}
     if: >-
       github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
       (github.event_name != 'workflow_run' ||
@@ -78,11 +85,20 @@ jobs:
           python -m pytest -q -p no:cacheprovider work/profit_1000_upgrade/test_candidate_natural_outcome_collect.py work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py work/profit_1000_upgrade/test_candidate_natural_daily.py work/profit_1000_upgrade/test_candidate_natural_journal.py work/profit_1000_upgrade/test_candidate_natural_journal_integration.py work/profit_1000_upgrade/test_candidate_natural_journal_git.py work/profit_1000_upgrade/test_candidate_natural_statistics.py work/profit_1000_upgrade/test_candidate_natural_settlement_workflow.py work/profit_1000_upgrade/test_candidate_natural_settlement_contract.py
           python -c 'from work.profit_1000_upgrade import candidate_natural_settlement_workflow as m; m.code_guard(m.dependencies())'
           python scripts/validate_decision_model_freeze.py --root .
+          python -m unittest discover -s tests -p 'test_candidate_settlement_trigger.py'
           test -z "$(git status --porcelain=v1)"
+      - name: Verify whether the observer performed work before settlement
+        id: trigger
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/candidate_settlement_trigger.py
   settle:
     name: Collect bounded quotes and append isolated research journal
     needs: validate
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && needs.validate.outputs.needs_settlement == 'true')
     permissions:
       actions: read
       contents: write
