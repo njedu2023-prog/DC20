@@ -1,0 +1,63 @@
+name: DC20 · Diagnose duplicate candidate trigger (read only)
+on:
+  workflow_dispatch:
+    inputs:
+      p0_run_id:
+        description: "Recorded successful P0 reuse whose failed duplicate trigger is being diagnosed"
+        required: true
+        type: choice
+        options:
+          - "42726704719"
+          - "42723200937"
+      expected_head:
+        description: "Exact current main SHA after this diagnostic workflow is committed"
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: dc20-readonly-trigger-diagnostic
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: >-
+      github.repository == 'njedu2023-prog/DC20' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/src
+    steps:
+      - name: Checkout actual diagnostic run head without writer credentials
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Python pinned runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.13"
+      - name: Install existing hash-locked runtime
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all:
+          --require-hashes -r requirements-dev.lock
+      - name: Test diagnostic disclosure and identity boundaries
+        run: python -m unittest discover -s tests -p test_diagnose_candidate_trigger.py -v
+      - name: Explain original preflight using GET only and static guard identifiers
+        env:
+          DC20_CANDIDATE_GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          P0_RUN_ID: ${{ inputs.p0_run_id }}
+        run: >-
+          python scripts/diagnose_candidate_trigger.py
+          --expected-head "$EXPECTED_HEAD" --p0-run-id "$P0_RUN_ID"
+      - name: Confirm checkout and all frozen records remain untouched
+        if: always()
+        run: test -z "$(git status --porcelain=v1)"
