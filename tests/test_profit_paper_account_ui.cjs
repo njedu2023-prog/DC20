@@ -46,24 +46,37 @@ test("the ledger displays three signed amounts and the settled trade count with 
   data.trades.push({signal_date:'20261020',rank:1,status:'NO_FILL'},
     {signal_date:'20261022',rank:1,status:'PENDING_T_NOT_DUE'});
   const markup=c.profitPaperAccountMarkup(data);
-  assert.equal((markup.match(/class="paper-card"/g)||[]).length,4);
+  assert.equal((markup.match(/class="paper-card"/g)||[]).length,5);
   assert.match(markup,/<dt>累计已实现盈亏<\/dt><dd class="positive">\+4,500\.00 元/);
-  assert.match(markup,/累计收益率（按单注10万元） <strong class="positive">\+4\.50%<\/strong>/);
+  assert.match(markup,/累计收益率（按单注10万元）<\/dt><dd class="positive">\+4\.50%<\/dd>/);
   assert.match(markup,/<dt>最大单笔盈利<\/dt><dd class="positive">\+10,000\.00 元/);
   assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
   assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>2 笔<\/dd>/);
   assert.match(markup,/最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
-  assert.doesNotMatch(markup,/盈2|净值|最大回撤|<table|<svg/);
+  assert.doesNotMatch(markup,/盈2|净值|最大回撤|<svg/);
 });
 test('cumulative return uses a single fixed budget across closed trades and preserves the sign',()=>{
   const c=context({valueTone:n=>n>0?'positive':'negative'});
   const data=result();
   data.closed_trades=28;
   data.metrics.cumulative_pnl=125761.97;
-  assert.match(c.profitPaperAccountMarkup(data),/<strong class="positive">\+125\.76%<\/strong>/);
+  assert.match(c.profitPaperAccountMarkup(data),/<dd class="positive">\+125\.76%<\/dd>/);
   data.metrics.cumulative_pnl=-14685.93;
-  assert.match(c.profitPaperAccountMarkup(data),/<strong class="negative">-14\.69%<\/strong>/);
+  assert.match(c.profitPaperAccountMarkup(data),/<dd class="negative">-14\.69%<\/dd>/);
+});
+test('each history page covers one signal month with the latest first',()=>{
+  const c=context(), data=result();
+  const latest=c.paperTradeHistory(data);
+  assert.match(latest,/2026-10 · 1 \/ 2 页/);
+  assert.match(latest,/-5,500.00 元/);
+  assert.doesNotMatch(latest,/2026-09-14/);
+  assert.match(latest,/aria-label="较晚月份" disabled/);
+  const earlier=c.paperTradeHistory(data,'202609');
+  assert.match(earlier,/2026-09 · 2 \/ 2 页/);
+  assert.match(earlier,/aria-label="较早月份" disabled/);
+  assert.match(earlier,/2026-09-16/);
+  assert.doesNotMatch(earlier,/2026-10-19/);
 });
 test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   const data=result();
@@ -74,7 +87,7 @@ test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   assert.match(markup,/尚无已退出交易/);
   assert.equal((markup.match(/>—<\/dd>/g)||[]).length,2);
   assert.match(markup,/>0\.00 元<\/dd>/);
-  assert.match(markup,/>0\.00%<\/strong>/);
+  assert.match(markup,/>0\.00%<\/dd>/);
   assert.doesNotMatch(markup,/缺少正式冻结名单/);
 });
 function inputs() {
@@ -263,12 +276,12 @@ test("renderer does not bind latest account to selected historical D",()=>{
     candidateProfitSummaryLoad:{status:"ready"},compactStatisticsWindowLoad:{status:"ready"},dailyRequestedDate:"20260914",
     profitPaperAccount:{status:"ready",loadedSummary:summary,loadedWindow:window,active,loadSequence:1,result:result()}});
   c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/数据截至 2026-10-22/);
-  assert.equal((c.document.getElementById("profitPaperAccountContent").innerHTML.match(/class="paper-card"/g)||[]).length,4);
+  assert.equal((c.document.getElementById("profitPaperAccountContent").innerHTML.match(/class="paper-card"/g)||[]).length,5);
   c.state.compactFatalError=true;c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/已清空模拟账户/);
 });
 test("same homepage entry and existing refresh hooks include isolated account",()=>{
   assert.ok(html.indexOf('id="profitPaperAccount"')>html.indexOf('id="profitNextDay"'));
   assert.match(html,/renderProfitNextDayStatistics\(\);\s+renderProfitPaperAccount\(\);/);
-  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(4,/);
+  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(5,/);
 });
 

@@ -18,16 +18,16 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = '220184d0cdba7973ad2ca096b38492d0a342ca374b74af44c9b37c8dbd9ef18c'
+IMPORTER_SHA = '76a174340bbfb846212653d3480d0e79088f207a9ac19ae7332e9a2cd06145e6'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
-FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '220184d0cdba7973ad2ca096b38492d0a342ca374b74af44c9b37c8dbd9ef18c',
- 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'cab432c133b594846730ae5fd15da2b42e4f945494da0bdaa95e42708ed88326',
+FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '76a174340bbfb846212653d3480d0e79088f207a9ac19ae7332e9a2cd06145e6',
+ 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '82e1da10ecd9781b813690b1effacc920ff6cbcfbd1b8e9696060a7ff3dd5def',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
- 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'e7cf2bc2302c5392210b86ad6712ef3bfc24c72287421f01682885f5fb950b9a',
+ 'work/profit_1000_upgrade/candidate_natural_workflow.py': '6b6c974d02642c83b22fd3b20220796849e1dc0c97253196799f8c3ed47e8fce',
  '.github/workflows/research_candidate_natural_forward.yml': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61',
  'requirements-dev.lock': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2',
  'work/profit_1000_upgrade/candidate_natural_forward.py': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1',
@@ -37,7 +37,7 @@ FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '22018
  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': 'c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc',
  'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23',
  'work/profit_1000_upgrade/candidate_snapshot_versions.py': '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6',
- 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '5762bdb6888765edd4cd9f2b3afff0647b594f93a1cbddef21b4c2ed160cafd6',
+ 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '3224f808fabb971d569c0eb1fc7c82a5b37e72c3d871cc2f14a83fae0bac20af',
  'scripts/candidate_runtime_preflight.py': '8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69'}
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',

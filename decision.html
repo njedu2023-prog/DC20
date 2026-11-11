@@ -1216,16 +1216,24 @@
     #profitPaperAccount .paper-body { padding:12px; min-width:0; }
     #profitPaperAccount .paper-intro { margin:0 0 12px; color:var(--muted); font-size:12px; line-height:1.65; }
     #profitPaperAccount .paper-warning { padding:10px 12px; margin:0 0 12px; border-left:3px solid #b37924; background:#fff7e7; color:#78551e; font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
-    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 14px; }
+    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:0 0 14px; }
     #profitPaperAccount .paper-card { min-width:0; padding:12px; background:#f5f8f7; border:1px solid var(--line); border-radius:8px; }
     #profitPaperAccount .paper-card dt { font-size:12px; color:var(--muted); }
     #profitPaperAccount .paper-card dd { margin:6px 0 0; font-size:20px; font-weight:700; overflow-wrap:anywhere; }
-    #profitPaperAccount .paper-card .paper-return { font-size:12px; font-weight:400; color:var(--muted); }
     #profitPaperAccount .paper-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 12px; }
     #profitPaperAccount .paper-entry p { margin:0; color:var(--muted); font-size:12px; line-height:1.65; }
     .paper-page-link,.paper-page-link:visited { display:inline-flex; align-items:center; justify-content:center; padding:9px 13px; border:1px solid #bad0c8; border-radius:6px; background:#edf6f1; color:#17675a; font-size:13px; font-weight:650; text-decoration:none; white-space:nowrap; }
     .paper-page-link:hover { background:#dfeee6; }
     .paper-page-link:focus-visible { outline:2px solid #17675a; outline-offset:3px; }
+    .paper-history { margin-top:20px; border-top:1px solid var(--line); }
+    .paper-history-heading,.paper-history nav { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .paper-history-heading { justify-content:space-between; padding:12px 0; }
+    .paper-history-heading h3 { margin:0; }
+    .paper-history-scroll { overflow-x:auto; }
+    .paper-history table { width:100%; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .paper-history nav { justify-content:center; padding:12px 0; }
+    .paper-history nav button,.paper-history select { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:white; cursor:pointer; }
+    .paper-history button:disabled { opacity:.38; cursor:default; }
     .paper-page-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
     .paper-page-heading h1 { margin:0 0 5px; font-size:22px; }
     .paper-page-heading p { margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
@@ -2499,7 +2507,40 @@
       return `${signed && value > 0 ? "+" : ""}${value.toLocaleString("zh-CN", {minimumFractionDigits:2,maximumFractionDigits:2})} 元`;
     }
 
-    function profitPaperAccountMarkup(result) {
+    function paperTradeMonths(trades) {
+      return [...new Set(trades.map(t => t.signal_date.slice(0, 6)))].sort().reverse();
+    }
+
+    function paperTradeHistory(result, selectedMonth) {
+      const months = paperTradeMonths(result.trades);
+      if (!months.length) return '<section><h3>盈1逐笔列表</h3><p>暂无信号记录</p></section>';
+      const month = months.includes(selectedMonth) ? selectedMonth : months[0];
+      const index = months.indexOf(month);
+      const monthText = m => m.slice(0, 4) + '-' + m.slice(4);
+      const options = months.map(m => `<option value="${m}"${m === month ? ' selected' : ''}>${monthText(m)}</option>`).join('');
+      const labels = {
+        CLOSED:'已退出', NO_FILL:'未买入', MISSING_D_PUBLICATION:'缺少冻结名单',
+        MISSING_CANDIDATE:'无盈1候选', MISSING_OUTCOME_LEDGER:'缺少结算记录',
+        PENDING_T_NOT_DUE:'等待买入日', PENDING_T1_NOT_DUE:'等待退出日',
+        MISSING_QUOTE:'缺少行情', CORPORATE_ACTION_UNVERIFIED:'价格连续性待核验',
+        BUDGET_BELOW_ONE_LOT:'预算不足一手'
+      };
+      const rows = result.trades.filter(t => t.signal_date.startsWith(month))
+        .sort((a, b) => b.signal_date.localeCompare(a.signal_date))
+        .map(t => {
+          const status = labels[t.status] || '待核验';
+          const gain = t.status === 'CLOSED' ? t.net_pnl : null;
+          const price = n => Number.isFinite(n) ? n.toFixed(2) : '—';
+          return `<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>${escapeHtml(t.ts_code || '—')} ${escapeHtml(t.name || '')}</td><td title="${escapeHtml(t.source_status || t.status)}">${status}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${price(t.entry_price)}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${price(t.exit_price)}</td><td class="${gain === null ? '' : valueTone(gain)}">${paperAccountMoney(gain, true)}</td></tr>`;
+        }).join('');
+      return `<section class="paper-history" aria-label="盈1逐笔列表"><div class="paper-history-heading"><h3>盈1逐笔列表</h3><label>信号月份 <select id="paperTradeMonth">${options}</select></label></div>
+        <div class="paper-history-scroll"><table aria-label="${monthText(month)} 盈1逐笔记录"><thead><tr><th>信号日</th><th>代码 / 股票</th><th>状态</th><th>买入日</th><th>买入价</th><th>退出日</th><th>退出价</th><th>扣费盈亏</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <nav aria-label="逐笔列表月份翻页"><button type="button" id="paperMonthOlder" aria-label="较早月份"${index === months.length - 1 ? ' disabled' : ''}>❮</button>
+        <span aria-live="polite">${monthText(month)} · ${index + 1} / ${months.length} 页</span>
+        <button type="button" id="paperMonthNewer" aria-label="较晚月份"${index === 0 ? ' disabled' : ''}>❯</button></nav></section>`;
+    }
+
+    function profitPaperAccountMarkup(result, month) {
       const { cumulative_pnl, max_profit, max_loss } = result.metrics;
       const cumulativeReturn = cumulative_pnl / result.per_trade_budget;
       const cards = [
@@ -2513,11 +2554,11 @@
       return `<p class="paper-intro">数据截至 ${asOf} · ${exit}</p>
         <dl class="paper-cards">
           <div class="paper-card"><dt>累计已实现盈亏</dt><dd class="${valueTone(cumulative_pnl)}">${escapeHtml(paperAccountMoney(cumulative_pnl, true))}</dd>
-            <dd class="paper-return" title="累计已实现盈亏除以一注预算，按固定金额累计，不计复利或账户本金回报。">累计收益率（按单注10万元） <strong class="${valueTone(cumulativeReturn)}">${cumulativeReturn > 0 ? "+" : ""}${pct(cumulativeReturn)}</strong></dd>
+            </div><div class="paper-card"><dt>累计收益率（按单注10万元）</dt><dd class="${valueTone(cumulativeReturn)}">${cumulativeReturn > 0 ? "+" : ""}${pct(cumulativeReturn)}</dd>
           </div>
           ${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
           <div class="paper-card"><dt>已成交并退出笔数</dt><dd>${result.closed_trades.toLocaleString("zh-CN")} 笔</dd></div>
-        </dl>${missing}`;
+        </dl>${missing}${paperTradeHistory(result, month)}`;
     }
 
     function renderProfitPaperAccount() {
@@ -2541,7 +2582,22 @@
         node.innerHTML=`<div class="empty">${view.status==="loading"?"正在读取已退出交易的盈亏…":`盈1账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;
         return;
       }
-      node.innerHTML=profitPaperAccountMarkup(view.result);
+      node.innerHTML=profitPaperAccountMarkup(view.result, view.tradeMonth);
+      const select = document.getElementById("paperTradeMonth");
+      if (!select) return;
+      const changeMonth = (offset, focusId) => {
+        const option = select.options[select.selectedIndex + offset];
+        if (!option) return;
+        view.tradeMonth = option.value;
+        renderProfitPaperAccount();
+        const control = document.getElementById(focusId);
+        (control.disabled ? document.getElementById("paperTradeMonth") : control).focus();
+      };
+      select.onchange = () => changeMonth(0, select.id);
+      for (const [id, offset] of [["paperMonthOlder", 1], ["paperMonthNewer", -1]]) {
+        const button = document.getElementById(id);
+        if (button) button.onclick = () => changeMonth(offset, id);
+      }
     }
 
     async function refreshCompactStatisticsWindow() {
