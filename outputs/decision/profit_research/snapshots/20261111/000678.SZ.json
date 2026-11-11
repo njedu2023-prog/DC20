@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261112",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.020768431983383,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.01463140123804152,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.6666666666666666,
+      "five_year_streak_runup": 0.2101656196459165,
+      "focus_pool_size": 17.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 10,
+      "ret_10d": 0.2032935831913687,
+      "ret_2d": 0.2101656196459165,
+      "ret_5d": 0.08778234086242298,
+      "stage2_pool_size": 12.0,
+      "stage3_pool_size": 5.0,
+      "stage_pool_share": 0.7058823529411765,
+      "volatility_20d": 0.06419776786307359,
+      "volatility_5d": 0.07539094075048944,
+      "volume_ratio": 1.4989531524172692
+    },
+    "frozen_at": "2026-11-11T11:58:01.804425+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "襄阳轴承",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 10,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261113",
+    "score": -0.014776903490587058,
+    "signal_date": "20261111",
+    "ts_code": "000678.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261111.json",
+      "sha256": "3d51be33bd821de78bd47388aa4568d0ff02402089369be4c3c9e39a661b3d23"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261111.json",
+      "sha256": "b307f1ab29eb7547f4055de4b10d834e9f772069df12848eaf374d91cea8b1b4"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261111.json",
+      "sha256": "795a36ce89ee1f313e13dc2034afc613e41b1c1f3e08396555abdf04f9f850a2"
+    }
+  ]
+}
