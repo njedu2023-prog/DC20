@@ -72,7 +72,7 @@ def test_predecessor_capture_and_observer_are_a_complete_pair():
 
 
 def test_new_p0_profile_binds_all_current_execution_files():
-    profile = continuation.TOP1_COUNT_P0_CODE_PROFILE
+    profile = continuation.TOP1_RATE_P0_CODE_PROFILE
     original = continuation.RELIABILITY_P0_CODE_PROFILE
     assert set(profile) == set(original)
     assert {p for p in original if profile[p] != original[p]} == {continuation.MANIFEST_PATH}
@@ -88,10 +88,14 @@ def test_new_p0_profile_binds_all_current_execution_files():
                            "git_blob_sha1": gh.git_blob(raw), "git_mode": "100644"}
 
 
-@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count"])
+@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count", "top1-rate"])
 def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
+    day = "20261112" if profile is continuation.TOP1_RATE_P0_CODE_PROFILE else "20261111"
     trees = [tree(profile) for _ in range(3)]
-    result, transition = continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261111"})
+    if profile is continuation.TOP1_RATE_P0_CODE_PROFILE:
+        with pytest.raises(ValueError, match="ACTIVATION_DATE"):
+            continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261111"})
+    result, transition = continuation.validate_code_profiles(gh, None, *trees, {"signal_date": day})
     assert result is profile and transition is None
     with pytest.raises(ValueError, match="ACTIVATION_DATE"):
         continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261110"})
@@ -99,14 +103,14 @@ def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
         broken = deepcopy(trees)
         broken[index]["src/top10decision/decision/suspension_evidence_registry.py"]["sha"] = "f" * 40
         with pytest.raises(ValueError, match="CODE_PROFILE_REQUIRED"):
-            continuation.validate_code_profiles(gh, None, *broken, {"signal_date": "20261111"})
+            continuation.validate_code_profiles(gh, None, *broken, {"signal_date": day})
         for other in continuation.RELIABILITY_PROFILES:
             if other is profile:
                 continue
             mixed = deepcopy(trees)
             mixed[index][continuation.MANIFEST_PATH]["sha"] = other[continuation.MANIFEST_PATH]
             with pytest.raises(ValueError, match="CODE_PROFILE_REQUIRED"):
-                continuation.validate_code_profiles(gh, None, *mixed, {"signal_date": "20261111"})
+                continuation.validate_code_profiles(gh, None, *mixed, {"signal_date": "20261112"})
 
 
 @pytest.mark.parametrize("runner", [natural, eligible])
@@ -142,3 +146,20 @@ def test_real_historical_observer_context_preserves_its_original_writer(day):
     with pytest.raises(ValueError, match="EXACT_OBSERVER_CONTEXT"):
         observation._context(changed, run, manifest, observed)
     assert (folder / "context.json").read_bytes() == raw
+
+
+def test_original_d11_observation_cannot_admit_new_days_or_mixed_source_trees():
+    folder = ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20261111"
+    manifest = json.loads((folder / "manifest.json").read_bytes())
+    observed = json.loads((folder / manifest["native_observation"]["path"]).read_bytes())
+    original = tree({b["path"]: b["git_blob_sha1"] for b in observed["verified_code_bindings"]})
+    files, _ = publication.code_guard()
+    assert publication.match_publication_code(original, original, files, day="20261111") == observed["verified_code_bindings"]
+    with pytest.raises(ValueError, match="D11_PUBLICATION_DATE"):
+        publication.match_publication_code(original, original, files, day="20261112")
+    changed = deepcopy(original)
+    changed[publication.COORDINATOR_PATH]["sha"] = "f" * 40
+    with pytest.raises(ValueError, match="D11_PUBLICATION_CODE_CHANGED"):
+        publication.match_publication_code(original, changed, files, day="20261111")
+    with pytest.raises(ValueError, match="D11_OBSERVER_DATE"):
+        observation._observer_profile({**manifest, "signal_date": "20261112"})

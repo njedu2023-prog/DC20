@@ -48,12 +48,22 @@ test("the ledger displays three signed amounts and the settled trade count with 
   const markup=c.profitPaperAccountMarkup(data);
   assert.equal((markup.match(/class="paper-card"/g)||[]).length,4);
   assert.match(markup,/<dt>累计已实现盈亏<\/dt><dd class="positive">\+4,500\.00 元/);
+  assert.match(markup,/累计收益率（按单注10万元） <strong class="positive">\+4\.50%<\/strong>/);
   assert.match(markup,/<dt>最大单笔盈利<\/dt><dd class="positive">\+10,000\.00 元/);
   assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
   assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>2 笔<\/dd>/);
   assert.match(markup,/最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
   assert.doesNotMatch(markup,/盈2|净值|最大回撤|<table|<svg/);
+});
+test('cumulative return uses a single fixed budget across closed trades and preserves the sign',()=>{
+  const c=context({valueTone:n=>n>0?'positive':'negative'});
+  const data=result();
+  data.closed_trades=28;
+  data.metrics.cumulative_pnl=125761.97;
+  assert.match(c.profitPaperAccountMarkup(data),/<strong class="positive">\+125\.76%<\/strong>/);
+  data.metrics.cumulative_pnl=-14685.93;
+  assert.match(c.profitPaperAccountMarkup(data),/<strong class="negative">-14\.69%<\/strong>/);
 });
 test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   const data=result();
@@ -64,6 +74,7 @@ test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   assert.match(markup,/尚无已退出交易/);
   assert.equal((markup.match(/>—<\/dd>/g)||[]).length,2);
   assert.match(markup,/>0\.00 元<\/dd>/);
+  assert.match(markup,/>0\.00%<\/strong>/);
   assert.doesNotMatch(markup,/缺少正式冻结名单/);
 });
 function inputs() {

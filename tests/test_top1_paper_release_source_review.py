@@ -160,3 +160,14 @@ def test_current_count_release_and_predecessors():
         assert sha(count_delta.before_count(path, current)) == record['base_sha256']
         with pytest.raises(AssertionError):
             count_delta.before_count(path, current + b'\n')
+
+
+def test_rate_release_sources_and_their_exact_predecessors():
+    assert {'decision.html', MANIFEST, INVENTORY} <= count_delta.rate_files().keys()
+    for path, record in count_delta.rate_files().items():
+        assert not path.startswith(('data/', 'outputs/'))
+        assert path == MANIFEST or not path.startswith('models/')
+        raw = (ROOT / path).read_bytes()
+        assert sha(count_delta.before_rate(path, raw)) == record['base_sha256'], path
+        with pytest.raises(AssertionError):
+            count_delta.before_rate(path, raw + b'\n')

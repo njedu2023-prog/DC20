@@ -18,16 +18,16 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = 'f781a7f9a3195dfae7d37423db8e4664427ec46339bdf02878bcb27b4f3d2e7e'
+IMPORTER_SHA = '220184d0cdba7973ad2ca096b38492d0a342ca374b74af44c9b37c8dbd9ef18c'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
-FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'f781a7f9a3195dfae7d37423db8e4664427ec46339bdf02878bcb27b4f3d2e7e',
- 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '3940b56d130e6fcfdb861fa921c7402f8df260203ffcddb62e7b581fea2b6abf',
+FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '220184d0cdba7973ad2ca096b38492d0a342ca374b74af44c9b37c8dbd9ef18c',
+ 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'cab432c133b594846730ae5fd15da2b42e4f945494da0bdaa95e42708ed88326',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
- 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'f08968a29f357a56060e183ea5dcdf4a595f5d9f3d54ea69be30b1b4ac441f86',
+ 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'e7cf2bc2302c5392210b86ad6712ef3bfc24c72287421f01682885f5fb950b9a',
  '.github/workflows/research_candidate_natural_forward.yml': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61',
  'requirements-dev.lock': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2',
  'work/profit_1000_upgrade/candidate_natural_forward.py': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1',
@@ -37,7 +37,7 @@ FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'f781a
  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': 'c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc',
  'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23',
  'work/profit_1000_upgrade/candidate_snapshot_versions.py': '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6',
- 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '410d5062ea882843bdfb70edc3c78db588fe05915b5b7e430fe858474987319c',
+ 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '5762bdb6888765edd4cd9f2b3afff0647b594f93a1cbddef21b4c2ed160cafd6',
  'scripts/candidate_runtime_preflight.py': '8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69'}
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
@@ -475,8 +475,32 @@ PRE_RELIABILITY_IMPORT_PROFILE = {'importer_sha256': '514b001ce944cf1529757dc06f
 RELIABILITY_ONLY_CODE_FILES = {"scripts/candidate_runtime_preflight.py",
     "src/top10decision/decision/suspension_evidence_registry.py"}
 
+# The only publication using this exact importer is D 2026-11-11.
+# Read its original, content-addressed list of all 24 code bindings.
+D11_IMPORTER_BLOB = 'b91d92d25ee3a0b5a37aa754b916f26d629726e5'
+D11_IMPORTER_SHA = 'f781a7f9a3195dfae7d37423db8e4664427ec46339bdf02878bcb27b4f3d2e7e'
+D11_OBSERVATION_SHA = '92872fb897a7a6abdc314b3b9774de83318777a897185187e59793c0dbb6d712'
+
+
+def _d11_code_bindings(code_tree, published_tree, local_files, day):
+    require(day == "20261111", "D11_PUBLICATION_DATE_CHANGED")
+    path = ROOT / "work/profit_1000_upgrade/candidate_natural_evidence/20261111/bodies" / (D11_OBSERVATION_SHA + ".bin")
+    raw, _ = gh.read(path)
+    require(gh.sha256(raw) == D11_OBSERVATION_SHA, "D11_ORIGINAL_OBSERVATION_CHANGED")
+    bindings = gh.parse_json(raw)["verified_code_bindings"]
+    require(set(local_files) == {b["path"] for b in bindings}, "D11_PUBLICATION_CODE_SET_CHANGED")
+    for binding in bindings:
+        for tree in (code_tree, published_tree):
+            entry = tree.get(binding["path"], {})
+            require(entry.get("mode") == "100644" and entry.get("type") == "blob"
+                and entry.get("sha") == binding["git_blob_sha1"], "D11_PUBLICATION_CODE_CHANGED")
+    return bindings
+
+
 def match_publication_code(code_tree, published_tree, local_files, *, day=None):
     """Bind one complete reviewed code version in both immutable Git trees."""
+    if code_tree.get(IMPORTER_PATH, {}).get("sha") == D11_IMPORTER_BLOB:
+        return _d11_code_bindings(code_tree, published_tree, local_files, day)
     historical_profiles = (PRE_RELIABILITY_CODE_BINDINGS, PRE_SUSPENSION_CODE_BINDINGS,
         PRE_NEXT_DAY_CODE_BINDINGS, PRE_HARDENING_CODE_BINDINGS, PRE_CONTROLLED_CODE_BINDINGS,
         PRE_BOUNDARY_CODE_BINDINGS, HISTORICAL_CODE_BINDINGS)
@@ -1002,6 +1026,9 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ORIGINAL_CALENDAR_GIT_BLOB_CHANGED")
     import_profile = {"importer_sha256": IMPORTER_SHA, "source_adapter_sha256": gh.ADAPTER_SHA,
         "source_adapter_dependency_sha256": gh.adapter.CODE_PINS}
+    if code_profile[IMPORTER_PATH] == D11_IMPORTER_SHA:
+        require(day == "20261111" and imported["schema_version"] == gh.SCHEMA, "D11_DIRECT_IMPORT_REQUIRED")
+        import_profile["importer_sha256"] = D11_IMPORTER_SHA
     if code_profile[IMPORTER_PATH] == PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"]:
         require(day <= "20261110", "PRE_RELIABILITY_IMPORT_DATE_CHANGED")
         import_profile = PRE_RELIABILITY_IMPORT_PROFILE

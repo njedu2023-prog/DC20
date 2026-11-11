@@ -20,12 +20,12 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = 'eb58dd7429742bfa047fbe0cbb472aa41ab2241c5d1133ec36ea43bf4a1a71bc'
+CAPTURE_SHA = '1eb2cc8657b8476b340760b7c8783755f6ad0ae104f7d38c1f9b7c0bfdca619d'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = '5cc7884b8af3303edc11d1597f0a33b51908398c1e7ff1c0f37047b61f15c9ed'
+OBSERVER_SHA = '44aa9d972de017a9105dee801e681ac03e132bf5d926b8afb0c468bdc6ea56a0'
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
 WRITER_SHA = '87c2412ba43bc74d9dd002a260b5ba575e78260c536a4aa36ebfc612167e3f8e'
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")
@@ -353,9 +353,23 @@ PRE_RELIABILITY_OBSERVER_PROFILE = ('d879dffd4c29646c8b7f654321490d8dc87331e0a97
   'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '9b5a1b9f20f284a4881595bfcc791a4633ed677f',
   'work/profit_1000_upgrade/candidate_snapshot_versions.py': 'b3362b2a10113b545b93aa53ed5c1e5a9c46e534'})
 
+D11_OBSERVER_PROFILE = (
+    '5cc7884b8af3303edc11d1597f0a33b51908398c1e7ff1c0f37047b61f15c9ed',
+    {
+        CAPTURE_PATH: '4c198901a79c90d48ebace404eedfb821c6d3b77',
+        OBSERVER_PATH: 'fdb02fb4a8ee0a15d92e21775fac748a8460a08b',
+        WORKFLOW_PATH: 'bed0f4ffccc979e2f8a18bb8f9f96e2234971130',
+        WRITER_PATH: 'b6676d6c500fab8a721848de70ce2adcac91e920',
+    },
+)
+
+
 def _observer_profile(manifest):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     require(contract in capture.capture_contracts(), "EXACT_CAPTURE_PROFILE_REQUIRED")
+    if contract == capture.D11_CAPTURE_CONTRACT:
+        require(gh.date(manifest.get("signal_date")) == "20261111", "D11_OBSERVER_DATE_CHANGED")
+        return D11_OBSERVER_PROFILE
     if contract == capture.PRE_RELIABILITY_CAPTURE_CONTRACT:
         require(gh.date(manifest.get("signal_date")) <= "20261110", "PRE_RELIABILITY_OBSERVER_DATE_CHANGED")
         return PRE_RELIABILITY_OBSERVER_PROFILE
@@ -393,14 +407,21 @@ def _context(context, run, manifest, observation):
     contract = (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256"))
     historical = contract in (capture.LEGACY_CAPTURE_CONTRACT, capture.PRE_ELIGIBLE_CAPTURE_CONTRACT,
         capture.HISTORICAL_CAPTURE_CONTRACT)
+    if contract == capture.D11_CAPTURE_CONTRACT:
+        writer_sha = '87c2412ba43bc74d9dd002a260b5ba575e78260c536a4aa36ebfc612167e3f8e'
+    elif historical:
+        writer_sha = HISTORICAL_OBSERVER_WRITER_SHA
+    elif contract == (capture.SELF_SHA, capture.PUBLICATION_SHA):
+        writer_sha = WRITER_SHA
+    else:
+        writer_sha = PRE_RELIABILITY_OBSERVER_WRITER_SHA
     expected = {"observer_workflow_path": WORKFLOW_PATH, "observer_run_id": run["id"], "run_attempt": 1,
         "code_head_sha": run["head_sha"], "repository": gh.REPOSITORY, "branch": "main",
         "schema_version": "dc20_candidate_natural_observer_context_v1", "signal_date": manifest["signal_date"],
         "freeze_run_id": int(manifest["freeze_run_id"]), "snapshot_file_sha256": manifest["snapshot_file_sha256"],
         "manifest_sha256": None, "publication_observation_sha256": manifest["native_observation"]["sha256"],
         "capture_module_sha256": manifest["capture_code_sha256"],
-        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": (HISTORICAL_OBSERVER_WRITER_SHA if historical else WRITER_SHA
-            if contract == (capture.SELF_SHA, capture.PUBLICATION_SHA) else PRE_RELIABILITY_OBSERVER_WRITER_SHA),
+        "coordinator_sha256": _observer_profile(manifest)[0], "writer_sha256": writer_sha,
         "created_at_host_utc": context.get("created_at_host_utc"), "original_prospective_publication_observed": True,
         "evidence_natural_admission_issued": False, "production_activation_allowed": False, "actual_execution_claimed": False}
     expected["manifest_sha256"] = context["manifest_sha256"]
@@ -413,7 +434,7 @@ def _context(context, run, manifest, observation):
 def match_observer_code(code_tree, published_tree, local, manifest):
     """An old capsule keeps its exact old observer contract, without rewriting it."""
     _, overrides = _observer_profile(manifest)
-    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
+    if overrides and (manifest.get("capture_code_sha256"), manifest.get("publication_verifier_sha256")) not in (capture.D11_CAPTURE_CONTRACT, capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):
         require(code_tree.get(publication.COORDINATOR_PATH, {}).get("sha")
             == publication.LEGACY_COORDINATOR_BINDING["git_blob_sha1"],
             "HISTORICAL_CAPTURE_REQUIRES_ORIGINAL_COORDINATOR")
@@ -421,7 +442,8 @@ def match_observer_code(code_tree, published_tree, local, manifest):
     current = contract in ((capture.SELF_SHA, capture.PUBLICATION_SHA), capture.PRE_CONTINUATION_CAPTURE_CONTRACT)
     old_importer = next(b["git_blob_sha1"] for b in publication.HISTORICAL_CODE_BINDINGS
         if b["path"] == publication.IMPORTER_PATH)
-    expected_importer = (PRE_RELIABILITY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
+    expected_importer = (publication.D11_IMPORTER_BLOB if contract == capture.D11_CAPTURE_CONTRACT else
+        PRE_RELIABILITY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_RELIABILITY_CAPTURE_CONTRACT else PRE_SUSPENSION_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_SUSPENSION_CAPTURE_CONTRACT else PRE_NEXT_DAY_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]
         if contract == capture.PRE_NEXT_DAY_CAPTURE_CONTRACT else PRE_HARDENING_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]

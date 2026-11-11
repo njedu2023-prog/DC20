@@ -1220,6 +1220,7 @@
     #profitPaperAccount .paper-card { min-width:0; padding:12px; background:#f5f8f7; border:1px solid var(--line); border-radius:8px; }
     #profitPaperAccount .paper-card dt { font-size:12px; color:var(--muted); }
     #profitPaperAccount .paper-card dd { margin:6px 0 0; font-size:20px; font-weight:700; overflow-wrap:anywhere; }
+    #profitPaperAccount .paper-card .paper-return { font-size:12px; font-weight:400; color:var(--muted); }
     #profitPaperAccount .paper-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 12px; }
     #profitPaperAccount .paper-entry p { margin:0; color:var(--muted); font-size:12px; line-height:1.65; }
     .paper-page-link,.paper-page-link:visited { display:inline-flex; align-items:center; justify-content:center; padding:9px 13px; border:1px solid #bad0c8; border-radius:6px; background:#edf6f1; color:#17675a; font-size:13px; font-weight:650; text-decoration:none; white-space:nowrap; }
@@ -2500,8 +2501,8 @@
 
     function profitPaperAccountMarkup(result) {
       const { cumulative_pnl, max_profit, max_loss } = result.metrics;
+      const cumulativeReturn = cumulative_pnl / result.per_trade_budget;
       const cards = [
-        ["累计已实现盈亏", cumulative_pnl],
         ["最大单笔盈利", max_profit],
         ["最大单笔亏损", max_loss]
       ];
@@ -2510,7 +2511,11 @@
       const missing = result.missing_signal_dates.length
         ? `<p class="paper-warning">以下信号日缺少正式冻结名单，已跳过：${result.missing_signal_dates.map(d => escapeHtml(dateText(d))).join("、")}。</p>` : "";
       return `<p class="paper-intro">数据截至 ${asOf} · ${exit}</p>
-        <dl class="paper-cards">${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
+        <dl class="paper-cards">
+          <div class="paper-card"><dt>累计已实现盈亏</dt><dd class="${valueTone(cumulative_pnl)}">${escapeHtml(paperAccountMoney(cumulative_pnl, true))}</dd>
+            <dd class="paper-return" title="累计已实现盈亏除以一注预算，按固定金额累计，不计复利或账户本金回报。">累计收益率（按单注10万元） <strong class="${valueTone(cumulativeReturn)}">${cumulativeReturn > 0 ? "+" : ""}${pct(cumulativeReturn)}</strong></dd>
+          </div>
+          ${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
           <div class="paper-card"><dt>已成交并退出笔数</dt><dd>${result.closed_trades.toLocaleString("zh-CN")} 笔</dd></div>
         </dl>${missing}`;
     }
