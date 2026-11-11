@@ -24,7 +24,7 @@ ROOT = Path(__file__).absolute().parents[2]
 STATE_PARENT = Path("/tmp/dc20-candidate-natural-state")
 SCHEMA = "dc20_candidate_natural_daily_manifest_v1"
 MAX_STEPS, MAX_CALLS, RESERVED_CALLS, WINDOW_SECONDS = 8, 96, 12, 300
-PINS = {'work/profit_1000_upgrade/candidate_natural_outcome_collect.py': '4f4b509ab95ed97362dee84adb37faeea5f5b4c4193964eb2281970a5d9143b0',
+PINS = {'work/profit_1000_upgrade/candidate_natural_outcome_collect.py': '18c027f93ae692b50f2ec294327554555ecdb1ca376598ef75df46d5a23a4b65',
  'scripts/diagnose_core_supervisor.py': 'b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99'}
 FLAGS = {"research_only": True, "production_activation_allowed": False,
     "source_authority_issued": False, "natural_forward_admission_issued": False,

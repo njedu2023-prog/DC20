@@ -45,7 +45,24 @@ def _restore(path, raw, review_raw):
     return prior
 
 
+@lru_cache(maxsize=1)
+def suspension_reference_review(raw):
+    assert sha256(raw).hexdigest() == '33dcb86aa0492afac33066891cc7d3567d747c2474d42a521d7c0def67c6c199'
+    doc = json.loads(raw)
+    assert doc['base_commit'] == '4dd9659925f9437bca6eb5094cc18a331d4c5bc6'
+    return doc['files']
+
+
 def before_count(path, raw):
+    items = suspension_reference_review((ROOT / 'models/decision_source_surface_review_20261111_suspension_references.json').read_bytes())
+    if path in items:
+        record = items[path]
+        assert sha256(raw).hexdigest() == record['sha256'], path
+        text = raw.decode()
+        for start, length, original in reversed(record['inverse']):
+            text = text[:start] + original + text[start + length:]
+        raw = text.encode()
+        assert sha256(raw).hexdigest() == record['base_sha256'], path
     if path not in _paths():
         return raw
     return _restore(path, raw, (ROOT / REVIEW).read_bytes())

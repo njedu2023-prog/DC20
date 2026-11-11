@@ -27,7 +27,7 @@ from urllib import request
 
 ROOT = Path(__file__).absolute().parents[2]
 OUTCOMES_PATH = Path(__file__).with_name("candidate_natural_outcomes.py")
-OUTCOMES_SHA = 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec'
+OUTCOMES_SHA = '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4'
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 LEGACY_COLLECTOR_SHA = "1d9addaa1aecaf1082023c28ab26b23b8ee5ab79d5fd7b9fd24f55e1320d9ced"
 # The original single-attempt writer remains readable for every frozen profile.

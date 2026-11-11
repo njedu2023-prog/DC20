@@ -384,12 +384,15 @@ def _suspension_provenance(receipt, sources, dates, day):
             require((code, start, resume) not in known, "DUPLICATE_SUSPENSION_INTERVAL")
             known.add((code, start, resume))
             disclosed[(code, start, resume)] = record
-        used = set()
+        used = {}
         for interval in item["used_intervals"]:
             require(type(interval) is dict and set(interval) == {"ts_code", "start_date", "resume_date",
                 "previous_trading_date", "skipped_sessions"}, "SUSPENSION_USED_INTERVAL_REQUIRED")
             identity = (interval["ts_code"], interval["start_date"], interval["resume_date"])
-            require(identity in known and identity not in used and identity[2] <= day
+            if identity in used:
+                require(interval == used[identity], "CONFLICTING_SUSPENSION_INTERVAL_REFERENCE")
+                continue
+            require(identity in known and identity[2] <= day
                 and identity[2] in dates, "SUSPENSION_USED_INTERVAL_NOT_DISCLOSED")
             if identity[1] <= dates[0]:
                 require((identity[1], identity[2]) in boundary, "SUSPENSION_BOUNDARY_EVIDENCE_MISSING")
@@ -409,7 +412,7 @@ def _suspension_provenance(receipt, sources, dates, day):
                 first, last = dates.index(identity[1]), dates.index(identity[2])
                 require(first > 0 and first < last and interval["previous_trading_date"] == dates[first - 1]
                     and interval["skipped_sessions"] == dates[first:last], "SUSPENSION_USED_CALENDAR_MISMATCH")
-            used.add(identity)
+            used[identity] = interval
 
 
 def _identities(runtime, history, daily_rows, day):

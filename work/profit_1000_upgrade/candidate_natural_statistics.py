@@ -16,10 +16,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_bound_statistics_v1"
-OUTCOMES_SHA = 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec'
+OUTCOMES_SHA = '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4'
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 PUBLICATION_MODULE = "work.profit_1000_upgrade.candidate_natural_evidence_publication"
-PUBLICATION_SHA = 'c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190'
+PUBLICATION_SHA = '096c6d4c58d64dbec3a86ce317005e663362ecc459aa4d757f4953d7a11eb25f'
 
 GROUPS = ("candidate_top1", "candidate_top2", "promotion_top1", "promotion_top2")
 DAY_FIELDS = frozenset({"signal_date", "snapshot_raw", "expected_snapshot_sha256",

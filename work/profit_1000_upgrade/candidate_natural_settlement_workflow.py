@@ -30,12 +30,12 @@ SCHEMA = "dc20_candidate_natural_settlement_orchestration_v1"
 SNAPSHOT_PREFIX = "work/profit_1000_upgrade/candidate_natural_forward/"
 EVIDENCE_PREFIX = "work/profit_1000_upgrade/candidate_natural_evidence/"
 JOURNAL_PREFIX = "work/profit_1000_upgrade/candidate_natural_journal/"
-PINS = {'candidate_natural_daily': '7503cf28125e08beac3c5fd656c55fc2b3ed0cbab2a28f6365366fba3d5205c6',
- 'candidate_natural_evidence_publication': 'c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190',
+PINS = {'candidate_natural_daily': 'b6a960c817709216171db24c7e7e1a915139222ef0219e27b4f903d75212486e',
+ 'candidate_natural_evidence_publication': '096c6d4c58d64dbec3a86ce317005e663362ecc459aa4d757f4953d7a11eb25f',
  'candidate_natural_journal': '2b8c18728ddbbebd42074f0d6c80ec43d8ec3bf24a5c79e022b0d50b48de9b1e',
  'candidate_natural_journal_git': '534b8f47d320d95b82964188afa58c093dd506106b93fc8383d76645b478be74',
- 'candidate_natural_outcome_collect': '4f4b509ab95ed97362dee84adb37faeea5f5b4c4193964eb2281970a5d9143b0',
- 'candidate_natural_statistics': '499f5aac4425c4d91739137940900c914239930f49b7368c722c312a31130939'}
+ 'candidate_natural_outcome_collect': '18c027f93ae692b50f2ec294327554555ecdb1ca376598ef75df46d5a23a4b65',
+ 'candidate_natural_statistics': '95420909e094b6c3ebdc07e8e5dd98de26554681e56b7e2f7059d1b72933623a'}
 FLAGS = {"research_only": True, "production_activation_allowed": False,
     "source_authority_issued": False, "natural_outcome_admission_issued": False,
     "actual_execution_claimed": False, "actual_capacity_verified": False,

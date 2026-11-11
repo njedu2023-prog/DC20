@@ -22,7 +22,7 @@ CODE_ROOT = Path(__file__).absolute().parents[2]
 REGISTRATION_PATH = Path(__file__).with_name("candidate_eligible_forward_registration.json")
 MODEL_SHA = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589"
 EVALUATION_SHA = "779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872"
-PINS = {'work/profit_1000_upgrade/candidate_d_source_adapter.py': '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6',
+PINS = {'work/profit_1000_upgrade/candidate_d_source_adapter.py': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd',
  'work/profit_1000_upgrade/candidate_forward_predict.py': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719',
  'forward/storage.py': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098',
  'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23'}

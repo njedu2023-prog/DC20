@@ -17,9 +17,9 @@ import tempfile
 ROOT = Path(__file__).absolute().parents[2]
 SCHEMA = "dc20_candidate_natural_outcomes_append_only_v1"
 REPORT_SCHEMA = "dc20_candidate_natural_posthoc_price_observation_v1"
-REGISTRATION_SHA = 'f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257'
-PROFILE_READER_SHA = '11fc359e5c48a5e1ea0d1c88e9bd2531ffab631446c5f2853fb502c225c6f89e'
-PINS = {'work/profit_1000_upgrade/candidate_natural_forward.py': 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd',
+REGISTRATION_SHA = '5f2837b34975dbb69cd86428d0c49ae58c993fbb3081bc2b8da8a4b80108bb52'
+PROFILE_READER_SHA = '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6'
+PINS = {'work/profit_1000_upgrade/candidate_natural_forward.py': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1',
  'work/profit_1000_upgrade/labels_v3.py': 'cfe592fd7d90101514204d45d4e7f3a27e12f13bd8d3905fc77d89c9dee2fe9b',
  'work/profit_1000_upgrade/policy_v3.py': 'a384365e7200643738c4f03e6f8236cd4ac8984eb879ff69752f5a4de0ad729b',
  'work/profit_1000_upgrade/auction_truth_v3.py': '889765e435f2e44c6bedc21ef74789c5155081160da54624a147fdd3bca43665',

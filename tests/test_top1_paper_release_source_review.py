@@ -89,7 +89,7 @@ def prior_bytes(path, current, review_raw):
 
 def source_before_top1_release(path, raw):
     # A caller may pass live bytes or an already verified earlier view.
-    if path in count_delta.files() and raw == (ROOT / path).read_bytes():
+    if raw == (ROOT / path).read_bytes():
         raw = read(path)
     if path not in reviewed_existing():
         return raw

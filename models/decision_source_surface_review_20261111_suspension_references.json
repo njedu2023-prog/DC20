@@ -1,0 +1,313 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "4dd9659925f9437bca6eb5094cc18a331d4c5bc6",
+  "files": {
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "1a81b579d6759c98c9d4f99c2533108b126528554512c96a41b129eb0e1af453",
+      "base_sha256": "1b29db707700210c076134b78d9ab142dd659122419b08c907a150cbc406761a",
+      "inverse": [
+        [
+          3796,
+          42,
+          "    if path in count_delta.files() and raw == (ROOT / path).read_bytes():\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "a0047a40c9593140d115264803de4c2eec0841738be332d832ea69c1e9b25371",
+      "base_sha256": "f106cfbd94896e89829625a976656c818e47af7a52b6b2e4b95dbcacc050d95a",
+      "inverse": [
+        [
+          5328,
+          220,
+          "    pins = {'candidate_natural_outcomes': 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec', 'candidate_natural_evidence_publication': 'c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190'}\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "2389761bcc691f343d48b11afb1e8b2e42654929d57dd602b18097b36ae021e9",
+      "base_sha256": "637ee3fd1e177f77c82e51530459f5a639821d7edb84970666968df5f12b68e7",
+      "inverse": [
+        [
+          1042,
+          84,
+          "STATISTICS_SHA = '499f5aac4425c4d91739137940900c914239930f49b7368c722c312a31130939'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "d54b17f469f6a66b65cc76cc0a89934c937fa537e25c7b8f678cc5230c0ef1a7",
+      "base_sha256": "a54fdc1e3a4294f8deda39aafc3a4a9658bcc5ce28182cabad403cf8eb32e587",
+      "inverse": [
+        [
+          604,
+          82,
+          "IMPORTER_SHA = '939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66'\n"
+        ],
+        [
+          1085,
+          142,
+          "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66',\n"
+        ],
+        [
+          1494,
+          127,
+          " 'work/profit_1000_upgrade/candidate_natural_workflow.py': '775b49692705a2e6172d078b5e58f2d112fa3fd5347a47a96f485fed96537925',\n"
+        ],
+        [
+          1844,
+          267,
+          " 'work/profit_1000_upgrade/candidate_natural_forward.py': 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd',\n 'work/profit_1000_upgrade/candidate_natural_forward_registration.json': 'f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257',\n"
+        ],
+        [
+          2248,
+          269,
+          " 'work/profit_1000_upgrade/candidate_eligible_forward.py': 'a7361939254c5173030e39b57fc72162a48cab835c84c258f1c33d161aa55014',\n 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': '74e3f0e0827bc71514777e3432ca4c9d979630fd381f1b8b71033f528e74eba8',\n"
+        ],
+        [
+          2641,
+          254,
+          " 'work/profit_1000_upgrade/candidate_snapshot_versions.py': '11fc359e5c48a5e1ea0d1c88e9bd2531ffab631446c5f2853fb502c225c6f89e',\n 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '18192d9bfe15e7a7fd5fc424aef82aa187fc0119023789d7de8be9fbc3f6f502',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_forward_registration.json": {
+      "sha256": "5f2837b34975dbb69cd86428d0c49ae58c993fbb3081bc2b8da8a4b80108bb52",
+      "base_sha256": "f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257",
+      "inverse": [
+        [
+          2026,
+          130,
+          "    \"work/profit_1000_upgrade/candidate_d_source_adapter.py\": \"514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6\",\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_eligible_forward_registration.json": {
+      "sha256": "c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc",
+      "base_sha256": "74e3f0e0827bc71514777e3432ca4c9d979630fd381f1b8b71033f528e74eba8",
+      "inverse": [
+        [
+          2026,
+          130,
+          "    \"work/profit_1000_upgrade/candidate_d_source_adapter.py\": \"514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6\",\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_d_source_adapter.py": {
+      "sha256": "bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd",
+      "base_sha256": "514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6",
+      "inverse": [
+        [
+          21091,
+          18,
+          "        used = set()\n"
+        ],
+        [
+          21455,
+          216,
+          "            require(identity in known and identity not in used and identity[2] <= day\n"
+        ],
+        [
+          23206,
+          38,
+          "            used.add(identity)\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/test_candidate_natural_journal_integration.py": {
+      "sha256": "229e4c0f57ded8c3c7b4bbdaed1ab266c6137bdb2adf7611eb2da70efa8edd8a",
+      "base_sha256": "ebc6d2330ded50bb6d9784b0daa9e06d3b61f9259dc016c86e546bba7ce3a1b9",
+      "inverse": [
+        [
+          686,
+          102,
+          "    \"candidate_natural_daily.py\": '7503cf28125e08beac3c5fd656c55fc2b3ed0cbab2a28f6365366fba3d5205c6',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "f781a7f9a3195dfae7d37423db8e4664427ec46339bdf02878bcb27b4f3d2e7e",
+      "base_sha256": "939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66",
+      "inverse": [
+        [
+          1373,
+          81,
+          "ADAPTER_SHA = '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_snapshot_versions.py": {
+      "sha256": "755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6",
+      "base_sha256": "11fc359e5c48a5e1ea0d1c88e9bd2531ffab631446c5f2853fb502c225c6f89e",
+      "inverse": [
+        [
+          335,
+          210,
+          "PINS = {'candidate_natural_forward.py': 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd',\n 'candidate_eligible_forward.py': 'a7361939254c5173030e39b57fc72162a48cab835c84c258f1c33d161aa55014'}\n"
+        ],
+        [
+          1141,
+          86,
+          "REGISTRATION_SHA = 'f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "5cc7884b8af3303edc11d1597f0a33b51908398c1e7ff1c0f37047b61f15c9ed",
+      "base_sha256": "8ddc000b28e0160857a8ee1931bb30134d37e16bf74d725b91bd63239d616441",
+      "inverse": [
+        [
+          550,
+          81,
+          "CAPTURE_SHA = 'f224242468f6341f3b17ab792d2416c72cb069d9dc3f6d0e25ee9c7fca203100'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_daily.py": {
+      "sha256": "b6a960c817709216171db24c7e7e1a915139222ef0219e27b4f903d75212486e",
+      "base_sha256": "7503cf28125e08beac3c5fd656c55fc2b3ed0cbab2a28f6365366fba3d5205c6",
+      "inverse": [
+        [
+          786,
+          141,
+          "PINS = {'work/profit_1000_upgrade/candidate_natural_outcome_collect.py': '4f4b509ab95ed97362dee84adb37faeea5f5b4c4193964eb2281970a5d9143b0',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "95420909e094b6c3ebdc07e8e5dd98de26554681e56b7e2f7059d1b72933623a",
+      "base_sha256": "499f5aac4425c4d91739137940900c914239930f49b7368c722c312a31130939",
+      "inverse": [
+        [
+          575,
+          82,
+          "OUTCOMES_SHA = 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec'\n"
+        ],
+        [
+          833,
+          85,
+          "PUBLICATION_SHA = 'c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_eligible_forward.py": {
+      "sha256": "a90537d3bf38c6c0a63da97500eff1aa792561d9f2f32660bfc80d70b45272eb",
+      "base_sha256": "a7361939254c5173030e39b57fc72162a48cab835c84c258f1c33d161aa55014",
+      "inverse": [
+        [
+          995,
+          134,
+          "PINS = {'work/profit_1000_upgrade/candidate_d_source_adapter.py': '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "f08968a29f357a56060e183ea5dcdf4a595f5d9f3d54ea69be30b1b4ac441f86",
+      "base_sha256": "775b49692705a2e6172d078b5e58f2d112fa3fd5347a47a96f485fed96537925",
+      "inverse": [
+        [
+          902,
+          80,
+          "RUNNER_SHA = 'a7361939254c5173030e39b57fc72162a48cab835c84c258f1c33d161aa55014'\n"
+        ],
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "eb58dd7429742bfa047fbe0cbb472aa41ab2241c5d1133ec36ea43bf4a1a71bc",
+      "base_sha256": "f224242468f6341f3b17ab792d2416c72cb069d9dc3f6d0e25ee9c7fca203100",
+      "inverse": [
+        [
+          757,
+          85,
+          "PUBLICATION_SHA = 'a54fdc1e3a4294f8deda39aafc3a4a9658bcc5ce28182cabad403cf8eb32e587'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_outcome_collect.py": {
+      "sha256": "18c027f93ae692b50f2ec294327554555ecdb1ca376598ef75df46d5a23a4b65",
+      "base_sha256": "4f4b509ab95ed97362dee84adb37faeea5f5b4c4193964eb2281970a5d9143b0",
+      "inverse": [
+        [
+          936,
+          82,
+          "OUTCOMES_SHA = 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_forward.py": {
+      "sha256": "8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1",
+      "base_sha256": "b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd",
+      "inverse": [
+        [
+          993,
+          134,
+          "PINS = {'work/profit_1000_upgrade/candidate_d_source_adapter.py': '514f30a047bf97e14df0123747a78e76e5ecf3cb39f113b80c6f1c4ca4135af6',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "99383b77f70ffc5cfde13feb37c879b9233d3bf85e8408bca310e6b13e8b73ac",
+      "base_sha256": "8ff9e088a3c6eb3df4595b2ad4898667ff4a84c766f1e61bd5cb5d290acdcbde",
+      "inverse": [
+        [
+          1273,
+          214,
+          "PINS = {'candidate_natural_daily': '7503cf28125e08beac3c5fd656c55fc2b3ed0cbab2a28f6365366fba3d5205c6',\n 'candidate_natural_evidence_publication': 'c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190',\n"
+        ],
+        [
+          1687,
+          207,
+          " 'candidate_natural_outcome_collect': '4f4b509ab95ed97362dee84adb37faeea5f5b4c4193964eb2281970a5d9143b0',\n 'candidate_natural_statistics': '499f5aac4425c4d91739137940900c914239930f49b7368c722c312a31130939'}\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "410d5062ea882843bdfb70edc3c78db588fe05915b5b7e430fe858474987319c",
+      "base_sha256": "18192d9bfe15e7a7fd5fc424aef82aa187fc0119023789d7de8be9fbc3f6f502",
+      "inverse": [
+        [
+          902,
+          80,
+          "RUNNER_SHA = 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd'\n"
+        ],
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_outcomes.py": {
+      "sha256": "51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4",
+      "base_sha256": "b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec",
+      "inverse": [
+        [
+          659,
+          307,
+          "REGISTRATION_SHA = 'f52903de1fdd0ec47cf10d6a62778d2a844c14cc5aaf1449f2928fcdec499257'\nPROFILE_READER_SHA = '11fc359e5c48a5e1ea0d1c88e9bd2531ffab631446c5f2853fb502c225c6f89e'\nPINS = {'work/profit_1000_upgrade/candidate_natural_forward.py': 'b16fbe675ad28c3bfb6537536195c4ab8b3a98548ccaaa166327e20af9a299dd',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "096c6d4c58d64dbec3a86ce317005e663362ecc459aa4d757f4953d7a11eb25f",
+      "base_sha256": "c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190",
+      "inverse": [
+        [
+          630,
+          81,
+          "CAPTURE_SHA = 'f224242468f6341f3b17ab792d2416c72cb069d9dc3f6d0e25ee9c7fca203100'\n"
+        ],
+        [
+          1010,
+          82,
+          "OBSERVER_SHA = '8ddc000b28e0160857a8ee1931bb30134d37e16bf74d725b91bd63239d616441'\n"
+        ]
+      ]
+    }
+  }
+}
