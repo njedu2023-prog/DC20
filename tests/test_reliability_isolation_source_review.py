@@ -24,7 +24,8 @@ def raw_read(path):
     assert all(p not in ('', '.', '..') for p in path.split('/'))
     target = ROOT / path
     assert not any(p.is_symlink() for p in (target, *target.parents))
-    return target.read_bytes()
+    from tests.test_daily_metadata_source_review import source_before_daily_metadata
+    return source_before_daily_metadata(path, target.read_bytes())
 
 
 def review():
@@ -66,6 +67,9 @@ def inverse(item, raw):
 
 def source_before_reliability_isolation(path, raw):
     """Accept only exact current/predecessor bytes with current disk verified."""
+    from tests.test_daily_metadata_source_review import read, source_before_daily_metadata
+    if raw == read(path):
+        raw = source_before_daily_metadata(path, raw)
     changes = {v['path']: v for v in review()['source_changes']}
     item = changes.get(path)
     if not item:

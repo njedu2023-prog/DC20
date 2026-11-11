@@ -281,10 +281,23 @@ PRE_RETRY_DAILY_PROFILE = (
         "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"})
 
 
+# Exact predecessor from 65d4e0c1, retained in original Git-held journals.
+# Current writers remain mandatory for new writes; this is read compatibility
+# only, bounded by the already-reviewed pre-reliability snapshot identity/date.
+PRE_RELIABILITY_DAILY_PROFILE = (
+    "dfb496d1a1440d2d7da5d3df04b8f1af0466e7d59e6198a39b1ff0f877161922",
+    {"work/profit_1000_upgrade/candidate_natural_outcome_collect.py":
+        "a27ad648b3e597996ac8a25f346b690934fe85833aee70b9ddae906735e30a8d",
+     "scripts/diagnose_core_supervisor.py":
+        "b21794ddd38510ce06c1cbe958fe0744ce28547d998fceb6f34a31b66a5d5a99"})
+
+
 def daily_metadata_profile(daily, frozen, modules):
     """Exact reviewed writer/dependency pairs, never cross-version pin mixing."""
     current = (PINS["candidate_natural_daily"], modules["daily"].PINS)
     profiles = [current, PRE_RETRY_DAILY_PROFILE]
+    if modules["outcome_collect"].outcomes.is_pre_reliability_snapshot_profile(frozen):
+        profiles.append(PRE_RELIABILITY_DAILY_PROFILE)
     if modules["outcome_collect"].outcomes.is_pre_boundary_snapshot_profile(frozen):
         profiles.append(PRE_BOUNDARY_DAILY_PROFILE)
     if modules["outcome_collect"].outcomes.is_historical_snapshot_profile(frozen):
