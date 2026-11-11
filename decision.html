@@ -2558,7 +2558,7 @@
       const exit = result.last_exit_date ? `最近退出日 ${escapeHtml(dateText(result.last_exit_date))}` : "尚无已退出交易";
       const missing = result.missing_signal_dates.length
         ? `<p class="paper-warning">以下信号日缺少正式冻结名单，已跳过：${result.missing_signal_dates.map(d => escapeHtml(dateText(d))).join("、")}。</p>` : "";
-      return `<p class="paper-intro">数据截至 ${asOf} · ${exit}</p>
+      return `<p class="paper-intro">起始信号日 ${escapeHtml(dateText(result.start_signal_date))} · 数据截至 ${asOf} · ${exit}</p>
         <dl class="paper-cards">
           <div class="paper-card"><dt>累计已实现盈亏</dt><dd class="${valueTone(cumulative_pnl)}">${escapeHtml(paperAccountMoney(cumulative_pnl, true))}</dd>
             </div><div class="paper-card"><dt>累计收益率（按单注10万元）</dt><dd class="${valueTone(cumulativeReturn)}">${cumulativeReturn > 0 ? "+" : ""}${pct(cumulativeReturn)}</dd>

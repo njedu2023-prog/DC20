@@ -53,7 +53,7 @@ test("the ledger displays three signed amounts and the settled trade count with 
   assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
   assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>2 笔<\/dd>/);
   assert.match(markup,/开盘涨停未买入（成交未确认）/);
-  assert.match(markup,/最近退出日 2026-10-21/);
+  assert.match(markup,/起始信号日 2026-09-14 · 数据截至 2026-10-22 · 最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
   assert.doesNotMatch(markup,/盈2|净值|最大回撤|<svg/);
 });
@@ -199,7 +199,7 @@ test('published account accepts only the current bound main-task artifact and di
   assert.equal(loaded,x.account);assert.equal(calls.length,1);
   assert.equal(calls[0][0],x.revision.profit_paper_account_url);assert.equal(calls[0][1],x.revision.profit_paper_account_sha256);
   const markup=c.profitPaperAccountMarkup(loaded);
-  assert.match(markup,/最近退出日 2026-10-21/);
+  assert.match(markup,/起始信号日 2026-09-14 · 数据截至 2026-10-22 · 最近退出日 2026-10-21/);
 });
 test('published account accepts an empty settled set with no exit date or extremes',async()=>{
   const x=publishedInputs();
