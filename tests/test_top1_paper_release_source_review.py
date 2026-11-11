@@ -8,6 +8,8 @@ import re
 
 import pytest
 
+from tests import top1_paper_source_delta as count_delta
+
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW = 'models/decision_source_surface_review_20261111_top1_paper.json'
 REVIEW_SHA = '16980a8b82ee0ce9ed40f0f0a63a5b0f9db9e463cbac3d1e570599cfd6b2be98'
@@ -28,7 +30,7 @@ def read(path):
     assert all(part not in ('', '.', '..') for part in path.split('/'))
     target = ROOT / path
     assert not any(node.is_symlink() for node in (target, *target.parents))
-    return target.read_bytes()
+    return count_delta.before_count(path, target.read_bytes())
 
 
 @lru_cache(maxsize=2)
@@ -86,6 +88,9 @@ def prior_bytes(path, current, review_raw):
 
 
 def source_before_top1_release(path, raw):
+    # A caller may pass live bytes or an already verified earlier view.
+    if path in count_delta.files() and raw == (ROOT / path).read_bytes():
+        raw = read(path)
     if path not in reviewed_existing():
         return raw
     current = read(path)
@@ -143,3 +148,15 @@ def test_tampering_cannot_be_hidden_by_view_or_cached_result(monkeypatch, path):
             source_before_top1_release(path, original)
         else:
             test_all_current_sources_exact_predecessors_and_prior_reviews()
+
+
+def test_current_count_release_and_predecessors():
+    files = count_delta.files()
+    assert {'decision.html', MANIFEST, INVENTORY, 'tests/test_top1_paper_release_source_review.py'} <= files.keys()
+    for path, record in files.items():
+        assert not path.startswith(('data/', 'outputs/'))
+        assert path == MANIFEST or not path.startswith('models/')
+        current = (ROOT / path).read_bytes()
+        assert sha(count_delta.before_count(path, current)) == record['base_sha256']
+        with pytest.raises(AssertionError):
+            count_delta.before_count(path, current + b'\n')

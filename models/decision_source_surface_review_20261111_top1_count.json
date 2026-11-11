@@ -1,0 +1,290 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "03a04ed7cad7f7cc98c033d506eb66cf1633e908",
+  "base_tree": "b8a581c5c37ce7ba6828afeb9237d59ac1c1369e",
+  "files": {
+    "decision.html": {
+      "sha256": "8a1a9645e7a96247e35a48f29e9d8a1f79dd030b963becba92462ba6aec6dbd7",
+      "base_sha256": "e25976e6f7a51cfae85778e636218221a4afd8354ca8ebcadc4279c723adfb98",
+      "inverse": [
+        [
+          48499,
+          1,
+          "3"
+        ],
+        [
+          50168,
+          116,
+          ""
+        ],
+        [
+          137929,
+          125,
+          ""
+        ]
+      ]
+    },
+    "forward/model_inventory.json": {
+      "sha256": "2205ad043b21762fc7e5cefc8b2368cb4868e2d5f27bf145493ca074ec60dfe1",
+      "base_sha256": "8583ed5000b5e983e035f3f6e0e45da47b3feab9a8a4ea8dc503a561319d84b6",
+      "inverse": [
+        [
+          4938,
+          64,
+          "46d1eabd8d4416d3601bd2afa464cc8639dfc6f0f48d467af9e01c08c31ad10e"
+        ]
+      ]
+    },
+    "models/decision_model_freeze.json": {
+      "sha256": "2ef9064d93368cb5fac0a959416c1a7ccf2b9402634595bdb8a98376bbe965b0",
+      "base_sha256": "46d1eabd8d4416d3601bd2afa464cc8639dfc6f0f48d467af9e01c08c31ad10e",
+      "inverse": [
+        [
+          30150,
+          64,
+          "e25976e6f7a51cfae85778e636218221a4afd8354ca8ebcadc4279c723adfb98"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "637ee3fd1e177f77c82e51530459f5a639821d7edb84970666968df5f12b68e7",
+      "base_sha256": "e42d35ce24db55a1a4f1a439625166e5c5d988d5a8dfd6051edd38703b39bd7a",
+      "inverse": [
+        [
+          1060,
+          64,
+          "3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "f106cfbd94896e89829625a976656c818e47af7a52b6b2e4b95dbcacc050d95a",
+      "base_sha256": "6cd7ca116704e1c69bf51ea0cf2eef3dd772a117a533de827ae4ab7c59d968f5",
+      "inverse": [
+        [
+          5481,
+          64,
+          "b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891"
+        ]
+      ]
+    },
+    "tests/test_profit_paper_account_ui.cjs": {
+      "sha256": "b996b737b92189199592bb4fa3321bf5f2a4b553288396c2d299d0df1050c9d4",
+      "base_sha256": "f5b3c756a6b7789232b3050d47da7ef4ca934c16ebcf39c3ab435665df888679",
+      "inverse": [
+        [
+          2703,
+          46,
+          "e three signed realized amounts"
+        ],
+        [
+          2850,
+          263,
+          "markup=c.profitPaperAccountMarkup(result());\n  assert.equal((markup.match(/class=\"paper-card\"/g)||[]).length,3"
+        ],
+        [
+          3348,
+          58,
+          ""
+        ],
+        [
+          3863,
+          58,
+          ""
+        ],
+        [
+          19462,
+          1,
+          "3"
+        ],
+        [
+          20011,
+          1,
+          "3"
+        ]
+      ]
+    },
+    "tests/test_reliability_runtime_profiles.py": {
+      "sha256": "01723b2824a4dbe832ea29acc0937ef8db84318cb6fd10205e3171481e178f20",
+      "base_sha256": "bf425c2e8d51ec3c2838147e056ad1b55897354305ba2ee02a4acabe99f28d02",
+      "inverse": [
+        [
+          3769,
+          5,
+          "PAPER"
+        ],
+        [
+          4752,
+          14,
+          ""
+        ],
+        [
+          5545,
+          317,
+          "other = next(p for p in continuation.RELIABILITY_PROFILES if p != profile)\n        mixed = deepcopy(trees)\n        mixed[index][continuation.MANIFEST_PATH][\"sha\"] = other[continuation.MANIFEST_PATH]\n        with pytest.raises(ValueError, match=\"CODE_PROFILE_REQUIRED\"):\n"
+        ]
+      ]
+    },
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "1b29db707700210c076134b78d9ab142dd659122419b08c907a150cbc406761a",
+      "base_sha256": "e15c9123294df9ddca766feca8b6760af283e3c554e840f026deba77f2ec0f4f",
+      "inverse": [
+        [
+          206,
+          58,
+          ""
+        ],
+        [
+          1011,
+          50,
+          "target.read_bytes("
+        ],
+        [
+          3724,
+          171,
+          ""
+        ],
+        [
+          6436,
+          598,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "18192d9bfe15e7a7fd5fc424aef82aa187fc0119023789d7de8be9fbc3f6f502",
+      "base_sha256": "cc907941dd5d7a894f9b64efec94c6766511ce4bdf3edbcfb2ace14864d8432f",
+      "inverse": [
+        [
+          1082,
+          64,
+          "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "f224242468f6341f3b17ab792d2416c72cb069d9dc3f6d0e25ee9c7fca203100",
+      "base_sha256": "f980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb",
+      "inverse": [
+        [
+          776,
+          63,
+          "2af7c784cdc5a4d8fa292d3352e3a59b3da1e17c98aa94cf0767fadf1fac7ad"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "c4faaee96d3d212ee3a18f326afddfdcdb70e10077bda5fcb39505bfc41a1190",
+      "base_sha256": "b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891",
+      "inverse": [
+        [
+          646,
+          63,
+          "980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb"
+        ],
+        [
+          1026,
+          64,
+          "97eb7d5ca11eda1b40565f6dd6c6cebcd708f5fe98218f68bba6b9b8768822d9"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "8ddc000b28e0160857a8ee1931bb30134d37e16bf74d725b91bd63239d616441",
+      "base_sha256": "97eb7d5ca11eda1b40565f6dd6c6cebcd708f5fe98218f68bba6b9b8768822d9",
+      "inverse": [
+        [
+          566,
+          63,
+          "980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_continuation.py": {
+      "sha256": "3940b56d130e6fcfdb861fa921c7402f8df260203ffcddb62e7b581fea2b6abf",
+      "base_sha256": "08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184",
+      "inverse": [
+        [
+          20115,
+          214,
+          "RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "939a259165950a88ab01ecc4f2161ee67db4dd5007f4c7deb4ff1b88c5210c66",
+      "base_sha256": "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22",
+      "inverse": [
+        [
+          1541,
+          64,
+          "08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "a54fdc1e3a4294f8deda39aafc3a4a9658bcc5ce28182cabad403cf8eb32e587",
+      "base_sha256": "2af7c784cdc5a4d8fa292d3352e3a59b3da1e17c98aa94cf0767fadf1fac7ad7",
+      "inverse": [
+        [
+          620,
+          64,
+          "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22"
+        ],
+        [
+          1160,
+          198,
+          "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22',\n 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184"
+        ],
+        [
+          1554,
+          64,
+          "bc29f7dac87be83f067eefe7ec8e861b0df9c1afc0a16ec1a58b9f07e00a05f2"
+        ],
+        [
+          2828,
+          64,
+          "cc907941dd5d7a894f9b64efec94c6766511ce4bdf3edbcfb2ace14864d8432f"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "8ff9e088a3c6eb3df4595b2ad4898667ff4a84c766f1e61bd5cb5d290acdcbde",
+      "base_sha256": "3fb83b3976acce753203032ff47fdc3d0d3c7226f369bb63869571de384989ac",
+      "inverse": [
+        [
+          1420,
+          64,
+          "b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891"
+        ],
+        [
+          1827,
+          64,
+          "3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "499f5aac4425c4d91739137940900c914239930f49b7368c722c312a31130939",
+      "base_sha256": "3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c",
+      "inverse": [
+        [
+          852,
+          64,
+          "b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "775b49692705a2e6172d078b5e58f2d112fa3fd5347a47a96f485fed96537925",
+      "base_sha256": "bc29f7dac87be83f067eefe7ec8e861b0df9c1afc0a16ec1a58b9f07e00a05f2",
+      "inverse": [
+        [
+          1082,
+          64,
+          "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22"
+        ]
+      ]
+    }
+  }
+}

@@ -1216,7 +1216,7 @@
     #profitPaperAccount .paper-body { padding:12px; min-width:0; }
     #profitPaperAccount .paper-intro { margin:0 0 12px; color:var(--muted); font-size:12px; line-height:1.65; }
     #profitPaperAccount .paper-warning { padding:10px 12px; margin:0 0 12px; border-left:3px solid #b37924; background:#fff7e7; color:#78551e; font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
-    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 14px; }
+    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 14px; }
     #profitPaperAccount .paper-card { min-width:0; padding:12px; background:#f5f8f7; border:1px solid var(--line); border-radius:8px; }
     #profitPaperAccount .paper-card dt { font-size:12px; color:var(--muted); }
     #profitPaperAccount .paper-card dd { margin:6px 0 0; font-size:20px; font-weight:700; overflow-wrap:anywhere; }
@@ -1232,6 +1232,7 @@
     .paper-page-actions button { font:inherit; cursor:pointer; }
     .paper-page-actions button:disabled { opacity:.5; cursor:wait; }
     .paper-page-note { color:var(--muted); font-size:12px; line-height:1.7; padding:4px 0; }
+    @media(max-width:900px) { #profitPaperAccount .paper-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media(max-width:600px) { #profitPaperAccount .paper-cards { grid-template-columns:1fr; } }
     @media(max-width:400px) { #profitPaperAccount .paper-body { padding:8px; } #profitPaperAccount .paper-card { padding:9px; } #profitPaperAccount .paper-card dd { font-size:17px; } }
     .promotion-success-summary > div { padding: 10px 12px; border-right: 1px solid var(--line); }
@@ -2509,7 +2510,9 @@
       const missing = result.missing_signal_dates.length
         ? `<p class="paper-warning">以下信号日缺少正式冻结名单，已跳过：${result.missing_signal_dates.map(d => escapeHtml(dateText(d))).join("、")}。</p>` : "";
       return `<p class="paper-intro">数据截至 ${asOf} · ${exit}</p>
-        <dl class="paper-cards">${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}</dl>${missing}`;
+        <dl class="paper-cards">${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
+          <div class="paper-card"><dt>已成交并退出笔数</dt><dd>${result.closed_trades.toLocaleString("zh-CN")} 笔</dd></div>
+        </dl>${missing}`;
     }
 
     function renderProfitPaperAccount() {

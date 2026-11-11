@@ -40,13 +40,17 @@ function result() {
     trades:[{signal_date:'20260914',rank:1,status:'CLOSED',exit_date:'20260916',net_pnl:10000},
       {signal_date:'20261019',rank:1,status:'CLOSED',exit_date:'20261021',net_pnl:-5500}]};
 }
-test("the ledger displays the three signed realized amounts with dates and coverage",()=>{
+test("the ledger displays three signed amounts and the settled trade count with dates and coverage",()=>{
   const c=context({valueTone:n=>n>0?'positive':'negative'});
-  const markup=c.profitPaperAccountMarkup(result());
-  assert.equal((markup.match(/class="paper-card"/g)||[]).length,3);
+  const data=result();
+  data.trades.push({signal_date:'20261020',rank:1,status:'NO_FILL'},
+    {signal_date:'20261022',rank:1,status:'PENDING_T_NOT_DUE'});
+  const markup=c.profitPaperAccountMarkup(data);
+  assert.equal((markup.match(/class="paper-card"/g)||[]).length,4);
   assert.match(markup,/<dt>累计已实现盈亏<\/dt><dd class="positive">\+4,500\.00 元/);
   assert.match(markup,/<dt>最大单笔盈利<\/dt><dd class="positive">\+10,000\.00 元/);
   assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
+  assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>2 笔<\/dd>/);
   assert.match(markup,/最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
   assert.doesNotMatch(markup,/盈2|净值|最大回撤|<table|<svg/);
@@ -56,6 +60,7 @@ test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   Object.assign(data,{closed_trades:0,last_exit_date:null,metrics:{cumulative_pnl:0,max_profit:null,max_loss:null},
     trades:[],missing_signal_dates:[]});
   const markup=context().profitPaperAccountMarkup(data);
+  assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>0 笔<\/dd>/);
   assert.match(markup,/尚无已退出交易/);
   assert.equal((markup.match(/>—<\/dd>/g)||[]).length,2);
   assert.match(markup,/>0\.00 元<\/dd>/);
@@ -247,12 +252,12 @@ test("renderer does not bind latest account to selected historical D",()=>{
     candidateProfitSummaryLoad:{status:"ready"},compactStatisticsWindowLoad:{status:"ready"},dailyRequestedDate:"20260914",
     profitPaperAccount:{status:"ready",loadedSummary:summary,loadedWindow:window,active,loadSequence:1,result:result()}});
   c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/数据截至 2026-10-22/);
-  assert.equal((c.document.getElementById("profitPaperAccountContent").innerHTML.match(/class="paper-card"/g)||[]).length,3);
+  assert.equal((c.document.getElementById("profitPaperAccountContent").innerHTML.match(/class="paper-card"/g)||[]).length,4);
   c.state.compactFatalError=true;c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/已清空模拟账户/);
 });
 test("same homepage entry and existing refresh hooks include isolated account",()=>{
   assert.ok(html.indexOf('id="profitPaperAccount"')>html.indexOf('id="profitNextDay"'));
   assert.match(html,/renderProfitNextDayStatistics\(\);\s+renderProfitPaperAccount\(\);/);
-  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(3,/);
+  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(4,/);
 });
 
