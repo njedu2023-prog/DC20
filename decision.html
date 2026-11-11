@@ -2525,10 +2525,17 @@
         MISSING_QUOTE:'缺少行情', CORPORATE_ACTION_UNVERIFIED:'价格连续性待核验',
         BUDGET_BELOW_ONE_LOT:'预算不足一手'
       };
+      const noFillReasons = {
+        NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED:'开盘涨停未买入（成交未确认）',
+        NO_FILL_ONE_PRICE_LIMIT_UP:'一字涨停未买入',
+        NO_FILL_CAPACITY:'竞价容量不足未买入',
+        NO_FILL_SUSPENDED:'停牌未买入',
+        NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME:'竞价无成交量，未买入'
+      };
       const rows = result.trades.filter(t => t.signal_date.startsWith(month))
         .sort((a, b) => b.signal_date.localeCompare(a.signal_date))
         .map(t => {
-          const status = labels[t.status] || '待核验';
+          const status = t.status === 'NO_FILL' ? (noFillReasons[t.source_status] || '未买入') : (labels[t.status] || '待核验');
           const gain = t.status === 'CLOSED' ? t.net_pnl : null;
           const price = n => Number.isFinite(n) ? n.toFixed(2) : '—';
           return `<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>${escapeHtml(t.ts_code || '—')} ${escapeHtml(t.name || '')}</td><td title="${escapeHtml(t.source_status || t.status)}">${status}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${price(t.entry_price)}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${price(t.exit_price)}</td><td class="${gain === null ? '' : valueTone(gain)}">${paperAccountMoney(gain, true)}</td></tr>`;

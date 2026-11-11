@@ -43,7 +43,7 @@ function result() {
 test("the ledger displays three signed amounts and the settled trade count with dates and coverage",()=>{
   const c=context({valueTone:n=>n>0?'positive':'negative'});
   const data=result();
-  data.trades.push({signal_date:'20261020',rank:1,status:'NO_FILL'},
+  data.trades.push({signal_date:'20261020',rank:1,status:'NO_FILL',source_status:'NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED'},
     {signal_date:'20261022',rank:1,status:'PENDING_T_NOT_DUE'});
   const markup=c.profitPaperAccountMarkup(data);
   assert.equal((markup.match(/class="paper-card"/g)||[]).length,5);
@@ -52,6 +52,7 @@ test("the ledger displays three signed amounts and the settled trade count with 
   assert.match(markup,/<dt>最大单笔盈利<\/dt><dd class="positive">\+10,000\.00 元/);
   assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
   assert.match(markup,/<dt>已成交并退出笔数<\/dt><dd>2 笔<\/dd>/);
+  assert.match(markup,/开盘涨停未买入（成交未确认）/);
   assert.match(markup,/最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
   assert.doesNotMatch(markup,/盈2|净值|最大回撤|<svg/);

@@ -40,7 +40,7 @@ WORKFLOW_NAME = "DC2.0 · Publish Primary D List (P0)"
 WORKFLOW_PATH = ".github/workflows/run_primary_d_daily.yml"
 ADAPTER_PATH = "work/profit_1000_upgrade/candidate_d_source_adapter.py"
 ADAPTER_SHA = 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'
-CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '82e1da10ecd9781b813690b1effacc920ff6cbcfbd1b8e9696060a7ff3dd5def',
+CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '5da5da099ee197e831b7960d1938c7dfac1340547fdd81491ec4c9e76949f9b7',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
 TOKEN_ENV = "DC20_CANDIDATE_GITHUB_TOKEN"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024

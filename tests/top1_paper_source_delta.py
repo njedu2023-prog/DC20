@@ -71,7 +71,7 @@ def _restore(path, raw, review_raw, release):
 
 MONTH = (
     'models/decision_source_surface_review_20261112_monthly_trades.json',
-    'ea28fed07998d22ed8b186a69412e1c4cdc3b1f689f5fc6bfda4c65ac032a856',
+    '633632f1b0182aaa0ff09d6647e72bfef62ded32342f0a7e446b6fa0574378b2',
     'd078093686c87cfb5ce60caa145ddd74af2ceedb',
     '48ac969b04fea90040748e745657b70597f29256',
 )

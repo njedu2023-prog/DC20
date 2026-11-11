@@ -26,7 +26,7 @@ PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
 RUNNER_SHA = 'a90537d3bf38c6c0a63da97500eff1aa792561d9f2f32660bfc80d70b45272eb'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = '76a174340bbfb846212653d3480d0e79088f207a9ac19ae7332e9a2cd06145e6'
+IMPORTER_SHA = '508d06efabe743b94799c759c6d0ab67a5b004ff926f9245840abd3dd9c9cca1'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
