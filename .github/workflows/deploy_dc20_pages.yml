@@ -31,6 +31,7 @@ on:
       - scripts/stage_current_profit_research.py
       - scripts/candidate_profit_pages.py
       - scripts/build_profit_paper_account.cjs
+      - scripts/top1_realized_paper_account.cjs
       - scripts/build_next_day_statistics.cjs
       - tests/test_next_day_statistics*.cjs
       - tests/test_profit_paper_account*.cjs
@@ -2003,7 +2004,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs
+          node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_top1.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs
           node scripts/build_profit_paper_account.cjs --site-root _site --source-html decision.html
 
       - name: Clear failed auxiliary account bindings

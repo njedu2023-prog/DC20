@@ -34,59 +34,40 @@ function context(extra={}) {
   vm.createContext(c);vm.runInContext(canonicalSource,c);vm.runInContext(source,c);return c;
 }
 function result() {
-  const days=[{date:"20261019",nav:735000,cash:735000,market_value:0,realized_pnl:0,unrealized_pnl:0,drawdown:0,open_positions:0},
-    {date:"20261020",nav:725000,cash:535000,market_value:190000,realized_pnl:0,unrealized_pnl:-10000,drawdown:-10000/735000,open_positions:2}];
-  return {as_of_date:"20261022",last_valid_date:"20261020",start_signal_date:"20261019",waiting_for_start:false,
-    blocked:true,blocking_reason:"退出价格缺失 <unsafe>",missing_signal_dates:["20261021"],days,
-    metrics:{nav:725000,cash:535000,market_value:190000,total_pnl:-10000,cumulative_return:-10000/735000,realized_pnl:0,unrealized_pnl:-10000,
-      open_trades:2,closed_trades:0,max_drawdown:.01,max_drawdown_amount:10000,max_capital_usage:.2,max_open_positions:2,
-      max_open_positions_intraday:2,max_committed_cost_intraday:200000,
-      total_costs:900,win_rate:null,profit_factor:null,longest_loss_streak:0,no_fill_trades:1,missing_trades:2,insufficient_cash_trades:0},
-    rank_contributions:[{rank:1,closed_trades:0,open_trades:1,win_rate:null,realized_pnl:0,unrealized_pnl:-5000,total_pnl:-5000}],
-    trades:[{signal_date:"20261021",rank:1,ts_code:null,status:"MISSING_FROZEN",net_pnl:null,unrealized_pnl:null}]};
+  return {schema_version:'dc20_top1_realized_paper_account_v1',as_of_date:'20261022',
+    last_exit_date:'20261021',start_signal_date:'20260914',per_trade_budget:100000,cost_rate:.0045,
+    closed_trades:2,metrics:{cumulative_pnl:4500,max_profit:10000,max_loss:-5500},missing_signal_dates:['20261021'],
+    trades:[{signal_date:'20260914',rank:1,status:'CLOSED',exit_date:'20260916',net_pnl:10000},
+      {signal_date:'20261019',rank:1,status:'CLOSED',exit_date:'20261021',net_pnl:-5500}]};
 }
-test("markup distinguishes latest unavailable and last valid NAV, escaping source text",()=>{
-  const c=context();const out=c.profitPaperAccountMarkup(result());
-  assert.match(out,/最新账户资产：暂不可核验/);assert.match(out,/截至 2026-10-20/);assert.match(out,/已知交易子集/);
-  assert.match(out,/&lt;unsafe&gt;/);assert.doesNotMatch(out,/<unsafe>/);assert.match(out,/冻结缺失 · 跳过/);
-  assert.match(out,/暂不报告年化收益、夏普比/);assert.match(out,/725,000\.00 元/);
-  assert.match(out,/盈1、盈2每天每笔预算各10万元/);assert.match(out,/每笔10万元为含研究成本的预算/);
-  assert.match(out,/D 2026-10-19起重新统计/);assert.match(out,/初始73\.5万元/);
-  assert.match(out,/未验证真实排队成交、10万元容量/);assert.doesNotMatch(out,/(?:各|每笔)20万元/);
-  assert.doesNotMatch(out,/onclick=/);
+test("the ledger displays the three signed realized amounts with dates and coverage",()=>{
+  const c=context({valueTone:n=>n>0?'positive':'negative'});
+  const markup=c.profitPaperAccountMarkup(result());
+  assert.equal((markup.match(/class="paper-card"/g)||[]).length,3);
+  assert.match(markup,/<dt>累计已实现盈亏<\/dt><dd class="positive">\+4,500\.00 元/);
+  assert.match(markup,/<dt>最大单笔盈利<\/dt><dd class="positive">\+10,000\.00 元/);
+  assert.match(markup,/<dt>最大单笔亏损<\/dt><dd class="negative">-5,500\.00 元/);
+  assert.match(markup,/最近退出日 2026-10-21/);
+  assert.match(markup,/以下信号日缺少正式冻结名单/);
+  assert.doesNotMatch(markup,/盈2|净值|最大回撤|<table|<svg/);
 });
-test('pre-start markup shows a waiting account rather than stale history or a source error',()=>{
-  const c=context(),data=result();
-  Object.assign(data,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,
-    blocking_reason:null,missing_signal_dates:[],days:[],trades:[]});
-  Object.assign(data.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,cumulative_return:0,
-    realized_pnl:0,unrealized_pnl:0,open_trades:0,closed_trades:0});
-  const out=c.profitPaperAccountMarkup(data);
-  assert.match(out,/起始资金（待起算）/);assert.match(out,/等待D 2026-10-19/);
-  assert.match(out,/735,000\.00 元/);assert.match(out,/此前持仓与收益不带入/);
-  assert.doesNotMatch(out,/最新账户资产：暂不可核验|冻结缺失 · 跳过/);
-});
-test("trade table puts company name immediately after code, escapes text and labels missing names",()=>{
-  const c=context(), data=result();
-  data.trades.push({signal_date:'20261019',rank:1,ts_code:'000823.SZ',name:'超声电子 <unsafe>',status:'CLOSED'});
-  const out=c.profitPaperAccountMarkup(data);
-  assert.match(out,/<th>代码<\/th><th class="left">公司名称<\/th>/);
-  assert.match(out,/<td>000823\.SZ<\/td><td class="left">超声电子 &lt;unsafe&gt;<\/td>/);
-  assert.match(out,/<td class="left">名称待补<\/td>/);
-  assert.doesNotMatch(out,/<unsafe>/);
-});
-test("responsive curve handles one point and no valid data without NaN",()=>{
-  const c=context();const svg=c.paperAccountCurveSvg(result().days,true);
-  assert.match(svg,/viewBox="0 0 640 430"/);assert.match(svg,/paper-narrow-chart/);assert.match(svg,/role="img"/);
-  assert.doesNotMatch(c.paperAccountCurveSvg(result().days.slice(0,1),false),/NaN|Infinity/);
-  assert.match(c.paperAccountCurveSvg([]),/不绘制零收益线/);
+test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
+  const data=result();
+  Object.assign(data,{closed_trades:0,last_exit_date:null,metrics:{cumulative_pnl:0,max_profit:null,max_loss:null},
+    trades:[],missing_signal_dates:[]});
+  const markup=context().profitPaperAccountMarkup(data);
+  assert.match(markup,/尚无已退出交易/);
+  assert.equal((markup.match(/>—<\/dd>/g)||[]).length,2);
+  assert.match(markup,/>0\.00 元<\/dd>/);
+  assert.doesNotMatch(markup,/缺少正式冻结名单/);
 });
 function inputs() {
   const raw=new Map();
   raw.set("data/market/trade_cal_sse.csv",Buffer.from(JSON.stringify([{cal_date:"20260914",is_open:"1"},{cal_date:"20261019",is_open:"1"},{cal_date:"20261020",is_open:"1"}])));
   raw.set("data/market/raw/2026/20261020/daily.csv",Buffer.from(JSON.stringify([{trade_date:"20261020",ts_code:"000001.SZ",close:"10",pre_close:"9"}])));
   const windowPayload={source_files:[...raw].map(([path,b])=>({path,sha256:sha(b)}))};
-  const summary={as_of_date:"20261020",signal_dates:["20260914","20261019","20261020"],calendar_sha256:sha(raw.get("data/market/trade_cal_sse.csv"))};
+  const summary={as_of_date:"20261020",groups:{candidate_top1:{daily_sequence:[
+    {signal_date:"20260914",exec_date:"20261019",actual_exit_date:"20261020",status:"SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY"}]}},signal_dates:["20260914","20261019","20261020"],calendar_sha256:sha(raw.get("data/market/trade_cal_sse.csv"))};
   return {raw,summary,windowPayload};
 }
 test("loader only reads bound calendar and daily prices, leaves missing day absent",async()=>{
@@ -137,7 +118,7 @@ test('company loader uses bound same-day frozen names and records their provenan
   const c=context(),x=identityInputs(c);c.fetchPagesOnlyPath=async p=>x.raw.get(p);
   const names=await c.loadProfitPaperAccountIdentities(x.summary,x.revision);
   assert.equal(names.identities.get('20261019:R1').name,'超声电子');
-  assert.equal(names.identities.get('20261019:R2').name,'澳弘电子');
+  assert.equal(names.identities.has('20261019:R2'),false);
   assert.equal(names.identities.get('20261019:R1').source_sha256,x.index.days[0].sha256);
   assert.equal(names.source_files.length,2);
   const absent=await c.loadProfitPaperAccountIdentities(x.summary);
@@ -145,13 +126,13 @@ test('company loader uses bound same-day frozen names and records their provenan
 });
 test('company loader validates full index date coverage but reads only reset-period names',async()=>{
   const c=context(),x=identityInputs(c),calls=[];
-  x.index.days.unshift({signal_date:'20260914',path:'outputs/decision/candidate_profit_v1/day_20260914.json',sha256:'0'.repeat(64),snapshot_file_sha256:'b'.repeat(64)});
-  x.summary.published_signal_dates.unshift('20260914');
+  x.index.days.unshift({signal_date:'20260911',path:'outputs/decision/candidate_profit_v1/day_20260911.json',sha256:'0'.repeat(64),snapshot_file_sha256:'b'.repeat(64)});
+  x.summary.published_signal_dates.unshift('20260911');
   x.raw.set(x.indexPath,Buffer.from(JSON.stringify(x.index)));
   x.revision.candidate_profit_index_sha256=sha(x.raw.get(x.indexPath));
   c.fetchPagesOnlyPath=async p=>{calls.push(p);return x.raw.get(p)};
   const names=await c.loadProfitPaperAccountIdentities(x.summary,x.revision);
-  assert.equal(names.identities.size,2);assert.equal(names.identities.has('20260914:R1'),false);
+  assert.equal(names.identities.size,1);assert.equal(names.identities.has('20260911:R1'),false);
   assert.deepEqual(calls,[x.indexPath,x.path]);
   x.summary.published_signal_dates=['20261019'];
   await assert.rejects(()=>c.loadProfitPaperAccountIdentities(x.summary,x.revision),/目录与冻结账本日期/);
@@ -171,57 +152,56 @@ test('company loader rejects changed SHA, date, slot or source projection and ne
 function publishedInputs() {
   const account=result(), source={path:'data/market/raw/2026/20261020/daily.csv',sha256:'5'.repeat(64)};
   const revision={profit_paper_account_url:'outputs/decision/profit_paper_account/account.json',profit_paper_account_sha256:'1'.repeat(64),
-    profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_valid_date,
+    profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_exit_date,
     head_sha:'2'.repeat(40),run_id:'12345',profit_paper_account_producer_run_id:'12345',profit_paper_account_updated_at:'2026-10-22T00:00:00Z',
-    candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};
-  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:735000,per_trade_budget:100000,cost_rate:.0045,
+    candidate_profit_index_sha256:'7'.repeat(64),candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};
+  Object.assign(account,{
     publication:{mode:'main_pipeline',source_head_sha:revision.head_sha,run_id:revision.run_id,published_at_utc:revision.profit_paper_account_updated_at},
-    data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,
+    data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,index_sha256:revision.candidate_profit_index_sha256,
       engine_sha256:'6'.repeat(64),source_files:[source]}});
   return {account,revision,summary:{summary:{as_of_date:account.as_of_date,round_trip_cost_rate:.0045}},
     window:{payload:{source_files:[{...source}]}},active:{revision}};
 }
-test('published account accepts only the current bound main-task artifact and displays publication time',async()=>{
+test('published account accepts only the current bound main-task artifact and displays the last exit date',async()=>{
   const x=publishedInputs(),calls=[];
   const c=context({fetchPagesOnlyShaBoundJson:async(...args)=>{calls.push(args);return {payload:x.account}}});
   const loaded=await c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active);
   assert.equal(loaded,x.account);assert.equal(calls.length,1);
   assert.equal(calls[0][0],x.revision.profit_paper_account_url);assert.equal(calls[0][1],x.revision.profit_paper_account_sha256);
   const markup=c.profitPaperAccountMarkup(loaded);
-  assert.match(markup,/主任务/);assert.match(markup,/12345/);assert.match(markup,/2026\/10\/22 08:00:00/);
+  assert.match(markup,/最近退出日 2026-10-21/);
 });
-test('published account accepts explicitly waiting pre-start artifact with no carried-in positions',async()=>{
+test('published account accepts an empty settled set with no exit date or extremes',async()=>{
   const x=publishedInputs();
-  Object.assign(x.account,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,
-    missing_signal_dates:[],days:[],trades:[]});
-  Object.assign(x.account.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,open_trades:0});
-  x.summary.summary.as_of_date='20261016';
-  x.revision.profit_paper_account_as_of_date='20261016';x.revision.profit_paper_account_last_valid_date=null;
+  Object.assign(x.account,{last_exit_date:null,closed_trades:0,metrics:{cumulative_pnl:0,max_profit:null,max_loss:null},
+    missing_signal_dates:[],trades:[]});
+  x.revision.profit_paper_account_last_valid_date=null;
   const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
   assert.equal(await c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),x.account);
 });
 test('published account rejects mismatched run, commit, dates, summary or statistics window',async()=>{
-  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget','old-capital','old-start','missing-start','missing-waiting','wrong-waiting','old-trade','old-day','old-missing-date']) {
+  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget','old-schema','old-start','missing-start','bad-loss','bad-profit','old-trade','other-rank','old-missing-date','index-sha']) {
     const x=publishedInputs();
     if(mode==='run')x.account.publication.run_id='old';
     if(mode==='producer')x.revision.profit_paper_account_producer_run_id='old';
     if(mode==='head')x.account.publication.source_head_sha='f'.repeat(40);
     if(mode==='asof')x.account.as_of_date='20260930';
     if(mode==='revision-asof')x.revision.profit_paper_account_as_of_date='20260930';
-    if(mode==='last-date')x.account.last_valid_date='20261019';
+    if(mode==='last-date')x.account.last_exit_date='20261019';
     if(mode==='summary-sha')x.account.data_bindings.summary_sha256='0'.repeat(64);
     if(mode==='window-sha')x.account.data_bindings.window_sha256='0'.repeat(64);
     if(mode==='updated-at')x.account.publication.published_at_utc='2026-10-17T00:00:00Z';
     if(mode==='mode')x.account.publication.mode='browser';
     if(mode==='old-budget')x.account.per_trade_budget=200000;
-    if(mode==='old-capital')x.account.initial_capital=1000000;
-    if(mode==='old-start')x.account.start_signal_date='20260914';
+    if(mode==='old-schema')x.account.schema_version='dc20_paper_capital_account_v1';
+    if(mode==='old-start')x.account.start_signal_date='20261019';
     if(mode==='missing-start')delete x.account.start_signal_date;
-    if(mode==='missing-waiting')delete x.account.waiting_for_start;
-    if(mode==='wrong-waiting')x.account.waiting_for_start=true;
-    if(mode==='old-trade')x.account.trades[0].signal_date='20261016';
-    if(mode==='old-day')x.account.days[0].date='20261016';
-    if(mode==='old-missing-date')x.account.missing_signal_dates=['20260921'];
+    if(mode==='bad-profit')x.account.metrics.max_profit=-1;
+    if(mode==='bad-loss')x.account.metrics.max_loss=1;
+    if(mode==='old-trade')x.account.trades[0].signal_date='20260911';
+    if(mode==='other-rank')x.account.trades[0].rank=2;
+    if(mode==='old-missing-date')x.account.missing_signal_dates=['20260911'];
+    if(mode==='index-sha')x.account.data_bindings.index_sha256='0'.repeat(64);
     const c=context({fetchPagesOnlyShaBoundJson:async()=>({payload:x.account})});
     await assert.rejects(()=>c.loadPublishedProfitPaperAccount(x.summary,x.window,x.active),undefined,mode);
   }
@@ -267,12 +247,12 @@ test("renderer does not bind latest account to selected historical D",()=>{
     candidateProfitSummaryLoad:{status:"ready"},compactStatisticsWindowLoad:{status:"ready"},dailyRequestedDate:"20260914",
     profitPaperAccount:{status:"ready",loadedSummary:summary,loadedWindow:window,active,loadSequence:1,result:result()}});
   c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/数据截至 2026-10-22/);
-  assert.equal(typeof c.document.getElementById("profitPaperAccountExport").onclick,"function");
+  assert.equal((c.document.getElementById("profitPaperAccountContent").innerHTML.match(/class="paper-card"/g)||[]).length,3);
   c.state.compactFatalError=true;c.renderProfitPaperAccount();assert.match(c.document.getElementById("profitPaperAccountContent").innerHTML,/已清空模拟账户/);
 });
 test("same homepage entry and existing refresh hooks include isolated account",()=>{
   assert.ok(html.indexOf('id="profitPaperAccount"')>html.indexOf('id="profitNextDay"'));
   assert.match(html,/renderProfitNextDayStatistics\(\);\s+renderProfitPaperAccount\(\);/);
-  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-table-wrap[^}]*overflow-x:auto/);
+  assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(3,/);
 });
 

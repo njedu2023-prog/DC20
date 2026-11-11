@@ -1,4 +1,4 @@
-"""Run cash-account regressions against the exact inline code shipped to Pages."""
+"""Exercise the published ledger engines and the frontend shipped to Pages."""
 from pathlib import Path
 import hashlib
 import json
@@ -15,7 +15,8 @@ NODE = shutil.which("node")
 def test_paper_account_engine_and_isolated_frontend():
     result = subprocess.run(
         [NODE, "--test", "tests/test_profit_paper_account_engine.cjs",
-         "tests/test_profit_paper_account_ui.cjs", "tests/test_profit_paper_account_build.cjs"],
+         "tests/test_profit_paper_account_top1.cjs", "tests/test_profit_paper_account_ui.cjs",
+         "tests/test_profit_paper_account_build.cjs"],
         cwd=ROOT, capture_output=True, text=True, timeout=45,
     )
     assert result.returncode == 0, result.stdout + result.stderr

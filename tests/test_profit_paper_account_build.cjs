@@ -32,7 +32,7 @@ async function fixture(t, asOf = '20261021') {
   const sourceFiles=[{path:'data/market/trade_cal_sse.csv',sha256:calendarSha}];
   for (const date of used) {
     const position=dates.indexOf(date), entry=dates[position+1]||'20261027', exit=dates[position+2]||'20261028';
-    const filled = date === '20260914' || date === '20261019';
+    const filled = (date === '20260914' || date === '20261019') && exit <= asOf;
     const slots=[1,2].map(rank=>({slot:rank,ts_code:`00000${rank}.SZ`,candidate_rank:rank,candidate_score:0.5,promotion_rank:rank}));
     const day={schema_version:'dc20_candidate_formal_profit_day_v1',signal_date:date,exec_date:entry,exit_date:exit,
       activation_id:activation,model_canonical_sha256:model,snapshot_file_sha256:'b'.repeat(64),candidate_slots:slots,
@@ -69,14 +69,14 @@ test('build binds published account to same revision, engine, ledger, calendar a
   assert.equal(out.status,'built'); assert.equal(out.profit_paper_account_as_of_date,'20261021');
   assert.equal(account.publication.source_head_sha,f.revision.head_sha); assert.equal(account.publication.run_id,123);
   assert.equal(account.publication.published_at_utc,f.revision.published_at_utc);
-  assert.match(account.data_bindings.engine_sha256,/^[0-9a-f]{64}$/);
-  assert.equal(account.trades[0].name,'平安银行'); assert.equal(account.trades[1].name,'万科A');
-  assert.equal(account.trades[0].name_source.signal_date,'20261019');
-  assert.equal(account.initial_capital,735000); assert.equal(account.per_trade_budget,100000);
-  assert.equal(account.start_signal_date,'20261019'); assert.equal(account.waiting_for_start,false);
-  assert.ok(account.trades.every(row=>row.signal_date>='20261019'));
-  assert.ok(account.days.every(row=>row.date>='20261019'));
-  assert.equal(account.metrics.nav,753909); assert.equal(account.metrics.closed_trades,2);
+  assert.equal(account.data_bindings.engine_sha256,hash(await fs.readFile(require.resolve('../scripts/top1_realized_paper_account.cjs'))));
+  assert.equal(account.data_bindings.index_sha256,f.revision.candidate_profit_index_sha256);
+  assert.equal(account.trades[0].name,'平安银行');
+  assert.equal(account.trades[0].signal_date,'20260914');
+  assert.equal(account.per_trade_budget,100000);assert.equal(account.start_signal_date,'20260914');
+  assert.ok(account.trades.every(row=>row.rank===1));
+  assert.deepEqual(account.metrics,{cumulative_pnl:18909,max_profit:9454.5,max_loss:null});
+  assert.equal(account.closed_trades,2);
   const revision=JSON.parse(await fs.readFile(path.join(f.root,'revision.json'),'utf8'));
   assert.equal(revision.profit_paper_account_sha256,hash(await fs.readFile(path.join(f.root,ACCOUNT_PATH))));
   assert.equal(revision.profit_paper_account_last_valid_date,'20261021');
@@ -89,34 +89,33 @@ test('same-day rerun is byte-identical and does not append or double funds',asyn
   await f.build();assert.deepEqual(await fs.readFile(path.join(f.root,ACCOUNT_PATH)),account);
   assert.deepEqual(await fs.readFile(path.join(f.root,'revision.json')),revision);
 });
-test('pre-start publication preserves initial cash without loading old trades or market quotes',async t=>{
-  const f=await fixture(t,'20261016');
-  await f.write('data/market/raw/2026/20260915/daily.csv',Buffer.from('old market data is not part of this account'));
-  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('old frozen names are not part of this account'));
+test('empty realized sample starts at the first D, with no defined winning or losing trade',async t=>{
+  const f=await fixture(t,'20260914');
   await f.build();const account=await f.account();
-  assert.equal(account.waiting_for_start,true);assert.equal(account.blocked,false);
-  assert.equal(account.start_signal_date,'20261019');assert.equal(account.as_of_date,'20261016');
-  assert.equal(account.last_valid_date,null);assert.deepEqual(account.days,[]);assert.deepEqual(account.trades,[]);
-  assert.equal(account.metrics.nav,735000);assert.equal(account.metrics.cash,735000);
-  assert.equal(account.metrics.total_pnl,null);assert.equal(account.metrics.open_trades,0);
-  assert.deepEqual(account.data_bindings.missing_market_dates,[]);
-  assert.ok(account.data_bindings.source_files.every(row=>!row.path.includes('/raw/')&&!row.path.includes('/day_')));
+  assert.equal(account.start_signal_date,'20260914');assert.equal(account.as_of_date,'20260914');
+  assert.equal(account.last_exit_date,null);assert.equal(account.closed_trades,0);
+  assert.deepEqual(account.metrics,{cumulative_pnl:0,max_profit:null,max_loss:null});
+  assert.ok(account.data_bindings.source_files.every(row=>!row.path.includes('/raw/')));
 });
-test('historical coverage is validated but pre-start missing market and frozen-day bytes do not contaminate reset',async t=>{
+test('top1 uses September historical freezes and ignores unrelated holding periods and top2 outcomes',async t=>{
   const f=await fixture(t);
-  await f.write('data/market/raw/2026/20260915/daily.csv',Buffer.from('excluded old market bytes'));
-  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('excluded old frozen names'));
+  await f.write('data/market/raw/2026/20260917/daily.csv',Buffer.from('unrelated market bytes'));
+  delete f.summary.groups.candidate_top2;
+  f.revision.candidate_profit_summary_sha256=await f.writeJson(SUMMARY_PATH,f.summary);
+  await f.writeJson('revision.json',f.revision);
   await f.build();const account=await f.account();
-  assert.equal(account.metrics.nav,753909);assert.equal(account.metrics.closed_trades,2);
-  assert.deepEqual(account.missing_signal_dates,[]);
-  assert.ok(account.data_bindings.source_files.filter(row=>row.path.includes('/raw/')).every(row=>row.path>='data/market/raw/2026/20261019/'));
+  assert.equal(account.closed_trades,2);assert.equal(account.metrics.cumulative_pnl,18909);
+  assert.ok(account.data_bindings.source_files.some(row=>row.path.endsWith('20260915/daily.csv')));
+  assert.ok(account.data_bindings.source_files.every(row=>!row.path.endsWith('20260917/daily.csv')));
+  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('tampered'));
+  await assert.rejects(f.build(),/SHA/);
 });
-test('new as-of revision advances account while preserving initial capital and existing transactions',async t=>{
+test('new as-of revision appends exactly one top1 signal and preserves realized amounts',async t=>{
   const first=await fixture(t,'20261021'),next=await fixture(t,'20261022');
   await first.build();await next.build();const a=await first.account(),b=await next.account();
-  assert.equal(b.last_valid_date,'20261022');assert.equal(b.as_of_date,'20261022');
-  assert.equal(a.initial_capital,b.initial_capital);assert.equal(a.metrics.nav,b.metrics.nav);
-  assert.equal(a.metrics.closed_trades,b.metrics.closed_trades);assert.equal(b.trades.length,a.trades.length+2);
+  assert.equal(b.last_exit_date,'20261021');assert.equal(b.as_of_date,'20261022');
+  assert.deepEqual(a.metrics,b.metrics);assert.equal(a.closed_trades,b.closed_trades);
+  assert.equal(b.trades.length,a.trades.length+1);
 });
 test('bad summary SHA fails before any artifact or revision changes',async t=>{
   const f=await fixture(t),before=await fs.readFile(path.join(f.root,'revision.json'));
@@ -129,11 +128,12 @@ test('bad daily SHA rejects rather than creating a truncated or zero-filled acco
   const f=await fixture(t);await f.write('data/market/raw/2026/20261020/daily.csv',Buffer.from('invalid'));
   await assert.rejects(f.build(),/SHA/);
 });
-test('unbound historical market date truncates at missing valuation, never substitutes zero',async t=>{
-  const f=await fixture(t);f.window.source_files=f.window.source_files.filter(row=>!row.path.includes('20261020/daily.csv'));
+test('unbound September market evidence excludes only its trade and preserves later verified exits',async t=>{
+  const f=await fixture(t);f.window.source_files=f.window.source_files.filter(row=>!row.path.includes('20260915/daily.csv'));
   await f.updateWindow();await f.build();const account=await f.account();
-  assert.equal(account.blocked,true);assert.equal(account.last_valid_date,'20261019');
-  assert.deepEqual(account.data_bindings.missing_market_dates,['20261020']);assert.equal(account.metrics.nav,735000);
+  assert.equal(account.closed_trades,1);assert.equal(account.last_exit_date,'20261021');
+  assert.equal(account.trades[0].status,'MISSING_QUOTE');assert.equal(account.trades[0].net_pnl,null);
+  assert.deepEqual(account.data_bindings.missing_market_dates,['20260915']);assert.equal(account.metrics.cumulative_pnl,9454.5);
 });
 test('date mismatch and duplicate source paths are rejected',async t=>{
   const f=await fixture(t);f.window.report_signal_date='20261020';await f.updateWindow();
@@ -147,9 +147,9 @@ test('P0 may advance ahead of the bound ledger; only the ledger cutoff is replay
   const futurePath='data/market/raw/2026/20261022/daily.csv';
   f.window.source_files.push({path:futurePath,sha256:await f.write(futurePath,Buffer.from('invalid future market data'))});
   await f.updateWindow();await f.build();const account=await f.account();
-  assert.equal(account.as_of_date,'20261021');assert.equal(account.last_valid_date,'20261021');
+  assert.equal(account.as_of_date,'20261021');assert.equal(account.last_exit_date,'20261021');
   assert.equal(account.publication.latest_signal_date,'20261022');assert.equal(account.publication.ledger_lagging,true);
-  assert.equal(account.days.at(-1).date,'20261021');assert.equal(account.metrics.nav,753909);
+  assert.equal(account.closed_trades,2);assert.equal(account.metrics.cumulative_pnl,18909);
   assert.equal(account.data_bindings.source_files.some(row=>row.path===futurePath),false);
 });
 test('a ledger beyond the main signal date and impossible date strings are refused',async t=>{
@@ -173,17 +173,17 @@ test('source and output symlinks are refused without modifying destination',asyn
   const revision=await fs.readFile(path.join(f.root,'revision.json'));await assert.rejects(f.build(),/symlink/);
   assert.deepEqual(await fs.readFile(path.join(f.root,'revision.json')),revision);
 });
-test('a deployed HTML differing from the shared engine source is a hard failure',async t=>{
+test('a deployed HTML differing from the shared loader source is a hard failure',async t=>{
   const f=await fixture(t);await f.write('index.html',Buffer.from('old page'));
   await assert.rejects(f.build(),/differs from decision.html/);
-  const changed=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('const initialCapital = 735000;','const initialCapital = 5000000;'));
+  const changed=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('const quotes = new Map(), used = [calendar[0]], missing = [];','const quotes = new Map(), used = [], missing = [];'));
   await f.write('index.html',changed);await f.write('decision.html',changed);
   await assert.rejects(f.build(),/implementation differs from --source-html/);
 });
 test('expected deployment banner injection is allowed when engine/loaders are unchanged',async t=>{
   const f=await fixture(t),withBanner=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('</body>','<aside>历史正文提示</aside></body>'));
   await f.write('index.html',withBanner);await f.write('decision.html',withBanner);
-  await f.build();assert.equal((await f.account()).metrics.nav,753909);
+  await f.build();assert.equal((await f.account()).metrics.cumulative_pnl,18909);
 });
 test('public verification requires exact artifact/revision bytes and rejects stale publication',async t=>{
   const f=await fixture(t);await f.build();const seen=[];

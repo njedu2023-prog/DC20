@@ -115,6 +115,11 @@ RELIABILITY_P0_CODE_PROFILE = {'.github/workflows/run_primary_d_daily.yml': 'bbe
  'src/top10decision/decision/trade_selector.py': 'c9c8cac9e97a42b6d888df9b42cde11b532aef63',
  'src/top10decision/probability_calibration.py': 'a005f68b26465bee49de70c57824c7a56c32d61f',
  'src/top10decision/writers/io_contract.py': '28ded13148bcdd334da10767b1aed83e44c32e7c'}
+# The published Top1 paper-account template and Pages workflow rotate the
+# model manifest. All P0 execution, feature and model blobs keep their bindings.
+TOP1_PAPER_P0_CODE_PROFILE = {**RELIABILITY_P0_CODE_PROFILE,
+    MANIFEST_PATH: '3e9d5c0576977fdf85feada3ccca23b4bc92c524'}
+RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE)
 RELIABILITY_RUNTIME_CODE_BINDINGS = [{'path': 'scripts/primary_failure_diagnostics.py',
   'sha256': '4d89fe7325bbf52ba3296f390e2987ecba5b3e160514d0b55000a0a3e27d2ac8',
   'git_blob_sha1': '8d69e8c3ae0f3bb20cfcd9386ed0821ef33b028d',
@@ -210,18 +215,16 @@ def require(ok, reason):
 
 def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identity):
     """Admit complete fixed profiles, plus one exact original/deployed pin repair."""
-    profile = (RELIABILITY_P0_CODE_PROFILE
-        if base_tree.get(MANIFEST_PATH, {}).get("sha") == RELIABILITY_P0_CODE_PROFILE[MANIFEST_PATH]
-        else SUSPENSION_P0_CODE_PROFILE
-        if base_tree.get(MANIFEST_PATH, {}).get('sha') == SUSPENSION_P0_CODE_PROFILE[MANIFEST_PATH]
-        else NEXT_DAY_STATISTICS_P0_CODE_PROFILE
-        if base_tree.get(MANIFEST_PATH, {}).get('sha') == NEXT_DAY_STATISTICS_P0_CODE_PROFILE[MANIFEST_PATH]
-        else DELIVERY_HARDENED_P0_CODE_PROFILE
-        if base_tree.get(MANIFEST_PATH, {}).get('sha') == DELIVERY_HARDENED_P0_CODE_PROFILE[MANIFEST_PATH]
-        else CONTROLLED_P0_CODE_PROFILE
-        if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')
-        == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)
-    if profile is RELIABILITY_P0_CODE_PROFILE:
+    manifest_blob = base_tree.get(MANIFEST_PATH, {}).get('sha')
+    for profile in (*RELIABILITY_PROFILES, SUSPENSION_P0_CODE_PROFILE,
+                    NEXT_DAY_STATISTICS_P0_CODE_PROFILE, DELIVERY_HARDENED_P0_CODE_PROFILE):
+        if manifest_blob == profile[MANIFEST_PATH]:
+            break
+    else:
+        publisher = 'scripts/publish_primary_three_rank.py'
+        profile = (CONTROLLED_P0_CODE_PROFILE if base_tree.get(publisher, {}).get('sha')
+                   == CONTROLLED_P0_CODE_PROFILE[publisher] else ORIGINAL_P0_CODE_PROFILE)
+    if profile in RELIABILITY_PROFILES:
         require(gh.date(identity.get("signal_date")) >= "20261111", "RELIABILITY_PROFILE_ACTIVATION_DATE_REQUIRED")
     deployed_profile = profile
     transition = None
@@ -513,7 +516,7 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     code_profile, manifest_transition = validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree,
         {'signal_date': day, 'original_run_id': original_run_id, 'original_head': r0['head_sha'],
          'original_cas': original_cas_commit, 'reuse_run_id': reuse_run_id, 'deployed_head': deployed_sha})
-    runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile is RELIABILITY_P0_CODE_PROFILE else CONTROLLED_RUNTIME_CODE_BINDINGS
+    runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile in RELIABILITY_PROFILES else CONTROLLED_RUNTIME_CODE_BINDINGS
         if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
     static_inputs = receipt["inputs"].get("committed_static_inputs", {})
     require(static_inputs.get("git_head") == r0["head_sha"]

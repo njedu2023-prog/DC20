@@ -1,0 +1,1953 @@
+{
+  "schema_version": "dc20_top1_paper_source_review_v1",
+  "approved_base_commit": "b7b5b275ad8fecb43bb6aa341080f8d950d4e751",
+  "approved_base_tree": "571dac4f20659de4fd75814d4cdb77f0207baaf2",
+  "start_signal_date": "20260914",
+  "slot": 1,
+  "per_trade_budget": 100000,
+  "source_changes": [
+    {
+      "path": ".github/workflows/deploy_dc20_pages.yml",
+      "baseline_exists": true,
+      "current_bytes": 208248,
+      "current_sha256": "0dff59ea4a6bb156428d2673f51244d72afe96d4e87f4762c58708b08fece676",
+      "baseline_git_blob_sha1": "5c732c9c0a8c210af2c418bbb6a77afe3a62aaad",
+      "baseline_sha256": "36a983c3ebebceb20943ae0074e10f60b46cdd7d0c27126ee3fd86d1e06da64a",
+      "baseline_bytes": 208159,
+      "inverse_changes": [
+        {
+          "baseline_start": 34,
+          "current_start": 34,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - scripts/top1_realized_paper_account.cjs\n"
+          ]
+        },
+        {
+          "baseline_start": 2006,
+          "current_start": 2007,
+          "baseline_lines": [
+            "          node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs\n"
+          ],
+          "current_lines": [
+            "          node --test tests/test_profit_paper_account_engine.cjs tests/test_profit_paper_account_top1.cjs tests/test_profit_paper_account_ui.cjs tests/test_profit_paper_account_build.cjs\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/verify_daily_cleanup.yml",
+      "baseline_exists": true,
+      "current_bytes": 16034,
+      "current_sha256": "c57486127e0c92871f1986ae3c733fca68c054b6c7163a39bef040cf2362bb56",
+      "baseline_git_blob_sha1": "376be23e9cece53a56d925afaaad57cc6da6920b",
+      "baseline_sha256": "292790d26c77d56832da625ea2f8fd800d9f1ca39337b2c77544a2101a95d9b7",
+      "baseline_bytes": 14496,
+      "inverse_changes": [
+        {
+          "baseline_start": 11,
+          "current_start": 11,
+          "baseline_lines": [],
+          "current_lines": [
+            "      - scripts/build_profit_paper_account.cjs\n",
+            "      - scripts/top1_realized_paper_account.cjs\n"
+          ]
+        },
+        {
+          "baseline_start": 85,
+          "current_start": 87,
+          "baseline_lines": [
+            "          python -m pytest -q tests/test_daily_metadata_source_review.py tests/test_reliability_isolation_source_review.py tests/test_suspension_evidence_registry.py tests/test_primary_failure_diagnostics.py tests/test_candidate_runtime_preflight.py tests/test_suspension_pin_source_review.py tests/test_system_cleanup_source_review.py tests/test_delivery_hardening_source_review.py tests/test_next_day_statistics_source_review.py tests/test_next_day_p0_profile_source_review.py tests/test_existing_continuation_source_review.py tests/test_settlement_noop_source_review.py\n"
+          ],
+          "current_lines": [
+            "          python -m pytest -q tests/test_top1_paper_release_source_review.py tests/test_daily_metadata_source_review.py tests/test_reliability_isolation_source_review.py tests/test_suspension_evidence_registry.py tests/test_primary_failure_diagnostics.py tests/test_candidate_runtime_preflight.py tests/test_suspension_pin_source_review.py tests/test_system_cleanup_source_review.py tests/test_delivery_hardening_source_review.py tests/test_next_day_statistics_source_review.py tests/test_next_day_p0_profile_source_review.py tests/test_existing_continuation_source_review.py tests/test_settlement_noop_source_review.py\n"
+          ]
+        },
+        {
+          "baseline_start": 168,
+          "current_start": 170,
+          "baseline_lines": [
+            "          accounts=[{k:v for k,v in item['account'].items() if k not in ('data_bindings','publication')} for item in publication]\n",
+            "          assert all(value==accounts[0] for value in accounts), 'Simulated account business values changed'\n"
+          ],
+          "current_lines": [
+            "          # The pinned baseline and the current ledger intentionally model different trades.\n",
+            "          # Require all business fields to repeat within each version on the same exact input.\n",
+            "          for name, trials in builds.items():\n",
+            "              accounts=[{k:v for k,v in item['account'].items() if k not in ('data_bindings','publication')} for item in trials]\n",
+            "              assert all(value==accounts[0] for value in accounts), f'Simulated account business values changed within {name}'\n",
+            "          old=builds['reliability-baseline'][0]['account']\n",
+            "          assert old['schema_version']=='dc20_paper_capital_account_v1' and old['start_signal_date']=='20261019'\n",
+            "          assert old['initial_capital']==735000 and old['per_trade_budget']==100000\n",
+            "          assert old['last_valid_date']=='20261109' and old['metrics']['nav']==707771.09\n",
+            "          top1=builds['cleaned'][0]['account']\n",
+            "          assert top1['schema_version']=='dc20_top1_realized_paper_account_v1' and top1['start_signal_date']=='20260914'\n",
+            "          assert top1['per_trade_budget']==100000 and top1['closed_trades']==27 and top1['last_exit_date']=='20261106'\n",
+            "          # Independently reconciled from the immutable fixture's recorded entry/exit prices,\n",
+            "          # 100-share lots and 0.45% round-trip costs, rounded to the fen per trade.\n",
+            "          assert top1['metrics']=={'cumulative_pnl':117878.58,'max_profit':32482.59,'max_loss':-14685.93}, 'Top1 realized amounts differ from the immutable fixture'\n"
+          ]
+        },
+        {
+          "baseline_start": 173,
+          "current_start": 188,
+          "baseline_lines": [
+            "            'repaired_commit':os.environ['GITHUB_SHA'],'same_business_inputs':True,'account_business_values_identical':True,\n"
+          ],
+          "current_lines": [
+            "            'repaired_commit':os.environ['GITHUB_SHA'],'same_business_inputs':True,'account_repeatable_within_each_strategy':True,\n",
+            "            'baseline_account_schema':old['schema_version'],'current_account_schema':top1['schema_version'],\n",
+            "            'top1_realized_metrics':top1['metrics'],\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "decision.html",
+      "baseline_exists": true,
+      "current_bytes": 567638,
+      "current_sha256": "e25976e6f7a51cfae85778e636218221a4afd8354ca8ebcadc4279c723adfb98",
+      "baseline_git_blob_sha1": "5e6c7dc7cb35e0894f023f633c9c2362730df527",
+      "baseline_sha256": "bba16f036bd63f07693a5a47400a3bba50eea2237b3b37e1545591eb68edc213",
+      "baseline_bytes": 581487,
+      "inverse_changes": [
+        {
+          "baseline_start": 1219,
+          "current_start": 1219,
+          "baseline_lines": [
+            "    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 14px; }\n"
+          ],
+          "current_lines": [
+            "    #profitPaperAccount .paper-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 14px; }\n"
+          ]
+        },
+        {
+          "baseline_start": 1223,
+          "current_start": 1223,
+          "baseline_lines": [
+            "    #profitPaperAccount .paper-card small { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.5; }\n",
+            "    #profitPaperAccount .paper-chart { margin:0 0 14px; padding:10px; border:1px solid var(--line); border-radius:8px; min-width:0; }\n",
+            "    #profitPaperAccount .paper-chart figcaption { font-size:13px; font-weight:650; }\n",
+            "    #profitPaperAccount .paper-chart svg { display:block; width:100%; height:auto; max-height:350px; }\n",
+            "    #profitPaperAccount .paper-chart text { font-family:inherit; font-size:12px; fill:var(--muted); }\n",
+            "    #profitPaperAccount .paper-chart .paper-narrow-chart text { font-size:24px; }\n",
+            "    #profitPaperAccount details { margin-top:10px; border-top:1px solid var(--line); }\n",
+            "    #profitPaperAccount summary { padding:10px 0; font-size:13px; cursor:pointer; color:#17675a; }\n",
+            "    #profitPaperAccount .paper-table-wrap { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }\n",
+            "    #profitPaperAccount table { width:100%; min-width:680px; border-collapse:collapse; font-size:12px; }\n",
+            "    #profitPaperAccount th,#profitPaperAccount td { padding:8px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }\n",
+            "    #profitPaperAccount th { background:#edf4f1; }\n",
+            "    #profitPaperAccount th:first-child,#profitPaperAccount td:first-child { text-align:left; }\n",
+            "    #profitPaperAccount .paper-rules { padding-left:20px; font-size:12px; line-height:1.8; color:var(--muted); }\n",
+            "    #profitPaperAccount .paper-toolbar { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0; font-size:12px; color:var(--muted); }\n",
+            "    #profitPaperAccount button { border:1px solid var(--line); border-radius:6px; background:#fff; padding:7px 10px; color:#17675a; cursor:pointer; }\n",
+            "    #profitPaperAccount button:focus-visible,#profitPaperAccount summary:focus-visible { outline:2px solid #17675a; outline-offset:2px; }\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 1252,
+          "current_start": 1235,
+          "baseline_lines": [
+            "    @media(max-width:760px) { #profitPaperAccount .paper-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }\n"
+          ],
+          "current_lines": [
+            "    @media(max-width:600px) { #profitPaperAccount .paper-cards { grid-template-columns:1fr; } }\n"
+          ]
+        },
+        {
+          "baseline_start": 1344,
+          "current_start": 1327,
+          "baseline_lines": [
+            "      <a href=\"?view=paper-account\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"在新窗口打开模拟账户\" data-current-only>模拟账户 ↗</a>\n"
+          ],
+          "current_lines": [
+            "      <a href=\"?view=paper-account\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"在新窗口打开盈1模拟账本\" data-current-only>盈1模拟账本 ↗</a>\n"
+          ]
+        },
+        {
+          "baseline_start": 1397,
+          "current_start": 1380,
+          "baseline_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"profitPaperAccountTitle\">盈利前二 · 模拟账户</h2><span class=\"count\">本金73.5万元 · 盈1 / 盈2各10万元</span></div>\n",
+            "      <div class=\"paper-entry\"><p>D 2026-10-19起重新统计 · 固定预算、不翻倍、不加杠杆。此前持仓和收益不带入；独立看板查看净值曲线、最大回撤、持仓和逐笔交易，随主任务发布自动更新。</p><a class=\"paper-page-link\" href=\"?view=paper-account\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"在新窗口打开盈利前二模拟账户\">打开模拟账户看板 ↗</a></div>\n"
+          ],
+          "current_lines": [
+            "      <div class=\"panel-head\"><h2 id=\"profitPaperAccountTitle\">盈1 · 模拟账本</h2><span class=\"count\">每笔预算10万元</span></div>\n",
+            "      <div class=\"paper-entry\"><p>从 2026-09-14 的信号起，按系统买卖规则统计已退出交易的扣费盈亏。</p><a class=\"paper-page-link\" href=\"?view=paper-account\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"在新窗口打开盈1模拟账本\">打开盈1账本 ↗</a></div>\n"
+          ]
+        },
+        {
+          "baseline_start": 2380,
+          "current_start": 2363,
+          "baseline_lines": [
+            "      await Promise.all(index.days.filter(entry => entry.signal_date >= \"20261019\" && entry.signal_date <= summary.as_of_date).map(async entry => {\n"
+          ],
+          "current_lines": [
+            "      await Promise.all(index.days.filter(entry => entry.signal_date >= \"20260914\" && entry.signal_date <= summary.as_of_date).map(async entry => {\n"
+          ]
+        },
+        {
+          "baseline_start": 2393,
+          "current_start": 2376,
+          "baseline_lines": [
+            "        for (const rank of [1,2]) {\n",
+            "          const row = summary.groups[`candidate_top${rank}`].daily_sequence.find(r=>r.signal_date === date);\n",
+            "          const slot = day.candidate_slots[rank-1];\n",
+            "          executableProfitExpect(row && row.slot === rank && slot?.slot === rank\n",
+            "            && row.formal_projection_sha256 === projectionSha && row.snapshot_file_sha256 === day.snapshot_file_sha256\n",
+            "            && row.exec_date === day.exec_date && row.exit_date === day.exit_date\n",
+            "            && [\"ts_code\",\"candidate_rank\",\"candidate_score\",\"promotion_rank\"].every(key=>row[key] === slot[key]),\n",
+            "            \"模拟账户公司名称与同日冻结席位不一致\");\n",
+            "          const identity = day.rows.find(r=>r.ts_code === row.ts_code);\n",
+            "          if (!identity) {\n",
+            "            executableProfitExpect(row.status === \"MISSING_CANDIDATE\", \"模拟账户同日冻结股票身份缺失\");\n",
+            "            continue;\n",
+            "          }\n",
+            "          executableProfitExpect(identity.candidate_rank === rank && identity.promotion_rank === row.promotion_rank,\n",
+            "            \"模拟账户公司名称对应的冻结排名不一致\");\n",
+            "          identities.set(`${date}:R${rank}`, {signal_date:date,rank,ts_code:row.ts_code,\n",
+            "            name:typeof identity.name === \"string\" && identity.name.trim() ? identity.name.trim() : null,\n",
+            "            source_path:entry.path,source_sha256:entry.sha256});\n"
+          ],
+          "current_lines": [
+            "        const row = summary.groups.candidate_top1.daily_sequence.find(r=>r.signal_date === date);\n",
+            "        const slot = day.candidate_slots[0];\n",
+            "        executableProfitExpect(row && row.slot === 1 && slot?.slot === 1\n",
+            "          && row.formal_projection_sha256 === projectionSha && row.snapshot_file_sha256 === day.snapshot_file_sha256\n",
+            "          && row.exec_date === day.exec_date && row.exit_date === day.exit_date\n",
+            "          && [\"ts_code\",\"candidate_rank\",\"candidate_score\",\"promotion_rank\"].every(key=>row[key] === slot[key]),\n",
+            "          \"模拟账户公司名称与同日冻结席位不一致\");\n",
+            "        const identity = day.rows.find(r=>r.ts_code === row.ts_code);\n",
+            "        if (!identity) {\n",
+            "          executableProfitExpect(row.status === \"MISSING_CANDIDATE\", \"模拟账户同日冻结股票身份缺失\");\n",
+            "          return;\n"
+          ]
+        },
+        {
+          "baseline_start": 2412,
+          "current_start": 2388,
+          "baseline_lines": [],
+          "current_lines": [
+            "        executableProfitExpect(identity.candidate_rank === 1 && identity.promotion_rank === row.promotion_rank,\n",
+            "          \"模拟账户公司名称对应的冻结排名不一致\");\n",
+            "        identities.set(`${date}:R1`, {signal_date:date,rank:1,ts_code:row.ts_code,\n",
+            "          name:typeof identity.name === \"string\" && identity.name.trim() ? identity.name.trim() : null,\n",
+            "          source_path:entry.path,source_sha256:entry.sha256});\n"
+          ]
+        },
+        {
+          "baseline_start": 2430,
+          "current_start": 2411,
+          "baseline_lines": [
+            "      await Promise.all(dates.filter(day => day >= \"20261019\").map(async day => {\n"
+          ],
+          "current_lines": [
+            "      // Daily quotes protect the price continuity of closed positions. Other\n",
+            "      // signal dates, unfilled orders and pending holdings need no valuation.\n",
+            "      const settled = summary.groups.candidate_top1.daily_sequence.filter(row =>\n",
+            "        row.signal_date >= \"20260914\" && row.status === \"SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY\");\n",
+            "      const holdingDates = dates.filter(day => settled.some(row => row.exec_date <= day && day <= row.actual_exit_date));\n",
+            "      await Promise.all(holdingDates.map(async day => {\n"
+          ]
+        },
+        {
+          "baseline_start": 2452,
+          "current_start": 2438,
+          "baseline_lines": [
+            "      executableProfitExpect(result.schema_version === \"dc20_paper_capital_account_v1\"\n",
+            "        && result.initial_capital === 735000 && result.per_trade_budget === 100000\n",
+            "        && result.start_signal_date === \"20261019\" && result.waiting_for_start === (result.as_of_date < result.start_signal_date)\n"
+          ],
+          "current_lines": [
+            "      executableProfitExpect(result.schema_version === \"dc20_top1_realized_paper_account_v1\"\n",
+            "        && result.per_trade_budget === 100000 && result.start_signal_date === \"20260914\"\n"
+          ]
+        },
+        {
+          "baseline_start": 2458,
+          "current_start": 2443,
+          "baseline_lines": [
+            "        && result.last_valid_date === revision.profit_paper_account_last_valid_date,\n",
+            "        \"模拟账户参数或统计日期与当前正式账本不一致\");\n"
+          ],
+          "current_lines": [
+            "        && result.last_exit_date === revision.profit_paper_account_last_valid_date,\n",
+            "        \"盈1账本参数或统计日期与当前发布版本不一致\");\n"
+          ]
+        },
+        {
+          "baseline_start": 2468,
+          "current_start": 2453,
+          "baseline_lines": [],
+          "current_lines": [
+            "        && isSha256(result.data_bindings.index_sha256) && result.data_bindings.index_sha256 === revision.candidate_profit_index_sha256\n"
+          ]
+        },
+        {
+          "baseline_start": 2475,
+          "current_start": 2461,
+          "baseline_lines": [
+            "      executableProfitExpect(Array.isArray(result.trades) && Array.isArray(result.days) && Array.isArray(result.rank_contributions)\n",
+            "        && result.metrics && typeof result.blocked === \"boolean\" && Array.isArray(result.missing_signal_dates),\n",
+            "        \"主任务模拟账户结果结构不完整\");\n",
+            "      executableProfitExpect(result.trades.every(t => t.signal_date >= result.start_signal_date)\n",
+            "        && result.days.every(d => d.date >= result.start_signal_date)\n",
+            "        && result.missing_signal_dates.every(d => d >= result.start_signal_date),\n",
+            "        \"模拟账户混入重新起算日前的旧记录\");\n"
+          ],
+          "current_lines": [
+            "      const inPeriod = date => typeof date === \"string\" && /^\\d{8}$/.test(date)\n",
+            "        && date >= result.start_signal_date && date <= result.as_of_date;\n",
+            "      const metrics = result.metrics;\n",
+            "      executableProfitExpect(Number.isInteger(result.closed_trades) && result.closed_trades >= 0\n",
+            "        && (result.closed_trades ? inPeriod(result.last_exit_date) : result.last_exit_date === null)\n",
+            "        && Number.isFinite(metrics?.cumulative_pnl)\n",
+            "        && (metrics.max_profit === null || (Number.isFinite(metrics.max_profit) && metrics.max_profit > 0))\n",
+            "        && (metrics.max_loss === null || (Number.isFinite(metrics.max_loss) && metrics.max_loss < 0))\n",
+            "        && (result.closed_trades > 0 || (metrics.cumulative_pnl === 0 && metrics.max_profit === null && metrics.max_loss === null))\n",
+            "        && Array.isArray(result.trades) && result.trades.every(trade => trade.rank === 1 && inPeriod(trade.signal_date))\n",
+            "        && Array.isArray(result.missing_signal_dates) && result.missing_signal_dates.every(inPeriod),\n",
+            "        \"盈1账本的交易范围或已实现盈亏数据无效\");\n"
+          ]
+        },
+        {
+          "baseline_start": 2509,
+          "current_start": 2500,
+          "baseline_lines": [
+            "    function paperAccountTradeStatus(trade) {\n",
+            "      const labels = {SETTLED:\"已退出\",CLOSED:\"已退出\",OPEN:\"持仓中\",HOLDING:\"持仓中\",NO_FILL:\"未买入\",PLANNED:\"计划待核验\",\n",
+            "        MISSING_FROZEN:\"冻结缺失 · 跳过\",BUDGET_BELOW_ONE_LOT:\"预算不足一手 · 跳过\",FUTURE_ENTRY:\"等待买入日\",\n",
+            "        SKIPPED_NO_FILL:\"未买入\",SKIPPED_MISSING:\"冻结缺失 · 跳过\",MISSING_D_PUBLICATION:\"冻结缺失 · 跳过\",\n",
+            "        SKIPPED_INSUFFICIENT_CASH:\"现金不足 · 跳过\",INSUFFICIENT_CASH:\"现金不足 · 跳过\",\n",
+            "        PENDING_ENTRY:\"等待买入日\",PENDING_T:\"等待买入日\",NOT_DUE:\"等待买入日\",DEFERRED_AFTER_BLOCKER:\"未续算 · 先核验缺口\"};\n",
+            "      return labels[trade.status] || (String(trade.status).startsWith(\"NO_FILL\") ? \"未买入\"\n",
+            "        : String(trade.status).startsWith(\"MISSING\") ? \"缺少证据\" : trade.status || \"待核验\");\n",
+            "    }\n",
+            "\n",
+            "    function paperAccountCurveSvg(days, narrow = typeof window !== \"undefined\" && window.innerWidth <= 600) {\n",
+            "      const points = days.filter(d => Number.isFinite(d.nav) && Number.isFinite(d.drawdown));\n",
+            "      if (!points.length) return '<p class=\"paper-intro\">尚无可核验的连续净值，不绘制零收益线。</p>';\n",
+            "      const left=narrow?125:80,right=narrow?620:775,top=narrow?35:28,bottom=narrow?210:175,ddTop=narrow?290:226,ddBottom=narrow?370:286;\n",
+            "      const values=points.map(d=>d.nav), low=Math.min(735000,...values),high=Math.max(735000,...values);\n",
+            "      const padding=Math.max((high-low)*0.12,1000),ymin=low-padding,ymax=high+padding;\n",
+            "      const ddMin=Math.min(-0.005,...points.map(d=>d.drawdown));\n",
+            "      const x=i=>left+(right-left)*(points.length===1?0:i/(points.length-1));\n",
+            "      const y=v=>bottom-(v-ymin)/(ymax-ymin)*(bottom-top);\n",
+            "      const yd=v=>ddTop+(v/ddMin)*(ddBottom-ddTop);\n",
+            "      const line=(fn)=>points.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(2)},${fn(p).toFixed(2)}`).join(\" \");\n",
+            "      const navPath=line(p=>y(p.nav)),ddPath=line(p=>yd(p.drawdown));\n",
+            "      const ticks=[ymin,(ymin+ymax)/2,ymax].map(v=>`<line x1=\"${left}\" y1=\"${y(v)}\" x2=\"${right}\" y2=\"${y(v)}\" stroke=\"#e2e9e6\"/><text x=\"${left-10}\" y=\"${y(v)+4}\" text-anchor=\"end\">${(v/10000).toFixed(1)}万</text>`).join(\"\");\n",
+            "      const first=escapeHtml(dateText(points[0].date)),last=escapeHtml(dateText(points.at(-1).date));\n",
+            "      return `<svg class=\"${narrow?\"paper-narrow-chart\":\"paper-wide-chart\"}\" viewBox=\"${narrow?\"0 0 640 430\":\"0 0 800 320\"}\" role=\"img\" aria-label=\"已知交易模拟账户净值及收盘回撤，${first}至${last}。逐日数值见下方展开表格。\">\n",
+            "        ${ticks}<line x1=\"${left}\" y1=\"${y(735000)}\" x2=\"${right}\" y2=\"${y(735000)}\" stroke=\"#9bada6\" stroke-dasharray=\"5 4\"/>\n",
+            "        <path d=\"${navPath}\" fill=\"none\" stroke=\"#21735f\" stroke-width=\"3\"/>\n",
+            "        <circle cx=\"${x(points.length-1)}\" cy=\"${y(points.at(-1).nav)}\" r=\"3.5\" fill=\"#21735f\"/>\n",
+            "        <text x=\"${left}\" y=\"${bottom+(narrow?32:21)}\">${first}</text><text x=\"${right}\" y=\"${bottom+(narrow?32:21)}\" text-anchor=\"end\">${last}</text>\n",
+            "        <text x=\"${left}\" y=\"${ddTop-(narrow?16:10)}\">收盘净值回撤</text><line x1=\"${left}\" y1=\"${ddTop}\" x2=\"${right}\" y2=\"${ddTop}\" stroke=\"#dce3df\"/>\n",
+            "        <text x=\"${left-10}\" y=\"${ddTop+4}\" text-anchor=\"end\">0%</text><text x=\"${left-10}\" y=\"${ddBottom+4}\" text-anchor=\"end\">${(ddMin*100).toFixed(2)}%</text>\n",
+            "        <path d=\"${ddPath} L${x(points.length-1)},${ddTop} L${left},${ddTop} Z\" fill=\"#dca15d\" opacity=\".18\"/>\n",
+            "        <path d=\"${ddPath}\" fill=\"none\" stroke=\"#ac741e\" stroke-width=\"2\"/>\n",
+            "      </svg>`;\n",
+            "    }\n",
+            "\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 2546,
+          "current_start": 2501,
+          "baseline_lines": [
+            "      const m=result.metrics, last=dateText(result.last_valid_date), asOf=dateText(result.as_of_date);\n",
+            "      const money=(v,s=false)=>escapeHtml(paperAccountMoney(v,s)), percent=v=>typeof v===\"number\"&&Number.isFinite(v)?pct(v):\"—\";\n",
+            "      const cards=[\n",
+            "        [result.waiting_for_start?\"起始资金（待起算）\":\"最后可核验资产\",money(m.nav),result.waiting_for_start?\"尚无起算日之后的冻结账本\":`截至 ${last}；${result.blocked?\"并非最新账户资产\":\"最新收盘估值\"}`],\n",
+            "        [\"累计盈亏\",money(m.total_pnl,true),`相对73.5万元本金 ${percent(m.cumulative_return)}`],\n",
+            "        [\"可用现金\",money(m.cash),\"持仓本金与预留成本不重复使用\"],\n",
+            "        [\"持仓市值\",money(m.market_value),`${m.open_trades} 笔未退出持仓`],\n",
+            "        [\"已实现盈亏\",money(m.realized_pnl,true),`${m.closed_trades} 笔已退出；已扣研究成本`],\n",
+            "        [\"浮动盈亏\",money(m.unrealized_pnl,true),\"收盘盯市；已计提全程研究成本\"],\n",
+            "        [\"最大收盘回撤\",percent(m.max_drawdown),`最大金额回撤 ${money(m.max_drawdown_amount)} · 仅已核验片段`],\n",
+            "        [\"最高收盘仓位\",percent(m.max_capital_usage),`收盘最多 ${m.max_open_positions} 笔；日内最多 ${m.max_open_positions_intraday} 笔`]\n"
+          ],
+          "current_lines": [
+            "      const { cumulative_pnl, max_profit, max_loss } = result.metrics;\n",
+            "      const cards = [\n",
+            "        [\"累计已实现盈亏\", cumulative_pnl],\n",
+            "        [\"最大单笔盈利\", max_profit],\n",
+            "        [\"最大单笔亏损\", max_loss]\n"
+          ]
+        },
+        {
+          "baseline_start": 2558,
+          "current_start": 2507,
+          "baseline_lines": [
+            "      const warnings=[];\n",
+            "      if(result.waiting_for_start) warnings.push(\"正在等待D 2026-10-19及之后的正式冻结账本；73.5万元为初始现金，尚未开始模拟交易，起算日前的持仓与收益不带入。\");\n",
+            "      if(result.publication?.ledger_lagging) warnings.push(`主任务名单已更新至 ${dateText(result.publication.latest_signal_date)}，盈利账本目前截至 ${asOf}，等待上游冻结或结算发布；本看板未使用之后的行情推算结果。`);\n",
+            "      if(result.missing_signal_dates?.length) warnings.push(`正式冻结缺失 D：${result.missing_signal_dates.map(dateText).join(\"、\")}。这部分不猜名单、不补零收益，只跳过；本看板是“已知交易子集”，不是完整策略历史。`);\n",
+            "      if(result.blocked) warnings.push(`最新账户资产：暂不可核验。曲线与全部金额停在 ${last}；数据截至 ${asOf}。${result.blocking_reason||\"后续交易或估值证据存在缺口。\"} 不把未结算当成零，不把旧资产冒充最新值。`);\n",
+            "      const rankRows=result.rank_contributions.map(r=>`<tr><th scope=\"row\">盈${r.rank}</th><td>${r.closed_trades}</td><td>${r.open_trades}</td><td>${percent(r.win_rate)}</td><td>${money(r.realized_pnl,true)}</td><td>${money(r.unrealized_pnl,true)}</td><td>${money(r.total_pnl,true)}</td></tr>`).join(\"\");\n",
+            "      const tradeRows=result.trades.map(t=>`<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>盈${t.rank}</td><td>${escapeHtml(t.ts_code||\"—\")}</td><td class=\"left\">${escapeHtml(t.name||\"名称待补\")}</td><td title=\"${escapeHtml(t.reason||t.source_status||\"\")}\">${escapeHtml(paperAccountTradeStatus(t))}</td><td>${escapeHtml(t.shares??\"—\")}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${money(t.notional)}</td><td class=\"${valueTone(t.net_pnl)}\">${money(t.net_pnl,true)}</td><td>${money(t.unrealized_pnl,true)}</td></tr>`).join(\"\");\n",
+            "      const dayRows=result.days.map(d=>`<tr><td>${escapeHtml(dateText(d.date))}</td><td>${money(d.nav)}</td><td>${money(d.cash)}</td><td>${money(d.market_value)}</td><td>${money(d.realized_pnl,true)}</td><td>${money(d.unrealized_pnl,true)}</td><td>${percent(d.drawdown)}</td><td>${d.open_positions}</td></tr>`).join(\"\");\n",
+            "      const pf=Number.isFinite(m.profit_factor)?m.profit_factor.toFixed(2):\"—\";\n",
+            "      const published = result.publication?.published_at_utc;\n",
+            "      const publishedTime = published && Number.isFinite(Date.parse(published))\n",
+            "        ? new Date(published).toLocaleString(\"zh-CN\",{timeZone:\"Asia/Shanghai\",hour12:false}) : \"待核验\";\n",
+            "      return `<p class=\"paper-intro\">模拟，不是券商实盘。D 2026-10-19起重新统计 · 初始73.5万元 · 数据截至 ${escapeHtml(asOf)} · 此前持仓与收益不带入，不随历史名单日期切换。盈1、盈2每天每笔预算各10万元，合计最多20万元新开仓，固定金额、不翻倍、不使用杠杆。D为信号日，下一交易日T才模拟买入。</p>\n",
+            "        <p class=\"paper-intro paper-publication\">更新方式：已绑定主任务发布流程 · 最近发布（北京时间）${escapeHtml(publishedTime)} · 任务 ${escapeHtml(result.publication?.run_id||\"待核验\")}。主任务及结算发布时自动重算；已打开的页面需刷新读取新版。</p>\n",
+            "        ${warnings.map(w=>`<p class=\"paper-warning\">${escapeHtml(w)}</p>`).join(\"\")}\n",
+            "        <dl class=\"paper-cards\">${cards.map(([label,value,note])=>`<div class=\"paper-card\"><dt>${label}</dt><dd>${value}</dd><small>${note}</small></div>`).join(\"\")}</dl>\n",
+            "        <figure class=\"paper-chart\"><figcaption>已知交易 · 收盘净值曲线（含持仓浮盈亏）</figcaption>${paperAccountCurveSvg(result.days)}</figure>\n",
+            "        <div class=\"paper-toolbar\"><span>已退出胜率 ${percent(m.win_rate)} · 盈亏比值 ${pf}（盈利总额 / 亏损总额） · 最长连亏 ${m.longest_loss_streak} 笔 · 计提成本 ${money(m.total_costs)}</span><button id=\"profitPaperAccountExport\" type=\"button\">导出核验数据 JSON</button></div>\n",
+            "        <p class=\"paper-intro\">未买入 ${m.no_fill_trades} 笔 · 缺失 ${m.missing_trades} 笔 · 现金不足跳过 ${m.insufficient_cash_trades} 笔。未买入不计交易胜率；缺失与未买入不是一回事。新账户样本尚短；有缺口时单独披露，暂不报告年化收益、夏普比或稳定盈利结论。</p>\n",
+            "        <details open><summary>盈1 / 盈2收益贡献 · 截至 ${escapeHtml(last)}</summary><div class=\"paper-table-wrap\" tabindex=\"0\" role=\"region\" aria-label=\"盈1盈2模拟收益贡献，可横向滚动\"><table><thead><tr><th>名次</th><th>已退出</th><th>持仓</th><th>胜率</th><th>已实现盈亏</th><th>浮动盈亏</th><th>总贡献</th></tr></thead><tbody>${rankRows}</tbody></table></div></details>\n",
+            "        <details><summary>逐笔模拟交易与跳过原因（${result.trades.length} 条）</summary><div class=\"paper-table-wrap\" tabindex=\"0\" role=\"region\" aria-label=\"逐笔模拟交易，可横向滚动\"><table><thead><tr><th>D日期</th><th>名次</th><th>代码</th><th class=\"left\">公司名称</th><th>模拟状态</th><th>股数</th><th>买入日</th><th>实际退出日</th><th>股票本金</th><th>已实现盈亏</th><th>浮动盈亏</th></tr></thead><tbody>${tradeRows}</tbody></table></div></details>\n",
+            "        <details><summary>逐日净值与回撤数值（${result.days.length} 日）</summary><div class=\"paper-table-wrap\" tabindex=\"0\" role=\"region\" aria-label=\"净值曲线逐日数值，可横向滚动\"><table><thead><tr><th>估值日</th><th>账户资产</th><th>现金</th><th>持仓市值</th><th>已实现盈亏</th><th>浮动盈亏</th><th>回撤</th><th>持仓笔数</th></tr></thead><tbody>${dayRows}</tbody></table></div></details>\n",
+            "        <details><summary>模拟规则、成交假设与缺口说明</summary><ul class=\"paper-rules\">\n",
+            "          <li>只消费当日已冻结盈1、盈2，不重排、不替补；一字涨停等系统判定未买入的记录保持现金。</li>\n",
+            "          <li>每笔10万元为含研究成本的预算，按100股整数手向下取整；研究成本按股票本金${percent(result.cost_rate)}在买入时一次计提，不再从已扣费收益重复扣费。</li>\n",
+            "          <li>按系统竞价入场代理及实际退出记录回放：T+1 10:00未封涨停退出；封涨停延持，开板后依系统分钟退出规则，不按收盘涨停倒推当天是否卖出。</li>\n",
+            "          <li>每日先处理09:25买入，再按记录的实际退出时点卖出。卖出前的资金不提前复用；现金不足按固定名次顺序跳过，不借款、不缩小每笔预算。</li>\n",
+            "          <li>顺延持仓逐日按已绑定收盘价估值。退出日已到但缺少退出证据、入场证据不足或估值价格缺失时，暂停后续净值，不填零、不假定已卖出。</li>\n",
+            "          <li>净值＝现金＋持仓市值；最大回撤按每日收盘净值相对先前最高值计算，不代表盘中最大损失。最大比例与最大金额回撤可能发生在不同区间；比例峰谷 ${escapeHtml(dateText(m.drawdown_peak_date))} → ${escapeHtml(dateText(m.drawdown_trough_date))}。日内最高占用本金及计提成本 ${money(m.max_committed_cost_intraday)}。最长连亏按已退出交易顺序，非连续亏损天数。</li>\n",
+            "          <li>未验证真实排队成交、10万元容量与额外冲击成本。分红送转等公司行动未单独模拟；不能把历史代理盈利当作未来收益承诺。</li>\n",
+            "        </ul></details>`;\n"
+          ],
+          "current_lines": [
+            "      const asOf = escapeHtml(dateText(result.as_of_date));\n",
+            "      const exit = result.last_exit_date ? `最近退出日 ${escapeHtml(dateText(result.last_exit_date))}` : \"尚无已退出交易\";\n",
+            "      const missing = result.missing_signal_dates.length\n",
+            "        ? `<p class=\"paper-warning\">以下信号日缺少正式冻结名单，已跳过：${result.missing_signal_dates.map(d => escapeHtml(dateText(d))).join(\"、\")}。</p>` : \"\";\n",
+            "      return `<p class=\"paper-intro\">数据截至 ${asOf} · ${exit}</p>\n",
+            "        <dl class=\"paper-cards\">${cards.map(([label, amount]) => `<div class=\"paper-card\"><dt>${label}</dt><dd class=\"${amount === null ? \"\" : valueTone(amount)}\">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join(\"\")}</dl>${missing}`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2600,
+          "current_start": 2524,
+          "baseline_lines": [
+            "        node.innerHTML=`<div class=\"empty\">${invalid?\"模拟账户来源暂不可核验，不显示旧净值或零收益。\":\"正在校验最新冻结账本和每日行情，模拟账户独立加载。\"}</div>`;\n"
+          ],
+          "current_lines": [
+            "        node.innerHTML=`<div class=\"empty\">${invalid?\"盈1账本来源暂不可核验，请稍后刷新。\":\"正在核验盈1账本的数据来源。\"}</div>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2609,
+          "current_start": 2533,
+          "baseline_lines": [
+            "        node.innerHTML=`<div class=\"empty\">${view.status===\"loading\"?\"正在计算逐日现金、持仓与回撤…\":`模拟账户暂不可用：${escapeHtml(view.reason)}。不影响正式名单。`}</div>`;\n"
+          ],
+          "current_lines": [
+            "        node.innerHTML=`<div class=\"empty\">${view.status===\"loading\"?\"正在读取已退出交易的盈亏…\":`盈1账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 2613,
+          "current_start": 2537,
+          "baseline_lines": [
+            "      const button=document.getElementById(\"profitPaperAccountExport\");\n",
+            "      if(button) button.onclick=()=>{\n",
+            "        const blob=new Blob([JSON.stringify(view.result,null,2)],{type:\"application/json;charset=utf-8\"});\n",
+            "        const url=URL.createObjectURL(blob),link=document.createElement(\"a\");\n",
+            "        link.href=url;link.download=`DC20-模拟账户-${view.result.as_of_date}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);\n",
+            "      };\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 7821,
+          "current_start": 7739,
+          "baseline_lines": [
+            "      if (node) node.innerHTML = `<div class=\"empty\">模拟账户暂不可核验：${escapeHtml(String(error?.message || error || \"未知错误\"))}。已清空旧净值；请稍后刷新，不使用旧数据或零收益替代。</div>`;\n"
+          ],
+          "current_lines": [
+            "      if (node) node.innerHTML = `<div class=\"empty\">盈1账本暂不可核验，请稍后刷新。原因：${escapeHtml(String(error?.message || error || \"未知错误\"))}</div>`;\n"
+          ]
+        },
+        {
+          "baseline_start": 7883,
+          "current_start": 7801,
+          "baseline_lines": [
+            "      document.title = \"盈利前二 · 模拟账户 | DC20\";\n"
+          ],
+          "current_lines": [
+            "      document.title = \"盈1 · 模拟账本 | DC20\";\n"
+          ]
+        },
+        {
+          "baseline_start": 7886,
+          "current_start": 7804,
+          "baseline_lines": [
+            "      els.mainContent.innerHTML = `<div class=\"paper-page-heading\"><div><h1>盈利前二 · 模拟账户</h1><p>本金73.5万元 · 盈1、盈2每笔预算各10万元 · D 2026-10-19起重新统计</p></div><nav class=\"paper-page-actions\" aria-label=\"模拟账户导航\"><a class=\"paper-page-link\" href=\"?\">← 返回每日名单</a><button id=\"paperAccountRefresh\" class=\"paper-page-link\" type=\"button\">刷新最新数据</button></nav></div>\n",
+            "        <section id=\"profitPaperAccount\" class=\"panel\" aria-labelledby=\"profitPaperAccountTitle\"><div class=\"panel-head\"><h2 id=\"profitPaperAccountTitle\">账户净值与交易明细</h2><span class=\"count\">固定预算 · 非券商实盘</span></div><div id=\"profitPaperAccountContent\" class=\"paper-body\" aria-live=\"polite\"><div class=\"empty\">正在校验模拟账户数据。</div></div></section>\n",
+            "        <p class=\"paper-page-note\">数据绑定主任务及结算发布流程；本页读取已发布、指纹校验通过的账户结果，不在浏览器重跑交易。此页无下单、训练或模型替换权限。</p>`;\n",
+            "      if (els.footer) els.footer.textContent = \"DC20 · 独立模拟账户 · 已打开的页面需刷新读取最新版。\";\n"
+          ],
+          "current_lines": [
+            "      els.mainContent.innerHTML = `<div class=\"paper-page-heading\"><div><h1>盈1 · 模拟账本</h1><p>从 2026-09-14 的信号起，下一交易日竞价模拟买入。每笔预算10万元，假设资金充足。</p></div><nav class=\"paper-page-actions\" aria-label=\"账本导航\"><a class=\"paper-page-link\" href=\"?\">← 返回每日名单</a><button id=\"paperAccountRefresh\" class=\"paper-page-link\" type=\"button\">刷新最新数据</button></nav></div>\n",
+            "        <section id=\"profitPaperAccount\" class=\"panel\" aria-labelledby=\"profitPaperAccountTitle\"><div class=\"panel-head\"><h2 id=\"profitPaperAccountTitle\">已退出交易盈亏</h2><span class=\"count\">已扣模拟交易成本</span></div><div id=\"profitPaperAccountContent\" class=\"paper-body\" aria-live=\"polite\"><div class=\"empty\">正在核验盈1账本。</div></div></section>\n",
+            "        <p class=\"paper-page-note\">按系统规则确认退出后计入盈亏。一字涨停未买入和仍待退出核验的信号不计入统计。</p>`;\n",
+            "      if (els.footer) els.footer.textContent = \"DC20\";\n"
+          ]
+        },
+        {
+          "baseline_start": 8224,
+          "current_start": 8142,
+          "baseline_lines": [
+            "    window.addEventListener(\"resize\", () => {\n",
+            "      const chart = document.querySelector(\"#profitPaperAccount .paper-chart svg\");\n",
+            "      const view = state.profitPaperAccount;\n",
+            "      const narrow = window.innerWidth <= 600;\n",
+            "      if (chart && view?.status === \"ready\" && chart.classList.contains(\"paper-narrow-chart\") !== narrow) {\n",
+            "        chart.outerHTML = paperAccountCurveSvg(view.result.days, narrow);\n",
+            "      }\n",
+            "    });\n"
+          ],
+          "current_lines": []
+        }
+      ]
+    },
+    {
+      "path": "forward/model_inventory.json",
+      "baseline_exists": true,
+      "current_bytes": 16204,
+      "current_sha256": "8583ed5000b5e983e035f3f6e0e45da47b3feab9a8a4ea8dc503a561319d84b6",
+      "baseline_git_blob_sha1": "d0b8cce1174c911e5d438a62ab0682fc5d76722f",
+      "baseline_sha256": "9347b5e2889a54c1686015cc9ec8e7ca7491ebd606fd340439cbb598fbff2e7e",
+      "baseline_bytes": 16204,
+      "inverse_changes": [
+        {
+          "baseline_start": 108,
+          "current_start": 108,
+          "baseline_lines": [
+            "      \"sha256\": \"a5fa8ec850bf08f18e967ac4312b71ce0bdc09e62fd197ff64549de70536d4eb\",\n"
+          ],
+          "current_lines": [
+            "      \"sha256\": \"46d1eabd8d4416d3601bd2afa464cc8639dfc6f0f48d467af9e01c08c31ad10e\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "models/decision_model_freeze.json",
+      "baseline_exists": true,
+      "current_bytes": 53505,
+      "current_sha256": "46d1eabd8d4416d3601bd2afa464cc8639dfc6f0f48d467af9e01c08c31ad10e",
+      "baseline_git_blob_sha1": "7f952c9590147e6ee4b447a373e0b69849a2a668",
+      "baseline_sha256": "a5fa8ec850bf08f18e967ac4312b71ce0bdc09e62fd197ff64549de70536d4eb",
+      "baseline_bytes": 53505,
+      "inverse_changes": [
+        {
+          "baseline_start": 632,
+          "current_start": 632,
+          "baseline_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"36a983c3ebebceb20943ae0074e10f60b46cdd7d0c27126ee3fd86d1e06da64a\",\n"
+          ],
+          "current_lines": [
+            "    \".github/workflows/deploy_dc20_pages.yml\": \"0dff59ea4a6bb156428d2673f51244d72afe96d4e87f4762c58708b08fece676\",\n"
+          ]
+        },
+        {
+          "baseline_start": 671,
+          "current_start": 671,
+          "baseline_lines": [
+            "    \"decision.html\": \"bba16f036bd63f07693a5a47400a3bba50eea2237b3b37e1545591eb68edc213\",\n"
+          ],
+          "current_lines": [
+            "    \"decision.html\": \"e25976e6f7a51cfae85778e636218221a4afd8354ca8ebcadc4279c723adfb98\",\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/build_profit_paper_account.cjs",
+      "baseline_exists": true,
+      "current_bytes": 16673,
+      "current_sha256": "8bc7ae20ac91ac60b65a39ebed6f3399ace2f0ba6105869876b6fc27d0e7bbfc",
+      "baseline_git_blob_sha1": "2433bf9e103715ad820173c25448e046b74d2a63",
+      "baseline_sha256": "88b2e9b7dcf72bb47b588b8dc3fdb28b2aaa1ecb9ca8a746d81f3a379dfce633",
+      "baseline_bytes": 15859,
+      "inverse_changes": [
+        {
+          "baseline_start": 4,
+          "current_start": 4,
+          "baseline_lines": [
+            "// The main Pages job replays exactly the engine and byte-bound loaders shipped\n",
+            "// in decision.html. This builder does not implement a second financial model.\n"
+          ],
+          "current_lines": [
+            "// The main Pages job computes the realized ledger once from byte-bound inputs.\n",
+            "// The browser reads the resulting publication.\n"
+          ]
+        },
+        {
+          "baseline_start": 11,
+          "current_start": 11,
+          "baseline_lines": [],
+          "current_lines": [
+            "const enginePath = require.resolve('./top1_realized_paper_account.cjs');\n",
+            "const {buildTop1RealizedAccount} = require(enginePath);\n"
+          ]
+        },
+        {
+          "baseline_start": 102,
+          "current_start": 104,
+          "baseline_lines": [
+            "  const names = ['executableProfitExpect', 'isSha256', 'canonicalJson', 'dateText', 'parseStrictCsvBytes',\n",
+            "    'ledgerCanonicalSource', 'buildProfitPaperAccount', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs'];\n",
+            "  const source = names.map(name => extractFunction(html, name)).join('\\n');\n"
+          ],
+          "current_lines": []
+        },
+        {
+          "baseline_start": 112,
+          "current_start": 111,
+          "baseline_lines": [
+            "  vm.runInContext(source, context, {timeout:10000, filename:'decision.html:shared-paper-account'});\n"
+          ],
+          "current_lines": [
+            "  vm.runInContext(sharedSources(html), context, {timeout:10000, filename:'decision.html:shared-paper-account'});\n"
+          ]
+        },
+        {
+          "baseline_start": 117,
+          "current_start": 116,
+          "baseline_lines": [
+            "    'ledgerCanonicalSource', 'buildProfitPaperAccount', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs']\n"
+          ],
+          "current_lines": [
+            "    'ledgerCanonicalSource', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs']\n"
+          ]
+        },
+        {
+          "baseline_start": 119,
+          "current_start": 118,
+          "baseline_lines": [],
+          "current_lines": [
+            "}\n",
+            "function validateAccount(account, asOf) {\n",
+            "  check(account.schema_version === 'dc20_top1_realized_paper_account_v1'\n",
+            "    && account.start_signal_date === '20260914' && account.per_trade_budget === 100000\n",
+            "    && account.as_of_date === asOf, 'unexpected published top1 ledger configuration');\n",
+            "  const closed = account.trades.filter(trade => trade.status === 'CLOSED');\n",
+            "  check(account.trades.every(t => t.rank === 1 && validDate(t.signal_date)\n",
+            "    && t.signal_date >= account.start_signal_date && t.signal_date <= asOf)\n",
+            "    && new Set(account.trades.map(t => t.signal_date)).size === account.trades.length\n",
+            "    && account.closed_trades === closed.length, 'invalid top1 trade coverage');\n",
+            "  const amounts = closed.map(t => Math.round(t.net_pnl * 100));\n",
+            "  check(closed.every(t => Number.isFinite(t.net_pnl) && validDate(t.exit_date)\n",
+            "    && t.exit_date > t.signal_date && t.exit_date <= asOf)\n",
+            "    && account.last_exit_date === (closed.map(t => t.exit_date).sort().at(-1) || null),\n",
+            "    'invalid top1 realized date or amount');\n",
+            "  const gains = amounts.filter(n => n > 0), losses = amounts.filter(n => n < 0);\n",
+            "  check(account.metrics.cumulative_pnl === amounts.reduce((total,n) => total+n,0)/100\n",
+            "    && account.metrics.max_profit === (gains.length ? Math.max(...gains)/100 : null)\n",
+            "    && account.metrics.max_loss === (losses.length ? Math.min(...losses)/100 : null),\n",
+            "    'top1 realized metrics disagree with closed trades');\n"
+          ]
+        },
+        {
+          "baseline_start": 172,
+          "current_start": 191,
+          "baseline_lines": [
+            "  // pages and exact engine/loaders, without treating that expected banner as code drift.\n"
+          ],
+          "current_lines": [
+            "  // pages and exact input loaders, without treating that expected banner as code drift.\n"
+          ]
+        },
+        {
+          "baseline_start": 179,
+          "current_start": 198,
+          "baseline_lines": [
+            "  // JSON is created inside the context, preserving the VM Map identity expected by the engine.\n"
+          ],
+          "current_lines": [
+            "  // Parse in the isolated loader context. The engine consumes its verified maps.\n"
+          ]
+        },
+        {
+          "baseline_start": 182,
+          "current_start": 201,
+          "baseline_lines": [
+            "  context.inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});\n",
+            "  const result = vm.runInContext('buildProfitPaperAccount(input.summary, inputs.quotes, inputs.identities)', context, {timeout:30000});\n",
+            "  check(result.start_signal_date === '20261019' && result.initial_capital === 735000 && result.per_trade_budget === 100000\n",
+            "    && result.waiting_for_start === (result.as_of_date < result.start_signal_date), 'paper account reset configuration mismatch');\n",
+            "  check(result.trades.every(t => t.signal_date >= result.start_signal_date)\n",
+            "    && result.days.every(d => d.date >= result.start_signal_date)\n",
+            "    && result.missing_signal_dates.every(d => d >= result.start_signal_date), 'paper account contains pre-reset records');\n"
+          ],
+          "current_lines": [
+            "  const inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});\n",
+            "  const result = buildTop1RealizedAccount(summary.value, inputs.quotes, inputs.identities);\n",
+            "  validateAccount(result, summary.value.as_of_date);\n"
+          ]
+        },
+        {
+          "baseline_start": 190,
+          "current_start": 205,
+          "baseline_lines": [
+            "    window_sha256:revision.compact_statistics_window_sha256,\n",
+            "    engine_sha256:sha256(Buffer.from(extractFunction(new TextDecoder('utf-8', {fatal:true}).decode(htmlBytes), 'buildProfitPaperAccount'))),\n",
+            "    source_files:context.inputs.source_files, missing_market_dates:context.inputs.missing_market_dates};\n"
+          ],
+          "current_lines": [
+            "    index_sha256:revision.candidate_profit_index_sha256, window_sha256:revision.compact_statistics_window_sha256,\n",
+            "    engine_sha256:sha256(await fs.readFile(enginePath)), source_files:inputs.source_files,\n",
+            "    missing_market_dates:inputs.missing_market_dates};\n"
+          ]
+        },
+        {
+          "baseline_start": 199,
+          "current_start": 214,
+          "baseline_lines": [
+            "    profit_paper_account_as_of_date:result.as_of_date, profit_paper_account_last_valid_date:result.last_valid_date,\n"
+          ],
+          "current_lines": [
+            "    profit_paper_account_as_of_date:result.as_of_date, profit_paper_account_last_valid_date:result.last_exit_date,\n"
+          ]
+        },
+        {
+          "baseline_start": 214,
+          "current_start": 229,
+          "baseline_lines": [
+            "  return {status:'built', ...binding, complete:result.complete, blocked:result.blocked,\n",
+            "    trades:result.trades.length, daily_points:result.days.length};\n"
+          ],
+          "current_lines": [
+            "  return {status:'built', ...binding, closed_trades:result.closed_trades, metrics:result.metrics};\n"
+          ]
+        },
+        {
+          "baseline_start": 222,
+          "current_start": 236,
+          "baseline_lines": [],
+          "current_lines": [
+            "  validateAccount(account.value, revision.profit_paper_account_as_of_date);\n"
+          ]
+        },
+        {
+          "baseline_start": 223,
+          "current_start": 238,
+          "baseline_lines": [],
+          "current_lines": [
+            "    && account.value.last_exit_date === revision.profit_paper_account_last_valid_date\n",
+            "    && account.value.data_bindings?.index_sha256 === revision.candidate_profit_index_sha256\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/top1_realized_paper_account.cjs",
+      "baseline_exists": false,
+      "current_bytes": 6904,
+      "current_sha256": "10f3fb706e12c25097ced95fe93eedddb468dbc51a07416228ff6d0af6a48cf2"
+    },
+    {
+      "path": "src/top10decision/decision/candidate_formal_shadow_summary.py",
+      "baseline_exists": true,
+      "current_bytes": 27606,
+      "current_sha256": "e42d35ce24db55a1a4f1a439625166e5c5d988d5a8dfd6051edd38703b39bd7a",
+      "baseline_git_blob_sha1": "00fe8854810737473b0577868ce8c36118fa95a5",
+      "baseline_sha256": "4a841047fa09b18a75f80ee0d7980ecac6241640fd3cfd3b85c56b28a76a36a0",
+      "baseline_bytes": 27606,
+      "inverse_changes": [
+        {
+          "baseline_start": 26,
+          "current_start": 26,
+          "baseline_lines": [
+            "STATISTICS_SHA = '979a8ac9c8bb6fb2479d9711131df74aab40738cb7006a20a32aa3298ef281c9'\n"
+          ],
+          "current_lines": [
+            "STATISTICS_SHA = '3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/top10decision/decision/candidate_profit_publication.py",
+      "baseline_exists": true,
+      "current_bytes": 30323,
+      "current_sha256": "6cd7ca116704e1c69bf51ea0cf2eef3dd772a117a533de827ae4ab7c59d968f5",
+      "baseline_git_blob_sha1": "e5c09807338482c367e8f503ad2ee2942bdf1eef",
+      "baseline_sha256": "86b2cb3a41e6759c217b9412462608576caa7141734672abbe10c1acbc25f741",
+      "baseline_bytes": 30323,
+      "inverse_changes": [
+        {
+          "baseline_start": 138,
+          "current_start": 138,
+          "baseline_lines": [
+            "    pins = {'candidate_natural_outcomes': 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec', 'candidate_natural_evidence_publication': 'ba90a44c10e78ded6dfda91cbb2176a87dc350cdeac113c3f77506c26b1f3765'}\n"
+          ],
+          "current_lines": [
+            "    pins = {'candidate_natural_outcomes': 'b786fec85c686422dcb3943bba5eed7140116022795dd0a8472ebad8184e85ec', 'candidate_natural_evidence_publication': 'b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891'}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_daily_metadata_source_review.py",
+      "baseline_exists": true,
+      "current_bytes": 5894,
+      "current_sha256": "400ab3aa48538aa4a2913c44a2607a19a957fe8d8368ef7ff2d5a942f5e8247e",
+      "baseline_git_blob_sha1": "092b67912ce640c32aadbbc6d084d6ff88187e6f",
+      "baseline_sha256": "d48374cde7f70e2b5af5e50c8b4e38604182d9ec8ef4e5d7fe7dd6a0ede48fc5",
+      "baseline_bytes": 5584,
+      "inverse_changes": [
+        {
+          "baseline_start": 33,
+          "current_start": 33,
+          "baseline_lines": [],
+          "current_lines": [
+            "    from tests.test_top1_paper_release_source_review import source_before_top1_release\n",
+            "    raw = source_before_top1_release(path, raw)\n"
+          ]
+        },
+        {
+          "baseline_start": 34,
+          "current_start": 36,
+          "baseline_lines": [
+            "    assert read(path)==raw\n"
+          ],
+          "current_lines": [
+            "    assert source_before_top1_release(path, read(path)) == raw\n"
+          ]
+        },
+        {
+          "baseline_start": 51,
+          "current_start": 53,
+          "baseline_lines": [],
+          "current_lines": [
+            "    from tests.test_top1_paper_release_source_review import source_before_top1_release\n"
+          ]
+        },
+        {
+          "baseline_start": 52,
+          "current_start": 55,
+          "baseline_lines": [
+            "        raw=read(item['path']);assert len(raw)==item['bytes'] and sha(raw)==item['sha256'],item['path']\n"
+          ],
+          "current_lines": [
+            "        raw = source_before_top1_release(item['path'], read(item['path']))\n",
+            "        assert len(raw)==item['bytes'] and sha(raw)==item['sha256'],item['path']\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_profit_paper_account_build.cjs",
+      "baseline_exists": true,
+      "current_bytes": 15976,
+      "current_sha256": "a92189ac01b36a20ca8a4782d431ccf28fc67ecf079a4702c0552266884db5f7",
+      "baseline_git_blob_sha1": "78a97b4236ec6bfb8b906bc36d77cdd82d51527b",
+      "baseline_sha256": "3c746b7cc64ce134cdf4042db7fa13be6c5792d99bff331250d6e794fd72a7ea",
+      "baseline_bytes": 16258,
+      "inverse_changes": [
+        {
+          "baseline_start": 35,
+          "current_start": 35,
+          "baseline_lines": [
+            "    const filled = date === '20260914' || date === '20261019';\n"
+          ],
+          "current_lines": [
+            "    const filled = (date === '20260914' || date === '20261019') && exit <= asOf;\n"
+          ]
+        },
+        {
+          "baseline_start": 72,
+          "current_start": 72,
+          "baseline_lines": [
+            "  assert.match(account.data_bindings.engine_sha256,/^[0-9a-f]{64}$/);\n",
+            "  assert.equal(account.trades[0].name,'平安银行'); assert.equal(account.trades[1].name,'万科A');\n",
+            "  assert.equal(account.trades[0].name_source.signal_date,'20261019');\n",
+            "  assert.equal(account.initial_capital,735000); assert.equal(account.per_trade_budget,100000);\n",
+            "  assert.equal(account.start_signal_date,'20261019'); assert.equal(account.waiting_for_start,false);\n",
+            "  assert.ok(account.trades.every(row=>row.signal_date>='20261019'));\n",
+            "  assert.ok(account.days.every(row=>row.date>='20261019'));\n",
+            "  assert.equal(account.metrics.nav,753909); assert.equal(account.metrics.closed_trades,2);\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.data_bindings.engine_sha256,hash(await fs.readFile(require.resolve('../scripts/top1_realized_paper_account.cjs'))));\n",
+            "  assert.equal(account.data_bindings.index_sha256,f.revision.candidate_profit_index_sha256);\n",
+            "  assert.equal(account.trades[0].name,'平安银行');\n",
+            "  assert.equal(account.trades[0].signal_date,'20260914');\n",
+            "  assert.equal(account.per_trade_budget,100000);assert.equal(account.start_signal_date,'20260914');\n",
+            "  assert.ok(account.trades.every(row=>row.rank===1));\n",
+            "  assert.deepEqual(account.metrics,{cumulative_pnl:18909,max_profit:9454.5,max_loss:null});\n",
+            "  assert.equal(account.closed_trades,2);\n"
+          ]
+        },
+        {
+          "baseline_start": 92,
+          "current_start": 92,
+          "baseline_lines": [
+            "test('pre-start publication preserves initial cash without loading old trades or market quotes',async t=>{\n",
+            "  const f=await fixture(t,'20261016');\n",
+            "  await f.write('data/market/raw/2026/20260915/daily.csv',Buffer.from('old market data is not part of this account'));\n",
+            "  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('old frozen names are not part of this account'));\n"
+          ],
+          "current_lines": [
+            "test('empty realized sample starts at the first D, with no defined winning or losing trade',async t=>{\n",
+            "  const f=await fixture(t,'20260914');\n"
+          ]
+        },
+        {
+          "baseline_start": 97,
+          "current_start": 95,
+          "baseline_lines": [
+            "  assert.equal(account.waiting_for_start,true);assert.equal(account.blocked,false);\n",
+            "  assert.equal(account.start_signal_date,'20261019');assert.equal(account.as_of_date,'20261016');\n",
+            "  assert.equal(account.last_valid_date,null);assert.deepEqual(account.days,[]);assert.deepEqual(account.trades,[]);\n",
+            "  assert.equal(account.metrics.nav,735000);assert.equal(account.metrics.cash,735000);\n",
+            "  assert.equal(account.metrics.total_pnl,null);assert.equal(account.metrics.open_trades,0);\n",
+            "  assert.deepEqual(account.data_bindings.missing_market_dates,[]);\n",
+            "  assert.ok(account.data_bindings.source_files.every(row=>!row.path.includes('/raw/')&&!row.path.includes('/day_')));\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.start_signal_date,'20260914');assert.equal(account.as_of_date,'20260914');\n",
+            "  assert.equal(account.last_exit_date,null);assert.equal(account.closed_trades,0);\n",
+            "  assert.deepEqual(account.metrics,{cumulative_pnl:0,max_profit:null,max_loss:null});\n",
+            "  assert.ok(account.data_bindings.source_files.every(row=>!row.path.includes('/raw/')));\n"
+          ]
+        },
+        {
+          "baseline_start": 105,
+          "current_start": 100,
+          "baseline_lines": [
+            "test('historical coverage is validated but pre-start missing market and frozen-day bytes do not contaminate reset',async t=>{\n"
+          ],
+          "current_lines": [
+            "test('top1 uses September historical freezes and ignores unrelated holding periods and top2 outcomes',async t=>{\n"
+          ]
+        },
+        {
+          "baseline_start": 107,
+          "current_start": 102,
+          "baseline_lines": [
+            "  await f.write('data/market/raw/2026/20260915/daily.csv',Buffer.from('excluded old market bytes'));\n",
+            "  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('excluded old frozen names'));\n"
+          ],
+          "current_lines": [
+            "  await f.write('data/market/raw/2026/20260917/daily.csv',Buffer.from('unrelated market bytes'));\n",
+            "  delete f.summary.groups.candidate_top2;\n",
+            "  f.revision.candidate_profit_summary_sha256=await f.writeJson(SUMMARY_PATH,f.summary);\n",
+            "  await f.writeJson('revision.json',f.revision);\n"
+          ]
+        },
+        {
+          "baseline_start": 110,
+          "current_start": 107,
+          "baseline_lines": [
+            "  assert.equal(account.metrics.nav,753909);assert.equal(account.metrics.closed_trades,2);\n",
+            "  assert.deepEqual(account.missing_signal_dates,[]);\n",
+            "  assert.ok(account.data_bindings.source_files.filter(row=>row.path.includes('/raw/')).every(row=>row.path>='data/market/raw/2026/20261019/'));\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.closed_trades,2);assert.equal(account.metrics.cumulative_pnl,18909);\n",
+            "  assert.ok(account.data_bindings.source_files.some(row=>row.path.endsWith('20260915/daily.csv')));\n",
+            "  assert.ok(account.data_bindings.source_files.every(row=>!row.path.endsWith('20260917/daily.csv')));\n",
+            "  await f.write('outputs/decision/candidate_profit_v1/day_20260914.json',Buffer.from('tampered'));\n",
+            "  await assert.rejects(f.build(),/SHA/);\n"
+          ]
+        },
+        {
+          "baseline_start": 114,
+          "current_start": 113,
+          "baseline_lines": [
+            "test('new as-of revision advances account while preserving initial capital and existing transactions',async t=>{\n"
+          ],
+          "current_lines": [
+            "test('new as-of revision appends exactly one top1 signal and preserves realized amounts',async t=>{\n"
+          ]
+        },
+        {
+          "baseline_start": 117,
+          "current_start": 116,
+          "baseline_lines": [
+            "  assert.equal(b.last_valid_date,'20261022');assert.equal(b.as_of_date,'20261022');\n",
+            "  assert.equal(a.initial_capital,b.initial_capital);assert.equal(a.metrics.nav,b.metrics.nav);\n",
+            "  assert.equal(a.metrics.closed_trades,b.metrics.closed_trades);assert.equal(b.trades.length,a.trades.length+2);\n"
+          ],
+          "current_lines": [
+            "  assert.equal(b.last_exit_date,'20261021');assert.equal(b.as_of_date,'20261022');\n",
+            "  assert.deepEqual(a.metrics,b.metrics);assert.equal(a.closed_trades,b.closed_trades);\n",
+            "  assert.equal(b.trades.length,a.trades.length+1);\n"
+          ]
+        },
+        {
+          "baseline_start": 132,
+          "current_start": 131,
+          "baseline_lines": [
+            "test('unbound historical market date truncates at missing valuation, never substitutes zero',async t=>{\n",
+            "  const f=await fixture(t);f.window.source_files=f.window.source_files.filter(row=>!row.path.includes('20261020/daily.csv'));\n"
+          ],
+          "current_lines": [
+            "test('unbound September market evidence excludes only its trade and preserves later verified exits',async t=>{\n",
+            "  const f=await fixture(t);f.window.source_files=f.window.source_files.filter(row=>!row.path.includes('20260915/daily.csv'));\n"
+          ]
+        },
+        {
+          "baseline_start": 135,
+          "current_start": 134,
+          "baseline_lines": [
+            "  assert.equal(account.blocked,true);assert.equal(account.last_valid_date,'20261019');\n",
+            "  assert.deepEqual(account.data_bindings.missing_market_dates,['20261020']);assert.equal(account.metrics.nav,735000);\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.closed_trades,1);assert.equal(account.last_exit_date,'20261021');\n",
+            "  assert.equal(account.trades[0].status,'MISSING_QUOTE');assert.equal(account.trades[0].net_pnl,null);\n",
+            "  assert.deepEqual(account.data_bindings.missing_market_dates,['20260915']);assert.equal(account.metrics.cumulative_pnl,9454.5);\n"
+          ]
+        },
+        {
+          "baseline_start": 150,
+          "current_start": 150,
+          "baseline_lines": [
+            "  assert.equal(account.as_of_date,'20261021');assert.equal(account.last_valid_date,'20261021');\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.as_of_date,'20261021');assert.equal(account.last_exit_date,'20261021');\n"
+          ]
+        },
+        {
+          "baseline_start": 152,
+          "current_start": 152,
+          "baseline_lines": [
+            "  assert.equal(account.days.at(-1).date,'20261021');assert.equal(account.metrics.nav,753909);\n"
+          ],
+          "current_lines": [
+            "  assert.equal(account.closed_trades,2);assert.equal(account.metrics.cumulative_pnl,18909);\n"
+          ]
+        },
+        {
+          "baseline_start": 176,
+          "current_start": 176,
+          "baseline_lines": [
+            "test('a deployed HTML differing from the shared engine source is a hard failure',async t=>{\n"
+          ],
+          "current_lines": [
+            "test('a deployed HTML differing from the shared loader source is a hard failure',async t=>{\n"
+          ]
+        },
+        {
+          "baseline_start": 179,
+          "current_start": 179,
+          "baseline_lines": [
+            "  const changed=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('const initialCapital = 735000;','const initialCapital = 5000000;'));\n"
+          ],
+          "current_lines": [
+            "  const changed=Buffer.from((await fs.readFile(SOURCE,'utf8')).replace('const quotes = new Map(), used = [calendar[0]], missing = [];','const quotes = new Map(), used = [], missing = [];'));\n"
+          ]
+        },
+        {
+          "baseline_start": 186,
+          "current_start": 186,
+          "baseline_lines": [
+            "  await f.build();assert.equal((await f.account()).metrics.nav,753909);\n"
+          ],
+          "current_lines": [
+            "  await f.build();assert.equal((await f.account()).metrics.cumulative_pnl,18909);\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_profit_paper_account_frontend.py",
+      "baseline_exists": true,
+      "current_bytes": 1580,
+      "current_sha256": "7c053e7ae14923ba59dc33942db5dc991ffb36713707fac9145fc998049b4e79",
+      "baseline_git_blob_sha1": "35346c26435b08ab00e613701ca014fbda16a6d9",
+      "baseline_sha256": "4cb02e769ba8bc1c990c05c932baaa3630d59fa740968aa45df95495de85d27b",
+      "baseline_bytes": 1531,
+      "inverse_changes": [
+        {
+          "baseline_start": 1,
+          "current_start": 1,
+          "baseline_lines": [
+            "\"\"\"Run cash-account regressions against the exact inline code shipped to Pages.\"\"\"\n"
+          ],
+          "current_lines": [
+            "\"\"\"Exercise the published ledger engines and the frontend shipped to Pages.\"\"\"\n"
+          ]
+        },
+        {
+          "baseline_start": 18,
+          "current_start": 18,
+          "baseline_lines": [
+            "         \"tests/test_profit_paper_account_ui.cjs\", \"tests/test_profit_paper_account_build.cjs\"],\n"
+          ],
+          "current_lines": [
+            "         \"tests/test_profit_paper_account_top1.cjs\", \"tests/test_profit_paper_account_ui.cjs\",\n",
+            "         \"tests/test_profit_paper_account_build.cjs\"],\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_profit_paper_account_page.cjs",
+      "baseline_exists": true,
+      "current_bytes": 7863,
+      "current_sha256": "50630df479c2b412b4429341e1ac46868da6115fb5eab33287848075e6d7bc5b",
+      "baseline_git_blob_sha1": "3b2376bb1ef07a24762468d7f24b577e2984117f",
+      "baseline_sha256": "18333347401dea40b4830a7fdcfe21fbf15ebbe1751d6f861cd2bad2b4838a76",
+      "baseline_bytes": 7851,
+      "inverse_changes": [
+        {
+          "baseline_start": 51,
+          "current_start": 51,
+          "baseline_lines": [
+            "  assert.match(main,/本金73\\.5万元 · 盈1 \\/ 盈2各10万元/);\n",
+            "  assert.match(main,/D 2026-10-19/);\n"
+          ],
+          "current_lines": [
+            "  assert.match(main,/每笔预算10万元/);\n",
+            "  assert.match(main,/从 2026-09-14 的信号起/);\n"
+          ]
+        },
+        {
+          "baseline_start": 63,
+          "current_start": 63,
+          "baseline_lines": [
+            "  assert.equal(f.context.document.title,\"盈利前二 · 模拟账户 | DC20\");\n"
+          ],
+          "current_lines": [
+            "  assert.equal(f.context.document.title,\"盈1 · 模拟账本 | DC20\");\n"
+          ]
+        },
+        {
+          "baseline_start": 65,
+          "current_start": 65,
+          "baseline_lines": [
+            "  assert.match(f.context.els.mainContent.innerHTML,/每笔预算各10万元/);\n",
+            "  assert.match(f.context.els.mainContent.innerHTML,/73\\.5万元/);\n",
+            "  assert.match(f.context.els.mainContent.innerHTML,/2026-10-19/);\n"
+          ],
+          "current_lines": [
+            "  assert.match(f.context.els.mainContent.innerHTML,/每笔预算10万元/);\n",
+            "  assert.doesNotMatch(f.context.els.mainContent.innerHTML,/73\\.5万元|盈2|账户净值/);\n",
+            "  assert.match(f.context.els.mainContent.innerHTML,/2026-09-14/);\n"
+          ]
+        },
+        {
+          "baseline_start": 104,
+          "current_start": 104,
+          "baseline_lines": [
+            "  assert.match(f.node(\"profitPaperAccountContent\").innerHTML,/已清空旧净值/);\n"
+          ],
+          "current_lines": [
+            "  assert.match(f.node(\"profitPaperAccountContent\").innerHTML,/盈1账本暂不可核验/);\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_profit_paper_account_top1.cjs",
+      "baseline_exists": false,
+      "current_bytes": 5088,
+      "current_sha256": "1bbd2232ebe22c82df32169daa96222157a021c9c0ab7bf9653c3379c80c0439"
+    },
+    {
+      "path": "tests/test_profit_paper_account_ui.cjs",
+      "baseline_exists": true,
+      "current_bytes": 19982,
+      "current_sha256": "f5b3c756a6b7789232b3050d47da7ef4ca934c16ebcf39c3ab435665df888679",
+      "baseline_git_blob_sha1": "f0678ec502fd82dcc42beb9cd579965a0ce0d5f4",
+      "baseline_sha256": "0df57fd39a22d7470f94cbaeb2d2f2c555cf4835530cf23d1d624c149b7c09fc",
+      "baseline_bytes": 22132,
+      "inverse_changes": [
+        {
+          "baseline_start": 37,
+          "current_start": 37,
+          "baseline_lines": [
+            "  const days=[{date:\"20261019\",nav:735000,cash:735000,market_value:0,realized_pnl:0,unrealized_pnl:0,drawdown:0,open_positions:0},\n",
+            "    {date:\"20261020\",nav:725000,cash:535000,market_value:190000,realized_pnl:0,unrealized_pnl:-10000,drawdown:-10000/735000,open_positions:2}];\n",
+            "  return {as_of_date:\"20261022\",last_valid_date:\"20261020\",start_signal_date:\"20261019\",waiting_for_start:false,\n",
+            "    blocked:true,blocking_reason:\"退出价格缺失 <unsafe>\",missing_signal_dates:[\"20261021\"],days,\n",
+            "    metrics:{nav:725000,cash:535000,market_value:190000,total_pnl:-10000,cumulative_return:-10000/735000,realized_pnl:0,unrealized_pnl:-10000,\n",
+            "      open_trades:2,closed_trades:0,max_drawdown:.01,max_drawdown_amount:10000,max_capital_usage:.2,max_open_positions:2,\n",
+            "      max_open_positions_intraday:2,max_committed_cost_intraday:200000,\n",
+            "      total_costs:900,win_rate:null,profit_factor:null,longest_loss_streak:0,no_fill_trades:1,missing_trades:2,insufficient_cash_trades:0},\n",
+            "    rank_contributions:[{rank:1,closed_trades:0,open_trades:1,win_rate:null,realized_pnl:0,unrealized_pnl:-5000,total_pnl:-5000}],\n",
+            "    trades:[{signal_date:\"20261021\",rank:1,ts_code:null,status:\"MISSING_FROZEN\",net_pnl:null,unrealized_pnl:null}]};\n"
+          ],
+          "current_lines": [
+            "  return {schema_version:'dc20_top1_realized_paper_account_v1',as_of_date:'20261022',\n",
+            "    last_exit_date:'20261021',start_signal_date:'20260914',per_trade_budget:100000,cost_rate:.0045,\n",
+            "    closed_trades:2,metrics:{cumulative_pnl:4500,max_profit:10000,max_loss:-5500},missing_signal_dates:['20261021'],\n",
+            "    trades:[{signal_date:'20260914',rank:1,status:'CLOSED',exit_date:'20260916',net_pnl:10000},\n",
+            "      {signal_date:'20261019',rank:1,status:'CLOSED',exit_date:'20261021',net_pnl:-5500}]};\n"
+          ]
+        },
+        {
+          "baseline_start": 48,
+          "current_start": 43,
+          "baseline_lines": [
+            "test(\"markup distinguishes latest unavailable and last valid NAV, escaping source text\",()=>{\n",
+            "  const c=context();const out=c.profitPaperAccountMarkup(result());\n",
+            "  assert.match(out,/最新账户资产：暂不可核验/);assert.match(out,/截至 2026-10-20/);assert.match(out,/已知交易子集/);\n",
+            "  assert.match(out,/&lt;unsafe&gt;/);assert.doesNotMatch(out,/<unsafe>/);assert.match(out,/冻结缺失 · 跳过/);\n",
+            "  assert.match(out,/暂不报告年化收益、夏普比/);assert.match(out,/725,000\\.00 元/);\n",
+            "  assert.match(out,/盈1、盈2每天每笔预算各10万元/);assert.match(out,/每笔10万元为含研究成本的预算/);\n",
+            "  assert.match(out,/D 2026-10-19起重新统计/);assert.match(out,/初始73\\.5万元/);\n",
+            "  assert.match(out,/未验证真实排队成交、10万元容量/);assert.doesNotMatch(out,/(?:各|每笔)20万元/);\n",
+            "  assert.doesNotMatch(out,/onclick=/);\n"
+          ],
+          "current_lines": [
+            "test(\"the ledger displays the three signed realized amounts with dates and coverage\",()=>{\n",
+            "  const c=context({valueTone:n=>n>0?'positive':'negative'});\n",
+            "  const markup=c.profitPaperAccountMarkup(result());\n",
+            "  assert.equal((markup.match(/class=\"paper-card\"/g)||[]).length,3);\n",
+            "  assert.match(markup,/<dt>累计已实现盈亏<\\/dt><dd class=\"positive\">\\+4,500\\.00 元/);\n",
+            "  assert.match(markup,/<dt>最大单笔盈利<\\/dt><dd class=\"positive\">\\+10,000\\.00 元/);\n",
+            "  assert.match(markup,/<dt>最大单笔亏损<\\/dt><dd class=\"negative\">-5,500\\.00 元/);\n",
+            "  assert.match(markup,/最近退出日 2026-10-21/);\n",
+            "  assert.match(markup,/以下信号日缺少正式冻结名单/);\n",
+            "  assert.doesNotMatch(markup,/盈2|净值|最大回撤|<table|<svg/);\n"
+          ]
+        },
+        {
+          "baseline_start": 58,
+          "current_start": 54,
+          "baseline_lines": [
+            "test('pre-start markup shows a waiting account rather than stale history or a source error',()=>{\n",
+            "  const c=context(),data=result();\n",
+            "  Object.assign(data,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,\n",
+            "    blocking_reason:null,missing_signal_dates:[],days:[],trades:[]});\n",
+            "  Object.assign(data.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,cumulative_return:0,\n",
+            "    realized_pnl:0,unrealized_pnl:0,open_trades:0,closed_trades:0});\n",
+            "  const out=c.profitPaperAccountMarkup(data);\n",
+            "  assert.match(out,/起始资金（待起算）/);assert.match(out,/等待D 2026-10-19/);\n",
+            "  assert.match(out,/735,000\\.00 元/);assert.match(out,/此前持仓与收益不带入/);\n",
+            "  assert.doesNotMatch(out,/最新账户资产：暂不可核验|冻结缺失 · 跳过/);\n",
+            "});\n",
+            "test(\"trade table puts company name immediately after code, escapes text and labels missing names\",()=>{\n",
+            "  const c=context(), data=result();\n",
+            "  data.trades.push({signal_date:'20261019',rank:1,ts_code:'000823.SZ',name:'超声电子 <unsafe>',status:'CLOSED'});\n",
+            "  const out=c.profitPaperAccountMarkup(data);\n",
+            "  assert.match(out,/<th>代码<\\/th><th class=\"left\">公司名称<\\/th>/);\n",
+            "  assert.match(out,/<td>000823\\.SZ<\\/td><td class=\"left\">超声电子 &lt;unsafe&gt;<\\/td>/);\n",
+            "  assert.match(out,/<td class=\"left\">名称待补<\\/td>/);\n",
+            "  assert.doesNotMatch(out,/<unsafe>/);\n",
+            "});\n",
+            "test(\"responsive curve handles one point and no valid data without NaN\",()=>{\n",
+            "  const c=context();const svg=c.paperAccountCurveSvg(result().days,true);\n",
+            "  assert.match(svg,/viewBox=\"0 0 640 430\"/);assert.match(svg,/paper-narrow-chart/);assert.match(svg,/role=\"img\"/);\n",
+            "  assert.doesNotMatch(c.paperAccountCurveSvg(result().days.slice(0,1),false),/NaN|Infinity/);\n",
+            "  assert.match(c.paperAccountCurveSvg([]),/不绘制零收益线/);\n"
+          ],
+          "current_lines": [
+            "test('an empty realized set shows zero cumulative P&L and no extremes',()=>{\n",
+            "  const data=result();\n",
+            "  Object.assign(data,{closed_trades:0,last_exit_date:null,metrics:{cumulative_pnl:0,max_profit:null,max_loss:null},\n",
+            "    trades:[],missing_signal_dates:[]});\n",
+            "  const markup=context().profitPaperAccountMarkup(data);\n",
+            "  assert.match(markup,/尚无已退出交易/);\n",
+            "  assert.equal((markup.match(/>—<\\/dd>/g)||[]).length,2);\n",
+            "  assert.match(markup,/>0\\.00 元<\\/dd>/);\n",
+            "  assert.doesNotMatch(markup,/缺少正式冻结名单/);\n"
+          ]
+        },
+        {
+          "baseline_start": 89,
+          "current_start": 69,
+          "baseline_lines": [
+            "  const summary={as_of_date:\"20261020\",signal_dates:[\"20260914\",\"20261019\",\"20261020\"],calendar_sha256:sha(raw.get(\"data/market/trade_cal_sse.csv\"))};\n"
+          ],
+          "current_lines": [
+            "  const summary={as_of_date:\"20261020\",groups:{candidate_top1:{daily_sequence:[\n",
+            "    {signal_date:\"20260914\",exec_date:\"20261019\",actual_exit_date:\"20261020\",status:\"SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY\"}]}},signal_dates:[\"20260914\",\"20261019\",\"20261020\"],calendar_sha256:sha(raw.get(\"data/market/trade_cal_sse.csv\"))};\n"
+          ]
+        },
+        {
+          "baseline_start": 140,
+          "current_start": 121,
+          "baseline_lines": [
+            "  assert.equal(names.identities.get('20261019:R2').name,'澳弘电子');\n"
+          ],
+          "current_lines": [
+            "  assert.equal(names.identities.has('20261019:R2'),false);\n"
+          ]
+        },
+        {
+          "baseline_start": 148,
+          "current_start": 129,
+          "baseline_lines": [
+            "  x.index.days.unshift({signal_date:'20260914',path:'outputs/decision/candidate_profit_v1/day_20260914.json',sha256:'0'.repeat(64),snapshot_file_sha256:'b'.repeat(64)});\n",
+            "  x.summary.published_signal_dates.unshift('20260914');\n"
+          ],
+          "current_lines": [
+            "  x.index.days.unshift({signal_date:'20260911',path:'outputs/decision/candidate_profit_v1/day_20260911.json',sha256:'0'.repeat(64),snapshot_file_sha256:'b'.repeat(64)});\n",
+            "  x.summary.published_signal_dates.unshift('20260911');\n"
+          ]
+        },
+        {
+          "baseline_start": 154,
+          "current_start": 135,
+          "baseline_lines": [
+            "  assert.equal(names.identities.size,2);assert.equal(names.identities.has('20260914:R1'),false);\n"
+          ],
+          "current_lines": [
+            "  assert.equal(names.identities.size,1);assert.equal(names.identities.has('20260911:R1'),false);\n"
+          ]
+        },
+        {
+          "baseline_start": 174,
+          "current_start": 155,
+          "baseline_lines": [
+            "    profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_valid_date,\n"
+          ],
+          "current_lines": [
+            "    profit_paper_account_as_of_date:account.as_of_date,profit_paper_account_last_valid_date:account.last_exit_date,\n"
+          ]
+        },
+        {
+          "baseline_start": 176,
+          "current_start": 157,
+          "baseline_lines": [
+            "    candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};\n",
+            "  Object.assign(account,{schema_version:'dc20_paper_capital_account_v1',initial_capital:735000,per_trade_budget:100000,cost_rate:.0045,\n"
+          ],
+          "current_lines": [
+            "    candidate_profit_index_sha256:'7'.repeat(64),candidate_profit_summary_sha256:'3'.repeat(64),compact_statistics_window_sha256:'4'.repeat(64)};\n",
+            "  Object.assign(account,{\n"
+          ]
+        },
+        {
+          "baseline_start": 179,
+          "current_start": 160,
+          "baseline_lines": [
+            "    data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,\n"
+          ],
+          "current_lines": [
+            "    data_bindings:{summary_sha256:revision.candidate_profit_summary_sha256,window_sha256:revision.compact_statistics_window_sha256,index_sha256:revision.candidate_profit_index_sha256,\n"
+          ]
+        },
+        {
+          "baseline_start": 184,
+          "current_start": 165,
+          "baseline_lines": [
+            "test('published account accepts only the current bound main-task artifact and displays publication time',async()=>{\n"
+          ],
+          "current_lines": [
+            "test('published account accepts only the current bound main-task artifact and displays the last exit date',async()=>{\n"
+          ]
+        },
+        {
+          "baseline_start": 191,
+          "current_start": 172,
+          "baseline_lines": [
+            "  assert.match(markup,/主任务/);assert.match(markup,/12345/);assert.match(markup,/2026\\/10\\/22 08:00:00/);\n"
+          ],
+          "current_lines": [
+            "  assert.match(markup,/最近退出日 2026-10-21/);\n"
+          ]
+        },
+        {
+          "baseline_start": 193,
+          "current_start": 174,
+          "baseline_lines": [
+            "test('published account accepts explicitly waiting pre-start artifact with no carried-in positions',async()=>{\n"
+          ],
+          "current_lines": [
+            "test('published account accepts an empty settled set with no exit date or extremes',async()=>{\n"
+          ]
+        },
+        {
+          "baseline_start": 195,
+          "current_start": 176,
+          "baseline_lines": [
+            "  Object.assign(x.account,{as_of_date:'20261016',last_valid_date:null,waiting_for_start:true,blocked:false,\n",
+            "    missing_signal_dates:[],days:[],trades:[]});\n",
+            "  Object.assign(x.account.metrics,{nav:735000,cash:735000,market_value:0,total_pnl:0,open_trades:0});\n",
+            "  x.summary.summary.as_of_date='20261016';\n",
+            "  x.revision.profit_paper_account_as_of_date='20261016';x.revision.profit_paper_account_last_valid_date=null;\n"
+          ],
+          "current_lines": [
+            "  Object.assign(x.account,{last_exit_date:null,closed_trades:0,metrics:{cumulative_pnl:0,max_profit:null,max_loss:null},\n",
+            "    missing_signal_dates:[],trades:[]});\n",
+            "  x.revision.profit_paper_account_last_valid_date=null;\n"
+          ]
+        },
+        {
+          "baseline_start": 204,
+          "current_start": 183,
+          "baseline_lines": [
+            "  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget','old-capital','old-start','missing-start','missing-waiting','wrong-waiting','old-trade','old-day','old-missing-date']) {\n"
+          ],
+          "current_lines": [
+            "  for(const mode of ['run','producer','head','asof','revision-asof','last-date','summary-sha','window-sha','updated-at','mode','old-budget','old-schema','old-start','missing-start','bad-loss','bad-profit','old-trade','other-rank','old-missing-date','index-sha']) {\n"
+          ]
+        },
+        {
+          "baseline_start": 211,
+          "current_start": 190,
+          "baseline_lines": [
+            "    if(mode==='last-date')x.account.last_valid_date='20261019';\n"
+          ],
+          "current_lines": [
+            "    if(mode==='last-date')x.account.last_exit_date='20261019';\n"
+          ]
+        },
+        {
+          "baseline_start": 217,
+          "current_start": 196,
+          "baseline_lines": [
+            "    if(mode==='old-capital')x.account.initial_capital=1000000;\n",
+            "    if(mode==='old-start')x.account.start_signal_date='20260914';\n"
+          ],
+          "current_lines": [
+            "    if(mode==='old-schema')x.account.schema_version='dc20_paper_capital_account_v1';\n",
+            "    if(mode==='old-start')x.account.start_signal_date='20261019';\n"
+          ]
+        },
+        {
+          "baseline_start": 220,
+          "current_start": 199,
+          "baseline_lines": [
+            "    if(mode==='missing-waiting')delete x.account.waiting_for_start;\n",
+            "    if(mode==='wrong-waiting')x.account.waiting_for_start=true;\n",
+            "    if(mode==='old-trade')x.account.trades[0].signal_date='20261016';\n",
+            "    if(mode==='old-day')x.account.days[0].date='20261016';\n",
+            "    if(mode==='old-missing-date')x.account.missing_signal_dates=['20260921'];\n"
+          ],
+          "current_lines": [
+            "    if(mode==='bad-profit')x.account.metrics.max_profit=-1;\n",
+            "    if(mode==='bad-loss')x.account.metrics.max_loss=1;\n",
+            "    if(mode==='old-trade')x.account.trades[0].signal_date='20260911';\n",
+            "    if(mode==='other-rank')x.account.trades[0].rank=2;\n",
+            "    if(mode==='old-missing-date')x.account.missing_signal_dates=['20260911'];\n",
+            "    if(mode==='index-sha')x.account.data_bindings.index_sha256='0'.repeat(64);\n"
+          ]
+        },
+        {
+          "baseline_start": 270,
+          "current_start": 250,
+          "baseline_lines": [
+            "  assert.equal(typeof c.document.getElementById(\"profitPaperAccountExport\").onclick,\"function\");\n"
+          ],
+          "current_lines": [
+            "  assert.equal((c.document.getElementById(\"profitPaperAccountContent\").innerHTML.match(/class=\"paper-card\"/g)||[]).length,3);\n"
+          ]
+        },
+        {
+          "baseline_start": 276,
+          "current_start": 256,
+          "baseline_lines": [
+            "  assert.match(html,/state\\.profitPaperAccount = null;/);assert.match(html,/\\.paper-table-wrap[^}]*overflow-x:auto/);\n"
+          ],
+          "current_lines": [
+            "  assert.match(html,/state\\.profitPaperAccount = null;/);assert.match(html,/\\.paper-cards[^}]*grid-template-columns:repeat\\(3,/);\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_profit_paper_account_workflow.py",
+      "baseline_exists": true,
+      "current_bytes": 2318,
+      "current_sha256": "aa9cc6268f3f31057537b20a09a0277e23f21b0a405878590b27694c42f6e33e",
+      "baseline_git_blob_sha1": "d2d6da9e8466b09667d58acffec65b5c66758392",
+      "baseline_sha256": "67853dd705b892777f78a930c458a3d613a03c988ac57e3c64952dd18e784bd1",
+      "baseline_bytes": 2340,
+      "inverse_changes": [
+        {
+          "baseline_start": 43,
+          "current_start": 43,
+          "baseline_lines": [
+            "    assert \"主任务及结算发布时自动重算\" in html\n",
+            "    assert \"已打开的页面需刷新读取新版\" in html\n"
+          ],
+          "current_lines": [
+            "    assert \"dc20_top1_realized_paper_account_v1\" in html\n",
+            "    assert \"已退出交易盈亏\" in html\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_publication_rehearsal_fixture.py",
+      "baseline_exists": true,
+      "current_bytes": 15988,
+      "current_sha256": "9d405d29abdc95913034b3cb28f4876d3645d10367e4aa893e165d4d34c28236",
+      "baseline_git_blob_sha1": "f66de7be03d1e7c7ded90d0269f45bccedcae640",
+      "baseline_sha256": "41bb8edb660951682219c983ee3be8adec4e3760f76a5d72debc334159cbd2c7",
+      "baseline_bytes": 14743,
+      "inverse_changes": [
+        {
+          "baseline_start": 247,
+          "current_start": 247,
+          "baseline_lines": [
+            "    assert BASELINE not in comparison and DAY not in comparison\n"
+          ],
+          "current_lines": [
+            "    # The realized ledger can legitimately exit on DAY without changing the replay signal date.\n",
+            "    assert BASELINE not in comparison and DAY not in comparison.replace(\"top1['last_exit_date']=='20261106'\", '')\n"
+          ]
+        },
+        {
+          "baseline_start": 254,
+          "current_start": 255,
+          "baseline_lines": [
+            "    'different_account', 'no_protection', 'new_freeze', 'actual_deployment'])\n"
+          ],
+          "current_lines": [
+            "    'different_account', 'incorrect_top1_total', 'incorrect_top1_best', 'incorrect_top1_worst',\n",
+            "    'incorrect_old_nav', 'no_protection', 'new_freeze', 'actual_deployment'])\n"
+          ]
+        },
+        {
+          "baseline_start": 268,
+          "current_start": 270,
+          "baseline_lines": [
+            "                'protected_files_unchanged': 20, 'account': {'assets': 735000},\n"
+          ],
+          "current_lines": [
+            "                'protected_files_unchanged': 20,\n"
+          ]
+        },
+        {
+          "baseline_start": 270,
+          "current_start": 272,
+          "baseline_lines": [],
+          "current_lines": [
+            "            if version == 'reliability-baseline':\n",
+            "                item['account'] = {'schema_version': 'dc20_paper_capital_account_v1',\n",
+            "                    'start_signal_date': '20261019', 'last_valid_date': '20261109',\n",
+            "                    'initial_capital': 735000, 'per_trade_budget': 100000,\n",
+            "                    'metrics': {'nav': 707771.09 if fault != 'incorrect_old_nav' else 0}}\n",
+            "            else:\n",
+            "                item['account'] = {'schema_version': 'dc20_top1_realized_paper_account_v1',\n",
+            "                    'start_signal_date': '20260914', 'last_exit_date': '20261106',\n",
+            "                    'per_trade_budget': 100000, 'closed_trades': 27,\n",
+            "                    'metrics': {'cumulative_pnl': 117878.58,'max_profit': 32482.59,'max_loss': -14685.93}}\n",
+            "                wrong_metric = {'incorrect_top1_total':'cumulative_pnl', 'incorrect_top1_best':'max_profit',\n",
+            "                    'incorrect_top1_worst':'max_loss'}.get(fault)\n",
+            "                if wrong_metric:\n",
+            "                    item['account']['metrics'][wrong_metric] = 0\n"
+          ]
+        },
+        {
+          "baseline_start": 274,
+          "current_start": 290,
+          "baseline_lines": [
+            "                if fault == 'different_account': item['account']['assets'] += 1\n"
+          ],
+          "current_lines": [
+            "                if fault == 'different_account': item['account']['closed_trades'] += 1\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "tests/test_reliability_runtime_profiles.py",
+      "baseline_exists": true,
+      "current_bytes": 7944,
+      "current_sha256": "bf425c2e8d51ec3c2838147e056ad1b55897354305ba2ee02a4acabe99f28d02",
+      "baseline_git_blob_sha1": "1b145782b18484d16954213217d02c27304f04b6",
+      "baseline_sha256": "6b567be90a54cd7670105e5ba3bbc66e8bff9b5ba7eac32a314c625ece2cbd24",
+      "baseline_bytes": 7326,
+      "inverse_changes": [
+        {
+          "baseline_start": 75,
+          "current_start": 75,
+          "baseline_lines": [
+            "    profile = continuation.RELIABILITY_P0_CODE_PROFILE\n"
+          ],
+          "current_lines": [
+            "    profile = continuation.TOP1_PAPER_P0_CODE_PROFILE\n",
+            "    original = continuation.RELIABILITY_P0_CODE_PROFILE\n",
+            "    assert set(profile) == set(original)\n",
+            "    assert {p for p in original if profile[p] != original[p]} == {continuation.MANIFEST_PATH}\n"
+          ]
+        },
+        {
+          "baseline_start": 88,
+          "current_start": 91,
+          "baseline_lines": [
+            "def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees():\n",
+            "    profile = continuation.RELIABILITY_P0_CODE_PROFILE\n"
+          ],
+          "current_lines": [
+            "@pytest.mark.parametrize(\"profile\", continuation.RELIABILITY_PROFILES, ids=[\"original\", \"top1-paper\"])\n",
+            "def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):\n"
+          ]
+        },
+        {
+          "baseline_start": 100,
+          "current_start": 103,
+          "baseline_lines": [],
+          "current_lines": [
+            "        other = next(p for p in continuation.RELIABILITY_PROFILES if p != profile)\n",
+            "        mixed = deepcopy(trees)\n",
+            "        mixed[index][continuation.MANIFEST_PATH][\"sha\"] = other[continuation.MANIFEST_PATH]\n",
+            "        with pytest.raises(ValueError, match=\"CODE_PROFILE_REQUIRED\"):\n",
+            "            continuation.validate_code_profiles(gh, None, *mixed, {\"signal_date\": \"20261111\"})\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_legacy_workflow.py",
+      "baseline_exists": true,
+      "current_bytes": 18306,
+      "current_sha256": "cc907941dd5d7a894f9b64efec94c6766511ce4bdf3edbcfb2ace14864d8432f",
+      "baseline_git_blob_sha1": "b8e5427dabd939efd8d48c766bd86d4cdd24b299",
+      "baseline_sha256": "06fd62522d34997448057c9a9d5fcffec0cb100765a0da81b487205b79c84ca9",
+      "baseline_bytes": 18306,
+      "inverse_changes": [
+        {
+          "baseline_start": 29,
+          "current_start": 29,
+          "baseline_lines": [
+            "IMPORTER_SHA = 'fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69'\n"
+          ],
+          "current_lines": [
+            "IMPORTER_SHA = '49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence.py",
+      "baseline_exists": true,
+      "current_bytes": 41572,
+      "current_sha256": "f980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb",
+      "baseline_git_blob_sha1": "819dd4524380f42d096071f1f4c245108bce1639",
+      "baseline_sha256": "3604516045a3f50392ddb9ce1195d50132e1b5322f900f96e607d6b72a526915",
+      "baseline_bytes": 41572,
+      "inverse_changes": [
+        {
+          "baseline_start": 27,
+          "current_start": 27,
+          "baseline_lines": [
+            "PUBLICATION_SHA = 'a504929e23a3eb29b1b49007a29e37c3ee169614e50aecae97b1ee0901cb2231'\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = '2af7c784cdc5a4d8fa292d3352e3a59b3da1e17c98aa94cf0767fadf1fac7ad7'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_evidence_publication.py",
+      "baseline_exists": true,
+      "current_bytes": 47891,
+      "current_sha256": "b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891",
+      "baseline_git_blob_sha1": "1b36929c574c9456fba59ab5fcacd84dc8fde421",
+      "baseline_sha256": "ba90a44c10e78ded6dfda91cbb2176a87dc350cdeac113c3f77506c26b1f3765",
+      "baseline_bytes": 47891,
+      "inverse_changes": [
+        {
+          "baseline_start": 23,
+          "current_start": 23,
+          "baseline_lines": [
+            "CAPTURE_SHA = '3604516045a3f50392ddb9ce1195d50132e1b5322f900f96e607d6b72a526915'\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = 'f980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb'\n"
+          ]
+        },
+        {
+          "baseline_start": 28,
+          "current_start": 28,
+          "baseline_lines": [
+            "OBSERVER_SHA = '4a7eb127e656911db0164b5bad76a19c2f9dec6feb82c4398dcd08e56976d860'\n"
+          ],
+          "current_lines": [
+            "OBSERVER_SHA = '97eb7d5ca11eda1b40565f6dd6c6cebcd708f5fe98218f68bba6b9b8768822d9'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_observer.py",
+      "baseline_exists": true,
+      "current_bytes": 8420,
+      "current_sha256": "97eb7d5ca11eda1b40565f6dd6c6cebcd708f5fe98218f68bba6b9b8768822d9",
+      "baseline_git_blob_sha1": "c7157cab23b90d05b64a6c1103bd069529f186c6",
+      "baseline_sha256": "4a7eb127e656911db0164b5bad76a19c2f9dec6feb82c4398dcd08e56976d860",
+      "baseline_bytes": 8420,
+      "inverse_changes": [
+        {
+          "baseline_start": 18,
+          "current_start": 18,
+          "baseline_lines": [
+            "CAPTURE_SHA = '3604516045a3f50392ddb9ce1195d50132e1b5322f900f96e607d6b72a526915'\n"
+          ],
+          "current_lines": [
+            "CAPTURE_SHA = 'f980052699d4089a47caa20b0709aafee2cb6834812c928ae73f85faeeb71dfb'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_continuation.py",
+      "baseline_exists": true,
+      "current_bytes": 53376,
+      "current_sha256": "08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184",
+      "baseline_git_blob_sha1": "d6ce3a2cb96ad1cbbd2b5fc62a3f4d3054372dc7",
+      "baseline_sha256": "90680089ea3d7baa6f480a70883e9ff70ac03c5718391c6e230ca8115eafedd6",
+      "baseline_bytes": 53309,
+      "inverse_changes": [
+        {
+          "baseline_start": 118,
+          "current_start": 118,
+          "baseline_lines": [],
+          "current_lines": [
+            "# The published Top1 paper-account template and Pages workflow rotate the\n",
+            "# model manifest. All P0 execution, feature and model blobs keep their bindings.\n",
+            "TOP1_PAPER_P0_CODE_PROFILE = {**RELIABILITY_P0_CODE_PROFILE,\n",
+            "    MANIFEST_PATH: '3e9d5c0576977fdf85feada3ccca23b4bc92c524'}\n",
+            "RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE)\n"
+          ]
+        },
+        {
+          "baseline_start": 213,
+          "current_start": 218,
+          "baseline_lines": [
+            "    profile = (RELIABILITY_P0_CODE_PROFILE\n",
+            "        if base_tree.get(MANIFEST_PATH, {}).get(\"sha\") == RELIABILITY_P0_CODE_PROFILE[MANIFEST_PATH]\n",
+            "        else SUSPENSION_P0_CODE_PROFILE\n",
+            "        if base_tree.get(MANIFEST_PATH, {}).get('sha') == SUSPENSION_P0_CODE_PROFILE[MANIFEST_PATH]\n",
+            "        else NEXT_DAY_STATISTICS_P0_CODE_PROFILE\n",
+            "        if base_tree.get(MANIFEST_PATH, {}).get('sha') == NEXT_DAY_STATISTICS_P0_CODE_PROFILE[MANIFEST_PATH]\n",
+            "        else DELIVERY_HARDENED_P0_CODE_PROFILE\n",
+            "        if base_tree.get(MANIFEST_PATH, {}).get('sha') == DELIVERY_HARDENED_P0_CODE_PROFILE[MANIFEST_PATH]\n",
+            "        else CONTROLLED_P0_CODE_PROFILE\n",
+            "        if base_tree.get('scripts/publish_primary_three_rank.py', {}).get('sha')\n",
+            "        == CONTROLLED_P0_CODE_PROFILE['scripts/publish_primary_three_rank.py'] else ORIGINAL_P0_CODE_PROFILE)\n",
+            "    if profile is RELIABILITY_P0_CODE_PROFILE:\n"
+          ],
+          "current_lines": [
+            "    manifest_blob = base_tree.get(MANIFEST_PATH, {}).get('sha')\n",
+            "    for profile in (*RELIABILITY_PROFILES, SUSPENSION_P0_CODE_PROFILE,\n",
+            "                    NEXT_DAY_STATISTICS_P0_CODE_PROFILE, DELIVERY_HARDENED_P0_CODE_PROFILE):\n",
+            "        if manifest_blob == profile[MANIFEST_PATH]:\n",
+            "            break\n",
+            "    else:\n",
+            "        publisher = 'scripts/publish_primary_three_rank.py'\n",
+            "        profile = (CONTROLLED_P0_CODE_PROFILE if base_tree.get(publisher, {}).get('sha')\n",
+            "                   == CONTROLLED_P0_CODE_PROFILE[publisher] else ORIGINAL_P0_CODE_PROFILE)\n",
+            "    if profile in RELIABILITY_PROFILES:\n"
+          ]
+        },
+        {
+          "baseline_start": 516,
+          "current_start": 519,
+          "baseline_lines": [
+            "    runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile is RELIABILITY_P0_CODE_PROFILE else CONTROLLED_RUNTIME_CODE_BINDINGS\n"
+          ],
+          "current_lines": [
+            "    runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile in RELIABILITY_PROFILES else CONTROLLED_RUNTIME_CODE_BINDINGS\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_p0_github.py",
+      "baseline_exists": true,
+      "current_bytes": 41249,
+      "current_sha256": "49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22",
+      "baseline_git_blob_sha1": "dbffe0326b426a77ccdd771fb151fc3352fe799c",
+      "baseline_sha256": "fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69",
+      "baseline_bytes": 41249,
+      "inverse_changes": [
+        {
+          "baseline_start": 43,
+          "current_start": 43,
+          "baseline_lines": [
+            "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '90680089ea3d7baa6f480a70883e9ff70ac03c5718391c6e230ca8115eafedd6',\n"
+          ],
+          "current_lines": [
+            "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184',\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_publication.py",
+      "baseline_exists": true,
+      "current_bytes": 90739,
+      "current_sha256": "2af7c784cdc5a4d8fa292d3352e3a59b3da1e17c98aa94cf0767fadf1fac7ad7",
+      "baseline_git_blob_sha1": "64aff4f8f6f37f559a4f5c24899e4a89c901985e",
+      "baseline_sha256": "a504929e23a3eb29b1b49007a29e37c3ee169614e50aecae97b1ee0901cb2231",
+      "baseline_bytes": 90739,
+      "inverse_changes": [
+        {
+          "baseline_start": 21,
+          "current_start": 21,
+          "baseline_lines": [
+            "IMPORTER_SHA = 'fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69'\n"
+          ],
+          "current_lines": [
+            "IMPORTER_SHA = '49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22'\n"
+          ]
+        },
+        {
+          "baseline_start": 27,
+          "current_start": 27,
+          "baseline_lines": [
+            "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69',\n",
+            " 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '90680089ea3d7baa6f480a70883e9ff70ac03c5718391c6e230ca8115eafedd6',\n"
+          ],
+          "current_lines": [
+            "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22',\n",
+            " 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '08b4cfd732639b6b793fd859624b17ecc82b0345d3cd6323288c910b3e5b0184',\n"
+          ]
+        },
+        {
+          "baseline_start": 30,
+          "current_start": 30,
+          "baseline_lines": [
+            " 'work/profit_1000_upgrade/candidate_natural_workflow.py': '4645b75eade4155cd3a30843c42b218c68ae3794f5695b46b86c2d27b5dae425',\n"
+          ],
+          "current_lines": [
+            " 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'bc29f7dac87be83f067eefe7ec8e861b0df9c1afc0a16ec1a58b9f07e00a05f2',\n"
+          ]
+        },
+        {
+          "baseline_start": 40,
+          "current_start": 40,
+          "baseline_lines": [
+            " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '06fd62522d34997448057c9a9d5fcffec0cb100765a0da81b487205b79c84ca9',\n"
+          ],
+          "current_lines": [
+            " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'cc907941dd5d7a894f9b64efec94c6766511ce4bdf3edbcfb2ace14864d8432f',\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py",
+      "baseline_exists": true,
+      "current_bytes": 41619,
+      "current_sha256": "3fb83b3976acce753203032ff47fdc3d0d3c7226f369bb63869571de384989ac",
+      "baseline_git_blob_sha1": "10fd24032f001f6f7b2a48b903f474c918c403f2",
+      "baseline_sha256": "6313118bb990024b15f5ac4f906cb095f0dc206f2e166499ca9cc939dcb49bc8",
+      "baseline_bytes": 41619,
+      "inverse_changes": [
+        {
+          "baseline_start": 34,
+          "current_start": 34,
+          "baseline_lines": [
+            " 'candidate_natural_evidence_publication': 'ba90a44c10e78ded6dfda91cbb2176a87dc350cdeac113c3f77506c26b1f3765',\n"
+          ],
+          "current_lines": [
+            " 'candidate_natural_evidence_publication': 'b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891',\n"
+          ]
+        },
+        {
+          "baseline_start": 38,
+          "current_start": 38,
+          "baseline_lines": [
+            " 'candidate_natural_statistics': '979a8ac9c8bb6fb2479d9711131df74aab40738cb7006a20a32aa3298ef281c9'}\n"
+          ],
+          "current_lines": [
+            " 'candidate_natural_statistics': '3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c'}\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_statistics.py",
+      "baseline_exists": true,
+      "current_bytes": 25637,
+      "current_sha256": "3111fc4b584d12085c75a7bac8317ded0ef1e77669c358a421d61c0bc4ad4b5c",
+      "baseline_git_blob_sha1": "f812067a67070ed0ed5e0df67e502805af3acaaa",
+      "baseline_sha256": "979a8ac9c8bb6fb2479d9711131df74aab40738cb7006a20a32aa3298ef281c9",
+      "baseline_bytes": 25637,
+      "inverse_changes": [
+        {
+          "baseline_start": 22,
+          "current_start": 22,
+          "baseline_lines": [
+            "PUBLICATION_SHA = 'ba90a44c10e78ded6dfda91cbb2176a87dc350cdeac113c3f77506c26b1f3765'\n"
+          ],
+          "current_lines": [
+            "PUBLICATION_SHA = 'b73b2f548438f7495808420b1c2121fcf741bcbd8c05d9ae1b7e8bcb9655d891'\n"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_workflow.py",
+      "baseline_exists": true,
+      "current_bytes": 21692,
+      "current_sha256": "bc29f7dac87be83f067eefe7ec8e861b0df9c1afc0a16ec1a58b9f07e00a05f2",
+      "baseline_git_blob_sha1": "0444c021ad74b05272ab1ccedf1437f269bf7f9f",
+      "baseline_sha256": "4645b75eade4155cd3a30843c42b218c68ae3794f5695b46b86c2d27b5dae425",
+      "baseline_bytes": 21692,
+      "inverse_changes": [
+        {
+          "baseline_start": 29,
+          "current_start": 29,
+          "baseline_lines": [
+            "IMPORTER_SHA = 'fc43f98841e65388abd029442bcbec82bd90f39479edf82db10dc90b15606f69'\n"
+          ],
+          "current_lines": [
+            "IMPORTER_SHA = '49ee2fff9e325449641d01e05e13af8cff41d78ab41f58babc2d099c28b7ba22'\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "prior_review_blobs": {
+    "models/decision_source_surface_review_20260906.json": "28122f08eb00018212bfe2f637c9aa4bc1c1f934",
+    "models/decision_source_surface_review_20260909.json": "80021427cfaeca1ada63598074e248f485b39019",
+    "models/decision_source_surface_review_20260909_density.json": "bc9f53053810d4fb3f50fbfb331d3e697ce1079e",
+    "models/decision_source_surface_review_20260909_hide_profit_details.json": "a9b7a77e838bc0e7da308664a5a9e15ea8a480b2",
+    "models/decision_source_surface_review_20260909_profit_summary.json": "0bb331151836f4a863d43b39a7500881b827f7ca",
+    "models/decision_source_surface_review_20260909_statistics.json": "a5e16d140cd085913297c5d4192bc24328d08c7f",
+    "models/decision_source_surface_review_20260909_success_rate.json": "f3e4b81ae8416426506daf7b4a34819e80ecd6e8",
+    "models/decision_source_surface_review_20260910_navigation.json": "e8e27d8603dfd6d49626b5107cbf9b4bd9aab50d",
+    "models/decision_source_surface_review_20260911_columns.json": "e5b954a10155cad465660f4df75654ad03bbf199",
+    "models/decision_source_surface_review_20260911_copy_delete.json": "b4c4ca92b681012a64e481bb2149f9918d66d554",
+    "models/decision_source_surface_review_20260911_daily_dispatch.json": "af55e0cca6de0bbb013a4a9f9f934cf1d2181c1c",
+    "models/decision_source_surface_review_20260911_density.json": "9f35e3ed9dc6e1ddb87acbb28b7f3b8ac27694b2",
+    "models/decision_source_surface_review_20260911_exit_label.json": "213e209db172581e54ade2b6c834dc5c1d8bed07",
+    "models/decision_source_surface_review_20260911_loading.json": "19e0c1b0c93959cf1e5bb79f55de0b0a9e9681ed",
+    "models/decision_source_surface_review_20260911_settle_cli.json": "131789d39dcc17664d94c59bdb218c23086c6196",
+    "models/decision_source_surface_review_20260911_shadow_price_v2.json": "a3b429fcc161066a9b1d6842cbbc862e1a677a5a",
+    "models/decision_source_surface_review_20260911_verify_close.json": "e75ca907c412ba2a490256b8f23b76aa846e6c58",
+    "models/decision_source_surface_review_20260911_window_0910.json": "5489a30c36aacb3af8a5bfe5ca636cebf3aa9a68",
+    "models/decision_source_surface_review_20260912_ci_partition.json": "0e7566ac61481aa179798fde48cc1d33744fa7f7",
+    "models/decision_source_surface_review_20260912_dev_yaml.json": "250788177c69bfb7cdca5f89ffac00cac0a81e46",
+    "models/decision_source_surface_review_20260912_exit1000.json": "f0f08a845fd36d26e16aba76d5733120751313b8",
+    "models/decision_source_surface_review_20260912_replay_pin_inventory.json": "6f72cb15dfdd0f4e09777e606a19d9d99e985569",
+    "models/decision_source_surface_review_20260914_candidate_activation.json": "399f118a2504c9cb693938f9f1293a9a835addee",
+    "models/decision_source_surface_review_20260914_historical_statistics.json": "d9bf13facb3191a83eeea98ea656d1b1f53fd284",
+    "models/decision_source_surface_review_20260915_empty_roots.json": "2d2b579a093f4b515b4f22ea57b50f204abeb027",
+    "models/decision_source_surface_review_20260915_navigation.json": "14d4cc8fcb66023531d5fcc4ddc5485be9ed9493",
+    "models/decision_source_surface_review_20260915_observation.json": "7de97293b0af44a298bc5b95c8fcffa0dd84ef11",
+    "models/decision_source_surface_review_20260915_observation_v2.json": "40dd3710d1df3e2aa368e6f520b34623330afbf0",
+    "models/decision_source_surface_review_20260915_reliability.json": "f738e64c2968ccd51cec785e948061e4ec212574",
+    "models/decision_source_surface_review_20260920_full_list_promotion.json": "b509d1a5a9185d222130c143f636803eb93424ce",
+    "models/decision_source_surface_review_20260920_monthly_ledger.json": "3ed9af784dc8c729972ee8ce338181f6375b1eb3",
+    "models/decision_source_surface_review_20260920_settlement_repair.json": "f00f38cd02c6cf4eecc486630bfdda6625c00d7c",
+    "models/decision_source_surface_review_20260922_eligible_publication.json": "4a06624df3c4d583a25d94d5efb199d67fa36767",
+    "models/decision_source_surface_review_20260924_posthoc.json": "832df70fe6af33552d3591083a9645dc2cee1c51",
+    "models/decision_source_surface_review_20260925_statistics.json": "41d7ae06aa8e35051df68cc1528e024f5e617edd",
+    "models/decision_source_surface_review_20260927_delivery.json": "f5607cb743cbfa362abf4347f8ccbbf4b8cf8be9",
+    "models/decision_source_surface_review_20260927_market.json": "ae338f435397eb59fc355a1f49980b6dc46be788",
+    "models/decision_source_surface_review_20260928_nightly_stats.json": "cf1f63e0b59ebfc1b4f3624413ab5c4f67e5513f",
+    "models/decision_source_surface_review_20260928_profitday.json": "822246d68b7770b0577cea0778bd18339fff7e17",
+    "models/decision_source_surface_review_20260930_research_link.json": "1f282c4172899ad663fe3d432b9cc4cb96af48b1",
+    "models/decision_source_surface_review_20261018_paper_account.json": "2fa181b1a8310a582dfa214015a4592ad2d0d7d2",
+    "models/decision_source_surface_review_20261018_paper_account_200k_page.json": "ce7909ac16d5b436d92d32db9ee4a0ee9d764aff",
+    "models/decision_source_surface_review_20261018_paper_account_pipeline.json": "1c64688de6c037af99e21642e238b9ee7da6e083",
+    "models/decision_source_surface_review_20261107_delivery_hardening.json": "05fbababefe5ff78b95d5aaf9ff9dad66703bfb2",
+    "models/decision_source_surface_review_20261107_system_cleanup.json": "9f6e18e093dee67824aac7e86d13e116fb7bb20c",
+    "models/decision_source_surface_review_20261108_next_day_p0_profile.json": "83d54c26aa88b7566e053786c345c4fc8b6864f9",
+    "models/decision_source_surface_review_20261108_next_day_statistics.json": "8d0a7ef4ed9fd179419c7f49442a9499237e904f",
+    "models/decision_source_surface_review_20261108_next_day_summary_pin.json": "70786a7cc02da0defdcfc5418747707079aa3c5b",
+    "models/decision_source_surface_review_20261110_existing_continuation.json": "edfdcfa354425d41c507c70030a5db2cbff0e06b",
+    "models/decision_source_surface_review_20261110_reliability_isolation.json": "7a2f3a637d8775846215286144ce5118326ded8f",
+    "models/decision_source_surface_review_20261110_settlement_noop.json": "e03b8a8c2bfb364d28ddf28f040753f97a7c0acf",
+    "models/decision_source_surface_review_20261110_suspension_continuation.json": "ce4a4b0b87bf1deeed58dc711b37cb7f819ae212",
+    "models/decision_source_surface_review_20261110_suspension_pin.json": "b6282a0959fb1f9610dec3aab0c4fd98d6da9c2f",
+    "models/decision_source_surface_review_20261111_daily_metadata.json": "8c43b6247038218073781900fc4f1e98f6ae5d3d"
+  }
+}

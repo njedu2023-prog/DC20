@@ -24,7 +24,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = 'a504929e23a3eb29b1b49007a29e37c3ee169614e50aecae97b1ee0901cb2231'
+PUBLICATION_SHA = '2af7c784cdc5a4d8fa292d3352e3a59b3da1e17c98aa94cf0767fadf1fac7ad7'
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",

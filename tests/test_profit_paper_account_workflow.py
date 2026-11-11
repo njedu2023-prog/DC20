@@ -40,5 +40,5 @@ def test_account_frontend_consumes_published_artifact_not_browser_replay():
     assert "loadPublishedProfitPaperAccount" in refresh
     assert "buildProfitPaperAccount(" not in refresh
     assert "loadProfitPaperAccountInputs(" not in refresh
-    assert "主任务及结算发布时自动重算" in html
-    assert "已打开的页面需刷新读取新版" in html
+    assert "dc20_top1_realized_paper_account_v1" in html
+    assert "已退出交易盈亏" in html

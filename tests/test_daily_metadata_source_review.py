@@ -30,8 +30,10 @@ def review():
     return doc
 
 def source_before_daily_metadata(path,raw):
+    from tests.test_top1_paper_release_source_review import source_before_top1_release
+    raw = source_before_top1_release(path, raw)
     if path not in CHANGED:return raw
-    assert read(path)==raw
+    assert source_before_top1_release(path, read(path)) == raw
     item=next(v for v in review()['source_changes'] if v['path']==path)
     assert sha(raw)==item['current_sha256'] and len(raw)==item['current_bytes']
     lines=raw.decode().splitlines(keepends=True);end=offset=0
@@ -48,8 +50,10 @@ def source_before_daily_metadata(path,raw):
 
 def test_all_original_review_and_d10_evidence_preserved():
     for item in review()['source_changes']:source_before_daily_metadata(item['path'],read(item['path']))
+    from tests.test_top1_paper_release_source_review import source_before_top1_release
     for item in review()['preserved_files']:
-        raw=read(item['path']);assert len(raw)==item['bytes'] and sha(raw)==item['sha256'],item['path']
+        raw = source_before_top1_release(item['path'], read(item['path']))
+        assert len(raw)==item['bytes'] and sha(raw)==item['sha256'],item['path']
 
 @pytest.mark.parametrize('day',['20261013','20261014','20261021','20261104','20261105','20261106','20261109'])
 def test_real_original_journal_metadata_remains_readable(day):

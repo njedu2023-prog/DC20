@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 'use strict';
 
-// The main Pages job replays exactly the engine and byte-bound loaders shipped
-// in decision.html. This builder does not implement a second financial model.
+// The main Pages job computes the realized ledger once from byte-bound inputs.
+// The browser reads the resulting publication.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
 const {TextEncoder, TextDecoder} = require('node:util');
+const enginePath = require.resolve('./top1_realized_paper_account.cjs');
+const {buildTop1RealizedAccount} = require(enginePath);
 
 const ACCOUNT_PATH = 'outputs/decision/profit_paper_account/account.json';
 const SUMMARY_PATH = 'outputs/decision/candidate_profit_v1/summary.json';
@@ -99,9 +101,6 @@ function extractFunction(html, name) {
   return html.slice(match.index, end + '\n    }'.length);
 }
 function contextFromHtml(html, read) {
-  const names = ['executableProfitExpect', 'isSha256', 'canonicalJson', 'dateText', 'parseStrictCsvBytes',
-    'ledgerCanonicalSource', 'buildProfitPaperAccount', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs'];
-  const source = names.map(name => extractFunction(html, name)).join('\n');
   const context = vm.createContext({TextEncoder, TextDecoder,
     sha256Hex: async bytes => sha256(bytes),
     fetchPagesOnlyPath: async (relative, kind) => {
@@ -109,13 +108,33 @@ function contextFromHtml(html, read) {
       return read(relative);
     }
   }, {name:'DC20 published paper-account builder', codeGeneration:{strings:false, wasm:false}});
-  vm.runInContext(source, context, {timeout:10000, filename:'decision.html:shared-paper-account'});
+  vm.runInContext(sharedSources(html), context, {timeout:10000, filename:'decision.html:shared-paper-account'});
   return context;
 }
 function sharedSources(html) {
   return ['executableProfitExpect', 'isSha256', 'canonicalJson', 'dateText', 'parseStrictCsvBytes',
-    'ledgerCanonicalSource', 'buildProfitPaperAccount', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs']
+    'ledgerCanonicalSource', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs']
     .map(name => extractFunction(html, name)).join('\n');
+}
+function validateAccount(account, asOf) {
+  check(account.schema_version === 'dc20_top1_realized_paper_account_v1'
+    && account.start_signal_date === '20260914' && account.per_trade_budget === 100000
+    && account.as_of_date === asOf, 'unexpected published top1 ledger configuration');
+  const closed = account.trades.filter(trade => trade.status === 'CLOSED');
+  check(account.trades.every(t => t.rank === 1 && validDate(t.signal_date)
+    && t.signal_date >= account.start_signal_date && t.signal_date <= asOf)
+    && new Set(account.trades.map(t => t.signal_date)).size === account.trades.length
+    && account.closed_trades === closed.length, 'invalid top1 trade coverage');
+  const amounts = closed.map(t => Math.round(t.net_pnl * 100));
+  check(closed.every(t => Number.isFinite(t.net_pnl) && validDate(t.exit_date)
+    && t.exit_date > t.signal_date && t.exit_date <= asOf)
+    && account.last_exit_date === (closed.map(t => t.exit_date).sort().at(-1) || null),
+    'invalid top1 realized date or amount');
+  const gains = amounts.filter(n => n > 0), losses = amounts.filter(n => n < 0);
+  check(account.metrics.cumulative_pnl === amounts.reduce((total,n) => total+n,0)/100
+    && account.metrics.max_profit === (gains.length ? Math.max(...gains)/100 : null)
+    && account.metrics.max_loss === (losses.length ? Math.min(...losses)/100 : null),
+    'top1 realized metrics disagree with closed trades');
 }
 async function checkedBound(read, relative, expected, label) {
   safeRelative(relative);
@@ -169,34 +188,30 @@ async function materialize({siteRoot, sourceHtml}) {
   const htmlRoot = await regularRoot(path.dirname(htmlPath));
   const htmlBytes = await reader(htmlRoot)(path.basename(htmlPath));
   // Pages adds a dated truthfulness banner to HTML. Require the same published
-  // pages and exact engine/loaders, without treating that expected banner as code drift.
+  // pages and exact input loaders, without treating that expected banner as code drift.
   const deployedIndex = await read('index.html'), deployedDecision = await read('decision.html');
   check(deployedIndex.equals(deployedDecision), 'published index.html differs from decision.html');
   const sourceText = new TextDecoder('utf-8', {fatal:true}).decode(htmlBytes);
   const deployedText = new TextDecoder('utf-8', {fatal:true}).decode(deployedIndex);
   check(sharedSources(deployedText) === sharedSources(sourceText), 'published account implementation differs from --source-html');
   const context = contextFromHtml(sourceText, read);
-  // JSON is created inside the context, preserving the VM Map identity expected by the engine.
+  // Parse in the isolated loader context. The engine consumes its verified maps.
   context.inputJson = JSON.stringify({summary:summary.value, windowPayload:windowPayload.value, revision});
   vm.runInContext('var input = JSON.parse(inputJson);', context, {timeout:1000});
-  context.inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});
-  const result = vm.runInContext('buildProfitPaperAccount(input.summary, inputs.quotes, inputs.identities)', context, {timeout:30000});
-  check(result.start_signal_date === '20261019' && result.initial_capital === 735000 && result.per_trade_budget === 100000
-    && result.waiting_for_start === (result.as_of_date < result.start_signal_date), 'paper account reset configuration mismatch');
-  check(result.trades.every(t => t.signal_date >= result.start_signal_date)
-    && result.days.every(d => d.date >= result.start_signal_date)
-    && result.missing_signal_dates.every(d => d >= result.start_signal_date), 'paper account contains pre-reset records');
+  const inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});
+  const result = buildTop1RealizedAccount(summary.value, inputs.quotes, inputs.identities);
+  validateAccount(result, summary.value.as_of_date);
   result.data_bindings = {summary_sha256:revision.candidate_profit_summary_sha256,
-    window_sha256:revision.compact_statistics_window_sha256,
-    engine_sha256:sha256(Buffer.from(extractFunction(new TextDecoder('utf-8', {fatal:true}).decode(htmlBytes), 'buildProfitPaperAccount'))),
-    source_files:context.inputs.source_files, missing_market_dates:context.inputs.missing_market_dates};
+    index_sha256:revision.candidate_profit_index_sha256, window_sha256:revision.compact_statistics_window_sha256,
+    engine_sha256:sha256(await fs.readFile(enginePath)), source_files:inputs.source_files,
+    missing_market_dates:inputs.missing_market_dates};
   result.publication = {mode:'main_pipeline', source_head_sha:revision.head_sha, run_id:revision.run_id,
     published_at_utc:revision.published_at_utc, source_html_sha256:sha256(htmlBytes),
     latest_signal_date:revision.primary_d_signal_date,
     ledger_lagging:summary.value.as_of_date < revision.primary_d_signal_date};
   const artifactRaw = jsonBytes(result);
   const binding = {profit_paper_account_url:ACCOUNT_PATH, profit_paper_account_sha256:sha256(artifactRaw),
-    profit_paper_account_as_of_date:result.as_of_date, profit_paper_account_last_valid_date:result.last_valid_date,
+    profit_paper_account_as_of_date:result.as_of_date, profit_paper_account_last_valid_date:result.last_exit_date,
     profit_paper_account_updated_at:revision.published_at_utc, profit_paper_account_producer_run_id:revision.run_id};
   const nextRevision = jsonBytes({...revision, ...binding});
   // Inputs never change. Both replacements are atomic; revision is the final
@@ -211,15 +226,17 @@ async function materialize({siteRoot, sourceHtml}) {
     else await fs.unlink(await safeTarget(root, ACCOUNT_PATH));
     throw error;
   }
-  return {status:'built', ...binding, complete:result.complete, blocked:result.blocked,
-    trades:result.trades.length, daily_points:result.days.length};
+  return {status:'built', ...binding, closed_trades:result.closed_trades, metrics:result.metrics};
 }
 async function verifyPublic({siteRoot, baseUrl, fetchImpl = globalThis.fetch}) {
   const root = await regularRoot(siteRoot), read = reader(root);
   const revisionRaw = await read('revision.json'), revision = strictJson(revisionRaw, 'local Pages revision');
   check(revision.profit_paper_account_url === ACCOUNT_PATH, 'account publication missing from revision');
   const account = await checkedBound(read, ACCOUNT_PATH, revision.profit_paper_account_sha256, 'published account');
+  validateAccount(account.value, revision.profit_paper_account_as_of_date);
   check(account.value.publication?.mode === 'main_pipeline'
+    && account.value.last_exit_date === revision.profit_paper_account_last_valid_date
+    && account.value.data_bindings?.index_sha256 === revision.candidate_profit_index_sha256
     && account.value.publication.source_head_sha === revision.head_sha
     && account.value.publication.run_id === revision.run_id
     && account.value.data_bindings?.summary_sha256 === revision.candidate_profit_summary_sha256

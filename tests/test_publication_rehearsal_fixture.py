@@ -244,14 +244,16 @@ def test_workflow_uses_one_immutable_source_for_both_code_versions():
                   'natural_freeze_created', 'public_deploy_performed'):
         assert guard in comparison
     assert 'publication-comparison.json' in comparison and immediate_sha in comparison
-    assert BASELINE not in comparison and DAY not in comparison
+    # The realized ledger can legitimately exit on DAY without changing the replay signal date.
+    assert BASELINE not in comparison and DAY not in comparison.replace("top1['last_exit_date']=='20261106'", '')
     latest = next(s['run'] for s in steps if s['name'] == 'Recompute latest original freeze with immediate old and new code')
     assert '--source-root reliability-baseline --signal-date 20261110' in latest
     assert 'for trial in 1 2 3' in latest and 'reliability-comparison.json' in latest
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong_day', 'wrong_fixture', 'different_inputs',
-    'different_account', 'no_protection', 'new_freeze', 'actual_deployment'])
+    'different_account', 'incorrect_top1_total', 'incorrect_top1_best', 'incorrect_top1_worst',
+    'incorrect_old_nav', 'no_protection', 'new_freeze', 'actual_deployment'])
 def test_publication_comparison_rejects_incompatible_fixture_or_changed_business_values(tmp_path, monkeypatch, fault):
     workflow = yaml.safe_load((Path(__file__).resolve().parents[1]/
                               '.github/workflows/verify_daily_cleanup.yml').read_text())
@@ -265,13 +267,27 @@ def test_publication_comparison_rejects_incompatible_fixture_or_changed_business
                     'source_head': '65d4e0c1d80c177645eff1d1bbd53fee71cffda9'},
                 'business_input_inventory_sha256': 'a'*64,
                 'natural_freeze_created': False, 'public_deploy_performed': False,
-                'protected_files_unchanged': 20, 'account': {'assets': 735000},
+                'protected_files_unchanged': 20,
                 'total_seconds': 10.0 + trial}
+            if version == 'reliability-baseline':
+                item['account'] = {'schema_version': 'dc20_paper_capital_account_v1',
+                    'start_signal_date': '20261019', 'last_valid_date': '20261109',
+                    'initial_capital': 735000, 'per_trade_budget': 100000,
+                    'metrics': {'nav': 707771.09 if fault != 'incorrect_old_nav' else 0}}
+            else:
+                item['account'] = {'schema_version': 'dc20_top1_realized_paper_account_v1',
+                    'start_signal_date': '20260914', 'last_exit_date': '20261106',
+                    'per_trade_budget': 100000, 'closed_trades': 27,
+                    'metrics': {'cumulative_pnl': 117878.58,'max_profit': 32482.59,'max_loss': -14685.93}}
+                wrong_metric = {'incorrect_top1_total':'cumulative_pnl', 'incorrect_top1_best':'max_profit',
+                    'incorrect_top1_worst':'max_loss'}.get(fault)
+                if wrong_metric:
+                    item['account']['metrics'][wrong_metric] = 0
             if version == 'cleaned' and trial == 3:
                 if fault == 'wrong_day': item['signal_date'] = DAY
                 if fault == 'wrong_fixture': item['source_fixture']['source_head'] = BASELINE
                 if fault == 'different_inputs': item['business_input_inventory_sha256'] = 'b'*64
-                if fault == 'different_account': item['account']['assets'] += 1
+                if fault == 'different_account': item['account']['closed_trades'] += 1
                 if fault == 'no_protection': item['protected_files_unchanged'] = 0
                 if fault == 'new_freeze': item['natural_freeze_created'] = True
                 if fault == 'actual_deployment': item['public_deploy_performed'] = True

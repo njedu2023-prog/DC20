@@ -48,8 +48,8 @@ test("homepage has new-window entry links and no inline account loader", () => {
   }
   assert.match(main,/id="profitPaperAccount"/);
   assert.doesNotMatch(main,/id="profitPaperAccountContent"/);
-  assert.match(main,/本金73\.5万元 · 盈1 \/ 盈2各10万元/);
-  assert.match(main,/D 2026-10-19/);
+  assert.match(main,/每笔预算10万元/);
+  assert.match(main,/从 2026-09-14 的信号起/);
 });
 
 test("standalone route selects account initializer before ledger and homepage", () => {
@@ -60,11 +60,11 @@ test("standalone route selects account initializer before ledger and homepage", 
 test("independent page shell has explicit budget, return link and usable refresh", async () => {
   const f = fixture();
   await f.context.initializeProfitPaperAccount();
-  assert.equal(f.context.document.title,"盈利前二 · 模拟账户 | DC20");
+  assert.equal(f.context.document.title,"盈1 · 模拟账本 | DC20");
   assert.equal(f.header.hidden,true);
-  assert.match(f.context.els.mainContent.innerHTML,/每笔预算各10万元/);
-  assert.match(f.context.els.mainContent.innerHTML,/73\.5万元/);
-  assert.match(f.context.els.mainContent.innerHTML,/2026-10-19/);
+  assert.match(f.context.els.mainContent.innerHTML,/每笔预算10万元/);
+  assert.doesNotMatch(f.context.els.mainContent.innerHTML,/73\.5万元|盈2|账户净值/);
+  assert.match(f.context.els.mainContent.innerHTML,/2026-09-14/);
   assert.match(f.context.els.mainContent.innerHTML,/href="\?"/);
   assert.match(f.context.els.mainContent.innerHTML,/id="profitPaperAccountContent"/);
   assert.equal(typeof f.node("paperAccountRefresh").onclick,"function");
@@ -101,7 +101,7 @@ test("source-validation failure clears previous NAV and escapes diagnostic text"
   assert.equal(f.context.state.profitPaperAccount,null);
   assert.equal(f.context.state.compactFatalError,true);
   assert.match(f.node("profitPaperAccountContent").innerHTML,/wrong &lt;window&gt;/);
-  assert.match(f.node("profitPaperAccountContent").innerHTML,/已清空旧净值/);
+  assert.match(f.node("profitPaperAccountContent").innerHTML,/盈1账本暂不可核验/);
   assert.doesNotMatch(f.node("profitPaperAccountContent").innerHTML,/old NAV|<window>/);
   assert.equal(f.calls.filter(c=>Array.isArray(c)&&c[0]==="account").length,0);
   assert.equal(f.node("paperAccountRefresh").disabled,false);

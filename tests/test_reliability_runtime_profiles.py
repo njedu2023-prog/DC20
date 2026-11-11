@@ -72,7 +72,10 @@ def test_predecessor_capture_and_observer_are_a_complete_pair():
 
 
 def test_new_p0_profile_binds_all_current_execution_files():
-    profile = continuation.RELIABILITY_P0_CODE_PROFILE
+    profile = continuation.TOP1_PAPER_P0_CODE_PROFILE
+    original = continuation.RELIABILITY_P0_CODE_PROFILE
+    assert set(profile) == set(original)
+    assert {p for p in original if profile[p] != original[p]} == {continuation.MANIFEST_PATH}
     assert "data/market/confirmed_suspensions.json" not in profile
     assert not any(p.startswith("data/market/suspension") for p in profile)
     for path, expected in profile.items():
@@ -85,8 +88,8 @@ def test_new_p0_profile_binds_all_current_execution_files():
                            "git_blob_sha1": gh.git_blob(raw), "git_mode": "100644"}
 
 
-def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees():
-    profile = continuation.RELIABILITY_P0_CODE_PROFILE
+@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper"])
+def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
     trees = [tree(profile) for _ in range(3)]
     result, transition = continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261111"})
     assert result is profile and transition is None
@@ -97,6 +100,11 @@ def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees():
         broken[index]["src/top10decision/decision/suspension_evidence_registry.py"]["sha"] = "f" * 40
         with pytest.raises(ValueError, match="CODE_PROFILE_REQUIRED"):
             continuation.validate_code_profiles(gh, None, *broken, {"signal_date": "20261111"})
+        other = next(p for p in continuation.RELIABILITY_PROFILES if p != profile)
+        mixed = deepcopy(trees)
+        mixed[index][continuation.MANIFEST_PATH]["sha"] = other[continuation.MANIFEST_PATH]
+        with pytest.raises(ValueError, match="CODE_PROFILE_REQUIRED"):
+            continuation.validate_code_profiles(gh, None, *mixed, {"signal_date": "20261111"})
 
 
 @pytest.mark.parametrize("runner", [natural, eligible])
