@@ -1225,6 +1225,33 @@
     .paper-page-link,.paper-page-link:visited { display:inline-flex; align-items:center; justify-content:center; padding:9px 13px; border:1px solid #bad0c8; border-radius:6px; background:#edf6f1; color:#17675a; font-size:13px; font-weight:650; text-decoration:none; white-space:nowrap; }
     .paper-page-link:hover { background:#dfeee6; }
     .paper-page-link:focus-visible { outline:2px solid #17675a; outline-offset:3px; }
+    .paper-curve { margin:16px 0; padding:16px clamp(12px,2vw,26px) 12px; background:linear-gradient(160deg,#fff 35%,#f7faf9); border:1px solid var(--line); border-radius:10px; font-variant-numeric:tabular-nums; }
+    .paper-curve header,.curve-readout { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 18px; }
+    .paper-curve header { justify-content:space-between; position:static; background:transparent; padding:0; box-shadow:none; }
+    .paper-curve h3 { margin:0; color:var(--text); font-size:16px; }
+    .paper-curve header span,.curve-readout,.curve-dates,.curve-rule span { color:var(--muted); font-size:12px; }
+    .curve-readout { margin:9px 0 10px; }
+    .curve-readout time { font-weight:650; }
+    .curve-readout b { margin-left:3px; }
+    .curve-frame { margin:0 10px 0 46px; }
+    .curve-plot { position:relative; height:clamp(142px,16vw,225px); }
+    .curve-rule { position:absolute; left:0; right:0; border-top:1px solid #e2e9e6; }
+    .curve-rule.zero { border-top:1px dashed #8fa69e; }
+    .curve-rule span { position:absolute; right:100%; padding-right:9px; transform:translateY(-50%); white-space:nowrap; }
+    .curve-plot svg,.curve-plot input { position:absolute; inset:0; width:100%; height:100%; }
+    .curve-plot input { opacity:0; cursor:crosshair; margin:0; }
+    .curve-plot:focus-within { outline:2px solid #3b8374; outline-offset:3px; }
+    .curve-marker { position:absolute; inset-block:0; border-left:1px dotted #7c908a; pointer-events:none; }
+    .curve-marker::after { content:''; position:absolute; top:var(--point-y); left:-.5px; transform:translate(-50%,-50%); width:8px; height:8px; border:2px solid #fff; border-radius:50%; background:var(--point-color); box-shadow:0 0 0 1px #ccd8d3; }
+    .curve-dates { position:relative; height:22px; margin-top:4px; }
+    .curve-dates span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+    .curve-dates span:first-child:not(:only-child) { transform:none; }
+    .curve-dates span:last-child:not(:only-child) { transform:translateX(-100%); }
+    .paper-month-stats { display:flex; flex-wrap:wrap; gap:8px 32px; margin:0 0 12px; padding:10px 14px; background:#f5f8f7; border-left:3px solid #9bb8ad; border-radius:4px; font-variant-numeric:tabular-nums; }
+    .paper-month-stats div { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
+    .paper-month-stats dt { color:var(--muted); font-size:12px; }
+    .paper-month-stats dd { margin:0; font-weight:650; }
+    @media(max-width:600px) { .paper-month-stats { gap:6px 15px; } .curve-readout { gap:4px 10px; } .curve-frame { margin-left:38px; } }
     .paper-history { margin-top:20px; border-top:1px solid var(--line); }
     .paper-history-heading,.paper-history nav { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
     .paper-history-heading { justify-content:space-between; padding:12px 0; }
@@ -2507,6 +2534,87 @@
       return `${signed && value > 0 ? "+" : ""}${value.toLocaleString("zh-CN", {minimumFractionDigits:2,maximumFractionDigits:2})} 元`;
     }
 
+    function paperDailyRealized(trades) {
+      const daily = new Map();
+      function point(day) {
+        if (!daily.has(day)) daily.set(day, {day, change:0, count:0});
+        return daily.get(day);
+      }
+      for (const trade of trades) {
+        point(trade.signal_date);
+        if (trade.status !== 'CLOSED') continue;
+        const exit = point(trade.exit_date);
+        exit.change += Math.round(trade.net_pnl * 100);
+        exit.count++;
+      }
+      let cents = 0;
+      return Array.from(daily.values()).sort((a,b) => a.day.localeCompare(b.day)).map(p => {
+        cents += p.change;
+        return {day:p.day, total:cents / 100, change:p.change / 100, count:p.count};
+      });
+    }
+
+    function paperCurveReadout(p) {
+      return `<time>${escapeHtml(dateText(p.day))}</time><span>当日 <b class="${valueTone(p.change)}">${paperAccountMoney(p.change,true)}</b></span><span>累计 <b class="${valueTone(p.total)}">${paperAccountMoney(p.total,true)}</b></span><span>退出 ${p.count} 笔</span>`;
+    }
+
+    function paperCurveMarkup(points) {
+      if (!points.length) return '<section class="paper-curve"><h3>累计已实现盈亏曲线</h3><p>暂无交易日记录</p></section>';
+      const totals = points.map(p => p.total);
+      const min = Math.min(0,...totals), max = Math.max(0,...totals);
+      const rough = (max - min || 4) / 4;
+      const magnitude = 10 ** Math.floor(Math.log10(rough));
+      const step = ([1,2,2.5,5,10].find(s => s * magnitude >= rough) || 10) * magnitude;
+      const low = Math.floor(min / step) * step, high = Math.max(low + step, Math.ceil(max / step) * step);
+      const y = n => 4 + (high - n) / (high - low) * 92;
+      const x = i => points.length === 1 ? 50 : i * 100 / (points.length - 1);
+      const coords = points.map((p,i) => `${x(i).toFixed(3)},${y(p.total).toFixed(3)}`).join(' ');
+      const ticks = [];
+      for (let t=0; t<=Math.round((high-low)/step); t++) {
+        const value = low + t * step;
+        const label = Math.abs(value) >= 10000 ? (value / 10000).toLocaleString('zh-CN') + '万' : value.toLocaleString('zh-CN');
+        ticks.push(`<div class="curve-rule${Math.abs(value)<step/1000?' zero':''}" style="top:${y(value)}%"><span>${label}</span></div>`);
+      }
+      const last = points.length - 1, current = points[last], zero = y(0);
+      const indices = [...new Set([0,Math.round(last/2),last])];
+      return `<section class="paper-curve" aria-label="累计已实现盈亏曲线"><header><h3>累计已实现盈亏曲线</h3><span>按退出日 · 扣费后 · 元</span></header>
+        <div class="curve-readout" id="paperCurveReadout">${paperCurveReadout(current)}</div>
+        <div class="curve-frame"><div class="curve-plot" id="paperCurvePlot">${ticks.join('')}
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>
+            <linearGradient id="curveStroke" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="100"><stop offset="${zero}%" stop-color="#ba4135"/><stop offset="${zero}%" stop-color="#187654"/></linearGradient>
+            <linearGradient id="curveFill" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="100"><stop stop-color="#c75042" stop-opacity=".18"/><stop offset="${zero}%" stop-color="#c75042" stop-opacity=".025"/><stop offset="${zero}%" stop-color="#187654" stop-opacity=".025"/><stop offset="100%" stop-color="#187654" stop-opacity=".18"/></linearGradient>
+          </defs><polygon points="${x(0)},${zero} ${coords} ${x(last)},${zero}" fill="url(#curveFill)"/><polyline points="${coords}" fill="none" stroke="url(#curveStroke)" stroke-width="2.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
+          <div class="curve-marker" id="paperCurveMarker" style="left:${x(last)}%;--point-y:${y(current.total)}%;--point-color:${current.total<0?'#187654':'#ba4135'}"></div>
+          <input id="paperCurveDay" type="range" min="0" max="${last}" value="${last}" step="1" aria-label="查看交易日盈亏" aria-valuetext="${escapeHtml(dateText(current.day))}，累计 ${paperAccountMoney(current.total,true)}" data-low="${low}" data-high="${high}">
+        </div><div class="curve-dates">${indices.map(i=>`<span style="left:${x(i)}%">${escapeHtml(dateText(points[i].day).slice(5))}</span>`).join('')}</div></div>
+        </section>`;
+    }
+
+    function bindPaperCurve(points) {
+      const slider = document.getElementById('paperCurveDay');
+      if (!points.length || !slider) return;
+      const plot = document.getElementById('paperCurvePlot');
+      const marker = document.getElementById('paperCurveMarker');
+      const readout = document.getElementById('paperCurveReadout');
+      const low = Number(slider.dataset.low), high = Number(slider.dataset.high);
+      function selectDay(index) {
+        const p = points[index];
+        slider.value = String(index);
+        readout.innerHTML = paperCurveReadout(p);
+        slider.setAttribute('aria-valuetext', `${dateText(p.day)}，当日 ${paperAccountMoney(p.change,true)}，累计 ${paperAccountMoney(p.total,true)}，退出 ${p.count} 笔`);
+        marker.style.left = (points.length < 2 ? 50 : index * 100 / (points.length-1)) + '%';
+        marker.style.setProperty('--point-y', (4 + (high-p.total) / (high-low) * 92) + '%');
+        marker.style.setProperty('--point-color', p.total < 0 ? '#187654' : '#ba4135');
+      }
+      slider.oninput = () => selectDay(Number(slider.value));
+      slider.onpointermove = event => {
+        if (event.pointerType !== 'mouse' || event.buttons) return;
+        const rect = plot.getBoundingClientRect();
+        if (rect.width) selectDay(Math.round(Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width)) * (points.length-1)));
+      };
+    }
+
+
     function paperTradeMonths(trades) {
       return [...new Set(trades.map(t => t.signal_date.slice(0, 6)))].sort().reverse();
     }
@@ -2532,7 +2640,12 @@
         NO_FILL_SUSPENDED:'停牌未买入',
         NO_FILL_CANONICAL_AUCTION_ZERO_VOLUME:'竞价无成交量，未买入'
       };
-      const rows = result.trades.filter(t => t.signal_date.startsWith(month))
+      const monthTrades = result.trades.filter(t => t.signal_date.startsWith(month));
+      const gains = monthTrades.filter(t => t.status === 'CLOSED').map(t => Math.round(t.net_pnl * 100));
+      const sum = gains.reduce((a,b) => a+b,0);
+      const best = Math.max(0,...gains), worst = Math.min(0,...gains);
+      const stats = [['本月合计盈亏',sum],['最大单笔盈利',best || null],['最大单笔亏损',worst || null]];
+      const rows = monthTrades
         .sort((a, b) => b.signal_date.localeCompare(a.signal_date))
         .map(t => {
           const status = t.status === 'NO_FILL' ? (noFillReasons[t.source_status] || '未买入') : (labels[t.status] || '待核验');
@@ -2541,13 +2654,14 @@
           return `<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>${escapeHtml(t.ts_code || '—')} ${escapeHtml(t.name || '')}</td><td title="${escapeHtml(t.source_status || t.status)}">${status}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${price(t.entry_price)}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${price(t.exit_price)}</td><td class="${gain === null ? '' : valueTone(gain)}">${paperAccountMoney(gain, true)}</td></tr>`;
         }).join('');
       return `<section class="paper-history" aria-label="盈1逐笔列表"><div class="paper-history-heading"><h3>盈1逐笔列表</h3><label>信号月份 <select id="paperTradeMonth">${options}</select></label></div>
+        <dl class="paper-month-stats" aria-label="当页已退出交易统计">${stats.map(([label,cents]) => `<div><dt>${label}</dt><dd class="${cents === null ? '' : valueTone(cents)}">${cents === null ? '—' : paperAccountMoney(cents/100,true)}</dd></div>`).join('')}</dl>
         <div class="paper-history-scroll"><table aria-label="${monthText(month)} 盈1逐笔记录"><thead><tr><th>信号日</th><th>代码 / 股票</th><th>状态</th><th>买入日</th><th>买入价</th><th>退出日</th><th>退出价</th><th>扣费盈亏</th></tr></thead><tbody>${rows}</tbody></table></div>
         <nav aria-label="逐笔列表月份翻页"><button type="button" id="paperMonthOlder" aria-label="较早月份"${index === months.length - 1 ? ' disabled' : ''}>❮</button>
         <span aria-live="polite">${monthText(month)} · ${index + 1} / ${months.length} 页</span>
         <button type="button" id="paperMonthNewer" aria-label="较晚月份"${index === 0 ? ' disabled' : ''}>❯</button></nav></section>`;
     }
 
-    function profitPaperAccountMarkup(result, month) {
+    function profitPaperAccountMarkup(result, month, points = paperDailyRealized(result.trades)) {
       const { cumulative_pnl, max_profit, max_loss } = result.metrics;
       const cumulativeReturn = cumulative_pnl / result.per_trade_budget;
       const cards = [
@@ -2565,7 +2679,7 @@
           </div>
           ${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
           <div class="paper-card"><dt>已成交并退出笔数</dt><dd>${result.closed_trades.toLocaleString("zh-CN")} 笔</dd></div>
-        </dl>${missing}${paperTradeHistory(result, month)}`;
+        </dl>${paperCurveMarkup(points)}${missing}${paperTradeHistory(result, month)}`;
     }
 
     function renderProfitPaperAccount() {
@@ -2589,7 +2703,9 @@
         node.innerHTML=`<div class="empty">${view.status==="loading"?"正在读取已退出交易的盈亏…":`盈1账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;
         return;
       }
-      node.innerHTML=profitPaperAccountMarkup(view.result, view.tradeMonth);
+      const points = paperDailyRealized(view.result.trades);
+      node.innerHTML=profitPaperAccountMarkup(view.result, view.tradeMonth, points);
+      bindPaperCurve(points);
       const select = document.getElementById("paperTradeMonth");
       if (!select) return;
       const changeMonth = (offset, focusId) => {

@@ -22,7 +22,7 @@ function context(extra={}) {
   const nodes=new Map();
   const c={console,setTimeout,clearTimeout,Map,Set,Uint8Array,TextDecoder,TextEncoder,Blob,
     state:{compactLoadSequence:1,compactFatalError:false},window:{innerWidth:1200},
-    document:{getElementById(id){if(!nodes.has(id))nodes.set(id,{innerHTML:""});return nodes.get(id)}},
+    document:{getElementById(id){if(!nodes.has(id))nodes.set(id,{innerHTML:"",dataset:{}});return nodes.get(id)}},
     executableProfitExpect(ok,message){if(!ok)throw Error(message)},
     isSha256:v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v),
     canonicalJson:JSON.stringify,sha256Hex:async b=>sha(b),
@@ -55,7 +55,7 @@ test("the ledger displays three signed amounts and the settled trade count with 
   assert.match(markup,/开盘涨停未买入（成交未确认）/);
   assert.match(markup,/起始信号日 2026-09-14 · 数据截至 2026-10-22 · 最近退出日 2026-10-21/);
   assert.match(markup,/以下信号日缺少正式冻结名单/);
-  assert.doesNotMatch(markup,/盈2|净值|最大回撤|<svg/);
+  assert.doesNotMatch(markup,/盈2|净值|最大回撤/);
 });
 test('cumulative return uses a single fixed budget across closed trades and preserves the sign',()=>{
   const c=context({valueTone:n=>n>0?'positive':'negative'});
@@ -78,6 +78,23 @@ test('each history page covers one signal month with the latest first',()=>{
   assert.match(earlier,/aria-label="较早月份" disabled/);
   assert.match(earlier,/2026-09-16/);
   assert.doesNotMatch(earlier,/2026-10-19/);
+});
+test('exit-day series combines multiple exits and keeps no-fill days flat across a month boundary',()=>{
+  const c=context(), data=result();
+  data.trades=[
+    {signal_date:'20260929',status:'CLOSED',exit_date:'20261008',net_pnl:-5000},
+    {signal_date:'20260930',status:'CLOSED',exit_date:'20261008',net_pnl:8000.01},
+    {signal_date:'20261008',status:'NO_FILL'},{signal_date:'20261009',status:'PENDING'}
+  ];
+  const days=c.paperDailyRealized(data.trades);
+  assert.deepEqual(Array.from(days,p=>[p.day,p.change,p.total,p.count]),[
+    ['20260929',0,0,0],['20260930',0,0,0],['20261008',3000.01,3000.01,2],['20261009',0,3000.01,0]
+  ]);
+  const sept=c.paperTradeHistory(data,'202609'), oct=c.paperTradeHistory(data,'202610');
+  assert.match(sept,/本月合计盈亏<.dt><dd[^>]*>\+3,000.01 元/);
+  assert.match(sept,/最大单笔亏损<.dt><dd[^>]*>-5,000.00 元/);
+  assert.match(oct,/本月合计盈亏<.dt><dd[^>]*>0.00 元/);
+  assert.match(oct,/最大单笔盈利<.dt><dd[^>]*>—/);
 });
 test('an empty realized set shows zero cumulative P&L and no extremes',()=>{
   const data=result();
