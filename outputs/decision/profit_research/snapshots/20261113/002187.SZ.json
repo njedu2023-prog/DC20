@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261116",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.936908517350156,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.012006861063464935,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.16666666666666666,
+      "five_year_streak_runup": 0.21006944444444442,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.3225806451612905,
+      "ret_2d": 0.21006944444444442,
+      "ret_5d": 0.2206654991243433,
+      "stage2_pool_size": 4.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": 0.05003504585763053,
+      "volatility_5d": 0.048306539037044516,
+      "volume_ratio": 3.553903717422977
+    },
+    "frozen_at": "2026-11-13T14:42:02.762190+00:00",
+    "industry": "一般零售",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "广百股份",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261117",
+    "score": -0.0020971412225825646,
+    "signal_date": "20261113",
+    "ts_code": "002187.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261113.json",
+      "sha256": "90ef5e697bb6439b636bd633caf85b568ec9a20b3cbafb2193978dbcc811cb99"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261113.json",
+      "sha256": "da1657b9383f9793d2f22b3ebf24637f7cdf595b7f152feb70af0321e5c94505"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261113.json",
+      "sha256": "d0d025d141ca9d4fef8f1dc9f9bcf0678a43ca1aaa36a8a1f989cacf84869b90"
+    }
+  ]
+}
