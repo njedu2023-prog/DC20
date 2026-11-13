@@ -1,4 +1,6 @@
 """CAS publish only allowlisted research JSON; never commits production files."""
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -41,10 +43,14 @@ def main():
     bound_paths.update(b['path'] for b in dataset.get('extension_source_bindings',[]))
     bound_paths.update(b['path'] for b in dataset.get('operations_summary',{}).get('source_bindings',[]))
     entries=[]
-    for p in changed:
+    for p in sorted(set(changed)):
         raw=Path(p).read_bytes()
         if token.encode() in raw or (os.environ.get('TUSHARE_TOKEN') and os.environ['TUSHARE_TOKEN'].encode() in raw):raise ValueError('SECRET_IN_OUTPUT')
-        entries.append({'path':p,'mode':'100644','type':'blob','content':raw.decode('utf-8')})
+        blob = api('git/blobs', {'encoding': 'base64', 'content': base64.b64encode(raw).decode('ascii')})
+        expected = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+        if blob.get('sha') != expected:
+            raise ValueError('RESEARCH_BLOB_SHA_MISMATCH')
+        entries.append({'path':p,'mode':'100644','type':'blob','sha':expected})
     for attempt in range(3):
         head=api('git/ref/heads/main')['object']['sha']
         if head!=base and not sources_unchanged(api('compare/'+base+'...'+head),bound_paths):
