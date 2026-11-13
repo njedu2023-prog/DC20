@@ -24,6 +24,36 @@ def sources_unchanged(comparison, bound_paths):
     return not any(p in bound_paths or p.startswith(protected)
                    for f in files for p in (f['filename'],f.get('previous_filename',f['filename'])))
 
+def update_tree(api, base_sha, entries):
+    # Submit one directory at a time, reusing unchanged children from its base.
+    groups = {}
+    children = []
+    for entry in entries:
+        name, sep, suffix = entry['path'].partition('/')
+        if sep:
+            groups.setdefault(name, []).append(dict(entry, path=suffix))
+        else:
+            children.append(entry)
+    if base_sha and groups:
+        base = api('git/trees/' + base_sha)
+        if base.get('truncated'):
+            raise ValueError('RESEARCH_BASE_TREE_TRUNCATED')
+        directories = {e['path']: e['sha'] for e in base['tree'] if e['type'] == 'tree'}
+    else:
+        directories = {}
+    for name, nested in sorted(groups.items()):
+        tree = update_tree(api, directories.get(name), nested)
+        children.append({'path': name, 'type': 'tree', 'mode': '040000', 'sha': tree['sha']})
+    body = {'tree': children}
+    if base_sha:
+        body['base_tree'] = base_sha
+    try:
+        return api('git/trees', body)
+    except urllib.error.HTTPError as exc:
+        detail = json.loads(exc.read()).get('message', 'No GitHub error message')
+        raise RuntimeError(f'Research tree HTTP {exc.code}: {detail}') from exc
+
+
 def main():
     repo='njedu2023-prog/DC20'; token=os.environ['GH_TOKEN']; base=os.environ['RESEARCH_BASE']
     def api(path,body=None,method=None):
@@ -56,7 +86,7 @@ def main():
         if head!=base and not sources_unchanged(api('compare/'+base+'...'+head),bound_paths):
             raise ValueError('RESEARCH_SOURCES_MOVED_REBUILD_REQUIRED')
         parent=api('git/commits/'+head)
-        tree=api('git/trees',{'base_tree':parent['tree']['sha'],'tree':entries})
+        tree=update_tree(api, parent['tree']['sha'], entries)
         commit=api('git/commits',{'message':'research: append verified feature and outcome evidence [dc20-candidate-pages-owned]',
                                 'tree':tree['sha'],'parents':[head]})
         print('Prepared immutable research commit '+commit['sha'],flush=True)
