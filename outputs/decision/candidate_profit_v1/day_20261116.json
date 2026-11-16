@@ -1,0 +1,354 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 10,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": 0.0020951594971215584,
+      "net_return": null,
+      "promotion_rank": 9,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600715.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.0022226938472364654,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002425.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002905.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002425.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002187.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002205.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002685.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002748.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002548.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000595.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600715.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000819.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261117",
+  "exit_date": "20261118",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-17T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "影视院线",
+      "name": "金逸影视",
+      "promotion_rank": 1,
+      "ts_code": "002905.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "游戏Ⅱ",
+      "name": "凯撒文化",
+      "promotion_rank": 2,
+      "ts_code": "002425.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "广百股份",
+      "promotion_rank": 3,
+      "ts_code": "002187.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "水泥",
+      "name": "国统股份",
+      "promotion_rank": 4,
+      "ts_code": "002205.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "工程机械",
+      "name": "华东重机",
+      "promotion_rank": 5,
+      "ts_code": "002685.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学原料",
+      "name": "世龙实业",
+      "promotion_rank": 6,
+      "ts_code": "002748.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "饲料",
+      "name": "金新农",
+      "promotion_rank": 7,
+      "ts_code": "002548.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "电力",
+      "name": "新能股份",
+      "promotion_rank": 8,
+      "ts_code": "000595.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "游戏Ⅱ",
+      "name": "文投控股",
+      "promotion_rank": 9,
+      "ts_code": "600715.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "炼化及贸",
+      "name": "岳阳兴长",
+      "promotion_rank": 10,
+      "ts_code": "000819.SZ"
+    }
+  ],
+  "p0_file_sha256": "dd9faae26db2fb2f06ffcc357514bb07205019218461b4dbca7064ce6dbc328d",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261116.json",
+    "sha256": "dd9faae26db2fb2f06ffcc357514bb07205019218461b4dbca7064ce6dbc328d"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-16T11:25:33.555188+00:00",
+  "prediction_generated_at_utc": "2026-11-16T11:25:33.538025+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-16T11:33:06.247859+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002905.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002425.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "0b8ab065ea17a532d426f9db1cc709c60302ac27",
+    "evidence_manifest_sha256": "03cf07fd98c31eaa2c997ec982a5025978278740d944f03a627cb1bbff6d3dea",
+    "observer_run_id": 43857672716,
+    "publication_observation_sha256": "31b7d3610d49e5eacccdae9af987e9ccb1d3d4d95bef6cecd530b2fa969b8215"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": 0.0020951594971215584,
+      "industry": "游戏Ⅱ",
+      "name": "文投控股",
+      "promotion_rank": 9,
+      "ts_code": "600715.SH"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.0022226938472364654,
+      "industry": "游戏Ⅱ",
+      "name": "凯撒文化",
+      "promotion_rank": 2,
+      "ts_code": "002425.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.004581953174514389,
+      "industry": "水泥",
+      "name": "国统股份",
+      "promotion_rank": 4,
+      "ts_code": "002205.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.007541291796332379,
+      "industry": "炼化及贸",
+      "name": "岳阳兴长",
+      "promotion_rank": 10,
+      "ts_code": "000819.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.007807765636505534,
+      "industry": "一般零售",
+      "name": "广百股份",
+      "promotion_rank": 3,
+      "ts_code": "002187.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.010672327845188538,
+      "industry": "化学原料",
+      "name": "世龙实业",
+      "promotion_rank": 6,
+      "ts_code": "002748.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.01418578035980155,
+      "industry": "饲料",
+      "name": "金新农",
+      "promotion_rank": 7,
+      "ts_code": "002548.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.01475639856288602,
+      "industry": "影视院线",
+      "name": "金逸影视",
+      "promotion_rank": 1,
+      "ts_code": "002905.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.01702886102996687,
+      "industry": "工程机械",
+      "name": "华东重机",
+      "promotion_rank": 5,
+      "ts_code": "002685.SZ"
+    },
+    {
+      "candidate_rank": 10,
+      "candidate_score": -0.01719031180654832,
+      "industry": "电力",
+      "name": "新能股份",
+      "promotion_rank": 8,
+      "ts_code": "000595.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261116",
+  "snapshot_file_sha256": "8986befea4e3c7b84a0d6cb91c09f70e54d0e35477b6e3d8da97b250d966fb9c",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261116.json",
+    "sha256": "8986befea4e3c7b84a0d6cb91c09f70e54d0e35477b6e3d8da97b250d966fb9c"
+  },
+  "source_main_sha": "0b8ab065ea17a532d426f9db1cc709c60302ac27",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
