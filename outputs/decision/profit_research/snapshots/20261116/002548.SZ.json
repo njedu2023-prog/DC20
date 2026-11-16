@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261117",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.921671018276758,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.011363636363636354,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.20977011494252884,
+      "focus_pool_size": 10.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 7,
+      "ret_10d": 0.23460410557184752,
+      "ret_2d": 0.20977011494252884,
+      "ret_5d": 0.19263456090651565,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 2.0,
+      "stage_pool_share": 0.8,
+      "volatility_20d": 0.03350802984178837,
+      "volatility_5d": 0.05139511743221671,
+      "volume_ratio": 2.7851274693577213
+    },
+    "frozen_at": "2026-11-16T11:25:33.555188+00:00",
+    "industry": "饲料",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "金新农",
+    "profit_eligible": true,
+    "profit_rank": 7,
+    "promotion_rank": 7,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261118",
+    "score": -0.01418578035980155,
+    "signal_date": "20261116",
+    "ts_code": "002548.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261116.json",
+      "sha256": "dd9faae26db2fb2f06ffcc357514bb07205019218461b4dbca7064ce6dbc328d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261116.json",
+      "sha256": "d6367c4033f8aeaafd1b51aada8614a995a0262e6ef81e4250728a4eeb6ec717"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261116.json",
+      "sha256": "8986befea4e3c7b84a0d6cb91c09f70e54d0e35477b6e3d8da97b250d966fb9c"
+    }
+  ]
+}
