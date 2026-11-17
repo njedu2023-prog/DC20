@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261118",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.008271298593867,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": 0.013214505224339312,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.21019108280254772,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 6,
+      "ret_10d": 0.20507399577167007,
+      "ret_2d": 0.21019108280254772,
+      "ret_5d": 0.1825726141078836,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.8333333333333334,
+      "volatility_20d": 0.03856413742161442,
+      "volatility_5d": 0.053965782626608616,
+      "volume_ratio": 4.648127549160899
+    },
+    "frozen_at": "2026-11-17T11:30:18.540901+00:00",
+    "industry": "小家电",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "小熊电器",
+    "profit_eligible": true,
+    "profit_rank": 3,
+    "promotion_rank": 6,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261119",
+    "score": -0.010561564641518436,
+    "signal_date": "20261117",
+    "ts_code": "002959.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261117.json",
+      "sha256": "eafdab38a6d160c01a5a7359b4f4f9e7406263b1733b198bf5c62933e26d997f"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261117.json",
+      "sha256": "d7f210459c7e7845ddd9a27a2132bb9627e7d91978d015b8900e36186e0e6af0"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261117.json",
+      "sha256": "c27746741f30fc2086702a241624c4b8dfd1ad887b7ac14b1030543fa46cf670"
+    }
+  ]
+}

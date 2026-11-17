@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261118",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.950248756218915,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": 0.0027472527472527375,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.3888888888888889,
+      "five_year_streak_runup": 0.21095890410958895,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.24858757062146886,
+      "ret_2d": 0.21095890410958895,
+      "ret_5d": 0.19783197831978327,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.8333333333333334,
+      "volatility_20d": 0.03833768381820534,
+      "volatility_5d": 0.05191173590474207,
+      "volume_ratio": 10.284284088272987
+    },
+    "frozen_at": "2026-11-17T11:30:18.540901+00:00",
+    "industry": "IT服务Ⅱ",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "北投科技",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261119",
+    "score": 0.002281661869007086,
+    "signal_date": "20261117",
+    "ts_code": "600936.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261117.json",
+      "sha256": "eafdab38a6d160c01a5a7359b4f4f9e7406263b1733b198bf5c62933e26d997f"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261117.json",
+      "sha256": "d7f210459c7e7845ddd9a27a2132bb9627e7d91978d015b8900e36186e0e6af0"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261117.json",
+      "sha256": "c27746741f30fc2086702a241624c4b8dfd1ad887b7ac14b1030543fa46cf670"
+    }
+  ]
+}

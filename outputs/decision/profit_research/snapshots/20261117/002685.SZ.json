@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261118",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.016420361247953,
+      "five_year_board_stage_delta": 0.01536931145140541,
+      "five_year_pre_streak_1d_return": 0.047817047817047875,
+      "five_year_recent_20d_rate": 0.4755062335651054,
+      "five_year_recent_60d_rate": 0.3844656534183247,
+      "five_year_stock_prior_rate": 0.4,
+      "five_year_streak_runup": 0.3293650793650793,
+      "focus_pool_size": 6.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 1,
+      "ret_10d": 0.48558758314855877,
+      "ret_2d": 0.20938628158844774,
+      "ret_5d": 0.38716356107660466,
+      "stage2_pool_size": 5.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.16666666666666666,
+      "volatility_20d": 0.042208313871717966,
+      "volatility_5d": 0.041466246258096646,
+      "volume_ratio": 0.43758549251728956
+    },
+    "frozen_at": "2026-11-17T11:30:18.540901+00:00",
+    "industry": "工程机械",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "华东重机",
+    "profit_eligible": true,
+    "profit_rank": 6,
+    "promotion_rank": 1,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261119",
+    "score": -0.01787266001456362,
+    "signal_date": "20261117",
+    "ts_code": "002685.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261117.json",
+      "sha256": "eafdab38a6d160c01a5a7359b4f4f9e7406263b1733b198bf5c62933e26d997f"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261117.json",
+      "sha256": "d7f210459c7e7845ddd9a27a2132bb9627e7d91978d015b8900e36186e0e6af0"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261117.json",
+      "sha256": "c27746741f30fc2086702a241624c4b8dfd1ad887b7ac14b1030543fa46cf670"
+    }
+  ]
+}
