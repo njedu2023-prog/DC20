@@ -1,0 +1,119 @@
+{
+  "actual_execution_claimed": false,
+  "actual_exit_date": "20261118",
+  "as_of_date": "20261118",
+  "basis": "COUNTERFACTUAL_NATIVE_POLICY",
+  "collector_test_only": false,
+  "entry_observation": {
+    "auction_request_receipt_observed": true,
+    "auction_trade_observed": true,
+    "capacity_amount": 63665955.0,
+    "capacity_reason": "PRICE_VOLUME_AMOUNT_ARITHMETIC_CONSISTENT",
+    "daily_open_cent_match": true,
+    "entry_price": 4.11,
+    "entry_price_source": "TUSHARE_STK_AUCTION",
+    "entry_qualification_status": "CANONICAL_PRICE_OBSERVED",
+    "reported_auction_amount": 63665955.0,
+    "t_opening_limit_up_observed": false
+  },
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "label_available_date": "20261118",
+  "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "net_return": 0.0709257907542577,
+  "proxy_fill": 1,
+  "raw_provider_data_public": false,
+  "request_receipts": [
+    {
+      "api": "daily",
+      "date": "20261117",
+      "fetched_at": "2026-11-18T14:16:24.022712+00:00",
+      "response_sha256": "d7d55aec791928135cbb02ac162054d80a8977a1103eaa8a2b326158ed502176",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20261117",
+      "fetched_at": "2026-11-18T14:16:25.311554+00:00",
+      "response_sha256": "7022fbccdcc92652ec29eb8a4741bc34b906eb0cf7863ff5db1778896b049719",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "stk_auction",
+      "date": "20261117",
+      "fetched_at": "2026-11-18T14:16:27.889270+00:00",
+      "response_sha256": "bdb97f86ce5e84b4551c62ed2beba4d8380c3dfa12341020a361c6cf061383c7",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "daily",
+      "date": "20261118",
+      "fetched_at": "2026-11-18T14:16:29.258786+00:00",
+      "response_sha256": "d5ed21511ae3b25aa83384f66bda774eb94cc31f602e42399636dab08649c05d",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "stk_limit",
+      "date": "20261118",
+      "fetched_at": "2026-11-18T14:16:30.554118+00:00",
+      "response_sha256": "22e03082de5ac788a403b5d03776638e747a9c0e974967f5bf2e161446eccbb2",
+      "ts_code": "002425.SZ"
+    },
+    {
+      "api": "stk_mins",
+      "date": "20261118",
+      "fetched_at": "2026-11-18T14:16:33.021731+00:00",
+      "response_sha256": "df3ae520866d159509dcf0b3540e40221f8ad906881943a56c038d9351ccf294",
+      "ts_code": "002425.SZ"
+    }
+  ],
+  "round_trip_cost_rate": 0.0045,
+  "schema_version": "dc20_research_counterfactual_label_v1",
+  "signal_date": "20261116",
+  "snapshot_sha256": "8986befea4e3c7b84a0d6cb91c09f70e54d0e35477b6e3d8da97b250d966fb9c",
+  "source_bindings": [
+    {
+      "path": "data/market/raw/2026/20261117/daily.csv",
+      "sha256": "b3bfd5c8ecb2d5cb586715d91e6863232c6ade1912958b9a0896ce1a8e21c53f"
+    },
+    {
+      "path": "data/market/raw/2026/20261117/stk_limit.csv",
+      "sha256": "6cf69750c0fae7f404e5ac59a360efb55fc0fd2458c79f45c2c79121164af2b4"
+    },
+    {
+      "path": "data/market/raw/2026/20261118/daily.csv",
+      "sha256": "e7f5f76eacc7b9e68a49a7dada3f0207e022207db4a17d1147d28ad97a4471f8"
+    },
+    {
+      "path": "data/market/raw/2026/20261118/stk_limit.csv",
+      "sha256": "4edb58d4bf49a4c4726fc1a0e53dd2adeca2baf2639c343bdc16c41824487993"
+    },
+    {
+      "path": "data/market/trade_cal_sse.csv",
+      "sha256": "150a3e29ebd6e050d55caee1df218ef5dcfc3542053d8a7478d6be50d09fd748"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20261117/stk_auction.data.json",
+      "sha256": "832d5d6d57ad8e480f0e18f9d457efa60355650eb0e93dcf49679f7614e8f03c"
+    },
+    {
+      "path": "data/research/canonical_auction_price_v3/2026/20261117/stk_auction.meta.json",
+      "sha256": "590081155589944bd0b1c41b67eefc42a8b8e726e1e9ce10a41d765e3366e53c"
+    },
+    {
+      "path": "research_inputs/candidate_natural_forward/day_20261116.json",
+      "sha256": "8986befea4e3c7b84a0d6cb91c09f70e54d0e35477b6e3d8da97b250d966fb9c"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20261118/002425_SZ.data.json",
+      "sha256": "526be3e6270302cc99c50d9cf6467bb5252dbccc1d2aeda4c04c1c26791d74d2"
+    },
+    {
+      "path": "research_inputs/minute_truth_0931/2026/20261118/002425_SZ.meta.json",
+      "sha256": "990aeb349e92d2ef1a777db68115d842139e2b80814328c3edfc240d2c8c80df"
+    }
+  ],
+  "source_revision": "fc086bda898bf16d25d29b1c29f865c9f3d51343",
+  "status": "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY",
+  "ts_code": "002425.SZ"
+}
