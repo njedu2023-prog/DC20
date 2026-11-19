@@ -1401,6 +1401,7 @@
       </details>
     </section>
 
+    <p id="lateResearchStatisticsNote" class="stats-note warn" hidden>以下为正式冻结样本的累计统计，不包含11月19日事后补算；各模块保留其真实截至日期。</p>
     <section id="compactLedger" class="panel" aria-labelledby="compactLedgerTitle">
       <div class="panel-head"><div class="ledger-heading-group"><h2 id="compactLedgerTitle">盈利 Top1 / Top2 · 累计统计</h2><a class="ledger-detail-link" href="?view=profit-ledger" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▤</span> 查看每月明细 →</a></div><span id="compactLedgerState" class="count">待读取</span></div>
       <div id="compactLedgerContent"><div class="empty">正在读取每日账本与独立冻结验证。</div></div>
@@ -1558,7 +1559,7 @@
     const REPO = { owner: "njedu2023-prog", name: "DC20", branch: "main" };
     const RAW_BASE = `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/`;
     const CACHE_KEY = "dc20-decision-dashboard-v6-cache";
-    const DASHBOARD_VERSION = "compact-two-ranks-v20-nextday-precomputed";
+    const DASHBOARD_VERSION = "compact-two-ranks-v21-late-research-navigation";
     const CANDIDATE_PROFIT_ROOT = "outputs/decision/candidate_profit_v1";
     const CANDIDATE_PROFIT_MODEL_SHA256 = "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589";
     const INDEPENDENCE_CUTOVER_SIGNAL_DATE = "20260821";
@@ -1619,6 +1620,84 @@
       candidateProfitSummaryLoad: { status: "loading", message: "新模型累计待验证" },
       currentPrimaryMixedDailyTop2: null
     };
+
+    // Presentation-only archive. Never admitted to formal source, freeze or ledger state.
+    const LATE_RESEARCH_DAY = "20261119";
+    const LATE_RESEARCH_ROOT = "outputs/decision/late_candidate_research/day_20261119";
+    const LATE_RESEARCH_SHA256 = "aebf0f07c7c2ec3d011e9d0988bd9d5e862e4dd10783c8266964c1d9a6db1aae";
+
+    async function loadLateResearchDisplay() {
+      const bytes = await fetchPublishedBytes(`${LATE_RESEARCH_ROOT}.json`);
+      executableProfitExpect(await sha256Hex(bytes) === LATE_RESEARCH_SHA256, "补算名单SHA256不一致");
+      const data = strictJsonFromBytes(bytes, "事后研究名单");
+      executableProfitExpect(data.schema_version === "dc20_late_candidate_reconstruction_v1"
+        && data.status === "LATE_RESEARCH_RECONSTRUCTION" && data.research_only === true
+        && data.natural_forward_admission_issued === false && data.formal_ledger_written === false
+        && data.future_outcomes_read === false && data.actual_execution_claimed === false
+        && data.production_p0_run_id === null && data.production_p0_receipt_created === false
+        && data.signal_date === LATE_RESEARCH_DAY && data.exec_date === "20261120" && data.exit_date === "20261123"
+        && Number.isFinite(Date.parse(data.generated_at))
+        && data.prediction?.model_sha256 === CANDIDATE_PROFIT_MODEL_SHA256,
+        "补算名单日期、研究边界或模型不一致");
+      const promotion = data.promotion, profit = data.prediction.rows;
+      executableProfitExpect(Array.isArray(promotion) && promotion.length === 5 && Array.isArray(profit)
+        && new Set(promotion.map(r => r.ts_code)).size === promotion.length
+        && promotion.every((r,i) => r.promotion_rank === i+1 && /^\d{6}\.(SH|SZ)$/.test(r.ts_code)
+          && typeof r.name === "string" && Number.isFinite(r.predicted_promotion_probability)
+          && r.predicted_promotion_probability >= 0 && r.predicted_promotion_probability <= 1)
+        && new Set(profit.map(r => r.ts_code)).size === profit.length
+        && profit.every((r,i) => r.candidate_rank === i+1 && Number.isFinite(r.candidate_score)
+          && promotion.some(p => p.ts_code === r.ts_code && p.promotion_rank === r.promotion_rank)),
+        "补算候选池或排序不完整");
+      return data;
+    }
+
+    function renderLateResearchStatus() {
+      const data = state.lateResearch;
+      els.statusBand.className = "status-band warn";
+      els.statusKicker.textContent = "事后研究补算 · 非正式冻结";
+      els.statusTitle.textContent = "11月19日名单已生成（事后补算）";
+      els.signalDate.textContent = dateText(data.signal_date);
+      els.execDate.textContent = dateText(data.exec_date);
+      els.exitDate.textContent = dateText(data.exit_date);
+      els.brandDates.textContent = `D ${dateText(data.signal_date)} · 事后研究`;
+      els.statusBand.querySelector(".status-help").textContent = "使用跨日补采的D日数据；不计入正式模拟账户。下方累计统计保留各自真实截至日期。";
+      document.querySelectorAll(".workspace-nav [data-current-only]").forEach(link => { link.hidden = false; });
+    }
+
+    function renderLateResearchTable() {
+      const data = state.lateResearch;
+      const byCode = new Map(data.prediction.rows.map(r => [r.ts_code, r]));
+      els.stagePanel.hidden = false;
+      els.stageSignalDate.textContent = `D：${dateText(data.signal_date)} · 事后补算`;
+      els.stageGeneratedTime.textContent = `补算时间 ${beijingDateTimeText(data.generated_at)}`;
+      els.stageCount.textContent = `真实候选池 ${data.promotion.length} 只 · 非正式冻结`;
+      els.stageContent.innerHTML = `<div class="three-rank-toolbar"><div class="three-rank-sort">
+        <button class="three-rank-btn" data-late-sort="promotion" aria-pressed="true">按晋级排序</button>
+        <button class="three-rank-btn" data-late-sort="profit" aria-pressed="false">按盈利排序</button></div>
+        <div class="three-rank-downloads"><a href="${LATE_RESEARCH_ROOT}.csv">下载 CSV</a> · <a href="${LATE_RESEARCH_ROOT}.html">完整研究说明</a> · <a href="?d=20261118">18日正式名单</a></div></div>
+        <p class="stats-note warn">本名单为事后研究重建，不是当晚正式冻结。盈利前二的模型分均为负；模型分不是概率或已实现收益。连板路径详情及T/T+1结果尚未接入本研究页。</p>
+        <div class="table-wrap table-scroll-region" tabindex="0" role="region" aria-label="11月19日事后研究名单"><table class="three-rank-table">
+        <caption class="sr-only">D 2026-11-19 事后研究晋级与盈利排序，不计入正式模拟账户</caption>
+        <thead><tr><th>代码</th><th>股票</th><th>行业</th><th>晋级</th><th>晋级排序</th><th>晋级概率</th><th>盈利排序</th><th>盈利分<small class="row-meta">非概率</small></th></tr></thead><tbody data-late-body></tbody></table></div>`;
+      const render = field => {
+        state.lateResearchSort = field;
+        const rows = [...data.promotion].sort((a,b) => field === "profit"
+          ? (byCode.get(a.ts_code)?.candidate_rank ?? Infinity)-(byCode.get(b.ts_code)?.candidate_rank ?? Infinity) || a.promotion_rank-b.promotion_rank
+          : a.promotion_rank-b.promotion_rank);
+        els.stageContent.querySelector("[data-late-body]").innerHTML = rows.map(r => {
+          const p = byCode.get(r.ts_code);
+          return `<tr><td>${escapeHtml(r.ts_code)}</td><td class="left name"><span class="company-line">${escapeHtml(r.name)}${r.promotion_rank <= 3 ? `<span class="rank-mark rank-promotion">晋${r.promotion_rank}</span>` : ""}${p?.candidate_rank <= 2 ? `<span class="rank-mark rank-profit">盈${p.candidate_rank}</span>` : ""}</span></td>
+            <td>${escapeHtml(r.industry)}</td><td>${escapeHtml(r.stage_transition)}</td><td>${r.promotion_rank}</td><td>${(r.predicted_promotion_probability*100).toFixed(2)}%</td><td>${p?.candidate_rank ?? "历史不足"}</td><td>${p ? p.candidate_score.toFixed(6) : "—"}</td></tr>`;
+        }).join("");
+        els.stageContent.querySelectorAll("[data-late-sort]").forEach(button => {
+          button.classList.toggle("active",button.dataset.lateSort === field);
+          button.setAttribute("aria-pressed",String(button.dataset.lateSort === field));
+        });
+      };
+      els.stageContent.querySelectorAll("[data-late-sort]").forEach(button => button.addEventListener("click", () => render(button.dataset.lateSort)));
+      render(state.lateResearchSort || "promotion");
+    }
 
     function emptyPublicObservationStatistics() {
       return {
@@ -3311,6 +3390,7 @@
       }
       for (const id of ["rankingWorkspace", "compactLedger", "compactStatistics", "profitNextDay", "profitPaperAccount"]) document.getElementById(id).hidden = research;
       if (research) { document.getElementById("historicalResearchDetails").open = true; return; }
+      document.getElementById("lateResearchStatisticsNote").hidden = !state.lateResearch;
       const window = compactStatisticsWindowView();
       renderProfitNextDayStatistics();
       renderProfitPaperAccount();
@@ -4257,6 +4337,7 @@
     }
 
     function renderStatus(plan) {
+      if (state.lateResearch) { renderLateResearchStatus(); return; }
       const currentPage = state.index === 0 && !state.dailyRequestedDate;
       els.shadowWorkspace.hidden = !currentPage;
       els.reviewWorkspace.hidden = !currentPage;
@@ -6772,6 +6853,7 @@
     }
 
     function renderStageWatchlist(plan) {
+      if (state.lateResearch) { renderLateResearchTable(); return; }
       if (state.d23SupplementActive) { renderD23SupplementTable(); return; }
       const { displayPlan, contract: threeRank } = displayedThreeRank(plan);
       if (threeRank === false) {
@@ -7402,8 +7484,8 @@
     }
 
     function dailyAdjacentDates() {
-      const selected = state.dailyRequestedDate || state.currentThreeRank?.signal_date;
-      const dates = [...new Set([...(state.dailyNavigation || []).map(entry => entry.signal_date), state.dailyLatestDate].filter(Boolean))].sort();
+      const selected = state.lateResearch?.signal_date || state.dailyRequestedDate || state.currentThreeRank?.signal_date;
+      const dates = [...new Set([...(state.dailyNavigation || []).map(entry => entry.signal_date), state.dailyLatestDate, state.lateResearchAvailable?.signal_date].filter(Boolean))].sort();
       return { previous: dates.filter(d => d < selected).at(-1) || null, next: dates.find(d => d > selected) || null };
     }
 
@@ -7429,7 +7511,7 @@
       const dates = dailyAdjacentDates();
       for (const [button, date, label] of [[els.prevBtn, dates.previous, "上一交易日名单"], [els.nextBtn, dates.next, "下一交易日名单"]]) {
         button.disabled = !date;
-        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}` : `没有${label}`);
+        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}${date === state.lateResearchAvailable?.signal_date ? " · 事后补算" : ""}` : `没有${label}`);
         button.setAttribute("aria-label", button.title);
       }
     }
@@ -8148,13 +8230,27 @@
       try {
         const parameters = new URLSearchParams(location.search);
         state.dailyRequestedDate = parameters.get("view") !== "research" && parameters.has("d") ? parameters.get("d") : null;
-        if (state.dailyRequestedDate !== null) {
+        state.lateResearch = null;
+        state.lateResearchAvailable = null;
+        if (parameters.get("view") !== "research") {
+          try { state.lateResearchAvailable = await loadLateResearchDisplay(); }
+          catch (error) {
+            if (state.dailyRequestedDate === LATE_RESEARCH_DAY) throw error;
+            console.warn("独立研究名单未通过读取校验", error);
+          }
+        }
+        if (state.dailyRequestedDate !== null && !(state.dailyRequestedDate === LATE_RESEARCH_DAY && state.lateResearchAvailable)) {
           await initializeDailyHistory(state.dailyRequestedDate);
           return;
         }
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
         state.dailyLatestDate = state.currentThreeRank?.signal_date;
+        if (state.lateResearchAvailable && (state.dailyRequestedDate === LATE_RESEARCH_DAY
+          || (!state.dailyRequestedDate && state.dailyLatestDate && state.dailyLatestDate < LATE_RESEARCH_DAY))) {
+          // Keep currentThreeRank untouched: auxiliary statistics use formal evidence only.
+          state.lateResearch = state.lateResearchAvailable;
+        }
         const research = parameters.get("view") === "research";
         if (!research) void refreshDailyNavigation();
         let pathReady = false;
