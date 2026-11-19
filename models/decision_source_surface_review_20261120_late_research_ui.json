@@ -103,6 +103,42 @@
         ]
       ]
     },
+    "tests/test_compact_statistics_window_frontend.py": {
+      "sha256": "575d8a4635d9af8b22944aea55f0e3c94027efe38eff626c1944811199592f7c",
+      "base_sha256": "2b74c8937ab1a3fa6b5e2271f66fc0bc83d77902c76b196f50c0de5ff5b447f2",
+      "inverse": [
+        [
+          16921,
+          265,
+          "def test_slow_window_never_blocks_the_current_d_ranking(window_data):\n    rendered = run(window_data, r\"\"\"\n"
+        ],
+        [
+          17250,
+          244,
+          "readHook=async path=>{if(path===COMPACT_STATISTICS_WINDOW_PATH)await gate};\n"
+        ],
+        [
+          17630,
+          136,
+          "const before={table:els.stageContent.innerHTML.includes('data-three-rank-body'),\n"
+        ],
+        [
+          17856,
+          126,
+          ""
+        ],
+        [
+          18013,
+          62,
+          "console.log(JSON.stringify({before,after:result()}));\n"
+        ],
+        [
+          18167,
+          257,
+          ""
+        ]
+      ]
+    },
     "tests/test_reliability_runtime_profiles.py": {
       "sha256": "e128e8a177caf9a4c2c8a76cc270c60ea631bc43e892643d974756ea86d732ea",
       "base_sha256": "3ce65a53f08ec32d62fd0f8ceb14de27c24720c499b0fee85ea701479b0c5e30",

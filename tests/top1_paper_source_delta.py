@@ -79,7 +79,7 @@ MONTH = (
 
 LATE_RESEARCH_UI = (
     'models/decision_source_surface_review_20261120_late_research_ui.json',
-    '44c411cc2c35d3ea0e402fe30459dac3bb3c35c1dc8ab9659fd82abf0f1b30f8',
+    '5e3453f90ad11453bc6d6984b7b4fb4f3bafb4f27906f10940376a66972a13b2',
     'cdb4492dc9b5d1a8d19622e810ecb7e9bb24ef7d',
     'a2e99e81bee2305795c6e1cde65569fc87bfc471',
 )

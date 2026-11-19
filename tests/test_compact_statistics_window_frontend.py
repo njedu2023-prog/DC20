@@ -274,19 +274,33 @@ console.log(JSON.stringify({same:state.currentPublicObservationStatistics===newe
     assert rendered == {"same": True, "sha": True, "status": "ready"}
 
 
-def test_slow_window_never_blocks_the_current_d_ranking(window_data):
-    rendered = run(window_data, r"""
+@pytest.mark.parametrize("ranking_view", ["formal", "default"])
+def test_slow_window_never_blocks_the_current_d_ranking(window_data, ranking_view):
+    variant = copy.deepcopy(window_data)
+    variant["ranking_view"] = ranking_view
+    rendered = run(variant, r"""
 let release,windowPending;const gate=new Promise(r=>release=r);
-readHook=async path=>{if(path===COMPACT_STATISTICS_WINDOW_PATH)await gate};
+readHook=async path=>{
+ if(path===COMPACT_STATISTICS_WINDOW_PATH)await gate;
+ if(input.ranking_view==='formal' && path===LATE_RESEARCH_ROOT+'.json')
+  throw new Error('Exercise formal ranking when the optional late archive is unavailable');
+};
 const refresh=refreshCompactStatisticsWindow;
 refreshCompactStatisticsWindow=ready=>(windowPending=refresh(ready));
 await initialize();
-const before={table:els.stageContent.innerHTML.includes('data-three-rank-body'),
+const late=!!state.lateResearch;
+const before={table:els.stageContent.innerHTML.includes(late?'data-late-body':'data-three-rank-body'),
  loaded:state.compactStatisticsWindowLoad.status,window:!!compactStatisticsWindowView()};
+const ranking={late,formalDate:state.currentThreeRank.signal_date,
+ displayDate:els.signalDate.textContent.replace(/-/g,'')};
 release();await windowPending;
-console.log(JSON.stringify({before,after:result()}));
+console.log(JSON.stringify({before,ranking,after:result()}));
 """)
     assert rendered["before"] == {"table": True, "loaded": "loading", "window": False}
+    ranking = rendered["ranking"]
+    expected_late = ranking_view == "default" and ranking["formalDate"] < "20261119"
+    assert ranking["late"] is expected_late
+    assert ranking["displayDate"] == ("20261119" if expected_late else ranking["formalDate"])
     assert rendered["after"]["ready"]
 
 
