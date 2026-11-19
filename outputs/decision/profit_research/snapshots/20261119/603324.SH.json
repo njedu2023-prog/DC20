@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261120",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.000000000000012,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": -0.04730749874182194,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.25,
+      "five_year_streak_runup": 0.33069202324352887,
+      "focus_pool_size": 5.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.2263875365141188,
+      "ret_2d": 0.20989433237271848,
+      "ret_5d": 0.23299069995105248,
+      "stage2_pool_size": 2.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.6,
+      "volatility_20d": 0.048967712819963385,
+      "volatility_5d": 0.0675440809000692,
+      "volume_ratio": 4.430424989646082
+    },
+    "frozen_at": "2026-11-19T21:33:02.594021+00:00",
+    "industry": "环保设备",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "盛剑科技",
+    "profit_eligible": true,
+    "profit_rank": 1,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261123",
+    "score": -0.00531896684978299,
+    "signal_date": "20261119",
+    "ts_code": "603324.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261119.json",
+      "sha256": "f20b546c48019c3243265a35392af625ae7b97e87ba12f74e6fcab554caa33ab"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261119.json",
+      "sha256": "bf4049dba8d97df25022d72f225123eb44c0523a41f1dbc0a18abffaf037dbd6"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261119.json",
+      "sha256": "2503383374af02306e504a5afd0f7a68a507523a8f2ddffd21c3ac6747db970a"
+    }
+  ]
+}
