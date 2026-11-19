@@ -127,7 +127,19 @@ TOP1_MONTH_P0_CODE_PROFILE = {**TOP1_RATE_P0_CODE_PROFILE, MANIFEST_PATH: '3e1cc
 TOP1_FILL_NOTE_P0_CODE_PROFILE = {**TOP1_MONTH_P0_CODE_PROFILE, MANIFEST_PATH: '58f1e86f33def9ecb0a320fac2158def1a2df8fa'}
 TOP1_START_DATE_P0_CODE_PROFILE = {**TOP1_FILL_NOTE_P0_CODE_PROFILE, MANIFEST_PATH: 'a0c8245e0d747314513247d7107da8a6c1837791'}
 TOP1_CURVE_P0_CODE_PROFILE = {**TOP1_START_DATE_P0_CODE_PROFILE, MANIFEST_PATH: '357a874e2c7c95fa6af37e7e3a2b9ea24eae327f'}
-RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE)
+# Display-only homepage successor, active after the missed D20261119 window.
+LATE_RESEARCH_UI_P0_CODE_PROFILE = {**TOP1_CURVE_P0_CODE_PROFILE, MANIFEST_PATH: 'adad1026ee4e995c49162c57036992c20c95fc2d'}
+PRE_UI_IMPORT_PROFILE = {'importer_sha256': '38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e',
+ 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0',
+                                      'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+                                      'src/top10decision/decision/suspension_evidence_registry.py': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9',
+                                      'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+                                      'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+                                      'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ 'source_adapter_sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'}
+PRE_UI_CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '0a9f5eb02a70f00fa85001fecef0126225be96dd1234c2c3d8b387eac3f1e880',
+ 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
+RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE, LATE_RESEARCH_UI_P0_CODE_PROFILE)
 RELIABILITY_RUNTIME_CODE_BINDINGS = [{'path': 'scripts/primary_failure_diagnostics.py',
   'sha256': '4d89fe7325bbf52ba3296f390e2987ecba5b3e160514d0b55000a0a3e27d2ac8',
   'git_blob_sha1': '8d69e8c3ae0f3bb20cfcd9386ed0821ef33b028d',
@@ -234,6 +246,8 @@ def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identi
                    == CONTROLLED_P0_CODE_PROFILE[publisher] else ORIGINAL_P0_CODE_PROFILE)
     if profile in (TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE):
         require(gh.date(identity.get("signal_date")) >= "20261112", "RATE_PROFILE_ACTIVATION_DATE_REQUIRED")
+    if profile is LATE_RESEARCH_UI_P0_CODE_PROFILE:
+        require(gh.date(identity.get("signal_date")) >= "20261120", "UI_PROFILE_ACTIVATION_DATE_REQUIRED")
     if profile in RELIABILITY_PROFILES:
         require(gh.date(identity.get("signal_date")) >= "20261111", "RELIABILITY_PROFILE_ACTIVATION_DATE_REQUIRED")
     deployed_profile = profile
@@ -597,6 +611,9 @@ def validate_import_receipt(gh, imported):
         "successful_publication_git_sha": "successful_publication_git_sha",
         "expected_p0_sha256": "expected_p0_sha256", "source_file_bindings": "source_file_bindings",
         "original_file_count": "original_file_count", "observed_p0_cas_job_completed_at": "observed_p0_cas_job_completed_at"}
+    prior_ui = imported.get("importer_sha256") == PRE_UI_IMPORT_PROFILE["importer_sha256"]
+    if prior_ui:
+        require(gh.date(imported.get("signal_date")) <= "20261118", "PRE_UI_CONTINUATION_IMPORT_DATE_CHANGED")
     prior_reliability = imported.get("importer_sha256") == PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"]
     if prior_reliability:
         require(gh.date(imported.get("signal_date")) <= "20261110", "PRE_RELIABILITY_CONTINUATION_IMPORT_DATE_CHANGED")
@@ -608,10 +625,10 @@ def validate_import_receipt(gh, imported):
     if previous:
         require(gh.date(imported.get("signal_date")) <= "20261106", "PRE_NEXT_DAY_CONTINUATION_IMPORT_DATE_CHANGED")
     require(all(imported.get(k) == proof.get(v) for k, v in pairs.items())
-        and imported.get("continuation_dependency_sha256") == (PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
-        and imported.get("importer_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
-        and imported.get("source_adapter_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_sha256"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)
-        and imported.get("source_adapter_dependency_sha256") == (PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_dependency_sha256"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),
+        and imported.get("continuation_dependency_sha256") == (PRE_UI_CONTINUATION_PINS if prior_ui else PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
+        and imported.get("importer_sha256") == (PRE_UI_IMPORT_PROFILE["importer_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
+        and imported.get("source_adapter_sha256") == (PRE_UI_IMPORT_PROFILE["source_adapter_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_sha256"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)
+        and imported.get("source_adapter_dependency_sha256") == (PRE_UI_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_dependency_sha256"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),
         "CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH")
     require(proof["original_generation_run"]["id"] != proof["successful_reuse_run"]["id"]
         and proof["original_generation_run"]["conclusion"] == "failure"

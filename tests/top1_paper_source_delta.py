@@ -31,7 +31,7 @@ def _read(release):
     return target.read_bytes()
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=8)
 def _parse(raw, release):
     _, expected_sha, base_commit, base_tree = release
     assert sha256(raw).hexdigest() == expected_sha
@@ -49,7 +49,7 @@ def rate_files():
     return _parse(_read(RATE), RATE)
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=8)
 def _paths(release):
     return frozenset(_parse(_read(release), release))
 
@@ -77,7 +77,26 @@ MONTH = (
 )
 
 
+LATE_RESEARCH_UI = (
+    'models/decision_source_surface_review_20261120_late_research_ui.json',
+    '44c411cc2c35d3ea0e402fe30459dac3bb3c35c1dc8ab9659fd82abf0f1b30f8',
+    'cdb4492dc9b5d1a8d19622e810ecb7e9bb24ef7d',
+    'a2e99e81bee2305795c6e1cde65569fc87bfc471',
+)
+
+
+def late_files():
+    return _parse(_read(LATE_RESEARCH_UI), LATE_RESEARCH_UI)
+
+
+def before_late(path, raw):
+    if path not in _paths(LATE_RESEARCH_UI):
+        return raw
+    return _restore(path, raw, _read(LATE_RESEARCH_UI), LATE_RESEARCH_UI)
+
+
 def before_rate(path, raw):
+    raw = before_late(path, raw)
     if path in _paths(MONTH):
         raw = _restore(path, raw, _read(MONTH), MONTH)
     if path not in _paths(RATE):

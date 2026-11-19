@@ -1,0 +1,380 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "cdb4492dc9b5d1a8d19622e810ecb7e9bb24ef7d",
+  "base_tree": "a2e99e81bee2305795c6e1cde65569fc87bfc471",
+  "files": {
+    "decision.html": {
+      "sha256": "141b7d725d0b8b85e36a74320607c7db64f83012ed79b260d31717bb2c7cfb33",
+      "base_sha256": "e9df402af7b72ee9d3f59dc0f4738816bcd58e6f8aea0ae8ba306015b933c743",
+      "inverse": [
+        [
+          62357,
+          117,
+          ""
+        ],
+        [
+          69556,
+          80,
+          "    const DASHBOARD_VERSION = \"compact-two-ranks-v20-nextday-precomputed\";\n"
+        ],
+        [
+          74029,
+          6000,
+          ""
+        ],
+        [
+          211854,
+          90,
+          ""
+        ],
+        [
+          264300,
+          70,
+          ""
+        ],
+        [
+          446632,
+          69,
+          ""
+        ],
+        [
+          486438,
+          313,
+          "      const selected = state.dailyRequestedDate || state.currentThreeRank?.signal_date;\n      const dates = [...new Set([...(state.dailyNavigation || []).map(entry => entry.signal_date), state.dailyLatestDate].filter(Boolean))].sort();\n"
+        ],
+        [
+          487914,
+          180,
+          "        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}` : `没有${label}`);\n"
+        ],
+        [
+          542518,
+          521,
+          "        if (state.dailyRequestedDate !== null) {\n"
+        ],
+        [
+          543304,
+          369,
+          ""
+        ]
+      ]
+    },
+    "forward/model_inventory.json": {
+      "sha256": "d2600f352629d9cee6810c5216d54440585912a62b7519beda7984368514c55c",
+      "base_sha256": "0eb3031c17ceb6cc888a6396111ca02952cbbc6f81c8f414ae46d7edfc4299b3",
+      "inverse": [
+        [
+          4921,
+          84,
+          "      \"sha256\": \"756db34c4a6731db1646e78b5de78c4189cc8e907638e4dc61fd5ffe55a75459\",\n"
+        ]
+      ]
+    },
+    "models/decision_model_freeze.json": {
+      "sha256": "f203431784e154f63dbde4be3962af3a0116afccb75270807714832808539507",
+      "base_sha256": "756db34c4a6731db1646e78b5de78c4189cc8e907638e4dc61fd5ffe55a75459",
+      "inverse": [
+        [
+          30128,
+          89,
+          "    \"decision.html\": \"e9df402af7b72ee9d3f59dc0f4738816bcd58e6f8aea0ae8ba306015b933c743\",\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "b0559a6f93b9aa4bc08c40d650ce619082627d830f8b6f8bddaafd807507dbca",
+      "base_sha256": "7bec1aea7084d80d1e570ef44f501d334cdcf3052f4431a830c3fd1a19f01512",
+      "inverse": [
+        [
+          1042,
+          84,
+          "STATISTICS_SHA = '434e21a84aad6f627b25321dd9eb0aa163f65b92c50d266d80c8b654f13a152a'\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "5ce2d743e95b0aa3952343cd5437cf2afa6820f4c2c42d22a97409cad2a7df9f",
+      "base_sha256": "06d8e14290a2ee7a6f3a95c1b16d61a2349f304fde592993ff5fb35ccd9bf8a0",
+      "inverse": [
+        [
+          5328,
+          220,
+          "    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': '28db4b86799e94e6c323388efd6a426b3f6847192b4af928d679ad3e6bf6bcb4'}\n"
+        ]
+      ]
+    },
+    "tests/test_reliability_runtime_profiles.py": {
+      "sha256": "e128e8a177caf9a4c2c8a76cc270c60ea631bc43e892643d974756ea86d732ea",
+      "base_sha256": "3ce65a53f08ec32d62fd0f8ceb14de27c24720c499b0fee85ea701479b0c5e30",
+      "inverse": [
+        [
+          3737,
+          60,
+          "    profile = continuation.TOP1_CURVE_P0_CODE_PROFILE\n"
+        ],
+        [
+          4658,
+          215,
+          "@pytest.mark.parametrize(\"profile\", continuation.RELIABILITY_PROFILES, ids=[\"original\", \"top1-paper\", \"top1-count\", \"top1-rate\", \"top1-month\", \"top1-fill-note\", \"top1-start-date\", \"top1-curve\"])\n"
+        ],
+        [
+          4954,
+          341,
+          "    day = \"20261112\" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else \"20261111\"\n"
+        ],
+        [
+          5734,
+          245,
+          ""
+        ],
+        [
+          6927,
+          99,
+          "                continuation.validate_code_profiles(gh, None, *mixed, {\"signal_date\": \"20261112\"})\n"
+        ]
+      ]
+    },
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "90ab645bc4dc7ae8a0e962362b70fd7ad90ac8f7c52efc1f60cad51a9e67b756",
+      "base_sha256": "efe6f2eaa51e4ec9a42827ae7d741e22dbfbbf92872bdf826c6816b24a26eb94",
+      "inverse": [
+        [
+          7559,
+          1607,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "5add308c4eca677d749e4df27be4ae55d230d6dbc8e54801056d3ee28f5ca5ad",
+      "base_sha256": "a2277051d1cf31029b525e11c8ec340e4082a3598f58ba14826d3da8750ed843",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "864f9afeb3457b0117d8294f10426f9f23dd7bf42d4d55e20427a4ad1b86af0e",
+      "base_sha256": "71bb15611fc1965c8062d4c521203bc3f7630e839f458459a2064af5ca5167d7",
+      "inverse": [
+        [
+          757,
+          85,
+          "PUBLICATION_SHA = 'ff465f4622299bc68b85392db2ad35f856e4835b33b851b6da7e76040762d6b4'\n"
+        ],
+        [
+          4527,
+          165,
+          ""
+        ],
+        [
+          4717,
+          402,
+          "    return (D11_CAPTURE_CONTRACT, PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))\n"
+        ],
+        [
+          22737,
+          176,
+          ""
+        ],
+        [
+          24861,
+          296,
+          "        in ((SELF_SHA, PUBLICATION_SHA), PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a",
+      "base_sha256": "28db4b86799e94e6c323388efd6a426b3f6847192b4af928d679ad3e6bf6bcb4",
+      "inverse": [
+        [
+          630,
+          81,
+          "CAPTURE_SHA = '71bb15611fc1965c8062d4c521203bc3f7630e839f458459a2064af5ca5167d7'\n"
+        ],
+        [
+          1010,
+          82,
+          "OBSERVER_SHA = '55ca10c69c1910fe80ac0c51f77aa9195e551869a0804424534bd1b9a8c179c7'\n"
+        ],
+        [
+          31668,
+          2952,
+          ""
+        ],
+        [
+          34838,
+          191,
+          ""
+        ],
+        [
+          37788,
+          101,
+          "    elif contract == (capture.SELF_SHA, capture.PUBLICATION_SHA):\n"
+        ],
+        [
+          39542,
+          498,
+          "    if overrides and (manifest.get(\"capture_code_sha256\"), manifest.get(\"publication_verifier_sha256\")) not in (capture.D11_CAPTURE_CONTRACT, capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):\n"
+        ],
+        [
+          40604,
+          218,
+          "    expected_importer = (publication.D11_IMPORTER_BLOB if contract == capture.D11_CAPTURE_CONTRACT else\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "fbc1aa8ef64b7ba3df007d7db8a87dabe2c40ddc1fd58c45ae0d65989b5714b2",
+      "base_sha256": "55ca10c69c1910fe80ac0c51f77aa9195e551869a0804424534bd1b9a8c179c7",
+      "inverse": [
+        [
+          550,
+          81,
+          "CAPTURE_SHA = '71bb15611fc1965c8062d4c521203bc3f7630e839f458459a2064af5ca5167d7'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_continuation.py": {
+      "sha256": "b73f7f333de2c0d0c4d2f42a49c087951a3567d0cc4f017ce64778610e02de9e",
+      "base_sha256": "0a9f5eb02a70f00fa85001fecef0126225be96dd1234c2c3d8b387eac3f1e880",
+      "inverse": [
+        [
+          20853,
+          1948,
+          "RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE)\n"
+        ],
+        [
+          28689,
+          159,
+          ""
+        ],
+        [
+          54253,
+          219,
+          ""
+        ],
+        [
+          55302,
+          1124,
+          "        and imported.get(\"continuation_dependency_sha256\") == (PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)\n        and imported.get(\"importer_sha256\") == (PRE_RELIABILITY_IMPORT_PROFILE[\"importer_sha256\"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)\n        and imported.get(\"source_adapter_sha256\") == (PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)\n        and imported.get(\"source_adapter_dependency_sha256\") == (PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be",
+      "base_sha256": "38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e",
+      "inverse": [
+        [
+          1454,
+          154,
+          "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '0a9f5eb02a70f00fa85001fecef0126225be96dd1234c2c3d8b387eac3f1e880',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "17b8429ec7facf8dd2114142daad25cb002181c129764e6835308c1e7f8c55bd",
+      "base_sha256": "ff465f4622299bc68b85392db2ad35f856e4835b33b851b6da7e76040762d6b4",
+      "inverse": [
+        [
+          604,
+          82,
+          "IMPORTER_SHA = '38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e'\n"
+        ],
+        [
+          1085,
+          276,
+          "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e',\n 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '0a9f5eb02a70f00fa85001fecef0126225be96dd1234c2c3d8b387eac3f1e880',\n"
+        ],
+        [
+          1494,
+          127,
+          " 'work/profit_1000_upgrade/candidate_natural_workflow.py': '2bfebb926ef0740ac7bb822c633ac8bd0a477ba7fa184e1150a6e73c33eca8bf',\n"
+        ],
+        [
+          2769,
+          126,
+          " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'a2277051d1cf31029b525e11c8ec340e4082a3598f58ba14826d3da8750ed843',\n"
+        ],
+        [
+          46322,
+          6209,
+          ""
+        ],
+        [
+          52843,
+          727,
+          ""
+        ],
+        [
+          86386,
+          91,
+          ""
+        ],
+        [
+          86796,
+          138,
+          "        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA or (prior_next_day and day <= \"20261106\")\n"
+        ],
+        [
+          91353,
+          192,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "14a7681c15de7b4646aa2d3a79beec5c3e4f8ce556f8dac11e83c1b57225f0c3",
+      "base_sha256": "17542b9c09641ec16f35c3f8869051576e850935cdb9399949335560fa720ab6",
+      "inverse": [
+        [
+          1376,
+          111,
+          " 'candidate_natural_evidence_publication': '28db4b86799e94e6c323388efd6a426b3f6847192b4af928d679ad3e6bf6bcb4',\n"
+        ],
+        [
+          1793,
+          101,
+          " 'candidate_natural_statistics': '434e21a84aad6f627b25321dd9eb0aa163f65b92c50d266d80c8b654f13a152a'}\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "9a1df078ee87ab7823cf97b3b22e819f3258cf7234537f40a716350b35c5f6ca",
+      "base_sha256": "434e21a84aad6f627b25321dd9eb0aa163f65b92c50d266d80c8b654f13a152a",
+      "inverse": [
+        [
+          833,
+          85,
+          "PUBLICATION_SHA = '28db4b86799e94e6c323388efd6a426b3f6847192b4af928d679ad3e6bf6bcb4'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "fce7ee34ff3127b8813ba2e1337bd2766b53126fd75763d267298da55122088d",
+      "base_sha256": "2bfebb926ef0740ac7bb822c633ac8bd0a477ba7fa184e1150a6e73c33eca8bf",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '38aa47c7f272a31b44814adac83df01cdf2d9f5520179e58caf67e13695cf76e'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py": {
+      "sha256": "272907bb99623236149acd1ec09677b7a8f23a34235b9189027e3c6b6dcd8bf8",
+      "base_sha256": "6f5a5f9488cc0bed19dab497ea8247b41240e4c70fd680827bf4774a34ea54b2",
+      "inverse": [
+        [
+          20334,
+          512,
+          ""
+        ]
+      ]
+    }
+  }
+}

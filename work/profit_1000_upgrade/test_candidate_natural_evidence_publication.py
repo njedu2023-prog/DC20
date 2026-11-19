@@ -317,3 +317,13 @@ def test_tail_reuse_never_bypasses_core_cas_artifact_or_untouched_guard(tmp_path
     elif bad=='duplicate_step':steps.append(deepcopy(steps[-1]))
     else:steps[-1].update(name='Unknown cleanup',conclusion='failure')
     with pytest.raises(ValueError):run(case)
+
+
+# The cleanup workflow explicitly runs this module. Include the UI successor
+# compatibility checks without changing that workflow or historical fixtures.
+from tests.test_late_research_ui_source_profiles import (
+    test_ui_successor_changes_only_manifest_and_retains_original_profiles,
+    test_pre_ui_publication_complete_profile_and_date_are_required,
+    test_original_issued_observer_context_and_full_pair_remain_readable,
+    test_old_continuation_exact_importer_and_dependency_pair_remains_readable,
+)

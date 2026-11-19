@@ -135,7 +135,7 @@ def activation_identity(activation):
 def _dependencies():
     # These original modules remain research-only and frozen. Their own guards
     # check the complete unchanged source/model/label chain.
-    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': '28db4b86799e94e6c323388efd6a426b3f6847192b4af928d679ad3e6bf6bcb4'}
+    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': '671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a'}
     for name, expected in pins.items():
         path = ROOT / "work/profit_1000_upgrade" / (name + ".py")
         require(path.is_file() and path.stat().st_nlink == 1

@@ -171,3 +171,33 @@ def test_rate_release_sources_and_their_exact_predecessors():
         assert sha(count_delta.before_rate(path, raw)) == record['base_sha256'], path
         with pytest.raises(AssertionError):
             count_delta.before_rate(path, raw + b'\n')
+
+
+def test_late_research_ui_release_exact_predecessors_and_tampering():
+    records = count_delta.late_files()
+    assert {MANIFEST, INVENTORY, 'decision.html',
+            'tests/test_top1_paper_release_source_review.py'} <= records.keys()
+    for path, record in records.items():
+        assert path in {MANIFEST, INVENTORY, 'decision.html'} or path.startswith((
+            'work/profit_1000_upgrade/', 'src/top10decision/decision/', 'tests/'))
+        current = (ROOT / path).read_bytes()
+        prior = count_delta.before_late(path, current)
+        assert sha(prior) == record['base_sha256'], path
+        with pytest.raises(AssertionError):
+            count_delta.before_late(path, current + b'\n')
+
+
+def test_late_research_ui_rotates_only_display_manifest_pin():
+    now_raw = (ROOT / MANIFEST).read_bytes()
+    old_raw = count_delta.before_late(MANIFEST, now_raw)
+    now, old = json.loads(now_raw), json.loads(old_raw)
+    now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
+    assert now == old and now_pins.keys() == old_pins.keys()
+    assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'decision.html'}
+    assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
+    current_inventory = (ROOT / INVENTORY).read_bytes()
+    expected = json.loads(count_delta.before_late(INVENTORY, current_inventory))
+    entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
+    assert len(entries) == 1
+    entries[0].update(sha256=sha(now_raw), bytes=len(now_raw))
+    assert json.loads(current_inventory) == expected
