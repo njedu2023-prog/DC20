@@ -1,0 +1,367 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "5632192b9731983b7004c1b731169631929208dd",
+  "base_tree": "41702eb10bf88f8e92a1c1d2f5eab82e93e3987a",
+  "files": {
+    "decision.html": {
+      "sha256": "1320f17de42b4b8c51c8e031e96c65d48810a27e4e2537575f3824f74f7320b8",
+      "base_sha256": "141b7d725d0b8b85e36a74320607c7db64f83012ed79b260d31717bb2c7cfb33",
+      "inverse": [
+        [
+          487914,
+          290,
+          "        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}${date === state.lateResearchAvailable?.signal_date ? \" · 事后补算\" : \"\"}` : `没有${label}`);\n"
+        ],
+        [
+          542707,
+          99,
+          "        if (parameters.get(\"view\") !== \"research\") {\n          try { state.lateResearchAvailable = await loadLateResearchDisplay(); }\n          catch (error) {\n            if (state.dailyRequestedDate === LATE_RESEARCH_DAY) throw error;\n            console.warn(\"独立研究名单未通过读取校验\", error);\n          }\n        }\n        if (state.dailyRequestedDate !== null && !(state.dailyRequestedDate === LATE_RESEARCH_DAY && state.lateResearchAvailable)) {\n"
+        ],
+        [
+          543071,
+          1292,
+          "        if (state.lateResearchAvailable && (state.dailyRequestedDate === LATE_RESEARCH_DAY\n          || (!state.dailyRequestedDate && state.dailyLatestDate && state.dailyLatestDate < LATE_RESEARCH_DAY))) {\n          // Keep currentThreeRank untouched: auxiliary statistics use formal evidence only.\n          state.lateResearch = state.lateResearchAvailable;\n"
+        ]
+      ]
+    },
+    "forward/model_inventory.json": {
+      "sha256": "750721671106ea2e3c65c7b81e31d37ab2953fe790e5d0847b18be65fa3a9e46",
+      "base_sha256": "d2600f352629d9cee6810c5216d54440585912a62b7519beda7984368514c55c",
+      "inverse": [
+        [
+          4921,
+          84,
+          "      \"sha256\": \"f203431784e154f63dbde4be3962af3a0116afccb75270807714832808539507\",\n"
+        ]
+      ]
+    },
+    "models/decision_model_freeze.json": {
+      "sha256": "68b8b0e31dd974703fcf0102e30b7359770d13c6eadb9e39b9ebae1da82855ab",
+      "base_sha256": "f203431784e154f63dbde4be3962af3a0116afccb75270807714832808539507",
+      "inverse": [
+        [
+          30128,
+          89,
+          "    \"decision.html\": \"141b7d725d0b8b85e36a74320607c7db64f83012ed79b260d31717bb2c7cfb33\",\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "52d435e7ba3ff213df500b2e7f96790e07a1ad3b621733621d95eecc72096d83",
+      "base_sha256": "b0559a6f93b9aa4bc08c40d650ce619082627d830f8b6f8bddaafd807507dbca",
+      "inverse": [
+        [
+          1042,
+          84,
+          "STATISTICS_SHA = '9a1df078ee87ab7823cf97b3b22e819f3258cf7234537f40a716350b35c5f6ca'\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "0dc43eefb39852fcfaea383f361b19dc15b1ae61a3e29567d2d377ab1445373c",
+      "base_sha256": "5ce2d743e95b0aa3952343cd5437cf2afa6820f4c2c42d22a97409cad2a7df9f",
+      "inverse": [
+        [
+          5328,
+          220,
+          "    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': '671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a'}\n"
+        ]
+      ]
+    },
+    "tests/test_compact_statistics_window_frontend.py": {
+      "sha256": "7f7581f2510f533dce9c9275c2e6903afc028a08880e6b8d8cfc2a01d44dc632",
+      "base_sha256": "575d8a4635d9af8b22944aea55f0e3c94027efe38eff626c1944811199592f7c",
+      "inverse": [
+        [
+          24985,
+          204,
+          ""
+        ]
+      ]
+    },
+    "tests/test_late_research_ui_source_profiles.py": {
+      "sha256": "d51ae37985ce6ac0a1cde75cb91718842562f7471a5ab3a84deb38c4cf29212a",
+      "base_sha256": "aea52d88a62b3f79f4c63d41c5bb45e5d273b2546d30e7d622ee06780ca9fbc2",
+      "inverse": [
+        [
+          955,
+          145,
+          "    assert new[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())\n    assert len(continuation.RELIABILITY_PROFILES) == 9\n"
+        ],
+        [
+          1186,
+          106,
+          "        day = '20261120' if profile is new else '20261118'\n"
+        ]
+      ]
+    },
+    "tests/test_reliability_runtime_profiles.py": {
+      "sha256": "9c71c0aebd8da0b09ca9e8a71b02f8b0101b08f6fe4de87e7cde2513a090cbe2",
+      "base_sha256": "e128e8a177caf9a4c2c8a76cc270c60ea631bc43e892643d974756ea86d732ea",
+      "inverse": [
+        [
+          3737,
+          58,
+          "    profile = continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE\n"
+        ],
+        [
+          4656,
+          233,
+          "@pytest.mark.parametrize(\"profile\", continuation.RELIABILITY_PROFILES, ids=[\"original\", \"top1-paper\", \"top1-count\", \"top1-rate\", \"top1-month\", \"top1-fill-note\", \"top1-start-date\", \"top1-curve\", \"late-research-ui\"])\n"
+        ],
+        [
+          4970,
+          388,
+          "    day = \"20261120\" if profile is continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE else \"20261112\" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else \"20261111\"\n"
+        ],
+        [
+          5797,
+          112,
+          "    if profile is continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE:\n"
+        ]
+      ]
+    },
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "5c16346ab94fa3b7b0794c2c0039528ca0adbd95d2ce8724a4cf66adfc223012",
+      "base_sha256": "90ab645bc4dc7ae8a0e962362b70fd7ad90ac8f7c52efc1f60cad51a9e67b756",
+      "inverse": [
+        [
+          9166,
+          1633,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "cde3a4a25b15a37fd61760fbbbb0d0c96ce81e67a98cf4684014dbf2ebfb34d9",
+      "base_sha256": "5add308c4eca677d749e4df27be4ae55d230d6dbc8e54801056d3ee28f5ca5ad",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = 'e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "3e09e35070d8479e5e230a3fd2cb5ad068370874513fd287d69e4e615cfe3f1b",
+      "base_sha256": "864f9afeb3457b0117d8294f10426f9f23dd7bf42d4d55e20427a4ad1b86af0e",
+      "inverse": [
+        [
+          757,
+          85,
+          "PUBLICATION_SHA = '17b8429ec7facf8dd2114142daad25cb002181c129764e6835308c1e7f8c55bd'\n"
+        ],
+        [
+          4692,
+          169,
+          ""
+        ],
+        [
+          4886,
+          431,
+          "    return (PRE_UI_CAPTURE_CONTRACT, D11_CAPTURE_CONTRACT, PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))\n"
+        ],
+        [
+          22935,
+          184,
+          ""
+        ],
+        [
+          25243,
+          325,
+          "        in ((SELF_SHA, PUBLICATION_SHA), PRE_UI_CAPTURE_CONTRACT, PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "31533235267c80464a2a74f53a2d78da28964f747be4ed8c92e51e896f018336",
+      "base_sha256": "671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a",
+      "inverse": [
+        [
+          630,
+          81,
+          "CAPTURE_SHA = '864f9afeb3457b0117d8294f10426f9f23dd7bf42d4d55e20427a4ad1b86af0e'\n"
+        ],
+        [
+          1010,
+          82,
+          "OBSERVER_SHA = 'fbc1aa8ef64b7ba3df007d7db8a87dabe2c40ddc1fd58c45ae0d65989b5714b2'\n"
+        ],
+        [
+          34620,
+          2956,
+          ""
+        ],
+        [
+          37794,
+          203,
+          ""
+        ],
+        [
+          40947,
+          138,
+          "    elif contract in ((capture.SELF_SHA, capture.PUBLICATION_SHA), capture.PRE_UI_CAPTURE_CONTRACT):\n"
+        ],
+        [
+          42738,
+          535,
+          "    if overrides and (manifest.get(\"capture_code_sha256\"), manifest.get(\"publication_verifier_sha256\")) not in (capture.PRE_UI_CAPTURE_CONTRACT, capture.D11_CAPTURE_CONTRACT, capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):\n"
+        ],
+        [
+          43837,
+          201,
+          "    expected_importer = (PRE_UI_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "a37705ad3fa111f263f72ac8d6ad15595c8dc5a48bc08714400694695d2554f0",
+      "base_sha256": "fbc1aa8ef64b7ba3df007d7db8a87dabe2c40ddc1fd58c45ae0d65989b5714b2",
+      "inverse": [
+        [
+          550,
+          81,
+          "CAPTURE_SHA = '864f9afeb3457b0117d8294f10426f9f23dd7bf42d4d55e20427a4ad1b86af0e'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_continuation.py": {
+      "sha256": "03d45f686af8fdafe1ddc85ec79093be49653eddd81c6062082655ecb4c6879a",
+      "base_sha256": "b73f7f333de2c0d0c4d2f42a49c087951a3567d0cc4f017ce64778610e02de9e",
+      "inverse": [
+        [
+          22510,
+          1999,
+          "RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE, LATE_RESEARCH_UI_P0_CODE_PROFILE)\n"
+        ],
+        [
+          30556,
+          164,
+          ""
+        ],
+        [
+          56125,
+          235,
+          ""
+        ],
+        [
+          57409,
+          1395,
+          "        and imported.get(\"continuation_dependency_sha256\") == (PRE_UI_CONTINUATION_PINS if prior_ui else PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)\n        and imported.get(\"importer_sha256\") == (PRE_UI_IMPORT_PROFILE[\"importer_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"importer_sha256\"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)\n        and imported.get(\"source_adapter_sha256\") == (PRE_UI_IMPORT_PROFILE[\"source_adapter_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)\n        and imported.get(\"source_adapter_dependency_sha256\") == (PRE_UI_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009",
+      "base_sha256": "e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be",
+      "inverse": [
+        [
+          1454,
+          154,
+          "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'b73f7f333de2c0d0c4d2f42a49c087951a3567d0cc4f017ce64778610e02de9e',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "fc23726c9ee601e05bc06ed364b95b4cbd1f589c6d5cb986230b09ff29f7cea3",
+      "base_sha256": "17b8429ec7facf8dd2114142daad25cb002181c129764e6835308c1e7f8c55bd",
+      "inverse": [
+        [
+          604,
+          82,
+          "IMPORTER_SHA = 'e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be'\n"
+        ],
+        [
+          1085,
+          276,
+          "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be',\n 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'b73f7f333de2c0d0c4d2f42a49c087951a3567d0cc4f017ce64778610e02de9e',\n"
+        ],
+        [
+          1494,
+          127,
+          " 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'fce7ee34ff3127b8813ba2e1337bd2766b53126fd75763d267298da55122088d',\n"
+        ],
+        [
+          2769,
+          126,
+          " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '5add308c4eca677d749e4df27be4ae55d230d6dbc8e54801056d3ee28f5ca5ad',\n"
+        ],
+        [
+          52531,
+          6217,
+          ""
+        ],
+        [
+          59060,
+          763,
+          ""
+        ],
+        [
+          93366,
+          99,
+          ""
+        ],
+        [
+          93875,
+          178,
+          "        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA or (prior_ui and day <= \"20261118\") or (prior_next_day and day <= \"20261106\")\n"
+        ],
+        [
+          98472,
+          204,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "35b7faa409d6dab647ba77891ce02ca5cdf8171144f3fcfa77761d5220bfb5bf",
+      "base_sha256": "14a7681c15de7b4646aa2d3a79beec5c3e4f8ce556f8dac11e83c1b57225f0c3",
+      "inverse": [
+        [
+          1376,
+          111,
+          " 'candidate_natural_evidence_publication': '671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a',\n"
+        ],
+        [
+          1793,
+          101,
+          " 'candidate_natural_statistics': '9a1df078ee87ab7823cf97b3b22e819f3258cf7234537f40a716350b35c5f6ca'}\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "a6846e9ecc6483a27296f6e47185ae386d2217957ee697e789958681f957554c",
+      "base_sha256": "9a1df078ee87ab7823cf97b3b22e819f3258cf7234537f40a716350b35c5f6ca",
+      "inverse": [
+        [
+          833,
+          85,
+          "PUBLICATION_SHA = '671583d8663c91de95949c088a470605c1eed9530ee585b6673b88858b72d63a'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "7c84302ac417a7efad1410f56eeaf1b873f27e4cd2e98d110feca5efdfa64300",
+      "base_sha256": "fce7ee34ff3127b8813ba2e1337bd2766b53126fd75763d267298da55122088d",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = 'e3f21960f5ea4f5ecb0bff692cd9681122a386ac4dc81e46f039fbcb1b65b3be'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/test_candidate_natural_evidence_publication.py": {
+      "sha256": "f00ed8c803f6c07efd66ba93dbbc2abfc89f568772bb51e41f1f3ba23d34ceee",
+      "base_sha256": "272907bb99623236149acd1ec09677b7a8f23a34235b9189027e3c6b6dcd8bf8",
+      "inverse": [
+        [
+          20846,
+          388,
+          ""
+        ]
+      ]
+    }
+  }
+}

@@ -327,3 +327,12 @@ from tests.test_late_research_ui_source_profiles import (
     test_original_issued_observer_context_and_full_pair_remain_readable,
     test_old_continuation_exact_importer_and_dependency_pair_remains_readable,
 )
+
+
+# Keep the exact D1119 publication-preservation checks in the existing CI module.
+from tests.test_list_detail_source_profiles import (
+    test_detail_successor_preserves_all_previous_profiles,
+    test_pre_detail_publication_complete_profile_and_date_are_required,
+    test_original_d19_observer_materials_remain_verifiable,
+    test_prior_detail_continuation_pair_remains_readable,
+)

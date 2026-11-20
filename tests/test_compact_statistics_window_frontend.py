@@ -402,3 +402,9 @@ console.log(JSON.stringify({...result(),selectedD:validatedThreeRankContract(sta
     assert rendered["ready"] and rendered["selectedD"] == "20260908"
     assert HISTORY_PREFIX + "index.json" in rendered["calls"]
     assert HISTORY_PREFIX + "statistics.json" in rendered["calls"]
+
+
+# This explicitly scheduled frontend module also protects exact-D routing.
+from tests.test_daily_formal_research_route import (
+    test_formal_same_d_precedence_and_confirmed_missing_research_route,
+)

@@ -72,7 +72,7 @@ def test_predecessor_capture_and_observer_are_a_complete_pair():
 
 
 def test_new_p0_profile_binds_all_current_execution_files():
-    profile = continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE
+    profile = continuation.LIST_DETAIL_UI_P0_CODE_PROFILE
     original = continuation.RELIABILITY_P0_CODE_PROFILE
     assert set(profile) == set(original)
     assert {p for p in original if profile[p] != original[p]} == {continuation.MANIFEST_PATH}
@@ -88,14 +88,14 @@ def test_new_p0_profile_binds_all_current_execution_files():
                            "git_blob_sha1": gh.git_blob(raw), "git_mode": "100644"}
 
 
-@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count", "top1-rate", "top1-month", "top1-fill-note", "top1-start-date", "top1-curve", "late-research-ui"])
+@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count", "top1-rate", "top1-month", "top1-fill-note", "top1-start-date", "top1-curve", "late-research-ui", "list-detail-ui"])
 def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
-    day = "20261120" if profile is continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE else "20261112" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else "20261111"
+    day = "20261120" if profile in (continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else "20261112" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else "20261111"
     trees = [tree(profile) for _ in range(3)]
     if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE):
         with pytest.raises(ValueError, match="ACTIVATION_DATE"):
             continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261111"})
-    if profile is continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE:
+    if profile in (continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE):
         with pytest.raises(ValueError, match="UI_PROFILE_ACTIVATION_DATE_REQUIRED"):
             continuation.validate_code_profiles(gh, None, *trees, {"signal_date": "20261119"})
     result, transition = continuation.validate_code_profiles(gh, None, *trees, {"signal_date": day})

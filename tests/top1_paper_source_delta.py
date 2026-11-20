@@ -89,7 +89,26 @@ def late_files():
     return _parse(_read(LATE_RESEARCH_UI), LATE_RESEARCH_UI)
 
 
+LIST_DETAIL_UI = (
+    'models/decision_source_surface_review_20261120_list_detail_ui.json',
+    '6b38fd22509ff8e7e2f3de45c157fd91dbf226a9fd69024762aed16bc83d8b80',
+    '5632192b9731983b7004c1b731169631929208dd',
+    '41702eb10bf88f8e92a1c1d2f5eab82e93e3987a',
+)
+
+
+def detail_files():
+    return _parse(_read(LIST_DETAIL_UI), LIST_DETAIL_UI)
+
+
+def before_detail(path, raw):
+    if path not in _paths(LIST_DETAIL_UI):
+        return raw
+    return _restore(path, raw, _read(LIST_DETAIL_UI), LIST_DETAIL_UI)
+
+
 def before_late(path, raw):
+    raw = before_detail(path, raw)
     if path not in _paths(LATE_RESEARCH_UI):
         return raw
     return _restore(path, raw, _read(LATE_RESEARCH_UI), LATE_RESEARCH_UI)

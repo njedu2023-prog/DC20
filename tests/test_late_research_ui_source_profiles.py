@@ -22,11 +22,11 @@ def test_ui_successor_changes_only_manifest_and_retains_original_profiles():
     assert {p for p in old if old[p] != new[p]} == {continuation.MANIFEST_PATH}
     assert set(old) == set(new)
     assert old[continuation.MANIFEST_PATH] == '357a874e2c7c95fa6af37e7e3a2b9ea24eae327f'
-    assert new[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())
-    assert len(continuation.RELIABILITY_PROFILES) == 9
+    assert new[continuation.MANIFEST_PATH] == 'adad1026ee4e995c49162c57036992c20c95fc2d'
+    assert len(continuation.RELIABILITY_PROFILES) == 10
     for profile in continuation.RELIABILITY_PROFILES:
         entries = tree(profile)
-        day = '20261120' if profile is new else '20261118'
+        day = '20261120' if profile in (new, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else '20261118'
         matched, transition = continuation.validate_code_profiles(gh, None, entries, entries, entries,
             {'signal_date': day})
         assert matched == profile and transition is None

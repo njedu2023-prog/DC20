@@ -7511,7 +7511,7 @@
       const dates = dailyAdjacentDates();
       for (const [button, date, label] of [[els.prevBtn, dates.previous, "上一交易日名单"], [els.nextBtn, dates.next, "下一交易日名单"]]) {
         button.disabled = !date;
-        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}${date === state.lateResearchAvailable?.signal_date ? " · 事后补算" : ""}` : `没有${label}`);
+        button.title = state.dailyNavigationError || (date ? `${label} · D ${dateText(date)}${date === state.lateResearchAvailable?.signal_date && date !== state.dailyLatestDate && !(state.dailyNavigation || []).some(entry => entry.signal_date === date) ? " · 事后补算" : ""}` : `没有${label}`);
         button.setAttribute("aria-label", button.title);
       }
     }
@@ -8232,24 +8232,33 @@
         state.dailyRequestedDate = parameters.get("view") !== "research" && parameters.has("d") ? parameters.get("d") : null;
         state.lateResearch = null;
         state.lateResearchAvailable = null;
-        if (parameters.get("view") !== "research") {
-          try { state.lateResearchAvailable = await loadLateResearchDisplay(); }
-          catch (error) {
-            if (state.dailyRequestedDate === LATE_RESEARCH_DAY) throw error;
-            console.warn("独立研究名单未通过读取校验", error);
-          }
-        }
-        if (state.dailyRequestedDate !== null && !(state.dailyRequestedDate === LATE_RESEARCH_DAY && state.lateResearchAvailable)) {
+        if (state.dailyRequestedDate !== null && state.dailyRequestedDate !== LATE_RESEARCH_DAY) {
           await initializeDailyHistory(state.dailyRequestedDate);
           return;
         }
         if (force) state.reports = [];
         state.currentThreeRank = await loadCurrentThreeRank();
         state.dailyLatestDate = state.currentThreeRank?.signal_date;
-        if (state.lateResearchAvailable && (state.dailyRequestedDate === LATE_RESEARCH_DAY
-          || (!state.dailyRequestedDate && state.dailyLatestDate && state.dailyLatestDate < LATE_RESEARCH_DAY))) {
-          // Keep currentThreeRank untouched: auxiliary statistics use formal evidence only.
-          state.lateResearch = state.lateResearchAvailable;
+        if (parameters.get("view") !== "research" && state.dailyLatestDate !== LATE_RESEARCH_DAY
+          && (state.dailyRequestedDate === LATE_RESEARCH_DAY
+            || (!state.dailyRequestedDate && state.dailyLatestDate && state.dailyLatestDate < LATE_RESEARCH_DAY))) {
+          // A validated formal same-D entry wins. Read or hash errors must not
+          // be mistaken for an absent formal day and hidden by the research archive.
+          state.dailyNavigation = await loadDailyNavigation();
+          if (state.dailyNavigation.some(entry => entry.signal_date === LATE_RESEARCH_DAY)) {
+            await initializeDailyHistory(LATE_RESEARCH_DAY);
+            return;
+          }
+          executableProfitExpect(state.currentThreeRank && state.dailyNavigation.some(entry => entry.signal_date === state.dailyLatestDate),
+            "正式目录未覆盖可校验的当前名单；不能认定该D正式名单缺失");
+          try {
+            state.lateResearchAvailable = await loadLateResearchDisplay();
+            // Keep currentThreeRank untouched: auxiliary statistics use formal evidence only.
+            state.lateResearch = state.lateResearchAvailable;
+          } catch (error) {
+            if (state.dailyRequestedDate === LATE_RESEARCH_DAY) throw error;
+            console.warn("独立研究名单未通过读取校验", error);
+          }
         }
         const research = parameters.get("view") === "research";
         if (!research) void refreshDailyNavigation();
