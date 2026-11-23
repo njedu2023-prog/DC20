@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261124",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.038986354775822,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.02609603340292277,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.2857142857142857,
+      "five_year_streak_runup": 0.210075026795284,
+      "focus_pool_size": 13.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 5,
+      "ret_10d": 0.0929332042594384,
+      "ret_2d": 0.210075026795284,
+      "ret_5d": 0.12115193644488564,
+      "stage2_pool_size": 12.0,
+      "stage3_pool_size": 1.0,
+      "stage_pool_share": 0.9230769230769231,
+      "volatility_20d": 0.04102664493887054,
+      "volatility_5d": 0.061359895368884844,
+      "volume_ratio": 3.6798224120775695
+    },
+    "frozen_at": "2026-11-23T11:40:31.999926+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "长华集团",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 5,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261125",
+    "score": -0.006126272185741232,
+    "signal_date": "20261123",
+    "ts_code": "605018.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261123.json",
+      "sha256": "979ad437ad6cecb54702d44b6f929922b2c603cdf24feb5ff1b399d89a27c878"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261123.json",
+      "sha256": "f18bf9f45c1f6b8880c6e4180b5d837035f0905c63993840e547c51f838d482b"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261123.json",
+      "sha256": "1e9f0ffb44f3fff5d441ad45db8f6fb00ffb31131e66c43ce381198724b46f13"
+    }
+  ]
+}
