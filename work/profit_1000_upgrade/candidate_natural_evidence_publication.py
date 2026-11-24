@@ -20,12 +20,12 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 CAPTURE_PATH = "work/profit_1000_upgrade/candidate_natural_evidence.py"
-CAPTURE_SHA = '6d257baee1ef15648d2fb16ab51f26bf38245b8c5f05434bd95753a03029523e'
+CAPTURE_SHA = 'ba491df731616539e161f22163538559556db3727c3b12ae9b3c7b920bc86cd9'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_observer.yml"
 WORKFLOW_NAME = "DC20 · Preserve natural candidate publication (research)"
 OBSERVER_PATH = "work/profit_1000_upgrade/candidate_natural_observer.py"
 WRITER_PATH = "work/profit_1000_upgrade/candidate_natural_evidence_git.py"
-OBSERVER_SHA = '2334fa63b6c3c474831490f24953710f33acc9fe1559ad1e300d20933c9d2342'
+OBSERVER_SHA = 'e285a47db5e3d7fc5ae8f7dea12741bd9a8d092ff2c2a120592ea7f7c42ba298'
 WORKFLOW_SHA = "6d9b48e1a74e8b1bca8edfb00395b125c86095df946567742b5cde73a7994b4b"
 WRITER_SHA = '87c2412ba43bc74d9dd002a260b5ba575e78260c536a4aa36ebfc612167e3f8e'
 JOBS = ("Validate publication evidence preservation", "Verify and preserve original publication evidence")

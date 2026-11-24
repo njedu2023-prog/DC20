@@ -1,0 +1,531 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "db6b1bcfdb7cdb8b83ba0e132439846b1f649d70",
+  "base_tree": "da85f0257013237197814be9c9d372ec1dfcbad3",
+  "files": {
+    ".github/workflows/candidate_delivery_watchdog.yml": {
+      "sha256": "58d0e0d86293e3611d8ac0ba2a9387a389d10945b7f09e02c90b1384865a8aa6",
+      "base_sha256": "7b4b482e43bc3833b730ca750d59816a1309090a9361a6e3dca27ff3c45fcc82",
+      "inverse": [
+        [
+          60,
+          190,
+          "    # Controlled P0 completion wakes the existing inspector; cron recovery is unchanged.\n    workflows: ['DC2.0 · Publish Primary D List (P0)']\n"
+        ],
+        [
+          1522,
+          105,
+          "        (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') &&\n        github.event.workflow_run.workflow_id == 343703608 && github.event.workflow_run.run_attempt == 1 &&\n        github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&\n        github.event.workflow_run.head_branch == 'main' &&\n"
+        ],
+        [
+          1790,
+          707,
+          "        github.event.workflow_run.event == 'workflow_dispatch' &&\n        startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')))\n"
+        ]
+      ]
+    },
+    ".github/workflows/research_candidate_natural_forward.yml": {
+      "sha256": "894e01252a7c5117dcba2d8804e320cde7e9e871baa7d11c19a3bf9cbcc3dd77",
+      "base_sha256": "b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61",
+      "inverse": [
+        [
+          230,
+          68,
+          "        description: \"已成功自然发布本日名单的原始 P0 run ID；不接受历史恢复\"\n"
+        ],
+        [
+          376,
+          66,
+          "        description: \"仅原生成 CAS 成功而部署失败时，填写原始受控 P0 run ID；须与原 CAS 成对\"\n"
+        ],
+        [
+          514,
+          186,
+          "        description: \"原生成 run 唯一 CAS 提交的完整 40 位 SHA；p0_run_id 必须为后继自然复用成功 run\"\n"
+        ],
+        [
+          6454,
+          101,
+          ""
+        ],
+        [
+          6662,
+          106,
+          ""
+        ],
+        [
+          9256,
+          101,
+          ""
+        ],
+        [
+          9541,
+          106,
+          ""
+        ]
+      ]
+    },
+    "scripts/candidate_delivery_watchdog.py": {
+      "sha256": "e355b01921fbc6db3038ea194ab3b6d9b815b1c94dc89d7db973becefcc481ee",
+      "base_sha256": "a13ca4f6bb47fb7569b497d691d3b254616b8e55214c20c535a71b242c1c6124",
+      "inverse": [
+        [
+          459,
+          24,
+          ""
+        ],
+        [
+          1086,
+          77,
+          ""
+        ],
+        [
+          1211,
+          81,
+          "IDS = {P0: 343703608, NATURAL: 357010624, OBSERVER: 357027830}\n"
+        ],
+        [
+          11675,
+          495,
+          ""
+        ],
+        [
+          17382,
+          260,
+          "    require(run.get('event') in {'schedule', 'workflow_dispatch', 'workflow_run'}, 'NON_PUSH_RUN_REQUIRED')\n"
+        ],
+        [
+          27597,
+          3440,
+          ""
+        ],
+        [
+          36395,
+          595,
+          ""
+        ],
+        [
+          38593,
+          137,
+          "    valid_run(event_run, P0, success=False)\n"
+        ],
+        [
+          38943,
+          60,
+          "    valid_run(api_run, P0, success=False)\n"
+        ],
+        [
+          39353,
+          614,
+          ""
+        ],
+        [
+          44202,
+          411,
+          ""
+        ],
+        [
+          44727,
+          59,
+          "                return {**base, **core, 'top2': [r['ts_code'] for r in top2]}\n"
+        ],
+        [
+          46128,
+          78,
+          "                    'top2': [r['ts_code'] for r in top2], 'missing_profit_slots': 2 - len(top2),\n"
+        ],
+        [
+          54301,
+          1130,
+          ""
+        ],
+        [
+          56184,
+          31,
+          ""
+        ],
+        [
+          56369,
+          251,
+          "                wakeup_day = completion_wakeup(client, json.load(event_file), now)\n"
+        ],
+        [
+          56679,
+          382,
+          ""
+        ],
+        [
+          57209,
+          78,
+          ""
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "f5c7565dfaae8ba3d15ff97bd2e89b2b589066eb6a096228d370432084a2908a",
+      "base_sha256": "e9c2011ceb3f8ac24101a23bda08496201fa237883fd43bf72205debf4f430e0",
+      "inverse": [
+        [
+          1042,
+          84,
+          "STATISTICS_SHA = '3cbe0411127cd2010708e8e90d9dae33847d383f168a0c04ed823d537a7212c6'\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "ff7923cc4d8cbf29c8fe26bce9925c5ee2229845bc6f1573780a91912c2e0f4b",
+      "base_sha256": "5bb7a2c680d754949e863f1bf4d3f5a051c5e204e6f7f6c1cda0330aacb38f14",
+      "inverse": [
+        [
+          5328,
+          220,
+          "    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': 'ae24c9524601ba3eff89500f728e7d58cadfc51aaed4e2637e65cabaf455f32b'}\n"
+        ]
+      ]
+    },
+    "tests/test_candidate_delivery_watchdog.py": {
+      "sha256": "3549be2323cc1c7e362d75e714f54aa2845def90c49ffc268bc3f71e7e7212cf",
+      "base_sha256": "a74a8eaa5cde5aec3a361586ef375c6a55dc01a7076b6d3214315cc17ee5c7bb",
+      "inverse": [
+        [
+          2773,
+          118,
+          ""
+        ],
+        [
+          14327,
+          109,
+          "    assert trigger == {'workflows': [m.P0_NAME], 'branches': ['main'], 'types': ['completed']}\n"
+        ],
+        [
+          48707,
+          7003,
+          ""
+        ]
+      ]
+    },
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "3b867b13a40752ed22754c61a453fdd4e7fdc0fc6832fe962619eea232ca697d",
+      "base_sha256": "972aa47d47bffe6cc4912e81b2730cf9b723558083ecf88ae4b81eb256b3870b",
+      "inverse": [
+        [
+          13797,
+          860,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "653844f5d632e2ba154ee1a2cacd898bb4f5c0d04e5f7e76af1069e923cf41bc",
+      "base_sha256": "7e9d50a1b5c2c8d507aab40efc1ceaed70a6c3c1f1c2c514d090d09d56aceec7",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "ba491df731616539e161f22163538559556db3727c3b12ae9b3c7b920bc86cd9",
+      "base_sha256": "6d257baee1ef15648d2fb16ab51f26bf38245b8c5f05434bd95753a03029523e",
+      "inverse": [
+        [
+          757,
+          85,
+          "PUBLICATION_SHA = '947446c6bcad2254e8b70291f039fb9176ebffe63b6939117797a2f4b6f4f9c8'\n"
+        ],
+        [
+          21398,
+          275,
+          "    require(gh.validate_revision(revision, reused, reuse_id) == (manifest[\"signal_date\"], observation[\"exec_date\"],\n"
+        ],
+        [
+          22153,
+          134,
+          "        source_main_sha=proof[\"source_main_sha\"], cached_reuse_revision=(revision, sha(revision_raw)))\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "5485d3f8687a349cbb25246c56db3bd4e1c3bc117381ba36a6cdf9f9e195487e",
+      "base_sha256": "ae24c9524601ba3eff89500f728e7d58cadfc51aaed4e2637e65cabaf455f32b",
+      "inverse": [
+        [
+          630,
+          81,
+          "CAPTURE_SHA = '6d257baee1ef15648d2fb16ab51f26bf38245b8c5f05434bd95753a03029523e'\n"
+        ],
+        [
+          1010,
+          82,
+          "OBSERVER_SHA = '2334fa63b6c3c474831490f24953710f33acc9fe1559ad1e300d20933c9d2342'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "e285a47db5e3d7fc5ae8f7dea12741bd9a8d092ff2c2a120592ea7f7c42ba298",
+      "base_sha256": "2334fa63b6c3c474831490f24953710f33acc9fe1559ad1e300d20933c9d2342",
+      "inverse": [
+        [
+          550,
+          81,
+          "CAPTURE_SHA = '6d257baee1ef15648d2fb16ab51f26bf38245b8c5f05434bd95753a03029523e'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_continuation.py": {
+      "sha256": "c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543",
+      "base_sha256": "8742db36e1def907af48cbbeb2153f10315ed93de3473372ffc1ffd1a83e55d4",
+      "inverse": [
+        [
+          47953,
+          68,
+          "    def ancestry(self, ancestor, descendant):\n"
+        ],
+        [
+          48161,
+          583,
+          "            commit, _ = self.tree(current)\n"
+        ],
+        [
+          50151,
+          3659,
+          ""
+        ],
+        [
+          53976,
+          105,
+          "                require_same_main=False, now=None, cached_reuse_revision=None):\n"
+        ],
+        [
+          54567,
+          344,
+          "    redeployed = gh.validate_run(r1, reuse_run_id)\n    r1_jobs = _jobs(gh, reads.json(reuse_path + \"/attempts/1/jobs?per_page=100\"), r1, reuse_run_id, original=False)\n"
+        ],
+        [
+          55012,
+          206,
+          "    require(gh.utc(r1_jobs[2][\"started_at\"]) <= gh.utc(pages[\"created_at\"]) <= gh.utc(pages[\"updated_at\"])\n        <= gh.utc(r1_jobs[2][\"completed_at\"]), \"REUSE_PAGES_ARTIFACT_MUST_BELONG_TO_DEPLOY_JOB\")\n"
+        ],
+        [
+          55680,
+          433,
+          "    day, trade, exit_day, deployed_sha = gh.validate_revision(revision, r1, reuse_run_id)\n    validate_reuse_event(r1, day)\n"
+        ],
+        [
+          61840,
+          452,
+          "    if manifest_transition and manifest_transition.get('kind') == 'D20261124_PAGES_TRANSPORT_ONLY':\n"
+        ],
+        [
+          63166,
+          105,
+          "    redeploy_ancestry = reads.ancestry(original_cas_commit, deployed_sha)\n"
+        ],
+        [
+          63847,
+          313,
+          "    source_ancestry = reads.ancestry(original_cas_commit, source_main_sha)\n    reads.ancestry(source_main_sha, current_sha)\n"
+        ],
+        [
+          67030,
+          81,
+          ""
+        ],
+        [
+          72418,
+          618,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7",
+      "base_sha256": "d4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7",
+      "inverse": [
+        [
+          1454,
+          154,
+          "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '8742db36e1def907af48cbbeb2153f10315ed93de3473372ffc1ffd1a83e55d4',\n"
+        ],
+        [
+          18784,
+          82,
+          "def validate_revision(revision, run, run_id):\n"
+        ],
+        [
+          19217,
+          105,
+          "        and revision.get(\"workflow\") == WORKFLOW_NAME and revision.get(\"event_name\") == run[\"event\"]\n"
+        ],
+        [
+          36154,
+          130,
+          "                                original_cas_commit, github_client, clock=lambda: datetime.now(timezone.utc)):\n"
+        ],
+        [
+          36609,
+          141,
+          ""
+        ],
+        [
+          36937,
+          132,
+          "        reuse_run_id=expected_run_id, require_absent=True, now=clock())\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "67629edc2065aab93b9048b332c009b0400f795a99b0dcdbfd496b9ef47a52c9",
+      "base_sha256": "947446c6bcad2254e8b70291f039fb9176ebffe63b6939117797a2f4b6f4f9c8",
+      "inverse": [
+        [
+          604,
+          82,
+          "IMPORTER_SHA = 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7'\n"
+        ],
+        [
+          1085,
+          276,
+          "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7',\n 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '8742db36e1def907af48cbbeb2153f10315ed93de3473372ffc1ffd1a83e55d4',\n"
+        ],
+        [
+          1494,
+          256,
+          " 'work/profit_1000_upgrade/candidate_natural_workflow.py': '217261dfb125119dcf794fee7de1ef80d6f8355b56f1c7f47d13dddc0af3cdbd',\n '.github/workflows/research_candidate_natural_forward.yml': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61',\n"
+        ],
+        [
+          2769,
+          126,
+          " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '7e9d50a1b5c2c8d507aab40efc1ceaed70a6c3c1f1c2c514d090d09d56aceec7',\n"
+        ],
+        [
+          108860,
+          184,
+          "            original_sources=archive[\"sources\"], source_main_sha=expected_proof[\"source_main_sha\"])\n"
+        ],
+        [
+          117153,
+          659,
+          "            actual_bound = (continuation.validate_original_run(gh, actual_run, identity, day) if original\n                else gh.validate_run(actual_run, identity))\n            actual_jobs = continuation._jobs(gh, github_client.get_json(route + \"/attempts/1/jobs?per_page=100\"),\n                actual_run, identity, original=original)\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "b41e1e90dd868b2d58ff33e16524d35573ac36c6d2cd00658c83a8ff6213be84",
+      "base_sha256": "1e28a73f73a736d3d3c5416688519d02872b2733c28d82fb7fa04203abad7cfb",
+      "inverse": [
+        [
+          1376,
+          111,
+          " 'candidate_natural_evidence_publication': 'ae24c9524601ba3eff89500f728e7d58cadfc51aaed4e2637e65cabaf455f32b',\n"
+        ],
+        [
+          1793,
+          101,
+          " 'candidate_natural_statistics': '3cbe0411127cd2010708e8e90d9dae33847d383f168a0c04ed823d537a7212c6'}\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "c5ad5f36504e84eb7c9d8c10973f27aeb7d2646f2a1b244c8bd31c1af6e59e51",
+      "base_sha256": "3cbe0411127cd2010708e8e90d9dae33847d383f168a0c04ed823d537a7212c6",
+      "inverse": [
+        [
+          833,
+          85,
+          "PUBLICATION_SHA = 'ae24c9524601ba3eff89500f728e7d58cadfc51aaed4e2637e65cabaf455f32b'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_trigger_gate.py": {
+      "sha256": "e84b14a51cdaee1d15475ac133b39cdda5613e5e271a4fbb1d06cee207cb6100",
+      "base_sha256": "fed78da292aeef09e06e0bf57e5acb3638e0de84b43d88d60a4aad4f60ac5706",
+      "inverse": [
+        [
+          22622,
+          87,
+          "                         clock=lambda: datetime.now(timezone.utc)):\n"
+        ],
+        [
+          22803,
+          119,
+          ""
+        ],
+        [
+          23035,
+          130,
+          "        original_cas_commit=original_cas_commit, reuse_run_id=run_id)\n"
+        ],
+        [
+          24103,
+          85,
+          ""
+        ],
+        [
+          27938,
+          176,
+          "        original_cas_commit=paired[1], github_client=github_client) if paired[0] else\n"
+        ],
+        [
+          28953,
+          42,
+          ""
+        ],
+        [
+          29226,
+          207,
+          "        and (not args.original_generation_run_id or args.kind == \"p0\"), \"PAIRED_P0_CONTINUATION_ARGUMENTS_REQUIRED\")\n"
+        ],
+        [
+          29905,
+          148,
+          "        original_cas_commit=args.original_cas_commit, github_client=client) if args.original_generation_run_id else\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "4bd9a2fd2107efad33284b13330187df215d9a7d646ac37df5394dd68ebf10c0",
+      "base_sha256": "217261dfb125119dcf794fee7de1ef80d6f8355b56f1c7f47d13dddc0af3cdbd",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7'\n"
+        ],
+        [
+          17420,
+          42,
+          ""
+        ],
+        [
+          17861,
+          137,
+          ""
+        ],
+        [
+          18710,
+          102,
+          "        github_client=client) if args.original_generation_run_id else\n"
+        ],
+        [
+          20433,
+          173,
+          "                reuse_run_id=args.p0_run_id, source_main_sha=proof['source_main_sha'],\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/test_candidate_natural_p0_continuation.py": {
+      "sha256": "d56fa25c1869a3e342be3f574608f4e8ff19a4b11b6331787844d7a66360035f",
+      "base_sha256": "acdd34949fc9c4fd2148e6e59afccd9ed4de034c5b495bb12e9f591c014ee931",
+      "inverse": [
+        [
+          29220,
+          4742,
+          ""
+        ]
+      ]
+    }
+  }
+}

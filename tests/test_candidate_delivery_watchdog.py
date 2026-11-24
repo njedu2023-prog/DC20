@@ -42,6 +42,9 @@ class Fake:
     def file(self,path,head):
         if head==self.head:return self.files.get(path)
         return self.revisions.get(head,{}).get(path)
+    def public_file(self,path):
+        assert path == 'revision.json'
+        return raw({'signal_date':'20260921'})
     def public_ready(self,*args): return self.live
     def public_core_status(self,*args): return None
     def candidate_code_approval(self,head):
@@ -236,7 +239,7 @@ def test_workflow_is_valid_and_has_no_repository_writer():
     assert all(job.get('permissions',{}).get('contents')!='write' for job in doc['jobs'].values())
     assert 'schedule' in doc[True] and 'push' in doc[True]
     trigger = doc[True]['workflow_run']
-    assert trigger == {'workflows': [m.P0_NAME], 'branches': ['main'], 'types': ['completed']}
+    assert trigger == {'workflows': [m.P0_NAME, m.PAGES_NAME], 'branches': ['main'], 'types': ['completed']}
     assert doc['concurrency'] == {'group': 'dc20-delivery-watchdog', 'cancel-in-progress': False}
     verify = doc['jobs']['verify']['if']
     for gate in ('workflow_id == 343703608', 'run_attempt == 1', "head_branch == 'main'",
@@ -877,3 +880,131 @@ def test_continuation_does_not_reset_budget_at_cas_or_ignore_failed_startup():
     with pytest.raises(ValueError, match='RETRY_BUDGET'):
         m.act(f, plan, NOW, execute=True)
     assert not f.posts
+
+class PublishedPush(Continuation):
+    def __init__(self):
+        super().__init__(reuse=False)
+        self.published = run(m.PAGES, 900, event='push', name=m.PAGES_NAME, head_sha=self.head,
+                             created_at='2026-09-22T13:00:00Z', run_started_at='2026-09-22T13:00:03Z',
+                             updated_at='2026-09-22T13:10:00Z')
+        self.revision = dict(signal_date='20260922',primary_d_signal_date='20260922',
+                             primary_d_exec_date='20260923',primary_d_exit_date='20260924',
+                             primary_d_status='READY',primary_d_generation_mode='NATURAL',
+                             primary_d_bundle_sha256='1'*64, branch='main', repository=m.REPO,
+                             head_sha=self.head,run_id=900,run_attempt=1,workflow=m.PAGES_NAME,
+                             run_url=f'https://github.com/{m.REPO}/actions/runs/900')
+        path = 'outputs/decision/primary_d_receipt_20260922.json'
+        receipt = json.loads(self.files[path])
+        receipt['outputs']['bundle_sha256'] = self.revision['primary_d_bundle_sha256']
+        self.revisions[self.cas][path] = self.files[path] = raw(receipt)
+        self.site = deepcopy(self.files)
+        self.deploy = dict(name='deploy',run_id=900,head_sha=self.head,status='completed',conclusion='success',
+                           steps=[dict(name=n, status='completed',conclusion='success')
+                                  for n in ('Deploy DC2.0 Pages','Verify public DC2.0 Pages revision')])
+
+    def public_file(self, path):
+        return raw(self.revision) if path == 'revision.json' else self.site[path]
+
+    def request(self,path,body=None):
+        if path == '/actions/runs/900':
+            return deepcopy(self.published)
+        if path == '/actions/runs/900/attempts/1/jobs?per_page=100':
+            return {'total_count':1, 'jobs':[deepcopy(self.deploy)]}
+        return super().request(path,body)
+
+
+def test_independent_push_discovered_after_p0_window_without_a_fourth_p0():
+    f = PublishedPush()
+    now = datetime.fromisoformat('2026-09-23T00:30:00+08:00')
+    original = deepcopy(f.p0_runs[0])
+    plan = m.inspect(f, now)
+    assert plan['status'] == 'NEEDS_FREEZE_FROM_PUBLISHED_P0'
+    assert plan['inputs'] == {'p0_run_id':'7','original_generation_run_id':'7',
+                              'original_cas_commit':f.cas,'pages_run_id':'900','dry_run': False}
+    assert m.act(f,plan,now,execute=True)['status'] == 'DISPATCHED_NOT_COMPLETED'
+    assert f.posts == [('/actions/workflows/'+m.NATURAL+'/dispatches',{'ref':'main','inputs':plan['inputs']})]
+    assert f.p0_runs == [original]
+
+
+@pytest.mark.parametrize('change', ['old_day','foreign_repo','second_attempt','wrong_job','no_verify',
+                                     'different_cas_bytes','different_public_bytes','changed_bundle','wrong_trade'])
+def test_independent_push_rejects_incomplete_public_binding(change):
+    f=PublishedPush()
+    if change=='old_day':
+        f.revision['signal_date']='20260921'
+        plan=m.inspect(f,datetime.fromisoformat('2026-09-23T01:00:00+08:00'))
+        assert 'workflow' not in plan
+        return
+    if change=='foreign_repo': f.published['head_repository']['full_name']='other/fork'
+    if change=='second_attempt': f.published['run_attempt']=2
+    if change=='wrong_job': f.deploy['run_id']=901
+    if change=='no_verify': f.deploy['steps'].pop()
+    if change=='different_cas_bytes': f.revisions[f.cas]['outputs/decision/three_rank_top10_20260922.csv']=b'other'
+    if change=='different_public_bytes': f.site['outputs/decision/three_rank_top10_20260922.csv']=b'other'
+    if change=='changed_bundle': f.revision['primary_d_bundle_sha256']='2'*64
+    if change=='wrong_trade': f.revision['primary_d_exec_date']='20260924'
+    with pytest.raises(ValueError):
+        m.inspect(f,NOW)
+    assert f.posts == []
+
+
+def test_pages_completion_wakes_only_verified_deployment_and_current_public_revision():
+    f=PublishedPush()
+    event={'action':'completed','workflow_run':deepcopy(f.published)}
+    day=m.completion_wakeup(f,event,NOW)
+    assert day=='20260922'
+    assert m.inspect(f,NOW,wakeup_day=day)['inputs']['pages_run_id']=='900'
+    f.revision['run_id']=901
+    assert m.completion_wakeup(f,event,NOW)==''
+    assert m.inspect(f,NOW,wakeup_day='')['status']=='STALE_P0_COMPLETION_IGNORED'
+
+@pytest.mark.parametrize('count,status',[(2,'FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT'),
+                                        (1,'FORMAL_AVAILABLE_SLOTS_LEDGER_AND_PAGE_PRESENT'),
+                                        (0,'CORE_DELIVERED_AUX_PENDING')])
+def test_official_summary_shows_only_validated_current_seats(tmp_path,count,status):
+    f=Fake();f.formal()
+    path=m.PUBLIC+'day_20260922.json'
+    day=json.loads(f.files[path])
+    day['rows']=day['rows'][:count]
+    for row in day['rows']:
+        row['name']='*ST测试' if row['ts_code']=='A' else '测试二'
+    day['candidate_slots']=[{'slot':i,'status':'RANKED' if i<=count else 'MISSING_CANDIDATE'} for i in (1,2)]
+    f.files[path]=raw(day)
+    f.files[m.PUBLIC+'index.json']=raw({'days':[dict(signal_date='20260922',sha256=m.digest(f.files[path]))]})
+    summary=json.loads(f.files[m.PUBLIC+'summary.json'])
+    for i,g in enumerate(('candidate_top1','candidate_top2')):
+        row=summary['groups'][g]['daily_sequence'][0]
+        row['formal_projection_sha256']=m.canonical(day)
+        if i>=count: row.update(ts_code=None,status='MISSING_CANDIDATE')
+    f.files[m.PUBLIC+'summary.json']=raw(summary)
+    if status=='CORE_DELIVERED_AUX_PENDING':
+        f.public_core_status=lambda *args: {'status':status}
+    plan=m.inspect(f,NOW)
+    assert plan['status']==status
+    assert plan['top2']==['A','B'][:count] and len(plan['profit_slots'])==2
+    out=tmp_path/'summary.md'
+    m.write_delivery_summary(plan,out)
+    page=out.read_text()
+    assert page.count('正式空席')==2-count
+    assert ('*ST测试' in page)==(count>0) and ('测试二' in page)==(count==2)
+    assert '盈1' in page and '盈2' in page and '?d=20260922' in page
+    assert ('辅助项待修复' in page)==(status=='CORE_DELIVERED_AUX_PENDING')
+
+
+def test_pending_delivery_generates_no_formal_summary(tmp_path):
+    f=Fake();f.formal();f.live=False
+    plan=m.inspect(f,NOW)
+    assert plan['status']=='NEEDS_DEPLOYMENT' and 'profit_slots' not in plan
+    out=tmp_path/'summary.md'
+    m.write_delivery_summary(plan,out)
+    assert not out.exists()
+
+def test_current_pages_revision_visible_before_job_has_finished_waits_without_dispatch():
+    f=PublishedPush()
+    f.published.update(status='in_progress', conclusion=None)
+    plan=m.inspect(f,NOW)
+    assert plan['status']=='PAGES_PUBLICATION_STILL_RUNNING'
+    assert plan['pages_run_id']=='900' and 'workflow' not in plan
+    assert m.act(f,plan,NOW,execute=True)==plan and not f.posts
+    f.published.update(status='completed', conclusion='failure')
+    assert m.inspect(f,datetime.fromisoformat('2026-09-23T01:00:00+08:00'))['status']=='P0_REDEPLOY_REQUIRES_EXISTING_NATURAL_SCHEDULE'

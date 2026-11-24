@@ -276,3 +276,20 @@ def test_readiness_sources_restore_the_committed_transport_bytes():
     deploy='.github/workflows/deploy_dc20_pages.yml'
     assert {p for p in pins if pins[p]!=prior[p]} == {deploy}
     assert pins[deploy]==sha((ROOT/deploy).read_bytes())
+
+
+def test_candidate_pages_handoff_changes_only_reviewed_sources():
+    release = count_delta.CANDIDATE_PAGES_HANDOFF
+    records = count_delta._parse(count_delta._read(release), release)
+    assert {
+        'scripts/candidate_delivery_watchdog.py',
+        '.github/workflows/research_candidate_natural_forward.yml',
+        'work/profit_1000_upgrade/candidate_natural_p0_continuation.py',
+    } <= records.keys()
+    assert MANIFEST not in records and INVENTORY not in records
+    for path, record in records.items():
+        assert not path.startswith(('outputs/', 'data/', 'models/', 'forward/'))
+        raw = (ROOT / path).read_bytes()
+        assert sha(count_delta.before_candidate_pages_handoff(path, raw)) == record['base_sha256']
+        with pytest.raises(AssertionError):
+            count_delta.before_candidate_pages_handoff(path, raw + b'\n')

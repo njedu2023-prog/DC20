@@ -18,17 +18,17 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7'
+IMPORTER_SHA = '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
-FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7',
- 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '8742db36e1def907af48cbbeb2153f10315ed93de3473372ffc1ffd1a83e55d4',
+FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7',
+ 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
- 'work/profit_1000_upgrade/candidate_natural_workflow.py': '217261dfb125119dcf794fee7de1ef80d6f8355b56f1c7f47d13dddc0af3cdbd',
- '.github/workflows/research_candidate_natural_forward.yml': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61',
+ 'work/profit_1000_upgrade/candidate_natural_workflow.py': '4bd9a2fd2107efad33284b13330187df215d9a7d646ac37df5394dd68ebf10c0',
+ '.github/workflows/research_candidate_natural_forward.yml': '894e01252a7c5117dcba2d8804e320cde7e9e871baa7d11c19a3bf9cbcc3dd77',
  'requirements-dev.lock': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2',
  'work/profit_1000_upgrade/candidate_natural_forward.py': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1',
  'work/profit_1000_upgrade/candidate_natural_forward_registration.json': '5f2837b34975dbb69cd86428d0c49ae58c993fbb3081bc2b8da8a4b80108bb52',
@@ -37,7 +37,7 @@ FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'd4e45
  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': 'c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc',
  'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23',
  'work/profit_1000_upgrade/candidate_snapshot_versions.py': '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6',
- 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '7e9d50a1b5c2c8d507aab40efc1ceaed70a6c3c1f1c2c514d090d09d56aceec7',
+ 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '653844f5d632e2ba154ee1a2cacd898bb4f5c0d04e5f7e76af1069e923cf41bc',
  'scripts/candidate_runtime_preflight.py': '8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69'}
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
@@ -1348,7 +1348,8 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         continuation_proof, checked_sources, p0_revision = continuation.verify_pair(gh, github_client,
             original_run_id=p0_id, original_cas_commit=imported["published_git_sha"],
             reuse_run_id=str(expected_proof["successful_reuse_run"]["id"]),
-            original_sources=archive["sources"], source_main_sha=expected_proof["source_main_sha"])
+            original_sources=archive["sources"], source_main_sha=expected_proof["source_main_sha"],
+            independent_pages=continuation.independent_pages_proof(expected_proof))
         require(continuation_proof == expected_proof and checked_sources == archive["sources"],
             "ORIGINAL_CONTINUATION_PAIR_OR_SOURCES_CHANGED")
         p0_jobs = continuation_proof["original_generation_jobs"]
@@ -1456,10 +1457,14 @@ def verify_publication(*, expected_freeze_run_id, github_client):
             identity = str(expected_run["id"])
             route = gh.API_PREFIX + "/actions/runs/" + identity
             actual_run = github_client.get_json(route)
-            actual_bound = (continuation.validate_original_run(gh, actual_run, identity, day) if original
-                else gh.validate_run(actual_run, identity))
-            actual_jobs = continuation._jobs(gh, github_client.get_json(route + "/attempts/1/jobs?per_page=100"),
-                actual_run, identity, original=original)
+            job_doc = github_client.get_json(route + "/attempts/1/jobs?per_page=100")
+            if not original and continuation.independent_pages_proof(continuation_proof):
+                actual_bound = continuation.validate_push_pages_run(gh, actual_run, identity)
+                actual_jobs = continuation.push_pages_jobs(gh, job_doc, actual_run, identity)
+            else:
+                actual_bound = (continuation.validate_original_run(gh, actual_run, identity, day) if original
+                    else gh.validate_run(actual_run, identity))
+                actual_jobs = continuation._jobs(gh, job_doc, actual_run, identity, original=original)
             artifact_document = github_client.get_json(route + "/artifacts?per_page=100")
             actual_artifact = (continuation.select_generation_artifact(gh, artifact_document, actual_run, identity)
                 if original else gh.select_artifact(artifact_document, actual_run, identity))

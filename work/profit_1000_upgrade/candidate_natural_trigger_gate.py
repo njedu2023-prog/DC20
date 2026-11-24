@@ -353,11 +353,12 @@ def inspect_p0(*, run_id, github_client):
 
 
 def inspect_continuation(*, run_id, original_generation_run_id, original_cas_commit, github_client,
-                         clock=lambda: datetime.now(timezone.utc)):
+                         pages_run_id=None, clock=lambda: datetime.now(timezone.utc)):
     runner, gh = workflow.dependencies()
     continuation, _ = gh.continuation_dependencies()
+    require(pages_run_id is None or run_id == original_generation_run_id, "INDEPENDENT_PAGES_ORIGINAL_P0_ID_REQUIRED")
     proof, _, revision = continuation.verify_pair(gh, github_client, original_run_id=original_generation_run_id,
-        original_cas_commit=original_cas_commit, reuse_run_id=run_id)
+        original_cas_commit=original_cas_commit, reuse_run_id=pages_run_id or run_id, independent_pages=pages_run_id is not None)
     day, trade, exit_day = (proof[k] for k in ("signal_date", "exec_date", "exit_date"))
     _, current_tree = _tree(gh, github_client, proof["source_main_sha"])
     _, original_tree = _tree(gh, github_client, original_cas_commit)
@@ -371,6 +372,7 @@ def inspect_continuation(*, run_id, original_generation_run_id, original_cas_com
     return {"schema_version": SCHEMA, "status": "VERIFIED_ORIGINAL_GENERATION_REDEPLOYMENT_REQUIRES_NEW_FREEZE"
         if existing is None else "EXISTING_CANDIDATE_VERIFIED_NO_NEW_FREEZE", "needs_work": existing is None,
         "p0_run_id": int(run_id), "p0_new_generation": False, "signal_date": day,
+        **({"pages_run_id": int(pages_run_id)} if pages_run_id is not None else {}),
         "original_generation_run_id": int(original_generation_run_id), "original_cas_commit": original_cas_commit,
         "observed_main_sha": proof["source_main_sha"], "p0_pages_revision_sha256": proof["successful_reuse_revision_sha256"],
         "existing": existing, **FLAGS}
@@ -422,7 +424,8 @@ def inspect_freeze(*, run_id, github_client):
     paired = (receipt.get("original_generation_run_id"), receipt.get("original_cas_commit"))
     require(bool(paired[0]) == bool(paired[1]), "PREFLIGHT_CONTINUATION_PAIR_CHANGED")
     rechecked = (inspect_continuation(run_id=str(receipt["p0_run_id"]), original_generation_run_id=str(paired[0]),
-        original_cas_commit=paired[1], github_client=github_client) if paired[0] else
+        original_cas_commit=paired[1], github_client=github_client,
+        pages_run_id=str(receipt["pages_run_id"]) if "pages_run_id" in receipt else None) if paired[0] else
         inspect_p0(run_id=str(receipt["p0_run_id"]), github_client=github_client))
     require(rechecked["needs_work"] is False and rechecked["existing"] == receipt.get("existing")
         and rechecked["signal_date"] == receipt.get("signal_date"), "EXISTING_FREEZE_CHANGED_AFTER_PREFLIGHT")
@@ -437,11 +440,13 @@ def main(argv=None):
     parser.add_argument("kind", choices=("p0", "freeze"))
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--original-generation-run-id")
+    parser.add_argument("--pages-run-id")
     parser.add_argument("--original-cas-commit")
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args(argv)
     require(bool(args.original_generation_run_id) == bool(args.original_cas_commit)
-        and (not args.original_generation_run_id or args.kind == "p0"), "PAIRED_P0_CONTINUATION_ARGUMENTS_REQUIRED")
+        and (not args.original_generation_run_id or args.kind == "p0")
+        and (args.pages_run_id is None or args.run_id == args.original_generation_run_id), "PAIRED_P0_CONTINUATION_ARGUMENTS_REQUIRED")
     _, gh = workflow.dependencies()
     target = gh.path(args.receipt, exists=False)
     require(workflow.ROOT != target and workflow.ROOT not in target.parents and not target.exists(),
@@ -449,7 +454,7 @@ def main(argv=None):
     gh.path(target.parent, directory=True)
     client = gh.GitHubReadClient(os.environ.get(gh.TOKEN_ENV, ""))
     result = (inspect_continuation(run_id=args.run_id, original_generation_run_id=args.original_generation_run_id,
-        original_cas_commit=args.original_cas_commit, github_client=client) if args.original_generation_run_id else
+        original_cas_commit=args.original_cas_commit, github_client=client, pages_run_id=args.pages_run_id) if args.original_generation_run_id else
         (inspect_p0 if args.kind == "p0" else inspect_freeze)(run_id=args.run_id, github_client=client))
     gh.write_new(target.parent, target.name, gh.json_bytes(result))
     output = gh.path(os.environ.get("GITHUB_OUTPUT"))

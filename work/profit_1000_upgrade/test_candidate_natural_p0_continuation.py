@@ -454,3 +454,85 @@ def test_historical_same_profile_has_no_new_transition_field(tmp_path, monkeypat
     c = fixture(tmp_path, monkeypatch, current_profile=True)
     proof, _, _ = call(c)
     assert 'reviewed_manifest_transition' not in proof
+
+
+def standalone_evidence():
+    repo = {"full_name": gh.REPOSITORY}
+    date = "2026-11-24T15:"
+    run = dict(id=int(R1), workflow_id=m.PAGES_WORKFLOW_ID, path=m.PAGES_WORKFLOW_PATH,
+        name=m.PAGES_WORKFLOW_NAME, event="push", head_sha=HEAD, head_branch="main",
+        run_attempt=1, repository=repo, head_repository=dict(repo), status="completed",
+        conclusion="success", created_at=date+"20:00Z", run_started_at=date+"20:01Z", updated_at=date+"26:00Z")
+    steps = [dict(number=number, name=name, status="completed", conclusion="success",
+        started_at=date+start+"Z", completed_at=date+end+"Z") for number, name, start, end in (
+        (20, "Deploy DC2.0 Pages", "23:00", "24:00"),
+        (21, "Verify public DC2.0 Pages revision", "24:00", "25:00"))]
+    job = dict(id=451, run_id=int(R1), run_attempt=1, name="deploy", head_sha=HEAD, status="completed",
+        conclusion="success", started_at=date+"20:02Z", completed_at=date+"25:14Z", steps=steps)
+    revision = dict(schema_version="decision_pages_revision_v4_primary_first", branch="main", repository=gh.REPOSITORY,
+        run_id=int(R1), run_attempt=1, workflow=m.PAGES_WORKFLOW_NAME, event_name="push", head_sha=HEAD,
+        signal_date="20261124", primary_d_signal_date="20261124", primary_d_exec_date="20261125",
+        primary_d_exit_date="20261126", primary_d_status="READY", primary_d_generation_mode="NATURAL",
+        primary_d_receipt_url=gh.adapter._p0_paths("20261124")["receipt"], primary_d_bundle_sha256="a"*64,
+        primary_d_top10_count=1)
+    return run, {"total_count": 1, "jobs": [job]}, revision
+
+
+def test_independent_pages_keeps_actual_run_identity_and_checks_the_public_ack():
+    run, jobs, revision = standalone_evidence()
+    checked = m.validate_push_pages_run(gh, run, R1)
+    assert checked["workflow_id"] == m.PAGES_WORKFLOW_ID != gh.WORKFLOW_ID and checked["event"] == "push"
+    assert m.push_pages_jobs(gh, jobs, run, R1)[0]["verified_steps"] == jobs["jobs"][0]["steps"]
+    assert gh.validate_revision(revision, run, R1, expected_workflow=m.PAGES_WORKFLOW_NAME) == (
+        "20261124", "20261125", "20261126", HEAD)
+    with pytest.raises(ValueError):
+        gh.validate_run(run, R1)
+    with pytest.raises(ValueError):
+        gh.validate_revision(revision, run, R1)
+
+
+@pytest.mark.parametrize(("field","bad"), [
+    ("event","workflow_dispatch"), ("workflow_id",gh.WORKFLOW_ID), ("path",gh.WORKFLOW_PATH),
+    ("name",gh.WORKFLOW_NAME), ("head_branch","dev"), ("run_attempt",2),
+    ("head_repository",{"full_name":"other/repo"}), ("status","in_progress"), ("conclusion","failure")])
+def test_independent_pages_rejects_substituted_run(field, bad):
+    run, _, _ = standalone_evidence()
+    run[field] = bad
+    with pytest.raises(ValueError):
+        m.validate_push_pages_run(gh, run, R1)
+
+
+@pytest.mark.parametrize("mutation", ["incomplete","wrong_job_head","wrong_run","job_failed","verify_absent",
+    "verify_skipped","verify_failed","duplicate_verify","verify_before_deploy","wrong_attempt"])
+def test_independent_pages_requires_real_deployment_and_exact_public_verification(mutation):
+    run, document, _ = standalone_evidence()
+    job = document["jobs"][0]
+    verify = job["steps"][1]
+    if mutation == "incomplete": document["total_count"] = 2
+    if mutation == "wrong_job_head": job["head_sha"] = CAS
+    if mutation == "wrong_run": job["run_id"] = int(R0)
+    if mutation == "job_failed": job["conclusion"] = "failure"
+    if mutation == "verify_absent": job["steps"].pop()
+    if mutation == "verify_skipped": verify["conclusion"] = "skipped"
+    if mutation == "verify_failed": verify["conclusion"] = "failure"
+    if mutation == "duplicate_verify": job["steps"].append(dict(verify))
+    if mutation == "verify_before_deploy": verify["started_at"] = job["started_at"]
+    if mutation == "wrong_attempt": job["run_attempt"] = 2
+    with pytest.raises(ValueError):
+        m.push_pages_jobs(gh, document, run, R1)
+
+
+
+def test_independent_pages_ancestry_binds_each_parent_without_rescanning_unused_file_trees():
+    commits = {gh.API_PREFIX + "/git/commits/" + HEAD: {"sha": HEAD, "tree": {"sha": "1"*40},
+        "parents": [{"sha": BASE}]}}
+    client = Client(commits, {})
+    reads = m.Reads(gh, client)
+    assert reads.ancestry(BASE, HEAD, commit_only=True) == [HEAD, BASE]
+    assert client.requests == list(commits)
+    for bad in ({"sha": CAS}, {"tree": {"sha": "invalid"}}, {"parents": []},
+                {"parents": [{"sha": BASE}, {"sha": CAS}]}, {"parents": [{"sha": HEAD}]}):
+        mutated = deepcopy(commits)
+        mutated[next(iter(commits))].update(bad)
+        with pytest.raises(ValueError):
+            m.Reads(gh, Client(mutated, {})).ancestry(BASE, HEAD, commit_only=True)

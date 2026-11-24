@@ -9,15 +9,19 @@ on:
   workflow_dispatch:
     inputs:
       p0_run_id:
-        description: "已成功自然发布本日名单的原始 P0 run ID；不接受历史恢复"
+        description: "P0 工作流的真实 run ID；独立 Pages 接续时填写原生成 P0 run ID"
         required: true
         type: string
       original_generation_run_id:
-        description: "仅原生成 CAS 成功而部署失败时，填写原始受控 P0 run ID；须与原 CAS 成对"
+        description: "原生成 CAS 成功而部署失败时填写原生成 P0 run ID，须与原 CAS 成对"
         required: false
         type: string
       original_cas_commit:
-        description: "原生成 run 唯一 CAS 提交的完整 40 位 SHA；p0_run_id 必须为后继自然复用成功 run"
+        description: "原生成 run 唯一 CAS 提交的完整 40 位 SHA"
+        required: false
+        type: string
+      pages_run_id:
+        description: "独立 Pages 已公开同一冻结名单时，填写该次成功 push 部署的真实 run ID"
         required: false
         type: string
       dry_run:
@@ -133,8 +137,12 @@ jobs:
           P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}
           ORIGINAL_GENERATION_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.original_generation_run_id || '' }}
           ORIGINAL_CAS_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.original_cas_commit || '' }}
+          PAGES_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.pages_run_id || '' }}
         run: |
           args=(p0 --run-id "$P0_RUN_ID" --receipt "$RUNNER_TEMP/candidate-preflight.json")
+          if [ -n "$PAGES_RUN_ID" ]; then
+            args+=(--pages-run-id "$PAGES_RUN_ID")
+          fi
           if [ -n "$ORIGINAL_GENERATION_RUN_ID" ] || [ -n "$ORIGINAL_CAS_COMMIT" ]; then
             args+=(--original-generation-run-id "$ORIGINAL_GENERATION_RUN_ID" --original-cas-commit "$ORIGINAL_CAS_COMMIT")
           fi
@@ -180,9 +188,13 @@ jobs:
           P0_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.p0_run_id }}
           ORIGINAL_GENERATION_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.original_generation_run_id || '' }}
           ORIGINAL_CAS_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.original_cas_commit || '' }}
+          PAGES_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.pages_run_id || '' }}
           PUBLISH_RESEARCH: ${{ github.event_name == 'workflow_run' || inputs.dry_run == false }}
         run: |
           args=(--p0-run-id "$P0_RUN_ID" --work-parent "$RUNNER_TEMP")
+          if [ -n "$PAGES_RUN_ID" ]; then
+            args+=(--pages-run-id "$PAGES_RUN_ID")
+          fi
           if [ -n "$ORIGINAL_GENERATION_RUN_ID" ] || [ -n "$ORIGINAL_CAS_COMMIT" ]; then
             args+=(--original-generation-run-id "$ORIGINAL_GENERATION_RUN_ID" --original-cas-commit "$ORIGINAL_CAS_COMMIT")
           fi

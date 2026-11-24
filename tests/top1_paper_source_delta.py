@@ -120,7 +120,22 @@ def readiness_files():
     return _parse(_read(PAGES_READINESS), PAGES_READINESS)
 
 
+CANDIDATE_PAGES_HANDOFF = (
+    'models/decision_source_surface_review_20261125_candidate_pages_handoff.json',
+    '146083b94b690efa7808bc0fc3730ed7946bf4afefe2b31b53b2b46e8bae77c3',
+    'db6b1bcfdb7cdb8b83ba0e132439846b1f649d70',
+    'da85f0257013237197814be9c9d372ec1dfcbad3',
+)
+
+
+def before_candidate_pages_handoff(path, raw):
+    if path not in _paths(CANDIDATE_PAGES_HANDOFF):
+        return raw
+    return _restore(path, raw, _read(CANDIDATE_PAGES_HANDOFF), CANDIDATE_PAGES_HANDOFF)
+
+
 def before_readiness(path, raw):
+    raw = before_candidate_pages_handoff(path, raw)
     if path not in _paths(PAGES_READINESS):
         return raw
     return _restore(path, raw, _read(PAGES_READINESS), PAGES_READINESS)

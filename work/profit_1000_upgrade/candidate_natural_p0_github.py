@@ -40,7 +40,7 @@ WORKFLOW_NAME = "DC2.0 · Publish Primary D List (P0)"
 WORKFLOW_PATH = ".github/workflows/run_primary_d_daily.yml"
 ADAPTER_PATH = "work/profit_1000_upgrade/candidate_d_source_adapter.py"
 ADAPTER_SHA = 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'
-CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '8742db36e1def907af48cbbeb2153f10315ed93de3473372ffc1ffd1a83e55d4',
+CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
 TOKEN_ENV = "DC20_CANDIDATE_GITHUB_TOKEN"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
@@ -385,12 +385,12 @@ def select_artifact(document, run, run_id):
     return {k: artifact[k] for k in ("id", "name", "size_in_bytes", "digest", "expired", "created_at", "updated_at")}
 
 
-def validate_revision(revision, run, run_id):
+def validate_revision(revision, run, run_id, *, expected_workflow=WORKFLOW_NAME):
     require(revision.get("schema_version") == "decision_pages_revision_v4_primary_first"
         and revision.get("repository") == REPOSITORY and revision.get("branch") == "main"
         and type(revision.get("run_id")) is int and revision["run_id"] == int(run_id)
         and type(revision.get("run_attempt")) is int and revision["run_attempt"] == 1
-        and revision.get("workflow") == WORKFLOW_NAME and revision.get("event_name") == run["event"]
+        and revision.get("workflow") == expected_workflow and revision.get("event_name") == run["event"]
         and revision.get("primary_d_status") == "READY" and revision.get("primary_d_generation_mode") == "NATURAL",
         "SAME_RUN_NATURAL_P0_REVISION_REQUIRED")
     day = date(revision.get("primary_d_signal_date"))
@@ -653,16 +653,18 @@ def import_p0_sources(source_root, *, expected_run_id, github_client):
 
 
 def import_redeployed_p0_sources(source_root, *, expected_run_id, original_generation_run_id,
-                                original_cas_commit, github_client, clock=lambda: datetime.now(timezone.utc)):
+                                original_cas_commit, github_client, clock=lambda: datetime.now(timezone.utc), pages_run_id=None):
     """Original failed-deploy generation plus a distinct successful natural reuse."""
     root = path(source_root, directory=True)
     root_identity = fingerprint(root)[:3]
     require(not any(root.iterdir()), "EMPTY_NEW_SOURCE_ROOT_REQUIRED")
     code_before = code_guard()
     continuation, _ = continuation_dependencies()
+    if pages_run_id is not None:
+        require(expected_run_id == original_generation_run_id, "INDEPENDENT_PAGES_ORIGINAL_P0_ID_REQUIRED")
     proof, sources, revision = continuation.verify_pair(sys.modules[__name__], github_client,
         original_run_id=original_generation_run_id, original_cas_commit=original_cas_commit,
-        reuse_run_id=expected_run_id, require_absent=True, now=clock())
+        reuse_run_id=pages_run_id or expected_run_id, independent_pages=pages_run_id is not None, require_absent=True, now=clock())
     require(fingerprint(path(root, directory=True))[:3] == root_identity and not any(root.iterdir()),
         "SOURCE_ROOT_CHANGED_BEFORE_WRITE")
     bindings = {}

@@ -24,7 +24,7 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 PUBLICATION_PATH = "work/profit_1000_upgrade/candidate_natural_publication.py"
-PUBLICATION_SHA = '947446c6bcad2254e8b70291f039fb9176ebffe63b6939117797a2f4b6f4f9c8'
+PUBLICATION_SHA = '67629edc2065aab93b9048b332c009b0400f795a99b0dcdbfd496b9ef47a52c9'
 LEGACY_CAPTURE_CONTRACT = (
     "d40677e35ecbb8c255c1b039e0eee03b66e97eaa2dccc973ac69b514c0de7dd3",
     "c4f9da536573e5aab82d66c5424c4c72f80e01f649da2a531ee400f2eb029322",
@@ -392,13 +392,15 @@ def _verify_continuation_materials(manifest, body, observation, api, archives):
     archive = _generation_archive_body(body(manifest["generation_archive_body"]), generation)
     revision_raw = body(manifest["pages_revision"])
     revision = _safe_body(revision_raw)
-    require(gh.validate_revision(revision, reused, reuse_id) == (manifest["signal_date"], observation["exec_date"],
+    independent = continuation.independent_pages_proof(proof)
+    require(gh.validate_revision(revision, reused, reuse_id,
+        expected_workflow=continuation.PAGES_WORKFLOW_NAME if independent else gh.WORKFLOW_NAME) == (manifest["signal_date"], observation["exec_date"],
         observation["exit_date"], proof["successful_publication_git_sha"])
         and sha(revision_raw) == proof["successful_reuse_revision_sha256"], "CONTINUATION_CAPTURED_REVISION_CHANGED")
     replay = _ContinuationReplayClient(api, generation, archive, _registry_allowance(manifest))
     checked, _, checked_revision = continuation.verify_pair(gh, replay,
         original_run_id=original_id, original_cas_commit=observation["original_p0_commit_sha"], reuse_run_id=reuse_id,
-        source_main_sha=proof["source_main_sha"], cached_reuse_revision=(revision, sha(revision_raw)))
+        source_main_sha=proof["source_main_sha"], cached_reuse_revision=(revision, sha(revision_raw)), independent_pages=independent)
     require(checked == proof and checked_revision == revision
         and int(original_id) == observation["original_p0_run_id"]
         and proof["source_file_bindings"] == observation["original_source_bindings"],

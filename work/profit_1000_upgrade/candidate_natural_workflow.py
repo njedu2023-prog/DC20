@@ -26,7 +26,7 @@ PREFIX = 'work/profit_1000_upgrade/candidate_natural_forward/'
 MODEL_PATH = ROOT / 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json'
 RUNNER_SHA = 'a90537d3bf38c6c0a63da97500eff1aa792561d9f2f32660bfc80d70b45272eb'
 # Independently reviewed original-source importer, including no unknown-file reads.
-IMPORTER_SHA = 'd4e45fc79f51e3da3681cd935af6323b82d877d26a34baaadb7c991674e0e3d7'
+IMPORTER_SHA = '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7'
 SELF_SHA = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -280,12 +280,14 @@ def publish_exact_new_day(files, *, github_client, deadline, clock=lambda: datet
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--p0-run-id', required=True)
+    parser.add_argument('--pages-run-id')
     parser.add_argument('--original-generation-run-id')
     parser.add_argument('--original-cas-commit')
     parser.add_argument('--work-parent', type=Path, required=True)
     parser.add_argument('--publish', action='store_true')
     args = parser.parse_args(argv)
     require(bool(args.original_generation_run_id) == bool(args.original_cas_commit), 'PAIRED_ORIGINAL_GENERATION_ARGUMENTS_REQUIRED')
+    require(args.pages_run_id is None or args.p0_run_id == args.original_generation_run_id, 'INDEPENDENT_PAGES_ORIGINAL_P0_ID_REQUIRED')
     runner, importer = dependencies()
     context = execution_context()
     importer.exact_id(args.p0_run_id)
@@ -298,7 +300,7 @@ def main(argv=None):
     sources.mkdir()
     imported = (importer.import_redeployed_p0_sources(sources, expected_run_id=args.p0_run_id,
         original_generation_run_id=args.original_generation_run_id, original_cas_commit=args.original_cas_commit,
-        github_client=client) if args.original_generation_run_id else
+        github_client=client, pages_run_id=args.pages_run_id) if args.original_generation_run_id else
         importer.import_p0_sources(sources, expected_run_id=args.p0_run_id, github_client=client))
     local = runner.freeze_natural_day(sources, work / 'candidate_natural_forward', MODEL_PATH,
         signal_date=imported['signal_date'], expected_p0_sha256=imported['expected_p0_sha256'])
@@ -324,7 +326,8 @@ def main(argv=None):
             proof = continuation.validate_import_receipt(importer, imported)
             observed, _, _ = continuation.verify_pair(importer, importer.GitHubReadClient(token),
                 original_run_id=args.original_generation_run_id, original_cas_commit=args.original_cas_commit,
-                reuse_run_id=args.p0_run_id, source_main_sha=proof['source_main_sha'],
+                reuse_run_id=args.pages_run_id or args.p0_run_id, independent_pages=args.pages_run_id is not None,
+                source_main_sha=proof['source_main_sha'],
                 original_sources={b['path']: importer.read(sources / b['path'])[0] for b in imported['source_file_bindings']},
                 require_same_main=not checked_before_cas, require_absent=not checked_before_cas,
                 now=datetime.now(timezone.utc))

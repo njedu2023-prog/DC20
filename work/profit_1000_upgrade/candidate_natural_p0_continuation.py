@@ -498,11 +498,19 @@ class Reads:
             and self.gh.sha256(raw) == artifact["digest"][7:], "CONTINUATION_ARTIFACT_DIGEST_CHANGED")
         return raw
 
-    def ancestry(self, ancestor, descendant):
+    def ancestry(self, ancestor, descendant, *, commit_only=False):
         current, chain = descendant, []
         for _ in range(MAX_ANCESTRY):
             if current == ancestor: return chain + [ancestor]
-            commit, _ = self.tree(current)
+            if commit_only and current not in self.trees:
+                # The commit, not its recursive file inventory, binds its parent.
+                # Complete file trees at every byte comparison endpoint are read separately.
+                commit = self.json("/git/commits/" + current)
+                require(commit.get("sha") == current and type(commit.get("tree")) is dict,
+                    "CONTINUATION_EXACT_ANCESTOR_COMMIT_REQUIRED")
+                self.gh.exact_sha(commit["tree"].get("sha"), 40)
+            else:
+                commit, _ = self.tree(current)
             parents = commit.get("parents")
             require(type(parents) is list and len(parents) == 1, "CONTINUATION_SINGLE_PARENT_ANCESTRY_REQUIRED")
             chain.append(current); current = self.gh.exact_sha(parents[0].get("sha"), 40)
@@ -531,9 +539,68 @@ def validate_reuse_event(run, day):
         "CONTINUATION_CONTROLLED_REUSE_WINDOW_REQUIRED")
 
 
+PAGES_WORKFLOW_PATH = ".github/workflows/deploy_dc20_pages.yml"
+PAGES_WORKFLOW_NAME = "DC2.0 · Deploy Decision Pages"
+PAGES_WORKFLOW_ID = 335484128
+# This reviewed workflow checks the exact public revision, dated P0 bytes,
+# receipt and both download indexes in its mandatory public verification step.
+PAGES_WORKFLOW_SHA256 = "b78a267ec351dbeddf6f43663e4f0f3fb78af90d563754e241ccc77faf19e48e"
+INDEPENDENT_PAGES = "INDEPENDENT_PUSH_PAGES"
+
+
+def validate_push_pages_run(gh, run, run_id):
+    gh.exact_id(run_id)
+    require(type(run) is dict and type(run.get("id")) is int and run["id"] == int(run_id)
+        and run.get("workflow_id") == PAGES_WORKFLOW_ID and run.get("path") == PAGES_WORKFLOW_PATH
+        and run.get("name") == PAGES_WORKFLOW_NAME and run.get("event") == "push"
+        and run.get("head_branch") == "main" and type(run.get("run_attempt")) is int and run["run_attempt"] == 1
+        and run.get("status") == "completed" and run.get("conclusion") == "success"
+        and run.get("repository", {}).get("full_name") == gh.REPOSITORY
+        and run.get("head_repository", {}).get("full_name") == gh.REPOSITORY,
+        "EXACT_SUCCESSFUL_MAIN_PUSH_PAGES_REQUIRED")
+    gh.exact_sha(run.get("head_sha"), 40)
+    require(gh.utc(run.get("created_at")) <= gh.utc(run.get("run_started_at")) <= gh.utc(run.get("updated_at")),
+        "PUSH_PAGES_RUN_TIME_ORDER_INVALID")
+    return {key: run[key] for key in ("id", "workflow_id", "path", "head_branch", "head_sha", "run_attempt",
+        "status", "conclusion", "event", "name", "created_at", "run_started_at", "updated_at")}
+
+
+def push_pages_jobs(gh, document, run, run_id):
+    jobs = document.get("jobs")
+    require(document.get("total_count") == 1 and type(jobs) is list and len(jobs) == 1,
+        "SINGLE_PUSH_PAGES_DEPLOY_JOB_REQUIRED")
+    job = jobs[0]
+    require(job.get("name") == "deploy" and job.get("run_id") == int(run_id)
+        and type(job.get("id")) is int and job["id"] > 0 and job.get("head_sha") == run["head_sha"]
+        and job.get("run_attempt") == 1 and job.get("status") == "completed" and job.get("conclusion") == "success"
+        and gh.utc(run["run_started_at"]) <= gh.utc(job.get("started_at")) <= gh.utc(job.get("completed_at"))
+        <= gh.utc(run["updated_at"]), "SUCCESSFUL_PUSH_PAGES_JOB_IDENTITY_REQUIRED")
+    steps = job.get("steps")
+    require(type(steps) is list, "PUSH_PAGES_VERIFICATION_STEPS_REQUIRED")
+    result = {key: job[key] for key in ("id", "run_id", "run_attempt", "head_sha", "name", "status",
+        "conclusion", "started_at", "completed_at")}
+    verified = []
+    for name in ("Deploy DC2.0 Pages", "Verify public DC2.0 Pages revision"):
+        matched = [step for step in steps if step.get("name") == name]
+        require(len(matched) == 1 and matched[0].get("status") == "completed"
+            and matched[0].get("conclusion") == "success", "PUSH_PAGES_PUBLIC_VERIFICATION_REQUIRED")
+        step = matched[0]
+        require(type(step.get("number")) is int and step["number"] > 0
+            and gh.utc(job["started_at"]) <= gh.utc(step.get("started_at")) <= gh.utc(step.get("completed_at"))
+            <= gh.utc(job["completed_at"]), "PUSH_PAGES_STEP_TIME_INVALID")
+        verified.append({key: step[key] for key in ("name", "number", "status", "conclusion", "started_at", "completed_at")})
+    require(verified[0]["number"] < verified[1]["number"]
+        and gh.utc(verified[0]["completed_at"]) <= gh.utc(verified[1]["started_at"]), "PUSH_PAGES_STEP_ORDER_INVALID")
+    return [{**result, "verified_steps": verified}]
+
+
+def independent_pages_proof(proof):
+    return proof.get("publication_route") == INDEPENDENT_PAGES
+
+
 def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_id,
                 original_sources=None, source_main_sha=None, require_absent=False,
-                require_same_main=False, now=None, cached_reuse_revision=None):
+                require_same_main=False, now=None, cached_reuse_revision=None, independent_pages=False):
     """Verify two real runs and one immutable generating commit, without writing."""
     original_run_id, reuse_run_id = gh.exact_id(original_run_id), gh.exact_id(reuse_run_id)
     require(original_run_id != reuse_run_id, "TWO_DISTINCT_P0_RUNS_REQUIRED")
@@ -541,11 +608,13 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     reads = Reads(gh, client)
     original_path, reuse_path = ("/actions/runs/" + x for x in (original_run_id, reuse_run_id))
     r0, r1 = reads.json(original_path), reads.json(reuse_path)
-    redeployed = gh.validate_run(r1, reuse_run_id)
-    r1_jobs = _jobs(gh, reads.json(reuse_path + "/attempts/1/jobs?per_page=100"), r1, reuse_run_id, original=False)
+    redeployed = validate_push_pages_run(gh, r1, reuse_run_id) if independent_pages else gh.validate_run(r1, reuse_run_id)
+    job_doc = reads.json(reuse_path + "/attempts/1/jobs?per_page=100")
+    r1_jobs = (push_pages_jobs(gh, job_doc, r1, reuse_run_id) if independent_pages
+        else _jobs(gh, job_doc, r1, reuse_run_id, original=False))
     pages = gh.select_artifact(reads.json(reuse_path + "/artifacts?per_page=100"), r1, reuse_run_id)
-    require(gh.utc(r1_jobs[2]["started_at"]) <= gh.utc(pages["created_at"]) <= gh.utc(pages["updated_at"])
-        <= gh.utc(r1_jobs[2]["completed_at"]), "REUSE_PAGES_ARTIFACT_MUST_BELONG_TO_DEPLOY_JOB")
+    require(gh.utc(r1_jobs[-1]["started_at"]) <= gh.utc(pages["created_at"]) <= gh.utc(pages["updated_at"])
+        <= gh.utc(r1_jobs[-1]["completed_at"]), "REUSE_PAGES_ARTIFACT_MUST_BELONG_TO_DEPLOY_JOB")
     if cached_reuse_revision is None:
         revision, revision_sha = gh.revision_from_zip(reads.archive(pages))
     else:
@@ -553,8 +622,13 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
             and len(cached_reuse_revision) == 2, "CACHED_REVISION_ONLY_FOR_EXPLICIT_REPLAY")
         revision, revision_sha = cached_reuse_revision
         gh.exact_sha(revision_sha)
-    day, trade, exit_day, deployed_sha = gh.validate_revision(revision, r1, reuse_run_id)
-    validate_reuse_event(r1, day)
+    day, trade, exit_day, deployed_sha = gh.validate_revision(revision, r1, reuse_run_id,
+        expected_workflow=PAGES_WORKFLOW_NAME if independent_pages else gh.WORKFLOW_NAME)
+    if independent_pages:
+        require(day >= "20261124" and gh.utc(pages["updated_at"])
+            <= gh.utc(r1_jobs[0]["verified_steps"][0]["started_at"]), "PUSH_PAGES_ARTIFACT_MUST_PRECEDE_DEPLOY")
+    else:
+        validate_reuse_event(r1, day)
     require(deployed_sha == r1["head_sha"], "REUSE_PAGES_MUST_PUBLISH_ITS_EXACT_HEAD")
     generated = validate_original_run(gh, r0, original_run_id, day)
     r0_jobs = _jobs(gh, reads.json(original_path + "/attempts/1/jobs?per_page=100"), r0, original_run_id, original=True)
@@ -625,7 +699,12 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     code_profile, manifest_transition = validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree,
         {'signal_date': day, 'original_run_id': original_run_id, 'original_head': r0['head_sha'],
          'original_cas': original_cas_commit, 'reuse_run_id': reuse_run_id, 'deployed_head': deployed_sha})
-    if manifest_transition and manifest_transition.get('kind') == 'D20261124_PAGES_TRANSPORT_ONLY':
+    if independent_pages:
+        workflow_bytes = reads.blob(deployed_tree, PAGES_WORKFLOW_PATH)
+        pinned = gh.parse_json(reads.blob(deployed_tree, MANIFEST_PATH))["pinned_files"]
+        require(pinned.get(PAGES_WORKFLOW_PATH) == gh.sha256(workflow_bytes) == PAGES_WORKFLOW_SHA256,
+            "PUSH_PAGES_REVIEWED_PUBLIC_VERIFIER_REQUIRED")
+    elif manifest_transition and manifest_transition.get('kind') == 'D20261124_PAGES_TRANSPORT_ONLY':
         require(r1.get('event') in ('schedule', 'workflow_run'), 'PAGES_TRANSPORT_NATURAL_REUSE_REQUIRED')
     runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile in RELIABILITY_PROFILES else CONTROLLED_RUNTIME_CODE_BINDINGS
         if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
@@ -636,7 +715,7 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     require(receipt["inputs"].get("promotion_model") == ORIGINAL_PROMOTION_MODEL
         and gh.sha256(reads.blob(base_tree, "models/decision_three_engines/promotion.joblib"))
             == ORIGINAL_PROMOTION_MODEL["artifact_sha256"], "ORIGINAL_PROMOTION_MODEL_PROFILE_CHANGED")
-    redeploy_ancestry = reads.ancestry(original_cas_commit, deployed_sha)
+    redeploy_ancestry = reads.ancestry(original_cas_commit, deployed_sha, commit_only=independent_pages)
     main_ref = reads.json("/git/ref/heads/main")
     require(main_ref.get("ref") == "refs/heads/main" and main_ref.get("object", {}).get("type") == "commit",
         "CONTINUATION_EXACT_MAIN_REF_REQUIRED")
@@ -645,8 +724,10 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     require(not require_same_main or current_sha == source_main_sha, "CONTINUATION_MAIN_CHANGED_BEFORE_CAS")
     _, source_tree = reads.tree(source_main_sha)
     _, current_tree = reads.tree(current_sha)
-    source_ancestry = reads.ancestry(original_cas_commit, source_main_sha)
-    reads.ancestry(source_main_sha, current_sha)
+    source_ancestry = reads.ancestry(original_cas_commit, source_main_sha, commit_only=independent_pages)
+    if independent_pages:
+        require(deployed_sha in source_ancestry, "PUSH_PAGES_DEPLOYMENT_NOT_ON_FREEZE_MAIN_LINEAGE")
+    reads.ancestry(source_main_sha, current_sha, commit_only=independent_pages)
     bindings = []
     for p, raw in sorted(sources.items()):
         expected = {"type": "blob", "mode": "100644", "sha": gh.git_blob(raw)}
@@ -681,6 +762,8 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
         "observed_p0_cas_job_completed_at": r0_jobs[1]["completed_at"],
         "source_generation_and_republication_are_distinct": True,
         "source_authority_issued": False, "new_prediction_freeze_verified": False, "production_activation_allowed": False}
+    if independent_pages:
+        proof["publication_route"] = INDEPENDENT_PAGES
     if manifest_transition is not None:
         proof["reviewed_manifest_transition"] = manifest_transition
     return proof, sources, revision
@@ -731,4 +814,12 @@ def validate_import_receipt(gh, imported):
         and proof["successful_reuse_run"]["conclusion"] == "success"
         and proof["source_generation_and_republication_are_distinct"] is True,
         "CONTINUATION_RUN_IDENTITIES_MUST_REMAIN_DISTINCT")
+    pages_run = proof["successful_reuse_run"]
+    require((pages_run.get("event") == "push") == independent_pages_proof(proof)
+        and ("publication_route" not in proof or proof["publication_route"] == INDEPENDENT_PAGES),
+        "CONTINUATION_PUBLICATION_ROUTE_CHANGED")
+    if independent_pages_proof(proof):
+        require(pages_run.get("workflow_id") == PAGES_WORKFLOW_ID and pages_run.get("path") == PAGES_WORKFLOW_PATH
+            and pages_run.get("name") == PAGES_WORKFLOW_NAME and pages_run.get("head_sha") == proof["successful_publication_git_sha"],
+            "CONTINUATION_PUSH_PAGES_PROOF_CHANGED")
     return proof

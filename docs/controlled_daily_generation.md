@@ -137,30 +137,15 @@ P0 已完成但当前 Ridge 尚缺时，跟踪其真实同 D 任务与生成证�
 
 ## 已提交 P0 后公开部署失败的受控续接
 
-原始来源支持受控 NATURAL 手动生成或注册 schedule 的首次原始运行：首次 P0 的 compute/CAS 成功但
-仅 Pages 公开验收失败时，先保留原 run、原 CAS 和
-原生成 artifact；先验证公开字节确实已收敛，再按相同 D、相同两个上游提交执行
-一次受控 NATURAL 复用。不得重跑旧 run 或重新生成已有榜单。
-后继必须成功且 generation/CAS 均跳过；支持自然 schedule/workflow_run，或在
-D 日 15:00–23:30 创建、名称精确匹配的受控 workflow_dispatch。普通手动运行、
-dry_run、历史恢复、跨日调用、attempt>1 均不具备该身份。
+P0 首次受控 NATURAL 或注册 schedule 已完成计算和 CAS、仅公开部署失败时，保留原生成 run、原 CAS、原生成 artifact 和两个上游提交。已存在成功的 P0 复用 run 时，继续验证该 run 跳过了生成和 CAS 并公开了原字节。候选分支的 `p0_run_id` 填成功的复用 run，`original_generation_run_id` 填原始生成 run，`original_cas_commit` 填原 CAS。
 
-已有 P0 而正式候选冻结缺失时，检查候选分支没有 active run，然后调用现有
-`research_candidate_natural_forward.yml`：`p0_run_id`=成功复用 run，
-`original_generation_run_id`=原始部署失败 run，`original_cas_commit`=原 CAS 的
-40 位 SHA，`dry_run=false`。原始生成与后继部署身份始终分别记录。
-续接仍须验证原 ZIP digest、CAS 单父提交、全量源文件、两个上游时间、完整代码
-版本、同 D 日历、冻结缺失状态及 T 日09:15截止；不能因允许受控事件而省略任何
-证据。完成后仍需 observer、正式发布、研究台和模拟账户的逐字节公开验收。
+如果公开站已经由独立的 main push Pages 作业发布了同一份 P0，看门狗可以直接接续固定 Ridge。该路径分别记录以下身份。
 
+- `p0_run_id` 与 `original_generation_run_id` 都指向真实的原始 P0 生成 run。
+- `original_cas_commit` 指向该 run 写入的唯一 CAS，`pages_run_id` 指向独立的成功 Pages run。
+- 校验原计算、CAS、生成 artifact、不可变源提交、Pages 作业和归档、公开 revision、当日排名文件及源指纹。同 D 已冻结则复用，有效任务已排队则跟踪。
 
-看门狗可自动发现上述受控续接：以同 D receipt 的 `inputs.git_head` 锁定原生成
-run 和唯一 CAS，只接受 compute/CAS 已成功而公开部署失败的记录。已存在成功的
-P0 no-op 复用时，复用该部署身份；没有复用时，仅在同 D 15:00–23:30 窗口内
-按原 receipt 两个上游提交派发既有 P0 no-op，下一轮再续接正式候选冻结。
-过窗只能等待既有自然 schedule 或报告明确阻塞，不改写时间和原生成身份。
-同 D 活动任务始终复用跟踪，API 查询失败不视为空队列；最终证据校验仍由原
-导入器执行，T 日09:15截止与全部源指纹规则不变。
+新冻结须在严格交易日 T 的北京时间 09:15 前完成。D 日 23:30 后停止新派日常受控 P0，已经公开且证据齐全的名单可在冻结期限内继续交给 Ridge。两种公开证明均缺失时，按现有窗口、次数和队列规则等待或接续原 P0。冻结以后仍需 observer 保存证据、publisher 发布并核对公开的当日盈利文件。按完整候选池输出真实盈1、盈2，合法空席位显式保留。
 
 原生成是 schedule 时保留真实事件、注册工作流名称与原始空 target envelope；
 从原 CAS receipt 与源元数据交叉绑定实际解析的两个 40 位上游提交，独立查验

@@ -10,6 +10,7 @@ import base64
 import csv
 from datetime import datetime, time, timedelta, timezone
 import hashlib
+from html import escape
 import io
 import json
 import os
@@ -30,8 +31,10 @@ OBSERVER = 'research_candidate_natural_observer.yml'
 PUBLISHER = 'publish_candidate_profit.yml'
 P0 = 'run_primary_d_daily.yml'
 HISTORY = 'prepare_primary_history.yml'
+PAGES = 'deploy_dc20_pages.yml'
+PAGES_NAME = 'DC2.0 · Deploy Decision Pages'
 P0_NAME = 'DC2.0 · Publish Primary D List (P0)'
-IDS = {P0: 343703608, NATURAL: 357010624, OBSERVER: 357027830}
+IDS = {P0: 343703608, PAGES: 335484128, NATURAL: 357010624, OBSERVER: 357027830}
 ROOT = 'work/profit_1000_upgrade/'
 PUBLIC = 'outputs/decision/candidate_profit_v1/'
 UPSTREAMS = ('njedu2023-prog/a-top10', 'njedu2023-prog/a-share-top3-data')
@@ -212,6 +215,17 @@ class GitHub:
         return {'pred_commit': commits[pred_repo], 'market_commit': commits[market_repo],
                 'source_ready_at': max(produced).isoformat()}
 
+    def public_file(self, path):
+        url = 'https://njedu2023-prog.github.io/DC20/' + path
+        try:
+            with urllib.request.urlopen(url, timeout=20) as response:
+                require(response.geturl() == url, 'PUBLIC_PAGES_REDIRECTED')
+                body = response.read(8*1024*1024+1)
+        except OSError:
+            raise ValueError('PUBLIC_PAGES_READ_UNAVAILABLE') from None
+        require(len(body) <= 8*1024*1024, 'PUBLIC_RESPONSE_TOO_LARGE')
+        return body
+
     def public_core_status(self, day, p0_raw, source_index_raw, public_raw):
         """Verify the published primary/day bytes despite a disclosed auxiliary gap."""
         try:
@@ -291,7 +305,10 @@ def valid_run(run, workflow, *, success=True):
             'REGISTERED_WORKFLOW_REQUIRED')
     require(run.get('head_branch') == 'main' and run.get('repository', {}).get('full_name') == REPO
             and run.get('head_repository', {}).get('full_name') == REPO, 'ORIGINAL_MAIN_REPOSITORY_REQUIRED')
-    require(run.get('event') in {'schedule', 'workflow_dispatch', 'workflow_run'}, 'NON_PUSH_RUN_REQUIRED')
+    if workflow == PAGES:
+        require(run.get('event') == 'push' and run.get('name') == PAGES_NAME, 'REGISTERED_PAGES_PUSH_REQUIRED')
+    else:
+        require(run.get('event') in {'schedule', 'workflow_dispatch', 'workflow_run'}, 'NON_PUSH_RUN_REQUIRED')
     if success:
         require(run.get('status') == 'completed' and run.get('conclusion') == 'success', 'UPSTREAM_NOT_SUCCESSFUL')
 
@@ -460,6 +477,58 @@ def original_cas(client, base, receipt, receipt_raw, run, cas_job):
     return sha, expected
 
 
+def published_push_handoff(client, base, receipt, expected, cas_job, now):
+    """Discover the actual deployment using its public revision. The freeze importer
+    independently verifies this run, its archive, original generator and CAS ancestry."""
+    raw = client.public_file('revision.json')
+    revision = document(raw)
+    day = base['signal_date']
+    if revision.get('signal_date') != day or revision.get('workflow') != PAGES_NAME:
+        return None
+    run_id = revision.get('run_id')
+    require(type(run_id) is int and run_id > 0, 'PAGES_REVISION_RUN_ID_INVALID')
+    run = client.request(f'/actions/runs/{run_id}')
+    if run.get('event') != 'push' or run.get('workflow_id') != IDS[PAGES]:
+        return None  # Only this registered standalone Pages push can supply the handoff.
+    valid_run(run, PAGES, success=False)
+    head = run.get('head_sha', '')
+    require(run['id'] == run_id and re.fullmatch('[0-9a-f]{40}', head)
+            and revision.get('head_sha') == head and revision.get('repository') == REPO
+            and revision.get('branch') == 'main' and revision.get('run_attempt') == 1
+            and revision.get('run_url') == f'https://github.com/{REPO}/actions/runs/{run_id}'
+            and revision.get('primary_d_status') == 'READY'
+            and revision.get('primary_d_generation_mode') == 'NATURAL'
+            and revision.get('primary_d_signal_date') == day
+            and revision.get('primary_d_exec_date') == base['exec_date']
+            and revision.get('primary_d_exit_date') == base['exit_date']
+            and revision.get('primary_d_bundle_sha256') == receipt['outputs']['bundle_sha256'],
+            'PAGES_REVISION_ORIGINAL_P0_BINDING_CHANGED')
+    if run.get('status') in {'queued', 'in_progress', 'pending', 'waiting', 'requested'}:
+        return {'status': 'PAGES_PUBLICATION_STILL_RUNNING', 'pages_run_id': str(run_id)}
+    require(run.get('status') == 'completed', 'PAGES_PUSH_RUN_STATE_UNKNOWN')
+    if run.get('conclusion') != 'success':
+        return None
+    require(stamp(cas_job['completed_at']) <= stamp(run['created_at']) <= stamp(run['run_started_at'])
+            <= stamp(run['updated_at']) <= now, 'PAGES_PUSH_PUBLICATION_TIME_INVALID')
+    jobs = client.request(f'/actions/runs/{run_id}/attempts/1/jobs?per_page=100')
+    require(jobs.get('total_count') == 1 and len(jobs.get('jobs', [])) == 1,
+            'PAGES_PUSH_EXACT_DEPLOY_JOB_REQUIRED')
+    job, = jobs['jobs']
+    require(job.get('run_id') == run_id and job.get('head_sha') == head
+            and job.get('name') == 'deploy' and job.get('conclusion') == 'success'
+            and job.get('status') == 'completed', 'PAGES_PUSH_EXACT_DEPLOY_JOB_REQUIRED')
+    for name in ('Deploy DC2.0 Pages', 'Verify public DC2.0 Pages revision'):
+        matches = [s for s in job['steps'] if s.get('name') == name]
+        require(len(matches) == 1 and matches[0].get('status') == 'completed'
+                and matches[0].get('conclusion') == 'success', 'PAGES_PUSH_DEPLOY_AND_VERIFICATION_REQUIRED')
+    for path, sha in expected.items():
+        body = client.file(path, head)
+        require(isinstance(body, bytes) and digest(body) == sha and client.public_file(path) == body,
+                'PAGES_PUBLIC_ORIGINAL_BYTES_CHANGED')
+    require(client.public_file('revision.json') == raw, 'PAGES_REVISION_CHANGED_DURING_CHECK')
+    return {'status': 'PAGES_PUBLICATION_VERIFIED', 'pages_run_id': str(run_id)}
+
+
 def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
     day, head = base['signal_date'], base['head']
     original_head = receipt.get('inputs', {}).get('git_head', '')
@@ -543,6 +612,14 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
         return {**base, **evidence, **retry_origin, 'status': 'NEEDS_FREEZE_CONTINUATION', 'workflow': NATURAL,
                 'inputs': {'p0_run_id': str(reuse['id']), 'original_generation_run_id': str(original['id']),
                            'original_cas_commit': cas, 'dry_run': False}}
+    publication = published_push_handoff(client, base, receipt, expected, cas_job, now)
+    if publication is not None:
+        if publication['status'] == 'PAGES_PUBLICATION_STILL_RUNNING':
+            return {**base, **publication}
+        return {**base, **evidence, **retry_origin, 'status': 'NEEDS_FREEZE_FROM_PUBLISHED_P0',
+                'workflow': NATURAL, 'inputs': {'p0_run_id': str(original['id']),
+                    'original_generation_run_id': str(original['id']), 'original_cas_commit': cas,
+                    'pages_run_id': publication['pages_run_id'], 'dry_run': False}}
     local = now.astimezone(TZ)
     if local.strftime('%Y%m%d') != day or not time(15) < local.time() < time(23, 30):
         return {**base, **evidence, 'status': 'P0_REDEPLOY_REQUIRES_EXISTING_NATURAL_SCHEDULE',
@@ -566,16 +643,26 @@ def completion_wakeup(client, payload, now):
             'P0_COMPLETION_EVENT_REQUIRED')
     event_run = payload.get('workflow_run')
     require(isinstance(event_run, dict), 'P0_COMPLETION_RUN_REQUIRED')
-    valid_run(event_run, P0, success=False)
+    workflow = PAGES if event_run.get('workflow_id') == IDS[PAGES] else P0
+    valid_run(event_run, workflow, success=workflow == PAGES)
     require(type(event_run['id']) is int, 'P0_COMPLETION_RUN_ID_REQUIRED')
     api_run = client.request(f'/actions/runs/{event_run["id"]}')
     require(isinstance(api_run, dict), 'P0_COMPLETION_API_RUN_REQUIRED')
-    valid_run(api_run, P0, success=False)
+    valid_run(api_run, workflow, success=workflow == PAGES)
     identity = ('id', 'workflow_id', 'path', 'head_branch', 'head_sha', 'run_attempt',
                 'event', 'status', 'conclusion', 'name', 'display_title',
                 'created_at', 'run_started_at', 'updated_at')
     require(all(event_run.get(key) == api_run.get(key) for key in identity),
             'P0_COMPLETION_API_IDENTITY_CHANGED')
+    if workflow == PAGES:
+        require(stamp(api_run['created_at']) <= stamp(api_run['run_started_at'])
+                <= stamp(api_run['updated_at']) <= now, 'PAGES_PUSH_PUBLICATION_TIME_INVALID')
+        revision = document(client.public_file('revision.json'))
+        if revision.get('run_id') != api_run['id'] or revision.get('head_sha') != api_run['head_sha']:
+            return ''  # Superseded deployment: do not initiate work for the latest revision.
+        day = revision.get('signal_date', '')
+        require(re.fullmatch('[0-9]{8}', day), 'PAGES_REVISION_SIGNAL_DATE_INVALID')
+        return day
     require(api_run.get('status') == 'completed' and api_run.get('conclusion') in {'success', 'failure'}
             and api_run.get('event') == 'workflow_dispatch'
             and re.fullmatch('[0-9a-f]{40}', api_run.get('head_sha', '')),
@@ -638,9 +725,14 @@ def inspect(client, now, *, wakeup_day=None):
                             and all(slot.get(k) is None for k in ('ts_code', 'candidate_rank', 'candidate_score',
                                 'promotion_rank', 'board_stage', 'proxy_fill', 'net_return', 'slot_net_return')),
                             'PROFIT_ABSENT_SLOT_MUST_NOT_CLAIM_CANDIDATE')
+            slots = [{'slot': n, 'status': 'RANKED', 'name': row.get('name'), 'ts_code': row['ts_code']}
+                     for n, row in enumerate(top2, 1)]
+            slots.extend({'slot': n, 'status': 'MISSING_CANDIDATE', 'name': None, 'ts_code': None}
+                         for n in range(len(slots) + 1, 3))
+            published_seats = {'top2': [r['ts_code'] for r in top2], 'profit_slots': slots}
             core = client.public_core_status(day, p0_raw, index_raw, public_raw)
             if core is not None:
-                return {**base, **core, 'top2': [r['ts_code'] for r in top2]}
+                return {**base, **core, **published_seats}
             summary_raw = client.file(PUBLIC+'summary.json', head)
             summary = document(summary_raw)
             for number, group in enumerate(('candidate_top1', 'candidate_top2')):
@@ -656,7 +748,7 @@ def inspect(client, now, *, wakeup_day=None):
                 return {**base, 'status': 'NEEDS_DEPLOYMENT', 'existing_formal': True,
                         'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
             return {**base, 'status': 'FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT' if len(top2) == 2 else 'FORMAL_AVAILABLE_SLOTS_LEDGER_AND_PAGE_PRESENT',
-                    'top2': [r['ts_code'] for r in top2], 'missing_profit_slots': 2 - len(top2),
+                    **published_seats, 'missing_profit_slots': 2 - len(top2),
                     'available_promotion_slots': min(3, len(rows))}
     require(now < cutoff, 'MISSED_PREAUCTION_PUBLICATION_DEADLINE_NO_BACKFILL')
     snapshot_raw = client.file(ROOT+f'candidate_natural_forward/day_{day}.json', head)
@@ -774,6 +866,30 @@ def act(client, plan, now, *, execute=False, clock=None):
     return {**plan, 'status': 'DISPATCHED_NOT_COMPLETED'}
 
 
+def write_delivery_summary(result, path):
+    slots = result.get('profit_slots')
+    delivered = ('FORMAL_TOP2_LEDGER_AND_PAGE_PRESENT', 'FORMAL_AVAILABLE_SLOTS_LEDGER_AND_PAGE_PRESENT',
+                 'CORE_DELIVERED_AUX_PENDING')
+    if path is None or result['status'] not in delivered or slots is None:
+        return
+    day = result['signal_date']
+    lines = [f'## {day} 固定 Ridge 正式盈利榜', '']
+    for slot in slots:
+        if slot['status'] == 'MISSING_CANDIDATE':
+            description = '合格候选不足，正式空席'
+        else:
+            # Render stock names as escaped HTML text, preserving literal ST symbols.
+            name = escape(slot['name'] or '简称未载入')
+            code = escape(slot['ts_code'])
+            description = f'{name} <code>{code}</code>'
+        lines.append(f"<p><strong>盈{slot['slot']}</strong>　{description}</p>")
+    if result['status'] == 'CORE_DELIVERED_AUX_PENDING':
+        lines.append('当日主榜已公开，历史累计或账户辅助项待修复。')
+    lines.extend(['', f'[当日公开名单](https://njedu2023-prog.github.io/DC20/?d={day})', ''])
+    with open(path, 'a', encoding='utf-8') as stream:
+        stream.write('\n'.join(lines))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute', action='store_true')
@@ -787,12 +903,22 @@ def main():
     try:
         now = datetime.now(timezone.utc)
         wakeup_day = None
+        pages_wakeup_id = None
         if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run':
             with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as event_file:
-                wakeup_day = completion_wakeup(client, json.load(event_file), now)
+                payload = json.load(event_file)
+            wakeup_day = completion_wakeup(client, payload, now)
+            if payload['workflow_run']['workflow_id'] == IDS[PAGES]:
+                pages_wakeup_id = str(payload['workflow_run']['id'])
         plan = inspect(client, now, wakeup_day=wakeup_day)
+        if pages_wakeup_id is not None and 'workflow' in plan and (
+                plan['workflow'] != NATURAL or plan['inputs'].get('pages_run_id') != pages_wakeup_id):
+            print(json.dumps({'status': 'PAGES_COMPLETION_NO_MATCHING_FREEZE_HANDOFF',
+                              'signal_date': plan['signal_date'], 'observed_status': plan['status']}))
+            return 0
         result = act(client, plan, datetime.now(timezone.utc), execute=args.execute,
                      clock=lambda: datetime.now(timezone.utc))
+        write_delivery_summary(result, os.environ.get('GITHUB_STEP_SUMMARY'))
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     except (ValueError, KeyError, TypeError) as exc:
         # Only explicit machine reason codes, never a token, raw payload or URL.

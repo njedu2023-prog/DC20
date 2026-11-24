@@ -1,8 +1,8 @@
 name: DC20 daily Top2 delivery watchdog
 on:
   workflow_run:
-    # Controlled P0 completion wakes the existing inspector; cron recovery is unchanged.
-    workflows: ['DC2.0 · Publish Primary D List (P0)']
+    # Wake on an original controlled P0 or its authenticated, independently deployed public revision.
+    workflows: ['DC2.0 · Publish Primary D List (P0)', 'DC2.0 · Deploy Decision Pages']
     branches: [main]
     types: [completed]
   schedule:
@@ -39,14 +39,17 @@ jobs:
       github.repository == 'njedu2023-prog/DC20' && github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
       (github.event_name != 'workflow_run' ||
        (github.event.action == 'completed' && github.event.workflow_run.status == 'completed' &&
-        (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') &&
-        github.event.workflow_run.workflow_id == 343703608 && github.event.workflow_run.run_attempt == 1 &&
-        github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
-        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.run_attempt == 1 && github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.repository.full_name == github.repository &&
         github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.event == 'workflow_dispatch' &&
-        startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')))
+        (((github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure') &&
+          github.event.workflow_run.workflow_id == 343703608 &&
+          github.event.workflow_run.path == '.github/workflows/run_primary_d_daily.yml' &&
+          github.event.workflow_run.event == 'workflow_dispatch' &&
+          startsWith(github.event.workflow_run.display_title, 'DC20 controlled daily NATURAL | D=')) ||
+         (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.workflow_id == 335484128 &&
+          github.event.workflow_run.path == '.github/workflows/deploy_dc20_pages.yml' &&
+          github.event.workflow_run.event == 'push'))))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
