@@ -205,13 +205,17 @@ def test_run_uses_staged_pointer_before_build_and_retains_guards(roots, tmp_path
         write(source, relative, '{"frozen":true}')
     write(source, 'outputs/decision/primary_d_runtime_index.json', json.dumps(pointer))
     account = {'trades': [], 'missing_returns': None}
+    revision = {'signal_date': DAY, 'profit_paper_account_url': 'account.json'}
     if rank2_stamp:
+        revision['compact_statistics_window_sha256'] = 'a'*64
+        account['data_bindings'] = {'window_sha256': 'a'*64}
         account.update(publication={'published_at_utc': 'same'},
-                       rank2={'publication': {'published_at_utc': rank2_stamp}, 'closed_trades': 3})
+                       rank2={'publication': {'published_at_utc': rank2_stamp}, 'closed_trades': 3,
+                              'data_bindings': {'window_sha256': 'a'*64, 'engine_sha256': 'b'*64}})
     build_script = """mkdir -p _site
-printf '%s' '{"signal_date":"20261106","profit_paper_account_url":"account.json"}' > _site/revision.json
+printf '%s' '__REVISION__' > _site/revision.json
 printf '%s' '__ACCOUNT__' > _site/account.json
-""".replace('__ACCOUNT__', json.dumps(account))
+""".replace('__ACCOUNT__', json.dumps(account)).replace('__REVISION__', json.dumps(revision))
     write(current, '.github/workflows/deploy_dc20_pages.yml', yaml.safe_dump(
         {'jobs': {'deploy': {'steps': [{'name': 'fixture build', 'run': build_script}]}}}))
     monkeypatch.setattr(rehearsal, 'STEPS', ('fixture build',))
@@ -224,13 +228,39 @@ printf '%s' '__ACCOUNT__' > _site/account.json
     assert result['status'] == 'PASS'
     assert result['signal_date'] == DAY
     if rank2_stamp:
-        assert result['account']['rank2'] == {'closed_trades': 3}
+        assert result['account']['rank2'] == {'closed_trades': 3, 'data_bindings': {'engine_sha256': 'b'*64}}
+        assert result['account']['data_bindings']['window_sha256'] == revision['compact_statistics_window_sha256']
         assert result['account']['publication'] == account['publication']
         assert json.loads((current/'_site/account.json').read_bytes()) == account
+    else:
+        assert result['account'] == account
     assert result['source_fixture']['signal_date'] == DAY
     assert result['protected_files_unchanged'] >= 4
     assert result['natural_freeze_created'] is False
     assert result['public_deploy_performed'] is False
+
+
+@pytest.mark.parametrize('changed, value', [
+    ('rank1', 'b'*64), ('rank2', 'b'*64), ('revision', 'b'*64),
+    ('rank1', None), ('rank2', None), ('revision', None),
+    ('all', 'invalid-sha'), ('all', 123), ('all', None),
+])
+def test_shared_window_requires_three_matching_sha256_fingerprints(changed, value):
+    rank1 = {'window_sha256': 'a'*64}
+    rank2 = {'window_sha256': 'a'*64}
+    revision = {'compact_statistics_window_sha256': 'a'*64}
+    for name, mapping, key in [('rank1', rank1, 'window_sha256'), ('rank2', rank2, 'window_sha256'),
+                               ('revision', revision, 'compact_statistics_window_sha256')]:
+        if changed in (name, 'all'):
+            if value is None:
+                del mapping[key]
+            else:
+                mapping[key] = value
+    account = {'data_bindings': rank1, 'rank2': {'data_bindings': rank2}}
+    before = json.dumps(account)
+    with pytest.raises(ValueError, match='window fingerprint'):
+        rehearsal.record_shared_window_once(account, revision)
+    assert json.dumps(account) == before
 
 
 def test_workflow_uses_one_immutable_source_for_both_code_versions():

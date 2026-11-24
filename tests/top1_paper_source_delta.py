@@ -144,7 +144,17 @@ RANK_LEDGER = (
 )
 
 
+RANK_LEDGER_REHEARSAL = (
+    'models/decision_source_surface_review_20261125_rank_ledger_rehearsal.json',
+    'c7d4106feffa7e7d9c435fed5f3c8bc5e882bef06af890271887b84bc0f7549a',
+    '3106fa77046c434642db6a5f3830095a0ae401e5',
+    '8c66304c90c947ca5a74004e482891fb62cd8590',
+)
+
+
 def before_rank_ledger(path, raw):
+    if path in _paths(RANK_LEDGER_REHEARSAL):
+        raw = _restore(path, raw, _read(RANK_LEDGER_REHEARSAL), RANK_LEDGER_REHEARSAL)
     if path not in _paths(RANK_LEDGER):
         return raw
     return _restore(path, raw, _read(RANK_LEDGER), RANK_LEDGER)

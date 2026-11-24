@@ -124,6 +124,18 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def record_shared_window_once(account, revision):
+    """Keep the verified per-run window receipt in the outer account only."""
+    outer = account.get('data_bindings')
+    inner = account['rank2'].get('data_bindings')
+    expected = revision.get('compact_statistics_window_sha256')
+    if (not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{64}', expected)
+            or not isinstance(outer, dict) or outer.get('window_sha256') != expected
+            or not isinstance(inner, dict) or inner.get('window_sha256') != expected):
+        raise ValueError('Paper ledger window fingerprint differs from the bound revision or is missing')
+    del inner['window_sha256']
+
+
 def run(root, out, *, source_root=None, expected_signal_date=None, expected_source_head=None):
     root = checked_root(root)
     out = out.resolve()
@@ -233,6 +245,7 @@ def run(root, out, *, source_root=None, expected_signal_date=None, expected_sour
             receipt = account['rank2'].pop('publication', None)
             if not isinstance(receipt, dict) or receipt != account.get('publication'):
                 raise ValueError('Paper ledger ranks have different publication receipts')
+            record_shared_window_once(account, revision)
         result['account'] = account
         changed = [rel for rel, sha in protected.items() if digest(root/rel) != sha]
         if changed:

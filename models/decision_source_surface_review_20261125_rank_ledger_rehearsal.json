@@ -1,0 +1,69 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "3106fa77046c434642db6a5f3830095a0ae401e5",
+  "base_tree": "8c66304c90c947ca5a74004e482891fb62cd8590",
+  "files": {
+    "scripts/rehearse_daily_publication.py": {
+      "sha256": "df471b0c2a9131722f1121fa3e2d59a0b8f6a46730a19a36d4cb7a5e3fba09d4",
+      "base_sha256": "f4a0f21e77fc4174d21ca11fc144d2a09b84e19cd9ff7fe8c35d559f11ca0541",
+      "inverse": [
+        [
+          5992,
+          679,
+          ""
+        ],
+        [
+          13401,
+          57,
+          ""
+        ]
+      ]
+    },
+    "tests/test_publication_rehearsal_fixture.py": {
+      "sha256": "5d205b6fc5ab6f7775b1b241b339df9a2ad7897c8c7e73b80214cd8879b248bd",
+      "base_sha256": "4a9d0d4d217a99c5549947a8873a749f25ba8de66e30f60cb81eaea30f5608ba",
+      "inverse": [
+        [
+          8912,
+          80,
+          ""
+        ],
+        [
+          9012,
+          123,
+          ""
+        ],
+        [
+          9200,
+          200,
+          "                       rank2={'publication': {'published_at_utc': rank2_stamp}, 'closed_trades': 3})\n"
+        ],
+        [
+          9437,
+          49,
+          "printf '%s' '{\"signal_date\":\"20261106\",\"profit_paper_account_url\":\"account.json\"}' > _site/revision.json\n"
+        ],
+        [
+          9533,
+          94,
+          "\"\"\".replace('__ACCOUNT__', json.dumps(account))\n"
+        ],
+        [
+          10336,
+          225,
+          "        assert result['account']['rank2'] == {'closed_trades': 3}\n"
+        ],
+        [
+          10717,
+          54,
+          ""
+        ],
+        [
+          10988,
+          1072,
+          ""
+        ]
+      ]
+    }
+  }
+}
