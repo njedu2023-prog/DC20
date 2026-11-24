@@ -22,11 +22,12 @@ def test_pages_successor_preserves_all_previous_profiles():
     assert {p for p in old if old[p] != new[p]} == {continuation.MANIFEST_PATH}
     assert set(old) == set(new)
     assert old[continuation.MANIFEST_PATH] == '9e4576a75ece8a4f74022641a7cdf7660088fe8d'
-    assert new[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())
-    assert len(continuation.RELIABILITY_PROFILES) == 11
+    assert new[continuation.MANIFEST_PATH] == '60867ebc3aad5b3512ab3b9d53f7035ba2b9c366'
+    assert continuation.PAGES_READINESS_P0_CODE_PROFILE[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())
+    assert len(continuation.RELIABILITY_PROFILES) == 12
     for profile in continuation.RELIABILITY_PROFILES:
         entries = tree(profile)
-        day = '20261124' if profile in (new, old) else '20261123'
+        day = '20261124' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261123'
         matched, transition = continuation.validate_code_profiles(gh, None, entries, entries, entries,
             {'signal_date': day})
         assert matched == profile and transition is None
@@ -101,3 +102,22 @@ def test_prior_pages_continuation_pair_remains_readable():
     later = {**imported, 'signal_date': '20261124', 'continuation': {**proof, 'signal_date': '20261124'}}
     with pytest.raises(ValueError, match='PRE_PAGES_CONTINUATION_IMPORT_DATE_CHANGED'):
         continuation.validate_import_receipt(gh, later)
+
+
+def test_readiness_predecessor_matches_only_exact_date_and_full_publication_bytes():
+    previous = publication.PRE_READINESS_CODE_BINDINGS
+    old = tree({item['path']: item['git_blob_sha1'] for item in previous})
+    local, _ = publication.code_guard()
+    assert publication.match_publication_code(old,old,local,day='20261124') == previous
+    for day in ('20261123','20261125'):
+        with pytest.raises(ValueError,match='PRE_READINESS_PUBLICATION_DATE_OR_SET_CHANGED'):
+            publication.match_publication_code(old,old,local,day=day)
+    mixed = deepcopy(old)
+    mixed[publication.IMPORTER_PATH]['sha'] = gh.git_blob(local[publication.IMPORTER_PATH])
+    with pytest.raises(ValueError,match='PRE_READINESS_PUBLICATION_BYTES_CHANGED'):
+        publication.match_publication_code(old,mixed,local,day='20261124')
+    codes = observer.capture.PRE_READINESS_CAPTURE_CONTRACT
+    stamp={'capture_code_sha256':codes[0],'publication_verifier_sha256':codes[1]}
+    assert observer._observer_profile({**stamp,'signal_date':'20261124'}) == observer.PRE_READINESS_OBSERVER_PROFILE
+    with pytest.raises(ValueError, match='PRE_READINESS_OBSERVER_DATE_CHANGED'):
+        observer._observer_profile({**stamp,'signal_date':'20261125'})

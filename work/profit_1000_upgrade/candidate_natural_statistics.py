@@ -19,7 +19,7 @@ SCHEMA = "dc20_candidate_natural_bound_statistics_v1"
 OUTCOMES_SHA = '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4'
 LEGACY_OUTCOMES_SHA = "5949be11309eebba1a3d5f45be9b56d4469b1d6e51f2c416960c9920699d7c18"
 PUBLICATION_MODULE = "work.profit_1000_upgrade.candidate_natural_evidence_publication"
-PUBLICATION_SHA = '8fe1bec4377c54a9757649771610b136fe6b5c92e7574240e93b205bc17f1242'
+PUBLICATION_SHA = 'ae24c9524601ba3eff89500f728e7d58cadfc51aaed4e2637e65cabaf455f32b'
 
 GROUPS = ("candidate_top1", "candidate_top2", "promotion_top1", "promotion_top2")
 DAY_FIELDS = frozenset({"signal_date", "snapshot_raw", "expected_snapshot_sha256",

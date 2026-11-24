@@ -248,16 +248,31 @@ def test_pages_transport_sources_restore_exact_predecessors():
 
 
 def test_pages_transport_manifest_and_inventory_change_only_the_deploy_pin():
-    now_raw = (ROOT / MANIFEST).read_bytes()
-    old_raw = count_delta.before_pages(MANIFEST, now_raw)
+    now_raw = count_delta.before_readiness(MANIFEST, (ROOT / MANIFEST).read_bytes())
+    old_raw = count_delta.before_pages(MANIFEST, (ROOT / MANIFEST).read_bytes())
     now, old = json.loads(now_raw), json.loads(old_raw)
     now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
     assert now == old and now_pins.keys() == old_pins.keys()
     assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'.github/workflows/deploy_dc20_pages.yml'}
-    assert now_pins['.github/workflows/deploy_dc20_pages.yml'] == sha((ROOT / '.github/workflows/deploy_dc20_pages.yml').read_bytes())
-    current_inventory = (ROOT / INVENTORY).read_bytes()
-    expected = json.loads(count_delta.before_pages(INVENTORY, current_inventory))
+    assert now_pins['.github/workflows/deploy_dc20_pages.yml'] == sha(count_delta.before_readiness('.github/workflows/deploy_dc20_pages.yml', (ROOT / '.github/workflows/deploy_dc20_pages.yml').read_bytes()))
+    current_inventory = count_delta.before_readiness(INVENTORY, (ROOT / INVENTORY).read_bytes())
+    expected = json.loads(count_delta.before_pages(INVENTORY, (ROOT / INVENTORY).read_bytes()))
     entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
     assert len(entries) == 1
     entries[0].update(sha256=sha(now_raw), bytes=len(now_raw))
     assert json.loads(current_inventory) == expected
+
+
+def test_readiness_sources_restore_the_committed_transport_bytes():
+    for path, record in count_delta.readiness_files().items():
+        current = (ROOT / path).read_bytes()
+        assert sha(count_delta.before_readiness(path,current)) == record['base_sha256']
+        with pytest.raises(AssertionError):
+            count_delta.before_readiness(path,current + b'\n')
+    now=json.loads((ROOT/MANIFEST).read_bytes())
+    old=json.loads(count_delta.before_readiness(MANIFEST,(ROOT/MANIFEST).read_bytes()))
+    pins,prior=now.pop('pinned_files'),old.pop('pinned_files')
+    assert now==old and pins.keys()==prior.keys()
+    deploy='.github/workflows/deploy_dc20_pages.yml'
+    assert {p for p in pins if pins[p]!=prior[p]} == {deploy}
+    assert pins[deploy]==sha((ROOT/deploy).read_bytes())

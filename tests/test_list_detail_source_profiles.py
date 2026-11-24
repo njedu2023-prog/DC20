@@ -23,10 +23,10 @@ def test_detail_successor_preserves_all_previous_profiles():
     assert set(old) == set(new)
     assert old[continuation.MANIFEST_PATH] == 'adad1026ee4e995c49162c57036992c20c95fc2d'
     assert new[continuation.MANIFEST_PATH] == '9e4576a75ece8a4f74022641a7cdf7660088fe8d'
-    assert len(continuation.RELIABILITY_PROFILES) == 11
+    assert len(continuation.RELIABILITY_PROFILES) == 12
     for profile in continuation.RELIABILITY_PROFILES:
         entries = tree(profile)
-        day = '20261124' if profile is continuation.PAGES_TRANSPORT_P0_CODE_PROFILE else '20261120' if profile in (new, old) else '20261119'
+        day = '20261124' if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261120' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261119'
         matched, transition = continuation.validate_code_profiles(gh, None, entries, entries, entries,
             {'signal_date': day})
         assert matched == profile and transition is None

@@ -113,7 +113,21 @@ def pages_files():
     return _parse(_read(PAGES_TRANSPORT), PAGES_TRANSPORT)
 
 
+PAGES_READINESS = ('models/decision_source_surface_review_20261124_pages_readiness.json', 'f71ee51021e86201943a47a3baf0cdb774d7560f3394cc048096a2dad7a4d68c', '1de88584a6cbbb6aff64078b152b7f7075b9d6ed', '3c6bbea7d5f5da896f4c0706e58df7c0ebb5fc34')
+
+
+def readiness_files():
+    return _parse(_read(PAGES_READINESS), PAGES_READINESS)
+
+
+def before_readiness(path, raw):
+    if path not in _paths(PAGES_READINESS):
+        return raw
+    return _restore(path, raw, _read(PAGES_READINESS), PAGES_READINESS)
+
+
 def before_pages(path, raw):
+    raw = before_readiness(path, raw)
     if path not in _paths(PAGES_TRANSPORT):
         return raw
     return _restore(path, raw, _read(PAGES_TRANSPORT), PAGES_TRANSPORT)

@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 
-from tests.top1_paper_source_delta import before_pages
+from tests.top1_paper_source_delta import before_pages, before_readiness
 from work.profit_1000_upgrade import candidate_natural_p0_continuation as m
 from work.profit_1000_upgrade import candidate_natural_p0_github as gh
 from work.profit_1000_upgrade.test_candidate_natural_p0_continuation import call, fixture, pages_zip
@@ -16,15 +16,17 @@ ORIGIN = dict(signal_date='20261124', original_run_id='45384357456',
 SUCCESSOR = dict(reuse_run_id='22222', deployed_head='1' * 40)
 
 
-def evidence():
+def evidence(prior=False):
     def tree(profile):
         return {path:dict(type='blob', mode='100644', sha=blob) for path,blob in profile.items()}
     original=tree(m.LIST_DETAIL_UI_P0_CODE_PROFILE)
-    deployed=tree(m.PAGES_TRANSPORT_P0_CODE_PROFILE)
+    deployed=tree(m.PAGES_TRANSPORT_P0_CODE_PROFILE if prior else m.PAGES_READINESS_P0_CODE_PROFILE)
     blobs={}
     for path in (DEPLOY,m.MANIFEST_PATH):
         new=(gh.CODE_ROOT / path).read_bytes()
         old=before_pages(path,new)
+        if prior:
+            new=before_readiness(path,new)
         for target,raw in ((original,old),(deployed,new)):
             sha=gh.git_blob(raw)
             if path in target:
@@ -37,8 +39,9 @@ def evidence():
     return [original,deepcopy(original),deployed],Reads(),blobs
 
 
-def test_original_cas_profile_survives_pages_transport_change():
-    trees,reads,_=evidence()
+@pytest.mark.parametrize('prior', [False, True])
+def test_original_cas_profile_survives_pages_transport_change(prior):
+    trees,reads,_=evidence(prior)
     identity={**ORIGIN,**SUCCESSOR}
     profile,proof=m.validate_code_profiles(gh,reads,*trees,identity)
     assert profile==m.LIST_DETAIL_UI_P0_CODE_PROFILE
