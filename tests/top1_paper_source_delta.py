@@ -128,7 +128,17 @@ CANDIDATE_PAGES_HANDOFF = (
 )
 
 
+PROFIT_DELIVERY_FOLLOWUP = (
+    'models/decision_source_surface_review_20261125_profit_delivery_followup.json',
+    '4cd1a7d5b1f2f296efe88b442a112ec09ddc8dbfd073bfd7476aac161aebdef8',
+    '71724999e864b4ee25cce6eddcf2b99542d84b31',
+    'c55ce74f65508031afcc94620441f1a1bdd7db86',
+)
+
+
 def before_candidate_pages_handoff(path, raw):
+    if path in _paths(PROFIT_DELIVERY_FOLLOWUP):
+        raw = _restore(path, raw, _read(PROFIT_DELIVERY_FOLLOWUP), PROFIT_DELIVERY_FOLLOWUP)
     if path not in _paths(CANDIDATE_PAGES_HANDOFF):
         return raw
     return _restore(path, raw, _read(CANDIDATE_PAGES_HANDOFF), CANDIDATE_PAGES_HANDOFF)

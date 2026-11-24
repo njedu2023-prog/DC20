@@ -1,0 +1,69 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "71724999e864b4ee25cce6eddcf2b99542d84b31",
+  "base_tree": "c55ce74f65508031afcc94620441f1a1bdd7db86",
+  "files": {
+    ".github/workflows/candidate_delivery_watchdog.yml": {
+      "sha256": "bec3071defc6ce2613f590e11b0b80e9e9f08ae18a137e0fa8fc0e0a65d1b700",
+      "base_sha256": "58d0e0d86293e3611d8ac0ba2a9387a389d10945b7f09e02c90b1384865a8aa6",
+      "inverse": [
+        [
+          796,
+          97,
+          ""
+        ],
+        [
+          3072,
+          257,
+          "      - run: PYTHONPATH=.:src python -m pytest -q tests/test_candidate_delivery_watchdog.py tests/test_candidate_watchdog_code_approval.py tests/test_candidate_delivery_missing_p0.py tests/test_dc20_writer_queue.py\n"
+        ],
+        [
+          3822,
+          24,
+          "    timeout-minutes: 10\n"
+        ],
+        [
+          4459,
+          287,
+          "          python3 scripts/candidate_delivery_watchdog.py \"${args[@]}\"\n"
+        ]
+      ]
+    },
+    "scripts/candidate_delivery_watchdog.py": {
+      "sha256": "e40f8a960f326bbf14af7298cbd433f1a63f503a6a77970ac8d8fd8388214d3f",
+      "base_sha256": "e355b01921fbc6db3038ea194ab3b6d9b815b1c94dc89d7db973becefcc481ee",
+      "inverse": [
+        [
+          3373,
+          128,
+          "                'X-GitHub-Api-Version': ('2026-03-10' if '/concurrency_groups' in path else '2022-11-28')})\n"
+        ],
+        [
+          3635,
+          437,
+          "            require(len(raw) <= 8*1024*1024, 'RESPONSE_TOO_LARGE')\n            return json.loads(raw) if raw else None\n"
+        ],
+        [
+          4118,
+          139,
+          ""
+        ],
+        [
+          49947,
+          1464,
+          ""
+        ],
+        [
+          51767,
+          653,
+          "    runs = client.request('/actions/workflows/'+workflow+'/runs?per_page=50')['workflow_runs']\n    relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']\n    failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and\n        datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]\n"
+        ],
+        [
+          56316,
+          851,
+          "    client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})\n"
+        ]
+      ]
+    }
+  }
+}

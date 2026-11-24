@@ -82,13 +82,20 @@ class GitHub:
         req = urllib.request.Request('https://api.github.com/repos/'+repository+path,
             data=None if body is None else json.dumps(body).encode(), headers={
                 'Authorization': 'Bearer '+self.token, 'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': ('2026-03-10' if '/concurrency_groups' in path else '2022-11-28')})
+                'X-GitHub-Api-Version': ('2026-03-10' if body is not None or '/concurrency_groups' in path else '2022-11-28')})
         try:
             with urllib.request.urlopen(req, timeout=30) as response:
                 raw = response.read(8*1024*1024+1)
-            require(len(raw) <= 8*1024*1024, 'RESPONSE_TOO_LARGE')
-            return json.loads(raw) if raw else None
+            require(len(raw) <= 8*1024*1024, 'DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY'
+                    if body is not None else 'RESPONSE_TOO_LARGE')
+            try:
+                return json.loads(raw) if raw else None
+            except (ValueError, UnicodeError):
+                raise ValueError('DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY'
+                                 if body is not None else 'INVALID_API_JSON') from None
         except urllib.error.HTTPError as exc:
+            if body is not None and exc.code >= 500:
+                raise ValueError('DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY') from None
             if body is None and exc.code == 404 and path == '/actions/concurrency_groups/' + GROUP:
                 return None  # Caller first verifies the supported list endpoint.
             if body is None and exc.code == 404 and path.startswith('/contents/'):
@@ -794,6 +801,33 @@ def inspect(client, now, *, wakeup_day=None):
     return {**base, 'status': 'NEEDS_PUBLICATION', 'workflow': PUBLISHER, 'inputs': {'dry_run': False}}
 
 
+def downstream_retry_history(client, workflow, day):
+    """Morning runs can be deliveries of the previous signal. Exclude one only
+    when its creation predates D close and its immutable source proves that."""
+    close = datetime.strptime(day+'1500', '%Y%m%d%H%M').replace(tzinfo=TZ)
+    prior_heads = {}
+    failures, excluded = [], []
+    for run in recent_target_runs(client, workflow, day):
+        created = stamp(run['created_at']).astimezone(TZ)
+        if (run['event'] == 'push' or created.strftime('%Y%m%d') < day
+                or run.get('conclusion') not in ('failure','timed_out','startup_failure')):
+            continue
+        if created < close:
+            head = run.get('head_sha', '')
+            require(re.fullmatch('[a-f0-9]{40}', head), 'RETRY_IMMUTABLE_RUN_HEAD_REQUIRED')
+            if head not in prior_heads:
+                raw = client.file('outputs/decision/three_rank_index.json', head)
+                latest = document(raw).get('latest_signal_date') if raw is not None else None
+                prior_heads[head] = (isinstance(latest, str) and bool(re.fullmatch('[0-9]{8}', latest))
+                                     and latest < day and client.file(
+                                         f'outputs/decision/primary_d_receipt_{day}.json', head) is None)
+            if prior_heads[head]:
+                excluded.append(run['id'])
+                continue
+        failures.append(run)
+    return failures, excluded
+
+
 def act(client, plan, now, *, execute=False, clock=None):
     if 'workflow' not in plan:
         return plan
@@ -802,10 +836,14 @@ def act(client, plan, now, *, execute=False, clock=None):
     plan = {**plan, 'queue': queue}
     if queue['status'] != 'CLEAR':
         return {**plan, 'status': 'UPSTREAM_OR_RECOVERY_ALREADY_RUNNING'}
-    runs = client.request('/actions/workflows/'+workflow+'/runs?per_page=50')['workflow_runs']
-    relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']
-    failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
-        datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
+    if workflow in (OBSERVER, PUBLISHER):
+        failures, excluded = downstream_retry_history(client, workflow, plan['signal_date'])
+        plan = {**plan, 'excluded_prior_day_run_ids': excluded, 'potential_failed_run_ids': [r['id'] for r in failures]}
+    else:
+        runs = client.request('/actions/workflows/'+workflow+'/runs?per_page=50')['workflow_runs']
+        relevant = [r for r in runs if r.get('head_branch') == 'main' and r.get('event') != 'push']
+        failures = [r for r in relevant if r.get('conclusion') in {'failure', 'timed_out'} and
+            stamp(r['created_at']).astimezone(TZ).strftime('%Y%m%d') >= plan['signal_date']]
     if workflow == NATURAL:
         origin = plan['inputs'].get('original_generation_run_id') or plan['inputs']['p0_run_id']
         require(plan.get('retry_origin_run_id') == origin, 'RETRY_ORIGINAL_P0_BINDING_REQUIRED')
@@ -862,7 +900,19 @@ def act(client, plan, now, *, execute=False, clock=None):
     if workflow in (P0, HISTORY):
         p0_dispatch_window(plan['signal_date'], dispatch_now)
     require(plan.get('existing_formal') is True or dispatch_now < cutoff, 'DISPATCH_DEADLINE_EXPIRED')
-    client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})
+    try:
+        receipt = client.request('/actions/workflows/'+workflow+'/dispatches', {'ref': 'main', 'inputs': plan['inputs']})
+        if receipt is not None:
+            run_id = receipt.get('workflow_run_id') if isinstance(receipt, dict) else None
+            require(type(run_id) is int and run_id > 0
+                    and receipt.get('run_url') == f'https://api.github.com/repos/{REPO}/actions/runs/{run_id}'
+                    and receipt.get('html_url') == f'https://github.com/{REPO}/actions/runs/{run_id}',
+                    'DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY')
+            plan = {**plan, 'dispatched_run_id': run_id}
+    except ValueError as exc:
+        if str(exc) != 'DISPATCH_OUTCOME_UNKNOWN_NO_BLIND_RETRY' or workflow not in (NATURAL, OBSERVER, PUBLISHER):
+            raise
+        return {**plan, 'status': str(exc)}
     return {**plan, 'status': 'DISPATCHED_NOT_COMPLETED'}
 
 
