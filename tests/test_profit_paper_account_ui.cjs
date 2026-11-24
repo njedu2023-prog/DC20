@@ -303,3 +303,46 @@ test("same homepage entry and existing refresh hooks include isolated account",(
   assert.match(html,/state\.profitPaperAccount = null;/);assert.match(html,/\.paper-cards[^}]*grid-template-columns:repeat\(5,/);
 });
 
+
+test("both ranks bind their own dates, trades, monthly totals and curve to one published account",async()=>{
+  const x=publishedInputs();
+  const second=structuredClone(x.account);
+  Object.assign(second,{schema_version:'dc20_top2_realized_paper_account_v1',last_exit_date:'20261020',
+    closed_trades:1,metrics:{cumulative_pnl:-500,max_profit:null,max_loss:-500},missing_signal_dates:[],
+    trades:[{signal_date:'20261016',rank:2,ts_code:'B',name:'乙',status:'CLOSED',exit_date:'20261020',net_pnl:-500}]});
+  x.account.rank2=second;x.account.rank2_status='READY';
+  let reads=0;
+  const c=context({fetchPagesOnlyShaBoundJson:async()=>{reads++; return {payload:x.account}}});
+  Object.assign(x.active,{status:'ready',config:{}});
+  x.summary.activation=x.active.config;x.window.compactLoadSequence=1;
+  Object.assign(c.state,{candidateProfitSummary:x.summary,currentCompactStatisticsWindow:x.window,candidateProfitActivation:x.active,
+    candidateProfitSummaryLoad:{status:'ready'},compactStatisticsWindowLoad:{status:'ready'}});
+  await c.refreshProfitPaperAccount(x.summary,x.window,x.active);
+  const markup=()=>c.document.getElementById('profitPaperAccountContent').innerHTML;
+  assert.match(markup(),/盈1逐笔列表/);
+  c.state.paperAccountRank=2;c.renderProfitPaperAccount();
+  assert.match(markup(),/盈2逐笔列表/);
+  assert.match(markup(),/最近退出日 2026-10-20/);
+  assert.match(markup(),/-500.00 元/);assert.match(markup(),/-0.50%/);
+  assert.doesNotMatch(markup(),/4,500.00|盈1逐笔列表/);
+  c.state.paperAccountRank=1;c.renderProfitPaperAccount();
+  assert.match(markup(),/最近退出日 2026-10-21/);assert.equal(reads,1);
+
+  const failures=[
+    r=>{r.rank2=null;r.rank2_status='UNAVAILABLE'},
+    r=>{delete r.rank2;delete r.rank2_status},
+    r=>{r.rank2=data2();r.rank2.trades[0].rank=1},
+    r=>{r.rank2=data2();r.rank2.publication.run_id='wrong'},
+    r=>{r.rank2=data2();r.rank2.data_bindings.summary_sha256='0'.repeat(64)},
+    r=>{r.rank2=data2();r.rank2.last_exit_date='20261021'}
+  ];
+  function data2(){return structuredClone(second);}
+  for (const corrupt of failures) {
+    x.account.rank2_status='READY';corrupt(x.account);
+    c.state.paperAccountRank=2;
+    await c.refreshProfitPaperAccount(x.summary,x.window,x.active);
+    assert.match(markup(),/盈2账本/);assert.doesNotMatch(markup(),/paper-card|-500.00/);
+    c.state.paperAccountRank=1;c.renderProfitPaperAccount();
+    assert.match(markup(),/4,500.00 元/);
+  }
+});

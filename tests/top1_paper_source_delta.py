@@ -136,7 +136,22 @@ PROFIT_DELIVERY_FOLLOWUP = (
 )
 
 
+RANK_LEDGER = (
+    'models/decision_source_surface_review_20261125_rank_ledger.json',
+    '7ce1ff2b0ecc98e5ba0e5c03ac9bbd0a8cf0953a4b880a050a131c10d0027eaf',
+    '468f7ef84d8f0c4d183a15e57d70bd96f528b306',
+    '1a224fc591afeab522b15ca15dcab63fb5a160ee',
+)
+
+
+def before_rank_ledger(path, raw):
+    if path not in _paths(RANK_LEDGER):
+        return raw
+    return _restore(path, raw, _read(RANK_LEDGER), RANK_LEDGER)
+
+
 def before_candidate_pages_handoff(path, raw):
+    raw = before_rank_ledger(path, raw)
     if path in _paths(PROFIT_DELIVERY_FOLLOWUP):
         raw = _restore(path, raw, _read(PROFIT_DELIVERY_FOLLOWUP), PROFIT_DELIVERY_FOLLOWUP)
     if path not in _paths(CANDIDATE_PAGES_HANDOFF):

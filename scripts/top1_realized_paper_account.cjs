@@ -45,19 +45,19 @@ function quoteLookup(dailyQuotes) {
   };
 }
 
-function settlement(row, dates, index, quoteFor, fee) {
+function settlement(row, dates, index, quoteFor, fee, rank) {
   const i = index.get(row.signal_date);
   const exit = index.get(row.actual_exit_date);
   const iso = row.actual_exit_date?.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
   const stamp = /^(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)(?:\.\d+)?\+08:00$/.exec(row.actual_exit_time || '');
-  requireEvidence(row.candidate_rank === 1 && row.proxy_fill === 1 && row.ts_code
+  requireEvidence(row.candidate_rank === rank && row.proxy_fill === 1 && row.ts_code
     && positive(row.entry_price) && positive(row.exit_price) && Number.isFinite(row.slot_net_return),
-  `Invalid settled top1 fill or price: ${row.signal_date}`);
+  `Invalid settled top${rank} fill or price: ${row.signal_date}`);
   requireEvidence(exit >= i + 2 && row.exec_date === dates[i + 1] && row.exit_date === dates[i + 2]
     && stamp && stamp[1] === iso && stamp[2] >= '09:30:00' && stamp[2] <= '15:00:00',
-  `Invalid settled top1 chronology: ${row.signal_date}`);
+  `Invalid settled top${rank} chronology: ${row.signal_date}`);
   requireEvidence(Math.abs(row.exit_price / row.entry_price - 1 - fee - row.slot_net_return) <= 1e-8,
-    `Settled top1 prices and net return disagree: ${row.signal_date}`);
+    `Settled top${rank} prices and net return disagree: ${row.signal_date}`);
 
   let shares = Math.floor(BUDGET / (row.entry_price * LOT * (1 + fee))) * LOT;
   let notional = cents(shares * row.entry_price);
@@ -78,23 +78,24 @@ function settlement(row, dates, index, quoteFor, fee) {
 
 // Inputs are the revision-bound formal summary, strict trading calendar/quotes
 // and same-D frozen identities from the existing publication loader.
-function buildTop1RealizedAccount(summary, dailyQuotes, identities = new Map()) {
+function buildRankRealizedAccount(rank, summary, dailyQuotes, identities = new Map()) {
+  requireEvidence(rank === 1 || rank === 2, 'Unsupported paper account rank');
   const asOf = summary?.as_of_date;
   const fee = summary?.round_trip_cost_rate;
   requireEvidence(day(asOf) && Number.isFinite(fee) && fee >= 0 && fee <= 0.1,
-    'Invalid top1 ledger date or round-trip fee');
-  const sequence = summary.groups?.candidate_top1?.daily_sequence;
-  requireEvidence(Array.isArray(sequence) && Array.isArray(summary.signal_dates), 'Missing formal top1 ledger');
+    `Invalid top${rank} ledger date or round-trip fee`);
+  const sequence = summary.groups?.[`candidate_top${rank}`]?.daily_sequence;
+  requireEvidence(Array.isArray(sequence) && Array.isArray(summary.signal_dates), `Missing formal top${rank} ledger`);
   const dates = summary.signal_dates.filter(date => date >= START && date <= asOf);
   requireEvidence(dates.every((date, i) => day(date) && (!i || dates[i-1] < date))
-    && (asOf < START || dates.at(-1) === asOf), 'Invalid top1 trading calendar');
+    && (asOf < START || dates.at(-1) === asOf), `Invalid top${rank} trading calendar`);
   const index = new Map(dates.map((date, i) => [date, i]));
   const rows = new Map();
   for (const row of sequence) {
-    requireEvidence(day(row.signal_date), 'Invalid top1 signal date');
+    requireEvidence(day(row.signal_date), `Invalid top${rank} signal date`);
     if (row.signal_date < START || row.signal_date > asOf) continue;
-    requireEvidence(row.slot === 1 && index.has(row.signal_date) && !rows.has(row.signal_date),
-      'Repeated or mismatched top1 frozen slot');
+    requireEvidence(row.slot === rank && index.has(row.signal_date) && !rows.has(row.signal_date),
+      `Repeated or mismatched top${rank} frozen slot`);
     rows.set(row.signal_date, row);
   }
   const quoteFor = quoteLookup(dailyQuotes);
@@ -104,16 +105,17 @@ function buildTop1RealizedAccount(summary, dailyQuotes, identities = new Map()) 
   let total = 0, best = null, worst = null, lastExit = null, count = 0;
   for (const date of dates) {
     const row = rows.get(date);
+    if (rank === 2 && !row) requireEvidence(declaredMissing.has(date), `Missing top2 frozen slot: ${date}`);
     const sourceStatus = row?.status || 'MISSING_D_PUBLICATION';
-    const identity = identities.get(`${date}:R1`);
-    if (identity) requireEvidence(identity.signal_date === date && identity.rank === 1 && identity.ts_code === row?.ts_code,
-      `Top1 identity differs from frozen slot: ${date}`);
-    const trade = {id:`${date}:R1`, signal_date:date, rank:1, ts_code:row?.ts_code || null,
+    const identity = identities.get(`${date}:R${rank}`);
+    if (identity) requireEvidence(identity.signal_date === date && identity.rank === rank && identity.ts_code === row?.ts_code,
+      `Top${rank} identity differs from frozen slot: ${date}`);
+    const trade = {id:`${date}:R${rank}`, signal_date:date, rank, ts_code:row?.ts_code || null,
       name:identity?.name || null, source_status:sourceStatus, status:sourceStatus, net_pnl:null};
     if (sourceStatus === 'MISSING_D_PUBLICATION') missing.push(date);
-    else requireEvidence(!declaredMissing.has(date), `Conflicting top1 publication coverage: ${date}`);
+    else requireEvidence(!declaredMissing.has(date), `Conflicting top${rank} publication coverage: ${date}`);
     if (sourceStatus === SETTLED) {
-      Object.assign(trade, settlement(row, dates, index, quoteFor, fee));
+      Object.assign(trade, settlement(row, dates, index, quoteFor, fee, rank));
       if (trade.status === 'CLOSED') {
         const net = cents(trade.net_pnl);
         total += net;
@@ -123,17 +125,21 @@ function buildTop1RealizedAccount(summary, dailyQuotes, identities = new Map()) 
         count++;
       }
     } else if (sourceStatus.startsWith('NO_FILL_')) {
-      requireEvidence(row.proxy_fill === 0 && [null,0].includes(row.slot_net_return), 'Conflicting top1 no-fill evidence');
+      requireEvidence(row.proxy_fill === 0 && [null,0].includes(row.slot_net_return), `Conflicting top${rank} no-fill evidence`);
       trade.status = 'NO_FILL';
     } else {
-      requireEvidence(!sourceStatus.startsWith('SETTLED_'), 'Unsupported top1 exit policy');
+      requireEvidence(!sourceStatus.startsWith('SETTLED_'), `Unsupported top${rank} exit policy`);
     }
     trades.push(trade);
   }
-  return {schema_version:'dc20_top1_realized_paper_account_v1', start_signal_date:START, as_of_date:asOf,
+  return {schema_version:`dc20_top${rank}_realized_paper_account_v1`, start_signal_date:START, as_of_date:asOf,
     per_trade_budget:BUDGET, cost_rate:fee, last_exit_date:lastExit, closed_trades:count,
     metrics:{cumulative_pnl:total / 100, max_profit:best === null ? null : best / 100,
       max_loss:worst === null ? null : worst / 100}, missing_signal_dates:missing, trades};
 }
 
-module.exports = {buildTop1RealizedAccount};
+function buildTop1RealizedAccount(summary, dailyQuotes, identities) {
+  return buildRankRealizedAccount(1, summary, dailyQuotes, identities);
+}
+
+module.exports = {buildTop1RealizedAccount, buildRankRealizedAccount};

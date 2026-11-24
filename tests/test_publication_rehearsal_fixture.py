@@ -194,7 +194,8 @@ def test_output_cannot_modify_source_fixture(roots):
     assert inventory(source) == before
 
 
-def test_run_uses_staged_pointer_before_build_and_retains_guards(roots, tmp_path, monkeypatch):
+@pytest.mark.parametrize('rank2_stamp', [None, 'same', 'mismatch'])
+def test_run_uses_staged_pointer_before_build_and_retains_guards(roots, tmp_path, monkeypatch, rank2_stamp):
     current, source = roots
     pointer = {'latest_signal_date': DAY}
     for key in ('latest_receipt_url', 'latest_runtime_features_url',
@@ -203,17 +204,29 @@ def test_run_uses_staged_pointer_before_build_and_retains_guards(roots, tmp_path
         pointer[key] = relative
         write(source, relative, '{"frozen":true}')
     write(source, 'outputs/decision/primary_d_runtime_index.json', json.dumps(pointer))
+    account = {'trades': [], 'missing_returns': None}
+    if rank2_stamp:
+        account.update(publication={'published_at_utc': 'same'},
+                       rank2={'publication': {'published_at_utc': rank2_stamp}, 'closed_trades': 3})
     build_script = """mkdir -p _site
 printf '%s' '{"signal_date":"20261106","profit_paper_account_url":"account.json"}' > _site/revision.json
-printf '%s' '{"trades":[],"missing_returns":null}' > _site/account.json
-"""
+printf '%s' '__ACCOUNT__' > _site/account.json
+""".replace('__ACCOUNT__', json.dumps(account))
     write(current, '.github/workflows/deploy_dc20_pages.yml', yaml.safe_dump(
         {'jobs': {'deploy': {'steps': [{'name': 'fixture build', 'run': build_script}]}}}))
     monkeypatch.setattr(rehearsal, 'STEPS', ('fixture build',))
+    if rank2_stamp == 'mismatch':
+        with pytest.raises(ValueError, match='different publication receipts'):
+            rehearsal.run(current, tmp_path.resolve()/'result', source_root=source, expected_signal_date=DAY)
+        return
     result = rehearsal.run(current, tmp_path.resolve()/'result', source_root=source,
                            expected_signal_date=DAY)
     assert result['status'] == 'PASS'
     assert result['signal_date'] == DAY
+    if rank2_stamp:
+        assert result['account']['rank2'] == {'closed_trades': 3}
+        assert result['account']['publication'] == account['publication']
+        assert json.loads((current/'_site/account.json').read_bytes()) == account
     assert result['source_fixture']['signal_date'] == DAY
     assert result['protected_files_unchanged'] >= 4
     assert result['natural_freeze_created'] is False

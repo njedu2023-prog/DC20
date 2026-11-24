@@ -226,7 +226,14 @@ def run(root, out, *, source_root=None, expected_signal_date=None, expected_sour
         account_path = revision.get('profit_paper_account_url')
         if not account_path:
             raise ValueError('Healthy rehearsal must produce the simulated account')
-        result['account'] = json.loads((root/'_site'/account_path).read_bytes())
+        account = json.loads((root/'_site'/account_path).read_bytes())
+        if isinstance(account.get('rank2'), dict):
+            # Both ranks are issued in one artifact. Record the shared, per-run
+            # receipt once so repeat builds compare rank 2 business data too.
+            receipt = account['rank2'].pop('publication', None)
+            if not isinstance(receipt, dict) or receipt != account.get('publication'):
+                raise ValueError('Paper ledger ranks have different publication receipts')
+        result['account'] = account
         changed = [rel for rel, sha in protected.items() if digest(root/rel) != sha]
         if changed:
             raise ValueError('Protected model/freeze bytes changed: '+repr(changed))

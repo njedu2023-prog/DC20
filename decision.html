@@ -1263,6 +1263,10 @@
     .paper-history button:disabled { opacity:.38; cursor:default; }
     .paper-page-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
     .paper-page-heading h1 { margin:0 0 5px; font-size:22px; }
+    .paper-rank-switch { display:inline-flex; gap:2px; padding:3px; margin-bottom:8px; border:1px solid #bad0c8; border-radius:8px; background:#edf4f1; }
+    .paper-rank-switch button { min-width:56px; min-height:34px; padding:4px 12px; font:inherit; font-size:14px; font-weight:650; border:0; border-radius:5px; background:transparent; color:#26584d; cursor:pointer; }
+    .paper-rank-switch button[aria-pressed="true"] { color:white; background:#17675a; }
+    .paper-rank-switch button:focus-visible { outline:2px solid #17675a; outline-offset:2px; }
     .paper-page-heading p { margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
     .paper-page-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .paper-page-actions button { font:inherit; cursor:pointer; }
@@ -2458,7 +2462,8 @@
     // END DC20 PAPER ACCOUNT ENGINE
 
     // Read-only cash-account view. Never changes frozen selections or outcomes.
-    async function loadProfitPaperAccountIdentities(summary, revision) {
+    async function loadProfitPaperAccountIdentities(summary, revision, rank = 1) {
+      executableProfitExpect(rank === 1 || rank === 2, "模拟账本名次无效");
       const identities = new Map(), sourceFiles = [];
       if (!revision) return {identities,source_files:sourceFiles};
       const prefix = "outputs/decision/candidate_profit_v1";
@@ -2489,9 +2494,9 @@
           && new Set(day.rows.map(r=>r.ts_code)).size === day.rows.length,
           "模拟账户公司名称不是同日正式冻结来源");
         const projectionSha = await sha256Hex(new TextEncoder().encode(ledgerCanonicalSource(bytes)));
-        const row = summary.groups.candidate_top1.daily_sequence.find(r=>r.signal_date === date);
-        const slot = day.candidate_slots[0];
-        executableProfitExpect(row && row.slot === 1 && slot?.slot === 1
+        const row = summary.groups[`candidate_top${rank}`].daily_sequence.find(r=>r.signal_date === date);
+        const slot = day.candidate_slots[rank - 1];
+        executableProfitExpect(row && row.slot === rank && slot?.slot === rank
           && row.formal_projection_sha256 === projectionSha && row.snapshot_file_sha256 === day.snapshot_file_sha256
           && row.exec_date === day.exec_date && row.exit_date === day.exit_date
           && ["ts_code","candidate_rank","candidate_score","promotion_rank"].every(key=>row[key] === slot[key]),
@@ -2501,16 +2506,17 @@
           executableProfitExpect(row.status === "MISSING_CANDIDATE", "模拟账户同日冻结股票身份缺失");
           return;
         }
-        executableProfitExpect(identity.candidate_rank === 1 && identity.promotion_rank === row.promotion_rank,
+        executableProfitExpect(identity.candidate_rank === rank && identity.promotion_rank === row.promotion_rank,
           "模拟账户公司名称对应的冻结排名不一致");
-        identities.set(`${date}:R1`, {signal_date:date,rank:1,ts_code:row.ts_code,
+        identities.set(`${date}:R${rank}`, {signal_date:date,rank,ts_code:row.ts_code,
           name:typeof identity.name === "string" && identity.name.trim() ? identity.name.trim() : null,
           source_path:entry.path,source_sha256:entry.sha256});
       }));
       return {identities,source_files:sourceFiles.sort((a,b)=>a.path.localeCompare(b.path))};
     }
 
-    async function loadProfitPaperAccountInputs(summary, windowPayload, revision) {
+    async function loadProfitPaperAccountInputs(summary, windowPayload, revision, rank = 1) {
+      executableProfitExpect(rank === 1 || rank === 2, "模拟账本名次无效");
       const bindings = windowPayload.source_files;
       executableProfitExpect(Array.isArray(bindings), "模拟账户行情清单不可用");
       const calendar = bindings.filter(b => b.path === "data/market/trade_cal_sse.csv");
@@ -2526,7 +2532,7 @@
       const quotes = new Map(), used = [calendar[0]], missing = [];
       // Daily quotes protect the price continuity of closed positions. Other
       // signal dates, unfilled orders and pending holdings need no valuation.
-      const settled = summary.groups.candidate_top1.daily_sequence.filter(row =>
+      const settled = summary.groups[`candidate_top${rank}`].daily_sequence.filter(row =>
         row.signal_date >= "20260914" && row.status === "SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY");
       const holdingDates = dates.filter(day => settled.some(row => row.exec_date <= day && day <= row.actual_exit_date));
       await Promise.all(holdingDates.map(async day => {
@@ -2541,7 +2547,7 @@
           "模拟账户行情日期不符或股票重复");
         quotes.set(day, rows); used.push(matches[0]);
       }));
-      const names = await loadProfitPaperAccountIdentities(summary,revision);
+      const names = await loadProfitPaperAccountIdentities(summary,revision,rank);
       return {quotes,identities:names.identities,source_files:[...used,...names.source_files].sort((a,b) => a.path.localeCompare(b.path)), missing_market_dates:missing.sort()};
     }
 
@@ -2550,14 +2556,18 @@
       executableProfitExpect(revision.profit_paper_account_url === "outputs/decision/profit_paper_account/account.json"
         && isSha256(revision.profit_paper_account_sha256), "主任务尚未发布可核验的模拟账户数据，不使用旧结果");
       const loaded = await fetchPagesOnlyShaBoundJson(revision.profit_paper_account_url, revision.profit_paper_account_sha256, "主任务模拟账户");
-      const result = loaded.payload;
-      executableProfitExpect(result.schema_version === "dc20_top1_realized_paper_account_v1"
+      return validatePublishedPaperRank(loaded.payload, 1, loadedSummary, loadedWindow, revision);
+    }
+
+    function validatePublishedPaperRank(result, rank, loadedSummary, loadedWindow, revision) {
+      const schema = rank === 2 ? "dc20_top2_realized_paper_account_v1" : "dc20_top1_realized_paper_account_v1";
+      executableProfitExpect(result?.schema_version === schema
         && result.per_trade_budget === 100000 && result.start_signal_date === "20260914"
         && result.cost_rate === loadedSummary.summary.round_trip_cost_rate
         && result.as_of_date === loadedSummary.summary.as_of_date
         && result.as_of_date === revision.profit_paper_account_as_of_date
-        && result.last_exit_date === revision.profit_paper_account_last_valid_date,
-        "盈1账本参数或统计日期与当前发布版本不一致");
+        && (rank === 2 || result.last_exit_date === revision.profit_paper_account_last_valid_date),
+        `盈${rank}账本参数或统计日期与当前发布版本不一致`);
       executableProfitExpect(result.publication?.mode === "main_pipeline"
         && result.publication.source_head_sha === revision.head_sha
         && String(result.publication.run_id) === String(revision.run_id)
@@ -2583,9 +2593,13 @@
         && (metrics.max_profit === null || (Number.isFinite(metrics.max_profit) && metrics.max_profit > 0))
         && (metrics.max_loss === null || (Number.isFinite(metrics.max_loss) && metrics.max_loss < 0))
         && (result.closed_trades > 0 || (metrics.cumulative_pnl === 0 && metrics.max_profit === null && metrics.max_loss === null))
-        && Array.isArray(result.trades) && result.trades.every(trade => trade.rank === 1 && inPeriod(trade.signal_date))
+        && Array.isArray(result.trades) && result.trades.every(trade => trade.rank === rank && inPeriod(trade.signal_date))
         && Array.isArray(result.missing_signal_dates) && result.missing_signal_dates.every(inPeriod),
-        "盈1账本的交易范围或已实现盈亏数据无效");
+        `盈${rank}账本的交易范围或已实现盈亏数据无效`);
+      const closed = result.trades.filter(trade => trade.status === "CLOSED");
+      const exits = closed.map(trade => trade.exit_date);
+      executableProfitExpect(closed.length === result.closed_trades && exits.every(inPeriod)
+        && (exits.sort().pop() || null) === result.last_exit_date, `盈${rank}账本的退出笔数或最近退出日不一致`);
       return result;
     }
 
@@ -2602,6 +2616,13 @@
           new Promise((_,reject) => { timer = setTimeout(() => reject(new Error("模拟账户发布数据校验超时，请刷新重试")),30000); })]);
         if (!current()) return;
         Object.assign(view,{status:"ready",result});
+        if (result.rank2_status === "READY" && result.rank2) {
+          try {
+            view.rank2 = validatePublishedPaperRank(result.rank2, 2, loadedSummary, loadedWindow, active.revision);
+          } catch (error) {
+            view.rank2Error = String(error?.message || error);
+          }
+        }
       } catch (error) {
         if (current()) Object.assign(view,{status:"unavailable",reason:String(error?.message || error)});
       } finally { clearTimeout(timer); }
@@ -2698,16 +2719,16 @@
       return [...new Set(trades.map(t => t.signal_date.slice(0, 6)))].sort().reverse();
     }
 
-    function paperTradeHistory(result, selectedMonth) {
+    function paperTradeHistory(result, selectedMonth, rank = 1) {
       const months = paperTradeMonths(result.trades);
-      if (!months.length) return '<section><h3>盈1逐笔列表</h3><p>暂无信号记录</p></section>';
+      if (!months.length) return `<section><h3>盈${rank}逐笔列表</h3><p>暂无信号记录</p></section>`;
       const month = months.includes(selectedMonth) ? selectedMonth : months[0];
       const index = months.indexOf(month);
       const monthText = m => m.slice(0, 4) + '-' + m.slice(4);
       const options = months.map(m => `<option value="${m}"${m === month ? ' selected' : ''}>${monthText(m)}</option>`).join('');
       const labels = {
         CLOSED:'已退出', NO_FILL:'未买入', MISSING_D_PUBLICATION:'缺少冻结名单',
-        MISSING_CANDIDATE:'无盈1候选', MISSING_OUTCOME_LEDGER:'缺少结算记录',
+        MISSING_CANDIDATE:`无盈${rank}候选`, MISSING_OUTCOME_LEDGER:'缺少结算记录',
         PENDING_T_NOT_DUE:'等待买入日', PENDING_T1_NOT_DUE:'等待退出日',
         MISSING_QUOTE:'缺少行情', CORPORATE_ACTION_UNVERIFIED:'价格连续性待核验',
         BUDGET_BELOW_ONE_LOT:'预算不足一手'
@@ -2732,15 +2753,15 @@
           const price = n => Number.isFinite(n) ? n.toFixed(2) : '—';
           return `<tr><td>${escapeHtml(dateText(t.signal_date))}</td><td>${escapeHtml(t.ts_code || '—')} ${escapeHtml(t.name || '')}</td><td title="${escapeHtml(t.source_status || t.status)}">${status}</td><td>${escapeHtml(dateText(t.entry_date))}</td><td>${price(t.entry_price)}</td><td>${escapeHtml(dateText(t.exit_date))}</td><td>${price(t.exit_price)}</td><td class="${gain === null ? '' : valueTone(gain)}">${paperAccountMoney(gain, true)}</td></tr>`;
         }).join('');
-      return `<section class="paper-history" aria-label="盈1逐笔列表"><div class="paper-history-heading"><h3>盈1逐笔列表</h3><label>信号月份 <select id="paperTradeMonth">${options}</select></label></div>
+      return `<section class="paper-history" aria-label="盈${rank}逐笔列表"><div class="paper-history-heading"><h3>盈${rank}逐笔列表</h3><label>信号月份 <select id="paperTradeMonth">${options}</select></label></div>
         <dl class="paper-month-stats" aria-label="当页已退出交易统计">${stats.map(([label,cents]) => `<div><dt>${label}</dt><dd class="${cents === null ? '' : valueTone(cents)}">${cents === null ? '—' : paperAccountMoney(cents/100,true)}</dd></div>`).join('')}</dl>
-        <div class="paper-history-scroll"><table aria-label="${monthText(month)} 盈1逐笔记录"><thead><tr><th>信号日</th><th>代码 / 股票</th><th>状态</th><th>买入日</th><th>买入价</th><th>退出日</th><th>退出价</th><th>扣费盈亏</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="paper-history-scroll"><table aria-label="${monthText(month)} 盈${rank}逐笔记录"><thead><tr><th>信号日</th><th>代码 / 股票</th><th>状态</th><th>买入日</th><th>买入价</th><th>退出日</th><th>退出价</th><th>扣费盈亏</th></tr></thead><tbody>${rows}</tbody></table></div>
         <nav aria-label="逐笔列表月份翻页"><button type="button" id="paperMonthOlder" aria-label="较早月份"${index === months.length - 1 ? ' disabled' : ''}>❮</button>
         <span aria-live="polite">${monthText(month)} · ${index + 1} / ${months.length} 页</span>
         <button type="button" id="paperMonthNewer" aria-label="较晚月份"${index === 0 ? ' disabled' : ''}>❯</button></nav></section>`;
     }
 
-    function profitPaperAccountMarkup(result, month, points = paperDailyRealized(result.trades)) {
+    function profitPaperAccountMarkup(result, month, points = paperDailyRealized(result.trades), rank = 1) {
       const { cumulative_pnl, max_profit, max_loss } = result.metrics;
       const cumulativeReturn = cumulative_pnl / result.per_trade_budget;
       const cards = [
@@ -2758,19 +2779,20 @@
           </div>
           ${cards.map(([label, amount]) => `<div class="paper-card"><dt>${label}</dt><dd class="${amount === null ? "" : valueTone(amount)}">${escapeHtml(paperAccountMoney(amount, true))}</dd></div>`).join("")}
           <div class="paper-card"><dt>已成交并退出笔数</dt><dd>${result.closed_trades.toLocaleString("zh-CN")} 笔</dd></div>
-        </dl>${paperCurveMarkup(points)}${missing}${paperTradeHistory(result, month)}`;
+        </dl>${paperCurveMarkup(points)}${missing}${paperTradeHistory(result, month, rank)}`;
     }
 
     function renderProfitPaperAccount() {
       const node=document.getElementById("profitPaperAccountContent");
       if(!node) return;
+      const rank = state.paperAccountRank || 1;
       const loadedSummary=state.candidateProfitSummary, loadedWindow=state.currentCompactStatisticsWindow, active=state.candidateProfitActivation;
       if(state.compactFatalError) { node.innerHTML='<div class="empty">页面来源校验失败，已清空模拟账户。</div>'; return; }
       const usable=state.candidateProfitSummaryLoad?.status==="ready" && state.compactStatisticsWindowLoad?.status==="ready"
         && active?.status==="ready" && loadedSummary?.activation===active.config && loadedWindow?.compactLoadSequence===state.compactLoadSequence;
       if(!usable) {
         const invalid=state.candidateProfitSummaryLoad?.status==="invalid" || state.compactStatisticsWindowLoad?.status==="invalid";
-        node.innerHTML=`<div class="empty">${invalid?"盈1账本来源暂不可核验，请稍后刷新。":"正在核验盈1账本的数据来源。"}</div>`;
+        node.innerHTML=`<div class="empty">${invalid?`盈${rank}账本来源暂不可核验，请稍后刷新。`:`正在核验盈${rank}账本的数据来源。`}</div>`;
         return;
       }
       let view=state.profitPaperAccount;
@@ -2779,11 +2801,17 @@
         view=state.profitPaperAccount;
       }
       if(view.status!=="ready") {
-        node.innerHTML=`<div class="empty">${view.status==="loading"?"正在读取已退出交易的盈亏…":`盈1账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;
+        node.innerHTML=`<div class="empty">${view.status==="loading"?"正在读取已退出交易的盈亏…":`盈${rank}账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;
         return;
       }
-      const points = paperDailyRealized(view.result.trades);
-      node.innerHTML=profitPaperAccountMarkup(view.result, view.tradeMonth, points);
+      const result = rank === 1 ? view.result : view.rank2;
+      if (!result) {
+        node.innerHTML = `<div class="empty">${view.rank2Error
+          ? `盈2账本校验失败。${escapeHtml(view.rank2Error)}` : "本次发布暂无可核验的盈2账本。"}</div>`;
+        return;
+      }
+      const points = paperDailyRealized(result.trades);
+      node.innerHTML=profitPaperAccountMarkup(result, view.tradeMonth, points, rank);
       bindPaperCurve(points);
       const select = document.getElementById("paperTradeMonth");
       if (!select) return;
@@ -8005,7 +8033,7 @@
       state.compactFatalError = true;
       state.profitPaperAccount = null;
       const node = document.getElementById("profitPaperAccountContent");
-      if (node) node.innerHTML = `<div class="empty">盈1账本暂不可核验，请稍后刷新。原因：${escapeHtml(String(error?.message || error || "未知错误"))}</div>`;
+      if (node) node.innerHTML = `<div class="empty">盈${state.paperAccountRank || 1}账本暂不可核验，请稍后刷新。原因：${escapeHtml(String(error?.message || error || "未知错误"))}</div>`;
       els.mainContent.setAttribute("aria-busy", "false");
       const button = document.getElementById("paperAccountRefresh");
       if (button) button.disabled = false;
@@ -8067,13 +8095,27 @@
     }
 
     async function initializeProfitPaperAccount() {
+      state.paperAccountRank = 1;
       document.title = "盈1 · 模拟账本 | DC20";
       document.querySelector("header").hidden = true;
       document.querySelector(".skip-link")?.remove();
-      els.mainContent.innerHTML = `<div class="paper-page-heading"><div><h1>盈1 · 模拟账本</h1><p>从 2026-09-14 的信号起，下一交易日竞价模拟买入。每笔预算10万元，假设资金充足。</p></div><nav class="paper-page-actions" aria-label="账本导航"><a class="paper-page-link" href="?">← 返回每日名单</a><button id="paperAccountRefresh" class="paper-page-link" type="button">刷新最新数据</button></nav></div>
+      els.mainContent.innerHTML = `<div class="paper-page-heading"><div><div class="paper-rank-switch" role="group" aria-label="选择模拟账本"><button type="button" id="paperRank1" aria-pressed="true" aria-controls="profitPaperAccountContent">盈1</button><button type="button" id="paperRank2" aria-pressed="false" aria-controls="profitPaperAccountContent">盈2</button></div><h1 id="paperAccountHeading">盈1 · 模拟账本</h1><p>从 2026-09-14 的信号起，下一交易日竞价模拟买入。每笔预算10万元，假设资金充足。</p></div><nav class="paper-page-actions" aria-label="账本导航"><a class="paper-page-link" href="?">← 返回每日名单</a><button id="paperAccountRefresh" class="paper-page-link" type="button">刷新最新数据</button></nav></div>
         <section id="profitPaperAccount" class="panel" aria-labelledby="profitPaperAccountTitle"><div class="panel-head"><h2 id="profitPaperAccountTitle">已退出交易盈亏</h2><span class="count">已扣模拟交易成本</span></div><div id="profitPaperAccountContent" class="paper-body" aria-live="polite"><div class="empty">正在核验盈1账本。</div></div></section>
         <p class="paper-page-note">按系统规则确认退出后计入盈亏。一字涨停未买入和仍待退出核验的信号不计入统计。</p>`;
       if (els.footer) els.footer.textContent = "DC20";
+      for (const rank of [1, 2]) {
+        document.getElementById(`paperRank${rank}`).onclick = () => {
+          if (state.paperAccountRank === rank) return;
+          state.paperAccountRank = rank;
+          const title = `盈${rank} · 模拟账本`;
+          document.getElementById("paperAccountHeading").textContent = title;
+          document.title = `${title} | DC20`;
+          for (const choice of [1, 2]) {
+            document.getElementById(`paperRank${choice}`).setAttribute("aria-pressed", String(choice === rank));
+          }
+          renderProfitPaperAccount();
+        };
+      }
       document.getElementById("paperAccountRefresh").onclick = () => refreshProfitPaperAccountPage(true).catch(showProfitPaperAccountPageError);
       await refreshProfitPaperAccountPage();
     }

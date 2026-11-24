@@ -9,7 +9,7 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const {TextEncoder, TextDecoder} = require('node:util');
 const enginePath = require.resolve('./top1_realized_paper_account.cjs');
-const {buildTop1RealizedAccount} = require(enginePath);
+const {buildRankRealizedAccount} = require(enginePath);
 
 const ACCOUNT_PATH = 'outputs/decision/profit_paper_account/account.json';
 const SUMMARY_PATH = 'outputs/decision/candidate_profit_v1/summary.json';
@@ -116,25 +116,25 @@ function sharedSources(html) {
     'ledgerCanonicalSource', 'loadProfitPaperAccountIdentities', 'loadProfitPaperAccountInputs']
     .map(name => extractFunction(html, name)).join('\n');
 }
-function validateAccount(account, asOf) {
-  check(account.schema_version === 'dc20_top1_realized_paper_account_v1'
+function validateAccount(account, asOf, rank = 1) {
+  check(account.schema_version === `dc20_top${rank}_realized_paper_account_v1`
     && account.start_signal_date === '20260914' && account.per_trade_budget === 100000
-    && account.as_of_date === asOf, 'unexpected published top1 ledger configuration');
+    && account.as_of_date === asOf, `unexpected published top${rank} ledger configuration`);
   const closed = account.trades.filter(trade => trade.status === 'CLOSED');
-  check(account.trades.every(t => t.rank === 1 && validDate(t.signal_date)
+  check(account.trades.every(t => t.rank === rank && t.id === `${t.signal_date}:R${rank}` && validDate(t.signal_date)
     && t.signal_date >= account.start_signal_date && t.signal_date <= asOf)
     && new Set(account.trades.map(t => t.signal_date)).size === account.trades.length
-    && account.closed_trades === closed.length, 'invalid top1 trade coverage');
+    && account.closed_trades === closed.length, `invalid top${rank} trade coverage`);
   const amounts = closed.map(t => Math.round(t.net_pnl * 100));
   check(closed.every(t => Number.isFinite(t.net_pnl) && validDate(t.exit_date)
     && t.exit_date > t.signal_date && t.exit_date <= asOf)
     && account.last_exit_date === (closed.map(t => t.exit_date).sort().at(-1) || null),
-    'invalid top1 realized date or amount');
+    `invalid top${rank} realized date or amount`);
   const gains = amounts.filter(n => n > 0), losses = amounts.filter(n => n < 0);
   check(account.metrics.cumulative_pnl === amounts.reduce((total,n) => total+n,0)/100
     && account.metrics.max_profit === (gains.length ? Math.max(...gains)/100 : null)
     && account.metrics.max_loss === (losses.length ? Math.min(...losses)/100 : null),
-    'top1 realized metrics disagree with closed trades');
+    `top${rank} realized metrics disagree with closed trades`);
 }
 async function checkedBound(read, relative, expected, label) {
   safeRelative(relative);
@@ -198,17 +198,32 @@ async function materialize({siteRoot, sourceHtml}) {
   // Parse in the isolated loader context. The engine consumes its verified maps.
   context.inputJson = JSON.stringify({summary:summary.value, windowPayload:windowPayload.value, revision});
   vm.runInContext('var input = JSON.parse(inputJson);', context, {timeout:1000});
-  const inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});
-  const result = buildTop1RealizedAccount(summary.value, inputs.quotes, inputs.identities);
-  validateAccount(result, summary.value.as_of_date);
-  result.data_bindings = {summary_sha256:revision.candidate_profit_summary_sha256,
-    index_sha256:revision.candidate_profit_index_sha256, window_sha256:revision.compact_statistics_window_sha256,
-    engine_sha256:sha256(await fs.readFile(enginePath)), source_files:inputs.source_files,
-    missing_market_dates:inputs.missing_market_dates};
-  result.publication = {mode:'main_pipeline', source_head_sha:revision.head_sha, run_id:revision.run_id,
+  const engineSha = sha256(await fs.readFile(enginePath));
+  const publication = {mode:'main_pipeline', source_head_sha:revision.head_sha, run_id:revision.run_id,
     published_at_utc:revision.published_at_utc, source_html_sha256:sha256(htmlBytes),
     latest_signal_date:revision.primary_d_signal_date,
     ledger_lagging:summary.value.as_of_date < revision.primary_d_signal_date};
+  async function buildRank(rank) {
+    context.rank = rank;
+    const inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision, rank)', context, {timeout:10000});
+    const result = buildRankRealizedAccount(rank, summary.value, inputs.quotes, inputs.identities);
+    validateAccount(result, summary.value.as_of_date, rank);
+    result.data_bindings = {summary_sha256:revision.candidate_profit_summary_sha256,
+      index_sha256:revision.candidate_profit_index_sha256, window_sha256:revision.compact_statistics_window_sha256,
+      engine_sha256:engineSha, source_files:inputs.source_files, missing_market_dates:inputs.missing_market_dates};
+    result.publication = publication;
+    return result;
+  }
+  const result = await buildRank(1);
+  try {
+    result.rank2 = await buildRank(2);
+    result.rank2_status = 'READY';
+  } catch (error) {
+    // Never carry a stale second ledger into a newer publication.
+    process.stderr.write(`Rank 2 paper ledger unavailable: ${error.message}\n`);
+    result.rank2 = null;
+    result.rank2_status = 'UNAVAILABLE';
+  }
   const artifactRaw = jsonBytes(result);
   const binding = {profit_paper_account_url:ACCOUNT_PATH, profit_paper_account_sha256:sha256(artifactRaw),
     profit_paper_account_as_of_date:result.as_of_date, profit_paper_account_last_valid_date:result.last_exit_date,
@@ -242,6 +257,19 @@ async function verifyPublic({siteRoot, baseUrl, fetchImpl = globalThis.fetch}) {
     && account.value.data_bindings?.summary_sha256 === revision.candidate_profit_summary_sha256
     && account.value.data_bindings?.window_sha256 === revision.compact_statistics_window_sha256,
   'local account/revision identity mismatch');
+  if (account.value.rank2_status === 'READY') {
+    const second = account.value.rank2;
+    validateAccount(second, revision.profit_paper_account_as_of_date, 2);
+    check(second.publication?.run_id === revision.run_id
+      && second.publication.source_head_sha === revision.head_sha
+      && second.data_bindings?.index_sha256 === revision.candidate_profit_index_sha256
+      && second.data_bindings?.summary_sha256 === revision.candidate_profit_summary_sha256
+      && second.data_bindings?.window_sha256 === revision.compact_statistics_window_sha256
+      && second.data_bindings?.engine_sha256 === account.value.data_bindings.engine_sha256,
+    'rank 2 account/revision identity mismatch');
+  } else if (Object.hasOwn(account.value, 'rank2_status') || Object.hasOwn(account.value, 'rank2')) {
+    check(account.value.rank2_status === 'UNAVAILABLE' && account.value.rank2 === null, 'invalid rank 2 availability');
+  }
   const base = new URL(baseUrl);
   check(base.protocol === 'https:' && !base.username && !base.password && !base.search && !base.hash, 'public verification requires plain HTTPS base URL');
   if (!base.pathname.endsWith('/')) base.pathname += '/';

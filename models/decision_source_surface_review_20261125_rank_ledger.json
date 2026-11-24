@@ -1,0 +1,775 @@
+{
+  "schema_version": "dc20_reviewed_source_delta_v1",
+  "base_commit": "468f7ef84d8f0c4d183a15e57d70bd96f528b306",
+  "base_tree": "1a224fc591afeab522b15ca15dcab63fb5a160ee",
+  "files": {
+    "decision.html": {
+      "sha256": "789c92d5e0878661ee5c49bd482b91950c1562fbb3d5732d53a638c737df35d9",
+      "base_sha256": "1320f17de42b4b8c51c8e031e96c65d48810a27e4e2537575f3824f74f7320b8",
+      "inverse": [
+        [
+          53137,
+          553,
+          ""
+        ],
+        [
+          135940,
+          151,
+          "    async function loadProfitPaperAccountIdentities(summary, revision) {\n"
+        ],
+        [
+          138471,
+          238,
+          "        const row = summary.groups.candidate_top1.daily_sequence.find(r=>r.signal_date === date);\n        const slot = day.candidate_slots[0];\n        executableProfitExpect(row && row.slot === 1 && slot?.slot === 1\n"
+        ],
+        [
+          139263,
+          115,
+          "        executableProfitExpect(identity.candidate_rank === 1 && identity.promotion_rank === row.promotion_rank,\n"
+        ],
+        [
+          139411,
+          87,
+          "        identities.set(`${date}:R1`, {signal_date:date,rank:1,ts_code:row.ts_code,\n"
+        ],
+        [
+          139777,
+          162,
+          "    async function loadProfitPaperAccountInputs(summary, windowPayload, revision) {\n"
+        ],
+        [
+          141092,
+          90,
+          "      const settled = summary.groups.candidate_top1.daily_sequence.filter(row =>\n"
+        ],
+        [
+          142224,
+          83,
+          "      const names = await loadProfitPaperAccountIdentities(summary,revision);\n"
+        ],
+        [
+          142974,
+          377,
+          "      const result = loaded.payload;\n      executableProfitExpect(result.schema_version === \"dc20_top1_realized_paper_account_v1\"\n"
+        ],
+        [
+          143655,
+          140,
+          "        && result.last_exit_date === revision.profit_paper_account_last_valid_date,\n        \"盈1账本参数或统计日期与当前发布版本不一致\");\n"
+        ],
+        [
+          145834,
+          124,
+          "        && Array.isArray(result.trades) && result.trades.every(trade => trade.rank === 1 && inPeriod(trade.signal_date))\n"
+        ],
+        [
+          146060,
+          364,
+          "        \"盈1账本的交易范围或已实现盈亏数据无效\");\n"
+        ],
+        [
+          147369,
+          308,
+          ""
+        ],
+        [
+          153915,
+          66,
+          "    function paperTradeHistory(result, selectedMonth) {\n"
+        ],
+        [
+          154035,
+          90,
+          "      if (!months.length) return '<section><h3>盈1逐笔列表</h3><p>暂无信号记录</p></section>';\n"
+        ],
+        [
+          154533,
+          74,
+          "        MISSING_CANDIDATE:'无盈1候选', MISSING_OUTCOME_LEDGER:'缺少结算记录',\n"
+        ],
+        [
+          156320,
+          202,
+          "      return `<section class=\"paper-history\" aria-label=\"盈1逐笔列表\"><div class=\"paper-history-heading\"><h3>盈1逐笔列表</h3><label>信号月份 <select id=\"paperTradeMonth\">${options}</select></label></div>\n"
+        ],
+        [
+          156779,
+          256,
+          "        <div class=\"paper-history-scroll\"><table aria-label=\"${monthText(month)} 盈1逐笔记录\"><thead><tr><th>信号日</th><th>代码 / 股票</th><th>状态</th><th>买入日</th><th>买入价</th><th>退出日</th><th>退出价</th><th>扣费盈亏</th></tr></thead><tbody>${rows}</tbody></table></div>\n"
+        ],
+        [
+          157425,
+          109,
+          "    function profitPaperAccountMarkup(result, month, points = paperDailyRealized(result.trades)) {\n"
+        ],
+        [
+          158961,
+          94,
+          "        </dl>${paperCurveMarkup(points)}${missing}${paperTradeHistory(result, month)}`;\n"
+        ],
+        [
+          159199,
+          48,
+          ""
+        ],
+        [
+          159926,
+          112,
+          "        node.innerHTML=`<div class=\"empty\">${invalid?\"盈1账本来源暂不可核验，请稍后刷新。\":\"正在核验盈1账本的数据来源。\"}</div>`;\n"
+        ],
+        [
+          160424,
+          141,
+          "        node.innerHTML=`<div class=\"empty\">${view.status===\"loading\"?\"正在读取已退出交易的盈亏…\":`盈1账本暂不可用。原因：${escapeHtml(view.reason)}`}</div>`;\n"
+        ],
+        [
+          160589,
+          393,
+          "      const points = paperDailyRealized(view.result.trades);\n      node.innerHTML=profitPaperAccountMarkup(view.result, view.tradeMonth, points);\n"
+        ],
+        [
+          522183,
+          166,
+          "      if (node) node.innerHTML = `<div class=\"empty\">盈1账本暂不可核验，请稍后刷新。原因：${escapeHtml(String(error?.message || error || \"未知错误\"))}</div>`;\n"
+        ],
+        [
+          525853,
+          34,
+          ""
+        ],
+        [
+          526038,
+          664,
+          "      els.mainContent.innerHTML = `<div class=\"paper-page-heading\"><div><h1>盈1 · 模拟账本</h1><p>从 2026-09-14 的信号起，下一交易日竞价模拟买入。每笔预算10万元，假设资金充足。</p></div><nav class=\"paper-page-actions\" aria-label=\"账本导航\"><a class=\"paper-page-link\" href=\"?\">← 返回每日名单</a><button id=\"paperAccountRefresh\" class=\"paper-page-link\" type=\"button\">刷新最新数据</button></nav></div>\n"
+        ],
+        [
+          527169,
+          591,
+          ""
+        ]
+      ]
+    },
+    "forward/model_inventory.json": {
+      "sha256": "6fa8bce37e4ebd436927051cea81e5173f36b9ca639a8d866668a3dcc9c03a2b",
+      "base_sha256": "cd2b40b0fba4657db2563bf4c4b9aa2746ad44fc90c9961f21e3011417a591b2",
+      "inverse": [
+        [
+          4921,
+          84,
+          "      \"sha256\": \"e6ab97392e4b5ac18991565feb91ec0e691b9f64ceca7a7f5975832503e512bf\",\n"
+        ]
+      ]
+    },
+    "models/decision_model_freeze.json": {
+      "sha256": "b552256dfc3802f2114902b9d83026216cd7d3d571dcbcc873da9fc95f7b18c4",
+      "base_sha256": "e6ab97392e4b5ac18991565feb91ec0e691b9f64ceca7a7f5975832503e512bf",
+      "inverse": [
+        [
+          30128,
+          89,
+          "    \"decision.html\": \"1320f17de42b4b8c51c8e031e96c65d48810a27e4e2537575f3824f74f7320b8\",\n"
+        ]
+      ]
+    },
+    "scripts/build_profit_paper_account.cjs": {
+      "sha256": "18cc7b61a015279d2dc69eabdd77333aad87c33debd1a9c51f8809d9ff1e94f6",
+      "base_sha256": "8bc7ae20ac91ac60b65a39ebed6f3399ace2f0ba6105869876b6fc27d0e7bbfc",
+      "inverse": [
+        [
+          438,
+          56,
+          "const {buildTop1RealizedAccount} = require(enginePath);\n"
+        ],
+        [
+          5613,
+          131,
+          "function validateAccount(account, asOf) {\n  check(account.schema_version === 'dc20_top1_realized_paper_account_v1'\n"
+        ],
+        [
+          5831,
+          93,
+          "    && account.as_of_date === asOf, 'unexpected published top1 ledger configuration');\n"
+        ],
+        [
+          6000,
+          118,
+          "  check(account.trades.every(t => t.rank === 1 && validDate(t.signal_date)\n"
+        ],
+        [
+          6280,
+          86,
+          "    && account.closed_trades === closed.length, 'invalid top1 trade coverage');\n"
+        ],
+        [
+          6656,
+          51,
+          "    'invalid top1 realized date or amount');\n"
+        ],
+        [
+          7045,
+          64,
+          "    'top1 realized metrics disagree with closed trades');\n"
+        ],
+        [
+          11213,
+          163,
+          "  const inputs = await vm.runInContext('loadProfitPaperAccountInputs(input.summary, input.windowPayload, input.revision)', context, {timeout:10000});\n  const result = buildTop1RealizedAccount(summary.value, inputs.quotes, inputs.identities);\n  validateAccount(result, summary.value.as_of_date);\n  result.data_bindings = {summary_sha256:revision.candidate_profit_summary_sha256,\n    index_sha256:revision.candidate_profit_index_sha256, window_sha256:revision.compact_statistics_window_sha256,\n    engine_sha256:sha256(await fs.readFile(enginePath)), source_files:inputs.source_files,\n    missing_market_dates:inputs.missing_market_dates};\n  result.publication = {mode:'main_pipeline', source_head_sha:revision.head_sha, run_id:revision.run_id,\n"
+        ],
+        [
+          11596,
+          1114,
+          ""
+        ],
+        [
+          15083,
+          922,
+          ""
+        ]
+      ]
+    },
+    "scripts/rehearse_daily_publication.py": {
+      "sha256": "f4a0f21e77fc4174d21ca11fc144d2a09b84e19cd9ff7fe8c35d559f11ca0541",
+      "base_sha256": "076910c7be1b48dcef03bc6c5ade2cd930fccf5a5ad56fe2520b72891ce896e2",
+      "inverse": [
+        [
+          12200,
+          558,
+          "        result['account'] = json.loads((root/'_site'/account_path).read_bytes())\n"
+        ]
+      ]
+    },
+    "scripts/top1_realized_paper_account.cjs": {
+      "sha256": "58ae959e3f59d2d3578fa73f69a67e4b72a16941e42374f05ad0c2acb0a8bee6",
+      "base_sha256": "10f3fb706e12c25097ced95fe93eedddb468dbc51a07416228ff6d0af6a48cf2",
+      "inverse": [
+        [
+          1542,
+          62,
+          "function settlement(row, dates, index, quoteFor, fee) {\n"
+        ],
+        [
+          1882,
+          85,
+          "  requireEvidence(row.candidate_rank === 1 && row.proxy_fill === 1 && row.ts_code\n"
+        ],
+        [
+          2069,
+          67,
+          "  `Invalid settled top1 fill or price: ${row.signal_date}`);\n"
+        ],
+        [
+          2322,
+          64,
+          "  `Invalid settled top1 chronology: ${row.signal_date}`);\n"
+        ],
+        [
+          2488,
+          78,
+          "    `Settled top1 prices and net return disagree: ${row.signal_date}`);\n"
+        ],
+        [
+          3581,
+          167,
+          "function buildTop1RealizedAccount(summary, dailyQuotes, identities = new Map()) {\n"
+        ],
+        [
+          3908,
+          253,
+          "    'Invalid top1 ledger date or round-trip fee');\n  const sequence = summary.groups?.candidate_top1?.daily_sequence;\n  requireEvidence(Array.isArray(sequence) && Array.isArray(summary.signal_dates), 'Missing formal top1 ledger');\n"
+        ],
+        [
+          4328,
+          88,
+          "    && (asOf < START || dates.at(-1) === asOf), 'Invalid top1 trading calendar');\n"
+        ],
+        [
+          4534,
+          77,
+          "    requireEvidence(day(row.signal_date), 'Invalid top1 signal date');\n"
+        ],
+        [
+          4680,
+          155,
+          "    requireEvidence(row.slot === 1 && index.has(row.signal_date) && !rows.has(row.signal_date),\n      'Repeated or mismatched top1 frozen slot');\n"
+        ],
+        [
+          5168,
+          109,
+          ""
+        ],
+        [
+          5342,
+          345,
+          "    const identity = identities.get(`${date}:R1`);\n    if (identity) requireEvidence(identity.signal_date === date && identity.rank === 1 && identity.ts_code === row?.ts_code,\n      `Top1 identity differs from frozen slot: ${date}`);\n    const trade = {id:`${date}:R1`, signal_date:date, rank:1, ts_code:row?.ts_code || null,\n"
+        ],
+        [
+          5856,
+          110,
+          "    else requireEvidence(!declaredMissing.has(date), `Conflicting top1 publication coverage: ${date}`);\n"
+        ],
+        [
+          6002,
+          80,
+          "      Object.assign(trade, settlement(row, dates, index, quoteFor, fee));\n"
+        ],
+        [
+          6480,
+          130,
+          "      requireEvidence(row.proxy_fill === 0 && [null,0].includes(row.slot_net_return), 'Conflicting top1 no-fill evidence');\n"
+        ],
+        [
+          6655,
+          99,
+          "      requireEvidence(!sourceStatus.startsWith('SETTLED_'), 'Unsupported top1 exit policy');\n"
+        ],
+        [
+          6788,
+          112,
+          "  return {schema_version:'dc20_top1_realized_paper_account_v1', start_signal_date:START, as_of_date:asOf,\n"
+        ],
+        [
+          7172,
+          216,
+          "module.exports = {buildTop1RealizedAccount};\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_formal_shadow_summary.py": {
+      "sha256": "c334bff3310550bb25b9bd5fd2e0a97b00c62ba61bb082b5948363a7c7362d38",
+      "base_sha256": "f5c7565dfaae8ba3d15ff97bd2e89b2b589066eb6a096228d370432084a2908a",
+      "inverse": [
+        [
+          1042,
+          84,
+          "STATISTICS_SHA = 'c5ad5f36504e84eb7c9d8c10973f27aeb7d2646f2a1b244c8bd31c1af6e59e51'\n"
+        ]
+      ]
+    },
+    "src/top10decision/decision/candidate_profit_publication.py": {
+      "sha256": "4ce379cfc5251cf10f1cbbfd90b12d0b7bcd82f159b6271c7fcaba6c2e199fc8",
+      "base_sha256": "ff7923cc4d8cbf29c8fe26bce9925c5ee2229845bc6f1573780a91912c2e0f4b",
+      "inverse": [
+        [
+          5328,
+          220,
+          "    pins = {'candidate_natural_outcomes': '51afe34ca10a496c65a8e416f75db0c2ff23cd88203b81075609ed99fccf91f4', 'candidate_natural_evidence_publication': '5485d3f8687a349cbb25246c56db3bd4e1c3bc117381ba36a6cdf9f9e195487e'}\n"
+        ]
+      ]
+    },
+    "tests/test_late_research_ui_source_profiles.py": {
+      "sha256": "a7a498263fd6f143dcbe50190a022de72790cd14ab106244c67a4a9702124fed",
+      "base_sha256": "4c5574406ceed266fcac7e7675f49616bc9004e88136db5dc956e1fee1615aa5",
+      "inverse": [
+        [
+          1044,
+          56,
+          "    assert len(continuation.RELIABILITY_PROFILES) == 12\n"
+        ],
+        [
+          1186,
+          300,
+          "        day = '20261124' if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261120' if profile in (new, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else '20261118'\n"
+        ]
+      ]
+    },
+    "tests/test_list_detail_source_profiles.py": {
+      "sha256": "0bb97b7090a24e160d0b8f1b89d494b84e45197ba2ba3d3930b9b1d56124eb5e",
+      "base_sha256": "23160658075d8304212f86266dfd5478857bb5478e81efbcc8430bb43ef06697",
+      "inverse": [
+        [
+          1032,
+          56,
+          "    assert len(continuation.RELIABILITY_PROFILES) == 12\n"
+        ],
+        [
+          1174,
+          306,
+          "        day = '20261124' if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261120' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261119'\n"
+        ]
+      ]
+    },
+    "tests/test_pages_transport_continuation.py": {
+      "sha256": "c98573462cbb29d39a8face7935bfb98ad09b054d6439d88b81a7d6462817386",
+      "base_sha256": "ec75bd5e7c7589f5a457ea3bf765e0fd2c017c6856a3f1fccb4752ec109035bb",
+      "inverse": [
+        [
+          135,
+          93,
+          "from tests.top1_paper_source_delta import before_pages, before_readiness\n"
+        ],
+        [
+          1397,
+          59,
+          ""
+        ]
+      ]
+    },
+    "tests/test_pages_transport_source_profiles.py": {
+      "sha256": "f68abed7e16b29c7ada934546fff5d800fc2089f0f353d7928b11b59c5579ab4",
+      "base_sha256": "167c3daf9000d581b19d26616e8f1295a93a0d319df71fdaeceb49f21e30e48a",
+      "inverse": [
+        [
+          1038,
+          343,
+          "    assert continuation.PAGES_READINESS_P0_CODE_PROFILE[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())\n    assert len(continuation.RELIABILITY_PROFILES) == 12\n"
+        ],
+        [
+          1467,
+          183,
+          "        day = '20261124' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261123'\n"
+        ],
+        [
+          7679,
+          1773,
+          ""
+        ]
+      ]
+    },
+    "tests/test_profit_paper_account_build.cjs": {
+      "sha256": "d7f3f94d5e00f0c2b46a37927ccef796d498ec544b7fc9b133f08164ed47200b",
+      "base_sha256": "a92189ac01b36a20ca8a4782d431ccf28fc67ecf079a4702c0552266884db5f7",
+      "inverse": [
+        [
+          15944,
+          2252,
+          ""
+        ]
+      ]
+    },
+    "tests/test_profit_paper_account_page.cjs": {
+      "sha256": "b48225bed1a2a85a5b3afbd06c5dc0dbeb2f7a48358378c0fbce6999e4f27c84",
+      "base_sha256": "50630df479c2b412b4429341e1ac46868da6115fb5eab33287848075e6d7bc5b",
+      "inverse": [
+        [
+          4129,
+          258,
+          "  assert.doesNotMatch(f.context.els.mainContent.innerHTML,/73\\.5万元|盈2|账户净值/);\n"
+        ],
+        [
+          7950,
+          957,
+          ""
+        ]
+      ]
+    },
+    "tests/test_profit_paper_account_ui.cjs": {
+      "sha256": "4c8bdfe90d133d4f97ebb9591437f27014254937e408bda804063eaadf04c25a",
+      "base_sha256": "8c393b779698cfe9b8978a3d5f53d2dd0c0ba650a2284ac96f36b5f3345666a8",
+      "inverse": [
+        [
+          22301,
+          2417,
+          ""
+        ]
+      ]
+    },
+    "tests/test_publication_rehearsal_fixture.py": {
+      "sha256": "4a9d0d4d217a99c5549947a8873a749f25ba8de66e30f60cb81eaea30f5608ba",
+      "base_sha256": "9d405d29abdc95913034b3cb28f4876d3645d10367e4aa893e165d4d34c28236",
+      "inverse": [
+        [
+          8244,
+          177,
+          "def test_run_uses_staged_pointer_before_build_and_retains_guards(roots, tmp_path, monkeypatch):\n"
+        ],
+        [
+          8858,
+          240,
+          ""
+        ],
+        [
+          9240,
+          95,
+          "printf '%s' '{\"trades\":[],\"missing_returns\":null}' > _site/account.json\n\"\"\"\n"
+        ],
+        [
+          9569,
+          239,
+          ""
+        ],
+        [
+          10024,
+          242,
+          ""
+        ]
+      ]
+    },
+    "tests/test_reliability_runtime_profiles.py": {
+      "sha256": "15080df8ff4402e062ef01b078e2f0be5c7c17b790975d5eeee1bea621f916b6",
+      "base_sha256": "6a0d19283262623758533903149f0eb623e67eed53891df5b942f72e3625fe7a",
+      "inverse": [
+        [
+          3737,
+          55,
+          "    profile = continuation.PAGES_READINESS_P0_CODE_PROFILE\n"
+        ],
+        [
+          4653,
+          284,
+          "@pytest.mark.parametrize(\"profile\", continuation.RELIABILITY_PROFILES, ids=[\"original\", \"top1-paper\", \"top1-count\", \"top1-rate\", \"top1-month\", \"top1-fill-note\", \"top1-start-date\", \"top1-curve\", \"late-research-ui\", \"list-detail-ui\", \"pages-transport\",\"pages-readiness\"])\n"
+        ],
+        [
+          5018,
+          582,
+          "    day = \"20261124\" if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else \"20261120\" if profile in (continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else \"20261112\" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else \"20261111\"\n"
+        ],
+        [
+          7868,
+          99,
+          "                continuation.validate_code_profiles(gh, None, *mixed, {\"signal_date\": \"20261124\"})\n"
+        ],
+        [
+          11760,
+          122,
+          ""
+        ]
+      ]
+    },
+    "tests/test_top1_paper_release_source_review.py": {
+      "sha256": "7b2228c1329432d0e99aaad7ea6fc3003134365fe376697abd9153d5f5695d8f",
+      "base_sha256": "3b867b13a40752ed22754c61a453fdd4e7fdc0fc6832fe962619eea232ca697d",
+      "inverse": [
+        [
+          8780,
+          132,
+          "    assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())\n"
+        ],
+        [
+          10570,
+          132,
+          "    assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())\n"
+        ],
+        [
+          13473,
+          90,
+          "    now=json.loads((ROOT/MANIFEST).read_bytes())\n"
+        ],
+        [
+          14796,
+          1272,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_legacy_workflow.py": {
+      "sha256": "c0236443862d2743df66c72a279b2b3e14c72097f5200be6436d9a6edd31840e",
+      "base_sha256": "653844f5d632e2ba154ee1a2cacd898bb4f5c0d04e5f7e76af1069e923cf41bc",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence.py": {
+      "sha256": "75a6798ac3e0ac0083e76d7457f9160567942989f59e4d63b206b2227898c096",
+      "base_sha256": "ba491df731616539e161f22163538559556db3727c3b12ae9b3c7b920bc86cd9",
+      "inverse": [
+        [
+          757,
+          85,
+          "PUBLICATION_SHA = '67629edc2065aab93b9048b332c009b0400f795a99b0dcdbfd496b9ef47a52c9'\n"
+        ],
+        [
+          5201,
+          174,
+          ""
+        ],
+        [
+          5400,
+          525,
+          "    return (PRE_READINESS_CAPTURE_CONTRACT, PRE_PAGES_CAPTURE_CONTRACT, PRE_DETAIL_CAPTURE_CONTRACT, PRE_UI_CAPTURE_CONTRACT, D11_CAPTURE_CONTRACT, PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT, LEGACY_CAPTURE_CONTRACT, PRE_ELIGIBLE_CAPTURE_CONTRACT, HISTORICAL_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, (SELF_SHA, PUBLICATION_SHA))\n"
+        ],
+        [
+          23733,
+          194,
+          ""
+        ],
+        [
+          26607,
+          419,
+          "        in ((SELF_SHA, PUBLICATION_SHA), PRE_READINESS_CAPTURE_CONTRACT, PRE_PAGES_CAPTURE_CONTRACT, PRE_DETAIL_CAPTURE_CONTRACT, PRE_UI_CAPTURE_CONTRACT, PRE_RELIABILITY_CAPTURE_CONTRACT, PRE_SUSPENSION_CAPTURE_CONTRACT, PRE_NEXT_DAY_CAPTURE_CONTRACT, PRE_HARDENING_CAPTURE_CONTRACT, PRE_BOUNDARY_CAPTURE_CONTRACT, PRE_CONTINUATION_CAPTURE_CONTRACT, PRE_CONTROLLED_CAPTURE_CONTRACT),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_evidence_publication.py": {
+      "sha256": "126763cf181b2ec6f821c9649518fb74f1dd7850b1b2cee21ff42124c8a977f7",
+      "base_sha256": "5485d3f8687a349cbb25246c56db3bd4e1c3bc117381ba36a6cdf9f9e195487e",
+      "inverse": [
+        [
+          630,
+          81,
+          "CAPTURE_SHA = 'ba491df731616539e161f22163538559556db3727c3b12ae9b3c7b920bc86cd9'\n"
+        ],
+        [
+          1010,
+          82,
+          "OBSERVER_SHA = 'e285a47db5e3d7fc5ae8f7dea12741bd9a8d092ff2c2a120592ea7f7c42ba298'\n"
+        ],
+        [
+          43490,
+          2961,
+          ""
+        ],
+        [
+          46669,
+          218,
+          ""
+        ],
+        [
+          50452,
+          256,
+          "    elif contract in ((capture.SELF_SHA, capture.PUBLICATION_SHA), capture.PRE_READINESS_CAPTURE_CONTRACT, capture.PRE_PAGES_CAPTURE_CONTRACT, capture.PRE_DETAIL_CAPTURE_CONTRACT, capture.PRE_UI_CAPTURE_CONTRACT):\n"
+        ],
+        [
+          52361,
+          653,
+          "    if overrides and (manifest.get(\"capture_code_sha256\"), manifest.get(\"publication_verifier_sha256\")) not in (capture.PRE_READINESS_CAPTURE_CONTRACT, capture.PRE_PAGES_CAPTURE_CONTRACT, capture.PRE_DETAIL_CAPTURE_CONTRACT, capture.PRE_UI_CAPTURE_CONTRACT, capture.D11_CAPTURE_CONTRACT, capture.PRE_RELIABILITY_CAPTURE_CONTRACT, capture.PRE_SUSPENSION_CAPTURE_CONTRACT, capture.PRE_NEXT_DAY_CAPTURE_CONTRACT, capture.PRE_HARDENING_CAPTURE_CONTRACT, capture.HISTORICAL_CAPTURE_CONTRACT, capture.PRE_BOUNDARY_CAPTURE_CONTRACT, capture.PRE_CONTINUATION_CAPTURE_CONTRACT, capture.PRE_CONTROLLED_CAPTURE_CONTRACT):\n"
+        ],
+        [
+          53578,
+          218,
+          "    expected_importer = (PRE_READINESS_OBSERVER_PROFILE[1][publication.IMPORTER_PATH]\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_observer.py": {
+      "sha256": "9bb2acfe1e58a7d850a05169a94162e640fac54859237d235c9ae994917c92bc",
+      "base_sha256": "e285a47db5e3d7fc5ae8f7dea12741bd9a8d092ff2c2a120592ea7f7c42ba298",
+      "inverse": [
+        [
+          550,
+          81,
+          "CAPTURE_SHA = 'ba491df731616539e161f22163538559556db3727c3b12ae9b3c7b920bc86cd9'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_continuation.py": {
+      "sha256": "5822dde47b789226aba20db384a6ae65ba1d141b798563933f749b08a60c01ef",
+      "base_sha256": "c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543",
+      "inverse": [
+        [
+          27541,
+          2104,
+          "RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE, LATE_RESEARCH_UI_P0_CODE_PROFILE, LIST_DETAIL_UI_P0_CODE_PROFILE, PAGES_TRANSPORT_P0_CODE_PROFILE, PAGES_READINESS_P0_CODE_PROFILE)\n"
+        ],
+        [
+          38565,
+          163,
+          ""
+        ],
+        [
+          70149,
+          255,
+          ""
+        ],
+        [
+          72166,
+          2264,
+          "        and imported.get(\"continuation_dependency_sha256\") == (PRE_READINESS_CONTINUATION_PINS if prior_readiness else PRE_PAGES_CONTINUATION_PINS if prior_pages else PRE_DETAIL_CONTINUATION_PINS if prior_detail else PRE_UI_CONTINUATION_PINS if prior_ui else PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)\n        and imported.get(\"importer_sha256\") == (PRE_READINESS_IMPORT_PROFILE[\"importer_sha256\"] if prior_readiness else PRE_PAGES_IMPORT_PROFILE[\"importer_sha256\"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE[\"importer_sha256\"] if prior_detail else PRE_UI_IMPORT_PROFILE[\"importer_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"importer_sha256\"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)\n        and imported.get(\"source_adapter_sha256\") == (PRE_READINESS_IMPORT_PROFILE[\"source_adapter_sha256\"] if prior_readiness else PRE_PAGES_IMPORT_PROFILE[\"source_adapter_sha256\"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE[\"source_adapter_sha256\"] if prior_detail else PRE_UI_IMPORT_PROFILE[\"source_adapter_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)\n        and imported.get(\"source_adapter_dependency_sha256\") == (PRE_READINESS_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if prior_readiness else PRE_PAGES_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if prior_detail else PRE_UI_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE[\"source_adapter_dependency_sha256\"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_p0_github.py": {
+      "sha256": "9b95c3f81718089ce7bba43ccc4b41f303bca39461393ca7abd8db11f2e5292c",
+      "base_sha256": "968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7",
+      "inverse": [
+        [
+          1454,
+          154,
+          "CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543',\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_publication.py": {
+      "sha256": "7d3fee9f7c360e1c131a1592a0ffb5e08a5e31a17cac9d2dc75c42697b364a2a",
+      "base_sha256": "67629edc2065aab93b9048b332c009b0400f795a99b0dcdbfd496b9ef47a52c9",
+      "inverse": [
+        [
+          604,
+          82,
+          "IMPORTER_SHA = '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7'\n"
+        ],
+        [
+          1085,
+          276,
+          "FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7',\n 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'c0224b841ab789cf06c9b5fcba9420585da67b03caf59721bf5c14d0c4fc7543',\n"
+        ],
+        [
+          1494,
+          127,
+          " 'work/profit_1000_upgrade/candidate_natural_workflow.py': '4bd9a2fd2107efad33284b13330187df215d9a7d646ac37df5394dd68ebf10c0',\n"
+        ],
+        [
+          2769,
+          126,
+          " 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '653844f5d632e2ba154ee1a2cacd898bb4f5c0d04e5f7e76af1069e923cf41bc',\n"
+        ],
+        [
+          71186,
+          6227,
+          ""
+        ],
+        [
+          77725,
+          808,
+          ""
+        ],
+        [
+          114383,
+          109,
+          ""
+        ],
+        [
+          115203,
+          305,
+          "        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA or (prior_readiness and day == \"20261124\") or (prior_pages and day <= \"20261123\") or (prior_detail and day <= \"20261119\") or (prior_ui and day <= \"20261118\") or (prior_next_day and day <= \"20261106\")\n"
+        ],
+        [
+          120011,
+          219,
+          ""
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_settlement_workflow.py": {
+      "sha256": "ef71e37b2c9e89a7a67b1117aed1470b235e20a5a8ed42bf3bc50569f2e04e08",
+      "base_sha256": "b41e1e90dd868b2d58ff33e16524d35573ac36c6d2cd00658c83a8ff6213be84",
+      "inverse": [
+        [
+          1376,
+          111,
+          " 'candidate_natural_evidence_publication': '5485d3f8687a349cbb25246c56db3bd4e1c3bc117381ba36a6cdf9f9e195487e',\n"
+        ],
+        [
+          1793,
+          101,
+          " 'candidate_natural_statistics': 'c5ad5f36504e84eb7c9d8c10973f27aeb7d2646f2a1b244c8bd31c1af6e59e51'}\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_statistics.py": {
+      "sha256": "debbb99508c5516ef93ef246c29158335a5d2f041907c1f1ca58b3ad773b88ea",
+      "base_sha256": "c5ad5f36504e84eb7c9d8c10973f27aeb7d2646f2a1b244c8bd31c1af6e59e51",
+      "inverse": [
+        [
+          833,
+          85,
+          "PUBLICATION_SHA = '5485d3f8687a349cbb25246c56db3bd4e1c3bc117381ba36a6cdf9f9e195487e'\n"
+        ]
+      ]
+    },
+    "work/profit_1000_upgrade/candidate_natural_workflow.py": {
+      "sha256": "b14df6e5074b06d1b85bfcd08ee67d0aa88ab2fc83771e0528aedc7cc123e4ef",
+      "base_sha256": "4bd9a2fd2107efad33284b13330187df215d9a7d646ac37df5394dd68ebf10c0",
+      "inverse": [
+        [
+          1066,
+          82,
+          "IMPORTER_SHA = '968363b9b33715fdabb82c959534c5b146651c9e66d78ad7423691bcd059baf7'\n"
+        ]
+      ]
+    }
+  }
+}

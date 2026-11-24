@@ -23,10 +23,10 @@ def test_ui_successor_changes_only_manifest_and_retains_original_profiles():
     assert set(old) == set(new)
     assert old[continuation.MANIFEST_PATH] == '357a874e2c7c95fa6af37e7e3a2b9ea24eae327f'
     assert new[continuation.MANIFEST_PATH] == 'adad1026ee4e995c49162c57036992c20c95fc2d'
-    assert len(continuation.RELIABILITY_PROFILES) == 12
+    assert len(continuation.RELIABILITY_PROFILES) == 13
     for profile in continuation.RELIABILITY_PROFILES:
         entries = tree(profile)
-        day = '20261124' if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261120' if profile in (new, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else '20261118'
+        day = '20261125' if profile is continuation.RANK_LEDGER_P0_CODE_PROFILE else '20261124' if profile in (continuation.PAGES_TRANSPORT_P0_CODE_PROFILE, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261120' if profile in (new, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else '20261118'
         matched, transition = continuation.validate_code_profiles(gh, None, entries, entries, entries,
             {'signal_date': day})
         assert matched == profile and transition is None

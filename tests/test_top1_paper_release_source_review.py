@@ -194,7 +194,7 @@ def test_late_research_ui_rotates_only_display_manifest_pin():
     now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
     assert now == old and now_pins.keys() == old_pins.keys()
     assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'decision.html'}
-    assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
+    assert now_pins['decision.html'] == sha(count_delta.before_rank_ledger('decision.html', (ROOT / 'decision.html').read_bytes()))
     current_inventory = count_delta.before_pages(INVENTORY, (ROOT / INVENTORY).read_bytes())
     expected = json.loads(count_delta.before_late(INVENTORY, (ROOT / INVENTORY).read_bytes()))
     entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
@@ -224,7 +224,7 @@ def test_list_detail_manifest_and_inventory_change_only_the_ui_pin():
     now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
     assert now == old and now_pins.keys() == old_pins.keys()
     assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'decision.html'}
-    assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
+    assert now_pins['decision.html'] == sha(count_delta.before_rank_ledger('decision.html', (ROOT / 'decision.html').read_bytes()))
     current_inventory = count_delta.before_pages(INVENTORY, (ROOT / INVENTORY).read_bytes())
     expected = json.loads(count_delta.before_detail(INVENTORY, (ROOT / INVENTORY).read_bytes()))
     entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
@@ -269,7 +269,7 @@ def test_readiness_sources_restore_the_committed_transport_bytes():
         assert sha(count_delta.before_readiness(path,current)) == record['base_sha256']
         with pytest.raises(AssertionError):
             count_delta.before_readiness(path,current + b'\n')
-    now=json.loads((ROOT/MANIFEST).read_bytes())
+    now=json.loads(count_delta.before_rank_ledger(MANIFEST,(ROOT/MANIFEST).read_bytes()))
     old=json.loads(count_delta.before_readiness(MANIFEST,(ROOT/MANIFEST).read_bytes()))
     pins,prior=now.pop('pinned_files'),old.pop('pinned_files')
     assert now==old and pins.keys()==prior.keys()
@@ -293,3 +293,24 @@ def test_candidate_pages_handoff_changes_only_reviewed_sources():
         assert sha(count_delta.before_candidate_pages_handoff(path, raw)) == record['base_sha256']
         with pytest.raises(AssertionError):
             count_delta.before_candidate_pages_handoff(path, raw + b'\n')
+
+def test_rank_ledger_sources_restore_committed_base_and_only_repin_the_rendered_ui():
+    release = count_delta.RANK_LEDGER
+    records = count_delta._parse(count_delta._read(release), release)
+    for path, record in records.items():
+        current = (ROOT / path).read_bytes()
+        assert sha(count_delta.before_rank_ledger(path, current)) == record['base_sha256']
+        with pytest.raises(AssertionError):
+            count_delta.before_rank_ledger(path, current + b'\n')
+    current_manifest = (ROOT / MANIFEST).read_bytes()
+    now = json.loads(current_manifest)
+    old = json.loads(count_delta.before_rank_ledger(MANIFEST, current_manifest))
+    pins, prior = now.pop('pinned_files'), old.pop('pinned_files')
+    assert now == old and pins.keys() == prior.keys()
+    assert {p for p in pins if pins[p] != prior[p]} == {'decision.html'}
+    assert pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
+    current_inventory = (ROOT / INVENTORY).read_bytes()
+    expected = json.loads(count_delta.before_rank_ledger(INVENTORY, current_inventory))
+    entry, = (a for a in expected['assets'] if a['path'] == MANIFEST)
+    entry.update(sha256=sha(current_manifest), bytes=len(current_manifest))
+    assert json.loads(current_inventory) == expected

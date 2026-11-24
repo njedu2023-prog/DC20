@@ -63,7 +63,9 @@ test("independent page shell has explicit budget, return link and usable refresh
   assert.equal(f.context.document.title,"盈1 · 模拟账本 | DC20");
   assert.equal(f.header.hidden,true);
   assert.match(f.context.els.mainContent.innerHTML,/每笔预算10万元/);
-  assert.doesNotMatch(f.context.els.mainContent.innerHTML,/73\.5万元|盈2|账户净值/);
+  assert.doesNotMatch(f.context.els.mainContent.innerHTML,/73\.5万元|账户净值/);
+  assert.match(f.context.els.mainContent.innerHTML,/id="paperRank1" aria-pressed="true"/);
+  assert.match(f.context.els.mainContent.innerHTML,/id="paperRank2" aria-pressed="false"/);
   assert.match(f.context.els.mainContent.innerHTML,/2026-09-14/);
   assert.match(f.context.els.mainContent.innerHTML,/href="\?"/);
   assert.match(f.context.els.mainContent.innerHTML,/id="profitPaperAccountContent"/);
@@ -130,3 +132,21 @@ test("stale page load cannot overwrite a newer load", async () => {
   assert.equal(f.calls.filter(c=>Array.isArray(c)&&c[0]==="account").length,0);
 });
 
+
+test("rank switch updates the selected ledger without another publish load and retains rank on refresh", async () => {
+  const rendered = [];
+  const f = fixture({renderProfitPaperAccount(){rendered.push(f.context.state.paperAccountRank);}});
+  await f.context.initializeProfitPaperAccount();
+  f.node("paperRank2").onclick();
+  assert.equal(f.context.document.title,"盈2 · 模拟账本 | DC20");
+  assert.equal(f.node("paperAccountHeading").textContent,"盈2 · 模拟账本");
+  assert.equal(f.node("paperRank2").attributes["aria-pressed"],"true");
+  assert.equal(f.node("paperRank1").attributes["aria-pressed"],"false");
+  f.node("paperRank1").onclick();
+  f.node("paperRank2").onclick();
+  assert.deepEqual(rendered,[2,1,2]);
+  assert.equal(f.calls.filter(c=>Array.isArray(c)&&c[0]==="account").length,1);
+  await f.node("paperAccountRefresh").onclick();
+  assert.equal(f.context.state.paperAccountRank,2);
+  assert.equal(f.context.document.title,"盈2 · 模拟账本 | DC20");
+});

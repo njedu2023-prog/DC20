@@ -23,11 +23,12 @@ def test_pages_successor_preserves_all_previous_profiles():
     assert set(old) == set(new)
     assert old[continuation.MANIFEST_PATH] == '9e4576a75ece8a4f74022641a7cdf7660088fe8d'
     assert new[continuation.MANIFEST_PATH] == '60867ebc3aad5b3512ab3b9d53f7035ba2b9c366'
-    assert continuation.PAGES_READINESS_P0_CODE_PROFILE[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())
-    assert len(continuation.RELIABILITY_PROFILES) == 12
+    assert continuation.PAGES_READINESS_P0_CODE_PROFILE[continuation.MANIFEST_PATH] == '50ebe85f96e6a8673327bc3e0c24208e3064ed04'
+    assert continuation.RANK_LEDGER_P0_CODE_PROFILE[continuation.MANIFEST_PATH] == gh.git_blob((publication.ROOT / continuation.MANIFEST_PATH).read_bytes())
+    assert len(continuation.RELIABILITY_PROFILES) == 13
     for profile in continuation.RELIABILITY_PROFILES:
         entries = tree(profile)
-        day = '20261124' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261123'
+        day = '20261125' if profile is continuation.RANK_LEDGER_P0_CODE_PROFILE else '20261124' if profile in (new, old, continuation.PAGES_READINESS_P0_CODE_PROFILE) else '20261123'
         matched, transition = continuation.validate_code_profiles(gh, None, entries, entries, entries,
             {'signal_date': day})
         assert matched == profile and transition is None
@@ -121,3 +122,29 @@ def test_readiness_predecessor_matches_only_exact_date_and_full_publication_byte
     assert observer._observer_profile({**stamp,'signal_date':'20261124'}) == observer.PRE_READINESS_OBSERVER_PROFILE
     with pytest.raises(ValueError, match='PRE_READINESS_OBSERVER_DATE_CHANGED'):
         observer._observer_profile({**stamp,'signal_date':'20261125'})
+
+
+def test_rank_ledger_preserves_d24_and_requires_new_d_for_new_profile():
+    profile = continuation.RANK_LEDGER_P0_CODE_PROFILE
+    entries = tree(profile)
+    for before in ('20261123', '20261124'):
+        with pytest.raises(ValueError, match='RANK_LEDGER_PROFILE_ACTIVATION_DATE_REQUIRED'):
+            continuation.validate_code_profiles(gh, None, entries, entries, entries, {'signal_date': before})
+    assert continuation.validate_code_profiles(gh, None, entries, entries, entries, {'signal_date': '20261125'}) == (profile, None)
+
+    previous = publication.PRE_RANK_LEDGER_CODE_BINDINGS
+    prior = tree({item['path']: item['git_blob_sha1'] for item in previous})
+    files, _ = publication.code_guard()
+    assert publication.match_publication_code(prior, prior, files, day='20261124') == previous
+    for day in ('20261123', '20261125'):
+        with pytest.raises(ValueError, match='PRE_RANK_LEDGER_PUBLICATION_DATE_OR_SET_CHANGED'):
+            publication.match_publication_code(prior, prior, files, day=day)
+    changed = deepcopy(prior)
+    changed[publication.IMPORTER_PATH]['sha'] = gh.git_blob(files[publication.IMPORTER_PATH])
+    with pytest.raises(ValueError, match='PRE_RANK_LEDGER_PUBLICATION_BYTES_CHANGED'):
+        publication.match_publication_code(prior, changed, files, day='20261124')
+    capture_sha, verifier_sha = observer.capture.PRE_RANK_LEDGER_CAPTURE_CONTRACT
+    manifest = {'capture_code_sha256': capture_sha, 'publication_verifier_sha256': verifier_sha, 'signal_date': '20261124'}
+    assert observer._observer_profile(manifest) == observer.PRE_RANK_LEDGER_OBSERVER_PROFILE
+    with pytest.raises(ValueError, match='PRE_RANK_LEDGER_OBSERVER_DATE_CHANGED'):
+        observer._observer_profile({**manifest, 'signal_date':'20261125'})

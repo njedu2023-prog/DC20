@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 
-from tests.top1_paper_source_delta import before_pages, before_readiness
+from tests.top1_paper_source_delta import before_pages, before_readiness, before_rank_ledger
 from work.profit_1000_upgrade import candidate_natural_p0_continuation as m
 from work.profit_1000_upgrade import candidate_natural_p0_github as gh
 from work.profit_1000_upgrade.test_candidate_natural_p0_continuation import call, fixture, pages_zip
@@ -27,6 +27,8 @@ def evidence(prior=False):
         old=before_pages(path,new)
         if prior:
             new=before_readiness(path,new)
+        else:
+            new=before_rank_ledger(path,new)
         for target,raw in ((original,old),(deployed,new)):
             sha=gh.git_blob(raw)
             if path in target:

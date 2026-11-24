@@ -194,3 +194,47 @@ test('public verification requires exact artifact/revision bytes and rejects sta
   await assert.rejects(verifyPublic({siteRoot:f.root,baseUrl:'http://example.test/DC20/',fetchImpl}),/HTTPS/);
 });
 
+
+test('second rank uses its own frozen identities, closed returns and exit dates', async t => {
+  const f = await fixture(t);
+  const second = f.summary.groups.candidate_top2.daily_sequence;
+  const firstExit = second.find(row => row.status === 'SETTLED_1000_LIMIT_HOLD_MINUTE_PROXY');
+  firstExit.exit_price = 9;
+  firstExit.slot_net_return = -0.1045;
+  for (const row of second) {
+    if (row !== firstExit) Object.assign(row, {
+      status:'NO_FILL_OPENING_LIMIT_UP_UNCONFIRMED', proxy_fill:0, slot_net_return:null,
+      entry_price:null, exit_price:null, actual_exit_time:null, actual_exit_date:null
+    });
+  }
+  f.revision.candidate_profit_summary_sha256 = await f.writeJson(SUMMARY_PATH, f.summary);
+  await f.writeJson('revision.json', f.revision);
+  await f.build();
+  const first = await f.account(), ledger = first.rank2;
+  assert.equal(first.rank2_status, 'READY');
+  assert.equal(first.metrics.cumulative_pnl, 18909);
+  assert.equal(first.last_exit_date, '20261021');
+  assert.equal(ledger.last_exit_date, firstExit.actual_exit_date);
+  assert.notEqual(ledger.last_exit_date, first.last_exit_date);
+  assert.equal(ledger.closed_trades, 1);
+  assert.deepEqual(ledger.metrics, {cumulative_pnl:-10345.5, max_profit:null, max_loss:-10345.5});
+  assert.ok(ledger.trades.every(trade => trade.rank === 2 && trade.id.endsWith(':R2')
+    && trade.name === '万科A' && trade.ts_code === '000002.SZ'));
+  assert.equal(ledger.data_bindings.summary_sha256, f.revision.candidate_profit_summary_sha256);
+  assert.equal(ledger.publication.run_id, first.publication.run_id);
+});
+
+test('bad second frozen identity clears a previously ready second ledger and retains first', async t => {
+  const f = await fixture(t);
+  await f.build();
+  assert.equal((await f.account()).rank2_status, 'READY');
+  f.summary.groups.candidate_top2.daily_sequence[0].ts_code = '000001.SZ';
+  f.revision.candidate_profit_summary_sha256 = await f.writeJson(SUMMARY_PATH, f.summary);
+  await f.writeJson('revision.json', f.revision);
+  await f.build();
+  const account = await f.account();
+  assert.equal(account.rank2_status, 'UNAVAILABLE');
+  assert.equal(account.rank2, null);
+  assert.equal(account.metrics.cumulative_pnl, 18909);
+  assert.equal(account.closed_trades, 2);
+});
