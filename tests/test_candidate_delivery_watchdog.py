@@ -341,6 +341,10 @@ class Continuation(Fake):
             updated_at='2026-09-22T12:04:30Z',workflow_run={'id':7,'head_branch':'main','head_sha':'b'*40})]}
         if reuse:self.add_reuse()
 
+    def pinned_source_ready_at(self, pred, market, original_created):
+        assert (pred, market) == ('d'*40, 'e'*40)
+        return '2026-09-22T11:59:00Z'
+
     def add_reuse(self, **changes):
         r=run(m.P0,70,head_sha=self.head,event='schedule',created_at='2026-09-22T13:00:00Z',
               run_started_at='2026-09-22T13:00:01Z',updated_at='2026-09-22T13:10:00Z')
@@ -861,4 +865,15 @@ def test_retry_budget_survives_midnight_and_new_deployment_head():
     assert plan['head'] == 'f' * 40 and plan['retry_origin_run_id'] == '7'
     with pytest.raises(ValueError, match='RETRY_BUDGET'):
         m.act(f, plan, datetime.fromisoformat('2026-09-23T02:00:00+08:00'), execute=True)
+    assert not f.posts
+
+def test_continuation_does_not_reset_budget_at_cas_or_ignore_failed_startup():
+    f = Continuation(reuse=False)
+    original = f.p0_runs[0]
+    f.busy = [original, *[dict(original, id=70+i, created_at='2026-09-22T13:00:00Z',
+                                conclusion=result) for i, result in enumerate(('failure', 'startup_failure'))]]
+    plan = m.inspect(f, NOW)
+    assert plan['status'] == 'NEEDS_P0_REDEPLOY'
+    with pytest.raises(ValueError, match='RETRY_BUDGET'):
+        m.act(f, plan, NOW, execute=True)
     assert not f.posts

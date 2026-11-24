@@ -18,16 +18,16 @@ import zlib
 
 ROOT = Path(__file__).absolute().parents[2]
 IMPORTER_PATH = "work/profit_1000_upgrade/candidate_natural_p0_github.py"
-IMPORTER_SHA = '06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009'
+IMPORTER_SHA = 'd05e8d180cac07b5d244fea19e49cfab56f365457b1019d3992afac2f33bed62'
 WORKFLOW_PATH = ".github/workflows/research_candidate_natural_forward.yml"
 WORKFLOW_NAME = "DC20 · Fixed candidate natural forward (research)"
 WORKFLOW_ID = 357010624
 COORDINATOR_PATH = "work/profit_1000_upgrade/candidate_natural_workflow.py"
 CONTINUATION_ONLY_FILES = {'work/profit_1000_upgrade/candidate_p0_generation_artifact.py', 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py'}
-FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009',
- 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '03d45f686af8fdafe1ddc85ec79093be49653eddd81c6062082655ecb4c6879a',
+FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': 'd05e8d180cac07b5d244fea19e49cfab56f365457b1019d3992afac2f33bed62',
+ 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '22338317b77ead3321aa19b7db4f705f82be021df950cce73f454c9cba7be329',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0',
- 'work/profit_1000_upgrade/candidate_natural_workflow.py': '7c84302ac417a7efad1410f56eeaf1b873f27e4cd2e98d110feca5efdfa64300',
+ 'work/profit_1000_upgrade/candidate_natural_workflow.py': 'db36e92171e0eb3e62d8dfa6c5e15940862cab1be339077d468fc87ea2a01bac',
  '.github/workflows/research_candidate_natural_forward.yml': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61',
  'requirements-dev.lock': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2',
  'work/profit_1000_upgrade/candidate_natural_forward.py': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1',
@@ -37,7 +37,7 @@ FIXED_FILES = {'work/profit_1000_upgrade/candidate_natural_p0_github.py': '06b1e
  'work/profit_1000_upgrade/candidate_eligible_forward_registration.json': 'c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc',
  'work/profit_1000_upgrade/candidate_eligible_pool.py': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23',
  'work/profit_1000_upgrade/candidate_snapshot_versions.py': '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6',
- 'work/profit_1000_upgrade/candidate_legacy_workflow.py': 'cde3a4a25b15a37fd61760fbbbb0d0c96ce81e67a98cf4684014dbf2ebfb34d9',
+ 'work/profit_1000_upgrade/candidate_legacy_workflow.py': '24d58b4b30a1b042fcc427201503e64f964b2c05e2fab4892fab925255413d24',
  'scripts/candidate_runtime_preflight.py': '8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69'}
 # Reviewed original profile; current code guards remain independently pinned.
 HISTORICAL_CODE_BINDINGS = [{'path': '.github/workflows/research_candidate_natural_forward.yml',
@@ -661,10 +661,102 @@ PRE_DETAIL_IMPORT_PROFILE = {'importer_sha256': 'e3f21960f5ea4f5ecb0bff692cd9681
  'source_adapter_sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'}
 
 
+PRE_PAGES_CODE_BINDINGS = [{'git_blob_sha1': 'ba3f91743a26ae9bd7946e8de3f88f65b19db339',
+  'path': '.github/workflows/research_candidate_natural_forward.yml',
+  'sha256': 'b79ce427a40669ed9fb6a2d593692866d262008b7f42f95d5579c4129e1cdb61'},
+ {'git_blob_sha1': '7e622895c32455123d71244ae491a7302b9b2abe',
+  'path': 'forward/storage.py',
+  'sha256': 'cc54e3b2ac1750e021a706641c592306cfcac3454c296f7c0b12b893ff13d098'},
+ {'git_blob_sha1': '892183b9e5c4ed2e1c1899589b8793f556b32136',
+  'path': 'requirements-dev.lock',
+  'sha256': '773ce43677ceff7e5829252816ba017738011ff60a389d60f0435b96264005f2'},
+ {'git_blob_sha1': 'dfa65d534b65a3b9f00d7dfff2f6c5c0fee281d7',
+  'path': 'scripts/candidate_runtime_preflight.py',
+  'sha256': '8a075639cc0e6539ff0586eb06a0929982fbfd8cd9377d2dbf8cbc8f4a1a1b69'},
+ {'git_blob_sha1': '2a730786322ffa4d697804c9d17f5c55d3c5a0a8',
+  'path': 'scripts/publish_primary_three_rank.py',
+  'sha256': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0'},
+ {'git_blob_sha1': 'caf8bb44beb93f2d78f9e24af706bbf0b1157ee7',
+  'path': 'src/top10decision/decision/d_close_features.py',
+  'sha256': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e'},
+ {'git_blob_sha1': 'ff88c1442dee7586adb14e6d00047408aeac53f8',
+  'path': 'src/top10decision/decision/suspension_evidence_registry.py',
+  'sha256': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9'},
+ {'git_blob_sha1': 'cf18b86656e71eff5a38e0e57d35494db172528f',
+  'path': 'src/top10decision/decision/three_rank.py',
+  'sha256': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a'},
+ {'git_blob_sha1': '0e11d8291ef7fde857ea3dd0afb1aadd7f277dbe',
+  'path': 'work/profit_1000_upgrade/candidate_d_feature_projection.py',
+  'sha256': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f'},
+ {'git_blob_sha1': '13efdec85080f2a5ae25a98ab0251a24ee613f3a',
+  'path': 'work/profit_1000_upgrade/candidate_d_source_adapter.py',
+  'sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'},
+ {'git_blob_sha1': '5c64354ec32d9cf55a1b90f0e430b388eceea7c0',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_forward.py',
+  'sha256': 'a90537d3bf38c6c0a63da97500eff1aa792561d9f2f32660bfc80d70b45272eb'},
+ {'git_blob_sha1': '9affd7b1ec43f11ea4b760df0a6f233fddb95b12',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_forward_registration.json',
+  'sha256': 'c6c5973a9378e0df90facd30796bdba9128904d1deb69040ebf428cfbb3277fc'},
+ {'git_blob_sha1': '3855dbedf6e4b6c85454c50d95a22cc128d52273',
+  'path': 'work/profit_1000_upgrade/candidate_eligible_pool.py',
+  'sha256': '86d8fbb049afc5cbc207e3bb9adc83481023abb345a69029e5c661be5a6edd23'},
+ {'git_blob_sha1': 'e69a1792ca8c35cd73deffac53f772d47bcb432c',
+  'path': 'work/profit_1000_upgrade/candidate_forward_predict.py',
+  'sha256': '6ada7749e033b5d3e5c39c4d674d835b9113d83b4a37ef9d7e7fbad70ac95719'},
+ {'git_blob_sha1': 'bea175d99f6a6a2bcb399056e7ab35430a352134',
+  'path': 'work/profit_1000_upgrade/candidate_legacy_workflow.py',
+  'sha256': 'cde3a4a25b15a37fd61760fbbbb0d0c96ce81e67a98cf4684014dbf2ebfb34d9'},
+ {'git_blob_sha1': '4c38f38adae98d8f3a8a9eb4bd0c72b0e2bd5e04',
+  'path': 'work/profit_1000_upgrade/candidate_live_feature_math.py',
+  'sha256': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ {'git_blob_sha1': '93d685b99cb0e94a78ab47dd2d055ad571b21648',
+  'path': 'work/profit_1000_upgrade/candidate_natural_forward.py',
+  'sha256': '8de5b0df96d9824e0232d3bf5adeb7784e870586ae74d508f86dd8e97e4ec4a1'},
+ {'git_blob_sha1': '5a81dad5e229b0c19d744ece4b984acf1db3a219',
+  'path': 'work/profit_1000_upgrade/candidate_natural_forward_registration.json',
+  'sha256': '5f2837b34975dbb69cd86428d0c49ae58c993fbb3081bc2b8da8a4b80108bb52'},
+ {'git_blob_sha1': '2546af3bfab7ece915d43c86ffa5779b3e19e2a0',
+  'path': 'work/profit_1000_upgrade/candidate_natural_model/evaluation.json',
+  'sha256': '779baaffb008165e88a88f568497d42b410dcbec03e9f613b099464d245a4872'},
+ {'git_blob_sha1': '44aeff34f6f52f05075e3ffb2df7864f3f10fe90',
+  'path': 'work/profit_1000_upgrade/candidate_natural_p0_continuation.py',
+  'sha256': '03d45f686af8fdafe1ddc85ec79093be49653eddd81c6062082655ecb4c6879a'},
+ {'git_blob_sha1': '07ef8193457ab78a88c0978b6f16ee96b8f3025f',
+  'path': 'work/profit_1000_upgrade/candidate_natural_p0_github.py',
+  'sha256': '06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009'},
+ {'git_blob_sha1': '61348161e14f4860b942651e909eb0afc67879c9',
+  'path': 'work/profit_1000_upgrade/candidate_natural_workflow.py',
+  'sha256': '7c84302ac417a7efad1410f56eeaf1b873f27e4cd2e98d110feca5efdfa64300'},
+ {'git_blob_sha1': '9b5a1b9f20f284a4881595bfcc791a4633ed677f',
+  'path': 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py',
+  'sha256': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'},
+ {'git_blob_sha1': 'd33896a270c9359fc4fa00dc192005906903061e',
+  'path': 'work/profit_1000_upgrade/candidate_snapshot_versions.py',
+  'sha256': '755fdcfe6e3778f83ead35d747e993155bf34b6c86ab87e37b49d5dfa89a8fd6'}]
+PRE_PAGES_IMPORT_PROFILE = {'importer_sha256': '06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009',
+ 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0',
+                                      'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+                                      'src/top10decision/decision/suspension_evidence_registry.py': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9',
+                                      'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+                                      'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+                                      'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ 'source_adapter_sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'}
+
+
 def match_publication_code(code_tree, published_tree, local_files, *, day=None):
     """Bind one complete reviewed code version in both immutable Git trees."""
     if code_tree.get(IMPORTER_PATH, {}).get("sha") == D11_IMPORTER_BLOB:
         return _d11_code_bindings(code_tree, published_tree, local_files, day)
+    previous_pages = {b["path"]: b for b in PRE_PAGES_CODE_BINDINGS}
+    if code_tree.get(IMPORTER_PATH, {}).get("sha") == previous_pages[IMPORTER_PATH]["git_blob_sha1"]:
+        require(type(day) is str and gh.date(day) <= "20261123"
+            and set(local_files) == set(previous_pages), "PRE_PAGES_PUBLICATION_DATE_OR_SET_CHANGED")
+        for path, binding in previous_pages.items():
+            for tree in (code_tree, published_tree):
+                entry = tree.get(path, {})
+                require(entry.get("type") == "blob" and entry.get("mode") == "100644"
+                    and entry.get("sha") == binding["git_blob_sha1"], "PRE_PAGES_PUBLICATION_BYTES_CHANGED")
+        return [dict(previous_pages[p]) for p in sorted(previous_pages)]
     previous_detail = {b["path"]: b for b in PRE_DETAIL_CODE_BINDINGS}
     if code_tree.get(IMPORTER_PATH, {}).get("sha") == previous_detail[IMPORTER_PATH]["git_blob_sha1"]:
         require(type(day) is str and gh.date(day) <= "20261119"
@@ -1149,12 +1241,13 @@ def verify_publication(*, expected_freeze_run_id, github_client):
     p0_path = "/actions/runs/" + p0_id
     continuation_proof = None
     if imported.get("schema_version") == "dc20_candidate_p0_continuation_import_v1":
+        prior_pages = code_profile[IMPORTER_PATH] == PRE_PAGES_IMPORT_PROFILE["importer_sha256"]
         prior_detail = code_profile[IMPORTER_PATH] == PRE_DETAIL_IMPORT_PROFILE["importer_sha256"]
         prior_ui = code_profile[IMPORTER_PATH] == PRE_UI_IMPORT_PROFILE["importer_sha256"]
         prior_next_day = code_profile[IMPORTER_PATH] == PRE_NEXT_DAY_IMPORT_PROFILE["importer_sha256"]
         prior_suspension = code_profile[IMPORTER_PATH] == PRE_SUSPENSION_IMPORT_PROFILE["importer_sha256"]
         prior_reliability = code_profile[IMPORTER_PATH] == PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"]
-        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA or (prior_detail and day <= "20261119") or (prior_ui and day <= "20261118") or (prior_next_day and day <= "20261106")
+        require(code_profile[IMPORTER_PATH] == IMPORTER_SHA or (prior_pages and day <= "20261123") or (prior_detail and day <= "20261119") or (prior_ui and day <= "20261118") or (prior_next_day and day <= "20261106")
             or (prior_suspension and day <= "20261109") or (prior_reliability and day <= "20261110"),
             "CONTINUATION_REQUIRES_CURRENT_COMPLETE_CODE_PROFILE")
         continuation, _ = gh.continuation_dependencies()
@@ -1212,6 +1305,9 @@ def verify_publication(*, expected_freeze_run_id, github_client):
         "ORIGINAL_CALENDAR_GIT_BLOB_CHANGED")
     import_profile = {"importer_sha256": IMPORTER_SHA, "source_adapter_sha256": gh.ADAPTER_SHA,
         "source_adapter_dependency_sha256": gh.adapter.CODE_PINS}
+    if code_profile[IMPORTER_PATH] == PRE_PAGES_IMPORT_PROFILE["importer_sha256"]:
+        require(day <= "20261123", "PRE_PAGES_IMPORT_DATE_CHANGED")
+        import_profile = PRE_PAGES_IMPORT_PROFILE
     if code_profile[IMPORTER_PATH] == PRE_DETAIL_IMPORT_PROFILE["importer_sha256"]:
         require(day <= "20261119", "PRE_DETAIL_IMPORT_DATE_CHANGED")
         import_profile = PRE_DETAIL_IMPORT_PROFILE

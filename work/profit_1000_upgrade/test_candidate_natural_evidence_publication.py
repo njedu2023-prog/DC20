@@ -336,3 +336,12 @@ from tests.test_list_detail_source_profiles import (
     test_original_d19_observer_materials_remain_verifiable,
     test_prior_detail_continuation_pair_remains_readable,
 )
+
+
+# Preserve the last pre-transport observer capsule and importer contract.
+from tests.test_pages_transport_source_profiles import (
+    test_pages_successor_preserves_all_previous_profiles,
+    test_pre_pages_publication_complete_profile_and_date_are_required,
+    test_original_d23_observer_materials_remain_verifiable,
+    test_prior_pages_continuation_pair_remains_readable,
+)

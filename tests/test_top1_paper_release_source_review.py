@@ -188,15 +188,15 @@ def test_late_research_ui_release_exact_predecessors_and_tampering():
 
 
 def test_late_research_ui_rotates_only_display_manifest_pin():
-    now_raw = (ROOT / MANIFEST).read_bytes()
-    old_raw = count_delta.before_late(MANIFEST, now_raw)
+    now_raw = count_delta.before_pages(MANIFEST, (ROOT / MANIFEST).read_bytes())
+    old_raw = count_delta.before_late(MANIFEST, (ROOT / MANIFEST).read_bytes())
     now, old = json.loads(now_raw), json.loads(old_raw)
     now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
     assert now == old and now_pins.keys() == old_pins.keys()
     assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'decision.html'}
     assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
-    current_inventory = (ROOT / INVENTORY).read_bytes()
-    expected = json.loads(count_delta.before_late(INVENTORY, current_inventory))
+    current_inventory = count_delta.before_pages(INVENTORY, (ROOT / INVENTORY).read_bytes())
+    expected = json.loads(count_delta.before_late(INVENTORY, (ROOT / INVENTORY).read_bytes()))
     entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
     assert len(entries) == 1
     entries[0].update(sha256=sha(now_raw), bytes=len(now_raw))
@@ -218,15 +218,45 @@ def test_list_detail_ui_sources_restore_the_exact_original_publication_code():
 
 
 def test_list_detail_manifest_and_inventory_change_only_the_ui_pin():
-    now_raw = (ROOT / MANIFEST).read_bytes()
-    old_raw = count_delta.before_detail(MANIFEST, now_raw)
+    now_raw = count_delta.before_pages(MANIFEST, (ROOT / MANIFEST).read_bytes())
+    old_raw = count_delta.before_detail(MANIFEST, (ROOT / MANIFEST).read_bytes())
     now, old = json.loads(now_raw), json.loads(old_raw)
     now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
     assert now == old and now_pins.keys() == old_pins.keys()
     assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'decision.html'}
     assert now_pins['decision.html'] == sha((ROOT / 'decision.html').read_bytes())
+    current_inventory = count_delta.before_pages(INVENTORY, (ROOT / INVENTORY).read_bytes())
+    expected = json.loads(count_delta.before_detail(INVENTORY, (ROOT / INVENTORY).read_bytes()))
+    entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
+    assert len(entries) == 1
+    entries[0].update(sha256=sha(now_raw), bytes=len(now_raw))
+    assert json.loads(current_inventory) == expected
+
+
+def test_pages_transport_sources_restore_exact_predecessors():
+    records = count_delta.pages_files()
+    assert {MANIFEST, INVENTORY, '.github/workflows/deploy_dc20_pages.yml',
+            'tests/test_top1_paper_release_source_review.py'} <= records.keys()
+    for path, record in records.items():
+        assert path in {MANIFEST, INVENTORY, '.github/workflows/deploy_dc20_pages.yml', 'scripts/candidate_delivery_watchdog.py'} or path.startswith((
+            'work/profit_1000_upgrade/', 'src/top10decision/decision/', 'tests/'))
+        current = (ROOT / path).read_bytes()
+        prior = count_delta.before_pages(path, current)
+        assert sha(prior) == record['base_sha256'], path
+        with pytest.raises(AssertionError):
+            count_delta.before_pages(path, current + b'\n')
+
+
+def test_pages_transport_manifest_and_inventory_change_only_the_deploy_pin():
+    now_raw = (ROOT / MANIFEST).read_bytes()
+    old_raw = count_delta.before_pages(MANIFEST, now_raw)
+    now, old = json.loads(now_raw), json.loads(old_raw)
+    now_pins, old_pins = now.pop('pinned_files'), old.pop('pinned_files')
+    assert now == old and now_pins.keys() == old_pins.keys()
+    assert {path for path in now_pins if now_pins[path] != old_pins[path]} == {'.github/workflows/deploy_dc20_pages.yml'}
+    assert now_pins['.github/workflows/deploy_dc20_pages.yml'] == sha((ROOT / '.github/workflows/deploy_dc20_pages.yml').read_bytes())
     current_inventory = (ROOT / INVENTORY).read_bytes()
-    expected = json.loads(count_delta.before_detail(INVENTORY, current_inventory))
+    expected = json.loads(count_delta.before_pages(INVENTORY, current_inventory))
     entries = [item for item in expected['assets'] if item['path'] == MANIFEST]
     assert len(entries) == 1
     entries[0].update(sha256=sha(now_raw), bytes=len(now_raw))

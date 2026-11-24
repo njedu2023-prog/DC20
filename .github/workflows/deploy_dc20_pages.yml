@@ -2016,15 +2016,72 @@ jobs:
           PYCODE
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        id: pages_upload
         with:
           name: ${{ inputs.artifact_name || 'github-pages' }}
           path: _site
 
       - name: Deploy DC2.0 Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PAGES_ARTIFACT_ID: ${{ steps.pages_upload.outputs.artifact_id }}
         with:
-          artifact_name: ${{ inputs.artifact_name || 'github-pages' }}
+          retries: 0
+          script: |
+            const rawId = process.env.PAGES_ARTIFACT_ID || ''
+            const artifactId = Number(rawId)
+            if (!/^[1-9]\d*$/.test(rawId) || !Number.isSafeInteger(artifactId)) {
+              throw new Error('Missing or invalid artifact ID from this job’s Pages upload')
+            }
+            // GitHub uses the run SHA for pages_build_version. The public verification
+            // below separately checks the exact commit actually built by this job.
+            const token = await core.getIDToken()
+            core.setSecret(token)
+            let deployment
+            try {
+              const response = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+                ...context.repo, artifact_id: artifactId, pages_build_version: context.sha,
+                oidc_token: token, request: {timeout: 30000, redirect: 'error'}
+              })
+              deployment = response.data
+            } catch (error) {
+              // Never print the request object (contains OIDC), or retry an unknown POST.
+              const message = String(error.response?.data?.message || '').replaceAll(token, '***')
+              throw new Error(`Pages creation for artifact ${rawId} failed (${error.status || 'response unknown'}): ${message}`)
+            }
+            const deploymentId = String(deployment?.id || '')
+            if (!/^(?:[1-9]\d*|[0-9a-f]{40})$/.test(deploymentId)) {
+              throw new Error('Pages creation returned no valid deployment ID; check this run before retrying')
+            }
+            core.info(`Pages deployment ${deploymentId}, run ${context.runId}, artifact ${rawId}, build ${context.sha}`)
+            const pageUrl = new URL(deployment.page_url)
+            if (pageUrl.origin !== 'https://njedu2023-prog.github.io' || pageUrl.pathname.replace(/\/$/, '') !== '/DC20' ||
+                pageUrl.username || pageUrl.password || pageUrl.search || pageUrl.hash) {
+              throw new Error('Unexpected public URL for DC20 Pages')
+            }
+            const active = new Set(['deployment_in_progress', 'syncing_files', 'finished_file_sync',
+              'updating_pages', 'purging_cdn', 'deployment_attempt_error', 'unknown_status', 'not_found'])
+            const deadline = Date.now() + 600000
+            while (Date.now() < deadline) {
+              await new Promise(resolve => setTimeout(resolve, 5000))
+              let status
+              try {
+                const response = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{deployment_id}', {
+                  ...context.repo, deployment_id: deploymentId, request: {timeout: 30000}
+                })
+                status = response.data.status
+              } catch (error) {
+                if ([404, 429, 500, 502, 503, 504].includes(error.status)) continue
+                throw new Error(`Pages status lookup for ${deploymentId} failed (${error.status || 'response unknown'})`)
+              }
+              if (status === 'succeed') {
+                core.setOutput('page_url', pageUrl.href)
+                return
+              }
+              if (!active.has(status)) throw new Error(`Pages deployment ${deploymentId}: ${status}`)
+            }
+            throw new Error(`Pages deployment ${deploymentId} did not report success within ten minutes`)
 
       - name: Verify public DC2.0 Pages revision
         env:

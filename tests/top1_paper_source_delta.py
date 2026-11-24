@@ -101,7 +101,26 @@ def detail_files():
     return _parse(_read(LIST_DETAIL_UI), LIST_DETAIL_UI)
 
 
+PAGES_TRANSPORT = (
+    'models/decision_source_surface_review_20261124_pages_transport.json',
+    '370709a8284f81a2d41a32a9de03e86136e6c737ff8b0f74d55731059f2c29ee',
+    '67298094f1bf58536b1f93a743ff18d6c872ef62',
+    'f2a712a5d10df690b5fcddbe64680c596ea77d55',
+)
+
+
+def pages_files():
+    return _parse(_read(PAGES_TRANSPORT), PAGES_TRANSPORT)
+
+
+def before_pages(path, raw):
+    if path not in _paths(PAGES_TRANSPORT):
+        return raw
+    return _restore(path, raw, _read(PAGES_TRANSPORT), PAGES_TRANSPORT)
+
+
 def before_detail(path, raw):
+    raw = before_pages(path, raw)
     if path not in _paths(LIST_DETAIL_UI):
         return raw
     return _restore(path, raw, _read(LIST_DETAIL_UI), LIST_DETAIL_UI)

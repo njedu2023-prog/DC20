@@ -151,7 +151,19 @@ PRE_DETAIL_IMPORT_PROFILE = {'importer_sha256': 'e3f21960f5ea4f5ecb0bff692cd9681
  'source_adapter_sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'}
 PRE_DETAIL_CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': 'b73f7f333de2c0d0c4d2f42a49c087951a3567d0cc4f017ce64778610e02de9e',
  'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
-RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE, LATE_RESEARCH_UI_P0_CODE_PROFILE, LIST_DETAIL_UI_P0_CODE_PROFILE)
+# Exact list-detail UI successor; retain the D20261123 natural publication profile.
+PAGES_TRANSPORT_P0_CODE_PROFILE = {**LIST_DETAIL_UI_P0_CODE_PROFILE, MANIFEST_PATH: '60867ebc3aad5b3512ab3b9d53f7035ba2b9c366'}
+PRE_PAGES_IMPORT_PROFILE = {'importer_sha256': '06b1e52297310df83311eff267a9a75db89f544484e3329f42520cc4ef8a0009',
+ 'source_adapter_dependency_sha256': {'scripts/publish_primary_three_rank.py': '1ce33bbb5546f503c6bae28daf52000cb264237c7aa00237939b87330131cba0',
+                                      'src/top10decision/decision/d_close_features.py': 'c46b7cabcab833f4dce4c984ee570a8bc3da861d00c43a95dcc45d6c17b4221e',
+                                      'src/top10decision/decision/suspension_evidence_registry.py': 'efeb7d53abf2cf7138c1853a45e1a8a5b82ded8ec28bda4f1700fcad1c7dffa9',
+                                      'src/top10decision/decision/three_rank.py': 'f39196f352c2b110c3aa2a4e2f94730d1bdded3a0d70f107ae577700fe577d3a',
+                                      'work/profit_1000_upgrade/candidate_d_feature_projection.py': 'aabe73a52482626ab71b042cf4a7c4a1548e6131b7b231707d2d30d29348188f',
+                                      'work/profit_1000_upgrade/candidate_live_feature_math.py': '922686579ade03fb3818dfa27f015bf5888f61199bfce08e35d5fd6dbceebc68'},
+ 'source_adapter_sha256': 'bc3387e0ee59b785a94f2f925b234c1175cdfaa3f02c1c92e3a6707595a5facd'}
+PRE_PAGES_CONTINUATION_PINS = {'work/profit_1000_upgrade/candidate_natural_p0_continuation.py': '03d45f686af8fdafe1ddc85ec79093be49653eddd81c6062082655ecb4c6879a',
+ 'work/profit_1000_upgrade/candidate_p0_generation_artifact.py': '8bac12a1d68fe5a840a83bda50412b34a05cfaa57556230280307d4239f83bb0'}
+RELIABILITY_PROFILES = (RELIABILITY_P0_CODE_PROFILE, TOP1_PAPER_P0_CODE_PROFILE, TOP1_COUNT_P0_CODE_PROFILE, TOP1_RATE_P0_CODE_PROFILE, TOP1_MONTH_P0_CODE_PROFILE, TOP1_FILL_NOTE_P0_CODE_PROFILE, TOP1_START_DATE_P0_CODE_PROFILE, TOP1_CURVE_P0_CODE_PROFILE, LATE_RESEARCH_UI_P0_CODE_PROFILE, LIST_DETAIL_UI_P0_CODE_PROFILE, PAGES_TRANSPORT_P0_CODE_PROFILE)
 RELIABILITY_RUNTIME_CODE_BINDINGS = [{'path': 'scripts/primary_failure_diagnostics.py',
   'sha256': '4d89fe7325bbf52ba3296f390e2987ecba5b3e160514d0b55000a0a3e27d2ac8',
   'git_blob_sha1': '8d69e8c3ae0f3bb20cfcd9386ed0821ef33b028d',
@@ -245,6 +257,43 @@ def require(ok, reason):
         raise ValueError(reason)
 
 
+
+def verify_pages_transport_transition(gh, reads, base_tree, cas_tree, deployed_tree, identity):
+    # This generator already committed all four immutable D files. verify_pair
+    # establishes the later run and its actual publication before calling here.
+    original = {
+        'signal_date': '20261124', 'original_run_id': '45384357456',
+        'original_head': '754181fa30ba4da37fe2c9a4f514112746395df7',
+        'original_cas': 'bce6a4231a3d0406274be45ed805d6d684ed3606',
+    }
+    require(all(identity.get(key) == value for key, value in original.items()),
+            'PAGES_TRANSPORT_EXACT_ORIGINAL_REQUIRED')
+    deploy_path = '.github/workflows/deploy_dc20_pages.yml'
+    old_pin = '0dff59ea4a6bb156428d2673f51244d72afe96d4e87f4762c58708b08fece676'
+    old_manifest = reads.blob(base_tree, MANIFEST_PATH)
+    new_manifest = reads.blob(deployed_tree, MANIFEST_PATH)
+    new_pin = gh.parse_json(new_manifest)['pinned_files'][deploy_path]
+    gh.exact_sha(new_pin)
+    require(gh.git_blob(old_manifest) == LIST_DETAIL_UI_P0_CODE_PROFILE[MANIFEST_PATH]
+            and gh.git_blob(new_manifest) == PAGES_TRANSPORT_P0_CODE_PROFILE[MANIFEST_PATH]
+            and old_manifest == reads.blob(cas_tree, MANIFEST_PATH)
+            and gh.parse_json(old_manifest)['pinned_files'][deploy_path] == old_pin
+            and old_pin != new_pin and old_manifest.count(old_pin.encode()) == 1
+            and old_manifest.replace(old_pin.encode(), new_pin.encode()) == new_manifest,
+            'PAGES_TRANSPORT_ONLY_EXACT_MANIFEST_PIN_CHANGE_REQUIRED')
+    for tree, pin in ((base_tree, old_pin), (cas_tree, old_pin), (deployed_tree, new_pin)):
+        item = tree.get(deploy_path, {})
+        require(item.get('type') == 'blob' and item.get('mode') == '100644',
+                'PAGES_TRANSPORT_WORKFLOW_REGULAR_BLOB_REQUIRED')
+        workflow = reads.blob(tree, deploy_path)
+        require(gh.sha256(workflow) == pin and gh.git_blob(workflow) == item.get('sha'),
+                'PAGES_TRANSPORT_WORKFLOW_BYTES_CHANGED')
+    return {**identity, 'kind': 'D20261124_PAGES_TRANSPORT_ONLY',
+            'original_manifest_sha256': gh.sha256(old_manifest),
+            'deployed_manifest_sha256': gh.sha256(new_manifest),
+            'original_deploy_workflow_sha256': old_pin, 'deployed_deploy_workflow_sha256': new_pin}
+
+
 def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identity):
     """Admit complete fixed profiles, plus one exact original/deployed pin repair."""
     manifest_blob = base_tree.get(MANIFEST_PATH, {}).get('sha')
@@ -262,6 +311,8 @@ def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identi
         require(gh.date(identity.get("signal_date")) >= "20261120", "UI_PROFILE_ACTIVATION_DATE_REQUIRED")
     if profile is LIST_DETAIL_UI_P0_CODE_PROFILE:
         require(gh.date(identity.get("signal_date")) >= "20261120", "DETAIL_UI_PROFILE_ACTIVATION_DATE_REQUIRED")
+    if profile is PAGES_TRANSPORT_P0_CODE_PROFILE:
+        require(gh.date(identity.get("signal_date")) >= "20261124", "PAGES_TRANSPORT_PROFILE_ACTIVATION_DATE_REQUIRED")
     if profile in RELIABILITY_PROFILES:
         require(gh.date(identity.get("signal_date")) >= "20261111", "RELIABILITY_PROFILE_ACTIVATION_DATE_REQUIRED")
     deployed_profile = profile
@@ -287,6 +338,10 @@ def validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree, identi
         deployed_profile = SUSPENSION_P0_CODE_PROFILE
         transition = {**identity, 'original_manifest_sha256': gh.sha256(old_raw),
             'deployed_manifest_sha256': gh.sha256(new_raw), 'evidence_sha256': new_pin.decode()}
+    if (profile is LIST_DETAIL_UI_P0_CODE_PROFILE
+            and deployed_tree.get(MANIFEST_PATH, {}).get('sha') == PAGES_TRANSPORT_P0_CODE_PROFILE[MANIFEST_PATH]):
+        transition = verify_pages_transport_transition(gh, reads, base_tree, cas_tree, deployed_tree, identity)
+        deployed_profile = PAGES_TRANSPORT_P0_CODE_PROFILE
     for tree, expected in ((base_tree, profile), (cas_tree, profile), (deployed_tree, deployed_profile)):
         for logical, expected_blob in expected.items():
             require(tree.get(logical, {}).get('type') == 'blob' and tree[logical].get('mode') == '100644'
@@ -554,6 +609,8 @@ def verify_pair(gh, client, *, original_run_id, original_cas_commit, reuse_run_i
     code_profile, manifest_transition = validate_code_profiles(gh, reads, base_tree, cas_tree, deployed_tree,
         {'signal_date': day, 'original_run_id': original_run_id, 'original_head': r0['head_sha'],
          'original_cas': original_cas_commit, 'reuse_run_id': reuse_run_id, 'deployed_head': deployed_sha})
+    if manifest_transition and manifest_transition.get('kind') == 'D20261124_PAGES_TRANSPORT_ONLY':
+        require(r1.get('event') in ('schedule', 'workflow_run'), 'PAGES_TRANSPORT_NATURAL_REUSE_REQUIRED')
     runtime_bindings = (RELIABILITY_RUNTIME_CODE_BINDINGS if code_profile in RELIABILITY_PROFILES else CONTROLLED_RUNTIME_CODE_BINDINGS
         if code_profile is not ORIGINAL_P0_CODE_PROFILE else ORIGINAL_RUNTIME_CODE_BINDINGS)
     static_inputs = receipt["inputs"].get("committed_static_inputs", {})
@@ -625,6 +682,9 @@ def validate_import_receipt(gh, imported):
         "successful_publication_git_sha": "successful_publication_git_sha",
         "expected_p0_sha256": "expected_p0_sha256", "source_file_bindings": "source_file_bindings",
         "original_file_count": "original_file_count", "observed_p0_cas_job_completed_at": "observed_p0_cas_job_completed_at"}
+    prior_pages = imported.get("importer_sha256") == PRE_PAGES_IMPORT_PROFILE["importer_sha256"]
+    if prior_pages:
+        require(gh.date(imported.get("signal_date")) <= "20261123", "PRE_PAGES_CONTINUATION_IMPORT_DATE_CHANGED")
     prior_detail = imported.get("importer_sha256") == PRE_DETAIL_IMPORT_PROFILE["importer_sha256"]
     if prior_detail:
         require(gh.date(imported.get("signal_date")) <= "20261119", "PRE_DETAIL_CONTINUATION_IMPORT_DATE_CHANGED")
@@ -642,10 +702,10 @@ def validate_import_receipt(gh, imported):
     if previous:
         require(gh.date(imported.get("signal_date")) <= "20261106", "PRE_NEXT_DAY_CONTINUATION_IMPORT_DATE_CHANGED")
     require(all(imported.get(k) == proof.get(v) for k, v in pairs.items())
-        and imported.get("continuation_dependency_sha256") == (PRE_DETAIL_CONTINUATION_PINS if prior_detail else PRE_UI_CONTINUATION_PINS if prior_ui else PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
-        and imported.get("importer_sha256") == (PRE_DETAIL_IMPORT_PROFILE["importer_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["importer_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
-        and imported.get("source_adapter_sha256") == (PRE_DETAIL_IMPORT_PROFILE["source_adapter_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["source_adapter_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_sha256"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)
-        and imported.get("source_adapter_dependency_sha256") == (PRE_DETAIL_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_dependency_sha256"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),
+        and imported.get("continuation_dependency_sha256") == (PRE_PAGES_CONTINUATION_PINS if prior_pages else PRE_DETAIL_CONTINUATION_PINS if prior_detail else PRE_UI_CONTINUATION_PINS if prior_ui else PRE_RELIABILITY_CONTINUATION_PINS if prior_reliability else PRE_NEXT_DAY_CONTINUATION_PINS if previous else PRE_SUSPENSION_CONTINUATION_PINS if prior_suspension else gh.CONTINUATION_PINS)
+        and imported.get("importer_sha256") == (PRE_PAGES_IMPORT_PROFILE["importer_sha256"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE["importer_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["importer_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["importer_sha256"] if prior_reliability else PRE_NEXT_DAY_IMPORTER_SHA if previous else PRE_SUSPENSION_IMPORTER_SHA if prior_suspension else gh.SELF_SHA)
+        and imported.get("source_adapter_sha256") == (PRE_PAGES_IMPORT_PROFILE["source_adapter_sha256"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE["source_adapter_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["source_adapter_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_sha256"] if (prior_reliability or prior_suspension or previous) else gh.ADAPTER_SHA)
+        and imported.get("source_adapter_dependency_sha256") == (PRE_PAGES_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_pages else PRE_DETAIL_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_detail else PRE_UI_IMPORT_PROFILE["source_adapter_dependency_sha256"] if prior_ui else PRE_RELIABILITY_IMPORT_PROFILE["source_adapter_dependency_sha256"] if (prior_reliability or prior_suspension or previous) else gh.adapter.CODE_PINS),
         "CONTINUATION_IMPORT_PROOF_OR_CURRENT_CODE_MISMATCH")
     require(proof["original_generation_run"]["id"] != proof["successful_reuse_run"]["id"]
         and proof["original_generation_run"]["conclusion"] == "failure"

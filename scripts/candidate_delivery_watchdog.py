@@ -18,9 +18,9 @@ import urllib.error
 import urllib.request
 
 if __package__:
-    from .dc20_writer_queue import inspect_queue, GROUP
+    from .dc20_writer_queue import inspect_queue, recent_target_runs, GROUP
 else:
-    from dc20_writer_queue import inspect_queue, GROUP
+    from dc20_writer_queue import inspect_queue, recent_target_runs, GROUP
 
 REPO = 'njedu2023-prog/DC20'
 WORKFLOW = '.github/workflows/candidate_delivery_watchdog.yml'
@@ -167,6 +167,16 @@ class GitHub:
                     'reason': ('MATCHING_PUSH_CI_FOUND_RECHECK_REQUIRED' if pending is not None else
                                'SUCCESSFUL_PUSH_CI_RECHECK_REQUIRED' if run else 'NO_MATCHING_SUCCESSFUL_PUSH_CI'),
                     'daily_source_evidence_admitted': False, 'production_freeze_issued': False}
+
+    def pinned_source_ready_at(self, pred, market, original_created):
+        times = []
+        for repo, sha in zip(UPSTREAMS, (pred, market)):
+            record = self.request('/commits/' + sha, repository=repo)
+            require(record.get('sha') == sha, 'P0_HANDOFF_UPSTREAM_SHA_CHANGED')
+            committed = stamp(record['commit']['committer']['date'])
+            require(committed <= stamp(original_created), 'P0_HANDOFF_UPSTREAM_FROM_FUTURE')
+            times.append(committed)
+        return max(times).isoformat()
 
     def p0_sources(self, day, now):
         """Preflight only. The original P0 importer remains the source authority.
@@ -543,7 +553,8 @@ def missing_freeze(client, base, receipt, receipt_raw, now, cutoff):
             and all(re.fullmatch('[0-9a-f]{40}', s.get('resolved_commit', '')) for s in (pred, market)),
             'P0_HANDOFF_ORIGINAL_UPSTREAM_COMMITS_REQUIRED')
     return {**base, **evidence, 'status': 'NEEDS_P0_REDEPLOY', 'workflow': P0,
-            'source_ready_at': cas_job['completed_at'], 'recovery_kind': 'EXISTING_P0_REUSE_ONLY',
+            'source_ready_at': client.pinned_source_ready_at(pred['resolved_commit'], market['resolved_commit'], original['created_at']),
+            'recovery_kind': 'EXISTING_P0_REUSE_ONLY',
             'inputs': {'trade_date': day, 'generation_mode': 'NATURAL', 'dry_run': False,
                        'confirm_daily_generation': True, 'confirm_recovery': False,
                        'pred_commit': pred['resolved_commit'], 'market_commit': market['resolved_commit']}}
@@ -715,13 +726,18 @@ def act(client, plan, now, *, execute=False, clock=None):
         failures = [r for r in failures if stamp(r['created_at']) >= earliest]
     if workflow in (P0, HISTORY):
         p0_dispatch_window(plan['signal_date'], now)
-        # Failed scheduled attempts before data arrived must not consume the
-        # retry budget for a newly ready, pinned source generation.
-        ready = datetime.fromisoformat(plan['source_ready_at'])
-        failures = [r for r in failures if workflow == HISTORY or (r.get('event') == 'workflow_dispatch'
-                    and r.get('display_title') == 'DC20 controlled daily NATURAL | D='+plan['signal_date']
-                    and datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= ready)]
-    require(len(failures) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
+        if workflow == P0:
+            # GitHub does not expose the inputs for every failed startup. Count
+            # every controlled invocation that could have used this source pair,
+            # including the original generator and attempts which never ran jobs.
+            ready = stamp(plan['source_ready_at'])
+            title = 'DC20 controlled daily NATURAL | D=' + plan['signal_date']
+            attempts = [r for r in recent_target_runs(client, P0, plan['signal_date'])
+                        if r['event'] == 'workflow_dispatch' and r['display_title'] == title
+                        and stamp(r['created_at']) >= ready]
+            require(len(attempts) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
+    if workflow != P0:
+        require(len(failures) < 3, 'RETRY_BUDGET_EXHAUSTED_REQUIRES_REPAIR')
     cutoff = datetime.strptime(plan['exec_date']+'0920', '%Y%m%d%H%M').replace(tzinfo=TZ)
     if plan.get('freeze_deadline'):
         cutoff = min(cutoff, stamp(plan['freeze_deadline']))

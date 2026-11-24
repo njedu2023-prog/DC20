@@ -72,7 +72,7 @@ def test_predecessor_capture_and_observer_are_a_complete_pair():
 
 
 def test_new_p0_profile_binds_all_current_execution_files():
-    profile = continuation.LIST_DETAIL_UI_P0_CODE_PROFILE
+    profile = continuation.PAGES_TRANSPORT_P0_CODE_PROFILE
     original = continuation.RELIABILITY_P0_CODE_PROFILE
     assert set(profile) == set(original)
     assert {p for p in original if profile[p] != original[p]} == {continuation.MANIFEST_PATH}
@@ -88,9 +88,9 @@ def test_new_p0_profile_binds_all_current_execution_files():
                            "git_blob_sha1": gh.git_blob(raw), "git_mode": "100644"}
 
 
-@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count", "top1-rate", "top1-month", "top1-fill-note", "top1-start-date", "top1-curve", "late-research-ui", "list-detail-ui"])
+@pytest.mark.parametrize("profile", continuation.RELIABILITY_PROFILES, ids=["original", "top1-paper", "top1-count", "top1-rate", "top1-month", "top1-fill-note", "top1-start-date", "top1-curve", "late-research-ui", "list-detail-ui", "pages-transport"])
 def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
-    day = "20261120" if profile in (continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else "20261112" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else "20261111"
+    day = "20261124" if profile is continuation.PAGES_TRANSPORT_P0_CODE_PROFILE else "20261120" if profile in (continuation.LATE_RESEARCH_UI_P0_CODE_PROFILE, continuation.LIST_DETAIL_UI_P0_CODE_PROFILE) else "20261112" if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE) else "20261111"
     trees = [tree(profile) for _ in range(3)]
     if profile in (continuation.TOP1_RATE_P0_CODE_PROFILE, continuation.TOP1_MONTH_P0_CODE_PROFILE, continuation.TOP1_FILL_NOTE_P0_CODE_PROFILE, continuation.TOP1_START_DATE_P0_CODE_PROFILE, continuation.TOP1_CURVE_P0_CODE_PROFILE):
         with pytest.raises(ValueError, match="ACTIVATION_DATE"):
@@ -112,8 +112,16 @@ def test_new_p0_profile_admits_only_new_date_and_three_unchanged_trees(profile):
                 continue
             mixed = deepcopy(trees)
             mixed[index][continuation.MANIFEST_PATH]["sha"] = other[continuation.MANIFEST_PATH]
-            with pytest.raises(ValueError, match="CODE_PROFILE_REQUIRED"):
-                continuation.validate_code_profiles(gh, None, *mixed, {"signal_date": "20261120"})
+            exact_original_required = (
+                index == 2 and profile is continuation.LIST_DETAIL_UI_P0_CODE_PROFILE
+                and other is continuation.PAGES_TRANSPORT_P0_CODE_PROFILE
+            ) or (
+                index == 0 and profile is continuation.PAGES_TRANSPORT_P0_CODE_PROFILE
+                and other is continuation.LIST_DETAIL_UI_P0_CODE_PROFILE
+            )
+            error = "PAGES_TRANSPORT_EXACT_ORIGINAL_REQUIRED" if exact_original_required else "CODE_PROFILE_REQUIRED"
+            with pytest.raises(ValueError, match=error):
+                continuation.validate_code_profiles(gh, None, *mixed, {"signal_date": "20261124"})
 
 
 @pytest.mark.parametrize("runner", [natural, eligible])
@@ -166,3 +174,13 @@ def test_original_d11_observation_cannot_admit_new_days_or_mixed_source_trees():
         publication.match_publication_code(original, changed, files, day="20261111")
     with pytest.raises(ValueError, match="D11_OBSERVER_DATE"):
         observation._observer_profile({**manifest, "signal_date": "20261112"})
+
+
+# The fixed-candidate push workflow runs this module before recording its approval.
+from tests.test_pages_transport_continuation import (
+    test_original_cas_profile_survives_pages_transport_change,
+    test_transport_transition_limited_to_original_d_run_and_cas,
+    test_transition_rejects_mutated_manifest_or_transport_bytes,
+    test_transport_transition_rejects_other_model_code_or_workflow_change,
+    test_verified_pair_requires_real_success_and_natural_successor,
+)

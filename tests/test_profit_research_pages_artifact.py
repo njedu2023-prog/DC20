@@ -19,10 +19,17 @@ class PagesArtifactIdentityTests(unittest.TestCase):
         default = re.search(r'artifact_name:\n(?:(?:        .*|\s*)\n)*?        default: (\S+)', inputs).group(1)
         second = re.search(r'^      artifact_name: (\S+)$', research_pages, re.M).group(1)
         upload = re.search(r'uses: actions/upload-pages-artifact@[^\n]+\n(.*?)(?=\n      -)', pages, re.S).group(1)
-        deploy = re.search(r'uses: actions/deploy-pages@[^\n]+\n(.*?)(?=\n      -)', pages, re.S).group(1)
+        deploy = re.search(r'^      - name: Deploy DC2.0 Pages\n(.*?)(?=\n      -)', pages, re.S | re.M).group(1)
         binding = "${{ inputs.artifact_name || 'github-pages' }}"
         self.assertIn('          name: ' + binding, upload)
-        self.assertIn('          artifact_name: ' + binding, deploy)
+        self.assertEqual(default, 'github-pages')
+        self.assertEqual(second, 'github-pages-profit-research')
+        self.assertIn('        id: pages_upload', upload)
+        self.assertIn('PAGES_ARTIFACT_ID: ${{ steps.pages_upload.outputs.artifact_id }}', deploy)
+        self.assertIn("const rawId = process.env.PAGES_ARTIFACT_ID || ''", deploy)
+        self.assertIn('const artifactId = Number(rawId)', deploy)
+        self.assertIn('artifact_id: artifactId', deploy)
+        self.assertNotIn('artifact_name:', deploy)
         artifacts = [{'name': default, 'id': 1}, {'name': second, 'id': 2}]
         for requested, expected in [(default, 1), (second, 2)]:
             self.assertEqual([a['id'] for a in artifacts if a['name'] == requested], [expected])
