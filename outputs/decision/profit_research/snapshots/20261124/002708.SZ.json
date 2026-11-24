@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261125",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.00476417341592,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.06835937500000011,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.4375,
+      "five_year_streak_runup": 0.2101677148846961,
+      "focus_pool_size": 25.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": -0.04468349193214738,
+      "ret_2d": 0.2101677148846961,
+      "ret_5d": 0.03496190049305259,
+      "stage2_pool_size": 21.0,
+      "stage3_pool_size": 4.0,
+      "stage_pool_share": 0.84,
+      "volatility_20d": 0.07559333906082197,
+      "volatility_5d": 0.08319752395151514,
+      "volume_ratio": 0.06660213113220759
+    },
+    "frozen_at": "2026-11-24T16:35:29.635615+00:00",
+    "industry": "汽车零部件",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "光洋股份",
+    "profit_eligible": true,
+    "profit_rank": 2,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261126",
+    "score": -0.003263977432524357,
+    "signal_date": "20261124",
+    "ts_code": "002708.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261124.json",
+      "sha256": "156c1719f88e710b709d792451e1554356d3d6ca59c9aa2671db4cb0a56e9d95"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261124.json",
+      "sha256": "df1aaf5a88309c84b2feeecacb27fac6a7f6bd289b86a453310eb69233d1bc71"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261124.json",
+      "sha256": "6e1e10b7036e76bed6e6a9332e7afa26c47d3131c6b11d789a48dc5aa72d16a7"
+    }
+  ]
+}
