@@ -64,6 +64,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -2019,6 +2020,30 @@ jobs:
         with:
           name: ${{ inputs.artifact_name || 'github-pages' }}
           path: _site
+
+      - name: Wait for uploaded Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name || 'github-pages' }}
+        run: |
+          python - <<'PY'
+          import json, os, time
+          from urllib.request import Request, urlopen
+          url = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts?per_page=100"
+          for attempt in range(12):
+              request = Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json"})
+              with urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              matches = [a for a in payload["artifacts"] if a["name"] == os.environ["ARTIFACT_NAME"] and not a["expired"]]
+              if len(matches) == 1:
+                  print("Pages artifact metadata visible:", matches[0]["id"])
+                  break
+              if len(matches) > 1:
+                  raise SystemExit("Ambiguous Pages artifact metadata")
+              time.sleep(5)
+          else:
+              raise SystemExit("Pages artifact metadata not visible within bounded wait")
+          PY
 
       - name: Deploy DC2.0 Pages
         id: deployment
