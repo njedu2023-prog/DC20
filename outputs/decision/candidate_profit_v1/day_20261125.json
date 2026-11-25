@@ -1,0 +1,338 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 8,
+  "candidate_slots": [
+    {
+      "board_stage": 3,
+      "candidate_rank": 1,
+      "candidate_score": -0.007637632827969971,
+      "net_return": null,
+      "promotion_rank": 6,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002242.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": 2,
+      "candidate_score": -0.00800874729528678,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "603926.SH"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": false,
+      "observed_bar_count": 20,
+      "promotion_rank": 1,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002872.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600814.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603030.SH"
+    },
+    {
+      "eligible": false,
+      "observed_bar_count": 20,
+      "promotion_rank": 4,
+      "reason": "INSUFFICIENT_OBSERVED_HISTORY",
+      "required_observed_bar_count": 21,
+      "ts_code": "002122.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002164.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603926.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002651.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600722.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603360.SH"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261126",
+  "exit_date": "20261127",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-26T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制药",
+      "name": "天圣制药",
+      "promotion_rank": 1,
+      "ts_code": "002872.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "杭州解百",
+      "promotion_rank": 2,
+      "ts_code": "600814.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "装修装饰",
+      "name": "全筑股份",
+      "promotion_rank": 3,
+      "ts_code": "603030.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "汇洲智能",
+      "promotion_rank": 4,
+      "ts_code": "002122.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "宁波东力",
+      "promotion_rank": 5,
+      "ts_code": "002164.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 6,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "汽车零部件",
+      "name": "铁流股份",
+      "promotion_rank": 7,
+      "ts_code": "603926.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "航空装备",
+      "name": "利君股份",
+      "promotion_rank": 8,
+      "ts_code": "002651.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学原料",
+      "name": "金牛化工",
+      "promotion_rank": 9,
+      "ts_code": "600722.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "农化制品",
+      "name": "百傲化学",
+      "promotion_rank": 10,
+      "ts_code": "603360.SH"
+    }
+  ],
+  "p0_file_sha256": "f773a7fc65095cfe439c423cc73acc0a6935d78002356abdbec28759f2252be8",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261125.json",
+    "sha256": "f773a7fc65095cfe439c423cc73acc0a6935d78002356abdbec28759f2252be8"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-25T14:12:45.749115+00:00",
+  "prediction_generated_at_utc": "2026-11-25T14:12:45.719114+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-25T14:20:27.215520+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002872.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "600814.SH"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "9d00dc80136bdaed355a0c9ff4458eed8a0e27ff",
+    "evidence_manifest_sha256": "a4e43cf747a4b0c8df21e6da3516ffcb7c230d5ef171b5e56e5b1a9b3a7e68c9",
+    "observer_run_id": 45631633466,
+    "publication_observation_sha256": "82ec07182f234f154d1d393bd37359e813666a7c4c1c284467796ecd576aa9ed"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.007637632827969971,
+      "industry": "小家电",
+      "name": "九阳股份",
+      "promotion_rank": 6,
+      "ts_code": "002242.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.00800874729528678,
+      "industry": "汽车零部件",
+      "name": "铁流股份",
+      "promotion_rank": 7,
+      "ts_code": "603926.SH"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.008613142560939053,
+      "industry": "装修装饰",
+      "name": "全筑股份",
+      "promotion_rank": 3,
+      "ts_code": "603030.SH"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.009969805197132515,
+      "industry": "通用设备",
+      "name": "宁波东力",
+      "promotion_rank": 5,
+      "ts_code": "002164.SZ"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.013249739225883881,
+      "industry": "一般零售",
+      "name": "杭州解百",
+      "promotion_rank": 2,
+      "ts_code": "600814.SH"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.01385373802423717,
+      "industry": "化学原料",
+      "name": "金牛化工",
+      "promotion_rank": 9,
+      "ts_code": "600722.SH"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.01755709735282082,
+      "industry": "农化制品",
+      "name": "百傲化学",
+      "promotion_rank": 10,
+      "ts_code": "603360.SH"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.023323919605310085,
+      "industry": "航空装备",
+      "name": "利君股份",
+      "promotion_rank": 8,
+      "ts_code": "002651.SZ"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261125",
+  "snapshot_file_sha256": "d67a9aa285184e3b8758c82134b090836380be9744fb664773a55abf37ab5880",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261125.json",
+    "sha256": "d67a9aa285184e3b8758c82134b090836380be9744fb664773a55abf37ab5880"
+  },
+  "source_main_sha": "9d00dc80136bdaed355a0c9ff4458eed8a0e27ff",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
