@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 3,
+    "eligibility_reason": null,
+    "exec_date": "20261127",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.038022813688215,
+      "five_year_board_stage_delta": -0.016898939494454368,
+      "five_year_pre_streak_1d_return": 0.01023255813953483,
+      "five_year_recent_20d_rate": 0.5582184788671801,
+      "five_year_recent_60d_rate": 0.4514978943627888,
+      "five_year_stock_prior_rate": 0.3333333333333333,
+      "five_year_streak_runup": 0.3324125230202579,
+      "focus_pool_size": 12.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 9,
+      "ret_10d": 0.22835314091680825,
+      "ret_2d": 0.21087866108786613,
+      "ret_5d": 0.3807251908396947,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 4.0,
+      "stage_pool_share": 0.3333333333333333,
+      "volatility_20d": 0.04458593562035724,
+      "volatility_5d": 0.040660895810144364,
+      "volume_ratio": 1.0714627330674087
+    },
+    "frozen_at": "2026-11-26T11:27:18.088268+00:00",
+    "industry": "化学原料",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "金牛化工",
+    "profit_eligible": true,
+    "profit_rank": 5,
+    "promotion_rank": 9,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261130",
+    "score": -0.010219339598407805,
+    "signal_date": "20261126",
+    "ts_code": "600722.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261126.json",
+      "sha256": "211825d118b98d98ffbe0c37298a2be83f4f263390b92718e83130e2d4bee02d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261126.json",
+      "sha256": "d5c365f13146785f6a65d6070ce61054869dfb650a950c4965912d9d91d81162"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261126.json",
+      "sha256": "f3532b4773dae23f5d59a06a40b96bef3a1aa9aab709a0ffdd59f12295e322c7"
+    }
+  ]
+}

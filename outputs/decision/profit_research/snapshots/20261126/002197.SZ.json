@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261127",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 9.984399375975034,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.021812080536912748,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.45454545454545453,
+      "five_year_streak_runup": 0.2092624356775299,
+      "focus_pool_size": 12.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": 0.2411971830985915,
+      "ret_2d": 0.2092624356775299,
+      "ret_5d": 0.14634146341463405,
+      "stage2_pool_size": 8.0,
+      "stage3_pool_size": 4.0,
+      "stage_pool_share": 0.6666666666666666,
+      "volatility_20d": 0.046824234784153346,
+      "volatility_5d": 0.06603719534078031,
+      "volume_ratio": 1.0567001398556155
+    },
+    "frozen_at": "2026-11-26T11:27:18.088268+00:00",
+    "industry": "计算机设",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "证通电子",
+    "profit_eligible": true,
+    "profit_rank": 9,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261130",
+    "score": -0.020156733515928414,
+    "signal_date": "20261126",
+    "ts_code": "002197.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261126.json",
+      "sha256": "211825d118b98d98ffbe0c37298a2be83f4f263390b92718e83130e2d4bee02d"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261126.json",
+      "sha256": "d5c365f13146785f6a65d6070ce61054869dfb650a950c4965912d9d91d81162"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261126.json",
+      "sha256": "f3532b4773dae23f5d59a06a40b96bef3a1aa9aab709a0ffdd59f12295e322c7"
+    }
+  ]
+}
