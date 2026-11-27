@@ -1,0 +1,354 @@
+{
+  "activation_id": "dc20_profit_ridge_999666_auction_exit1000_v1",
+  "actual_capacity_verified": false,
+  "actual_execution_claimed": false,
+  "candidate_count": 10,
+  "candidate_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": 1,
+      "candidate_score": -0.0028778082766022853,
+      "net_return": null,
+      "promotion_rank": 3,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": 2,
+      "candidate_score": -0.004652164372492054,
+      "net_return": null,
+      "promotion_rank": 7,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002843.SZ"
+    }
+  ],
+  "effective_from_signal_date": "20260914",
+  "eligibility": [
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 1,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000158.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 2,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002197.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 3,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "000889.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 4,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "603051.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 5,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002144.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 6,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002713.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 7,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002843.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 8,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "600280.SH"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 9,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002453.SZ"
+    },
+    {
+      "eligible": true,
+      "observed_bar_count": 21,
+      "promotion_rank": 10,
+      "reason": null,
+      "required_observed_bar_count": 21,
+      "ts_code": "002199.SZ"
+    }
+  ],
+  "eligibility_policy_id": "dc20_individual_observed_window_eligibility_20260922_v2",
+  "entry_policy_id": "research_canonical_price_capacity_split_no_cap_v3",
+  "exec_date": "20261130",
+  "exit_date": "20261201",
+  "exit_policy_id": "dc20_exit_1000_limit_hold_20260912_v1",
+  "formal_publication_deadline_utc": "2026-11-30T09:20:00+08:00",
+  "historical_reranking_performed": false,
+  "model_canonical_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+  "model_retrained": false,
+  "original_candidate_count": 10,
+  "original_rows": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "IT服务Ⅱ",
+      "name": "常山北明",
+      "promotion_rank": 1,
+      "ts_code": "000158.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "计算机设",
+      "name": "证通电子",
+      "promotion_rank": 2,
+      "ts_code": "002197.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通信服务",
+      "name": "中嘉博创",
+      "promotion_rank": 3,
+      "ts_code": "000889.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "鹿山新材",
+      "promotion_rank": 4,
+      "ts_code": "603051.SH"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "纺织制造",
+      "name": "宏达高科",
+      "promotion_rank": 5,
+      "ts_code": "002144.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "装修装饰",
+      "name": "东易日盛",
+      "promotion_rank": 6,
+      "ts_code": "002713.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "通用设备",
+      "name": "泰嘉股份",
+      "promotion_rank": 7,
+      "ts_code": "002843.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "一般零售",
+      "name": "中央商场",
+      "promotion_rank": 8,
+      "ts_code": "600280.SH"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "化学制品",
+      "name": "华软科技",
+      "promotion_rank": 9,
+      "ts_code": "002453.SZ"
+    },
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "industry": "元件",
+      "name": "东晶电子",
+      "promotion_rank": 10,
+      "ts_code": "002199.SZ"
+    }
+  ],
+  "p0_file_sha256": "8a9982cc34db9aa8b0a8414cea5c751f4af61687cb9cf59852d969af1460f97f",
+  "p0_source": {
+    "path": "outputs/decision/three_rank_top10_20261127.json",
+    "sha256": "8a9982cc34db9aa8b0a8414cea5c751f4af61687cb9cf59852d969af1460f97f"
+  },
+  "pre_cas_freeze_at_utc": "2026-11-27T11:38:06.527319+00:00",
+  "prediction_generated_at_utc": "2026-11-27T11:38:06.509698+00:00",
+  "profitability_improvement_proven": false,
+  "projection_generated_at_utc": "2026-11-27T11:45:30.591008+00:00",
+  "promotion_ranking_unchanged": true,
+  "promotion_slots": [
+    {
+      "board_stage": 2,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 1,
+      "proxy_fill": null,
+      "slot": 1,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "000158.SZ"
+    },
+    {
+      "board_stage": 3,
+      "candidate_rank": null,
+      "candidate_score": null,
+      "net_return": null,
+      "promotion_rank": 2,
+      "proxy_fill": null,
+      "slot": 2,
+      "slot_net_return": null,
+      "status": "PENDING_T",
+      "ts_code": "002197.SZ"
+    }
+  ],
+  "provenance": {
+    "evidence_commit": "10f9060712c19ae4f7fef17749b90ec9d27a3cd9",
+    "evidence_manifest_sha256": "8a8169fdb6a6766c3f5d0fbb8d62f47467b00ceea26109702616f969080d54e8",
+    "observer_run_id": 45992121675,
+    "publication_observation_sha256": "dc4e3969c353c57c92be38993aad3cadf7d77bf7e7bc066b684625ae0ea66266"
+  },
+  "round_trip_cost_rate": 0.0045,
+  "rows": [
+    {
+      "candidate_rank": 1,
+      "candidate_score": -0.0028778082766022853,
+      "industry": "通信服务",
+      "name": "中嘉博创",
+      "promotion_rank": 3,
+      "ts_code": "000889.SZ"
+    },
+    {
+      "candidate_rank": 2,
+      "candidate_score": -0.004652164372492054,
+      "industry": "通用设备",
+      "name": "泰嘉股份",
+      "promotion_rank": 7,
+      "ts_code": "002843.SZ"
+    },
+    {
+      "candidate_rank": 3,
+      "candidate_score": -0.00805177316817493,
+      "industry": "化学制品",
+      "name": "华软科技",
+      "promotion_rank": 9,
+      "ts_code": "002453.SZ"
+    },
+    {
+      "candidate_rank": 4,
+      "candidate_score": -0.008201776062963795,
+      "industry": "化学制品",
+      "name": "鹿山新材",
+      "promotion_rank": 4,
+      "ts_code": "603051.SH"
+    },
+    {
+      "candidate_rank": 5,
+      "candidate_score": -0.008900298587250074,
+      "industry": "装修装饰",
+      "name": "东易日盛",
+      "promotion_rank": 6,
+      "ts_code": "002713.SZ"
+    },
+    {
+      "candidate_rank": 6,
+      "candidate_score": -0.009006882774200559,
+      "industry": "IT服务Ⅱ",
+      "name": "常山北明",
+      "promotion_rank": 1,
+      "ts_code": "000158.SZ"
+    },
+    {
+      "candidate_rank": 7,
+      "candidate_score": -0.010520158414429801,
+      "industry": "元件",
+      "name": "东晶电子",
+      "promotion_rank": 10,
+      "ts_code": "002199.SZ"
+    },
+    {
+      "candidate_rank": 8,
+      "candidate_score": -0.012690543686917834,
+      "industry": "纺织制造",
+      "name": "宏达高科",
+      "promotion_rank": 5,
+      "ts_code": "002144.SZ"
+    },
+    {
+      "candidate_rank": 9,
+      "candidate_score": -0.013066741521235083,
+      "industry": "计算机设",
+      "name": "证通电子",
+      "promotion_rank": 2,
+      "ts_code": "002197.SZ"
+    },
+    {
+      "candidate_rank": 10,
+      "candidate_score": -0.01438567149501481,
+      "industry": "一般零售",
+      "name": "中央商场",
+      "promotion_rank": 8,
+      "ts_code": "600280.SH"
+    }
+  ],
+  "schema_version": "dc20_candidate_formal_profit_day_v2_eligible",
+  "score_is_probability": false,
+  "shadow_notional_cny": 100000,
+  "signal_date": "20261127",
+  "snapshot_file_sha256": "d6c7bf4c1fc7a34d4dfd8273f39afeea3a13f34157b4aee4a771e88d38e58515",
+  "snapshot_source": {
+    "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261127.json",
+    "sha256": "d6c7bf4c1fc7a34d4dfd8273f39afeea3a13f34157b4aee4a771e88d38e58515"
+  },
+  "source_main_sha": "10f9060712c19ae4f7fef17749b90ec9d27a3cd9",
+  "source_price_observation_only": true,
+  "status": "FROZEN_FORMAL_PROFIT_FORWARD_VALIDATION"
+}
