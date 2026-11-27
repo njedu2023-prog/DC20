@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261130",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.089686098654711,
+      "five_year_board_stage_delta": 0.0013772420934590746,
+      "five_year_pre_streak_1d_return": -0.09598214285714302,
+      "five_year_recent_20d_rate": 0.338939167283733,
+      "five_year_recent_60d_rate": 0.24235436090013712,
+      "five_year_stock_prior_rate": 0.38461538461538464,
+      "five_year_streak_runup": 0.2123456790123457,
+      "focus_pool_size": 24.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 9,
+      "ret_10d": 0.191747572815534,
+      "ret_2d": 0.2123456790123457,
+      "ret_5d": 0.14186046511627914,
+      "stage2_pool_size": 21.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.875,
+      "volatility_20d": 0.0424375895452203,
+      "volatility_5d": 0.0737717392607691,
+      "volume_ratio": 1.7418890331123855
+    },
+    "frozen_at": "2026-11-27T11:38:06.527319+00:00",
+    "industry": "化学制品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "华软科技",
+    "profit_eligible": true,
+    "profit_rank": 3,
+    "promotion_rank": 9,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261201",
+    "score": -0.00805177316817493,
+    "signal_date": "20261127",
+    "ts_code": "002453.SZ"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261127.json",
+      "sha256": "8a9982cc34db9aa8b0a8414cea5c751f4af61687cb9cf59852d969af1460f97f"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261127.json",
+      "sha256": "6d071b694b0227fe9b72ae9a06a8fcb96f7dd57745a70e51ba5e5973402bc3d3"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261127.json",
+      "sha256": "d6c7bf4c1fc7a34d4dfd8273f39afeea3a13f34157b4aee4a771e88d38e58515"
+    }
+  ]
+}

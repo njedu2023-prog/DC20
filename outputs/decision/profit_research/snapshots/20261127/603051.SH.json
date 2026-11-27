@@ -1,0 +1,56 @@
+{
+  "record": {
+    "board_stage": 2,
+    "eligibility_reason": null,
+    "exec_date": "20261130",
+    "feature_snapshot_present": true,
+    "features": {
+      "d_pct_change": 10.009182736455461,
+      "five_year_board_stage_delta": -0.0017906024634350426,
+      "five_year_pre_streak_1d_return": -0.09999999999999998,
+      "five_year_recent_20d_rate": 0.3100063946396115,
+      "five_year_recent_60d_rate": 0.2758866679864216,
+      "five_year_stock_prior_rate": 0.4666666666666667,
+      "five_year_streak_runup": 0.21010101010101012,
+      "focus_pool_size": 24.0,
+      "path_change": null,
+      "promotion_probability": null,
+      "promotion_rank": 4,
+      "ret_10d": -0.013991769547325061,
+      "ret_2d": 0.21010101010101012,
+      "ret_5d": 0.2610526315789474,
+      "stage2_pool_size": 21.0,
+      "stage3_pool_size": 3.0,
+      "stage_pool_share": 0.875,
+      "volatility_20d": 0.06150475786833486,
+      "volatility_5d": 0.07747855572748964,
+      "volume_ratio": 0.45985793224082067
+    },
+    "frozen_at": "2026-11-27T11:38:06.527319+00:00",
+    "industry": "化学制品",
+    "model_sha256": "999666791b147e4d120ba9b7e10d9d1fc846ba171efbba73b2488ca56ce6f589",
+    "name": "鹿山新材",
+    "profit_eligible": true,
+    "profit_rank": 4,
+    "promotion_rank": 4,
+    "provenance": "FORMAL_FROZEN_REFERENCE",
+    "scheduled_exit_date": "20261201",
+    "score": -0.008201776062963795,
+    "signal_date": "20261127",
+    "ts_code": "603051.SH"
+  },
+  "source_bindings": [
+    {
+      "path": "outputs/decision/three_rank_top10_20261127.json",
+      "sha256": "8a9982cc34db9aa8b0a8414cea5c751f4af61687cb9cf59852d969af1460f97f"
+    },
+    {
+      "path": "outputs/decision/candidate_profit_v1/day_20261127.json",
+      "sha256": "6d071b694b0227fe9b72ae9a06a8fcb96f7dd57745a70e51ba5e5973402bc3d3"
+    },
+    {
+      "path": "work/profit_1000_upgrade/candidate_natural_forward/day_20261127.json",
+      "sha256": "d6c7bf4c1fc7a34d4dfd8273f39afeea3a13f34157b4aee4a771e88d38e58515"
+    }
+  ]
+}
